@@ -1,47 +1,31 @@
-# Troubleshooting Guide: Security Logging Advisor
+# Troubleshoot COPS Security Logging Advisor
 
-This document provides quick fixes and debugging steps for common issues encountered when installing, updating, or running the **Security Logging Advisor** plugin.
+## Local commands fail
 
-## 1. Scanner Fails to Execute
+Run commands from the COPS root and check `python3 --version`. Use Python 3.11+
+for contributor tooling. Invoking the scanner through Python does not require an
+executable bit. Confirm the target exists and is readable:
 
-**Symptom**: Running the scan produces permission errors or python interpreter execution failures.
+```bash
+python3 security-logging-advisor/scripts/validate-plugin.py
+python3 security-logging-advisor/skills/repository-context/scripts/collect-repository-context.py .
+```
 
-- **Fix**: Check that python3 is installed and ensure files are marked executable:
+If `make check` reports missing pytest packages, activate the development virtual
+environment and install `requirements.txt`. If adapters drift, edit the canonical
+source in `.agents/skills/`, then run `make sync-agent-adapters`.
 
-  ```bash
-  python3 --version
-  chmod +x security-logging-advisor/skills/repository-context/scripts/collect-repository-context.py
-  ```
+## The host does not discover the plugin
 
-- **Symptom**: Large codebase triggers memory pressure or long execution times.
-  - **Fix**: Verify that standard directories like `node_modules/`, `.git/`, `venv/`, and build artifacts are excluded in the `collect-repository-context.py` script. You can manually test exclusions by running:
+Check the installed host's current discovery rules and permissions. The local
+validator checks repository structure; it cannot prove host compatibility. Use
+the [local fallback](INSTALL.md) while recording a version-specific integration
+issue. Do not assume organization-wide settings or automatic installation exist.
 
-    ```bash
-    python3 security-logging-advisor/skills/repository-context/scripts/collect-repository-context.py ./your-repo
-    ```
+## Context or recommendations are incomplete
 
-## 2. Manifest/Marketplace Discovery Errors
-
-**Symptom**: `@security-logging-advisor` does not appear in VS Code Copilot agent panel or CLI.
-
-- **Fix 1**: Ensure you have successfully registered the agent locally:
-
-  ```bash
-  gh copilot agent register --local-path ./security-logging-advisor
-  ```
-
-- **Fix 2**: For enterprise rollout issues, verify that `copilot/managed-settings.json` is placed in the main branch of the `.github-private` repository and matches standard JSON syntax. Run validation:
-
-  ```bash
-  python3 security-logging-advisor/scripts/validate-plugin.py
-  ```
-
-## 3. Empty or Truncated Output Reports
-
-**Symptom**: Generated report `docs/security/logging-recommendations.md` is empty or missing data.
-
-- **Fix**: Ensure that the target directory has read permissions and that your shell has permission to write files under `docs/security/`. Create the directory manually if necessary:
-
-  ```bash
-  mkdir -p docs/security
-  ```
+The scanner skips excluded directories and files over 1 MB, and limits the scan
+to 10,000 files. Check target scope and permissions. Pattern-based detection can
+miss technologies or secrets. The scanner emits JSON only; a report requires the
+advisor instructions and a host with appropriate model and file-write access.
+Review evidence and assumptions before acting on the report.

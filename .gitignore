@@ -62,3 +62,20 @@ certs/
 .specify/tmp/
 .specify/cache/
 
+
+# Portable contributor tooling and private local state
+.env.*
+!.env.example
+.ruff_cache/
+.coverage
+htmlcov/
+coverage/
+.codex/config.toml
+.claude/settings.local.json
+.agents/workboard.db*
+*.local.json
+churn-v*.json
+churn-v*.md
+.tmp/
+tmp/
+*.log

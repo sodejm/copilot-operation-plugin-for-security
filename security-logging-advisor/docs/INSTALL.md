@@ -1,61 +1,36 @@
-# Installation Guide: Security Logging Advisor
+# Install and run COPS Security Logging Advisor
 
-This guide explains how to install and register the **Security Logging Advisor** plugin within your development environment.
+The package ID remains `security-logging-advisor`. Use Python 3.11+ for the
+repository's supported contributor environment. The scanner and validator do not
+need third-party runtime packages.
 
-## 1. Local Development Installation
-
-For testing, you can load the plugin directly from your local filesystem.
-
-### GitHub Copilot CLI / VS Code Copilot agent support
-
-Load the plugin using your local manifest path:
+From the COPS repository root:
 
 ```bash
-gh copilot agent register --local-path ./security-logging-advisor
-```
-
-Verify that the agent is registered:
-
-```bash
-gh copilot agent list
-```
-
-### Claude Code / Claude-compatible workflows
-
-Add the local plugin to your Claude Code workspace:
-
-```bash
-claude plugin add --path ./security-logging-advisor
-```
-
----
-
-## 2. Installation from Enterprise Marketplace
-
-Once published to your internal enterprise marketplace, developers can install the plugin directly.
-
-### GitHub Copilot CLI
-
-```bash
-gh copilot agent install enterprise-security-engineering/security-logging-advisor
-```
-
-### Claude Code
-
-```bash
-claude plugin install enterprise-security-engineering/security-logging-advisor
-```
-
----
-
-## 3. Verification
-
-Verify the installation by running the validation or context commands:
-
-```bash
-# Validate that the plugin files are intact
 python3 security-logging-advisor/scripts/validate-plugin.py
-
-# Run a sample context collection on your active repository
 python3 security-logging-advisor/skills/repository-context/scripts/collect-repository-context.py .
 ```
+
+Replace `.` in the second command with the repository to inspect. The scanner
+writes context JSON to standard output; it does not generate recommendations or
+modify the target. Review that context before sharing it with an assistant.
+
+## Agent integration
+
+Use the [advisor instructions](../agents/security-logging-advisor.agent.md) with
+the [repository-context](../skills/repository-context/SKILL.md) and
+[logging-recommendations](../skills/logging-recommendations/SKILL.md) product skills
+in a host that supports those instruction and tool surfaces. The report target is
+`docs/security/logging-recommendations.md` in the analyzed repository.
+
+The checked-in manifests and marketplace metadata describe the package; local
+validation checks their repository contract, not acceptance by a vendor registry.
+Consult the current documentation for your installed Copilot or Claude version
+before registering it. Record host version, discovery path, tool permissions and
+a successful end-to-end run before declaring that integration supported. There
+is no automatic registration or publication step in this repository.
+
+For working on COPS itself, root `AGENTS.md`, `CLAUDE.md`, and
+`.github/copilot-instructions.md` provide contributor guidance. Generated
+`.claude/skills/` entries are contributor workflows, separate from product skills.
+See [compatibility](../../docs/COMPATIBILITY.md).

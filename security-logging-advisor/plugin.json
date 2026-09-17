@@ -1,8 +1,8 @@
 {
   "id": "security-logging-advisor",
-  "name": "Security Logging Advisor",
+  "name": "COPS Security Logging Advisor",
   "version": "1.0.0",
-  "description": "Enterprise-grade GitHub Copilot plugin for repository security logging analysis and recommendation generation.",
+  "description": "COPS (Copilot Operations Plugins for Security): repository security logging analysis and cost-aware recommendations.",
   "publisher": "Justin Soderberg",
   "engines": {
     "copilot": "^1.0.0"
@@ -10,7 +10,7 @@
   "agents": [
     {
       "id": "security-logging-advisor",
-      "name": "Security Logging Advisor",
+      "name": "COPS Security Logging Advisor",
       "description": "Analyzes repository structure, configurations, and IaC to generate security logging recommendations.",
       "instructions": "agents/security-logging-advisor.agent.md",
       "skills": [

@@ -1,5 +1,5 @@
 Feature: Repository Scanning Edge Cases
-  As a developer using the Security Logging Advisor
+  As a developer using the COPS Security Logging Advisor
   I want the scanner to gracefully handle massive files, large repos, and diverse languages
   So that it doesn't crash and provides a complete audit footprint.
 
