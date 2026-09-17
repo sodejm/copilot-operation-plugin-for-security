@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "example-local-server": {
+      "command": "replace-with-command",
+      "args": ["replace-with-args"],
+      "env": {
+        "EXAMPLE_TOKEN": "${EXAMPLE_TOKEN}"
+      }
+    }
+  }
+}

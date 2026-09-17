@@ -1,20 +1,23 @@
-# Security and Privacy Policy: Security Logging Advisor
+# COPS Security Logging Advisor security and privacy
 
-This policy details the security boundaries, data handling protocols, and privacy features designed into the **Security Logging Advisor** plugin to safeguard your source code and telemetry data.
+The Python scanner and validator run locally and do not make model or network
+calls. The assistant host may send prompts, repository context and tool results
+to its configured provider. Review host permissions, provider policy and approved
+data boundaries before an agent-assisted review; local scanning does not imply
+that the complete agent workflow stays on the workstation.
 
-## 1. Local-First Processing
+Credential pattern findings report file paths, line numbers, issue types and
+remediation guidance without matched secret values. This is a heuristic, not a
+guarantee that every output is free of sensitive data. Paths, dependency names and
+architecture metadata can themselves be confidential. Inspect context before
+sharing and keep generated reports out of public commits unless reviewed.
 
-- **Static Analysis**: All repository scanning and signature matching (e.g. executed by `collect-repository-context.py`) occurs entirely on the developer's local machine.
-- **Network Boundaries**: The plugin does not transmit code snippets, file contents, or database connection strings to external APIs or unauthorized third-party servers.
+Recommendations should use structured events, redact authorization headers,
+cookies and credentials, and minimize personal identifiers. Prefer correlation
+IDs and pseudonymous actor references; review retention and access controls for
+the target environment. Sandbox, development and production recommendations
+must balance security value, privacy and ingestion costs.
 
-## 2. Secrets Handling & Integrity Safeguards
-
-- **Zero Exposure Policy**: If the repository scanner detects credentials, access keys, or private key patterns, it reports the **location** (file path and line number) and remediation steps. It **never** extracts, stores, or includes the raw secret value in the output JSON context or markdown reports.
-- **Remediation Over Leakage**: Findings only log metadata, e.g.:
-  `[WARN] Potential AWS Access Key ID detected in file: config/production.js on line: 12`
-
-## 3. Telemetry and Data Minimization
-
-- **Strict Redaction**: Recommendations always advise using structured logging with configured redaction keys (such as `password`, `ssn`, `creditCard`, `authorization` headers).
-- **Environment Calibration**: Telemetry targets minimal logging in Sandboxes and Development environments to control log storage costs and minimize the footprint of user data outside of production.
-- **Correlation Context**: The advisor recommends using correlation/request IDs rather than raw user identities or email addresses to preserve individual privacy while maintaining system trace capabilities.
+Scanner and model findings require human review. They do not certify compliance,
+prove absence of vulnerabilities, or automatically implement changes. Report
+product vulnerabilities through the [COPS security policy](../../SECURITY.md).

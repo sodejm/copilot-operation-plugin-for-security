@@ -1,40 +1,24 @@
-# Maintainer Guidelines: Security Logging Advisor
+# Maintain COPS Security Logging Advisor
 
-This guide outlines code review standards, release procedures, and lifecycle policies for maintainers of the **Security Logging Advisor** plugin.
+Follow [CONTRIBUTING.md](../../CONTRIBUTING.md) and the root
+[agent contract](../../AGENTS.md). Update specifications and executable scenarios
+with behavior changes, review privacy implications, and run `make check`.
 
-## 1. Code Review Checklist
+The aggregate gate validates contributor contracts and adapters, plugin manifests
+and required assets, plugin unit tests, BDD scenarios and bundled skill tests.
+Host discovery and model-assisted report quality require separate manual evidence.
 
-Before approving Pull Requests (PRs) or changes to this repository, verify that:
+For an authorized release:
 
-- [ ] No hardcoded secrets, credentials, or personal keys are introduced in example files or mock configurations.
-- [ ] Any script modifications in `scripts/` are checked for cross-platform compatibility (macOS, Linux, and Windows/PowerShell via Python).
-- [ ] New dependencies are added to the validation scripts if necessary.
-- [ ] The validation script passes successfully:
+1. Update the [plugin changelog](../CHANGELOG.md) and relevant root changelog entry.
+2. Keep version fields aligned in `plugin.json`, `plugins.json`,
+   `.github/plugin/marketplace.json` and `.claude-plugin/marketplace.json`.
+3. Preserve the `security-logging-advisor` IDs and paths unless the release includes
+   an explicit migration. Use COPS Security Logging Advisor as its display name.
+4. Run `make check` at the release revision and record supported-host smoke tests.
+5. Create tags, releases or publish packages only when authorized, with exact
+   artifact and destination evidence. No tag-triggered publication pipeline is
+   currently included; a tag alone does not publish the plugin.
 
-  ```bash
-  python3 security-logging-advisor/scripts/validate-plugin.py
-  ```
-
-## 2. Release & Versioning Policy
-
-This plugin follows [Semantic Versioning 2.0.0](https://semver.org/).
-
-1. **Changelog**: Add entry to [CHANGELOG.md](../CHANGELOG.md).
-2. **Version Bump**: Increment version in:
-   - `security-logging-advisor/plugin.json`
-   - `.github/plugin/marketplace.json`
-   - `.claude-plugin/marketplace.json`
-3. **Release Tag**: Create a git release tag corresponding to the version (e.g. `v1.0.0`):
-
-   ```bash
-   git tag -a v1.0.0 -m "Release v1.0.0"
-   git push origin v1.0.0
-   ```
-
-## 3. Marketplace Sync Pipeline
-
-On tag creation, the enterprise CI/CD workflow:
-
-1. Installs clean Python dependencies and runs tests.
-2. Executes `validate-plugin.py`.
-3. Auto-registers the new version with the enterprise GitHub private marketplace registry by copying files into the registry root database.
+See [enterprise rollout](ENTERPRISE_ROLLOUT.md) and
+[template maintenance](../../docs/MAINTENANCE.md).

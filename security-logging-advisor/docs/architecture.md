@@ -1,12 +1,12 @@
-# Architectural Design Document: Security Logging Advisor
+# Architectural Design Document: COPS Security Logging Advisor
 
-This document explains the software architecture, data flows, components, and script configurations for the **Security Logging Advisor** plugin.
+This document explains the software architecture, data flows, components, and script configurations for the **COPS Security Logging Advisor** plugin.
 
 ---
 
 ## 1. Architectural Overview
 
-The Security Logging Advisor plugin is structured as an orchestratable agent package compatible with the GitHub Copilot plugin framework and Claude-based tool integration. The plugin separates declarative rules (manifests and markdown skills) from deterministic runtime logic (Python scripts).
+The COPS Security Logging Advisor plugin is structured as an orchestratable agent package intended for integration with coding-assistant hosts, subject to version-specific discovery and tool support. The plugin separates declarative rules (manifests and markdown skills) from deterministic runtime logic (Python scripts).
 
 ```mermaid
 graph TD
@@ -45,7 +45,7 @@ graph TD
 ### Manifests & Discovery Metadata
 
 - **[plugin.json](../plugin.json)**: The core manifest defining the plugin identity, associated agents, capabilities, modular skills mapping, and file paths to executable scripts.
-- **[.github/plugin/marketplace.json](../../.github/plugin/marketplace.json)**: Standard discovery metadata required by GitHub Copilot Enterprise for internal plugin registry.
+- **[.github/plugin/marketplace.json](../../.github/plugin/marketplace.json)**: Repository marketplace metadata; host registry acceptance requires separate verification.
 - **[.claude-plugin/marketplace.json](../../.claude-plugin/marketplace.json)**: Configuration manifest supporting registration and discovery inside Claude-compatible plugin tools.
 
 ### Agents & Skills Orchestration
@@ -96,10 +96,10 @@ This section documents the configuration variables, core regular expressions, an
 
 #### Core Variables & Configurations
 
-- **`REQUIRED_FILES` (List)**: Exhaustive list of target file paths required to make up a complete, compliant plugin package:
+- **`REQUIRED_STATIC_FILES` (List)**: Exhaustive list of target file paths required to make up a complete, compliant plugin package:
 
   ```python
-  REQUIRED_FILES = [
+  REQUIRED_STATIC_FILES = [
       "security-logging-advisor/plugin.json",
       "security-logging-advisor/agents/security-logging-advisor.agent.md",
       ...
@@ -110,3 +110,6 @@ This section documents the configuration variables, core regular expressions, an
 
 1. **`check_json_file(file_path, required_keys)`**: Opens a target file, verifies it parses as syntactically valid JSON, and confirms all keys in `required_keys` exist. This is run against `plugin.json` and the `marketplace.json` discovery files.
 2. **`check_skill_markdown(file_path)`**: Uses regular expressions to extract and parse the frontmatter section (delimited by standard `---` YAML boundaries) from `SKILL.md` files. It verifies that both `name` and `description` are declared, which is crucial for trigger matching by the Copilot orchestration engine.
+
+For the contributor foundation, see [COPS architecture](../../ARCHITECTURE.md).
+Local validation does not certify host integration; see [installation](INSTALL.md).

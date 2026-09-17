@@ -7,7 +7,7 @@
   "plugins": [
     {
       "name": "security-logging-advisor",
-      "description": "Analyzes repository structure, configurations, and IaC to generate security logging recommendations in Claude Code.",
+      "description": "COPS Security Logging Advisor: repository analysis and cost-aware security logging recommendations.",
       "version": "1.0.0",
       "source": "./security-logging-advisor"
     }

@@ -1,83 +1,29 @@
-# Project Context: Security Logging Advisor
+# COPS project context
 
-This document provides a feature-complete snapshot of the repository context to guide AI agents in understanding the codebase structure, technologies, and boundaries.
+**COPS (Copilot Operations Plugins for Security)** is a security-specialized
+project for cybersecurity plugins, agents, and skills. It currently contains one
+plugin, **COPS Security Logging Advisor**, with its agent and two product skills,
+stored under `security-logging-advisor/`. Additional defensive cybersecurity
+add-ons are within the project's scope; they are not yet implemented.
+Stable IDs are listed in [naming conventions](../docs/NAMING.md).
 
----
+Python implements deterministic local scanning and package validation using the
+standard library. Markdown holds instructions and report assets; JSON holds
+manifests and examples. Python 3.11+ is the contributor baseline, with pytest and
+pytest-bdd for executable scenarios. Detected repository technologies such as
+Terraform are scanner inputs, not dependencies of COPS.
 
-## 1. Technology Stack and Ecosystem
+The scanner is
+`security-logging-advisor/skills/repository-context/scripts/collect-repository-context.py`.
+Report assets live in each product skill's `assets/` directory. The package
+validator is `security-logging-advisor/scripts/validate-plugin.py`.
 
-- **Ecosystem**: GitHub Copilot plugin and agent package, with cross-compatibility for Claude Code workflows.
-- **Programming Languages**:
-  - **Python (v3.x)**: Used for deterministic repository static scanning and pre-release plugin validation scripts.
-  - **HCL (Terraform)**: (Noted in workspace files).
-  - **Markdown / JSON**: Used for configuration, agent instructions, templates, and specifications.
-- **Framework Specifications**:
-  - GitHub Copilot plugin manifest rules (`plugin.json`, `marketplace.json`).
-  - Spec-kit driven development structure (located under `.specify/`).
+PARK-derived contributor workflows live under `.agents/`, with generated
+`.claude/skills/` copies. Root `AGENTS.md` is canonical across environments.
+`make check` combines portable contract checks, adapter drift detection, plugin
+validation, unit tests, BDD scenarios, and bundled skill tests. GitHub Actions
+runs that gate for pull requests and pushes to `main`. No marketplace publication
+or deployment workflow is configured.
 
----
-
-## 2. Directory Layout & Key Files
-
-```text
-/
-├── .github/
-│   └── plugin/
-│       └── marketplace.json       # GitHub Copilot marketplace metadata
-├── .claude-plugin/
-│   └── marketplace.json           # Claude plugin metadata
-├── .specify/
-│   └── memory/
-│       └── constitution.md        # Non-negotiable repository rules
-├── specs/
-│   ├── security-logging-plugin.spec.md # Feature specification for the plugin
-│   └── features/
-│       ├── repository_scanning.feature # BDD features for scanning validation
-│       └── plugin_validation.feature   # BDD features for plugin validator
-├── security-logging-advisor/
-│   ├── plugin.json                # Plugin definition manifest
-│   ├── CHANGELOG.md               # Version log history
-│   ├── agents/
-│   │   └── security-logging-advisor.agent.md # Core agent system prompt
-│   ├── docs/                      # User, Maintainer, Rollout guides
-│   │   ├── INSTALL.md
-│   │   ├── ENTERPRISE_ROLLOUT.md
-│   │   ├── SECURITY_PRIVACY.md
-│   │   ├── TROUBLESHOOTING.md
-│   │   ├── MAINTAINERS.md
-│   │   └── architecture.md
-│   ├── examples/                  # Logger configurations (Pino, Structlog)
-│   ├── scripts/                   # Scan and validation utilities
-│   │   ├── collect-repository-context.py
-│   │   └── validate-plugin.py
-│   ├── skills/                    # Modular agent capabilities
-│   │   ├── repository-context/
-│   │   │   └── SKILL.md
-│   │   └── logging-recommendations/
-│   │       └── SKILL.md
-│   └── templates/                 # Output context and recommendations layouts
-│       ├── logging-recommendations.md
-│       └── repository-context.md
-├── tests/                         # BDD test suite
-│   └── step_defs/                 # Pytest BDD scripts
-├── LICENSE                        # PolyForm Noncommercial 1.0.0 license
-├── README.md                      # General introduction
-├── requirements.txt               # Python dependencies
-└── .gitignore                     # Git tracking exclusions
-```
-
----
-
-## 3. Deployment & Validation Pipelines
-
-- **Local Execution**: The plugin runs locally on developer workstations using standard Python 3.
-- **Code Validation**:
-  - Run the validator script to verify plugin manifest formatting, skill markdown frontmatter properties, and file structures:
-    ```bash
-    python3 security-logging-advisor/scripts/validate-plugin.py
-    ```
-- **Context Collection**:
-  - Run the scanner script to analyze project languages and frameworks:
-    ```bash
-    python3 security-logging-advisor/scripts/collect-repository-context.py .
-    ```
+See [repository layout](../docs/REPOSITORY_LAYOUT.md),
+[architecture](../ARCHITECTURE.md), and [security model](../docs/SECURITY_MODEL.md).
