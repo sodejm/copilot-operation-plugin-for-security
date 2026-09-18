@@ -1,9 +1,14 @@
 # Changelog
 
-All notable changes to the **Security Logging Advisor** plugin will be documented in this file.
+All notable changes to the **COPS Security Logging Advisor** plugin will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## Unreleased
+
+- Adopt COPS Security Logging Advisor as the display name; preserve package and marketplace IDs.
+- Align documentation and contributor checks with the COPS portable repository foundation.
 
 ## [1.0.0] - 2026-07-03
 

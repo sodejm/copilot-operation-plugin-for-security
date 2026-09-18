@@ -1,0 +1,101 @@
+{
+  "config_version": 1,
+  "repositories": [],
+  "classification": [
+    {
+      "category": "generated_dependency",
+      "patterns": [
+        "*.lock",
+        "package-lock.json",
+        "*/package-lock.json",
+        "pnpm-lock.yaml",
+        "*/pnpm-lock.yaml",
+        "yarn.lock",
+        "*/yarn.lock",
+        "vendor/*",
+        "*/vendor/*",
+        "node_modules/*",
+        "*/node_modules/*",
+        "dist/*",
+        "*/dist/*",
+        "build/*",
+        "*/build/*",
+        "*.generated.*",
+        "*.min.js"
+      ]
+    },
+    {
+      "category": "tests",
+      "patterns": [
+        "tests/*",
+        "test/*",
+        "*/tests/*",
+        "*/test/*",
+        "*/__tests__/*",
+        "__tests__/*",
+        "test_*.py",
+        "*/test_*.py",
+        "*_test.py",
+        "*.test.*",
+        "*.spec.*",
+        "*_test.go",
+        "*Tests.swift"
+      ]
+    },
+    {
+      "category": "documentation",
+      "patterns": [
+        "*.md",
+        "*.mdx",
+        "*.rst",
+        "docs/*",
+        "*/docs/*",
+        ".github/ISSUE_TEMPLATE/*"
+      ]
+    },
+    {
+      "category": "production",
+      "patterns": [
+        "*.py",
+        "*.js",
+        "*.jsx",
+        "*.ts",
+        "*.tsx",
+        "*.mjs",
+        "*.cjs",
+        "*.rs",
+        "*.go",
+        "*.swift",
+        "*.c",
+        "*.h",
+        "*.cpp",
+        "*.java",
+        "*.kt",
+        "*.tf",
+        "*.tfvars",
+        "*.sh",
+        "*.sql",
+        "*.css",
+        "*.scss",
+        "*.html"
+      ]
+    }
+  ],
+  "contract_paths": [
+    "AGENTS.md",
+    "CONTRIBUTING.md",
+    "ARCHITECTURE.md",
+    "docs/ARCHITECTURE.md",
+    "docs/architecture.md",
+    "docs/CONTRIBUTING.md",
+    "docs/planning.md",
+    ".github/ISSUE_TEMPLATE/feature_request.yml",
+    ".github/ISSUE_TEMPLATE/feature_request.yaml",
+    ".github/ISSUE_TEMPLATE/feature.yml",
+    ".github/ISSUE_TEMPLATE/feature_request.md",
+    ".github/ISSUE_TEMPLATE/bug_report.yml",
+    ".github/ISSUE_TEMPLATE/bug_report.yaml",
+    ".github/ISSUE_TEMPLATE/bug_report.md",
+    ".github/PULL_REQUEST_TEMPLATE.md"
+  ]
+}

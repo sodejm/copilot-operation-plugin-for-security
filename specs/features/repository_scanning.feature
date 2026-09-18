@@ -1,5 +1,5 @@
 Feature: Repository Security Scanning
-  As a developer using the Security Logging Advisor
+  As a developer using the COPS Security Logging Advisor
   I want to run a local repository scan
   So that I can identify code languages, cloud platforms, and prevent credential leaks.
 

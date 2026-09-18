@@ -1,4 +1,4 @@
-# SOC Investigation Workbench
+# COPS SOC Investigation Workbench
 
 An analyst-led investigation planner packaged as a Codex plugin. It maintains
 competing hypotheses, explicit evidence associations, a dependency graph, and an

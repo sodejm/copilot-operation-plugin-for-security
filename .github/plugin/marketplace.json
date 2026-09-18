@@ -7,7 +7,7 @@
   "plugins": [
     {
       "name": "security-logging-advisor",
-      "description": "Enterprise-grade plugin for security logging audit, logging analysis, and cost-aware recommendations.",
+      "description": "COPS Security Logging Advisor: repository analysis and cost-aware security logging recommendations.",
       "version": "1.0.0",
       "source": "./security-logging-advisor"
     }

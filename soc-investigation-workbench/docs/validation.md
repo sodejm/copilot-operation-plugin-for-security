@@ -16,8 +16,7 @@ Sentinel's real hunts pass qualification or that the host loads skills correctly
 From the repository root, using a development environment with `requirements.txt`:
 
 ```bash
-python3 -m pytest tests/step_defs/ -q
-python3 security-logging-advisor/scripts/validate-plugin.py
+make check
 python3 soc-investigation-workbench/scripts/validate-package.py
 ```
 
@@ -34,7 +33,9 @@ During development only, while **both** the vendor directory and lock are absent
 python3 soc-investigation-workbench/scripts/validate-package.py --allow-pending-vendor
 ```
 
-That mode prints `development_only` and `release_ready: false`. It never suppresses
+`make check` includes that development mode and the behavior tests; it does not
+replace the default package release gate. That mode prints `development_only`
+and `release_ready: false`. It never suppresses
 a corrupt or partial snapshot. The default command exits with code 2 until the
 Sentinel dependency verifies. An absent dependency is a release blocker, not a
 passing skipped check. Both owned skills also pass Codex's external skill and

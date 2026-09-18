@@ -1,82 +1,83 @@
-# Security Logging Copilot Plugin
+# COPS — Copilot Operations Plugins for Security
 
-Welcome to the **Security Logging Copilot Plugin** repository. This plugin is designed to assist developers in writing secure, compliant, and structured logging statements directly within their development environments.
+<p align="center">
+  <img src="docs/assets/cops-logo.png" alt="COPS shield and copilot visor logo" width="260">
+</p>
 
-## Overview
+COPS (Copilot Operations Plugins for Security) is a cybersecurity project for
+security-focused **plugins, agents, and skills**. It provides practical add-ons for
+coding assistants that help developers and security teams understand repositories
+and improve defensive security workflows.
 
-Modern software development requires strict adherence to security and compliance standards (such as OWASP, GDPR, HIPAA, and PCI-DSS). This plugin provides real-time linting, suggestions, and auto-completion for security logging, ensuring sensitive data is never leaked and required audit contexts are always captured.
+The first included plugin, **COPS Security Logging Advisor**, combines a local
+Python scanner, a specialist agent, and reusable skills for cost-aware security
+logging reviews. See the [capability catalog](docs/CAPABILITIES.md) for what is
+available today and how additional cybersecurity add-ons fit the project.
 
-## Features
+The scanner identifies languages, frameworks, cloud and infrastructure signals,
+and potential credential locations. The advisor uses that context to recommend
+structured audit events, redaction, correlation fields, and environment-specific
+telemetry. Reports require review; pattern matching does not prove security or
+compliance.
 
-- **Sensitive Data Detection**: Identifies potential PII, credentials, and secrets in logging statements.
-- **Log Context Validation**: Checks if logging statements contain necessary metadata (actor, action, outcome, timestamps).
-- **CRLF Injection Prevention**: Lints for unsafe input concatenation in log messages.
-- **Structured Log Formatting**: Promotes JSON or structured logging patterns.
+## Quick start
+
+Use Python 3.11 or newer and Git. The scanner and package validator use only the
+Python standard library. Contributor tests additionally require `requirements.txt`.
+
+```bash
+git clone https://github.com/sodejm/copilot-operations-plugin-for-security.git
+cd copilot-operations-plugin-for-security
+python3 security-logging-advisor/scripts/validate-plugin.py
+python3 security-logging-advisor/skills/repository-context/scripts/collect-repository-context.py .
+```
+
+The scanner writes JSON to standard output. Give the agent the
+[advisor instructions](security-logging-advisor/agents/security-logging-advisor.agent.md)
+and reviewed context to produce a report. Follow the
+[installation guide](security-logging-advisor/docs/INSTALL.md) for the host-specific
+integration boundary and local fallback.
 
 ## SOC investigation planning
 
-The separate [SOC Investigation Workbench](soc-investigation-workbench/README.md)
+The separate [COPS SOC Investigation Workbench](soc-investigation-workbench/README.md)
 adds two Codex skills and a local Python case planner for evidence associations,
 competing hypotheses, branching investigations, and bounded next steps. Hunt
 workflows remain owned by Sentinel and are integrated through unchanged vendor
 snapshots. The planner works locally; its Sentinel integration is pending the
 canonical skills and catalog. See its README for setup and verified limits.
 
-## Getting Started
-
-### Prerequisites
-
-- Python 3 (v3.8 or higher recommended)
-- Node.js (v18 or higher recommended)
-- Git
-
-### Installation
-
-1. Clone the repository:
-
-   ```bash
-   git clone https://github.com/your-organization/security-logging-copilot-plugin.git
-   cd security-logging-copilot-plugin
-   ```
-
-2. Install dependencies:
-
-   ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate
-   pip3 install -r requirements.txt
-   ```
-
-### Running Tests
-
-To execute the BDD feature specs, run:
+## Contributing
 
 ```bash
+python3 -m venv .venv
 source .venv/bin/activate
-pytest tests/step_defs/
+python3 -m pip install -r requirements.txt
+make doctor
+make check
 ```
 
-## Spec-Driven Development (SDD)
+On Windows, activate `.venv\Scripts\Activate.ps1` in PowerShell. If Make is
+unavailable, run `python3 scripts/agent/doctor.py` and
+`python3 scripts/agent/check.py` directly.
 
-This repository follows a strict **Spec-Driven Development** workflow driven by `spec-kit` and the Kaggle production-grade BDD guidelines to guide development:
+Read [AGENTS.md](AGENTS.md) and [CONTRIBUTING.md](CONTRIBUTING.md) before changing
+the repository. COPS adopts the portable contracts, skills, adapters, and checks
+from [PARK](https://github.com/sodejm/portable-agent-repository-kit). Edit canonical
+skills in `.agents/skills/`, then run `make sync-agent-adapters`.
 
-- **Constitution**: Project rules, security policies, and standards are defined in [.specify/memory/constitution.md](.specify/memory/constitution.md).
-- **Project Context**: The system layout and technologies are documented in [.specify/project-context.md](.specify/project-context.md).
-- **Feature Specs**: High-level requirements are modeled as specifications inside [specs/security-logging-plugin.spec.md](specs/security-logging-plugin.spec.md).
-- **Gherkin Features**: Specific, executable scenarios (Given/When/Then) are defined as BDD feature files under [specs/features/](specs/features/).
+## Documentation
 
-## Development and IDE Environment
+- [Documentation index](docs/INDEX.md) and [repository architecture](ARCHITECTURE.md)
+- [Naming conventions](docs/NAMING.md) and [template adoption record](docs/decisions/0001-park-adoption.md)
+- [Cybersecurity capabilities](docs/CAPABILITIES.md) and [GitHub discoverability](docs/DISCOVERABILITY.md)
+- [Plugin architecture](security-logging-advisor/docs/architecture.md) and [model routing](security-logging-advisor/docs/model-routing.md)
+- [Security and privacy](security-logging-advisor/docs/SECURITY_PRIVACY.md) and [security reporting](SECURITY.md)
+- [Enterprise rollout](security-logging-advisor/docs/ENTERPRISE_ROLLOUT.md) and [maintainer guide](security-logging-advisor/docs/MAINTAINERS.md)
+- [Plugin specification](specs/security-logging-plugin.spec.md) and [conformance specification](specs/repository-conformance.spec.md)
 
-This repository is optimized for development with the **Antigravity IDE** and **Antigravity 2.0** ecosystem.
+## License and attribution
 
-- **Workspace Guidelines**: Project-specific rules and agent instructions are defined in [.agents/AGENTS.md](.agents/AGENTS.md).
-- **Model Context Protocol (MCP)**: Any custom MCP tools or hooks will be configured in the `.agents/` folder.
-- **Model Selection & Routing**: Task-based model recommendations for Gemini, Claude, and GPT families, along with runtime environment detection logic, are detailed in [security-logging-advisor/docs/model-routing.md](security-logging-advisor/docs/model-routing.md).
-
-## Authors
-
-- **Justin Soderberg** - [sodejm](https://github.com/sodejm)
-
-## License
-
-This project is licensed under the **PolyForm Noncommercial License 1.0.0** - see the [LICENSE](LICENSE) file for details.
+Existing COPS project material retains the [PolyForm Noncommercial License 1.0.0](LICENSE).
+Imported PARK material retains its Apache-2.0 notices; see
+[third-party notices](THIRD_PARTY_NOTICES.md) and [licensing](docs/LICENSING.md).

@@ -1,6 +1,6 @@
-# Specification: Security Logging Advisor Plugin
+# Specification: COPS Security Logging Advisor Plugin
 
-This document outlines the requirements, user stories, and acceptance criteria for the **Security Logging Advisor** plugin. It serves as the single source of truth for the plugin's features and technical scope.
+This document outlines the requirements, user stories, and acceptance criteria for the **COPS Security Logging Advisor** plugin. It serves as the single source of truth for the plugin's features and technical scope.
 
 ---
 
@@ -65,20 +65,19 @@ Provide software development teams with an automated, cost-conscious, and securi
 
 ## 4. Technical Constraints & Security Boundaries
 
-- **Local Boundary**: All scanning logic must run locally to protect intellectual property. Code contents must not be sent to external hosts.
-- **License Compliance**: The software must execute under the **PolyForm Noncommercial License 1.0.0**, blocking use in commercial products.
+- **Local Boundary**: Scanning logic runs locally without network calls. Agent-assisted processing must respect the approved host/provider data boundary; review context before sharing.
+- **License Compliance**: Preserve the **PolyForm Noncommercial License 1.0.0** project terms and the separate notices for imported PARK foundation material.
 - **Zero-Dependency Core**: Validation and scanning scripts must run using standard libraries in Python 3.
 - **Circuit Breakers**: The scanner must not crash on massive repositories or single large log files. It will skip files over 1MB and stop scanning after 10,000 files to conserve memory.
 
 ## 5. Model Selection & Runtime Environment Guidelines
 
-To balance reasoning capability, latency, and tokens (cost), the plugin must document and support operation across the following runtime environments and model families:
-
-- **Supported Runtime Environments**: GitHub Copilot (VS Code), Claude Code (CLI), and Antigravity TUI.
-- **Model Families & Task Routing**:
-  - **Reasoning & Synthesis (The Agent)**: Recommended models include **Gemini 3.5 Pro (High/Ultra)**, **Claude 3.5 Sonnet**, and **GPT-5.5 Pro / GPT-4o**.
-  - **Static Context Collection (Scanner Skill)**: Recommended models include **Gemini 3.5 Flash**, **Claude 3.5 Haiku / Sonnet**, and **GPT-4o-mini**.
-  - **Local Validation (Lints & Checks)**: Recommended models include **Gemini 1.5 Flash / Flash-8B**, **Claude 3.5 Haiku**, and **GPT-4o-mini**.
+The local scanner and validator require no model. Agent-assisted synthesis uses
+the host's approved, currently available model and tool permissions, with model
+choice based on task complexity and cost. Do not pin an unverified model in the
+command definition. Document host-specific discovery boundaries and record
+integration evidence separately from static validation. See the portable model
+guidance scenario in `specs/features/repository_conformance.feature`.
 
 ---
 
