@@ -40,8 +40,26 @@ one or when authorization for a consequential action is unclear.
 
 ## Git and hosted services
 
-- Use an issue-sized branch or worktree for tracked work when the project workflow
-  calls for one.
+- Before the first edit for every new feature or implementation task, create a
+  fresh, dedicated branch. This applies to fixes, refactors, tests, documentation,
+  configuration, dependencies, and tooling, even when the change is small or has
+  no tracked issue.
+- Base the branch on the freshly fetched remote default branch unless the task
+  explicitly specifies another base. If no remote is configured or fetching is
+  unavailable, use the verified local default branch, or current HEAD if no local
+  default branch exists. Record the chosen base commit and any inability to
+  verify upstream freshness.
+- For a new task, use the current checkout only when it is clean and not serving
+  another task. Otherwise, create a separate worktree on a fresh, dedicated
+  branch. Preserve existing work; never discard or silently stash changes to make
+  room for a task.
+- Never implement changes directly on `main`, `master`, the default branch, or an
+  unrelated task's branch. A new worktree must also use its own task branch.
+- Keep one task per branch or worktree. Resume an existing task on its dedicated
+  branch after checking its current state, preserving that task's intentional
+  uncommitted changes. Do not reuse a merged or unrelated branch for a new task.
+- For Codex work, name new branches `codex/<short-description>` unless the user
+  specifies a name.
 - Do not commit, push, open or merge a pull request, publish, deploy, or mutate a
   hosted service unless the user or project workflow authorizes that transition.
 - Never push directly to the default branch unless explicitly authorized.
