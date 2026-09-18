@@ -81,3 +81,21 @@ This document provides a feature-complete snapshot of the repository context to 
     ```bash
     python3 security-logging-advisor/scripts/collect-repository-context.py .
     ```
+
+## 4. SOC Investigation Workbench
+
+- Package: `soc-investigation-workbench/`, with `.codex-plugin/plugin.json` and
+  two registered skills for investigation planning and case review.
+- Runtime: Python 3.10+ standard library, analyst-supplied redacted JSON cases,
+  explicit evidence associations, question DAGs, deterministic next-step ranking,
+  budgets, private snapshots, and review reports. No live query execution.
+- Ownership: hunt design, raw telemetry correlation, KQL, rendering, compatibility,
+  and qualification stay in canonical Sentinel skills. A hash-locked, unchanged
+  copy of the entire Sentinel package supplies their supporting files. The
+  canonical skills/catalog are pending; query handoffs fail until vendored.
+- Specification: `specs/soc-investigation-workbench.spec.md`; ten matching
+  scenarios in `specs/features/soc_investigation.feature` with behavior tests in
+  `tests/step_defs/test_soc_investigation.py`.
+- Validation: `python3 soc-investigation-workbench/scripts/validate-package.py`
+  requires the vendor snapshot. `--allow-pending-vendor` is explicitly development
+  only and never reports release readiness. See the package's `docs/validation.md`.

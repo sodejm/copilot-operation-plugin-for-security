@@ -1,0 +1,233 @@
+{
+  "schema_version": 1,
+  "id": "case-example",
+  "scope": {
+    "tenant": "tenant-a",
+    "workspace": "workspace-a",
+    "start": "2026-01-01T00:00:00Z",
+    "end": "2026-01-02T00:00:00Z"
+  },
+  "budget": {
+    "max_steps": 6,
+    "max_cost": 8,
+    "max_no_progress": 2
+  },
+  "hypotheses": [
+    {
+      "id": "account-compromise",
+      "kind": "malicious",
+      "statement": "An unauthorized actor obtained a session for the account."
+    },
+    {
+      "id": "oauth-abuse",
+      "kind": "malicious",
+      "statement": "The application consent enables unauthorized mailbox access."
+    },
+    {
+      "id": "authorized-change",
+      "kind": "benign",
+      "statement": "An approved application change explains the consent activity."
+    }
+  ],
+  "entities": [
+    {
+      "id": "account-a",
+      "kind": "account",
+      "key": "aee4a4a8295cc944eec37fad21700e06d84528a1339b8504915ab71c37ca3d11"
+    },
+    {
+      "id": "app-b",
+      "kind": "app",
+      "key": "87e8a022425d4123e7825e32d1d0e7b2afcefbbe7fd300a6e8ef4f755c186706"
+    },
+    {
+      "id": "ip-c",
+      "kind": "ip",
+      "key": "b1fcff76ea7b160fd35d9bdcf3a8c2160ec0b1851413cf9114acf6b9c211343a"
+    }
+  ],
+  "steps": [
+    {
+      "id": "signin",
+      "question": "Does the session support an account-compromise explanation?",
+      "hypothesis_ids": [
+        "account-compromise"
+      ],
+      "basis": [],
+      "depends_on": [],
+      "when": [],
+      "query": {
+        "hunt_id": "H02",
+        "surface": "sentinel_analytics",
+        "entities": [
+          "account-a"
+        ],
+        "start": "2026-01-01T00:00:00Z",
+        "end": "2026-01-02T00:00:00Z"
+      },
+      "expected": {
+        "supports": "Assess explicit findings against the named hypotheses.",
+        "refutes": "Record disconfirming observations without silently discarding support.",
+        "empty": "No matching observation with complete coverage; retain alternatives.",
+        "unavailable": "Record telemetry gap and seek an authorized alternative source.",
+        "inconclusive": "Record uncertainty and reconsider the next discriminating question."
+      },
+      "value": {
+        "information_gain": 5,
+        "urgency": 3,
+        "impact": 4,
+        "cost": 2
+      }
+    },
+    {
+      "id": "spray",
+      "question": "Was this account included in a wider password-spray sequence?",
+      "hypothesis_ids": [
+        "account-compromise"
+      ],
+      "basis": [],
+      "depends_on": [],
+      "when": [],
+      "query": {
+        "hunt_id": "H01",
+        "surface": "sentinel_analytics",
+        "entities": [
+          "account-a"
+        ],
+        "start": "2026-01-01T00:00:00Z",
+        "end": "2026-01-02T00:00:00Z"
+      },
+      "expected": {
+        "supports": "Assess explicit findings against the named hypotheses.",
+        "refutes": "Record disconfirming observations without silently discarding support.",
+        "empty": "No matching observation with complete coverage; retain alternatives.",
+        "unavailable": "Record telemetry gap and seek an authorized alternative source.",
+        "inconclusive": "Record uncertainty and reconsider the next discriminating question."
+      },
+      "value": {
+        "information_gain": 2,
+        "urgency": 3,
+        "impact": 4,
+        "cost": 2
+      }
+    },
+    {
+      "id": "consent",
+      "question": "Does consent activity support unauthorized OAuth access?",
+      "hypothesis_ids": [
+        "oauth-abuse",
+        "authorized-change"
+      ],
+      "basis": [
+        "ev-change"
+      ],
+      "depends_on": [
+        "signin"
+      ],
+      "when": [
+        {
+          "step_id": "signin",
+          "outcomes": [
+            "supports",
+            "inconclusive"
+          ]
+        }
+      ],
+      "query": {
+        "hunt_id": "H10",
+        "surface": "sentinel_analytics",
+        "entities": [
+          "account-a",
+          "app-b"
+        ],
+        "start": "2026-01-01T00:00:00Z",
+        "end": "2026-01-02T00:00:00Z"
+      },
+      "expected": {
+        "supports": "Assess explicit findings against the named hypotheses.",
+        "refutes": "Record disconfirming observations without silently discarding support.",
+        "empty": "No matching observation with complete coverage; retain alternatives.",
+        "unavailable": "Record telemetry gap and seek an authorized alternative source.",
+        "inconclusive": "Record uncertainty and reconsider the next discriminating question."
+      },
+      "value": {
+        "information_gain": 4,
+        "urgency": 3,
+        "impact": 4,
+        "cost": 2
+      }
+    },
+    {
+      "id": "mailbox",
+      "question": "Is there mailbox activity associated with the consent sequence?",
+      "hypothesis_ids": [
+        "oauth-abuse"
+      ],
+      "basis": [],
+      "depends_on": [
+        "consent"
+      ],
+      "when": [
+        {
+          "step_id": "consent",
+          "outcomes": [
+            "supports",
+            "inconclusive"
+          ]
+        }
+      ],
+      "query": {
+        "hunt_id": "H07",
+        "surface": "sentinel_analytics",
+        "entities": [
+          "account-a",
+          "app-b"
+        ],
+        "start": "2026-01-01T00:00:00Z",
+        "end": "2026-01-02T00:00:00Z"
+      },
+      "expected": {
+        "supports": "Assess explicit findings against the named hypotheses.",
+        "refutes": "Record disconfirming observations without silently discarding support.",
+        "empty": "No matching observation with complete coverage; retain alternatives.",
+        "unavailable": "Record telemetry gap and seek an authorized alternative source.",
+        "inconclusive": "Record uncertainty and reconsider the next discriminating question."
+      },
+      "value": {
+        "information_gain": 4,
+        "urgency": 3,
+        "impact": 4,
+        "cost": 2
+      }
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-change",
+      "source": "change-record",
+      "record_ref": "935e310a880751bfae88e67f55118bf2dddd466dc6f4c5e9845438f50b7f15cf",
+      "scope": {
+        "tenant": "tenant-a",
+        "workspace": "workspace-a"
+      },
+      "event_time": "2026-01-01T10:00:00Z",
+      "entities": [
+        "app-b"
+      ],
+      "assessments": [
+        {
+          "hypothesis_id": "authorized-change",
+          "stance": "supports",
+          "reason": "Synthetic approved app change exists, but the approval scope is not yet verified."
+        },
+        {
+          "hypothesis_id": "oauth-abuse",
+          "stance": "refutes",
+          "reason": "The synthetic change record offers a benign explanation."
+        }
+      ],
+      "summary": "Synthetic approved app change exists, but the approval scope is not yet verified."
+    }
+  ],
+  "results": []
+}

@@ -13,6 +13,15 @@ Modern software development requires strict adherence to security and compliance
 - **CRLF Injection Prevention**: Lints for unsafe input concatenation in log messages.
 - **Structured Log Formatting**: Promotes JSON or structured logging patterns.
 
+## SOC investigation planning
+
+The separate [SOC Investigation Workbench](soc-investigation-workbench/README.md)
+adds two Codex skills and a local Python case planner for evidence associations,
+competing hypotheses, branching investigations, and bounded next steps. Hunt
+workflows remain owned by Sentinel and are integrated through unchanged vendor
+snapshots. The planner works locally; its Sentinel integration is pending the
+canonical skills and catalog. See its README for setup and verified limits.
+
 ## Getting Started
 
 ### Prerequisites

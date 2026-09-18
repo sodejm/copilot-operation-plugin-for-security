@@ -1,0 +1,31 @@
+{
+  "id": "result-signin",
+  "step_id": "signin",
+  "outcome": "supports",
+  "coverage": "complete",
+  "cost": 2,
+  "evidence": [
+    {
+      "id": "ev-signin",
+      "source": "identity-log",
+      "record_ref": "bf6d110bdac2283573812f6c74890e8e426cdcef4371f9e0cf8bb204aadf4c4d",
+      "scope": {
+        "tenant": "tenant-a",
+        "workspace": "workspace-a"
+      },
+      "event_time": "2026-01-01T10:00:00Z",
+      "entities": [
+        "account-a",
+        "ip-c"
+      ],
+      "assessments": [
+        {
+          "hypothesis_id": "account-compromise",
+          "stance": "supports",
+          "reason": "Synthetic sign-in sequence has an unexplained session transition."
+        }
+      ],
+      "summary": "Synthetic sign-in sequence has an unexplained session transition."
+    }
+  ]
+}
