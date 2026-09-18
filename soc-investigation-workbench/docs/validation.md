@@ -10,6 +10,12 @@ untrusted prose, and private output snapshots.
 Additional tests exercise malformed input, historical evidence visibility,
 reserved cost, deterministic ties, provenance collisions, exact vendor copying,
 inherited licensing, source drift, missing skills, and malformed hunt contracts.
+Regressions cover symlinked locks and inherited licenses, dangling vendor
+artifacts, every shipped hunt/surface dependency, no-progress batch reservations,
+empty versus inconclusive branching, and bounded reads that reject devices and
+FIFOs without waiting for input. JSON inputs, hunt contracts, locks, and inherited
+licenses are read from regular files with an 8 MiB byte limit enforced before
+decoding, independent of reported file size.
 Vendor tests use clearly synthetic local fixtures; they do not assert that
 Sentinel's real hunts pass qualification or that the host loads skills correctly.
 

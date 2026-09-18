@@ -91,7 +91,8 @@ and `evidence` (full observation objects). Coverage is `complete`, `partial`, or
 `unavailable`. `supports`/`refutes` require a matching explicit assessment for
 one of the step's hypotheses. These aggregate branch labels do not classify
 every hypothesis: inspect each assessment when multiple hypotheses are involved.
-`empty` requires complete coverage and no observations; it adds no refutation.
+Complete coverage with no observations must use `empty`; it adds no refutation.
+An `empty` outcome also requires complete coverage and no observations.
 `unavailable` requires unavailable coverage and no observations. Use
 `inconclusive` for partial coverage without an assessable finding.
 
@@ -112,7 +113,10 @@ are ranked. A deterministic greedy batch uses:
 
 The bonus is 3 if any linked hypothesis has both supporting and refuting
 assessments. Ties use step ID. Candidates expose all score components. Selection
-skips steps that cannot fit remaining cost/step slots; selected steps have no
+skips steps that cannot fit remaining cost/step slots and caps the batch at the
+remaining no-progress allowance, so every selected result can be recorded even
+if all return no new observations. New evidence resets that allowance when the
+next batch is planned. Selected steps have no
 unfinished dependencies on each other. It optimizes an explainable heuristic,
 not expected entropy or a global optimum. Estimates remain analyst judgment.
 

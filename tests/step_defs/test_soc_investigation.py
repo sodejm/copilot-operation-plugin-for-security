@@ -2,10 +2,13 @@
 
 from copy import deepcopy
 import json
+import os
 from pathlib import Path
+import shutil
 import stat
 import subprocess
 import sys
+from types import SimpleNamespace
 
 import pytest
 from pytest_bdd import given, scenarios, then, when
@@ -15,6 +18,8 @@ PLUGIN = ROOT / "soc-investigation-workbench"
 sys.path.insert(0, str(PLUGIN))
 
 from investigationwb.engine import ContractError, digest, import_result, next_steps, report, revise, validate
+from investigationwb.cli import read_json
+from investigationwb.files import MAX_BYTES
 from investigationwb.vendor import handoff, inventory, sync, verify
 
 scenarios("../../specs/features/soc_investigation.feature")
@@ -26,7 +31,7 @@ def example(name):
 
 def cli(*args):
     return subprocess.run([sys.executable, str(PLUGIN / "scripts/investigate.py"),
-                           *map(str, args)], capture_output=True, text=True)
+                           *map(str, args)], capture_output=True, text=True, timeout=5)
 
 
 def rejected(callback):
@@ -46,7 +51,8 @@ def fake_vendor(path, support="supported"):
     skill.parent.mkdir(parents=True)
     skill.write_text("Synthetic canonical fixture\n")
     (root / "hunts").mkdir()
-    (root / "hunts/H01.json").write_text("{}")
+    for hunt in ("H01", "H07", "H10"):
+        (root / f"hunts/{hunt}.json").write_text('{"surface_support":{"sentinel_analytics":"supported"}}')
     (root / "hunts/H02.json").write_text(json.dumps({"surface_support": {"sentinel_analytics": support}}))
     (root / "scripts").mkdir()
     (root / "scripts/huntwb.py").write_text("# Synthetic CLI fixture\n")
@@ -391,8 +397,10 @@ def canonical_fixture(tmp_path):
     for name, content in {
         "skills/canonical/SKILL.md": "Synthetic skill\n",
         "scripts/huntwb.py": "# Synthetic CLI fixture\n",
-        "hunts/H01.json": "{}",
+        "hunts/H01.json": '{"surface_support":{"sentinel_analytics":"supported"}}',
         "hunts/H02.json": '{"surface_support":{"sentinel_analytics":"supported"}}',
+        "hunts/H07.json": '{"surface_support":{"sentinel_analytics":"supported"}}',
+        "hunts/H10.json": '{"surface_support":{"sentinel_analytics":"supported"}}',
         "huntwb/helper.py": "# Transitive implementation fixture\n",
         "docs/shared.md": "Transitive document fixture\n",
     }.items():
@@ -456,3 +464,148 @@ def test_vendor_malformed_surface_and_incomplete_skill_inventory_fail_closed(tmp
     lock["skills"] = []
     lock_path.write_text(json.dumps(lock))
     rejected(lambda: verify(tmp_path))
+
+
+def test_batch_reserves_no_progress_slots_and_new_evidence_resets_allowance():
+    case = example("case")
+    case["budget"]["max_no_progress"] = 1
+    assert [item["step_id"] for item in next_steps(case)["candidates"]] == ["signin"]
+    stalled = import_result(case, empty_result())
+    assert next_steps(stalled)["reason"] == "no_progress"
+    progressed = import_result(case, example("signin-result"))
+    assert [item["step_id"] for item in next_steps(progressed)["candidates"]] == ["consent"]
+
+
+def test_every_selected_result_fits_remaining_no_progress_budget():
+    case = example("case")
+    for step in case["steps"]:
+        step["depends_on"], step["when"] = [], []
+    case = import_result(case, empty_result())
+    batch = next_steps(case)["candidates"]
+    assert len(batch) == 1
+    for candidate in batch:
+        case = import_result(case, empty_result(candidate["step_id"]))
+    assert next_steps(case)["reason"] == "no_progress"
+
+
+def test_complete_empty_observation_cannot_unlock_inconclusive_branch():
+    case = example("case")
+    rejected(lambda: import_result(case, empty_result(outcome="inconclusive")))
+    partial = import_result(case, empty_result(outcome="inconclusive", coverage="partial"))
+    assert "consent" in [item["step_id"] for item in next_steps(partial)["candidates"]]
+    empty = import_result(case, empty_result())
+    assert "consent" not in [item["step_id"] for item in next_steps(empty)["candidates"]]
+
+
+@pytest.mark.parametrize("dangling", [False, True])
+def test_vendor_lock_symlink_preserves_external_file_and_snapshot(tmp_path, dangling):
+    source, package = canonical_fixture(tmp_path)
+    sync(source, package)
+    before = inventory(package / "vendor/sentinel-hunt-workbench")
+    external = tmp_path / "external"
+    if not dangling:
+        external.write_text("preserve")
+    lock = package / "vendor-lock.json"
+    lock.unlink()
+    lock.symlink_to(external)
+    rejected(lambda: sync(source, package))
+    rejected(lambda: verify(package))
+    assert inventory(package / "vendor/sentinel-hunt-workbench") == before
+    assert lock.is_symlink()
+    assert not external.exists() if dangling else external.read_text() == "preserve"
+
+
+def test_atomic_lock_replacement_does_not_follow_late_symlink(tmp_path, monkeypatch):
+    source, package = canonical_fixture(tmp_path)
+    external = tmp_path / "external"
+    external.write_text("preserve")
+    replace = os.replace
+
+    def insert_link_then_replace(src, dst):
+        dst.symlink_to(external)
+        replace(src, dst)
+
+    monkeypatch.setattr(os, "replace", insert_link_then_replace)
+    assert sync(source, package)["status"] == "verified"
+    assert external.read_text() == "preserve"
+    assert not (package / "vendor-lock.json").is_symlink()
+
+
+@pytest.mark.parametrize("dangling", [False, True])
+def test_inherited_license_symlink_is_rejected_on_sync_and_verification(tmp_path, dangling):
+    source, package = canonical_fixture(tmp_path)
+    sync(source, package)
+    before = (package / "vendor-lock.json").read_bytes()
+    external = tmp_path / "external"
+    if not dangling:
+        external.write_text("private external content")
+    license_path = source.parent / "LICENSE"
+    license_path.unlink()
+    license_path.symlink_to(external)
+    rejected(lambda: sync(source, package))
+    rejected(lambda: verify(package, source))
+    assert (package / "vendor-lock.json").read_bytes() == before
+    assert (package / "vendor/sentinel-hunt-workbench/LICENSE").read_text() == "Synthetic inherited license\n"
+
+
+@pytest.mark.parametrize("artifact", ["vendor", "vendor-lock.json"])
+def test_development_validator_rejects_dangling_vendor_artifacts(tmp_path, artifact):
+    package = tmp_path / PLUGIN.name
+    shutil.copytree(PLUGIN, package, ignore=shutil.ignore_patterns("__pycache__"))
+    shutil.copyfile(ROOT / "LICENSE", tmp_path / "LICENSE")
+    for name in ("soc-investigation-workbench.spec.md", "features/soc_investigation.feature"):
+        destination = tmp_path / "specs" / name
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(ROOT / "specs" / name, destination)
+    command = [sys.executable, str(package / "scripts/validate-package.py"), "--allow-pending-vendor"]
+    clean = subprocess.run(command, capture_output=True, text=True, timeout=5)
+    assert clean.returncode == 0, clean.stderr
+    (package / artifact).symlink_to(tmp_path / "absent")
+    corrupt = subprocess.run(command, capture_output=True, text=True, timeout=5)
+    assert corrupt.returncode == 2 and json.loads(corrupt.stderr)["status"] == "blocked"
+
+
+@pytest.mark.parametrize("hunt", ["H01", "H02", "H07", "H10"])
+@pytest.mark.parametrize("failure", ["missing", "unsupported"])
+def test_vendor_requires_all_shipped_hunts_and_surfaces(tmp_path, hunt, failure):
+    source, package = canonical_fixture(tmp_path)
+    sync(source, package)
+    old_lock = (package / "vendor-lock.json").read_bytes()
+    target = source / f"hunts/{hunt}.json"
+    if failure == "missing":
+        target.unlink()
+    else:
+        target.write_text('{"surface_support":{"sentinel_analytics":"unsupported"}}')
+    rejected(lambda: sync(source, package))
+    assert (package / "vendor-lock.json").read_bytes() == old_lock
+    copied = package / "vendor/sentinel-hunt-workbench"
+    installed = copied / f"hunts/{hunt}.json"
+    if failure == "missing":
+        installed.unlink()
+    else:
+        installed.write_bytes(target.read_bytes())
+    lock = json.loads(old_lock)
+    lock["files"] = inventory(copied)
+    lock["snapshot_hash"] = digest(lock["files"])
+    (package / "vendor-lock.json").write_text(json.dumps(lock))
+    rejected(lambda: verify(package))
+
+
+def test_json_read_bounds_bytes_even_when_size_metadata_is_stale(tmp_path, monkeypatch):
+    path = tmp_path / "large.json"
+    path.write_bytes(b'"' + b"x" * MAX_BYTES + b'"')
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, "stat", lambda *_args, **_kwargs: SimpleNamespace(st_size=0))
+        rejected(lambda: read_json(path))
+
+
+@pytest.mark.parametrize("kind", ["fifo", "device"])
+def test_cli_rejects_nonregular_input_without_blocking(tmp_path, kind):
+    path = tmp_path / "input"
+    if kind == "fifo":
+        os.mkfifo(path)
+    else:
+        path = Path("/dev/zero")
+    result = cli("validate", path)
+    assert result.returncode == 2
+    assert "regular file" in result.stderr and "Traceback" not in result.stderr

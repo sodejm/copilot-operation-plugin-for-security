@@ -53,8 +53,8 @@ def check(allow_pending_vendor=False):
     require(len(criteria) == 10 and len(set(criteria)) == 10 and sorted(criteria) == sorted(scenarios),
             "Acceptance criteria and executable scenarios do not match.")
     validate(read_json(PACKAGE / "examples/case.json"))
-    if (allow_pending_vendor and not (PACKAGE / "vendor-lock.json").exists()
-            and not (PACKAGE / "vendor").exists()):
+    if (allow_pending_vendor and all(not path.exists() and not path.is_symlink()
+                                    for path in (PACKAGE / "vendor-lock.json", PACKAGE / "vendor"))):
         return {"status": "development_only", "release_ready": False, "owned_skills": sorted(names),
                 "acceptance_scenarios": len(scenarios), "vendor": "pending_canonical_source"}
     dependency = verify(PACKAGE)

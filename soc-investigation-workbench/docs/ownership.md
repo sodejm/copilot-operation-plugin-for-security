@@ -24,8 +24,10 @@ vendoring the canonical flow, not by expanding the SOC skills.
 The maintainer command copies the entire canonical `sentinel-hunt-workbench/`
 package so skill-relative references retain their supporting files. It skips
 Git metadata, Python caches, pytest caches, and macOS metadata; it rejects
-symlinks. Every included file keeps its exact bytes. If the package has no
-`LICENSE`, the repository license is included unchanged.
+symlinks, including the inherited license, vendor directory, and lock. Every
+included file keeps its exact bytes. If the package has no `LICENSE`, the
+repository license is included unchanged after a bounded regular-file read.
+The lock is written privately and replaced atomically without following links.
 
 `vendor-lock.json` records the upstream repository, package path, base Git commit,
 whether the source was a working-tree snapshot, every file's SHA-256, the aggregate
@@ -51,6 +53,10 @@ python3 scripts/investigate.py handoff examples/case.json --step signin
 ```
 
 The source must have skill files, the hunt catalog, and `scripts/huntwb.py`.
+Both sync and verification require every hunt/surface in the shipped example
+case (H01, H02, H07, and H10 on Sentinel analytics) to exist and explicitly claim
+support. Each handoff also checks its requested hunt/surface. This is a consumer
+dependency check, not a replacement for Sentinel's catalog qualification.
 Incomplete source is rejected before replacing the installed snapshot. Updating
 the vendor directory and lock is an explicit maintenance operation; do not run
 it concurrently with case work. An interrupted refresh may leave an unusable

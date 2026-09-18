@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from hashlib import sha256
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -11,9 +12,28 @@ import tempfile
 from typing import Any
 
 from .engine import ContractError, Document, digest, next_steps, require, validate
+from .files import read_regular
 
 PACKAGE = Path(__file__).resolve().parent.parent
 IGNORED = {"__pycache__", ".pytest_cache", ".git", ".DS_Store"}
+
+
+def verify_hunt(root: Path, query: Document) -> None:
+    try:
+        hunt = json.loads(read_regular(root / "hunts" / (query["hunt_id"] + ".json"), nofollow=True))
+        require(type(hunt) is dict and type(hunt.get("surface_support")) is dict,
+                "Requested canonical hunt contract is malformed.")
+        require(hunt["surface_support"].get(query["surface"]) == "supported",
+                "Hunt surface is missing, unsupported, or unverified.")
+    except (OSError, KeyError, TypeError, ValueError) as exc:
+        raise ContractError("Requested canonical hunt contract is unavailable or unsupported.") from exc
+
+
+def verify_requirements(root: Path) -> None:
+    # The shipped case is the consumer contract; Sentinel owns the hunt catalog.
+    case = validate(json.loads(read_regular(PACKAGE / "examples/case.json")))
+    for step in case["steps"]:
+        verify_hunt(root, step["query"])
 
 
 def inventory(root: Path) -> dict[str, str]:
@@ -31,7 +51,8 @@ def inventory(root: Path) -> dict[str, str]:
 
 def verify(package: Path = PACKAGE, source: Path | None = None) -> Document:
     try:
-        lock = json.loads((package / "vendor-lock.json").read_text())
+        require(not (package / "vendor").is_symlink(), "Vendor destination cannot be a symlink.")
+        lock = json.loads(read_regular(package / "vendor-lock.json", nofollow=True))
         require(type(lock) is dict and type(lock["schema_version"]) is int
                 and lock["schema_version"] == 1, "Unsupported vendor lock schema.")
         require(lock["files"] == inventory(package / "vendor" / "sentinel-hunt-workbench"),
@@ -47,11 +68,12 @@ def verify(package: Path = PACKAGE, source: Path | None = None) -> Document:
             require(type(skill) is str and skill.startswith("skills/") and skill.endswith("/SKILL.md")
                     and ".." not in Path(skill).parts and skill in lock["files"],
                     "Vendor skill entry is invalid.")
+        verify_requirements(package / "vendor" / "sentinel-hunt-workbench")
         if source is not None:
             current = inventory(source)
             # LICENSE is inherited from the upstream repository when absent in its package.
             if "LICENSE" not in current:
-                current["LICENSE"] = sha256((source.parent / "LICENSE").read_bytes()).hexdigest()
+                current["LICENSE"] = sha256(read_regular(source.parent / "LICENSE", nofollow=True)).hexdigest()
             require(current == lock["files"], "Canonical Sentinel source has changed since vendoring.")
         return {"status": "verified", "snapshot_hash": lock["snapshot_hash"],
                 "skills": lock["skills"], "source_state": lock["source_state"]}
@@ -66,6 +88,11 @@ def sync(source: Path, package: Path = PACKAGE) -> Document:
     skills = sorted(name for name in before if name.startswith("skills/") and name.endswith("/SKILL.md"))
     require(bool(skills) and "scripts/huntwb.py" in before and "hunts/H01.json" in before,
             "Canonical Sentinel skills and catalog must exist before vendoring.")
+    verify_requirements(source)
+    inherited_license = (read_regular(source.parent / "LICENSE", nofollow=True)
+                         if "LICENSE" not in before else None)
+    lock_path = package / "vendor-lock.json"
+    require(not lock_path.is_symlink(), "Vendor lock cannot be a symlink.")
     try:
         commit = subprocess.run(["git", "-C", str(source.parent), "rev-parse", "HEAD"],
                                 check=True, capture_output=True, text=True).stdout.strip()
@@ -77,8 +104,8 @@ def sync(source: Path, package: Path = PACKAGE) -> Document:
     require(len(commit) == 40 and all(c in "0123456789abcdef" for c in commit),
             "Canonical repository revision is invalid.")
     vendor_parent = package / "vendor"
-    vendor_parent.mkdir(exist_ok=True)
     require(not vendor_parent.is_symlink(), "Vendor destination cannot be a symlink.")
+    vendor_parent.mkdir(exist_ok=True)
     target = vendor_parent / source.name
     require(not target.is_symlink(), "Vendor destination cannot be a symlink.")
     with tempfile.TemporaryDirectory(dir=vendor_parent) as temporary:
@@ -88,12 +115,15 @@ def sync(source: Path, package: Path = PACKAGE) -> Document:
             destination = staged / name
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source / name, destination)
-        if "LICENSE" not in before:
-            shutil.copyfile(source.parent / "LICENSE", staged / "LICENSE")
+        if inherited_license is not None:
+            (staged / "LICENSE").write_bytes(inherited_license)
+            require(read_regular(source.parent / "LICENSE", nofollow=True) == inherited_license,
+                    "Inherited license changed during vendoring; retry from a stable snapshot.")
         require(inventory(source) == before, "Canonical source changed during vendoring; retry from a stable snapshot.")
         files = inventory(staged)
         require(all(files.get(name) == value for name, value in before.items()),
                 "Copied dependency differs from its canonical source.")
+        verify_requirements(staged)
         lock: dict[str, Any] = {
             "schema_version": 1,
             "upstream": "https://github.com/sodejm/copilot-operations-plugin-for-security",
@@ -105,7 +135,18 @@ def sync(source: Path, package: Path = PACKAGE) -> Document:
         if target.exists():
             shutil.rmtree(target)
         shutil.move(str(staged), target)
-        (package / "vendor-lock.json").write_text(json.dumps(lock, indent=2) + "\n")
+        # Replacing the directory entry never follows a link introduced after the
+        # initial check; the temporary file is created exclusively and privately.
+        with tempfile.NamedTemporaryFile(mode="w", dir=package, delete=False, encoding="utf-8") as stream:
+            temporary_lock = Path(stream.name)
+            try:
+                stream.write(json.dumps(lock, indent=2) + "\n")
+                stream.flush()
+                os.fsync(stream.fileno())
+                require(not lock_path.is_symlink(), "Vendor lock cannot be a symlink.")
+                os.replace(temporary_lock, lock_path)
+            finally:
+                temporary_lock.unlink(missing_ok=True)
     return verify(package, source)
 
 
@@ -116,14 +157,7 @@ def handoff(case: Document, step_id: str, package: Path = PACKAGE) -> Document:
     dependency = verify(package)
     step = next(s for s in case["steps"] if s["id"] == step_id)
     root = package / "vendor" / "sentinel-hunt-workbench"
-    try:
-        hunt = json.loads((root / "hunts" / (step["query"]["hunt_id"] + ".json")).read_text())
-        require(type(hunt) is dict and type(hunt.get("surface_support")) is dict,
-                "Requested canonical hunt contract is malformed.")
-        support = hunt["surface_support"].get(step["query"]["surface"])
-        require(support == "supported", "Hunt surface is missing, unsupported, or unverified.")
-    except (OSError, KeyError, TypeError, json.JSONDecodeError) as exc:
-        raise ContractError("Requested canonical hunt contract is unavailable.") from exc
+    verify_hunt(root, step["query"])
     return {"step_id": step_id, "snapshot_hash": dependency["snapshot_hash"],
             "canonical_skills": [str(root / skill) for skill in dependency["skills"]],
             "sentinel_cli": str(root / "scripts" / "huntwb.py"),

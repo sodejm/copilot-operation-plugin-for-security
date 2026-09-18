@@ -107,18 +107,22 @@ def _ready(step: Document, results: list[Document], visible: set[str]) -> bool:
                     for guard in step["when"]))
 
 
+def _no_progress(results: list[Document]) -> int:
+    stalled = 0
+    for result in reversed(results):
+        if result["new_evidence_ids"]:
+            break
+        stalled += 1
+    return stalled
+
+
 def _stop(case: Document, results: list[Document]) -> str | None:
     budget = case["budget"]
     if len(results) >= budget["max_steps"]:
         return "step_budget"
     if sum(result["cost"] for result in results) >= budget["max_cost"]:
         return "cost_budget"
-    stalled = 0
-    for result in reversed(results):
-        if result["new_evidence_ids"]:
-            break
-        stalled += 1
-    return "no_progress" if stalled >= budget["max_no_progress"] else None
+    return "no_progress" if _no_progress(results) >= budget["max_no_progress"] else None
 
 
 def validate(case: Document) -> Document:
@@ -260,6 +264,8 @@ def validate(case: Document) -> Document:
         require(set(result["evidence_ids"]) <= _visible(case, history) | set(result["new_evidence_ids"]),
                 "Result references evidence from a future result.")
         outcome, coverage = result["outcome"], result["coverage"]
+        if coverage == "complete" and not result["evidence_ids"]:
+            require(outcome == "empty", "Complete coverage without evidence requires an empty outcome.")
         if outcome == "empty":
             require(coverage == "complete" and not result["evidence_ids"],
                     "Empty results require complete coverage and no evidence.")
@@ -356,7 +362,8 @@ def next_steps(case: Document) -> Document:
     validate(case)
     reason = _stop(case, case["results"])
     remaining_cost = case["budget"]["max_cost"] - sum(r["cost"] for r in case["results"])
-    slots = case["budget"]["max_steps"] - len(case["results"])
+    slots = min(case["budget"]["max_steps"] - len(case["results"]),
+                case["budget"]["max_no_progress"] - _no_progress(case["results"]))
     contested = {h["id"] for h in hypothesis_status(case) if h["status"] == "contested"}
     candidates = []
     for step in case["steps"]:

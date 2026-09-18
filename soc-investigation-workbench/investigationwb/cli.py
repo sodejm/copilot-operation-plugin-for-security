@@ -10,6 +10,7 @@ import sys
 from typing import Any
 
 from .engine import ContractError, digest, import_result, next_steps, report, revise, validate
+from .files import read_regular
 from .vendor import handoff, sync, verify
 
 
@@ -23,9 +24,7 @@ def _pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 
 
 def read_json(path: Path) -> Any:
-    if path.stat().st_size > 8 * 1024 * 1024:
-        raise ContractError("Input exceeds the 8 MiB case limit.")
-    return json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=_pairs,
+    return json.loads(read_regular(path).decode("utf-8"), object_pairs_hook=_pairs,
                       parse_constant=lambda _: (_ for _ in ()).throw(ContractError("Non-finite JSON number.")))
 
 
