@@ -19,8 +19,59 @@ from .files import open_regular, read_regular
 PACKAGE = Path(__file__).resolve().parent.parent
 IGNORED = {"__pycache__", ".pytest_cache", ".git", ".DS_Store"}
 UPSTREAM = "https://github.com/sodejm/copilot-operations-plugin-for-security"
+ORIGINS = {UPSTREAM, UPSTREAM + ".git",
+           "git@github.com:sodejm/copilot-operations-plugin-for-security.git",
+           "ssh://git@github.com/sodejm/copilot-operations-plugin-for-security.git"}
 SOURCE_SUBDIRECTORY = "sentinel-hunt-workbench"
 POLICY = "Exact upstream bytes. Update from source; never patch vendored flows."
+DEVICES = {"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"} | {
+    prefix + suffix for prefix in ("COM", "LPT") for suffix in "123456789¹²³"}
+
+
+def validate_paths(names) -> None:
+    entries = {}
+    for name in names:
+        require(type(name) is str and bool(name) and name != "."
+                and not PurePosixPath(name).is_absolute() and ".." not in PurePosixPath(name).parts
+                and PurePosixPath(name).as_posix() == name, "Vendor inventory path is invalid.")
+        parts = PurePosixPath(name).parts
+        for index, part in enumerate(parts):
+            require(not any(ord(char) < 32 or char in '<>:"\\|?*' for char in part)
+                    and not part.endswith((".", " ")) and part.split(".")[0].upper() not in DEVICES,
+                    "Vendor inventory path is incompatible with Windows.")
+            prefix = "/".join(parts[:index + 1])
+            entry = (prefix, index == len(parts) - 1)
+            require(entries.setdefault(prefix.casefold(), entry) == entry,
+                    "Vendor inventory paths have a case or file/directory collision.")
+
+
+def git_inspect(source: Path, *args: str) -> bytes:
+    command = ["git", "--no-optional-locks", "-c", "core.fsmonitor=false", "-C", str(source.parent)]
+    try:
+        if args[0] == "status":
+            # Refreshing tracked files can invoke configured clean/process filters.
+            filters = subprocess.run([*command, "config", "--null", "--name-only", "--get-regexp",
+                                      r"^filter\..*\.(clean|smudge|process|required)$"], capture_output=True)
+            require(filters.returncode in (0, 1), "Cannot inspect repository filter configuration.")
+            for key in filters.stdout.split(b"\0"):
+                if key:
+                    name = os.fsdecode(key)
+                    command += ["-c", name + ("=false" if name.endswith(".required") else "=")]
+        return subprocess.run([*command, *args], check=True, capture_output=True).stdout
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise ContractError("Cannot establish canonical repository provenance.") from exc
+
+
+def source_revision(source: Path) -> str:
+    require(source.name == SOURCE_SUBDIRECTORY, "Expected the canonical Sentinel package directory.")
+    root = Path(os.fsdecode(git_inspect(source, "rev-parse", "--show-toplevel").rstrip(b"\r\n")))
+    require(root.resolve() == source.parent.resolve(), "Canonical package must be at the repository root.")
+    origins = git_inspect(source, "config", "--local", "--get-all", "remote.origin.url").splitlines()
+    require(len(origins) == 1 and origins[0] in {url.encode() for url in ORIGINS},
+            "Repository origin must identify the allowlisted canonical source.")
+    commit = git_inspect(source, "rev-parse", "HEAD").strip()
+    require(re.fullmatch(b"[0-9a-f]{40}", commit), "Canonical repository revision is invalid.")
+    return commit.decode("ascii")
 
 
 def verify_hunt(root: Path, query: Document) -> None:
@@ -75,6 +126,7 @@ def inventory(root: Path, *, installed: bool = False) -> dict[str, str]:
                 for chunk in iter(lambda: stream.read(64 * 1024), b""):
                     checksum.update(chunk)
             files[relative.as_posix()] = checksum.hexdigest()
+    validate_paths(files)
     return dict(sorted(files.items()))
 
 
@@ -92,11 +144,8 @@ def validate_lock(lock: Document) -> None:
             "Vendor snapshot digest is invalid.")
     require(type(lock["files"]) is dict and type(lock["skills"]) is list,
             "Vendor inventory shape is invalid.")
-    for name, checksum in lock["files"].items():
-        require(type(name) is str and bool(name) and "\\" not in name and ":" not in name
-                and not PurePosixPath(name).is_absolute() and ".." not in PurePosixPath(name).parts
-                and PurePosixPath(name).as_posix() == name,
-                "Vendor inventory path is invalid.")
+    validate_paths(lock["files"])
+    for checksum in lock["files"].values():
         require(type(checksum) is str and HASH.fullmatch(checksum), "Vendor file digest is invalid.")
 
 
@@ -120,6 +169,7 @@ def verify(package: Path = PACKAGE, source: Path | None = None) -> Document:
                     "Vendor skill entry is invalid.")
         verify_requirements(package / "vendor" / "sentinel-hunt-workbench")
         if source is not None:
+            source_revision(source)
             current = inventory(source)
             # LICENSE is inherited from the upstream repository when absent in its package.
             if "LICENSE" not in current:
@@ -133,7 +183,7 @@ def verify(package: Path = PACKAGE, source: Path | None = None) -> Document:
 
 def sync(source: Path, package: Path = PACKAGE) -> Document:
     """Explicit maintainer operation; never performed implicitly during a case."""
-    require(source.name == "sentinel-hunt-workbench", "Expected the canonical Sentinel package directory.")
+    commit = source_revision(source)
     before = inventory(source)
     skills = sorted(name for name in before if name.startswith("skills/") and name.endswith("/SKILL.md"))
     require(bool(skills) and "scripts/huntwb.py" in before and "hunts/H01.json" in before,
@@ -143,20 +193,10 @@ def sync(source: Path, package: Path = PACKAGE) -> Document:
                          if "LICENSE" not in before else None)
     lock_path = package / "vendor-lock.json"
     reject_redirect(lock_path)
-    try:
-        commit = subprocess.run(["git", "-C", str(source.parent), "rev-parse", "HEAD"],
-                                check=True, capture_output=True, text=True).stdout.strip()
-        provenance_paths = [source.name] + (["LICENSE"] if "LICENSE" not in before else [])
-        dirty = subprocess.run(["git", "-C", str(source.parent), "status", "--porcelain",
-                                "--untracked-files=all", "--", *provenance_paths],
-                               check=True, capture_output=True, text=True).stdout.strip()
-        ignored = subprocess.run(["git", "-C", str(source.parent), "ls-files", "--others", "--ignored",
-                                  "--exclude-standard", "-z", "--", *provenance_paths],
-                                 check=True, capture_output=True).stdout.split(b"\0")
-    except (OSError, subprocess.CalledProcessError) as exc:
-        raise ContractError("Cannot establish canonical repository provenance.") from exc
-    require(len(commit) == 40 and all(c in "0123456789abcdef" for c in commit),
-            "Canonical repository revision is invalid.")
+    provenance_paths = [source.name] + (["LICENSE"] if "LICENSE" not in before else [])
+    dirty = git_inspect(source, "status", "--porcelain", "--untracked-files=all", "--", *provenance_paths).strip()
+    ignored = git_inspect(source, "ls-files", "--others", "--ignored", "--exclude-standard", "-z",
+                          "--", *provenance_paths).split(b"\0")
     # NUL-delimited bytes preserve unusual filenames; excluded caches are not copy candidates.
     candidates = {os.fsencode(f"{source.name}/{name}") for name in before}
     if inherited_license is not None:

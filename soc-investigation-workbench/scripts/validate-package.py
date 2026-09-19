@@ -16,6 +16,14 @@ from investigationwb.engine import ContractError, require, validate
 from investigationwb.vendor import verify
 
 
+def absent(path):
+    try:
+        path.lstat()
+    except FileNotFoundError:
+        return True
+    return False
+
+
 def check(allow_pending_vendor=False):
     manifest = read_json(PACKAGE / ".codex-plugin/plugin.json")
     require(manifest["name"] == "soc-investigation-workbench"
@@ -53,7 +61,7 @@ def check(allow_pending_vendor=False):
     require(len(criteria) == 10 and len(set(criteria)) == 10 and sorted(criteria) == sorted(scenarios),
             "Acceptance criteria and executable scenarios do not match.")
     validate(read_json(PACKAGE / "examples/case.json"))
-    if (allow_pending_vendor and all(not path.exists() and not path.is_symlink()
+    if (allow_pending_vendor and all(absent(path)
                                     for path in (PACKAGE / "vendor-lock.json", PACKAGE / "vendor"))):
         return {"status": "development_only", "release_ready": False, "owned_skills": sorted(names),
                 "acceptance_scenarios": len(scenarios), "vendor": "pending_canonical_source"}

@@ -5,6 +5,8 @@ from hashlib import sha256
 import json
 import os
 from pathlib import Path
+import runpy
+import shlex
 import shutil
 import stat
 import subprocess
@@ -21,7 +23,7 @@ sys.path.insert(0, str(PLUGIN))
 from investigationwb.engine import ContractError, digest, import_result, next_steps, report, revise, validate
 from investigationwb.cli import read_json
 from investigationwb.files import MAX_BYTES, read_regular
-from investigationwb.vendor import handoff, inventory, sync, verify
+from investigationwb.vendor import UPSTREAM, handoff, inventory, sync, validate_lock, verify
 
 scenarios("../../specs/features/soc_investigation.feature")
 
@@ -442,13 +444,70 @@ def canonical_fixture(tmp_path):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content)
     (upstream / "LICENSE").write_text("Synthetic inherited license\n")
-    for args in [("init", "-q"), ("add", "."),
+    for args in [("init", "-q"), ("remote", "add", "origin", UPSTREAM), ("add", "."),
                  ("-c", "user.name=Test", "-c", "user.email=test@example.invalid",
                   "-c", "commit.gpgsign=false", "commit", "-qm", "fixture")]:
         subprocess.run(["git", "-C", str(upstream), *args], check=True, capture_output=True)
     package = tmp_path / "plugin"
     package.mkdir()
     return source, package
+
+
+@pytest.mark.parametrize("origin", [None, "https://github.com/other/fork",
+    UPSTREAM + "-fork", UPSTREAM + ".git/../../other/fork", "multiple"])
+def test_vendor_rejects_noncanonical_origin_without_replacing_snapshot(tmp_path, origin):
+    source, package = canonical_fixture(tmp_path)
+    sync(source, package)
+    lock = (package / "vendor-lock.json").read_bytes()
+    before = inventory(package / "vendor/sentinel-hunt-workbench")
+    if origin == "multiple":
+        args = ["config", "--add", "remote.origin.url", "https://github.com/other/fork"]
+    elif origin is None:
+        args = ["remote", "remove", "origin"]
+    else:
+        args = ["remote", "set-url", "origin", origin]
+    subprocess.run(["git", "-C", str(source.parent), *args], check=True, capture_output=True)
+    rejected(lambda: sync(source, package))
+    rejected(lambda: verify(package, source))
+    assert (package / "vendor-lock.json").read_bytes() == lock
+    assert inventory(package / "vendor/sentinel-hunt-workbench") == before
+
+
+@pytest.mark.parametrize("origin", [UPSTREAM, UPSTREAM + ".git",
+    "git@github.com:sodejm/copilot-operations-plugin-for-security.git",
+    "ssh://git@github.com/sodejm/copilot-operations-plugin-for-security.git"])
+def test_vendor_accepts_documented_canonical_origin_forms(tmp_path, origin):
+    source, package = canonical_fixture(tmp_path)
+    subprocess.run(["git", "-C", str(source.parent), "remote", "set-url", "origin", origin],
+                   check=True, capture_output=True)
+    assert sync(source, package)["status"] == "verified"
+
+
+def test_vendor_rejects_package_below_nonroot_directory(tmp_path):
+    source, package = canonical_fixture(tmp_path)
+    nested = source.parent / "nested"
+    nested.mkdir()
+    source.rename(nested / source.name)
+    rejected(lambda: sync(nested / source.name, package))
+    assert not (package / "vendor-lock.json").exists()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX executable hook regression")
+@pytest.mark.parametrize("kind", ["fsmonitor", "clean"])
+def test_vendor_inspection_does_not_execute_configured_git_hooks(tmp_path, kind):
+    source, package = canonical_fixture(tmp_path)
+    marker = tmp_path / "hook-ran"
+    hook = tmp_path / "fsmonitor"
+    hook.write_text("#!/bin/sh\nprintf observed > " + shlex.quote(str(marker)) + "\nexit 1\n")
+    hook.chmod(0o700)
+    key = "core.fsmonitor" if kind == "fsmonitor" else "filter.probe.clean"
+    subprocess.run(["git", "-C", str(source.parent), "config", key, str(hook)],
+                   check=True, capture_output=True)
+    if kind == "clean":
+        (source / ".gitattributes").write_text("docs/shared.md filter=probe\n")
+        (source / "docs/shared.md").write_text("Changed canonical document to force index refresh\n")
+    assert sync(source, package)["status"] == "verified"
+    assert not marker.exists()
 
 
 def test_vendor_sync_preserves_closure_license_provenance_and_detects_source_drift(tmp_path):
@@ -479,7 +538,7 @@ def test_vendor_sync_rejects_incomplete_source_without_replacing_snapshot(tmp_pa
 
 
 @pytest.mark.skipif(os.name == "nt", reason="Windows cannot create these POSIX filenames")
-@pytest.mark.parametrize("name", ["bad:name", "bad\\name"])
+@pytest.mark.parametrize("name", ["bad:name", "bad\\name", "a?b", "CON", "trailing.", "trailing "])
 def test_vendor_rejects_invalid_inventory_path_before_replacing_snapshot(tmp_path, name):
     source, package = canonical_fixture(tmp_path)
     sync(source, package)
@@ -695,7 +754,9 @@ def test_inherited_license_symlink_is_rejected_on_sync_and_verification(tmp_path
 
 
 @pytest.mark.parametrize("artifact", ["vendor", "vendor-lock.json"])
-def test_development_validator_rejects_dangling_vendor_artifacts(tmp_path, artifact):
+@pytest.mark.parametrize("kind", ["symlink", pytest.param("junction",
+    marks=pytest.mark.skipif(os.name != "nt", reason="Native dangling NTFS junction"))])
+def test_development_validator_rejects_dangling_vendor_artifacts(tmp_path, artifact, kind):
     package = tmp_path / PLUGIN.name
     shutil.copytree(PLUGIN, package, ignore=shutil.ignore_patterns("__pycache__"))
     shutil.copyfile(ROOT / "LICENSE", tmp_path / "LICENSE")
@@ -706,9 +767,36 @@ def test_development_validator_rejects_dangling_vendor_artifacts(tmp_path, artif
     command = [sys.executable, str(package / "scripts/validate-package.py"), "--allow-pending-vendor"]
     clean = subprocess.run(command, capture_output=True, text=True, timeout=5)
     assert clean.returncode == 0, clean.stderr
-    (package / artifact).symlink_to(tmp_path / "absent")
-    corrupt = subprocess.run(command, capture_output=True, text=True, timeout=5)
-    assert corrupt.returncode == 2 and json.loads(corrupt.stderr)["status"] == "blocked"
+    link = package / artifact
+    if kind == "junction":
+        subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(tmp_path / "absent")],
+                       check=True, capture_output=True)
+    else:
+        link.symlink_to(tmp_path / "absent")
+    try:
+        corrupt = subprocess.run(command, capture_output=True, text=True, timeout=5)
+        assert corrupt.returncode == 2 and json.loads(corrupt.stderr)["status"] == "blocked"
+    finally:
+        if kind == "junction":
+            os.rmdir(link)
+
+
+def test_development_gate_observes_dangling_reparse_entry(tmp_path, monkeypatch):
+    module = runpy.run_path(str(PLUGIN / "scripts/validate-package.py"))
+    check = module["check"]
+    assert check(allow_pending_vendor=True)["status"] == "development_only"
+    blocked = PLUGIN / "vendor"
+    original_lstat = Path.lstat
+
+    def reparse_lstat(path, *args, **kwargs):
+        if path == blocked:
+            return SimpleNamespace(st_mode=stat.S_IFDIR, st_file_attributes=0x400)
+        return original_lstat(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "lstat", reparse_lstat)
+    # Python 3.11 follows a dangling junction for exists() and does not call it a symlink.
+    assert not blocked.exists() and not blocked.is_symlink()
+    rejected(lambda: check(allow_pending_vendor=True))
 
 
 @pytest.mark.parametrize("hunt", ["H01", "H02", "H07", "H10"])
@@ -820,6 +908,26 @@ def test_vendor_lock_requires_every_field(tmp_path, field):
     del lock[field]
     path.write_text(json.dumps(lock))
     rejected(lambda: verify(tmp_path))
+
+
+@pytest.mark.parametrize("name", ["docs/a" + char + "b" for char in '<>:"\\|?*\x00\x1f'] + [
+    "docs/CON", "docs/prn.txt", "docs/AUX", "docs/NUL.json", "docs/COM1", "docs/lpt9.md",
+    "docs/COM¹", "docs/LPT².ext", "docs/trailing.", "docs/trailing ", "docs/./file",
+    "docs/../file", "/absolute", "docs//file", "docs/NUL/file", "."])
+def test_vendor_lock_rejects_windows_incompatible_names_on_every_host(tmp_path, name):
+    fake_vendor(tmp_path)
+    lock = json.loads((tmp_path / "vendor-lock.json").read_text())
+    lock["files"][name] = "a" * 64
+    rejected(lambda: validate_lock(lock))
+
+
+@pytest.mark.parametrize("names", [("docs/A.txt", "docs/a.txt"), ("Docs/a", "docs/b"),
+                                  ("docs/a", "docs/a/b")])
+def test_vendor_lock_rejects_case_collisions_and_file_directory_conflicts(tmp_path, names):
+    fake_vendor(tmp_path)
+    lock = json.loads((tmp_path / "vendor-lock.json").read_text())
+    lock["files"] = dict.fromkeys(names, "a" * 64)
+    rejected(lambda: validate_lock(lock))
 
 
 @pytest.mark.parametrize("field,value", [

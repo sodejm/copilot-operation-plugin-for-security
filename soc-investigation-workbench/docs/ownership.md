@@ -36,6 +36,10 @@ chunks from regular-file handles. Every
 included file keeps its exact bytes. If the package has no `LICENSE`, the
 repository license is included unchanged after a bounded regular-file read.
 The lock is written privately and replaced atomically without following links.
+Inventory paths must also be portable to Windows: invalid characters, reserved
+device names, trailing dots/spaces, and case-insensitive file or directory
+collisions are rejected on every host before replacing a snapshot. Development
+validation permits missing vendor artifacts only; dangling junctions still block.
 
 `vendor-lock.json` records the upstream repository, package path, base Git commit,
 whether the source was a working-tree snapshot, every file's SHA-256, the aggregate
@@ -43,6 +47,17 @@ inventory hash, and every canonical skill path. A working-tree snapshot is
 identified explicitly; the base commit alone does not claim to reproduce it.
 Untracked source files are included in this classification even when Git's
 status display is configured to hide them.
+Source inspection requires the package directly under the Git repository root
+and exactly one local `origin` URL identifying this canonical repository. Accepted
+forms are `https://github.com/sodejm/copilot-operations-plugin-for-security`
+(with or without `.git`),
+`git@github.com:sodejm/copilot-operations-plugin-for-security.git`, and
+`ssh://git@github.com/sodejm/copilot-operations-plugin-for-security.git`.
+Fork origins, aliases, missing origins, and multiple origin URLs are rejected.
+Git filesystem-monitor hooks and configured content filters are disabled during
+inspection. These checks establish the configured repository identity; they make
+no network request or authenticity attestation. Maintainers must review local
+content and provenance before vendoring.
 The verifier requires the exact lock schema, canonical repository and package,
 40-character lowercase Git revision, declared source-state enum, fixed update
 policy, and valid paths and digests. The file hashes define the exact copied content. Locks detect accidental drift,

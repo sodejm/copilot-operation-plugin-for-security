@@ -45,6 +45,14 @@ of tenant or cross-host validation are included.
   Windows directory reparse points, including junctions on Python 3.11.
   Validate the staged inventory and generated lock before replacing an installed
   snapshot; invalid source paths must preserve the previous snapshot and lock.
+  Source inspection requires a repository-root package and an allowlisted
+  canonical origin URL, and disables Git filesystem-monitor hooks and content
+  filters during status inspection. This verifies
+  configured identity, not remote authenticity or approval of local edits.
+  Inventory paths reject Windows-invalid characters, reserved device names,
+  trailing dots/spaces, and case-insensitive file/directory collisions on every
+  host. The development gate skips only absent vendor entries; dangling junctions
+  and other reparse points still block it.
 - JSON reads enforce the 8 MiB limit on opened regular files on POSIX and Windows.
   Dependency reads reject final-component symlinks or Windows reparse points.
 - Updates validate the entire case before exclusively creating a new snapshot;
