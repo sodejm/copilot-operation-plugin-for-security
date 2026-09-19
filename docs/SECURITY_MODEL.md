@@ -68,7 +68,9 @@ exports still require review before sharing.
 The [SOC investigation case engine](../soc-investigation-workbench/docs/workflow.md)
 accepts analyst-redacted observations without executing their text or running
 queries. It enforces tenant/workspace/time scope, rejects conflicting provenance,
-and writes new snapshots with owner-only permissions. Reports omit evidence prose.
+and writes new snapshots with owner-only permissions on POSIX. Windows snapshots
+inherit the destination directory's ACL; use an analyst-restricted directory.
+Reports omit evidence prose.
 These controls do not sanitize inputs, establish truth, or secure the host model.
 Vendored Sentinel integrity gates handoffs; file hashes detect drift, not a
 malicious replacement of both the snapshot and its lock. Actual Sentinel

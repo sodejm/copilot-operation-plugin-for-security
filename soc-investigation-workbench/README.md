@@ -28,8 +28,10 @@ python3 scripts/investigate.py report /tmp/soc-case-03.json
 ```
 
 Choose fresh output paths for repeated walkthroughs. Snapshots never overwrite an
-existing file and are created with mode `0600`. Examples are synthetic; the last
-report preserves conflicting OAuth assessments and unavailable mailbox coverage.
+existing file. They use mode `0600` on POSIX; on Windows, they inherit the
+destination directory's ACL, so use an analyst-restricted directory. Examples are
+synthetic; the last report preserves conflicting OAuth assessments and unavailable
+mailbox coverage.
 
 After completing the vendor integration described in the ownership guide, use
 `python3 scripts/investigate.py handoff examples/case.json --step signin` to get

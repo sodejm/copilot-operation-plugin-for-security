@@ -40,7 +40,9 @@ of tenant or cross-host validation are included.
   Dependency reads reject final-component symlinks or Windows reparse points.
 - Updates validate the entire case before exclusively creating a new snapshot;
   replaying an identical result is idempotent. Completed steps are immutable;
-  pending steps can be revised after new evidence.
+  pending steps can be revised after new evidence. Snapshot permissions are
+  owner-only on POSIX; Windows snapshots inherit the destination directory's ACL
+  and require an analyst-restricted directory.
 - Reports expose IDs, hashes, counts, associations, and uncertainty, not raw
   evidence prose. Inputs must already be redacted; this is not a DLP tool.
 
