@@ -14,7 +14,7 @@ root, or call the script with an absolute path.
 | --- | --- |
 | `validate CASE` | Validate the complete case and print a canonical snapshot hash |
 | `next CASE` | Rank ready steps and select a batch within remaining budget |
-| `handoff CASE --step ID` | Verify vendor bytes and hunt/surface support; return canonical skill and CLI paths |
+| `handoff CASE --step ID` | Verify vendor bytes and hunt/surface support; return canonical skill and CLI paths relative to the plugin installation |
 | `import CASE RESULT --out NEW` | Deduplicate evidence and append one result to a new private snapshot |
 | `revise CASE STEPS --out NEW` | Replace the pending plan; preserve completed steps exactly |
 | `report CASE` | Print evidence references, associations, hypothesis states, coverage gaps, and next work |
@@ -25,8 +25,10 @@ Every mutation validates before creating its output, refuses existing paths
 (including symlinks), and exits with code 2 on a contract or I/O error. Keep
 snapshots in an analyst-controlled directory. This is an editable JSON ledger,
 not a signed, tamper-evident case-management system. The hash fingerprints bytes
-after canonical JSON serialization; it is not an authenticity proof. File mode
-does not secure permissive parent directories or machine backups.
+after canonical JSON serialization; it is not an authenticity proof. Outputs use
+mode 0600 on POSIX; on Windows, access follows the destination directory's ACL.
+Use an analyst-restricted directory on Windows. File mode does not secure
+permissive parent directories or machine backups.
 
 ## Input shape
 
@@ -46,7 +48,7 @@ lowercase aliases matching `[a-z][a-z0-9_-]{0,63}`. Free text is 1–2,000 chara
   an analyst-defined effort unit, consistently applied across steps; it is not
   measured API billing. An imported result must use its step's reserved cost.
 - Hypothesis: `id`, `kind` (`malicious` or `benign`), `statement`. Include at least
-  one benign explanation. Distinct threat hypotheses can be supported together.
+  one malicious and one benign explanation. Distinct threat hypotheses can be supported together.
 - Entity: `id`, `kind` (`account`, `app`, `device`, `ip`, `resource`), `key` (64
   lowercase hex characters). Use case-scoped HMAC-SHA256 digests or equivalently
   keyed opaque hashes for sensitive source IDs; keep keys and mappings outside

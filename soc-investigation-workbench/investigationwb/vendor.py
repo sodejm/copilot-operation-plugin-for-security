@@ -5,17 +5,21 @@ from __future__ import annotations
 from hashlib import sha256
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+import re
 import shutil
 import subprocess
 import tempfile
 from typing import Any
 
-from .engine import ContractError, Document, digest, next_steps, require, validate
-from .files import read_regular
+from .engine import ContractError, Document, HASH, digest, fields, next_steps, require, validate
+from .files import open_regular, read_regular
 
 PACKAGE = Path(__file__).resolve().parent.parent
 IGNORED = {"__pycache__", ".pytest_cache", ".git", ".DS_Store"}
+UPSTREAM = "https://github.com/sodejm/copilot-operations-plugin-for-security"
+SOURCE_SUBDIRECTORY = "sentinel-hunt-workbench"
+POLICY = "Exact upstream bytes. Update from source; never patch vendored flows."
 
 
 def verify_hunt(root: Path, query: Document) -> None:
@@ -36,26 +40,53 @@ def verify_requirements(root: Path) -> None:
         verify_hunt(root, step["query"])
 
 
-def inventory(root: Path) -> dict[str, str]:
+def inventory(root: Path, *, installed: bool = False) -> dict[str, str]:
     require(root.is_dir() and not root.is_symlink(), "Vendor directory is unavailable or unsafe.")
     files = {}
     for path in sorted(root.rglob("*")):
         relative = path.relative_to(root)
         if any(part in IGNORED for part in relative.parts) or path.suffix == ".pyc":
+            require(not installed, "Installed dependency contains untracked cache or metadata entries.")
             continue
         require(not path.is_symlink(), "Vendor snapshots cannot contain symlinks.")
+        require(path.is_file() or path.is_dir(), "Vendor entries must be regular files or directories.")
         if path.is_file():
-            files[relative.as_posix()] = sha256(path.read_bytes()).hexdigest()
+            checksum = sha256()
+            with open_regular(path, nofollow=True) as stream:
+                for chunk in iter(lambda: stream.read(64 * 1024), b""):
+                    checksum.update(chunk)
+            files[relative.as_posix()] = checksum.hexdigest()
     return files
+
+
+def validate_lock(lock: Document) -> None:
+    fields(lock, "schema_version upstream source_subdirectory base_commit source_state snapshot_hash skills files policy")
+    require(type(lock["schema_version"]) is int and lock["schema_version"] == 1,
+            "Unsupported vendor lock schema.")
+    require(lock["upstream"] == UPSTREAM and lock["source_subdirectory"] == SOURCE_SUBDIRECTORY
+            and lock["policy"] == POLICY, "Vendor provenance does not match the canonical source policy.")
+    require(type(lock["base_commit"]) is str and re.fullmatch(r"[0-9a-f]{40}", lock["base_commit"]),
+            "Vendor source revision is invalid.")
+    require(lock["source_state"] in ("committed", "working_tree_snapshot"),
+            "Vendor source state is invalid.")
+    require(type(lock["snapshot_hash"]) is str and HASH.fullmatch(lock["snapshot_hash"]),
+            "Vendor snapshot digest is invalid.")
+    require(type(lock["files"]) is dict and type(lock["skills"]) is list,
+            "Vendor inventory shape is invalid.")
+    for name, checksum in lock["files"].items():
+        require(type(name) is str and bool(name) and "\\" not in name and ":" not in name
+                and not PurePosixPath(name).is_absolute() and ".." not in PurePosixPath(name).parts
+                and PurePosixPath(name).as_posix() == name,
+                "Vendor inventory path is invalid.")
+        require(type(checksum) is str and HASH.fullmatch(checksum), "Vendor file digest is invalid.")
 
 
 def verify(package: Path = PACKAGE, source: Path | None = None) -> Document:
     try:
         require(not (package / "vendor").is_symlink(), "Vendor destination cannot be a symlink.")
         lock = json.loads(read_regular(package / "vendor-lock.json", nofollow=True))
-        require(type(lock) is dict and type(lock["schema_version"]) is int
-                and lock["schema_version"] == 1, "Unsupported vendor lock schema.")
-        require(lock["files"] == inventory(package / "vendor" / "sentinel-hunt-workbench"),
+        validate_lock(lock)
+        require(lock["files"] == inventory(package / "vendor" / SOURCE_SUBDIRECTORY, installed=True),
                 "Vendored Sentinel files have drifted; refresh from canonical source.")
         require(digest(lock["files"]) == lock["snapshot_hash"], "Vendor snapshot digest is invalid.")
         expected_skills = sorted(name for name in lock["files"]
@@ -120,32 +151,34 @@ def sync(source: Path, package: Path = PACKAGE) -> Document:
             require(read_regular(source.parent / "LICENSE", nofollow=True) == inherited_license,
                     "Inherited license changed during vendoring; retry from a stable snapshot.")
         require(inventory(source) == before, "Canonical source changed during vendoring; retry from a stable snapshot.")
-        files = inventory(staged)
+        files = inventory(staged, installed=True)
         require(all(files.get(name) == value for name, value in before.items()),
                 "Copied dependency differs from its canonical source.")
         verify_requirements(staged)
         lock: dict[str, Any] = {
             "schema_version": 1,
-            "upstream": "https://github.com/sodejm/copilot-operations-plugin-for-security",
-            "source_subdirectory": source.name, "base_commit": commit,
+            "upstream": UPSTREAM,
+            "source_subdirectory": SOURCE_SUBDIRECTORY, "base_commit": commit,
             "source_state": "working_tree_snapshot" if dirty else "committed",
             "snapshot_hash": digest(files), "skills": skills, "files": files,
-            "policy": "Exact upstream bytes. Update from source; never patch vendored flows.",
+            "policy": POLICY,
         }
         if target.exists():
             shutil.rmtree(target)
         shutil.move(str(staged), target)
         # Replacing the directory entry never follows a link introduced after the
         # initial check; the temporary file is created exclusively and privately.
-        with tempfile.NamedTemporaryFile(mode="w", dir=package, delete=False, encoding="utf-8") as stream:
-            temporary_lock = Path(stream.name)
-            try:
+        temporary_lock = None
+        try:
+            with tempfile.NamedTemporaryFile(mode="w", dir=package, delete=False, encoding="utf-8") as stream:
+                temporary_lock = Path(stream.name)
                 stream.write(json.dumps(lock, indent=2) + "\n")
                 stream.flush()
                 os.fsync(stream.fileno())
-                require(not lock_path.is_symlink(), "Vendor lock cannot be a symlink.")
-                os.replace(temporary_lock, lock_path)
-            finally:
+            require(not lock_path.is_symlink(), "Vendor lock cannot be a symlink.")
+            os.replace(temporary_lock, lock_path)
+        finally:
+            if temporary_lock is not None:
                 temporary_lock.unlink(missing_ok=True)
     return verify(package, source)
 
@@ -158,8 +191,9 @@ def handoff(case: Document, step_id: str, package: Path = PACKAGE) -> Document:
     step = next(s for s in case["steps"] if s["id"] == step_id)
     root = package / "vendor" / "sentinel-hunt-workbench"
     verify_hunt(root, step["query"])
+    relative_root = PurePosixPath("vendor") / SOURCE_SUBDIRECTORY
     return {"step_id": step_id, "snapshot_hash": dependency["snapshot_hash"],
-            "canonical_skills": [str(root / skill) for skill in dependency["skills"]],
-            "sentinel_cli": str(root / "scripts" / "huntwb.py"),
+            "canonical_skills": [(relative_root / skill).as_posix() for skill in dependency["skills"]],
+            "sentinel_cli": (relative_root / "scripts" / "huntwb.py").as_posix(),
             "request": {"scope": case["scope"], **step["query"]},
             "boundary": "Read the relevant canonical skill. Resolve aliases in authorized tools; use Sentinel to validate and render. This handoff executes no query."}

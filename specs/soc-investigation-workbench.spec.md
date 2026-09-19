@@ -17,7 +17,7 @@ of tenant or cross-host validation are included.
 ## Contracts
 
 - A case contains opaque aliases, a UTC tenant/workspace/time boundary, hashed
-  entity keys, hypotheses (including a benign explanation), a step DAG, an
+  entity keys, at least one malicious and one benign hypothesis, a step DAG, an
   evidence ledger, and append-only result records.
 - Evidence is supplied by an analyst with explicit provenance and assessments.
   The graph records these associations; it never joins raw telemetry or treats
@@ -31,6 +31,13 @@ of tenant or cross-host validation are included.
 - Query handoffs verify vendored content and the requested hunt's surface support.
   Missing, unsupported, or unverified support fails closed. All query semantics
   stay in Sentinel. Evidence prose is untrusted data, never an instruction.
+  Handoff skill and CLI paths are POSIX paths relative to the plugin installation.
+- Vendor verification requires the exact lock schema and canonical provenance
+  fields. Source caches are excluded when copying; installed caches and other
+  excluded artifacts are rejected. File hashes use bounded streaming reads from
+  regular files without following final-component links.
+- JSON reads enforce the 8 MiB limit on opened regular files on POSIX and Windows.
+  Dependency reads reject final-component symlinks or Windows reparse points.
 - Updates validate the entire case before exclusively creating a new snapshot;
   replaying an identical result is idempotent. Completed steps are immutable;
   pending steps can be revised after new evidence.

@@ -23,8 +23,11 @@ vendoring the canonical flow, not by expanding the SOC skills.
 
 The maintainer command copies the entire canonical `sentinel-hunt-workbench/`
 package so skill-relative references retain their supporting files. It skips
-Git metadata, Python caches, pytest caches, and macOS metadata; it rejects
-symlinks, including the inherited license, vendor directory, and lock. Every
+Git metadata, Python caches, pytest caches, and macOS metadata in the source.
+Installed snapshots reject these entries, including executable `.pyc` files,
+instead of silently ignoring them. It rejects symlinks, including the inherited
+license, vendor directory, and lock. Dependency files are hashed in bounded
+chunks from regular-file handles. Every
 included file keeps its exact bytes. If the package has no `LICENSE`, the
 repository license is included unchanged after a bounded regular-file read.
 The lock is written privately and replaced atomically without following links.
@@ -33,11 +36,16 @@ The lock is written privately and replaced atomically without following links.
 whether the source was a working-tree snapshot, every file's SHA-256, the aggregate
 inventory hash, and every canonical skill path. A working-tree snapshot is
 identified explicitly; the base commit alone does not claim to reproduce it.
-The file hashes define the exact copied content. Locks detect accidental drift,
+The verifier requires the exact lock schema, canonical repository and package,
+40-character lowercase Git revision, declared source-state enum, fixed update
+policy, and valid paths and digests. The file hashes define the exact copied content. Locks detect accidental drift,
 not malicious changes to both files and lock.
 
 Only the two SOC skills under `./skills/` are registered by this plugin. Handoff
-returns the vendored skill paths for explicit loading. This avoids registering
+returns POSIX skill and CLI paths relative to this plugin's installation for
+explicit loading, without including the maintainer's local filesystem path. Run
+the canonical Python CLI with `-B` to avoid adding bytecode caches to the verified
+snapshot. This avoids registering
 the same Sentinel skill names twice if the separate Sentinel plugin is installed.
 No upstream manifest is registered or merged into the SOC manifest.
 

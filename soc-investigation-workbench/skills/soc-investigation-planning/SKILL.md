@@ -31,7 +31,9 @@ skill's plugin root; do not assume the user's current directory.
    the selected steps distinguish competing explanations. The deterministic
    ranking is a heuristic; analyst estimates are not calibrated probabilities.
 5. For each selected query step, run `handoff CASE --step STEP`. Read the relevant
-   **canonical vendored Sentinel skill paths returned by the command**. All hunt
+   **canonical vendored Sentinel skill paths returned by the command**, resolving
+   them relative to this plugin's installation. Resolve the returned CLI path
+   the same way and run Python with `-B` to preserve the verified snapshot. All hunt
    discovery/design, KQL, joins, rendering, testing, and surface qualification
    belong there. If integrity or compatibility checks fail, stop that handoff
    and report the dependency gap. Never invent an equivalent local flow.

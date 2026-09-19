@@ -29,7 +29,7 @@ def read_json(path: Path) -> Any:
 
 
 def write_snapshot(path: Path, case: dict[str, Any]) -> None:
-    """Validate before exclusive creation; owner-only permissions even under umask 000."""
+    """Validate before exclusive creation; use owner-only mode on POSIX."""
     validate(case)
     encoded = (json.dumps(case, indent=2, allow_nan=False) + "\n").encode()
     if len(encoded) > 8 * 1024 * 1024:

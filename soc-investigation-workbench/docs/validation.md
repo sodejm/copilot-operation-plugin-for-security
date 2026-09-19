@@ -15,7 +15,14 @@ artifacts, every shipped hunt/surface dependency, no-progress batch reservations
 empty versus inconclusive branching, and bounded reads that reject devices and
 FIFOs without waiting for input. JSON inputs, hunt contracts, locks, and inherited
 licenses are read from regular files with an 8 MiB byte limit enforced before
-decoding, independent of reported file size.
+decoding, independent of reported file size. POSIX reads use nonblocking file
+descriptors; Windows reads inspect native file handles and reject device handles.
+Dependency reads additionally reject final symlinks or Windows reparse points.
+Vendor hashing streams arbitrary-size regular files in 64 KiB chunks. Tests
+also reject incomplete provenance locks, installed cache additions, and cases
+missing either malicious or benign hypotheses, and verify portable handoff paths.
+CI runs the SOC suite and development package validator on Windows with Python
+3.11 and 3.13, alongside the full repository checks on Ubuntu.
 Vendor tests use clearly synthetic local fixtures; they do not assert that
 Sentinel's real hunts pass qualification or that the host loads skills correctly.
 

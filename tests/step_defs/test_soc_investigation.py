@@ -1,6 +1,7 @@
 """Executable acceptance scenarios for the case planner, not hunt qualification."""
 
 from copy import deepcopy
+from hashlib import sha256
 import json
 import os
 from pathlib import Path
@@ -19,7 +20,7 @@ sys.path.insert(0, str(PLUGIN))
 
 from investigationwb.engine import ContractError, digest, import_result, next_steps, report, revise, validate
 from investigationwb.cli import read_json
-from investigationwb.files import MAX_BYTES
+from investigationwb.files import MAX_BYTES, read_regular
 from investigationwb.vendor import handoff, inventory, sync, verify
 
 scenarios("../../specs/features/soc_investigation.feature")
@@ -59,7 +60,11 @@ def fake_vendor(path, support="supported"):
     (root / "LICENSE").write_text("Synthetic license fixture\n")
     files = inventory(root)
     (path / "vendor-lock.json").write_text(json.dumps({"schema_version": 1, "files": files,
-        "snapshot_hash": digest(files), "skills": ["skills/canonical/SKILL.md"], "source_state": "test_fixture"}))
+        "snapshot_hash": digest(files), "skills": ["skills/canonical/SKILL.md"],
+        "source_state": "committed", "base_commit": "a" * 40,
+        "upstream": "https://github.com/sodejm/copilot-operations-plugin-for-security",
+        "source_subdirectory": "sentinel-hunt-workbench",
+        "policy": "Exact upstream bytes. Update from source; never patch vendored flows."}))
     return root
 
 
@@ -230,7 +235,9 @@ def vendor_challenges(state, tmp_path):
     root = fake_vendor(tmp_path)
     good = handoff(state["case"], "signin", tmp_path)
     assert good["request"]["hunt_id"] == "H02"
-    assert good["canonical_skills"] == [str(root / "skills/canonical/SKILL.md")]
+    assert good["canonical_skills"] == ["vendor/sentinel-hunt-workbench/skills/canonical/SKILL.md"]
+    assert good["sentinel_cli"] == "vendor/sentinel-hunt-workbench/scripts/huntwb.py"
+    assert str(tmp_path) not in json.dumps(good)
     (root / "skills/canonical/SKILL.md").write_text("Changed")
     rejected(lambda: handoff(state["case"], "signin", tmp_path))
     for support in ["unverified", "unsupported", None]:
@@ -279,7 +286,8 @@ def private_output(state):
     assert state["first_cli"].returncode == 0, state["first_cli"].stderr
     assert state["second_cli"].returncode == 2
     assert state["out"].read_bytes() == state["snapshot"]
-    assert stat.S_IMODE(state["out"].stat().st_mode) == 0o600
+    if os.name != "nt":
+        assert stat.S_IMODE(state["out"].stat().st_mode) == 0o600
     assert cli("validate", state["out"]).returncode == 0
     assert "Traceback" not in state["second_cli"].stderr
 
@@ -600,6 +608,7 @@ def test_json_read_bounds_bytes_even_when_size_metadata_is_stale(tmp_path, monke
 
 
 @pytest.mark.parametrize("kind", ["fifo", "device"])
+@pytest.mark.skipif(os.name == "nt", reason="POSIX FIFO and device paths")
 def test_cli_rejects_nonregular_input_without_blocking(tmp_path, kind):
     path = tmp_path / "input"
     if kind == "fifo":
@@ -609,3 +618,83 @@ def test_cli_rejects_nonregular_input_without_blocking(tmp_path, kind):
     result = cli("validate", path)
     assert result.returncode == 2
     assert "regular file" in result.stderr and "Traceback" not in result.stderr
+
+
+@pytest.mark.parametrize("kind", ["benign", "malicious"])
+def test_case_requires_both_hypothesis_kinds(kind):
+    case = example("case")
+    for hypothesis in case["hypotheses"]:
+        hypothesis["kind"] = kind
+    rejected(lambda: validate(case))
+
+
+def test_regular_reads_and_dependency_nofollow_on_supported_platforms(tmp_path):
+    path = tmp_path / "regular.json"
+    path.write_bytes(b'{"value":1}')
+    assert read_json(path) == {"value": 1}
+    assert read_regular(path, nofollow=True) == path.read_bytes()
+    link = tmp_path / "link.json"
+    link.symlink_to(path)
+    rejected(lambda: read_regular(link, nofollow=True))
+    rejected(lambda: read_regular(tmp_path, nofollow=True))
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows device handle")
+def test_windows_device_input_is_rejected_without_blocking():
+    result = cli("validate", "NUL")
+    assert result.returncode == 2 and "Traceback" not in result.stderr
+
+
+def test_vendor_hashing_streams_large_files_without_path_read_bytes(tmp_path, monkeypatch):
+    content = b"x" * (MAX_BYTES + 1)
+    (tmp_path / "large.bin").write_bytes(content)
+    expected = sha256(content).hexdigest()
+    # A whole-file Path read must not be used for arbitrarily large dependencies.
+    def forbidden(*args, **kwargs):
+        pytest.fail("Unbounded dependency read")
+    monkeypatch.setattr(Path, "read_bytes", forbidden)
+    assert inventory(tmp_path) == {"large.bin": expected}
+
+
+@pytest.mark.parametrize("entry", ["scripts/json.pyc", "scripts/__pycache__/helper.pyc",
+                                   ".pytest_cache/state", ".DS_Store"])
+def test_source_caches_are_excluded_but_installed_extras_fail_verification(tmp_path, entry):
+    source, package = canonical_fixture(tmp_path)
+    cached = source / entry
+    cached.parent.mkdir(parents=True, exist_ok=True)
+    cached.write_bytes(b"synthetic cache")
+    sync(source, package)
+    installed = package / "vendor/sentinel-hunt-workbench" / entry
+    assert not installed.exists()
+    installed.parent.mkdir(parents=True, exist_ok=True)
+    installed.write_bytes(cached.read_bytes())
+    rejected(lambda: verify(package))
+
+
+@pytest.mark.parametrize("field", ["schema_version", "upstream", "source_subdirectory",
+    "base_commit", "source_state", "snapshot_hash", "skills", "files", "policy"])
+def test_vendor_lock_requires_every_field(tmp_path, field):
+    fake_vendor(tmp_path)
+    path = tmp_path / "vendor-lock.json"
+    lock = json.loads(path.read_text())
+    del lock[field]
+    path.write_text(json.dumps(lock))
+    rejected(lambda: verify(tmp_path))
+
+
+@pytest.mark.parametrize("field,value", [
+    ("upstream", "https://example.invalid/unreviewed"), ("upstream", None),
+    ("source_subdirectory", "../sentinel-hunt-workbench"),
+    ("base_commit", "z" * 40), ("base_commit", "a" * 39), ("base_commit", 123),
+    ("source_state", "private unvalidated prose"), ("source_state", []),
+    ("policy", "Patch copied flows"), ("policy", None),
+    ("schema_version", True), ("unexpected", "field"),
+    ("files", []), ("skills", "skills/canonical/SKILL.md"),
+])
+def test_vendor_lock_rejects_invalid_provenance_and_shape(tmp_path, field, value):
+    fake_vendor(tmp_path)
+    path = tmp_path / "vendor-lock.json"
+    lock = json.loads(path.read_text())
+    lock[field] = value
+    path.write_text(json.dumps(lock))
+    rejected(lambda: verify(tmp_path))

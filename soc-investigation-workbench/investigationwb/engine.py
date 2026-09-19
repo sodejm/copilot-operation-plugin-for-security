@@ -147,8 +147,8 @@ def validate(case: Document) -> Document:
         fields(hypothesis, "id kind statement")
         require(hypothesis["kind"] in ("malicious", "benign"), "Unknown hypothesis kind.")
         prose(hypothesis["statement"])
-    require(any(h["kind"] == "benign" for h in hypotheses.values()),
-            "Include a benign alternative hypothesis.")
+    require({h["kind"] for h in hypotheses.values()} == {"malicious", "benign"},
+            "Include both malicious and benign alternative hypotheses.")
     entities = indexed(case["entities"])
     identities = set()
     for entity in entities.values():
