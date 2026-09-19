@@ -15,10 +15,14 @@ and skills; distinguish included capabilities from potential future add-ons.
 
 - Root `AGENTS.md` owns contributor instructions; vendor adapters point to it.
 - Canonical contributor skills live in `.agents/skills/`; generated Claude copies
-  must match. Distributed plugin skills remain inside `security-logging-advisor/`.
+  must match. Distributed product skills remain inside their plugin packages.
 - `make check` validates the repository contract, Markdown links, Python syntax,
   adapter drift, plugin package, plugin unit tests, pytest scenarios, and bundled
   skill tests. Failures must produce a nonzero exit status.
+- The SOC package check permits an entirely absent Sentinel snapshot for local
+  development and reports that limitation. Its separate default release gate
+  requires verified vendored content; repository CI does not establish release
+  readiness or qualify Sentinel hunts.
 - Contract checks include repository sources and newly added files, exclude
   Git-ignored local artifacts, and do not follow symlinks outside the checkout.
 - Documentation describes actual local commands and distinguishes static checks

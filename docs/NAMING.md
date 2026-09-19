@@ -5,7 +5,7 @@
 | Project, first mention | COPS (Copilot Operations Plugins for Security) |
 | Subsequent project mentions | COPS |
 | First plugin display name | COPS Security Logging Advisor |
-| Repository slug | `copilot-operations-plugin-for-security` |
+| Repository slug | `copilot-operation-plugin-for-security` |
 | Existing package, agent, command and plugin ID | `security-logging-advisor` |
 | Existing marketplace ID | `security-logging-advisor-marketplace` |
 

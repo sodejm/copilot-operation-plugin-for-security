@@ -21,3 +21,4 @@
 - [Plugin architecture](../security-logging-advisor/docs/architecture.md): scanner and recommendation flow.
 - [Plugin maintainer guide](../security-logging-advisor/docs/MAINTAINERS.md): package and release checks.
 - [Plugin security and privacy](../security-logging-advisor/docs/SECURITY_PRIVACY.md): data handling.
+- [SOC Investigation Workbench](../soc-investigation-workbench/README.md): local planning, review skills, and pending Sentinel integration.

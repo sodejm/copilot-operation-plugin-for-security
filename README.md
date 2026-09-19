@@ -26,8 +26,8 @@ Use Python 3.11 or newer and Git. The scanner and package validator use only the
 Python standard library. Contributor tests additionally require `requirements.txt`.
 
 ```bash
-git clone https://github.com/sodejm/copilot-operations-plugin-for-security.git
-cd copilot-operations-plugin-for-security
+git clone https://github.com/sodejm/copilot-operation-plugin-for-security.git
+cd copilot-operation-plugin-for-security
 python3 security-logging-advisor/scripts/validate-plugin.py
 python3 security-logging-advisor/skills/repository-context/scripts/collect-repository-context.py .
 ```
@@ -37,6 +37,15 @@ The scanner writes JSON to standard output. Give the agent the
 and reviewed context to produce a report. Follow the
 [installation guide](security-logging-advisor/docs/INSTALL.md) for the host-specific
 integration boundary and local fallback.
+
+## SOC investigation planning
+
+The separate [COPS SOC Investigation Workbench](soc-investigation-workbench/README.md)
+adds two Codex skills and a local Python case planner for evidence associations,
+competing hypotheses, branching investigations, and bounded next steps. Hunt
+workflows remain owned by Sentinel and are integrated through unchanged vendor
+snapshots. The planner works locally; its Sentinel integration is pending the
+canonical skills and catalog. See its README for setup and verified limits.
 
 ## Contributing
 

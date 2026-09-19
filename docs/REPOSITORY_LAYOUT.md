@@ -11,6 +11,7 @@
 | `scripts/_template_common.py` | Retained PARK helper used for adapter generation |
 | `security-logging-advisor/` | Distributed COPS Security Logging Advisor package |
 | `security-logging-advisor/skills/` | Product scanning and recommendation skills |
+| `soc-investigation-workbench/` | Local investigation planner, Codex plugin, two product skills, and guarded Sentinel vendoring |
 | `.github/plugin/`, `.claude-plugin/` | Existing marketplace metadata |
 | `specs/`, `.specify/` | Product requirements, Gherkin scenarios, project context |
 | `tests/step_defs/` | Executable pytest-bdd scenarios |

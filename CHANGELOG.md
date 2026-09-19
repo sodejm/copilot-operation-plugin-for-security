@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add COPS SOC Investigation Workbench with two Codex skills, a local case planner,
+  evidence and scope checks, branching next-step selection, and tested Sentinel
+  vendoring. Canonical Sentinel skills/catalog integration is pending and blocks
+  query handoffs and release validation.
+
 - Position COPS as a cybersecurity project for plugins, agents, and skills; document the included capabilities and focused GitHub topics.
 
 - Adopt PARK's portable repository contract, contributor skills, generated Claude

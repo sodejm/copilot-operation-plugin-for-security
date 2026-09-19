@@ -1,0 +1,31 @@
+{
+  "id": "result-consent",
+  "step_id": "consent",
+  "outcome": "supports",
+  "coverage": "complete",
+  "cost": 2,
+  "evidence": [
+    {
+      "id": "ev-consent",
+      "source": "cloud-audit",
+      "record_ref": "11c849d208c14de0e3a05e8d25f290675da07df1386bccbba625f5c1f95a4d19",
+      "scope": {
+        "tenant": "tenant-a",
+        "workspace": "workspace-a"
+      },
+      "event_time": "2026-01-01T10:00:00Z",
+      "entities": [
+        "account-a",
+        "app-b"
+      ],
+      "assessments": [
+        {
+          "hypothesis_id": "oauth-abuse",
+          "stance": "supports",
+          "reason": "Synthetic consent permissions exceed the recorded change scope."
+        }
+      ],
+      "summary": "Synthetic consent permissions exceed the recorded change scope."
+    }
+  ]
+}

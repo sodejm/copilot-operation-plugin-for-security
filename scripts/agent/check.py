@@ -42,6 +42,8 @@ def main() -> int:
         run([sys.executable, "scripts/agent/sync_adapters.py", "--check"]),
         run([sys.executable, "security-logging-advisor/scripts/validate-plugin.py"]),
         run([sys.executable, "security-logging-advisor/scripts/test_plugin.py"]),
+        run([sys.executable, "soc-investigation-workbench/scripts/validate-package.py",
+             "--allow-pending-vendor"]),
     ]
     if (ROOT / "tests").is_dir():
         checks.append(run([sys.executable, "-m", "pytest", "tests", "-q"]))

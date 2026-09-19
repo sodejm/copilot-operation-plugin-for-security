@@ -27,3 +27,23 @@ jobs:
         run: python3 -m pip install -r requirements.txt
       - name: Validate repository and plugin
         run: make check
+
+  soc-windows:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.13"]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install test dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Test SOC investigation and dependency boundaries
+        run: python -m pytest tests/step_defs/test_soc_investigation.py -q
+      - name: Validate SOC development package
+        run: python soc-investigation-workbench/scripts/validate-package.py --allow-pending-vendor
