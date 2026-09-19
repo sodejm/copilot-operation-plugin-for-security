@@ -8,6 +8,7 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import shutil
+import stat
 import subprocess
 import tempfile
 from typing import Any
@@ -40,23 +41,41 @@ def verify_requirements(root: Path) -> None:
         verify_hunt(root, step["query"])
 
 
+def reject_redirect(path: Path) -> None:
+    try:
+        entry = path.lstat()
+    except FileNotFoundError:
+        return
+    # is_symlink() misses Windows junctions on supported Python 3.11 hosts.
+    require(not stat.S_ISLNK(entry.st_mode)
+            and not getattr(entry, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT,
+            "Vendor entries cannot be symlinks or Windows reparse points.")
+
+
 def inventory(root: Path, *, installed: bool = False) -> dict[str, str]:
-    require(root.is_dir() and not root.is_symlink(), "Vendor directory is unavailable or unsafe.")
+    reject_redirect(root)
+    require(root.is_dir(), "Vendor directory is unavailable or unsafe.")
     files = {}
-    for path in sorted(root.rglob("*")):
-        relative = path.relative_to(root)
-        if any(part in IGNORED for part in relative.parts) or path.suffix == ".pyc":
-            require(not installed, "Installed dependency contains untracked cache or metadata entries.")
-            continue
-        require(not path.is_symlink(), "Vendor snapshots cannot contain symlinks.")
-        require(path.is_file() or path.is_dir(), "Vendor entries must be regular files or directories.")
-        if path.is_file():
+    directories = [root]
+    while directories:
+        directory = directories.pop()
+        reject_redirect(directory)
+        for path in sorted(directory.iterdir()):
+            relative = path.relative_to(root)
+            if path.name in IGNORED or path.suffix == ".pyc":
+                require(not installed, "Installed dependency contains untracked cache or metadata entries.")
+                continue
+            reject_redirect(path)
+            require(path.is_file() or path.is_dir(), "Vendor entries must be regular files or directories.")
+            if path.is_dir():
+                directories.append(path)
+                continue
             checksum = sha256()
             with open_regular(path, nofollow=True) as stream:
                 for chunk in iter(lambda: stream.read(64 * 1024), b""):
                     checksum.update(chunk)
             files[relative.as_posix()] = checksum.hexdigest()
-    return files
+    return dict(sorted(files.items()))
 
 
 def validate_lock(lock: Document) -> None:
@@ -83,7 +102,7 @@ def validate_lock(lock: Document) -> None:
 
 def verify(package: Path = PACKAGE, source: Path | None = None) -> Document:
     try:
-        require(not (package / "vendor").is_symlink(), "Vendor destination cannot be a symlink.")
+        reject_redirect(package / "vendor")
         lock = json.loads(read_regular(package / "vendor-lock.json", nofollow=True))
         validate_lock(lock)
         require(lock["files"] == inventory(package / "vendor" / SOURCE_SUBDIRECTORY, installed=True),
@@ -123,7 +142,7 @@ def sync(source: Path, package: Path = PACKAGE) -> Document:
     inherited_license = (read_regular(source.parent / "LICENSE", nofollow=True)
                          if "LICENSE" not in before else None)
     lock_path = package / "vendor-lock.json"
-    require(not lock_path.is_symlink(), "Vendor lock cannot be a symlink.")
+    reject_redirect(lock_path)
     try:
         commit = subprocess.run(["git", "-C", str(source.parent), "rev-parse", "HEAD"],
                                 check=True, capture_output=True, text=True).stdout.strip()
@@ -145,10 +164,10 @@ def sync(source: Path, package: Path = PACKAGE) -> Document:
     require(not candidates.intersection(ignored),
             "Canonical source contains Git-ignored files; remove them before vendoring.")
     vendor_parent = package / "vendor"
-    require(not vendor_parent.is_symlink(), "Vendor destination cannot be a symlink.")
+    reject_redirect(vendor_parent)
     vendor_parent.mkdir(exist_ok=True)
     target = vendor_parent / source.name
-    require(not target.is_symlink(), "Vendor destination cannot be a symlink.")
+    reject_redirect(target)
     with tempfile.TemporaryDirectory(dir=vendor_parent) as temporary:
         staged = Path(temporary) / source.name
         staged.mkdir()
@@ -173,6 +192,10 @@ def sync(source: Path, package: Path = PACKAGE) -> Document:
             "snapshot_hash": digest(files), "skills": skills, "files": files,
             "policy": POLICY,
         }
+        validate_lock(lock)
+        reject_redirect(vendor_parent)
+        reject_redirect(target)
+        reject_redirect(lock_path)
         if target.exists():
             shutil.rmtree(target)
         shutil.move(str(staged), target)
@@ -185,7 +208,7 @@ def sync(source: Path, package: Path = PACKAGE) -> Document:
                 stream.write(json.dumps(lock, indent=2) + "\n")
                 stream.flush()
                 os.fsync(stream.fileno())
-            require(not lock_path.is_symlink(), "Vendor lock cannot be a symlink.")
+            reject_redirect(lock_path)
             os.replace(temporary_lock, lock_path)
         finally:
             if temporary_lock is not None:

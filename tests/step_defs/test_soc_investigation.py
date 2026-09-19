@@ -478,6 +478,88 @@ def test_vendor_sync_rejects_incomplete_source_without_replacing_snapshot(tmp_pa
     assert verify(package)["status"] == "verified"
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Windows cannot create these POSIX filenames")
+@pytest.mark.parametrize("name", ["bad:name", "bad\\name"])
+def test_vendor_rejects_invalid_inventory_path_before_replacing_snapshot(tmp_path, name):
+    source, package = canonical_fixture(tmp_path)
+    sync(source, package)
+    lock = (package / "vendor-lock.json").read_bytes()
+    installed = package / "vendor/sentinel-hunt-workbench"
+    before = inventory(installed)
+    (source / "docs/shared.md").write_text("Changed source content\n")
+    (source / "docs" / name).write_text("Invalid portable path\n")
+    with pytest.raises(ContractError, match="inventory path"):
+        sync(source, package)
+    assert (package / "vendor-lock.json").read_bytes() == lock
+    assert inventory(installed) == before
+    assert verify(package)["status"] == "verified"
+
+
+@pytest.mark.parametrize("location", ["vendor", "vendor/sentinel-hunt-workbench"])
+def test_vendor_rejects_destination_reparse_attributes_before_replacement(tmp_path, monkeypatch, location):
+    source, package = canonical_fixture(tmp_path)
+    sync(source, package)
+    lock = (package / "vendor-lock.json").read_bytes()
+    installed = package / "vendor/sentinel-hunt-workbench"
+    before = inventory(installed)
+    blocked = package / location
+    original_lstat = Path.lstat
+
+    def reparse_lstat(path, *args, **kwargs):
+        if path == blocked:
+            return SimpleNamespace(st_mode=stat.S_IFDIR, st_file_attributes=0x400)
+        return original_lstat(path, *args, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, "lstat", reparse_lstat)
+        with pytest.raises(ContractError, match="reparse"):
+            sync(source, package)
+        with pytest.raises(ContractError, match="reparse"):
+            verify(package)
+    assert (package / "vendor-lock.json").read_bytes() == lock
+    assert inventory(installed) == before
+
+
+@pytest.mark.parametrize("location", [".", "docs"])
+def test_vendor_inventory_rejects_directory_reparse_attributes(tmp_path, monkeypatch, location):
+    source, _ = canonical_fixture(tmp_path)
+    blocked = source / location
+    original_lstat = Path.lstat
+
+    def reparse_lstat(path, *args, **kwargs):
+        if path == blocked:
+            return SimpleNamespace(st_mode=stat.S_IFDIR, st_file_attributes=0x400)
+        return original_lstat(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "lstat", reparse_lstat)
+    for installed in (False, True):
+        with pytest.raises(ContractError, match="reparse"):
+            inventory(source, installed=installed)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Native NTFS junction regression")
+@pytest.mark.parametrize("location", ["vendor", "vendor/sentinel-hunt-workbench"])
+def test_vendor_junction_cannot_replace_external_snapshot(tmp_path, location):
+    source, package = canonical_fixture(tmp_path)
+    sync(source, package)
+    lock = (package / "vendor-lock.json").read_bytes()
+    link = package / location
+    external = tmp_path / "external snapshot"
+    link.rename(external)
+    before = inventory(external)
+    subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(external)],
+                   check=True, capture_output=True)
+    try:
+        with pytest.raises(ContractError, match="reparse"):
+            sync(source, package)
+        with pytest.raises(ContractError, match="reparse"):
+            verify(package)
+        assert (package / "vendor-lock.json").read_bytes() == lock
+        assert inventory(external) == before
+    finally:
+        os.rmdir(link)
+
+
 def test_vendor_records_inherited_license_changes_as_working_tree_snapshot(tmp_path):
     source, package = canonical_fixture(tmp_path)
     (source.parent / "LICENSE").write_text("Updated inherited license\n")

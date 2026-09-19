@@ -41,6 +41,10 @@ of tenant or cross-host validation are included.
   Git-ignored copy candidates, including an inherited license, block vendoring.
   Reviewed untracked files produce a working-tree snapshot regardless of Git's
   untracked-status display configuration.
+  Source and installed traversal and vendor destinations reject symlinks and
+  Windows directory reparse points, including junctions on Python 3.11.
+  Validate the staged inventory and generated lock before replacing an installed
+  snapshot; invalid source paths must preserve the previous snapshot and lock.
 - JSON reads enforce the 8 MiB limit on opened regular files on POSIX and Windows.
   Dependency reads reject final-component symlinks or Windows reparse points.
 - Updates validate the entire case before exclusively creating a new snapshot;
@@ -75,4 +79,5 @@ dependency rejection. Actual canonical integration is tracked separately:
 
 - [ ] Vendor the complete canonical Sentinel skills and hunt catalog, verify the
   snapshot against its source, and pass the default package gate and upstream
-  qualification checks. The source skills and catalog are currently absent.
+  qualification checks. The canonical runtime and hunt catalog are present, but
+  the canonical skill files are still absent; no snapshot is installed.

@@ -28,8 +28,10 @@ Any other Git-ignored file that would be copied, including an inherited license,
 blocks the update before the installed snapshot changes. Review and remove local
 content from the source before retrying.
 Installed snapshots reject these entries, including executable `.pyc` files,
-instead of silently ignoring them. It rejects symlinks, including the inherited
-license, vendor directory, and lock. Dependency files are hashed in bounded
+instead of silently ignoring them. It rejects symlinks and Windows reparse points,
+including junctions, before traversing source or installed directories and before
+replacing vendor destinations. This includes the inherited license and lock.
+Dependency files are hashed in bounded
 chunks from regular-file handles. Every
 included file keeps its exact bytes. If the package has no `LICENSE`, the
 repository license is included unchanged after a bounded regular-file read.
@@ -70,7 +72,9 @@ Both sync and verification require every hunt/surface in the shipped example
 case (H01, H02, H07, and H10 on Sentinel analytics) to exist and explicitly claim
 support. Each handoff also checks its requested hunt/surface. This is a consumer
 dependency check, not a replacement for Sentinel's catalog qualification.
-Incomplete source is rejected before replacing the installed snapshot. Updating
+Incomplete source and invalid generated lock paths are rejected before replacing
+the installed snapshot. The copied inventory and generated lock are validated
+while staged, preserving the previous snapshot and lock on validation failure. Updating
 the vendor directory and lock is an explicit maintenance operation; do not run
 it concurrently with case work. An interrupted refresh may leave an unusable
 snapshot, which integrity validation rejects until the refresh is rerun.
