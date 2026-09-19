@@ -49,11 +49,14 @@ Untracked source files are included in this classification even when Git's
 status display is configured to hide them.
 Source inspection requires the package directly under the Git repository root
 and exactly one local `origin` URL identifying this canonical repository. Accepted
-forms are `https://github.com/sodejm/copilot-operations-plugin-for-security`
+forms are `https://github.com/sodejm/copilot-operation-plugin-for-security`
 (with or without `.git`),
-`git@github.com:sodejm/copilot-operations-plugin-for-security.git`, and
-`ssh://git@github.com/sodejm/copilot-operations-plugin-for-security.git`.
-Fork origins, aliases, missing origins, and multiple origin URLs are rejected.
+`git@github.com:sodejm/copilot-operation-plugin-for-security.git`, and
+`ssh://git@github.com/sodejm/copilot-operation-plugin-for-security.git`.
+The same forms using the former `copilot-operations-plugin-for-security` name
+remain accepted for existing source checkouts. New locks always identify the
+current repository name. Fork origins, other aliases, missing origins, and
+multiple origin URLs are rejected.
 Git filesystem-monitor hooks and configured content filters are disabled during
 inspection. These checks establish the configured repository identity; they make
 no network request or authenticity attestation. Maintainers must review local

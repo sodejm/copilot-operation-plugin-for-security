@@ -64,7 +64,7 @@ def fake_vendor(path, support="supported"):
     (path / "vendor-lock.json").write_text(json.dumps({"schema_version": 1, "files": files,
         "snapshot_hash": digest(files), "skills": ["skills/canonical/SKILL.md"],
         "source_state": "committed", "base_commit": "a" * 40,
-        "upstream": "https://github.com/sodejm/copilot-operations-plugin-for-security",
+        "upstream": "https://github.com/sodejm/copilot-operation-plugin-for-security",
         "source_subdirectory": "sentinel-hunt-workbench",
         "policy": "Exact upstream bytes. Update from source; never patch vendored flows."}))
     return root
@@ -473,7 +473,13 @@ def test_vendor_rejects_noncanonical_origin_without_replacing_snapshot(tmp_path,
     assert inventory(package / "vendor/sentinel-hunt-workbench") == before
 
 
-@pytest.mark.parametrize("origin", [UPSTREAM, UPSTREAM + ".git",
+@pytest.mark.parametrize("origin", [
+    "https://github.com/sodejm/copilot-operation-plugin-for-security",
+    "https://github.com/sodejm/copilot-operation-plugin-for-security.git",
+    "git@github.com:sodejm/copilot-operation-plugin-for-security.git",
+    "ssh://git@github.com/sodejm/copilot-operation-plugin-for-security.git",
+    "https://github.com/sodejm/copilot-operations-plugin-for-security",
+    "https://github.com/sodejm/copilot-operations-plugin-for-security.git",
     "git@github.com:sodejm/copilot-operations-plugin-for-security.git",
     "ssh://git@github.com/sodejm/copilot-operations-plugin-for-security.git"])
 def test_vendor_accepts_documented_canonical_origin_forms(tmp_path, origin):
@@ -481,6 +487,8 @@ def test_vendor_accepts_documented_canonical_origin_forms(tmp_path, origin):
     subprocess.run(["git", "-C", str(source.parent), "remote", "set-url", "origin", origin],
                    check=True, capture_output=True)
     assert sync(source, package)["status"] == "verified"
+    lock = json.loads((package / "vendor-lock.json").read_text())
+    assert lock["upstream"] == "https://github.com/sodejm/copilot-operation-plugin-for-security"
 
 
 def test_vendor_rejects_package_below_nonroot_directory(tmp_path):

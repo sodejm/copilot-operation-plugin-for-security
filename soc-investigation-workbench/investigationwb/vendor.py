@@ -18,10 +18,13 @@ from .files import open_regular, read_regular
 
 PACKAGE = Path(__file__).resolve().parent.parent
 IGNORED = {"__pycache__", ".pytest_cache", ".git", ".DS_Store"}
-UPSTREAM = "https://github.com/sodejm/copilot-operations-plugin-for-security"
-ORIGINS = {UPSTREAM, UPSTREAM + ".git",
-           "git@github.com:sodejm/copilot-operations-plugin-for-security.git",
-           "ssh://git@github.com/sodejm/copilot-operations-plugin-for-security.git"}
+UPSTREAM = "https://github.com/sodejm/copilot-operation-plugin-for-security"
+ORIGINS = {url for slug in ("copilot-operation-plugin-for-security",
+                           "copilot-operations-plugin-for-security")
+           for url in (f"https://github.com/sodejm/{slug}",
+                       f"https://github.com/sodejm/{slug}.git",
+                       f"git@github.com:sodejm/{slug}.git",
+                       f"ssh://git@github.com/sodejm/{slug}.git")}
 SOURCE_SUBDIRECTORY = "sentinel-hunt-workbench"
 POLICY = "Exact upstream bytes. Update from source; never patch vendored flows."
 DEVICES = {"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"} | {

@@ -51,6 +51,9 @@ of tenant or cross-host validation are included.
   canonical origin URL, and disables Git filesystem-monitor hooks and content
   filters during status inspection. This verifies
   configured identity, not remote authenticity or approval of local edits.
+  New locks identify `sodejm/copilot-operation-plugin-for-security`; source
+  origins may also use the former `sodejm/copilot-operations-plugin-for-security`
+  name so existing checkouts remain usable after the repository rename.
   Inventory paths reject Windows-invalid characters, reserved device names,
   trailing dots/spaces, and case-insensitive file/directory collisions on every
   host. The development gate skips only absent vendor entries; dangling junctions

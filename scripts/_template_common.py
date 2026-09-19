@@ -160,9 +160,11 @@ def configure_project(
     repository = f"{owner}/{project_slug}" if owner else project_slug
     replacements = {
         "COPS (Copilot Operations Plugins for Security)": name,
+        "copilot-operation-plugin-for-security": project_slug,
         "copilot-operations-plugin-for-security": project_slug,
         "Portable security operations plugins and repository-aware logging guidance for coding assistants.": description,
         "sodejm": owner or "OWNER",
+        "sodejm/copilot-operation-plugin-for-security": repository,
         "sodejm/copilot-operations-plugin-for-security": repository,
         "main": default_branch,
     }

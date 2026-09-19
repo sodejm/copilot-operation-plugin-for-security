@@ -26,8 +26,8 @@ Use Python 3.11 or newer and Git. The scanner and package validator use only the
 Python standard library. Contributor tests additionally require `requirements.txt`.
 
 ```bash
-git clone https://github.com/sodejm/copilot-operations-plugin-for-security.git
-cd copilot-operations-plugin-for-security
+git clone https://github.com/sodejm/copilot-operation-plugin-for-security.git
+cd copilot-operation-plugin-for-security
 python3 security-logging-advisor/scripts/validate-plugin.py
 python3 security-logging-advisor/skills/repository-context/scripts/collect-repository-context.py .
 ```
