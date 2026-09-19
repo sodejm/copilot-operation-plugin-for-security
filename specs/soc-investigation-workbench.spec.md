@@ -26,6 +26,8 @@ of tenant or cross-host validation are included.
   query interval, with an inclusive start and exclusive end.
 - Each step names its question, hypotheses, basis evidence, dependencies,
   outcome branches, bounded hunt request, expected outcomes, and value/cost.
+  An inconclusive result cannot contain assessments that support or refute any
+  hypothesis named by its step, even when coverage is partial.
 - Rank ready steps with a documented deterministic heuristic. Return independent
   candidates within remaining budget. Completed steps do not run again. No
   progress, budget exhaustion, missing dependencies, or exhausted plans prompt
@@ -62,6 +64,8 @@ of tenant or cross-host validation are included.
   and require an analyst-restricted directory.
 - Reports expose IDs, hashes, counts, associations, and uncertainty, not raw
   evidence prose. Inputs must already be redacted; this is not a DLP tool.
+  Every completed result exposes its ID, step, outcome, and coverage, including
+  complete empty queries, so branch decisions remain inspectable.
 
 ## Acceptance criteria
 

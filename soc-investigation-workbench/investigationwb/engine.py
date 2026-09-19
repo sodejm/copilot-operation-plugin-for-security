@@ -278,6 +278,10 @@ def validate(case: Document) -> Document:
             require(any(a["stance"] == outcome and a["hypothesis_id"] in step["hypothesis_ids"]
                         for ref in result["evidence_ids"] for a in evidence[ref]["assessments"]),
                     "Result outcome lacks an explicit relevant evidence assessment.")
+        elif outcome == "inconclusive":
+            require(not any(a["hypothesis_id"] in step["hypothesis_ids"]
+                            for ref in result["evidence_ids"] for a in evidence[ref]["assessments"]),
+                    "Inconclusive results cannot contain relevant evidence assessments.")
         for ref in result["evidence_ids"]:
             item = evidence[ref]
             require(utc(step["query"]["start"]) <= utc(item["event_time"]) < utc(step["query"]["end"]),
@@ -393,6 +397,9 @@ def report(case: Document) -> Document:
     return {"case_id": case["id"], "snapshot_hash": digest(case),
             "hypotheses": hypothesis_status(case), "next": next_steps(case),
             "completed_steps": [r["step_id"] for r in case["results"]],
+            "completed_results": [{"result_id": r["id"], "step_id": r["step_id"],
+                                   "outcome": r["outcome"], "coverage": r["coverage"]}
+                                  for r in case["results"]],
             "coverage_gaps": [{"step_id": r["step_id"], "coverage": r["coverage"]}
                               for r in case["results"] if r["coverage"] != "complete"],
             "graph": {"entities": [{"id": e["id"], "kind": e["kind"],

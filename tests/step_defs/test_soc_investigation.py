@@ -702,6 +702,59 @@ def test_complete_empty_observation_cannot_unlock_inconclusive_branch():
     assert "consent" not in [item["step_id"] for item in next_steps(empty)["candidates"]]
 
 
+@pytest.mark.parametrize("coverage", ["complete", "partial"])
+@pytest.mark.parametrize("stance", ["supports", "refutes"])
+def test_inconclusive_rejects_relevant_assessments_on_import_and_reopen(coverage, stance):
+    incoming = example("signin-result")
+    incoming["coverage"] = coverage
+    incoming["outcome"] = stance
+    incoming["evidence"][0]["assessments"][0]["stance"] = stance
+    stored = import_result(example("case"), incoming)
+    stored["results"][0]["outcome"] = "inconclusive"
+    incoming["outcome"] = "inconclusive"
+    with pytest.raises(ContractError, match="Inconclusive"):
+        import_result(example("case"), incoming)
+    with pytest.raises(ContractError, match="Inconclusive"):
+        validate(stored)
+
+
+@pytest.mark.parametrize("coverage", ["complete", "partial"])
+@pytest.mark.parametrize("unrelated_assessment", [False, True])
+def test_inconclusive_allows_observations_without_relevant_assessments(coverage, unrelated_assessment):
+    incoming = example("signin-result")
+    incoming.update(outcome="inconclusive", coverage=coverage)
+    if unrelated_assessment:
+        incoming["evidence"][0]["assessments"][0]["hypothesis_id"] = "oauth-abuse"
+    else:
+        incoming["evidence"][0]["assessments"] = []
+    updated = import_result(example("case"), incoming)
+    assert updated["results"][0]["outcome"] == "inconclusive"
+    assert "consent" in [item["step_id"] for item in next_steps(updated)["candidates"]]
+
+
+@pytest.mark.parametrize("outcome,coverage", [
+    ("supports", "complete"), ("refutes", "complete"), ("empty", "complete"),
+    ("inconclusive", "partial"), ("unavailable", "unavailable"),
+])
+def test_report_exposes_completed_outcome_and_coverage_without_prose(outcome, coverage):
+    if outcome in ("supports", "refutes"):
+        incoming = example("signin-result")
+        incoming["outcome"] = outcome
+        incoming["evidence"][0]["assessments"][0]["stance"] = outcome
+    else:
+        incoming = empty_result(outcome=outcome, coverage=coverage)
+    result = report(import_result(example("case"), incoming))
+    assert result["completed_results"] == [{"result_id": "result-signin", "step_id": "signin",
+                                             "outcome": outcome, "coverage": coverage}]
+    assert result["completed_steps"] == ["signin"]
+    assert result["coverage_gaps"] == ([] if coverage == "complete" else
+                                      [{"step_id": "signin", "coverage": coverage}])
+    for evidence in incoming["evidence"]:
+        assert evidence["summary"] not in json.dumps(result)
+        assert all(assessment["reason"] not in json.dumps(result)
+                   for assessment in evidence["assessments"])
+
+
 @pytest.mark.parametrize("dangling", [False, True])
 def test_vendor_lock_symlink_preserves_external_file_and_snapshot(tmp_path, dangling):
     source, package = canonical_fixture(tmp_path)

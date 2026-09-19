@@ -96,7 +96,10 @@ every hypothesis: inspect each assessment when multiple hypotheses are involved.
 Complete coverage with no observations must use `empty`; it adds no refutation.
 An `empty` outcome also requires complete coverage and no observations.
 `unavailable` requires unavailable coverage and no observations. Use
-`inconclusive` for partial coverage without an assessable finding.
+`inconclusive` only when no returned evidence supports or refutes any of the
+step's hypotheses. Partial coverage alone does not make an assessed finding
+inconclusive. Complete observations without relevant assessments may also be
+inconclusive; complete coverage with no observations remains `empty`.
 
 Stored results replace full observations with `evidence_ids`,
 `new_evidence_ids`, and `input_hash`. Do not hand-edit these fields. The engine
@@ -105,6 +108,11 @@ and stopping rules when reopening a case. Step revision takes a JSON **array**
 of steps, preserving every completed entry. Adding a new pending branch is
 supported. Changing case scope, hypotheses, or entities is not exposed as a
 mutation command in this MVP; those require a separately reviewed case snapshot.
+
+Reports include `completed_results` with each result's ID, step ID, outcome, and
+coverage. Review these alongside coverage gaps and hypothesis assessments to
+explain why a branch became eligible, including after a complete empty query.
+Evidence summaries and assessment reasons remain excluded from reports.
 
 ## Selection and uncertainty
 
