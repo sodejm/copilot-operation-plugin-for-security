@@ -128,12 +128,22 @@ def sync(source: Path, package: Path = PACKAGE) -> Document:
         commit = subprocess.run(["git", "-C", str(source.parent), "rev-parse", "HEAD"],
                                 check=True, capture_output=True, text=True).stdout.strip()
         provenance_paths = [source.name] + (["LICENSE"] if "LICENSE" not in before else [])
-        dirty = subprocess.run(["git", "-C", str(source.parent), "status", "--porcelain", "--", *provenance_paths],
+        dirty = subprocess.run(["git", "-C", str(source.parent), "status", "--porcelain",
+                                "--untracked-files=all", "--", *provenance_paths],
                                check=True, capture_output=True, text=True).stdout.strip()
+        ignored = subprocess.run(["git", "-C", str(source.parent), "ls-files", "--others", "--ignored",
+                                  "--exclude-standard", "-z", "--", *provenance_paths],
+                                 check=True, capture_output=True).stdout.split(b"\0")
     except (OSError, subprocess.CalledProcessError) as exc:
         raise ContractError("Cannot establish canonical repository provenance.") from exc
     require(len(commit) == 40 and all(c in "0123456789abcdef" for c in commit),
             "Canonical repository revision is invalid.")
+    # NUL-delimited bytes preserve unusual filenames; excluded caches are not copy candidates.
+    candidates = {os.fsencode(f"{source.name}/{name}") for name in before}
+    if inherited_license is not None:
+        candidates.add(b"LICENSE")
+    require(not candidates.intersection(ignored),
+            "Canonical source contains Git-ignored files; remove them before vendoring.")
     vendor_parent = package / "vendor"
     require(not vendor_parent.is_symlink(), "Vendor destination cannot be a symlink.")
     vendor_parent.mkdir(exist_ok=True)

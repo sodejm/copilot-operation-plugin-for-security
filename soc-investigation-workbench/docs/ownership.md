@@ -24,6 +24,9 @@ vendoring the canonical flow, not by expanding the SOC skills.
 The maintainer command copies the entire canonical `sentinel-hunt-workbench/`
 package so skill-relative references retain their supporting files. It skips
 Git metadata, Python caches, pytest caches, and macOS metadata in the source.
+Any other Git-ignored file that would be copied, including an inherited license,
+blocks the update before the installed snapshot changes. Review and remove local
+content from the source before retrying.
 Installed snapshots reject these entries, including executable `.pyc` files,
 instead of silently ignoring them. It rejects symlinks, including the inherited
 license, vendor directory, and lock. Dependency files are hashed in bounded
@@ -36,6 +39,8 @@ The lock is written privately and replaced atomically without following links.
 whether the source was a working-tree snapshot, every file's SHA-256, the aggregate
 inventory hash, and every canonical skill path. A working-tree snapshot is
 identified explicitly; the base commit alone does not claim to reproduce it.
+Untracked source files are included in this classification even when Git's
+status display is configured to hide them.
 The verifier requires the exact lock schema, canonical repository and package,
 40-character lowercase Git revision, declared source-state enum, fixed update
 policy, and valid paths and digests. The file hashes define the exact copied content. Locks detect accidental drift,

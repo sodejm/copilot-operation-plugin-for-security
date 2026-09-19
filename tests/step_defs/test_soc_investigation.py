@@ -359,6 +359,32 @@ def test_new_evidence_outside_step_window_and_reserved_cost():
     rejected(lambda: import_result(example("case"), incoming))
 
 
+@pytest.mark.parametrize("origin", ["initial", "prior_result"])
+@pytest.mark.parametrize("boundary,time", [("start", "2026-01-01T11:00:00Z"),
+                                          ("end", "2026-01-01T10:00:00Z")])
+def test_reused_evidence_must_be_inside_each_step_window(origin, boundary, time):
+    case = example("case")
+    incoming = example("signin-result")
+    if origin == "initial":
+        case["evidence"].extend(deepcopy(incoming["evidence"]))
+        step_index = 0
+    else:
+        case = import_result(case, incoming)
+        incoming.update(id="result-spray", step_id="spray")
+        step_index = 1
+    incoming["evidence"][0]["id"] = "alternate-evidence-id"
+    valid = import_result(case, incoming)
+    assert valid["results"][-1]["new_evidence_ids"] == []
+    assert valid["results"][-1]["evidence_ids"] == ["ev-signin"]
+    # Check imports and persisted state, not just the path for new observations.
+    case["steps"][step_index]["query"][boundary] = time
+    with pytest.raises(ContractError, match="outside the step query interval"):
+        import_result(case, incoming)
+    valid["steps"][step_index]["query"][boundary] = time
+    with pytest.raises(ContractError, match="outside the step query interval"):
+        validate(valid)
+
+
 @pytest.mark.parametrize("content", ['{"id":1,"id":2}', '{"id":NaN}', 'not json'])
 def test_cli_malformed_data_has_no_trace_or_payload(tmp_path, content):
     path = tmp_path / "bad.json"
@@ -457,6 +483,36 @@ def test_vendor_records_inherited_license_changes_as_working_tree_snapshot(tmp_p
     (source.parent / "LICENSE").write_text("Updated inherited license\n")
     assert sync(source, package)["source_state"] == "working_tree_snapshot"
     assert (package / "vendor/sentinel-hunt-workbench/LICENSE").read_bytes() == (source.parent / "LICENSE").read_bytes()
+
+
+@pytest.mark.parametrize("entry", ["sentinel-hunt-workbench/.env",
+                                  "sentinel-hunt-workbench/docs/local notes.txt", "LICENSE"])
+def test_vendor_rejects_git_ignored_copy_candidates_without_replacing_snapshot(tmp_path, entry):
+    source, package = canonical_fixture(tmp_path)
+    sync(source, package)
+    lock = (package / "vendor-lock.json").read_bytes()
+    installed = package / "vendor/sentinel-hunt-workbench"
+    before = inventory(installed)
+    if entry == "LICENSE":
+        subprocess.run(["git", "-C", str(source.parent), "rm", "--cached", "-q", "LICENSE"],
+                       check=True, capture_output=True)
+    (source.parent / entry).write_text("Synthetic ignored local content\n")
+    with (source.parent / ".git/info/exclude").open("a") as stream:
+        stream.write("/" + entry + "\n")
+    with pytest.raises(ContractError, match="Git-ignored"):
+        sync(source, package)
+    assert (package / "vendor-lock.json").read_bytes() == lock
+    assert inventory(installed) == before
+    assert verify(package)["status"] == "verified"
+
+
+def test_vendor_labels_untracked_snapshot_even_when_git_hides_untracked_status(tmp_path):
+    source, package = canonical_fixture(tmp_path)
+    subprocess.run(["git", "-C", str(source.parent), "config", "status.showUntrackedFiles", "no"],
+                   check=True, capture_output=True)
+    (source / "docs/new.md").write_text("Reviewed untracked canonical content\n")
+    assert sync(source, package)["source_state"] == "working_tree_snapshot"
+    assert (package / "vendor/sentinel-hunt-workbench/docs/new.md").read_bytes() == (source / "docs/new.md").read_bytes()
 
 
 def test_vendor_malformed_surface_and_incomplete_skill_inventory_fail_closed(tmp_path):
@@ -663,6 +719,8 @@ def test_source_caches_are_excluded_but_installed_extras_fail_verification(tmp_p
     cached = source / entry
     cached.parent.mkdir(parents=True, exist_ok=True)
     cached.write_bytes(b"synthetic cache")
+    with (source.parent / ".git/info/exclude").open("a") as stream:
+        stream.write("/sentinel-hunt-workbench/" + entry + "\n")
     sync(source, package)
     installed = package / "vendor/sentinel-hunt-workbench" / entry
     assert not installed.exists()

@@ -22,6 +22,8 @@ of tenant or cross-host validation are included.
 - Evidence is supplied by an analyst with explicit provenance and assessments.
   The graph records these associations; it never joins raw telemetry or treats
   shared IP addresses as identity. Duplicate provenance cannot add support.
+  Every result reference, including reused evidence, must fall within its step's
+  query interval, with an inclusive start and exclusive end.
 - Each step names its question, hypotheses, basis evidence, dependencies,
   outcome branches, bounded hunt request, expected outcomes, and value/cost.
 - Rank ready steps with a documented deterministic heuristic. Return independent
@@ -36,6 +38,9 @@ of tenant or cross-host validation are included.
   fields. Source caches are excluded when copying; installed caches and other
   excluded artifacts are rejected. File hashes use bounded streaming reads from
   regular files without following final-component links.
+  Git-ignored copy candidates, including an inherited license, block vendoring.
+  Reviewed untracked files produce a working-tree snapshot regardless of Git's
+  untracked-status display configuration.
 - JSON reads enforce the 8 MiB limit on opened regular files on POSIX and Windows.
   Dependency reads reject final-component symlinks or Windows reparse points.
 - Updates validate the entire case before exclusively creating a new snapshot;

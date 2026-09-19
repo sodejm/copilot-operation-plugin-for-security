@@ -278,10 +278,10 @@ def validate(case: Document) -> Document:
             require(any(a["stance"] == outcome and a["hypothesis_id"] in step["hypothesis_ids"]
                         for ref in result["evidence_ids"] for a in evidence[ref]["assessments"]),
                     "Result outcome lacks an explicit relevant evidence assessment.")
-        for ref in result["new_evidence_ids"]:
+        for ref in result["evidence_ids"]:
             item = evidence[ref]
             require(utc(step["query"]["start"]) <= utc(item["event_time"]) < utc(step["query"]["end"]),
-                    "New evidence is outside the step query interval.")
+                    "Result evidence is outside the step query interval.")
         history.append(result)
         done.add(result["step_id"])
     return case
