@@ -35,6 +35,8 @@ Feature: Honest CVE reachability evidence reporting
       | invalid status       |
       | non-object report    |
       | malformed json       |
+      | duplicate json key   |
+      | nonfinite json       |
       | missing limitations  |
 
   Scenario Outline: Reject unsupported conclusions

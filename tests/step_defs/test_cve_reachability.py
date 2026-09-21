@@ -118,6 +118,10 @@ def defect(workspace, defect):
         workspace['report'] = []
     elif defect == 'malformed json':
         workspace['raw'] = '{ invalid json'
+    elif defect == 'duplicate json key':
+        workspace['raw'] = json.dumps(r)[:-1] + ', \"conclusion\": \"unresolved\"}'
+    elif defect == 'nonfinite json':
+        workspace['raw'] = json.dumps(r)[:-1] + ', \"extra\": NaN}'
     elif defect == 'missing limitations':
         r['limitations'] = []
     elif defect == 'no path':
@@ -249,3 +253,76 @@ def test_supported_statuses_remain_structural(tmp_path, status):
         'evidence': ['E1']}]
     checked(state)
     passed(state)
+
+
+def test_required_fields_reject_null_through_cli(tmp_path):
+    """Mutate every present field independently, including nested records."""
+    state = workspace(tmp_path)
+    populated(state)
+    original = copy.deepcopy(state['report'])
+
+    def locations(value, prefix=()):
+        if isinstance(value, dict):
+            for key, child in value.items():
+                yield prefix + (key,)
+                yield from locations(child, prefix + (key,))
+        elif isinstance(value, list):
+            for index, child in enumerate(value):
+                yield prefix + (index,)
+                yield from locations(child, prefix + (index,))
+
+    for location in locations(original):
+        mutated = copy.deepcopy(original)
+        parent = mutated
+        for key in location[:-1]:
+            parent = parent[key]
+        parent[location[-1]] = None
+        state['report'] = mutated
+        checked(state)
+        assert state['result'].returncode == 1, location
+        failed(state)
+
+
+@pytest.mark.parametrize('raw,diagnostic', [
+    (b'{"schema_version": 1, "schema_version": 1}', 'duplicate JSON object key'),
+    (b'{"nested": {"key": 1, "key": 2}}', 'duplicate JSON object key'),
+    (b'{"value": Infinity}', 'non-finite JSON constant'),
+    (b'{"value": -Infinity}', 'non-finite JSON constant'),
+    (b'\xff', None), (b'[' * 2000 + b']' * 2000, None),
+])
+def test_malformed_json_fails_cleanly(tmp_path, raw, diagnostic):
+    report = tmp_path / 'report.json'
+    report.write_bytes(raw)
+    result = cli('check', report, '--evidence-root', tmp_path)
+    failed({'result': result})
+    if diagnostic:
+        assert diagnostic in result.stderr
+
+
+@pytest.mark.parametrize('kind', ['loop', 'dangling', 'fifo', 'invalid_utf8'])
+def test_evidence_filesystem_failures(tmp_path, kind):
+    import os
+    source = tmp_path / 'source'
+    if kind in ('loop', 'dangling'):
+        source.symlink_to(source if kind == 'loop' else tmp_path / 'missing')
+    elif kind == 'fifo':
+        if not hasattr(os, 'mkfifo'):
+            pytest.skip('POSIX FIFO test is not applicable on this platform')
+        os.mkfifo(source)
+    else:
+        source.write_bytes(b'\xff')
+    result = cli('evidence', '--root', tmp_path, '--file', 'source', '--id', 'E',
+                 '--start', 1, '--end', 1)
+    failed({'result': result})
+
+
+def test_evidence_size_boundary_and_binary_capture(tmp_path):
+    import hashlib
+    source = tmp_path / 'source'
+    data = b'\xff' * HELPER.LIMIT
+    source.write_bytes(data)
+    result = cli('evidence', '--root', tmp_path, '--file', 'source', '--id', 'E')
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)['sha256'] == hashlib.sha256(data).hexdigest()
+    source.write_bytes(data + b'x')
+    failed({'result': cli('evidence', '--root', tmp_path, '--file', 'source', '--id', 'E')})
