@@ -31,6 +31,10 @@ jobs:
           python -m cops list
           python -m cops validate
           python -m cops generate --check
+      - name: Install reachability acceptance test dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Exercise reachability report acceptance
+        run: python -m pytest tests/step_defs/test_cve_reachability.py -q
       - name: Exercise every offline demo
         run: |
           python -m cops demo security-logging-advisor

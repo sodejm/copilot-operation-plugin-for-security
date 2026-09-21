@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Adopt COPS Security Logging Advisor as the display name; preserve package and marketplace IDs.
 - Align documentation and contributor checks with the COPS portable repository foundation.
 
+### Fixed
+
+- Reject ambiguous duplicate JSON keys and nonstandard numeric constants in reachability reports.
+- Handle evidence symlink loops cleanly across supported Python versions.
+
 ### Added
 
 - CVE reachability investigation agent, skill and guide with parameter-level analysis, dispatch review, scoped conclusions and evidence requirements.

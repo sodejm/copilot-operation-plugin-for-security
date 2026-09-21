@@ -12,6 +12,7 @@
   },
   "limitations": [
     "The scanner reports local repository signals; an analyst or agent must review them before making recommendations.",
+    "CVE reachability report checks validate structure and evidence integrity only; semantic reachability and agent behavior require separate repository-specific review.",
     "No host installation is proven by the repository checks."
   ],
   "demo": {
