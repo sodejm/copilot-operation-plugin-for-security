@@ -1,52 +1,55 @@
 # COPS project context
 
-**COPS (Copilot Operations Plugins for Security)** is a security-specialized
-project for cybersecurity plugins, agents, and skills. It contains
-**COPS Security Logging Advisor** under `security-logging-advisor/` and the local
-**COPS SOC Investigation Workbench** under `soc-investigation-workbench/`. The SOC
-planner has two product skills; its canonical Sentinel integration is pending.
-Stable IDs are listed in [naming conventions](../docs/NAMING.md).
+**COPS (Copilot Operations Plugins for Security)** is a catalog-driven project for
+portable cybersecurity plugins, agents, skills, and deterministic local tools.
+Product packages use the category-first path `plugins/<category>/<plugin-id>/`.
+The current catalog contains Security Logging Advisor, SOC Investigation Workbench,
+and Sentinel Hunt Workbench.
 
-Python implements deterministic local scanning and package validation using the
-standard library. Markdown holds instructions and report assets; JSON holds
-manifests and examples. Python 3.11+ is the contributor baseline, with pytest and
-pytest-bdd for executable scenarios. Detected repository technologies such as
-Terraform are scanner inputs, not dependencies of COPS.
+Python 3.11+ implements the host-neutral `python3 -m cops` operator interface,
+local tools, and package validation. Markdown holds instructions and durable
+evidence boundaries; JSON holds catalogs, manifests, package contracts, schemas,
+fixtures, and examples. The operator path uses only the standard library. Pytest
+and pytest-bdd are contributor dependencies for executable acceptance scenarios.
 
-The scanner is
-`security-logging-advisor/skills/repository-context/scripts/collect-repository-context.py`.
-Report assets live in each product skill's `assets/` directory. The package
-validator is `security-logging-advisor/scripts/validate-plugin.py`.
+`catalog/plugins.json` is the canonical inventory. Each package has a `package.json`
+governance contract, root `plugin.json`, `.claude-plugin/plugin.json`, at least one
+canonical product skill, a safe demo, deterministic checks, and explicit structural,
+offline, host-installation, and live-integration states. Root-generated marketplace
+indexes must never become independent sources of truth.
 
 PARK-derived contributor workflows live under `.agents/`, with generated
 `.claude/skills/` copies. Root `AGENTS.md` is canonical across environments.
-`make check` combines portable contract checks, adapter drift detection, plugin
-validation, unit tests, BDD scenarios, and bundled skill tests. GitHub Actions
-runs that gate for pull requests and pushes to `main`. No marketplace publication
-or deployment workflow is configured.
+`make check` combines repository and package contracts, adapter drift checks,
+package-declared validation, tests, and BDD scenarios. GitHub Actions also runs a
+dependency-free operator smoke test on Linux, macOS, and Windows.
 
-## SOC Investigation Workbench
+## Package boundaries
 
-- Package: `soc-investigation-workbench/`, with `.codex-plugin/plugin.json` and
-  two registered skills for investigation planning and case review.
-- Runtime: Python 3.10+ standard library, analyst-supplied redacted JSON cases,
-  explicit evidence associations, question DAGs, deterministic next-step ranking,
-  budgets, private snapshots, and review reports. No live query execution.
-- Ownership: hunt design, raw telemetry correlation, KQL, rendering, compatibility,
-  and qualification stay in canonical Sentinel skills. A hash-locked, unchanged
-  copy of the entire Sentinel package supplies their supporting files. The
-  canonical skills/catalog are pending; query handoffs fail until vendored.
-- Specification: `specs/soc-investigation-workbench.spec.md`; ten matching
-  scenarios in `specs/features/soc_investigation.feature` with behavior tests in
-  `tests/step_defs/test_soc_investigation.py`.
-- Validation: `make check` includes the development package check. The default
-  `python3 soc-investigation-workbench/scripts/validate-package.py` command
-  requires the vendor snapshot. `--allow-pending-vendor` is explicitly development
-  only and never reports release readiness. See the package's `docs/validation.md`.
+- Security Logging Advisor scans local repository signals and supports reviewed,
+  cost-aware security logging recommendations. It does not prove security or
+  compliance, and host installation remains unverified.
+- SOC Investigation Workbench validates analyst-supplied redacted cases, explicit
+  evidence associations, hypothesis branches, question dependencies, budgets, and
+  review reports. It does not execute queries or response actions.
+- Sentinel Hunt Workbench owns 12 gold hunt definitions, profiles, renderers,
+  deterministic curated and adversarial reference tests, and generated platform
+  adapters. Its evaluator is not Kusto or Microsoft Sentinel; tenant behavior,
+  cost, latency, false positives, host activation, and live integration remain
+  unverified.
 
-See [repository layout](../docs/REPOSITORY_LAYOUT.md),
-[architecture](../ARCHITECTURE.md), and [security model](../docs/SECURITY_MODEL.md).
+SOC-to-Sentinel handoff is an explicit, guarded integration boundary. Co-location
+in this repository does not establish compatibility or release readiness. Package
+validation must continue to fail closed when required version or integrity evidence
+is absent.
 
-## CVE reachability extension
+## Evidence policy
 
-The packaged `plugins/logging-telemetry/security-logging-advisor/skills/cve-reachability` provides an agent workflow, reference guide and standard-library report helper. The helper initializes reports and checks evidence hashes/structure; it is not a dependency scanner or reachability engine. No new runtime dependency. Host integration remains unverified until tested in that host.
+Static structure, offline behavior, host installation, and live service behavior
+are separate claims. A manifest, generated index, fixture, or local passing test
+cannot promote host or live state. Stronger states require a dated, reproducible,
+reviewed evidence record under a repository-defined contract.
+
+See [Getting Started](../docs/GETTING_STARTED.md),
+[architecture](../ARCHITECTURE.md), [repository layout](../docs/REPOSITORY_LAYOUT.md),
+and [adding a plugin](../docs/ADDING_A_PLUGIN.md).

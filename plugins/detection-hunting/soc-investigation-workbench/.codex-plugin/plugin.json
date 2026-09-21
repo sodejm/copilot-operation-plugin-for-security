@@ -1,0 +1,34 @@
+{
+  "author": {
+    "name": "Justin Soderberg",
+    "url": "https://github.com/sodejm"
+  },
+  "description": "Plan and review bounded, evidence-backed SOC investigations without executing queries or response actions.",
+  "homepage": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "interface": {
+    "displayName": "COPS SOC Investigation Workbench",
+    "shortDescription": "Plan and review bounded SOC investigations.",
+    "longDescription": "Validate investigation evidence, hypotheses, dependencies, budgets, and next steps while keeping query execution and response actions outside the package.",
+    "developerName": "Justin Soderberg",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Investigation planning",
+      "Evidence association review",
+      "Bounded next-step analysis"
+    ],
+    "defaultPrompt": [
+      "Plan a bounded SOC investigation from the evidence I provide, with assumptions and stopping rules."
+    ]
+  },
+  "keywords": [
+    "cybersecurity",
+    "investigation",
+    "soc",
+    "threat-hunting"
+  ],
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "name": "soc-investigation-workbench",
+  "repository": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "skills": "./skills/",
+  "version": "0.1.0"
+}

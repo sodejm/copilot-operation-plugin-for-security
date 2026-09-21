@@ -1,0 +1,60 @@
+{
+  "schema_version": "1.0",
+  "id": "sentinel-hunt-workbench",
+  "display_name": "COPS Sentinel Hunt Workbench",
+  "maturity": "beta",
+  "summary": "Author, adapt, render, and stress-test twelve defensive Microsoft hunting workflows with deterministic offline evidence.",
+  "support": {
+    "structural_validation": "validated",
+    "offline_workflow": "validated",
+    "host_installation": "unverified",
+    "live_integration": "unverified"
+  },
+  "limitations": [
+    "The reference evaluator is not a Kusto engine or a Microsoft Sentinel emulator.",
+    "Tenant behavior, cost, latency, false-positive rates, host activation, and live integrations remain unverified."
+  ],
+  "demo": {
+    "description": "Explain the first bundled hunt, including its parameters, evidence contract, and supported surfaces.",
+    "command": [
+      "$PYTHON",
+      "plugins/detection-hunting/sentinel-hunt-workbench/scripts/huntwb.py",
+      "explain",
+      "H01"
+    ],
+    "timeout_seconds": 60
+  },
+  "validation": [
+    {
+      "name": "library contract",
+      "command": [
+        "$PYTHON",
+        "plugins/detection-hunting/sentinel-hunt-workbench/scripts/huntwb.py",
+        "validate",
+        "library"
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "name": "deterministic stress suite",
+      "command": [
+        "$PYTHON",
+        "plugins/detection-hunting/sentinel-hunt-workbench/scripts/huntwb.py",
+        "test",
+        "library",
+        "--seed",
+        "20260916"
+      ],
+      "timeout_seconds": 300
+    },
+    {
+      "name": "generated adapter drift",
+      "command": [
+        "$PYTHON",
+        "plugins/detection-hunting/sentinel-hunt-workbench/scripts/huntwb.py",
+        "verify-adapters"
+      ],
+      "timeout_seconds": 120
+    }
+  ]
+}

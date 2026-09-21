@@ -1,36 +1,62 @@
 # COPS architecture
 
-COPS distributes security-focused plugins, specialist agents, and reusable skills
-for general cybersecurity assistance. It separates repository maintenance from
-these product capabilities.
-The portable repository foundation is adapted from PARK; the first product is
-COPS Security Logging Advisor.
+COPS is a catalog-driven collection of self-contained cybersecurity packages. It
+separates product capabilities from repository-maintenance workflows and separates
+offline evidence from host and live-service claims.
 
 ```mermaid
 flowchart TD
-    A[Root AGENTS.md] --> B[Canonical contributor skills]
-    B --> C[Generated Claude adapters]
-    A --> D[Copilot and other instruction adapters]
-    E[make check] --> F[Repository contract and adapter checks]
-    E --> G[Plugin validation and regression tests]
-    H[Advisor agent instructions] --> I[Local repository scanner]
-    I --> J[Context JSON]
-    J --> K[Reviewed model-assisted recommendations]
+    A[catalog/plugins.json] --> B[Package governance contract]
+    B --> C[Skills, agents, scripts, examples]
+    B --> D[Safe offline demo]
+    B --> E[Deterministic checks]
+    A --> F[python3 -m cops]
+    A --> G[Generated Codex index]
+    A --> H[Generated Copilot index]
+    A --> I[Generated Claude index]
+    J[AGENTS.md and contributor skills] --> K[Repository check]
+    D --> K
+    E --> K
+    G --> K
+    H --> K
+    I --> K
 ```
 
-`scripts/agent/` owns the contributor gate; it does not change plugin behavior.
-`.agents/skills/` holds maintenance workflows. The plugin's two product skills,
-scanner, manifests and report assets stay in `plugins/logging-telemetry/security-logging-advisor/`.
-`specs/` and `.specify/` preserve the project's specification-driven workflow.
+## Canonical contracts
 
-`plugins/detection-hunting/soc-investigation-workbench/` contains a separate local case engine and two
-planning/review skills. It records analyst-supplied evidence associations and
-ranks dependent questions within case budgets. Hunt design, KQL, telemetry joins,
-and qualification remain owned by Sentinel; guarded handoffs require an unchanged,
-hash-locked vendor snapshot. The canonical skills/catalog are still pending, so
-the planner is usable locally while query handoffs fail closed. See its
-[ownership boundary](plugins/detection-hunting/soc-investigation-workbench/docs/ownership.md).
+`catalog/plugins.json` owns package identity, version, category, location, and
+tags. Each package's `package.json` owns maturity, limitations, evidence states,
+safe demo, and validation commands. The `cops` module validates both, constrains
+command execution to package-owned Python scripts with timeouts and no shell, and
+generates all host marketplace indexes. Each package keeps distinct Copilot,
+Codex, and Claude manifests because their metadata contracts are not
+interchangeable.
 
-See [repository layout](docs/REPOSITORY_LAYOUT.md),
-[plugin architecture](plugins/logging-telemetry/security-logging-advisor/docs/architecture.md), and the
-[adoption decision](docs/decisions/0001-park-adoption.md).
+Product assets remain under `plugins/<category>/<plugin-id>/`. This category-first
+layout keeps a growing catalog browsable while preserving each package as a unit
+that can be reviewed or distributed independently.
+
+## Included product boundaries
+
+- Security Logging Advisor collects local repository signals and guides reviewed
+  logging recommendations.
+- SOC Investigation Workbench plans bounded investigations from analyst-supplied,
+  redacted evidence; it does not execute queries or response actions.
+- Sentinel Hunt Workbench owns hunt content, profiles, rendering, deterministic
+  reference evaluation, and generated platform adapters. Its offline suite does not
+  emulate Kusto or prove Microsoft Sentinel tenant behavior.
+
+SOC-to-Sentinel handoff remains a guarded cross-package integration. The existence
+of both packages does not by itself validate the handoff or a live query path.
+
+## Contributor architecture
+
+`AGENTS.md`, `.agents/skills/`, `scripts/agent/`, and the `Makefile` own repository
+maintenance. Generated `.claude/skills/` and thin instruction adapters point back
+to that canonical policy. Specifications and pytest-bdd scenarios define
+observable acceptance criteria. The complete gate combines repository contracts,
+adapter drift, package checks, and behavior tests.
+
+See [Getting Started](docs/GETTING_STARTED.md),
+[Repository Layout](docs/REPOSITORY_LAYOUT.md), and
+[Adding a Plugin](docs/ADDING_A_PLUGIN.md).

@@ -18,10 +18,12 @@ delivery state.
 
 ## Distribution
 
-- Each package has one portable Agent Plugins 1.0 `plugin.json` at its root.
+- Each package has a GitHub Copilot Agent Plugin `plugin.json` at its root.
+- Each package has a Codex manifest at `.codex-plugin/plugin.json`, including its
+  required interface metadata.
 - Each package has a Claude identity manifest at `.claude-plugin/plugin.json`.
 - GitHub Copilot-specific agents and commands live under `com.github.copilot/`.
-- The OpenAI, GitHub Copilot, and Claude marketplace indexes enumerate the same
+- The Codex, GitHub Copilot, and Claude marketplace indexes enumerate the same
   cataloged packages at their categorized paths.
 - Package descriptions state only capabilities present in the distributed
   package. Development-only or pending integrations remain explicit.
@@ -43,7 +45,8 @@ delivery state.
 ## Acceptance criteria
 
 - The marketplace validator rejects uncataloged paths, unknown categories,
-  divergent marketplace indexes, and missing vendor manifests.
+  divergent marketplace indexes, missing host manifests, manifest identity drift,
+  and incomplete Codex interface metadata.
 - The finding validator accepts a fully supported finding.
 - The finding validator rejects limited-confidence findings without uncertainty.
 - The finding validator rejects high-confidence verified findings with stale,

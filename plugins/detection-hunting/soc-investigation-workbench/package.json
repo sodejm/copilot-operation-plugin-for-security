@@ -1,0 +1,38 @@
+{
+  "schema_version": "1.0",
+  "id": "soc-investigation-workbench",
+  "display_name": "COPS SOC Investigation Workbench",
+  "maturity": "beta",
+  "summary": "Plan and review bounded, evidence-backed SOC investigations without executing queries or response actions.",
+  "support": {
+    "structural_validation": "validated",
+    "offline_workflow": "validated",
+    "host_installation": "unverified",
+    "live_integration": "unverified"
+  },
+  "limitations": [
+    "The local planner does not run security queries or response actions.",
+    "Sentinel vendor integration and live service behavior require separate validation."
+  ],
+  "demo": {
+    "description": "Validate the synthetic investigation case and print its content-addressed snapshot.",
+    "command": [
+      "$PYTHON",
+      "plugins/detection-hunting/soc-investigation-workbench/scripts/investigate.py",
+      "validate",
+      "plugins/detection-hunting/soc-investigation-workbench/examples/case.json"
+    ],
+    "timeout_seconds": 60
+  },
+  "validation": [
+    {
+      "name": "development package gate",
+      "command": [
+        "$PYTHON",
+        "plugins/detection-hunting/soc-investigation-workbench/scripts/validate-package.py",
+        "--allow-pending-vendor"
+      ],
+      "timeout_seconds": 120
+    }
+  ]
+}

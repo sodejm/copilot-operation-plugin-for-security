@@ -113,13 +113,13 @@ def live_catalog(context):
     assert "COPS pins neither" in context["guidance"]
 
 
-@given("an aggregate gate with a failing plugin validation command")
+@given("an aggregate gate with a failing package validation command")
 def failing_gate(context, monkeypatch):
     context["commands"] = []
 
     def fake_run(command):
         context["commands"].append(command)
-        return not any(item.endswith("validate-plugin.py") for item in command)
+        return command[-3:] != ["-m", "cops", "check"]
 
     monkeypatch.setattr(gate, "run", fake_run)
     monkeypatch.setattr(gate, "validate_python", lambda: True)

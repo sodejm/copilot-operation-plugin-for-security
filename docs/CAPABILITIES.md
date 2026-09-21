@@ -1,40 +1,39 @@
 # COPS cybersecurity capabilities
 
-COPS (Copilot Operations Plugins for Security) develops practical cybersecurity
-add-ons for coding assistants. Plugins package capabilities, specialist agents
-guide security workflows, and skills provide reusable instructions and tools.
-The scope includes defensive application security, security operations, and
-repository-aware assistance for developers and security teams.
+COPS packages defensive workflows so analysts can discover and exercise them from
+one catalog before choosing a particular assistant host.
 
-## Included today
+## Included packages
 
-| Component | Location | Capability |
-| --- | --- | --- |
-| COPS Security Logging Advisor plugin | `plugins/logging-telemetry/security-logging-advisor/` | Packages the agent, command, skills, and report assets |
-| Security logging advisor agent | `plugins/logging-telemetry/security-logging-advisor/agents/` | Reviews repository context and recommends security logging improvements |
-| Repository context skill | `plugins/logging-telemetry/security-logging-advisor/skills/repository-context/` | Uses a local Python scanner to identify technology signals and potential credential locations |
-| Security logging recommendations skill | `plugins/logging-telemetry/security-logging-advisor/skills/logging-recommendations/` | Guides structured logging, redaction, audit events, and cost-aware telemetry recommendations |
-| COPS SOC Investigation Workbench | `plugins/detection-hunting/soc-investigation-workbench/` | Local case engine and two Codex skills for scoped hypotheses, evidence associations, branching plans, budgets, and uncertainty review |
+| Package | Maturity | Offline capability | Important boundary |
+| --- | --- | --- | --- |
+| [Security Logging Advisor](../plugins/logging-telemetry/security-logging-advisor/README.md) | Stable | Scans a local repository for technology and logging signals and supplies specialist logging guidance | Heuristics and recommendations require human review; host installation is unverified |
+| [SOC Investigation Workbench](../plugins/detection-hunting/soc-investigation-workbench/README.md) | Beta | Validates evidence associations, hypotheses, question dependencies, budgets, and bounded next steps | Does not execute queries or response actions; Sentinel integration and live behavior are unverified |
+| [Sentinel Hunt Workbench](../plugins/detection-hunting/sentinel-hunt-workbench/README.md) | Beta | Explains, renders, and deterministically stress-tests 12 defensive hunting workflows across declared surfaces | Reference evaluation is not Kusto or Microsoft Sentinel; tenant behavior and host installation are unverified |
 
-See [installation](../plugins/logging-telemetry/security-logging-advisor/docs/INSTALL.md) for running the
-included tools and the boundary between local scripts and host integration.
-Scanning is heuristic. Recommendations require review, and static package checks
-do not establish compliance, vulnerability coverage, or support in every host.
+Run `python3 -m cops list` for the machine-validated current inventory and support
+states. Run `python3 -m cops info <plugin-id>` before use to see limitations and the
+declared demo.
 
-The [SOC workbench guide](../plugins/detection-hunting/soc-investigation-workbench/README.md) provides a
-synthetic local walkthrough. The planner is implemented, but its Sentinel skills
-and hunt catalog must be vendored before query handoffs or release validation can
-pass. No live connector, query execution, or autonomous response is included.
+## Capability layers
 
-## Adding cybersecurity capabilities
+Each package may contain three complementary layers:
 
-Additional agents and skills may address areas such as secure code review,
-threat modeling, dependency assessment, cloud configuration review, or incident
-triage. These are contribution directions, not shipped features. Each addition
-should define its security task, supported inputs, output evidence, permissions,
-data handling, limitations, and validation in a focused specification.
+- deterministic tools create or validate inspectable evidence;
+- skills describe a reusable workflow and when it should be selected;
+- agent instructions coordinate broader work that still needs judgment.
 
-Follow [naming conventions](NAMING.md) and the [contributor contract](../AGENTS.md).
-Keep independently distributed product skills inside their package. The shared
-`.agents/skills/` directory contains contributor workflows for maintaining COPS;
-those workflows are separate from the installable cybersecurity product catalog.
+A package may omit optional host-specific agents or commands. It must provide a
+canonical skill, the required Copilot, Codex, and Claude manifests, a governance
+contract, documentation, a safe demonstration, and deterministic validation.
+
+## Scope
+
+Appropriate future categories include secure code review, threat modeling,
+dependency assessment, cloud configuration review, detection engineering, digital
+forensics, and incident triage. A roadmap entry is not a shipped capability. New
+packages must define inputs, outputs, permissions, data handling, limitations, and
+acceptance scenarios using [Adding a Plugin](ADDING_A_PLUGIN.md).
+
+Product skills live inside their package. Shared `.agents/skills/` are contributor
+workflows for maintaining COPS and are not part of the installable security catalog.

@@ -54,17 +54,34 @@ def execute_validation(context):
     context["result"] = result
 
 
-@then("the portable manifest must contain required identity keys")
-def portable_keys():
+@then("the Copilot manifest must contain required identity keys")
+def copilot_keys():
     manifest = json.loads((PACKAGE / "plugin.json").read_text())
     assert {"$schema", "name", "version", "description", "author"} <= manifest.keys()
 
 
-@then("the Claude manifest identity must match the portable manifest")
-def claude_identity():
-    portable = json.loads((PACKAGE / "plugin.json").read_text())
+@then("the Codex manifest must contain required interface metadata")
+def codex_interface():
+    codex = json.loads((PACKAGE / ".codex-plugin/plugin.json").read_text())
+    assert codex["skills"] in {"./skills", "./skills/"}
+    assert {
+        "displayName",
+        "shortDescription",
+        "longDescription",
+        "developerName",
+        "category",
+        "capabilities",
+        "defaultPrompt",
+    } <= codex["interface"].keys()
+
+
+@then("all host manifest identities must match")
+def host_identities():
+    copilot = json.loads((PACKAGE / "plugin.json").read_text())
+    codex = json.loads((PACKAGE / ".codex-plugin/plugin.json").read_text())
     claude = json.loads((PACKAGE / ".claude-plugin/plugin.json").read_text())
-    assert (claude["name"], claude["version"]) == (portable["name"], portable["version"])
+    assert (codex["name"], codex["version"]) == (copilot["name"], copilot["version"])
+    assert (claude["name"], claude["version"]) == (copilot["name"], copilot["version"])
 
 
 @then("every packaged skill must contain name and description frontmatter")

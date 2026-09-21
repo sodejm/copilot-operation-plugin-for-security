@@ -4,84 +4,86 @@
   <img src="docs/assets/cops-logo.png" alt="COPS shield and copilot visor logo" width="260">
 </p>
 
-COPS (Copilot Operations Plugins for Security) is a cybersecurity project for
-security-focused **plugins, agents, and skills**. It provides practical add-ons for
-coding assistants that help developers and security teams understand repositories
-and improve defensive security workflows.
+COPS is a portable catalog of defensive cybersecurity plugins, agents, skills,
+and deterministic local tools. A security engineer can use the repository without
+first learning any host-specific packaging format: the catalog says what is
+available, each package declares its own safe demo and checks, and generated host
+indexes all come from that single source.
 
-The first included plugin, **COPS Security Logging Advisor**, combines a local
-Python scanner, a specialist agent, and reusable skills for cost-aware security
-logging reviews. See the [capability catalog](docs/CAPABILITIES.md) for what is
-available today and how additional cybersecurity add-ons fit the project.
+## Five-minute analyst path
 
-The scanner identifies languages, frameworks, cloud and infrastructure signals,
-and potential credential locations. The advisor uses that context to recommend
-structured audit events, redaction, correlation fields, and environment-specific
-telemetry. Reports require review; pattern matching does not prove security or
-compliance.
-
-## Quick start
-
-Use Python 3.11 or newer and Git. The scanner and package validator use only the
-Python standard library. Contributor tests additionally require `requirements.txt`.
+Requirements: Python 3.11 or newer. These commands use only the Python standard
+library and do not install dependencies, access a tenant, or require network access.
 
 ```bash
 git clone https://github.com/sodejm/copilot-operation-plugin-for-security.git
 cd copilot-operation-plugin-for-security
-python3 plugins/logging-telemetry/security-logging-advisor/scripts/validate-plugin.py
-python3 plugins/logging-telemetry/security-logging-advisor/skills/repository-context/scripts/collect-repository-context.py .
+python3 -m cops doctor
+python3 -m cops list
+python3 -m cops info sentinel-hunt-workbench
+python3 -m cops demo sentinel-hunt-workbench
+python3 -m cops check sentinel-hunt-workbench
 ```
 
-The scanner writes JSON to standard output. Give the agent the
-[advisor instructions](plugins/logging-telemetry/security-logging-advisor/agents/security-logging-advisor.agent.md)
-and reviewed context to produce a report. Follow the
-[installation guide](plugins/logging-telemetry/security-logging-advisor/docs/INSTALL.md) for the host-specific
-integration boundary and local fallback.
+`list` shows maturity plus separate offline, host-installation, and live-integration
+states. `demo` runs a bounded package-owned example. `check` runs that package's
+declared deterministic validation. None of these commands claim that a plugin is
+installed in a particular assistant or that a live security service was exercised.
 
-## SOC investigation planning
+## Included packages
 
-The separate [COPS SOC Investigation Workbench](plugins/detection-hunting/soc-investigation-workbench/README.md)
-adds two Codex skills and a local Python case planner for evidence associations,
-competing hypotheses, branching investigations, and bounded next steps. Hunt
-workflows remain owned by Sentinel and are integrated through unchanged vendor
-snapshots. The planner works locally; its Sentinel integration is pending the
-canonical skills and catalog. See its README for setup and verified limits.
+| Package | Use it for | Safe first command |
+| --- | --- | --- |
+| Security Logging Advisor | Collect repository signals and plan cost-aware, privacy-aware security logging | `python3 -m cops demo security-logging-advisor` |
+| SOC Investigation Workbench | Validate evidence associations and plan bounded investigations without running response actions | `python3 -m cops demo soc-investigation-workbench` |
+| Sentinel Hunt Workbench | Explain, render, and stress-test 12 defensive hunting workflows offline | `python3 -m cops demo sentinel-hunt-workbench` |
 
-## Contributing
+For the complete analyst walkthrough, command reference, and evidence boundaries,
+read [Getting Started](docs/GETTING_STARTED.md). Package-specific instructions live
+with each package under `plugins/<category>/<plugin-id>/`.
+
+## How portability works
+
+- `catalog/plugins.json` is the canonical inventory.
+- Every package owns a `package.json` runtime/evidence contract, separate
+  Copilot (`plugin.json`), Codex (`.codex-plugin/plugin.json`), and Claude
+  (`.claude-plugin/plugin.json`) manifests, plus skills, documentation, a safe
+  demo, and deterministic checks.
+- `python3 -m cops ...` is the host-neutral operator interface.
+- `.agents/plugins/marketplace.json`, `.github/plugin/marketplace.json`, and
+  `.claude-plugin/marketplace.json` are generated indexes, not independent sources.
+- Validation rejects uncataloged packages, misplaced packages, duplicate skill
+  names, unsafe command paths, stale generated indexes, and unsupported support
+  claims.
+
+See [Architecture](ARCHITECTURE.md), [Repository Layout](docs/REPOSITORY_LAYOUT.md),
+and [Compatibility](docs/COMPATIBILITY.md) for the full boundaries.
+
+## Contributor path
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 python3 -m pip install -r requirements.txt
-make doctor
+python3 -m cops doctor --contributor
 make check
 ```
 
-On Windows, activate `.venv\Scripts\Activate.ps1` in PowerShell. If Make is
-unavailable, run `python3 scripts/agent/doctor.py` and
-`python3 scripts/agent/check.py` directly.
+On Windows, activate `.venv\Scripts\Activate.ps1` in PowerShell. If Make is not
+available, run `python3 scripts/agent/check.py`. Before adding a capability, read
+[Adding a Plugin](docs/ADDING_A_PLUGIN.md), [AGENTS.md](AGENTS.md), and
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
-Read [AGENTS.md](AGENTS.md) and [CONTRIBUTING.md](CONTRIBUTING.md) before changing
-the repository. COPS adopts the portable contracts, skills, adapters, and checks
-from [PARK](https://github.com/sodejm/portable-agent-repository-kit). Edit canonical
-skills in `.agents/skills/`, then run `make sync-agent-adapters`.
+## Evidence and safety
 
-## Documentation
-
-- [Documentation index](docs/INDEX.md) and [repository architecture](ARCHITECTURE.md)
-- [Naming conventions](docs/NAMING.md) and [template adoption record](docs/decisions/0001-park-adoption.md)
-- [Cybersecurity capabilities](docs/CAPABILITIES.md) and [GitHub discoverability](docs/DISCOVERABILITY.md)
-- [Plugin architecture](plugins/logging-telemetry/security-logging-advisor/docs/architecture.md) and [model routing](plugins/logging-telemetry/security-logging-advisor/docs/model-routing.md)
-- [Security and privacy](plugins/logging-telemetry/security-logging-advisor/docs/SECURITY_PRIVACY.md) and [security reporting](SECURITY.md)
-- [Enterprise rollout](plugins/logging-telemetry/security-logging-advisor/docs/ENTERPRISE_ROLLOUT.md) and [maintainer guide](plugins/logging-telemetry/security-logging-advisor/docs/MAINTAINERS.md)
-- [Plugin specification](specs/security-logging-plugin.spec.md) and [conformance specification](specs/repository-conformance.spec.md)
+Offline validation proves only what its output states. Pattern matching is not a
+security or compliance guarantee. Static manifests do not prove host discovery or
+activation. Fixture-backed tests do not prove tenant schema, permissions, latency,
+cost, or false-positive behavior. Live and host claims stay `unverified` until a
+separate, reviewable evidence record exists.
 
 ## License and attribution
 
 Existing COPS project material retains the [PolyForm Noncommercial License 1.0.0](LICENSE).
 Imported PARK material retains its Apache-2.0 notices; see
 [third-party notices](THIRD_PARTY_NOTICES.md) and [licensing](docs/LICENSING.md).
-
-## CVE reachability investigation
-
-The packaged [CVE reachability agent](plugins/logging-telemetry/security-logging-advisor/agents/cve-reachability.agent.md) guides repository-specific investigations. Start with its [skill and runnable helper commands](plugins/logging-telemetry/security-logging-advisor/skills/cve-reachability/SKILL.md). The helper creates unresolved reports and checks evidence integrity and structure. Dependency resolution, call graphs, taint analysis and runtime validation require separate tools and analyst review; no automatic reachability proof or host installation is claimed. See the [workflow](plugins/logging-telemetry/security-logging-advisor/skills/cve-reachability/references/workflow.md) and [report contract](plugins/logging-telemetry/security-logging-advisor/skills/cve-reachability/references/report-contract.md).
