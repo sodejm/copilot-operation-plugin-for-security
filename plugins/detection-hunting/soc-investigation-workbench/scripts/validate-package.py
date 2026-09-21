@@ -59,7 +59,7 @@ def check(allow_pending_vendor=False):
     expected = {"soc-investigation-planning", "soc-investigation-review"}
     names = set()
     for skill in skills:
-        content = skill.read_text()
+        content = skill.read_text(encoding="utf-8")
         match = re.match(r"\A---\nname: ([a-z0-9-]+)\ndescription: ([^\n]+)\n---\n", content)
         require(match is not None and len(content.splitlines()) <= 500,
                 "Owned skill frontmatter or length is invalid.")
@@ -70,17 +70,17 @@ def check(allow_pending_vendor=False):
     require(names == expected, "Owned skills differ from the documented ownership boundary.")
     for other in ROOT.glob("plugins/*/*/skills/*/SKILL.md"):
         if other not in skills:
-            content = other.read_text()
+            content = other.read_text(encoding="utf-8")
             match = re.search(r"^name: (.+)$", content, re.M)
             require(not match or match[1] not in names, "Owned skill name collides with another package.")
     for path in [PACKAGE / "README.md", *sorted((PACKAGE / "docs").glob("*.md")), *skills]:
-        for link in re.findall(r"\]\(([^)]+)\)", path.read_text()):
+        for link in re.findall(r"\]\(([^)]+)\)", path.read_text(encoding="utf-8")):
             if not re.match(r"[a-z]+://|#", link):
                 require((path.parent / link.split("#")[0]).is_file(), "Local documentation link is broken.")
     require((PACKAGE / "LICENSE").read_bytes() == (ROOT / "LICENSE").read_bytes(),
             "Package license differs from the repository license.")
-    spec = (ROOT / "specs/soc-investigation-workbench.spec.md").read_text()
-    feature = (ROOT / "specs/features/soc_investigation.feature").read_text()
+    spec = (ROOT / "specs/soc-investigation-workbench.spec.md").read_text(encoding="utf-8")
+    feature = (ROOT / "specs/features/soc_investigation.feature").read_text(encoding="utf-8")
     criteria = re.findall(r"^- \[[ x]\] (AC\d+):", spec, re.M)
     scenarios = re.findall(r"^  Scenario: (AC\d+) ", feature, re.M)
     require(len(criteria) == 10 and len(set(criteria)) == 10 and sorted(criteria) == sorted(scenarios),
