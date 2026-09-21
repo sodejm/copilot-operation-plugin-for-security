@@ -46,3 +46,7 @@ or deployment workflow is configured.
 
 See [repository layout](../docs/REPOSITORY_LAYOUT.md),
 [architecture](../ARCHITECTURE.md), and [security model](../docs/SECURITY_MODEL.md).
+
+## CVE reachability extension
+
+The packaged `plugins/logging-telemetry/security-logging-advisor/skills/cve-reachability` provides an agent workflow, reference guide and standard-library report helper. The helper initializes reports and checks evidence hashes/structure; it is not a dependency scanner or reachability engine. No new runtime dependency. Host integration remains unverified until tested in that host.

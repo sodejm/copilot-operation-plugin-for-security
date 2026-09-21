@@ -89,3 +89,7 @@ guidance scenario in `specs/features/repository_conformance.feature`.
 - [ ] The generated report matches the fields laid out in the recommendations markdown template.
 - [ ] The repository contains comprehensive documentation on model selection and runtime routing guidelines.
 - [ ] The package contains valid portable and host manifests plus the command definitions in `commands/` and `com.github.copilot/commands/`.
+
+## CVE reachability extension
+
+The optional agent-assisted workflow is specified in [cve-reachability.spec.md](cve-reachability.spec.md). Its helper checks evidence integrity and report structure, not vulnerability truth.

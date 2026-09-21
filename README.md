@@ -81,3 +81,7 @@ skills in `.agents/skills/`, then run `make sync-agent-adapters`.
 Existing COPS project material retains the [PolyForm Noncommercial License 1.0.0](LICENSE).
 Imported PARK material retains its Apache-2.0 notices; see
 [third-party notices](THIRD_PARTY_NOTICES.md) and [licensing](docs/LICENSING.md).
+
+## CVE reachability investigation
+
+The packaged [CVE reachability agent](plugins/logging-telemetry/security-logging-advisor/agents/cve-reachability.agent.md) guides repository-specific investigations. Start with its [skill and runnable helper commands](plugins/logging-telemetry/security-logging-advisor/skills/cve-reachability/SKILL.md). The helper creates unresolved reports and checks evidence integrity and structure. Dependency resolution, call graphs, taint analysis and runtime validation require separate tools and analyst review; no automatic reachability proof or host installation is claimed. See the [workflow](plugins/logging-telemetry/security-logging-advisor/skills/cve-reachability/references/workflow.md) and [report contract](plugins/logging-telemetry/security-logging-advisor/skills/cve-reachability/references/report-contract.md).
