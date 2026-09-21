@@ -17,7 +17,7 @@ import pytest
 from pytest_bdd import given, scenarios, then, when
 
 ROOT = Path(__file__).resolve().parents[2]
-PLUGIN = ROOT / "soc-investigation-workbench"
+PLUGIN = ROOT / "plugins/detection-hunting/soc-investigation-workbench"
 sys.path.insert(0, str(PLUGIN))
 
 from investigationwb.engine import ContractError, digest, import_result, next_steps, report, revise, validate

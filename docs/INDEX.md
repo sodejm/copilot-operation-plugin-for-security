@@ -17,8 +17,8 @@
 - [Decision records](decisions/README.md): durable architectural decisions.
 
 - [Naming conventions](NAMING.md): project names, stable IDs and logo.
-- [Plugin installation](../security-logging-advisor/docs/INSTALL.md): local commands and host boundaries.
-- [Plugin architecture](../security-logging-advisor/docs/architecture.md): scanner and recommendation flow.
-- [Plugin maintainer guide](../security-logging-advisor/docs/MAINTAINERS.md): package and release checks.
-- [Plugin security and privacy](../security-logging-advisor/docs/SECURITY_PRIVACY.md): data handling.
-- [SOC Investigation Workbench](../soc-investigation-workbench/README.md): local planning, review skills, and pending Sentinel integration.
+- [Plugin installation](../plugins/logging-telemetry/security-logging-advisor/docs/INSTALL.md): local commands and host boundaries.
+- [Plugin architecture](../plugins/logging-telemetry/security-logging-advisor/docs/architecture.md): scanner and recommendation flow.
+- [Plugin maintainer guide](../plugins/logging-telemetry/security-logging-advisor/docs/MAINTAINERS.md): package and release checks.
+- [Plugin security and privacy](../plugins/logging-telemetry/security-logging-advisor/docs/SECURITY_PRIVACY.md): data handling.
+- [SOC Investigation Workbench](../plugins/detection-hunting/soc-investigation-workbench/README.md): local planning, review skills, and pending Sentinel integration.

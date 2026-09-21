@@ -1,15 +1,21 @@
 {
-  "name": "security-logging-advisor-marketplace",
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "cops-security-marketplace",
   "owner": {
-    "name": "sodejm",
-    "email": "723679+sodejm@users.noreply.github.com"
+    "name": "Justin Soderberg"
   },
   "plugins": [
     {
       "name": "security-logging-advisor",
-      "description": "COPS Security Logging Advisor: repository analysis and cost-aware security logging recommendations.",
+      "description": "Review repository signals and produce cost-aware security logging recommendations.",
       "version": "1.0.0",
-      "source": "./security-logging-advisor"
+      "source": "./plugins/logging-telemetry/security-logging-advisor"
+    },
+    {
+      "name": "soc-investigation-workbench",
+      "description": "Plan and review local evidence-backed SOC investigations; external hunt integration remains pending.",
+      "version": "0.1.0",
+      "source": "./plugins/detection-hunting/soc-investigation-workbench"
     }
   ]
 }

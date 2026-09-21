@@ -78,6 +78,20 @@ Do not claim a check passed unless it ran in the current checkout. Separate:
 - unavailable checks and their blockers,
 - hosted CI or deployment evidence.
 
+## Marketplace organization and factual findings
+
+- Register exactly one primary cybersecurity category for each package and place
+  it at `plugins/<primary-category>/<plugin-id>`. Platforms, vendors, runtimes,
+  and secondary concerns are tags rather than primary categories.
+- Add a category only when no existing category describes the package's main
+  security purpose, and document the distinction in `catalog/categories.json`.
+- Keep the catalog and all host marketplace indexes synchronized.
+- State only findings supported by available evidence. Separate observations,
+  assessments, and unresolved questions; never invent evidence, imply an
+  unperformed check passed, or describe attempted work as completed.
+- State missing evidence, limited coverage, and uncertainty in plain language.
+  Narrow a claim when the evidence cannot establish the broader claim.
+
 ## Security and privacy
 
 - Keep secrets out of source, fixtures, logs, prompts, and generated artifacts.

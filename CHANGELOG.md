@@ -18,4 +18,4 @@
 - Correct stale scanner paths and unsupported setup, model and release claims.
 
 Plugin release history remains in
-[security-logging-advisor/CHANGELOG.md](security-logging-advisor/CHANGELOG.md).
+[plugins/logging-telemetry/security-logging-advisor/CHANGELOG.md](plugins/logging-telemetry/security-logging-advisor/CHANGELOG.md).

@@ -97,8 +97,8 @@ def fails(context):
 
 @given("the COPS command and model guidance")
 def model_guidance(context):
-    context["command"] = (ROOT / "security-logging-advisor/commands/security-logging-advisor.md").read_text()
-    context["guidance"] = (ROOT / "security-logging-advisor/docs/model-routing.md").read_text()
+    context["command"] = (ROOT / "plugins/logging-telemetry/security-logging-advisor/commands/security-logging-advisor.md").read_text()
+    context["guidance"] = (ROOT / "plugins/logging-telemetry/security-logging-advisor/docs/model-routing.md").read_text()
 
 
 @then("the command does not pin a model")

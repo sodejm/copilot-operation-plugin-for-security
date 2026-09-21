@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "categories": [
+    {
+      "id": "detection-hunting",
+      "name": "Detection and Hunting",
+      "description": "Security detection, threat hunting, alert triage, and investigation workflows."
+    },
+    {
+      "id": "logging-telemetry",
+      "name": "Logging and Telemetry",
+      "description": "Security event collection, logging design, telemetry quality, and audit visibility."
+    }
+  ]
+}

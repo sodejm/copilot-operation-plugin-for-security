@@ -65,7 +65,7 @@ exports still require review before sharing.
 
 ## Residual risk
 
-The [SOC investigation case engine](../soc-investigation-workbench/docs/workflow.md)
+The [SOC investigation case engine](../plugins/detection-hunting/soc-investigation-workbench/docs/workflow.md)
 accepts analyst-redacted observations without executing their text or running
 queries. It enforces tenant/workspace/time scope, rejects conflicting provenance,
 and writes new snapshots with owner-only permissions on POSIX. Windows snapshots

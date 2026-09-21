@@ -1,0 +1,36 @@
+{
+  "schema_version": "1.0",
+  "findings": [
+    {
+      "id": "example-verified-check",
+      "title": "Repository validation completed",
+      "claim": "The repository validation command passed in the current checkout.",
+      "classification": "observation",
+      "verification": "verified",
+      "confidence": "high",
+      "coverage": "complete",
+      "scope": {
+        "examined": ["make check exit status"],
+        "excluded": []
+      },
+      "evidence": [
+        {
+          "id": "validation-command",
+          "kind": "test",
+          "reference": "make check exited with status 0 in the current checkout",
+          "result": "passed",
+          "freshness": "current"
+        }
+      ],
+      "limitations": [],
+      "conflicts": [],
+      "uncertainty": "",
+      "delivery_claims": [
+        {
+          "state": "validated-locally",
+          "evidence_ids": ["validation-command"]
+        }
+      ]
+    }
+  ]
+}

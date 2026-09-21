@@ -28,19 +28,19 @@ Python standard library. Contributor tests additionally require `requirements.tx
 ```bash
 git clone https://github.com/sodejm/copilot-operation-plugin-for-security.git
 cd copilot-operation-plugin-for-security
-python3 security-logging-advisor/scripts/validate-plugin.py
-python3 security-logging-advisor/skills/repository-context/scripts/collect-repository-context.py .
+python3 plugins/logging-telemetry/security-logging-advisor/scripts/validate-plugin.py
+python3 plugins/logging-telemetry/security-logging-advisor/skills/repository-context/scripts/collect-repository-context.py .
 ```
 
 The scanner writes JSON to standard output. Give the agent the
-[advisor instructions](security-logging-advisor/agents/security-logging-advisor.agent.md)
+[advisor instructions](plugins/logging-telemetry/security-logging-advisor/agents/security-logging-advisor.agent.md)
 and reviewed context to produce a report. Follow the
-[installation guide](security-logging-advisor/docs/INSTALL.md) for the host-specific
+[installation guide](plugins/logging-telemetry/security-logging-advisor/docs/INSTALL.md) for the host-specific
 integration boundary and local fallback.
 
 ## SOC investigation planning
 
-The separate [COPS SOC Investigation Workbench](soc-investigation-workbench/README.md)
+The separate [COPS SOC Investigation Workbench](plugins/detection-hunting/soc-investigation-workbench/README.md)
 adds two Codex skills and a local Python case planner for evidence associations,
 competing hypotheses, branching investigations, and bounded next steps. Hunt
 workflows remain owned by Sentinel and are integrated through unchanged vendor
@@ -71,9 +71,9 @@ skills in `.agents/skills/`, then run `make sync-agent-adapters`.
 - [Documentation index](docs/INDEX.md) and [repository architecture](ARCHITECTURE.md)
 - [Naming conventions](docs/NAMING.md) and [template adoption record](docs/decisions/0001-park-adoption.md)
 - [Cybersecurity capabilities](docs/CAPABILITIES.md) and [GitHub discoverability](docs/DISCOVERABILITY.md)
-- [Plugin architecture](security-logging-advisor/docs/architecture.md) and [model routing](security-logging-advisor/docs/model-routing.md)
-- [Security and privacy](security-logging-advisor/docs/SECURITY_PRIVACY.md) and [security reporting](SECURITY.md)
-- [Enterprise rollout](security-logging-advisor/docs/ENTERPRISE_ROLLOUT.md) and [maintainer guide](security-logging-advisor/docs/MAINTAINERS.md)
+- [Plugin architecture](plugins/logging-telemetry/security-logging-advisor/docs/architecture.md) and [model routing](plugins/logging-telemetry/security-logging-advisor/docs/model-routing.md)
+- [Security and privacy](plugins/logging-telemetry/security-logging-advisor/docs/SECURITY_PRIVACY.md) and [security reporting](SECURITY.md)
+- [Enterprise rollout](plugins/logging-telemetry/security-logging-advisor/docs/ENTERPRISE_ROLLOUT.md) and [maintainer guide](plugins/logging-telemetry/security-logging-advisor/docs/MAINTAINERS.md)
 - [Plugin specification](specs/security-logging-plugin.spec.md) and [conformance specification](specs/repository-conformance.spec.md)
 
 ## License and attribution

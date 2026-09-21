@@ -46,4 +46,4 @@ jobs:
       - name: Test SOC investigation and dependency boundaries
         run: python -m pytest tests/step_defs/test_soc_investigation.py -q
       - name: Validate SOC development package
-        run: python soc-investigation-workbench/scripts/validate-package.py --allow-pending-vendor
+        run: python plugins/detection-hunting/soc-investigation-workbench/scripts/validate-package.py --allow-pending-vendor
