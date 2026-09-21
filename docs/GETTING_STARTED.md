@@ -20,7 +20,7 @@ pytest-bdd scenarios as well as standard-library tests. Python-only source,
 contract and adapter checks need no third-party packages.
 
 Read the [contributor contract](../AGENTS.md),
-[plugin installation guide](../security-logging-advisor/docs/INSTALL.md), and
+[plugin installation guide](../plugins/logging-telemetry/security-logging-advisor/docs/INSTALL.md), and
 [compatibility boundaries](COMPATIBILITY.md). Start a focused branch, update
 affected specifications before behavioral changes, and keep reports free of secrets.
 

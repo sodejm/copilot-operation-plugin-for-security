@@ -1,0 +1,29 @@
+{
+  "name": "cops-security-marketplace",
+  "plugins": [
+    {
+      "name": "security-logging-advisor",
+      "source": {
+        "source": "local",
+        "path": "./plugins/logging-telemetry/security-logging-advisor"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "soc-investigation-workbench",
+      "source": {
+        "source": "local",
+        "path": "./plugins/detection-hunting/soc-investigation-workbench"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

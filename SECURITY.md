@@ -14,4 +14,4 @@ hooks are opt-in; CI runs with least privilege. External content and agent outpu
 remain untrusted. Publishing and hosted mutations require explicit authority.
 
 See the [repository security model](docs/SECURITY_MODEL.md) and
-[plugin privacy guidance](security-logging-advisor/docs/SECURITY_PRIVACY.md).
+[plugin privacy guidance](plugins/logging-telemetry/security-logging-advisor/docs/SECURITY_PRIVACY.md).

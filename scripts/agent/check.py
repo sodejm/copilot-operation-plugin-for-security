@@ -40,9 +40,10 @@ def main() -> int:
         validate_python(),
         run([sys.executable, "scripts/agent/validate_contract.py"]),
         run([sys.executable, "scripts/agent/sync_adapters.py", "--check"]),
-        run([sys.executable, "security-logging-advisor/scripts/validate-plugin.py"]),
-        run([sys.executable, "security-logging-advisor/scripts/test_plugin.py"]),
-        run([sys.executable, "soc-investigation-workbench/scripts/validate-package.py",
+        run([sys.executable, "scripts/agent/validate_marketplace.py"]),
+        run([sys.executable, "plugins/logging-telemetry/security-logging-advisor/scripts/validate-plugin.py"]),
+        run([sys.executable, "plugins/logging-telemetry/security-logging-advisor/scripts/test_plugin.py"]),
+        run([sys.executable, "plugins/detection-hunting/soc-investigation-workbench/scripts/validate-package.py",
              "--allow-pending-vendor"]),
     ]
     if (ROOT / "tests").is_dir():
