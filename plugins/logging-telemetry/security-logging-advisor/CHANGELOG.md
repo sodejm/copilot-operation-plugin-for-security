@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Adopt COPS Security Logging Advisor as the display name; preserve package and marketplace IDs.
 - Align documentation and contributor checks with the COPS portable repository foundation.
 
+### Added
+
+- CVE reachability investigation agent, skill and guide with parameter-level analysis, dispatch review, scoped conclusions and evidence requirements.
+- Standard-library CLI for unresolved report initialization, evidence fingerprints and report integrity checks. It does not validate semantic reachability or tool capabilities.
+- CLI integration and adversarial tests; static package wiring checks. Host installation and external analyzers remain unverified.
+
 ## [1.0.0] - 2026-07-03
 
 ### Added
