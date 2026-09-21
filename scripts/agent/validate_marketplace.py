@@ -11,11 +11,11 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[2]
-HOST_INDEXES = {
-    "GitHub Copilot": ROOT / ".github" / "plugin" / "marketplace.json",
-    "OpenAI": ROOT / ".agents" / "plugins" / "marketplace.json",
-    "Claude": ROOT / ".claude-plugin" / "marketplace.json",
-}
+sys.path.insert(0, str(ROOT))
+
+from cops.validation import ValidationError, validate_repository
+
+
 CLASSIFICATIONS = {"observation", "assessment", "unresolved"}
 VERIFICATIONS = {"verified", "partially-verified", "unverified", "contradicted"}
 CONFIDENCE = {"high", "limited", "unknown"}
@@ -35,10 +35,6 @@ DELIVERY_EVIDENCE = {
     "released": ({"release"}, {"observed"}),
     "deployed": ({"deployment"}, {"observed"}),
 }
-
-
-class ValidationError(ValueError):
-    """A deterministic marketplace or finding contract failure."""
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -80,90 +76,8 @@ def unique_objects(document: dict[str, Any], key: str, location: str) -> list[di
     return objects
 
 
-def index_entries(path: Path) -> dict[str, str]:
-    document = load_json(path)
-    plugins = require_list(document.get("plugins"), f"{path.relative_to(ROOT)}.plugins")
-    result: dict[str, str] = {}
-    for index, plugin in enumerate(plugins):
-        location = f"{path.relative_to(ROOT)}.plugins[{index}]"
-        if not isinstance(plugin, dict):
-            raise ValidationError(f"{location} must be an object")
-        name = require_string(plugin.get("name"), f"{location}.name")
-        if name in result:
-            raise ValidationError(f"duplicate plugin in {path.relative_to(ROOT)}: {name}")
-        source = plugin.get("source")
-        if isinstance(source, dict):
-            if source.get("source") != "local":
-                raise ValidationError(f"{location}.source.source must be local")
-            source_path = require_string(source.get("path"), f"{location}.source.path")
-        else:
-            source_path = require_string(source, f"{location}.source")
-        result[name] = source_path.removeprefix("./")
-    return result
-
-
 def validate_marketplace(root: Path = ROOT) -> None:
-    categories_doc = load_json(root / "catalog" / "categories.json")
-    plugins_doc = load_json(root / "catalog" / "plugins.json")
-    categories = unique_objects(categories_doc, "categories", "catalog/categories.json.categories")
-    category_ids = {item["id"] for item in categories}
-    for category in categories:
-        require_string(category.get("name"), f"category {category['id']}.name")
-        require_string(category.get("description"), f"category {category['id']}.description")
-
-    plugins = unique_objects(plugins_doc, "plugins", "catalog/plugins.json.plugins")
-    expected: dict[str, str] = {}
-    versions: dict[str, str] = {}
-    for plugin in plugins:
-        plugin_id = plugin["id"]
-        category = require_string(plugin.get("primary_category"), f"plugin {plugin_id}.primary_category")
-        if category not in category_ids:
-            raise ValidationError(f"plugin {plugin_id} uses unknown category: {category}")
-        expected_path = f"plugins/{category}/{plugin_id}"
-        actual_path = require_string(plugin.get("path"), f"plugin {plugin_id}.path")
-        if actual_path != expected_path:
-            raise ValidationError(f"plugin {plugin_id} path must be {expected_path}, found {actual_path}")
-        package = root / actual_path
-        if not package.is_dir():
-            raise ValidationError(f"plugin directory does not exist: {actual_path}")
-        version = require_string(plugin.get("version"), f"plugin {plugin_id}.version")
-        tags = require_list(plugin.get("tags"), f"plugin {plugin_id}.tags")
-        if not tags or any(not isinstance(tag, str) or not tag.strip() for tag in tags):
-            raise ValidationError(f"plugin {plugin_id}.tags must contain non-empty strings")
-
-        portable = load_json(package / "plugin.json")
-        require_string(portable.get("$schema"), f"{actual_path}/plugin.json.$schema")
-        if portable.get("name") != plugin_id or portable.get("version") != version:
-            raise ValidationError(f"{actual_path}/plugin.json name and version must match the catalog")
-        require_string(portable.get("description"), f"{actual_path}/plugin.json.description")
-
-        claude = load_json(package / ".claude-plugin" / "plugin.json")
-        if claude.get("name") != plugin_id or claude.get("version") != version:
-            raise ValidationError(f"{actual_path}/.claude-plugin/plugin.json name and version must match the catalog")
-
-        expected[plugin_id] = actual_path
-        versions[plugin_id] = version
-
-    discovered = {
-        str(path.parent.relative_to(root))
-        for path in (root / "plugins").glob("*/*/plugin.json")
-    }
-    if discovered != set(expected.values()):
-        raise ValidationError(
-            "cataloged plugin paths differ from discovered package paths: "
-            f"catalog={sorted(expected.values())}, discovered={sorted(discovered)}"
-        )
-
-    for host, path in HOST_INDEXES.items():
-        entries = index_entries(path)
-        if entries != expected:
-            raise ValidationError(
-                f"{host} marketplace differs from catalog: expected {expected}, found {entries}"
-            )
-        document = load_json(path)
-        for entry in document["plugins"]:
-            if "version" in entry and entry["version"] != versions[entry["name"]]:
-                raise ValidationError(f"{host} version differs from catalog for {entry['name']}")
+    validate_repository(root)
 
 
 def _enum(value: Any, allowed: set[str], location: str) -> str:

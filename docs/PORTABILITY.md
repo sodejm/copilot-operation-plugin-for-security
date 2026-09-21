@@ -1,44 +1,57 @@
 # Portability architecture
 
-COPS uses one open spine with small environment adapters.
+COPS uses canonical, host-neutral package contracts and generates thin discovery
+adapters for individual hosts.
 
 ```text
-AGENTS.md                    canonical instructions
-.agents/skills/              canonical reusable workflows
-scripts/agent/ + Makefile    deterministic repository checks
-docs/                        durable context and decisions
-MCP                          portable external tool protocol
-        |
-        +-- .github/copilot-instructions.md
-        +-- CLAUDE.md + generated .claude/skills/
-        +-- .agents/rules/ and .agents/workflows/
-        +-- .codex/config.toml.example
+catalog/categories.json
+catalog/plugins.json ─────────────── canonical inventory
+          │
+          ├── plugins/<category>/<id>/package.json
+          │       ├── safe offline demo
+          │       ├── deterministic validation
+          │       ├── support evidence boundaries
+          │       ├── plugin.json (GitHub Copilot)
+          │       ├── .codex-plugin/plugin.json
+          │       ├── .claude-plugin/plugin.json
+          │       ├── skills/ + agents/ + scripts/
+          │       └── package-specific adapters
+          │
+          ├── python3 -m cops ─────── operator interface
+          │
+          └── generated indexes
+                  ├── .agents/plugins/marketplace.json
+                  ├── .github/plugin/marketplace.json
+                  └── .claude-plugin/marketplace.json
 ```
 
-## Standards-first decisions
+Repository maintenance has a separate canonical spine:
 
-- Use `AGENTS.md` for repository instructions. Nested contracts are allowed for
-  genuinely different subtrees.
-- Author skills in `.agents/skills/<name>/SKILL.md` with YAML frontmatter containing
-  `name` and `description`.
-- Use MCP for reusable tool servers rather than embedding vendor-specific tool APIs
-  in repository instructions.
-- Expose stable repository commands. Agents and humans should run the same checks.
-- Treat CI as enforcement and hooks as optional local acceleration.
+```text
+AGENTS.md + .agents/skills/ + scripts/agent/ + Makefile
+        ├── .github/copilot-instructions.md
+        ├── CLAUDE.md + generated .claude/skills/
+        └── .agents/rules/ + .agents/workflows/
+```
 
-## Adapter rule
+## Portability rules
 
-An adapter may tell an environment where the canonical source is and provide
-environment-specific discovery metadata. It must not redefine workflow policy.
-COPS checks generated Claude skill copies for drift.
+- Register a package once in `catalog/plugins.json`.
+- Keep product code and instructions inside the package boundary.
+- Keep Copilot, Codex, and Claude manifest identities aligned with the catalog;
+  host-specific metadata stays explicit instead of being treated as interchangeable.
+- Give every package a standard-library offline entry path.
+- Invoke declared commands as argument arrays, never through a shell.
+- Generate host indexes; do not maintain parallel inventories by hand.
+- Treat adapters as pointers and metadata, not alternate workflow definitions.
+- Make support claims independently for structure, offline behavior, host
+  installation, and live integration.
+- Use the same deterministic commands locally and in CI.
 
 ## What cannot be standardized completely
 
-- plugin packaging, installation, accounts, and permissions;
-- hook lifecycle events and configuration syntax;
-- automatic repository context discovery in ordinary ChatGPT conversations;
-- MCP client configuration and authentication storage;
-- sandbox, network, browser, terminal, and hosted-service authority;
-- model selection, subagent behavior, and proprietary orchestration.
-
-COPS documents these boundaries rather than pretending they do not exist.
+Hosts differ in packaging, discovery, account setup, permissions, hook events,
+authentication storage, sandboxes, model selection, and orchestration. Live
+security services also differ by tenant configuration and data availability. COPS
+keeps these differences explicit instead of translating static files into support
+claims.

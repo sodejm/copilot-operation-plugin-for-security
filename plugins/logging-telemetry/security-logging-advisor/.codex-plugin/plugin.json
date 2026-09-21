@@ -1,0 +1,34 @@
+{
+  "author": {
+    "name": "Justin Soderberg",
+    "url": "https://github.com/sodejm"
+  },
+  "description": "Review local repository signals and produce cost-aware, privacy-aware security logging recommendations.",
+  "homepage": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "interface": {
+    "displayName": "COPS Security Logging Advisor",
+    "shortDescription": "Review repository logging and telemetry signals.",
+    "longDescription": "Collect local repository context, assess security logging posture, and develop cost-aware recommendations without requiring network access.",
+    "developerName": "Justin Soderberg",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Repository context collection",
+      "Security logging recommendations",
+      "CVE reachability evidence review"
+    ],
+    "defaultPrompt": [
+      "Review this repository's security logging posture and recommend prioritized improvements."
+    ]
+  },
+  "keywords": [
+    "audit",
+    "cybersecurity",
+    "logging",
+    "telemetry"
+  ],
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "name": "security-logging-advisor",
+  "repository": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "skills": "./skills/",
+  "version": "1.0.0"
+}

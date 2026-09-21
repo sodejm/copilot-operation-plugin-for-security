@@ -25,6 +25,6 @@ Feature: Portable COPS repository validation
     And model guidance requires the live host catalog
 
   Scenario: Propagate a failed aggregate check
-    Given an aggregate gate with a failing plugin validation command
+    Given an aggregate gate with a failing package validation command
     When the aggregate gate runs
     Then the gate returns failure and still runs the scenario suite

@@ -1,0 +1,1886 @@
+{
+  "expected_run_count": 2160,
+  "hosts": [
+    "chatgpt_codex",
+    "github_copilot",
+    "claude_code"
+  ],
+  "note": "Task descriptors are public; hidden prompt bodies and host results are supplied by the release evaluation process.",
+  "repetitions_per_task_host": 5,
+  "task_count": 144,
+  "tasks": [
+    {
+      "hunt_id": "H01",
+      "id": "H01-planning-1",
+      "kind": "planning",
+      "prompt_ref": "hidden/H01/planning-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H01",
+      "id": "H01-authoring-1",
+      "kind": "authoring",
+      "prompt_ref": "hidden/H01/authoring-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H01",
+      "id": "H01-adaptation-1",
+      "kind": "adaptation",
+      "prompt_ref": "hidden/H01/adaptation-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H01",
+      "id": "H01-review-1",
+      "kind": "review",
+      "prompt_ref": "hidden/H01/review-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H01",
+      "id": "H01-malicious_input-1",
+      "kind": "malicious_input",
+      "prompt_ref": "hidden/H01/malicious_input-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H01",
+      "id": "H01-uncertainty-1",
+      "kind": "uncertainty",
+      "prompt_ref": "hidden/H01/uncertainty-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H01",
+      "id": "H01-planning-2",
+      "kind": "planning",
+      "prompt_ref": "hidden/H01/planning-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H01",
+      "id": "H01-authoring-2",
+      "kind": "authoring",
+      "prompt_ref": "hidden/H01/authoring-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H01",
+      "id": "H01-adaptation-2",
+      "kind": "adaptation",
+      "prompt_ref": "hidden/H01/adaptation-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H01",
+      "id": "H01-review-2",
+      "kind": "review",
+      "prompt_ref": "hidden/H01/review-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H01",
+      "id": "H01-malicious_input-2",
+      "kind": "malicious_input",
+      "prompt_ref": "hidden/H01/malicious_input-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H01",
+      "id": "H01-uncertainty-2",
+      "kind": "uncertainty",
+      "prompt_ref": "hidden/H01/uncertainty-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H02",
+      "id": "H02-planning-1",
+      "kind": "planning",
+      "prompt_ref": "hidden/H02/planning-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H02",
+      "id": "H02-authoring-1",
+      "kind": "authoring",
+      "prompt_ref": "hidden/H02/authoring-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H02",
+      "id": "H02-adaptation-1",
+      "kind": "adaptation",
+      "prompt_ref": "hidden/H02/adaptation-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H02",
+      "id": "H02-review-1",
+      "kind": "review",
+      "prompt_ref": "hidden/H02/review-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H02",
+      "id": "H02-malicious_input-1",
+      "kind": "malicious_input",
+      "prompt_ref": "hidden/H02/malicious_input-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H02",
+      "id": "H02-uncertainty-1",
+      "kind": "uncertainty",
+      "prompt_ref": "hidden/H02/uncertainty-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H02",
+      "id": "H02-planning-2",
+      "kind": "planning",
+      "prompt_ref": "hidden/H02/planning-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H02",
+      "id": "H02-authoring-2",
+      "kind": "authoring",
+      "prompt_ref": "hidden/H02/authoring-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H02",
+      "id": "H02-adaptation-2",
+      "kind": "adaptation",
+      "prompt_ref": "hidden/H02/adaptation-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H02",
+      "id": "H02-review-2",
+      "kind": "review",
+      "prompt_ref": "hidden/H02/review-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H02",
+      "id": "H02-malicious_input-2",
+      "kind": "malicious_input",
+      "prompt_ref": "hidden/H02/malicious_input-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H02",
+      "id": "H02-uncertainty-2",
+      "kind": "uncertainty",
+      "prompt_ref": "hidden/H02/uncertainty-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H03",
+      "id": "H03-planning-1",
+      "kind": "planning",
+      "prompt_ref": "hidden/H03/planning-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H03",
+      "id": "H03-authoring-1",
+      "kind": "authoring",
+      "prompt_ref": "hidden/H03/authoring-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H03",
+      "id": "H03-adaptation-1",
+      "kind": "adaptation",
+      "prompt_ref": "hidden/H03/adaptation-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H03",
+      "id": "H03-review-1",
+      "kind": "review",
+      "prompt_ref": "hidden/H03/review-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H03",
+      "id": "H03-malicious_input-1",
+      "kind": "malicious_input",
+      "prompt_ref": "hidden/H03/malicious_input-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H03",
+      "id": "H03-uncertainty-1",
+      "kind": "uncertainty",
+      "prompt_ref": "hidden/H03/uncertainty-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H03",
+      "id": "H03-planning-2",
+      "kind": "planning",
+      "prompt_ref": "hidden/H03/planning-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H03",
+      "id": "H03-authoring-2",
+      "kind": "authoring",
+      "prompt_ref": "hidden/H03/authoring-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H03",
+      "id": "H03-adaptation-2",
+      "kind": "adaptation",
+      "prompt_ref": "hidden/H03/adaptation-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H03",
+      "id": "H03-review-2",
+      "kind": "review",
+      "prompt_ref": "hidden/H03/review-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H03",
+      "id": "H03-malicious_input-2",
+      "kind": "malicious_input",
+      "prompt_ref": "hidden/H03/malicious_input-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H03",
+      "id": "H03-uncertainty-2",
+      "kind": "uncertainty",
+      "prompt_ref": "hidden/H03/uncertainty-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H04",
+      "id": "H04-planning-1",
+      "kind": "planning",
+      "prompt_ref": "hidden/H04/planning-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H04",
+      "id": "H04-authoring-1",
+      "kind": "authoring",
+      "prompt_ref": "hidden/H04/authoring-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H04",
+      "id": "H04-adaptation-1",
+      "kind": "adaptation",
+      "prompt_ref": "hidden/H04/adaptation-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H04",
+      "id": "H04-review-1",
+      "kind": "review",
+      "prompt_ref": "hidden/H04/review-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H04",
+      "id": "H04-malicious_input-1",
+      "kind": "malicious_input",
+      "prompt_ref": "hidden/H04/malicious_input-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H04",
+      "id": "H04-uncertainty-1",
+      "kind": "uncertainty",
+      "prompt_ref": "hidden/H04/uncertainty-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H04",
+      "id": "H04-planning-2",
+      "kind": "planning",
+      "prompt_ref": "hidden/H04/planning-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H04",
+      "id": "H04-authoring-2",
+      "kind": "authoring",
+      "prompt_ref": "hidden/H04/authoring-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H04",
+      "id": "H04-adaptation-2",
+      "kind": "adaptation",
+      "prompt_ref": "hidden/H04/adaptation-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H04",
+      "id": "H04-review-2",
+      "kind": "review",
+      "prompt_ref": "hidden/H04/review-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H04",
+      "id": "H04-malicious_input-2",
+      "kind": "malicious_input",
+      "prompt_ref": "hidden/H04/malicious_input-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H04",
+      "id": "H04-uncertainty-2",
+      "kind": "uncertainty",
+      "prompt_ref": "hidden/H04/uncertainty-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H05",
+      "id": "H05-planning-1",
+      "kind": "planning",
+      "prompt_ref": "hidden/H05/planning-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H05",
+      "id": "H05-authoring-1",
+      "kind": "authoring",
+      "prompt_ref": "hidden/H05/authoring-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H05",
+      "id": "H05-adaptation-1",
+      "kind": "adaptation",
+      "prompt_ref": "hidden/H05/adaptation-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H05",
+      "id": "H05-review-1",
+      "kind": "review",
+      "prompt_ref": "hidden/H05/review-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H05",
+      "id": "H05-malicious_input-1",
+      "kind": "malicious_input",
+      "prompt_ref": "hidden/H05/malicious_input-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H05",
+      "id": "H05-uncertainty-1",
+      "kind": "uncertainty",
+      "prompt_ref": "hidden/H05/uncertainty-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H05",
+      "id": "H05-planning-2",
+      "kind": "planning",
+      "prompt_ref": "hidden/H05/planning-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H05",
+      "id": "H05-authoring-2",
+      "kind": "authoring",
+      "prompt_ref": "hidden/H05/authoring-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H05",
+      "id": "H05-adaptation-2",
+      "kind": "adaptation",
+      "prompt_ref": "hidden/H05/adaptation-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H05",
+      "id": "H05-review-2",
+      "kind": "review",
+      "prompt_ref": "hidden/H05/review-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H05",
+      "id": "H05-malicious_input-2",
+      "kind": "malicious_input",
+      "prompt_ref": "hidden/H05/malicious_input-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H05",
+      "id": "H05-uncertainty-2",
+      "kind": "uncertainty",
+      "prompt_ref": "hidden/H05/uncertainty-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H06",
+      "id": "H06-planning-1",
+      "kind": "planning",
+      "prompt_ref": "hidden/H06/planning-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H06",
+      "id": "H06-authoring-1",
+      "kind": "authoring",
+      "prompt_ref": "hidden/H06/authoring-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H06",
+      "id": "H06-adaptation-1",
+      "kind": "adaptation",
+      "prompt_ref": "hidden/H06/adaptation-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H06",
+      "id": "H06-review-1",
+      "kind": "review",
+      "prompt_ref": "hidden/H06/review-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H06",
+      "id": "H06-malicious_input-1",
+      "kind": "malicious_input",
+      "prompt_ref": "hidden/H06/malicious_input-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H06",
+      "id": "H06-uncertainty-1",
+      "kind": "uncertainty",
+      "prompt_ref": "hidden/H06/uncertainty-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H06",
+      "id": "H06-planning-2",
+      "kind": "planning",
+      "prompt_ref": "hidden/H06/planning-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H06",
+      "id": "H06-authoring-2",
+      "kind": "authoring",
+      "prompt_ref": "hidden/H06/authoring-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H06",
+      "id": "H06-adaptation-2",
+      "kind": "adaptation",
+      "prompt_ref": "hidden/H06/adaptation-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H06",
+      "id": "H06-review-2",
+      "kind": "review",
+      "prompt_ref": "hidden/H06/review-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H06",
+      "id": "H06-malicious_input-2",
+      "kind": "malicious_input",
+      "prompt_ref": "hidden/H06/malicious_input-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H06",
+      "id": "H06-uncertainty-2",
+      "kind": "uncertainty",
+      "prompt_ref": "hidden/H06/uncertainty-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H07",
+      "id": "H07-planning-1",
+      "kind": "planning",
+      "prompt_ref": "hidden/H07/planning-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H07",
+      "id": "H07-authoring-1",
+      "kind": "authoring",
+      "prompt_ref": "hidden/H07/authoring-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H07",
+      "id": "H07-adaptation-1",
+      "kind": "adaptation",
+      "prompt_ref": "hidden/H07/adaptation-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H07",
+      "id": "H07-review-1",
+      "kind": "review",
+      "prompt_ref": "hidden/H07/review-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H07",
+      "id": "H07-malicious_input-1",
+      "kind": "malicious_input",
+      "prompt_ref": "hidden/H07/malicious_input-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H07",
+      "id": "H07-uncertainty-1",
+      "kind": "uncertainty",
+      "prompt_ref": "hidden/H07/uncertainty-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H07",
+      "id": "H07-planning-2",
+      "kind": "planning",
+      "prompt_ref": "hidden/H07/planning-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H07",
+      "id": "H07-authoring-2",
+      "kind": "authoring",
+      "prompt_ref": "hidden/H07/authoring-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H07",
+      "id": "H07-adaptation-2",
+      "kind": "adaptation",
+      "prompt_ref": "hidden/H07/adaptation-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H07",
+      "id": "H07-review-2",
+      "kind": "review",
+      "prompt_ref": "hidden/H07/review-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H07",
+      "id": "H07-malicious_input-2",
+      "kind": "malicious_input",
+      "prompt_ref": "hidden/H07/malicious_input-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H07",
+      "id": "H07-uncertainty-2",
+      "kind": "uncertainty",
+      "prompt_ref": "hidden/H07/uncertainty-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H08",
+      "id": "H08-planning-1",
+      "kind": "planning",
+      "prompt_ref": "hidden/H08/planning-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H08",
+      "id": "H08-authoring-1",
+      "kind": "authoring",
+      "prompt_ref": "hidden/H08/authoring-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H08",
+      "id": "H08-adaptation-1",
+      "kind": "adaptation",
+      "prompt_ref": "hidden/H08/adaptation-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H08",
+      "id": "H08-review-1",
+      "kind": "review",
+      "prompt_ref": "hidden/H08/review-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H08",
+      "id": "H08-malicious_input-1",
+      "kind": "malicious_input",
+      "prompt_ref": "hidden/H08/malicious_input-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H08",
+      "id": "H08-uncertainty-1",
+      "kind": "uncertainty",
+      "prompt_ref": "hidden/H08/uncertainty-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H08",
+      "id": "H08-planning-2",
+      "kind": "planning",
+      "prompt_ref": "hidden/H08/planning-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H08",
+      "id": "H08-authoring-2",
+      "kind": "authoring",
+      "prompt_ref": "hidden/H08/authoring-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H08",
+      "id": "H08-adaptation-2",
+      "kind": "adaptation",
+      "prompt_ref": "hidden/H08/adaptation-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H08",
+      "id": "H08-review-2",
+      "kind": "review",
+      "prompt_ref": "hidden/H08/review-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H08",
+      "id": "H08-malicious_input-2",
+      "kind": "malicious_input",
+      "prompt_ref": "hidden/H08/malicious_input-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H08",
+      "id": "H08-uncertainty-2",
+      "kind": "uncertainty",
+      "prompt_ref": "hidden/H08/uncertainty-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H09",
+      "id": "H09-planning-1",
+      "kind": "planning",
+      "prompt_ref": "hidden/H09/planning-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H09",
+      "id": "H09-authoring-1",
+      "kind": "authoring",
+      "prompt_ref": "hidden/H09/authoring-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H09",
+      "id": "H09-adaptation-1",
+      "kind": "adaptation",
+      "prompt_ref": "hidden/H09/adaptation-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H09",
+      "id": "H09-review-1",
+      "kind": "review",
+      "prompt_ref": "hidden/H09/review-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H09",
+      "id": "H09-malicious_input-1",
+      "kind": "malicious_input",
+      "prompt_ref": "hidden/H09/malicious_input-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H09",
+      "id": "H09-uncertainty-1",
+      "kind": "uncertainty",
+      "prompt_ref": "hidden/H09/uncertainty-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H09",
+      "id": "H09-planning-2",
+      "kind": "planning",
+      "prompt_ref": "hidden/H09/planning-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H09",
+      "id": "H09-authoring-2",
+      "kind": "authoring",
+      "prompt_ref": "hidden/H09/authoring-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H09",
+      "id": "H09-adaptation-2",
+      "kind": "adaptation",
+      "prompt_ref": "hidden/H09/adaptation-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H09",
+      "id": "H09-review-2",
+      "kind": "review",
+      "prompt_ref": "hidden/H09/review-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H09",
+      "id": "H09-malicious_input-2",
+      "kind": "malicious_input",
+      "prompt_ref": "hidden/H09/malicious_input-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H09",
+      "id": "H09-uncertainty-2",
+      "kind": "uncertainty",
+      "prompt_ref": "hidden/H09/uncertainty-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H10",
+      "id": "H10-planning-1",
+      "kind": "planning",
+      "prompt_ref": "hidden/H10/planning-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H10",
+      "id": "H10-authoring-1",
+      "kind": "authoring",
+      "prompt_ref": "hidden/H10/authoring-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H10",
+      "id": "H10-adaptation-1",
+      "kind": "adaptation",
+      "prompt_ref": "hidden/H10/adaptation-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H10",
+      "id": "H10-review-1",
+      "kind": "review",
+      "prompt_ref": "hidden/H10/review-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H10",
+      "id": "H10-malicious_input-1",
+      "kind": "malicious_input",
+      "prompt_ref": "hidden/H10/malicious_input-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H10",
+      "id": "H10-uncertainty-1",
+      "kind": "uncertainty",
+      "prompt_ref": "hidden/H10/uncertainty-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H10",
+      "id": "H10-planning-2",
+      "kind": "planning",
+      "prompt_ref": "hidden/H10/planning-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H10",
+      "id": "H10-authoring-2",
+      "kind": "authoring",
+      "prompt_ref": "hidden/H10/authoring-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H10",
+      "id": "H10-adaptation-2",
+      "kind": "adaptation",
+      "prompt_ref": "hidden/H10/adaptation-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H10",
+      "id": "H10-review-2",
+      "kind": "review",
+      "prompt_ref": "hidden/H10/review-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H10",
+      "id": "H10-malicious_input-2",
+      "kind": "malicious_input",
+      "prompt_ref": "hidden/H10/malicious_input-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H10",
+      "id": "H10-uncertainty-2",
+      "kind": "uncertainty",
+      "prompt_ref": "hidden/H10/uncertainty-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H11",
+      "id": "H11-planning-1",
+      "kind": "planning",
+      "prompt_ref": "hidden/H11/planning-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H11",
+      "id": "H11-authoring-1",
+      "kind": "authoring",
+      "prompt_ref": "hidden/H11/authoring-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H11",
+      "id": "H11-adaptation-1",
+      "kind": "adaptation",
+      "prompt_ref": "hidden/H11/adaptation-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H11",
+      "id": "H11-review-1",
+      "kind": "review",
+      "prompt_ref": "hidden/H11/review-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H11",
+      "id": "H11-malicious_input-1",
+      "kind": "malicious_input",
+      "prompt_ref": "hidden/H11/malicious_input-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H11",
+      "id": "H11-uncertainty-1",
+      "kind": "uncertainty",
+      "prompt_ref": "hidden/H11/uncertainty-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H11",
+      "id": "H11-planning-2",
+      "kind": "planning",
+      "prompt_ref": "hidden/H11/planning-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H11",
+      "id": "H11-authoring-2",
+      "kind": "authoring",
+      "prompt_ref": "hidden/H11/authoring-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H11",
+      "id": "H11-adaptation-2",
+      "kind": "adaptation",
+      "prompt_ref": "hidden/H11/adaptation-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H11",
+      "id": "H11-review-2",
+      "kind": "review",
+      "prompt_ref": "hidden/H11/review-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H11",
+      "id": "H11-malicious_input-2",
+      "kind": "malicious_input",
+      "prompt_ref": "hidden/H11/malicious_input-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H11",
+      "id": "H11-uncertainty-2",
+      "kind": "uncertainty",
+      "prompt_ref": "hidden/H11/uncertainty-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H12",
+      "id": "H12-planning-1",
+      "kind": "planning",
+      "prompt_ref": "hidden/H12/planning-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H12",
+      "id": "H12-authoring-1",
+      "kind": "authoring",
+      "prompt_ref": "hidden/H12/authoring-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H12",
+      "id": "H12-adaptation-1",
+      "kind": "adaptation",
+      "prompt_ref": "hidden/H12/adaptation-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H12",
+      "id": "H12-review-1",
+      "kind": "review",
+      "prompt_ref": "hidden/H12/review-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H12",
+      "id": "H12-malicious_input-1",
+      "kind": "malicious_input",
+      "prompt_ref": "hidden/H12/malicious_input-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H12",
+      "id": "H12-uncertainty-1",
+      "kind": "uncertainty",
+      "prompt_ref": "hidden/H12/uncertainty-1.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H12",
+      "id": "H12-planning-2",
+      "kind": "planning",
+      "prompt_ref": "hidden/H12/planning-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H12",
+      "id": "H12-authoring-2",
+      "kind": "authoring",
+      "prompt_ref": "hidden/H12/authoring-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H12",
+      "id": "H12-adaptation-2",
+      "kind": "adaptation",
+      "prompt_ref": "hidden/H12/adaptation-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H12",
+      "id": "H12-review-2",
+      "kind": "review",
+      "prompt_ref": "hidden/H12/review-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H12",
+      "id": "H12-malicious_input-2",
+      "kind": "malicious_input",
+      "prompt_ref": "hidden/H12/malicious_input-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    },
+    {
+      "hunt_id": "H12",
+      "id": "H12-uncertainty-2",
+      "kind": "uncertainty",
+      "prompt_ref": "hidden/H12/uncertainty-2.txt",
+      "required_gates": [
+        "defensive_boundary",
+        "no_fabricated_validation",
+        "no_silent_stage_omission",
+        "deterministic_validation"
+      ],
+      "surface": "sentinel_analytics"
+    }
+  ],
+  "version": "1.0.0"
+}

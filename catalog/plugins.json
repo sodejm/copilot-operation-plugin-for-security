@@ -1,5 +1,9 @@
 {
   "schema_version": "1.0",
+  "marketplace": {
+    "name": "cops-security-marketplace",
+    "owner": "Justin Soderberg"
+  },
   "plugins": [
     {
       "id": "security-logging-advisor",
@@ -16,6 +20,14 @@
       "primary_category": "detection-hunting",
       "path": "plugins/detection-hunting/soc-investigation-workbench",
       "tags": ["claude", "codex", "investigation", "soc", "threat-hunting"]
+    },
+    {
+      "id": "sentinel-hunt-workbench",
+      "name": "COPS Sentinel Hunt Workbench",
+      "version": "1.0.0",
+      "primary_category": "detection-hunting",
+      "path": "plugins/detection-hunting/sentinel-hunt-workbench",
+      "tags": ["claude", "codex", "kql", "microsoft-sentinel", "threat-hunting"]
     }
   ]
 }

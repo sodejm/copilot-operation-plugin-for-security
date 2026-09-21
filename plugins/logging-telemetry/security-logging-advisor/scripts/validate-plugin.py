@@ -7,7 +7,9 @@ import re
 
 PACKAGE = Path("plugins/logging-telemetry/security-logging-advisor")
 REQUIRED_FILES = [
-    PACKAGE / "plugin.json", PACKAGE / ".claude-plugin/plugin.json",
+    PACKAGE / "plugin.json",
+    PACKAGE / ".codex-plugin/plugin.json",
+    PACKAGE / ".claude-plugin/plugin.json",
     PACKAGE / "agents/security-logging-advisor.agent.md",
     PACKAGE / "commands/security-logging-advisor.md",
     PACKAGE / "com.github.copilot/agents/security-logging-advisor.agent.md",
@@ -65,15 +67,32 @@ def main() -> int:
     for path in REQUIRED_FILES:
         if not path.is_file():
             errors.append(f"Missing required file/path: {path}")
-    portable = read_json(PACKAGE / "plugin.json", errors)
+    copilot = read_json(PACKAGE / "plugin.json", errors)
+    codex = read_json(PACKAGE / ".codex-plugin/plugin.json", errors)
     claude = read_json(PACKAGE / ".claude-plugin/plugin.json", errors)
     for key in ("$schema", "name", "version", "description", "author"):
-        if key not in portable:
+        if key not in copilot:
             errors.append(f"{PACKAGE / 'plugin.json'} is missing key: '{key}'")
-    if portable.get("name") != "security-logging-advisor":
-        errors.append("Portable plugin name must be security-logging-advisor.")
-    if claude.get("name") != portable.get("name") or claude.get("version") != portable.get("version"):
-        errors.append("Claude and portable plugin identities must match.")
+    if copilot.get("name") != "security-logging-advisor":
+        errors.append("Copilot plugin name must be security-logging-advisor.")
+    expected_identity = (copilot.get("name"), copilot.get("version"))
+    if (codex.get("name"), codex.get("version")) != expected_identity:
+        errors.append("Codex and Copilot plugin identities must match.")
+    if (claude.get("name"), claude.get("version")) != expected_identity:
+        errors.append("Claude and Copilot plugin identities must match.")
+    if codex.get("skills") not in {"./skills", "./skills/"}:
+        errors.append("Codex manifest must reference the package skills directory.")
+    interface = codex.get("interface")
+    required_interface = {
+        "displayName", "shortDescription", "longDescription", "developerName",
+        "category", "capabilities", "defaultPrompt",
+    }
+    if not isinstance(interface, dict) or not required_interface <= interface.keys():
+        errors.append("Codex manifest is missing required interface metadata.")
+    elif not isinstance(interface["capabilities"], list) or not interface["capabilities"]:
+        errors.append("Codex manifest must declare at least one interface capability.")
+    elif not isinstance(interface["defaultPrompt"], list) or not interface["defaultPrompt"]:
+        errors.append("Codex manifest must declare at least one default prompt.")
     skills = sorted((PACKAGE / "skills").glob("*/SKILL.md"))
     if not skills:
         errors.append("The package must contain at least one skill.")
@@ -84,7 +103,7 @@ def main() -> int:
         for error in errors:
             print(f" - [ERROR] {error}")
         return 1
-    print("\nAll checks passed successfully! Plugin structure, manifests, and frontmatters are valid.")
+    print("\nAll checks passed successfully! Copilot, Codex, and Claude manifests plus skill frontmatter are valid.")
     return 0
 
 if __name__ == "__main__":

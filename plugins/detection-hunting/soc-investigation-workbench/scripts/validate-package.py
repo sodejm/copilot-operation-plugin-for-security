@@ -35,11 +35,26 @@ def absent(path):
 
 
 def check(allow_pending_vendor=False):
-    manifest = read_json(PACKAGE / "plugin.json")
-    require(manifest["name"] == "soc-investigation-workbench"
-            and manifest["$schema"].startswith("https://"), "Unexpected plugin identity or schema.")
-    require(bool(manifest["version"]) and bool(manifest["description"])
-            and manifest["author"]["name"] == "Justin Soderberg", "Plugin metadata is incomplete.")
+    copilot = read_json(PACKAGE / "plugin.json")
+    codex = read_json(PACKAGE / ".codex-plugin/plugin.json")
+    claude = read_json(PACKAGE / ".claude-plugin/plugin.json")
+    require(copilot["name"] == "soc-investigation-workbench"
+            and copilot["$schema"].startswith("https://"), "Unexpected Copilot plugin identity or schema.")
+    require(bool(copilot["version"]) and bool(copilot["description"])
+            and copilot["author"]["name"] == "Justin Soderberg", "Copilot plugin metadata is incomplete.")
+    identity = (copilot["name"], copilot["version"])
+    require((codex["name"], codex["version"]) == identity
+            and (claude["name"], claude["version"]) == identity,
+            "Copilot, Codex, and Claude plugin identities must match.")
+    require(codex["skills"] in {"./skills", "./skills/"},
+            "Codex manifest must reference the package skills directory.")
+    interface = codex["interface"]
+    required_interface = {"displayName", "shortDescription", "longDescription",
+                          "developerName", "category", "capabilities", "defaultPrompt"}
+    require(required_interface <= set(interface)
+            and isinstance(interface["capabilities"], list) and bool(interface["capabilities"])
+            and isinstance(interface["defaultPrompt"], list) and bool(interface["defaultPrompt"]),
+            "Codex manifest interface metadata is incomplete.")
     skills = sorted((PACKAGE / "skills").glob("*/SKILL.md"))
     expected = {"soc-investigation-planning", "soc-investigation-review"}
     names = set()
