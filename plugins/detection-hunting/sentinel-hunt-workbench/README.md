@@ -77,6 +77,13 @@ Run the complete deterministic gate set from this package directory with:
 make check
 ```
 
+Build the local release archive, integrity evidence, and qualification report
+with `make release`. Outputs are written under `release/`; the report is
+expected to say `qualification_withheld` until genuine model-host, license,
+and human-review evidence is supplied. The archive uses fixed file order,
+timestamps, and permissions. Its subject hash covers every packaged source
+file, including tests and documentation.
+
 ## Qualification states
 
 The permitted lifecycle is:
@@ -114,6 +121,8 @@ See [`SOURCE_PROVENANCE.md`](SOURCE_PROVENANCE.md),
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
 [`docs/OPERATIONS.md`](docs/OPERATIONS.md), and
 [`evaluations/EVALUATION_PROTOCOL.md`](evaluations/EVALUATION_PROTOCOL.md).
+The [walkthrough](walkthrough.md) identifies each release artifact and the
+remaining manual evidence handoff.
 
 ## License
 
