@@ -14,7 +14,7 @@
 | `.agents/plugins/`, `.github/plugin/`, `.claude-plugin/` | Generated host marketplace indexes; do not edit manually |
 | `AGENTS.md`, `.agents/skills/` | Canonical contributor contract and maintenance workflows |
 | `.claude/skills/` | Generated contributor-skill mirrors; do not edit manually |
-| `scripts/agent/`, `Makefile` | Contributor doctor and full repository gate |
+| `scripts/agent/`, `Makefile` | Contributor doctor, portable export, prerequisite installer, and full repository gate |
 | `specs/`, `.specify/` | Product requirements, acceptance scenarios, and durable context |
 | `tests/step_defs/` | Executable pytest-bdd acceptance steps |
 | `docs/`, `docs/decisions/` | Operator guidance, architecture, governance, and decisions |
@@ -22,12 +22,16 @@
 
 ## Package ownership boundary
 
-A package owns its Copilot `plugin.json`, Codex `.codex-plugin/plugin.json`, Claude
+A package owns its v1.0.0 root `plugin.json`, Codex `.codex-plugin/plugin.json`, Claude
 `.claude-plugin/plugin.json`, product skills, optional agents, scripts, examples,
 schemas, package documentation, and deterministic tests. Shared code belongs at
 the root only when multiple packages genuinely depend on one stable contract.
 Cross-package use must name the dependency and fail closed when it is missing or
 incompatible.
+
+The host-neutral distribution is generated separately from each source package.
+The export includes approved standard and namespaced files, and omits native host
+manifests so Claude Code discovery remains available in the source marketplace.
 
 The validator rejects unknown categories, incorrect category-first paths,
 uncataloged packages, duplicate IDs or skill names, manifest/catalog divergence,

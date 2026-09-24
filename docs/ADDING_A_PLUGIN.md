@@ -29,27 +29,43 @@ At minimum, add:
 plugin.json
 .codex-plugin/plugin.json
 .claude-plugin/plugin.json
+com.sodejm.copse/prerequisites.json
 package.json
 README.md
 skills/<globally-unique-skill-id>/SKILL.md
 scripts/<entry-point>.py
 ```
 
-Use the root `plugin.json` for GitHub Copilot's Agent Plugin contract,
+Use the root `plugin.json` for the Agent Plugins v1.0.0 contract,
 `.codex-plugin/plugin.json` for Codex package metadata and user-facing interface
 metadata, and `.claude-plugin/plugin.json` for Claude identity metadata. These
 host manifests may point to the same canonical skills and scripts, but must not
 fork their behavior.
 
+Use only v1 standard fields in the root manifest. Put COPS-specific manifest
+data under `extensions.com.sodejm.copse` and its support files in the
+`com.sodejm.copse/` directory. Declare required external commands in
+`prerequisites.json` using `schema_version: "1.0"` and a `tools` array. Each tool
+has an `id`, the command to detect, and package IDs keyed by supported managers
+(`brew`, `apt-get`, `dnf`, or `winget`). Use an empty array when no external tool
+is required. Do not put installer commands or scripts in `plugin.json`. Add
+standard MCP servers in root `mcp.json` when needed, using the v1.0.0 MCP schema.
+When adding any other root entry, classify it in `cops/portable.py` as portable
+or source-only so the export gate cannot silently omit it.
+
 Acceptance criteria:
 
 - all three manifests use the catalog ID and version;
-- the Copilot manifest declares a schema and non-empty description;
+- the root manifest uses the pinned v1.0.0 schema and a non-empty description;
 - the Codex manifest references `./skills/` and declares its required interface
   metadata, capabilities, and one to three bounded default prompts;
 - at least one skill exists;
 - each `SKILL.md` starts with only `name` and `description` frontmatter;
 - the skill name matches its directory and does not collide with another package.
+- prerequisite declarations pass validation and never install during discovery;
+- optional `mcp.json` passes the v1.0.0 configuration and path checks;
+- the portable export retains required support files while excluding native host
+  manifests and other source-only host directories.
 
 ## 3. Declare the runtime and evidence contract
 
@@ -118,6 +134,8 @@ python3 -m cops info <plugin-id>
 python3 -m cops demo <plugin-id>
 python3 -m cops check <plugin-id>
 python3 -m cops generate --check
+python3 scripts/agent/install_prerequisites.py --validate
+python3 scripts/agent/export_portable.py --check
 make check
 ```
 

@@ -1,13 +1,25 @@
 {
-  "$schema": "https://raw.githubusercontent.com/github/copilot-agent-plugins/main/schemas/plugin.schema.json",
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "security-logging-advisor",
   "version": "1.0.0",
   "description": "Review repository signals and produce cost-aware security logging recommendations.",
-  "author": {"name": "Justin Soderberg", "url": "https://github.com/sodejm"},
+  "author": {
+    "name": "Justin Soderberg",
+    "url": "https://github.com/sodejm"
+  },
   "repository": "https://github.com/sodejm/copilot-operation-plugin-for-security",
   "license": "PolyForm-Noncommercial-1.0.0",
-  "keywords": ["cybersecurity", "logging", "telemetry", "audit"],
+  "keywords": [
+    "cybersecurity",
+    "logging",
+    "telemetry",
+    "audit"
+  ],
   "extensions": {
-    "com.openai": {"displayName": "COPS Security Logging Advisor", "category": "Developer Tools"}
+    "com.openai": {
+      "displayName": "COPS Security Logging Advisor",
+      "category": "Developer Tools"
+    },
+    "com.sodejm.copse": {}
   }
 }

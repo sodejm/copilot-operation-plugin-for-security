@@ -41,6 +41,8 @@ def main() -> int:
         run([sys.executable, "scripts/agent/validate_contract.py"]),
         run([sys.executable, "scripts/agent/sync_adapters.py", "--check"]),
         run([sys.executable, "scripts/agent/validate_marketplace.py"]),
+        run([sys.executable, "scripts/agent/install_prerequisites.py", "--validate"]),
+        run([sys.executable, "scripts/agent/export_portable.py", "--check"]),
         run([sys.executable, "-m", "cops", "generate", "--check"]),
         run([sys.executable, "-m", "cops", "check"]),
     ]
