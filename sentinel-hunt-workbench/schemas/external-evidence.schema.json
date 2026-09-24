@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/sodejm/copilot-operation-plugin-for-security/main/sentinel-hunt-workbench/schemas/external-evidence.schema.json",
+  "title": "Sentinel Hunt Workbench external evidence envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "subject_sha256"],
+  "properties": {
+    "schema": {"const": "huntwb.external-evidence/v2"},
+    "subject_sha256": {"$ref": "#/$defs/sha256"},
+    "model_evaluation": {"$ref": "#/$defs/pointer"},
+    "human_approvals": {"type": "array", "items": {"$ref": "#/$defs/pointer"}},
+    "license_review": {"$ref": "#/$defs/pointer"},
+    "release_integrity": {"$ref": "#/$defs/pointer"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "pointer": {
+      "type": "object", "additionalProperties": false,
+      "required": ["artifact_path", "artifact_sha256"],
+      "properties": {
+        "artifact_path": {"type": "string", "pattern": "^[A-Za-z0-9._/-]+\\.json$"},
+        "artifact_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    }
+  }
+}
