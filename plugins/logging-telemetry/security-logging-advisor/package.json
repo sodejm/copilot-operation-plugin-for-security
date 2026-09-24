@@ -1,0 +1,39 @@
+{
+  "schema_version": "1.0",
+  "id": "security-logging-advisor",
+  "display_name": "COPS Security Logging Advisor",
+  "maturity": "stable",
+  "summary": "Inspect a local repository and guide cost-aware security logging recommendations from collected evidence.",
+  "support": {
+    "structural_validation": "validated",
+    "offline_workflow": "validated",
+    "host_installation": "unverified",
+    "live_integration": "not_applicable"
+  },
+  "limitations": [
+    "The scanner reports local repository signals; an analyst or agent must review them before making recommendations.",
+    "CVE reachability report checks validate structure and evidence integrity only; semantic reachability and agent behavior require separate repository-specific review.",
+    "No host installation is proven by the repository checks."
+  ],
+  "demo": {
+    "description": "Scan the plugin package itself and emit repository context as JSON.",
+    "command": [
+      "$PYTHON",
+      "plugins/logging-telemetry/security-logging-advisor/skills/repository-context/scripts/collect-repository-context.py",
+      "plugins/logging-telemetry/security-logging-advisor"
+    ],
+    "timeout_seconds": 60
+  },
+  "validation": [
+    {
+      "name": "package contract",
+      "command": ["$PYTHON", "plugins/logging-telemetry/security-logging-advisor/scripts/validate-plugin.py"],
+      "timeout_seconds": 60
+    },
+    {
+      "name": "offline behavior",
+      "command": ["$PYTHON", "plugins/logging-telemetry/security-logging-advisor/scripts/test_plugin.py"],
+      "timeout_seconds": 120
+    }
+  ]
+}

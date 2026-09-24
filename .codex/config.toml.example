@@ -1,0 +1,7 @@
+# Optional project-local Codex configuration example.
+# Copy only the settings the project actually needs into `.codex/config.toml`.
+# Keep machine paths, credentials, and personal preferences out of the repository.
+
+# Repository instructions and skills require no Codex-specific configuration:
+# - AGENTS.md
+# - .agents/skills/*/SKILL.md

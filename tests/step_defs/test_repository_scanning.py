@@ -96,12 +96,12 @@ def create_dummy_files(count):
 def execute_scanner(context, target):
     # The script should be run via subprocess to simulate actual execution
     # Calculate the path back to the actual script since we are in a tmpdir
-    # tests/step_defs/test_repository_scanning.py -> scripts is at ../../security-logging-advisor/skills/repository-context/scripts/collect-repository-context.py
+    # Resolve the categorized plugin scanner from the repository root.
     # But this script runs from the pytest root, so we can pass the absolute path
     # Actually, we can just pass the path relative to the root dir which we know.
     # We will assume pytest runs from the root of the project.
     
-    script_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../security-logging-advisor/skills/repository-context/scripts/collect-repository-context.py'))
+    script_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../plugins/logging-telemetry/security-logging-advisor/skills/repository-context/scripts/collect-repository-context.py'))
     
     try:
         result = subprocess.run(['python3', script_path, target], capture_output=True, text=True, check=True)
@@ -166,4 +166,3 @@ def check_processed(context, key):
     assert context['json'] is not None
     # Just checking it completed successfully handles the memory error part.
     pass
-

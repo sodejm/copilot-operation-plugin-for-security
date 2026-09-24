@@ -1,73 +1,89 @@
-# Security Logging Copilot Plugin
+# COPS — Copilot Operations Plugins for Security
 
-Welcome to the **Security Logging Copilot Plugin** repository. This plugin is designed to assist developers in writing secure, compliant, and structured logging statements directly within their development environments.
+<p align="center">
+  <img src="docs/assets/cops-logo.png" alt="COPS shield and copilot visor logo" width="260">
+</p>
 
-## Overview
+COPS is a portable catalog of defensive cybersecurity plugins, agents, skills,
+and deterministic local tools. A security engineer can use the repository without
+first learning any host-specific packaging format: the catalog says what is
+available, each package declares its own safe demo and checks, and generated host
+indexes all come from that single source.
 
-Modern software development requires strict adherence to security and compliance standards (such as OWASP, GDPR, HIPAA, and PCI-DSS). This plugin provides real-time linting, suggestions, and auto-completion for security logging, ensuring sensitive data is never leaked and required audit contexts are always captured.
+## Five-minute analyst path
 
-## Features
-
-- **Sensitive Data Detection**: Identifies potential PII, credentials, and secrets in logging statements.
-- **Log Context Validation**: Checks if logging statements contain necessary metadata (actor, action, outcome, timestamps).
-- **CRLF Injection Prevention**: Lints for unsafe input concatenation in log messages.
-- **Structured Log Formatting**: Promotes JSON or structured logging patterns.
-
-## Getting Started
-
-### Prerequisites
-
-- Python 3 (v3.8 or higher recommended)
-- Node.js (v18 or higher recommended)
-- Git
-
-### Installation
-
-1. Clone the repository:
-
-   ```bash
-   git clone https://github.com/your-organization/security-logging-copilot-plugin.git
-   cd security-logging-copilot-plugin
-   ```
-
-2. Install dependencies:
-
-   ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate
-   pip3 install -r requirements.txt
-   ```
-
-### Running Tests
-
-To execute the BDD feature specs, run:
+Requirements: Python 3.11 or newer. These commands use only the Python standard
+library and do not install dependencies, access a tenant, or require network access.
 
 ```bash
-source .venv/bin/activate
-pytest tests/step_defs/
+git clone https://github.com/sodejm/copilot-operation-plugin-for-security.git
+cd copilot-operation-plugin-for-security
+python3 -m cops doctor
+python3 -m cops list
+python3 -m cops info sentinel-hunt-workbench
+python3 -m cops demo sentinel-hunt-workbench
+python3 -m cops check sentinel-hunt-workbench
 ```
 
-## Spec-Driven Development (SDD)
+`list` shows maturity plus separate offline, host-installation, and live-integration
+states. `demo` runs a bounded package-owned example. `check` runs that package's
+declared deterministic validation. None of these commands claim that a plugin is
+installed in a particular assistant or that a live security service was exercised.
 
-This repository follows a strict **Spec-Driven Development** workflow driven by `spec-kit` and the Kaggle production-grade BDD guidelines to guide development:
+## Included packages
 
-- **Constitution**: Project rules, security policies, and standards are defined in [.specify/memory/constitution.md](.specify/memory/constitution.md).
-- **Project Context**: The system layout and technologies are documented in [.specify/project-context.md](.specify/project-context.md).
-- **Feature Specs**: High-level requirements are modeled as specifications inside [specs/security-logging-plugin.spec.md](specs/security-logging-plugin.spec.md).
-- **Gherkin Features**: Specific, executable scenarios (Given/When/Then) are defined as BDD feature files under [specs/features/](specs/features/).
+| Package | Use it for | Safe first command |
+| --- | --- | --- |
+| Security Logging Advisor | Collect repository signals and plan cost-aware, privacy-aware security logging | `python3 -m cops demo security-logging-advisor` |
+| SOC Investigation Workbench | Validate evidence associations and plan bounded investigations without running response actions | `python3 -m cops demo soc-investigation-workbench` |
+| Sentinel Hunt Workbench | Explain, render, and stress-test 12 defensive hunting workflows offline | `python3 -m cops demo sentinel-hunt-workbench` |
 
-## Development and IDE Environment
+For the complete analyst walkthrough, command reference, and evidence boundaries,
+read [Getting Started](docs/GETTING_STARTED.md). Package-specific instructions live
+with each package under `plugins/<category>/<plugin-id>/`.
 
-This repository is optimized for development with the **Antigravity IDE** and **Antigravity 2.0** ecosystem.
+## How portability works
 
-- **Workspace Guidelines**: Project-specific rules and agent instructions are defined in [.agents/AGENTS.md](.agents/AGENTS.md).
-- **Model Context Protocol (MCP)**: Any custom MCP tools or hooks will be configured in the `.agents/` folder.
-- **Model Selection & Routing**: Task-based model recommendations for Gemini, Claude, and GPT families, along with runtime environment detection logic, are detailed in [security-logging-advisor/docs/model-routing.md](security-logging-advisor/docs/model-routing.md).
+- `catalog/plugins.json` is the canonical inventory.
+- Every package owns a `package.json` runtime/evidence contract, separate
+  Copilot (`plugin.json`), Codex (`.codex-plugin/plugin.json`), and Claude
+  (`.claude-plugin/plugin.json`) manifests, plus skills, documentation, a safe
+  demo, and deterministic checks.
+- `python3 -m cops ...` is the host-neutral operator interface.
+- `.agents/plugins/marketplace.json`, `.github/plugin/marketplace.json`, and
+  `.claude-plugin/marketplace.json` are generated indexes, not independent sources.
+- Validation rejects uncataloged packages, misplaced packages, duplicate skill
+  names, unsafe command paths, stale generated indexes, and unsupported support
+  claims.
 
-## Authors
+See [Architecture](ARCHITECTURE.md), [Repository Layout](docs/REPOSITORY_LAYOUT.md),
+and [Compatibility](docs/COMPATIBILITY.md) for the full boundaries.
 
-- **Justin Soderberg** - [sodejm](https://github.com/sodejm)
+## Contributor path
 
-## License
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install -r requirements.txt
+python3 -m cops doctor --contributor
+make check
+```
 
-This project is licensed under the **PolyForm Noncommercial License 1.0.0** - see the [LICENSE](LICENSE) file for details.
+On Windows, activate `.venv\Scripts\Activate.ps1` in PowerShell. If Make is not
+available, run `python3 scripts/agent/check.py`. Before adding a capability, read
+[Adding a Plugin](docs/ADDING_A_PLUGIN.md), [AGENTS.md](AGENTS.md), and
+[CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Evidence and safety
+
+Offline validation proves only what its output states. Pattern matching is not a
+security or compliance guarantee. Static manifests do not prove host discovery or
+activation. Fixture-backed tests do not prove tenant schema, permissions, latency,
+cost, or false-positive behavior. Live and host claims stay `unverified` until a
+separate, reviewable evidence record exists.
+
+## License and attribution
+
+Existing COPS project material retains the [PolyForm Noncommercial License 1.0.0](LICENSE).
+Imported PARK material retains its Apache-2.0 notices; see
+[third-party notices](THIRD_PARTY_NOTICES.md) and [licensing](docs/LICENSING.md).

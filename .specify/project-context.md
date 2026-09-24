@@ -1,83 +1,55 @@
-# Project Context: Security Logging Advisor
+# COPS project context
 
-This document provides a feature-complete snapshot of the repository context to guide AI agents in understanding the codebase structure, technologies, and boundaries.
+**COPS (Copilot Operations Plugins for Security)** is a catalog-driven project for
+portable cybersecurity plugins, agents, skills, and deterministic local tools.
+Product packages use the category-first path `plugins/<category>/<plugin-id>/`.
+The current catalog contains Security Logging Advisor, SOC Investigation Workbench,
+and Sentinel Hunt Workbench.
 
----
+Python 3.11+ implements the host-neutral `python3 -m cops` operator interface,
+local tools, and package validation. Markdown holds instructions and durable
+evidence boundaries; JSON holds catalogs, manifests, package contracts, schemas,
+fixtures, and examples. The operator path uses only the standard library. Pytest
+and pytest-bdd are contributor dependencies for executable acceptance scenarios.
 
-## 1. Technology Stack and Ecosystem
+`catalog/plugins.json` is the canonical inventory. Each package has a `package.json`
+governance contract, root `plugin.json`, `.claude-plugin/plugin.json`, at least one
+canonical product skill, a safe demo, deterministic checks, and explicit structural,
+offline, host-installation, and live-integration states. Root-generated marketplace
+indexes must never become independent sources of truth.
 
-- **Ecosystem**: GitHub Copilot plugin and agent package, with cross-compatibility for Claude Code workflows.
-- **Programming Languages**:
-  - **Python (v3.x)**: Used for deterministic repository static scanning and pre-release plugin validation scripts.
-  - **HCL (Terraform)**: (Noted in workspace files).
-  - **Markdown / JSON**: Used for configuration, agent instructions, templates, and specifications.
-- **Framework Specifications**:
-  - GitHub Copilot plugin manifest rules (`plugin.json`, `marketplace.json`).
-  - Spec-kit driven development structure (located under `.specify/`).
+PARK-derived contributor workflows live under `.agents/`, with generated
+`.claude/skills/` copies. Root `AGENTS.md` is canonical across environments.
+`make check` combines repository and package contracts, adapter drift checks,
+package-declared validation, tests, and BDD scenarios. GitHub Actions also runs a
+dependency-free operator smoke test on Linux, macOS, and Windows.
 
----
+## Package boundaries
 
-## 2. Directory Layout & Key Files
+- Security Logging Advisor scans local repository signals and supports reviewed,
+  cost-aware security logging recommendations. It does not prove security or
+  compliance, and host installation remains unverified.
+- SOC Investigation Workbench validates analyst-supplied redacted cases, explicit
+  evidence associations, hypothesis branches, question dependencies, budgets, and
+  review reports. It does not execute queries or response actions.
+- Sentinel Hunt Workbench owns 12 gold hunt definitions, profiles, renderers,
+  deterministic curated and adversarial reference tests, and generated platform
+  adapters. Its evaluator is not Kusto or Microsoft Sentinel; tenant behavior,
+  cost, latency, false positives, host activation, and live integration remain
+  unverified.
 
-```text
-/
-├── .github/
-│   └── plugin/
-│       └── marketplace.json       # GitHub Copilot marketplace metadata
-├── .claude-plugin/
-│   └── marketplace.json           # Claude plugin metadata
-├── .specify/
-│   └── memory/
-│       └── constitution.md        # Non-negotiable repository rules
-├── specs/
-│   ├── security-logging-plugin.spec.md # Feature specification for the plugin
-│   └── features/
-│       ├── repository_scanning.feature # BDD features for scanning validation
-│       └── plugin_validation.feature   # BDD features for plugin validator
-├── security-logging-advisor/
-│   ├── plugin.json                # Plugin definition manifest
-│   ├── CHANGELOG.md               # Version log history
-│   ├── agents/
-│   │   └── security-logging-advisor.agent.md # Core agent system prompt
-│   ├── docs/                      # User, Maintainer, Rollout guides
-│   │   ├── INSTALL.md
-│   │   ├── ENTERPRISE_ROLLOUT.md
-│   │   ├── SECURITY_PRIVACY.md
-│   │   ├── TROUBLESHOOTING.md
-│   │   ├── MAINTAINERS.md
-│   │   └── architecture.md
-│   ├── examples/                  # Logger configurations (Pino, Structlog)
-│   ├── scripts/                   # Scan and validation utilities
-│   │   ├── collect-repository-context.py
-│   │   └── validate-plugin.py
-│   ├── skills/                    # Modular agent capabilities
-│   │   ├── repository-context/
-│   │   │   └── SKILL.md
-│   │   └── logging-recommendations/
-│   │       └── SKILL.md
-│   └── templates/                 # Output context and recommendations layouts
-│       ├── logging-recommendations.md
-│       └── repository-context.md
-├── tests/                         # BDD test suite
-│   └── step_defs/                 # Pytest BDD scripts
-├── LICENSE                        # PolyForm Noncommercial 1.0.0 license
-├── README.md                      # General introduction
-├── requirements.txt               # Python dependencies
-└── .gitignore                     # Git tracking exclusions
-```
+SOC-to-Sentinel handoff is an explicit, guarded integration boundary. Co-location
+in this repository does not establish compatibility or release readiness. Package
+validation must continue to fail closed when required version or integrity evidence
+is absent.
 
----
+## Evidence policy
 
-## 3. Deployment & Validation Pipelines
+Static structure, offline behavior, host installation, and live service behavior
+are separate claims. A manifest, generated index, fixture, or local passing test
+cannot promote host or live state. Stronger states require a dated, reproducible,
+reviewed evidence record under a repository-defined contract.
 
-- **Local Execution**: The plugin runs locally on developer workstations using standard Python 3.
-- **Code Validation**:
-  - Run the validator script to verify plugin manifest formatting, skill markdown frontmatter properties, and file structures:
-    ```bash
-    python3 security-logging-advisor/scripts/validate-plugin.py
-    ```
-- **Context Collection**:
-  - Run the scanner script to analyze project languages and frameworks:
-    ```bash
-    python3 security-logging-advisor/scripts/collect-repository-context.py .
-    ```
+See [Getting Started](../docs/GETTING_STARTED.md),
+[architecture](../ARCHITECTURE.md), [repository layout](../docs/REPOSITORY_LAYOUT.md),
+and [adding a plugin](../docs/ADDING_A_PLUGIN.md).

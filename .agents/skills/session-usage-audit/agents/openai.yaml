@@ -1,0 +1,3 @@
+interface:
+  display_name: "Session Usage Audit"
+  short_description: "Measure agent churn, tokens, and planning opportunities"

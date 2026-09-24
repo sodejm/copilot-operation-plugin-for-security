@@ -1,21 +1,18 @@
 Feature: Plugin Architecture and Schema Validation
-  As an internal marketplace maintainer
-  I want to run a validation script on the plugin package
-  So that I can verify all schemas, agents, and required files conform to standards.
+  As a marketplace maintainer
+  I want to validate each portable plugin package
+  So that host manifests and Agent Skills remain structurally consistent.
 
-  Scenario: Validate manifest and marketplace files parsing
-    Given a plugin directory containing "plugin.json"
-    And a plugin directory containing "plugins.json"
-    And a marketplace metadata file ".github/plugin/marketplace.json"
-    When the validation script executes
-    Then "plugin.json" must parse as valid JSON
-    And "plugin.json" must contain keys "id", "name", "version", "publisher", "agents", "skills"
-    And "plugins.json" must parse as valid JSON
-    And "plugins.json" must contain keys "id", "name", "version", "publisher", "agents", "skills"
-    And ".github/plugin/marketplace.json" must parse as valid JSON
+  Scenario: Validate Copilot, Codex, and Claude manifests
+    Given a valid categorized Security Logging Advisor package
+    When the package validation script executes
+    Then the Copilot manifest must contain required identity keys
+    And the Codex manifest must contain required interface metadata
+    And all host manifest identities must match
+    And the validation should pass
 
-  Scenario: Validate skills frontmatter triggers
-    Given a modular skill markdown file "SKILL.md"
-    When the validation script parses "SKILL.md"
-    Then the file must contain YAML frontmatter bounded by "---"
-    And the frontmatter must contain attributes "name" and "description"
+  Scenario: Validate skills frontmatter
+    Given a valid categorized Security Logging Advisor package
+    When the package validation script executes
+    Then every packaged skill must contain name and description frontmatter
+    And the validation should pass

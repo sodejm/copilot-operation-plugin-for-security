@@ -1,15 +1,27 @@
 {
-  "name": "security-logging-advisor-marketplace",
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "cops-security-marketplace",
   "owner": {
-    "name": "sodejm",
-    "email": "723679+sodejm@users.noreply.github.com"
+    "name": "Justin Soderberg"
   },
   "plugins": [
     {
       "name": "security-logging-advisor",
-      "description": "Analyzes repository structure, configurations, and IaC to generate security logging recommendations in Claude Code.",
+      "description": "Review repository signals and produce cost-aware security logging recommendations.",
       "version": "1.0.0",
-      "source": "./security-logging-advisor"
+      "source": "./plugins/logging-telemetry/security-logging-advisor"
+    },
+    {
+      "name": "soc-investigation-workbench",
+      "description": "Plan and review local evidence-backed SOC investigations; external hunt integration remains pending.",
+      "version": "0.1.0",
+      "source": "./plugins/detection-hunting/soc-investigation-workbench"
+    },
+    {
+      "name": "sentinel-hunt-workbench",
+      "description": "Author and stress-test defensive Microsoft hunting workflows with deterministic offline evidence.",
+      "version": "1.0.0",
+      "source": "./plugins/detection-hunting/sentinel-hunt-workbench"
     }
   ]
 }

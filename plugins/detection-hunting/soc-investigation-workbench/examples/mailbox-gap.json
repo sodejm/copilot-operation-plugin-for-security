@@ -1,0 +1,8 @@
+{
+  "id": "result-mailbox",
+  "step_id": "mailbox",
+  "outcome": "unavailable",
+  "coverage": "unavailable",
+  "cost": 2,
+  "evidence": []
+}

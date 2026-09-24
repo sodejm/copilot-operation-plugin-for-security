@@ -1,0 +1,31 @@
+{
+  "schema_version": "1.0",
+  "findings": [
+    {
+      "id": "example-limited-review",
+      "title": "Partial configuration review",
+      "claim": "The reviewed configuration files contain no plaintext credential assignment.",
+      "classification": "assessment",
+      "verification": "partially-verified",
+      "confidence": "limited",
+      "coverage": "partial",
+      "scope": {
+        "examined": ["version-controlled configuration files"],
+        "excluded": ["untracked files", "hosted secrets", "runtime environment"]
+      },
+      "evidence": [
+        {
+          "id": "configuration-review",
+          "kind": "command",
+          "reference": "local scan of version-controlled configuration files",
+          "result": "passed",
+          "freshness": "current"
+        }
+      ],
+      "limitations": ["The review did not inspect hosted secrets or runtime state."],
+      "conflicts": [],
+      "uncertainty": "The result applies only to the inspected version-controlled files.",
+      "delivery_claims": []
+    }
+  ]
+}

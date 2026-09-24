@@ -1,0 +1,19 @@
+{
+  "author": {
+    "name": "Sentinel Hunt Workbench contributors",
+    "url": "https://github.com/sodejm/copilot-operation-plugin-for-security"
+  },
+  "description": "Offline-qualified, surface-specific Microsoft Sentinel threat-hunt authoring and adversarial validation.",
+  "homepage": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "keywords": [
+    "defensive-security",
+    "kql",
+    "microsoft-sentinel",
+    "threat-hunting"
+  ],
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "name": "sentinel-hunt-workbench",
+  "repository": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "skills": "./skills/",
+  "version": "1.0.0"
+}

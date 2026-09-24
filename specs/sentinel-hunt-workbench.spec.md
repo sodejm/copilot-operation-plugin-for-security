@@ -32,8 +32,8 @@ The package MUST:
   metamorphic, hostile-content, and bounded scale checks;
 - distinguish reference-evaluator evidence from Kusto-engine evidence and from
   unavailable live-service evidence;
-- generate deterministic GitHub Copilot and standalone Codex adapters from the
-  canonical skills and keep Claude Code and OpenAI plugin manifests explicit;
+- generate deterministic GitHub Copilot and standalone agent adapters from the
+  canonical skills and keep Copilot, Codex, and Claude package manifests explicit;
 - produce machine-readable reports containing versions, hashes, seeds, gates,
   limitations, and unmet human or external-host requirements; and
 - remain standard-library-only in its runtime and make no network requests.
@@ -105,16 +105,17 @@ error.
 
 ## 7. Acceptance criteria
 
-- `python3 sentinel-hunt-workbench/scripts/huntwb.py validate library` passes.
-- `python3 sentinel-hunt-workbench/scripts/huntwb.py test library` executes 576
+- `python3 plugins/detection-hunting/sentinel-hunt-workbench/scripts/huntwb.py validate library` passes.
+- `python3 plugins/detection-hunting/sentinel-hunt-workbench/scripts/huntwb.py test library` executes 576
   curated and at least 3,000 seeded generated cases and catches every critical
   semantic mutation with an overall score of at least 95%.
-- `python3 sentinel-hunt-workbench/scripts/huntwb.py verify-adapters` proves that
+- `python3 plugins/detection-hunting/sentinel-hunt-workbench/scripts/huntwb.py verify-adapters` proves that
   all generated adapters match canonical hashes.
 - Unsafe parameter payloads, unknown schema fields, unsupported surface requests,
   missing scope markers, and prohibited assurance claims fail closed.
 - A release report remains non-qualified until external-host evaluation evidence
   and two human approvals exist.
-- `make check` covers the package validator, unit tests, executable scenarios,
+- `python3 -m cops check sentinel-hunt-workbench` covers the package validator,
+  deterministic corpus, and adapter drift; repository `make check` additionally
+  covers unit tests, executable scenarios,
   adapter drift, and repository contracts.
-

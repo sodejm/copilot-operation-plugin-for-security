@@ -1,0 +1,8 @@
+repos:
+  - repo: local
+    hooks:
+      - id: cops-repository-contract
+        name: COPS repository check
+        entry: python3 scripts/agent/check.py
+        language: system
+        pass_filenames: false
