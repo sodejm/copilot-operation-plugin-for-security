@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/sodejm/copilot-operation-plugin-for-security/main/plugins/detection-hunting/sentinel-hunt-workbench/schemas/curated-fixture.schema.json",
+  "title": "Sentinel Hunt Workbench curated fixture corpus",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["hunt_id", "version", "synthetic_only", "scenario_count", "category_counts", "scenarios"],
+  "properties": {
+    "hunt_id": {"type": "string", "pattern": "^H(0[1-9]|1[0-2])$"},
+    "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "synthetic_only": {"const": true},
+    "scenario_count": {"const": 48},
+    "category_counts": {
+      "type": "object", "additionalProperties": false,
+      "required": ["true_positive", "benign_counterfactual", "entity_integrity", "temporal_data_quality", "schema_surface", "scale_resource", "hostile_privacy", "mutation_metamorphic"],
+      "properties": {
+        "true_positive": {"const": 8},
+        "benign_counterfactual": {"const": 10},
+        "entity_integrity": {"const": 8},
+        "temporal_data_quality": {"const": 8},
+        "schema_surface": {"const": 4},
+        "scale_resource": {"const": 4},
+        "hostile_privacy": {"const": 3},
+        "mutation_metamorphic": {"const": 3}
+      }
+    },
+    "scenarios": {
+      "type": "array", "minItems": 48, "maxItems": 48,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "category", "purpose", "input", "expected_stage_counts", "expected_entities", "expected_relationships", "expected_matches", "prohibited_conclusions", "expected_qualification_outcome", "applicable_surfaces", "rationale"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "category": {"enum": ["true_positive", "benign_counterfactual", "entity_integrity", "temporal_data_quality", "schema_surface", "scale_resource", "hostile_privacy", "mutation_metamorphic"]},
+          "purpose": {"type": "string", "minLength": 1},
+          "input": {"type": "object"},
+          "expected_stage_counts": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}},
+          "expected_entities": {"$ref": "#/$defs/stringArray"},
+          "expected_relationships": {"$ref": "#/$defs/stringArray"},
+          "expected_matches": {"type": "integer", "minimum": 0},
+          "prohibited_conclusions": {"$ref": "#/$defs/stringArray"},
+          "expected_qualification_outcome": {"enum": ["match", "no_match", "no_escalation", "validation_failure", "resource_guard", "safe_handling", "defined_invariant"]},
+          "applicable_surfaces": {"type": "array", "minItems": 1, "items": {"enum": ["sentinel_analytics", "sentinel_data_lake", "defender_advanced_hunting"]}},
+          "rationale": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "stringArray": {"type": "array", "items": {"type": "string", "minLength": 1}}
+  }
+}

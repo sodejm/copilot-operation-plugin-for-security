@@ -38,6 +38,29 @@ def output(result: subprocess.CompletedProcess[str]) -> dict[str, object]:
     return json.loads(result.stdout)
 
 
+def test_sentinel_contract_schemas_are_canonical_and_parseable():
+    schema_dir = PLUGIN / "schemas"
+    expected = {
+        "curated-fixture.schema.json",
+        "external-evidence.schema.json",
+        "hunt.schema.json",
+        "release-report.schema.json",
+        "surface-profile.schema.json",
+    }
+
+    assert {path.name for path in schema_dir.glob("*.json")} == expected
+    canonical_prefix = (
+        "https://raw.githubusercontent.com/sodejm/"
+        "copilot-operation-plugin-for-security/main/"
+        "plugins/detection-hunting/sentinel-hunt-workbench/schemas/"
+    )
+    for name in expected:
+        document = json.loads((schema_dir / name).read_text(encoding="utf-8"))
+        assert document["$schema"] == "https://json-schema.org/draft/2020-12/schema"
+        assert document["$id"] == f"{canonical_prefix}{name}"
+        assert document["type"] == "object"
+
+
 @given("the Sentinel Hunt Workbench package")
 def sentinel_package(context):
     assert CLI.is_file()
