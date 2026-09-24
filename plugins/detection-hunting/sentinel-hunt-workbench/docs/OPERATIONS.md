@@ -47,7 +47,36 @@ unavailable.
 
 ## Release operations
 
-Run `release-report` only with real evidence documents bound to the exact release
-subject. Missing model-host evaluation, two distinct human approvals, license
-review, or integrity evidence yields `qualification_withheld`. Never create dummy
-approvals to make a release pass.
+1. Run `make check` without regenerating adapters. Resolve any drift.
+2. Run `make release` to create deterministic local integrity evidence and the
+   release report.
+3. Verify that local gates pass and model, reviewer, or license evidence remains
+   `pending` unless genuine content-addressed evidence was supplied.
+4. Have two qualified reviewers inspect security, hunt quality, uncertainty
+   language, residual risk, sources, and licensing.
+5. Run the external 2,160-run host matrix under the evaluation protocol.
+6. Rebuild the report against the exact same release-subject hash.
+7. Before operational use, manually validate supported hunts in an authorized
+   tenant, including schema, cost, latency, retention, and benign baselines.
+
+`make release` writes `release/sentinel-hunt-workbench.zip`,
+`release/package-validation.json`, `release/library-validation.json`,
+`release/stress-test.json`, `release/compatibility.json`,
+`release/local-evidence.json`, `release/release-report.json`, and four
+content-addressed wrapper/payload pairs under `release/evidence/`. The local
+envelope contains only integrity evidence. To recompute a report with genuine
+external evidence, provide a complete `huntwb.external-evidence/v2` JSON
+envelope containing the current subject hash and pointers to artifacts under
+`release/evidence/`, then run:
+
+```bash
+python3 scripts/huntwb.py release-report --evidence /absolute/path/to/envelope.json
+```
+
+That command prints a report; review and retain the output with the exact
+archive. Adding or editing any package source changes the subject hash and
+invalidates earlier evidence. See `walkthrough.md` for artifact interpretation.
+
+Never edit an evidence wrapper to turn a pending gate into a pass. Evidence
+payloads and pointers are verified by digest, exact keys, subject hash, record
+counts, and gate-specific semantics.

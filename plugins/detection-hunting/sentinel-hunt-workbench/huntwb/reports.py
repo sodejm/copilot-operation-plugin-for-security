@@ -12,6 +12,7 @@ from __future__ import annotations
 import math
 import re
 import stat
+import zipfile
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 from statistics import median
@@ -24,6 +25,7 @@ from .paths import (
     EVALUATIONS_DIR,
     EVIDENCE_DIR,
     PACKAGE_ROOT,
+    RELEASE_DIR,
     canonical_json,
     load_json,
     parse_json_bytes,
@@ -694,14 +696,16 @@ def _validate_license_review(value: Any, subject_hash: str) -> dict[str, Any]:
     )
 
 
-def _validate_integrity_payload(kind: str, content: bytes, subject: dict[str, Any], findings: _Findings) -> None:
+def _validate_integrity_payload(
+    kind: str, content: bytes, subject: dict[str, Any], findings: _Findings
+) -> dict[str, Any] | None:
     """Apply minimal semantic checks in addition to byte-level hash binding."""
 
     try:
         payload = _require_object(parse_json_bytes(content), f"{kind} payload")
     except Exception as error:
         findings.add(f"{kind} payload must be strict JSON: {type(error).__name__}: {error}")
-        return
+        return None
     subject_hash = subject["sha256"]
     if kind == "sbom":
         if payload.get("bomFormat") != "CycloneDX" or payload.get("specVersion") not in {"1.5", "1.6", "1.7"}:
@@ -714,6 +718,12 @@ def _validate_integrity_payload(kind: str, content: bytes, subject: dict[str, An
         }
         if subject_hash not in binding:
             findings.add("sbom payload is not bound to the current release subject")
+        expected_components = [
+            {"type": "file", "name": name, "hashes": [{"alg": "SHA-256", "content": digest}]}
+            for name, digest in sorted(subject["artifacts"].items())
+        ]
+        if payload.get("components") != expected_components:
+            findings.add("sbom components do not equal the release subject")
     elif kind == "provenance_manifest":
         if payload.get("schema") != "huntwb.provenance-manifest/v1":
             findings.add("provenance manifest payload has the wrong schema")
@@ -737,6 +747,51 @@ def _validate_integrity_payload(kind: str, content: bytes, subject: dict[str, An
         second = payload.get("build_b_sha256")
         if not _valid_hash(first) or first != second:
             findings.add("reproducible build payload must record two identical valid build hashes")
+    return payload
+
+
+def _validate_release_archive(
+    payloads: dict[str, dict[str, Any]], subject: dict[str, Any], findings: _Findings
+) -> None:
+    """Recompute archive identity and contents from the local release output."""
+
+    provenance = payloads.get("provenance_manifest")
+    reproducible = payloads.get("reproducible_build")
+    if provenance is None or reproducible is None:
+        return
+    archive_name = "sentinel-hunt-workbench.zip"
+    if provenance.get("archive_name") != archive_name or reproducible.get("archive_name") != archive_name:
+        findings.add("release evidence names an unexpected archive")
+        return
+    expected_hash = provenance.get("archive_sha256")
+    if not _valid_hash(expected_hash) or reproducible.get("build_a_sha256") != expected_hash:
+        findings.add("release archive hashes differ between provenance and reproducible-build evidence")
+        return
+    archive_path = RELEASE_DIR / archive_name
+    try:
+        if RELEASE_DIR.is_symlink() or archive_path.is_symlink() or not archive_path.is_file():
+            raise ValueError("archive is missing or is a symbolic link")
+        if archive_path.stat().st_size > MAX_PAYLOAD_BYTES:
+            raise ValueError("archive exceeds the evidence size limit")
+        if sha256_file(archive_path) != expected_hash:
+            raise ValueError("archive bytes do not match the reported SHA-256")
+        with zipfile.ZipFile(archive_path) as archive:
+            entries = archive.infolist()
+            expected_names = [f"sentinel-hunt-workbench/{name}" for name in sorted(subject["artifacts"])]
+            if [entry.filename for entry in entries] != expected_names:
+                raise ValueError("archive inventory or order differs from the release subject")
+            for entry, digest in zip(entries, (subject["artifacts"][name] for name in sorted(subject["artifacts"]))):
+                if (
+                    entry.date_time != (1980, 1, 1, 0, 0, 0)
+                    or entry.compress_type != zipfile.ZIP_STORED
+                    or entry.external_attr >> 16 != (stat.S_IFREG | 0o644)
+                    or entry.file_size > MAX_PAYLOAD_BYTES
+                ):
+                    raise ValueError(f"archive entry metadata is invalid: {entry.filename}")
+                if sha256_bytes(archive.read(entry)) != digest:
+                    raise ValueError(f"archive entry content differs: {entry.filename}")
+    except (OSError, ValueError, zipfile.BadZipFile, RuntimeError) as error:
+        findings.add(f"release archive validation failed: {type(error).__name__}: {error}")
 
 
 def _validate_release_integrity(value: Any, subject: dict[str, Any]) -> dict[str, Any]:
@@ -749,6 +804,7 @@ def _validate_release_integrity(value: Any, subject: dict[str, Any]) -> dict[str
     except Exception as error:
         return _gate("failed", [f"release integrity evidence invalid: {type(error).__name__}: {error}"])
     summaries: dict[str, Any] = {}
+    payloads: dict[str, dict[str, Any]] = {}
     for kind in REQUIRED_INTEGRITY_EVIDENCE:
         label = f"release_integrity.{kind}"
         try:
@@ -790,10 +846,13 @@ def _validate_release_integrity(value: Any, subject: dict[str, Any]) -> dict[str
             findings.add(f"{label}.tool must be non-empty")
         if not isinstance(wrapper["tool_version"], str) or not wrapper["tool_version"].strip():
             findings.add(f"{label}.tool_version must be non-empty")
-        _validate_integrity_payload(kind, content, subject, findings)
+        payload = _validate_integrity_payload(kind, content, subject, findings)
+        if payload is not None:
+            payloads[kind] = payload
         summaries[kind] = {**wrapper_summary, **payload_summary}
     if set(summaries) != set(REQUIRED_INTEGRITY_EVIDENCE):
         findings.add("release integrity does not contain four valid wrapper/payload pairs")
+    _validate_release_archive(payloads, subject, findings)
     return _gate(
         "failed" if findings else "passed",
         findings.values(),
