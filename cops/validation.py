@@ -8,9 +8,18 @@ from pathlib import Path
 from typing import Any
 
 from .catalog import CatalogError, PluginRecord, load_json, plugin_records, validate_declared_command
+from .prerequisites import validate_prerequisites
 
 
 ROOT = Path(__file__).resolve().parents[1]
+AGENT_PLUGIN_SCHEMA = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
+AGENT_PLUGIN_KEYS = {
+    "$schema", "name", "version", "description", "author", "homepage",
+    "repository", "license", "keywords", "extensions",
+}
+PLUGIN_NAME = re.compile(r"^(?!.*(?:--|\.\.))[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$")
+SKILL_NAME = re.compile(r"^(?!.*--)[a-z0-9]+(?:-[a-z0-9]+)*$")
+EXTENSION_NAME = re.compile(r"^[a-z0-9]+(?:\.[a-z0-9-]+)+$")
 MATURITY = {"experimental", "beta", "stable"}
 SUPPORT = {
     "structural_validation": {"validated", "unverified"},
@@ -48,6 +57,42 @@ CATALOG_PLUGIN_KEYS = {
 
 class ValidationError(CatalogError):
     """A deterministic repository contract failure."""
+
+
+def validate_agent_plugin_manifest(manifest: Any, location: str) -> None:
+    """Check the closed Agent Plugins v1.0.0 manifest contract offline."""
+
+    if not isinstance(manifest, dict):
+        raise ValidationError(f"{location} must be an object")
+    unknown = set(manifest) - AGENT_PLUGIN_KEYS
+    if unknown:
+        raise ValidationError(f"{location} has unknown Agent Plugins fields: {sorted(unknown)}")
+    if manifest.get("$schema") != AGENT_PLUGIN_SCHEMA:
+        raise ValidationError(f"{location}.$schema must be {AGENT_PLUGIN_SCHEMA}")
+    name = manifest.get("name")
+    if not isinstance(name, str) or len(name) > 64 or not PLUGIN_NAME.fullmatch(name):
+        raise ValidationError(f"{location}.name violates Agent Plugins v1.0.0 name constraints")
+    for key in ("version", "description", "homepage", "repository", "license"):
+        if key in manifest and not isinstance(manifest[key], str):
+            raise ValidationError(f"{location}.{key} must be a string")
+    if "author" in manifest:
+        author = manifest["author"]
+        if not isinstance(author, dict) or set(author) - {"name", "email", "url"}:
+            raise ValidationError(f"{location}.author may contain only name, email, and url")
+        if any(not isinstance(value, str) for value in author.values()):
+            raise ValidationError(f"{location}.author values must be strings")
+    if "keywords" in manifest:
+        values = manifest["keywords"]
+        if not isinstance(values, list) or any(not isinstance(item, str) for item in values):
+            raise ValidationError(f"{location}.keywords must be an array of strings")
+    if "extensions" in manifest:
+        extensions = manifest["extensions"]
+        if not isinstance(extensions, dict) or any(
+            not isinstance(key, str) or not EXTENSION_NAME.fullmatch(key)
+            or not isinstance(value, dict)
+            for key, value in extensions.items()
+        ):
+            raise ValidationError(f"{location}.extensions must map reverse-domain names to objects")
 
 
 def _require_string(value: Any, location: str) -> str:
@@ -123,7 +168,11 @@ def _skill_frontmatter(path: Path, root: Path) -> tuple[str, str]:
         )
     if fields["name"] != path.parent.name:
         raise ValidationError(f"{path.relative_to(root)} name must match its directory")
+    if len(fields["name"]) > 64 or not SKILL_NAME.fullmatch(fields["name"]):
+        raise ValidationError(f"{path.relative_to(root)} has an invalid Agent Skills name")
     _require_string(fields["description"], f"{path.relative_to(root)}.description")
+    if len(fields["description"]) > 1024:
+        raise ValidationError(f"{path.relative_to(root)}.description exceeds 1024 characters")
     return fields["name"], fields["description"]
 
 
@@ -197,11 +246,18 @@ def validate_package(record: PluginRecord, root: Path = ROOT) -> None:
         names.add(name)
 
     package_root = root / record.path
-    copilot = load_json(package_root / "plugin.json", root)
-    if copilot.get("name") != record.id or copilot.get("version") != record.version:
+    resolved_root = package_root.resolve()
+    prereq_path = "com.sodejm.copse/prerequisites.json"
+    for relative in ("plugin.json", ".claude-plugin/plugin.json", ".codex-plugin/plugin.json",
+                     prereq_path, "skills"):
+        path = package_root / relative
+        if not path.resolve().is_relative_to(resolved_root):
+            raise ValidationError(f"{record.path}/{relative} escapes the plugin root")
+    portable = load_json(package_root / "plugin.json", root)
+    validate_agent_plugin_manifest(portable, f"{record.path}/plugin.json")
+    if portable.get("name") != record.id or portable.get("version") != record.version:
         raise ValidationError(f"{record.path}/plugin.json name and version must match the catalog")
-    _require_string(copilot.get("$schema"), f"{record.path}/plugin.json.$schema")
-    _require_string(copilot.get("description"), f"{record.path}/plugin.json.description")
+    _require_string(portable.get("description"), f"{record.path}/plugin.json.description")
     codex = load_json(package_root / ".codex-plugin" / "plugin.json", root)
     _validate_codex_manifest(codex, record)
     claude = load_json(package_root / ".claude-plugin" / "plugin.json", root)
@@ -209,12 +265,22 @@ def validate_package(record: PluginRecord, root: Path = ROOT) -> None:
         raise ValidationError(
             f"{record.path}/.claude-plugin/plugin.json name and version must match the catalog"
         )
+    _require_string(claude.get("description"), f"{record.path}/.claude-plugin/plugin.json.description")
+    try:
+        validate_prerequisites(load_json(package_root / prereq_path, root),
+                               f"{record.path}/{prereq_path}")
+    except ValueError as error:
+        raise ValidationError(str(error)) from error
 
+    if not (package_root / "skills").is_dir():
+        raise ValidationError(f"{record.path}/skills must be a directory")
     skill_paths = sorted((package_root / "skills").glob("*/SKILL.md"))
     if not skill_paths:
         raise ValidationError(f"{record.path} must provide at least one skill")
     skill_names: set[str] = set()
     for skill_path in skill_paths:
+        if not skill_path.resolve().is_relative_to(resolved_root) or not skill_path.is_file():
+            raise ValidationError(f"{skill_path.relative_to(root)} must be a contained regular file")
         name, _ = _skill_frontmatter(skill_path, root)
         if name in skill_names:
             raise ValidationError(f"duplicate skill name in {record.id}: {name}")

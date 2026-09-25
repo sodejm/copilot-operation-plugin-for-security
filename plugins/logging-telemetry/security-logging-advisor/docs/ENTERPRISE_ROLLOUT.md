@@ -4,7 +4,7 @@ COPS supplies local scanning, agent instructions and package metadata. An
 organization must verify its host's supported distribution and policy mechanisms
 before rollout; no central enablement or marketplace publishing is implemented here.
 
-1. Review the [project license](../../../../LICENSE),
+1. Review the [project license](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/LICENSE),
    [privacy boundary](SECURITY_PRIVACY.md), approved model providers and source
    access policy with the responsible owners.
 2. Select a reviewed commit or release. Run `make check` from the repository root

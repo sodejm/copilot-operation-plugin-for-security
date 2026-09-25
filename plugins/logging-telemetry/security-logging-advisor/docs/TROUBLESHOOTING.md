@@ -2,14 +2,18 @@
 
 ## Local commands fail
 
-Run commands from the COPS root and check `python3 --version`. Use Python 3.11+
-for contributor tooling. Invoking the scanner through Python does not require an
-executable bit. Confirm the target exists and is readable:
+Check `python3 --version` and confirm the target exists and is readable. Use
+Python 3.11+ for contributor tooling. Invoking the scanner through Python does
+not require an executable bit. From the COPS repository root:
 
 ```bash
 python3 plugins/logging-telemetry/security-logging-advisor/scripts/validate-plugin.py
-python3 security-logging-advisor/skills/repository-context/scripts/collect-repository-context.py .
+python3 plugins/logging-telemetry/security-logging-advisor/skills/repository-context/scripts/collect-repository-context.py /path/to/repository
 ```
+
+From a standalone portable package root, run `python3 scripts/validate-plugin.py`
+and `python3 skills/repository-context/scripts/collect-repository-context.py
+/path/to/repository`.
 
 If `make check` reports missing pytest packages, activate the development virtual
 environment and install `requirements.txt`. If adapters drift, edit the canonical

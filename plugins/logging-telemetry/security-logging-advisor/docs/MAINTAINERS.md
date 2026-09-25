@@ -1,7 +1,7 @@
 # Maintain COPS Security Logging Advisor
 
-Follow [CONTRIBUTING.md](../../../../CONTRIBUTING.md) and the root
-[agent contract](../../../../AGENTS.md). Update specifications and executable scenarios
+Follow [CONTRIBUTING.md](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/CONTRIBUTING.md) and the root
+[agent contract](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/AGENTS.md). Update specifications and executable scenarios
 with behavior changes, review privacy implications, and run `make check`.
 
 The aggregate gate validates contributor contracts and adapters, plugin manifests
@@ -21,4 +21,4 @@ For an authorized release:
    currently included; a tag alone does not publish the plugin.
 
 See [enterprise rollout](ENTERPRISE_ROLLOUT.md) and
-[template maintenance](../../../../docs/MAINTENANCE.md).
+[template maintenance](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/docs/MAINTENANCE.md).

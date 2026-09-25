@@ -46,16 +46,22 @@ with each package under `plugins/<category>/<plugin-id>/`.
 ## How portability works
 
 - `catalog/plugins.json` is the canonical inventory.
-- Every package owns a `package.json` runtime/evidence contract, separate
-  Copilot (`plugin.json`), Codex (`.codex-plugin/plugin.json`), and Claude
-  (`.claude-plugin/plugin.json`) manifests, plus skills, documentation, a safe
-  demo, and deterministic checks.
+- Every package owns a `package.json` runtime/evidence contract, an Agent
+  Plugins v1.0.0 root `plugin.json`, native Codex and Claude manifests, skills,
+  documentation, a safe demo, and deterministic checks.
+- `python3 scripts/agent/export_portable.py --output dist/agent-plugins` creates
+  separate host-neutral packages. The source packages keep their Claude Code
+  manifests for native marketplace discovery.
+- `python3 scripts/agent/install_prerequisites.py --check` reports missing
+  declared tools. `--dry-run` previews installation, and `--install` explicitly
+  invokes a supported package manager. Current packages require no external tools.
 - `python3 -m cops ...` is the host-neutral operator interface.
 - `.agents/plugins/marketplace.json`, `.github/plugin/marketplace.json`, and
   `.claude-plugin/marketplace.json` are generated indexes, not independent sources.
 - Validation rejects uncataloged packages, misplaced packages, duplicate skill
-  names, unsafe command paths, stale generated indexes, and unsupported support
-  claims.
+  names, unsafe command paths, invalid v1 manifests and prerequisite declarations,
+  stale generated indexes, and unsupported support claims. `make check` also
+  builds and inspects every portable export and runs the acceptance tests.
 
 See [Architecture](ARCHITECTURE.md), [Repository Layout](docs/REPOSITORY_LAYOUT.md),
 and [Compatibility](docs/COMPATIBILITY.md) for the full boundaries.

@@ -15,7 +15,7 @@ Evaluate recommendations against repository evidence and record assumptions.
 Subagent delegation is optional and must follow the active host and task policy;
 no scanner or validation task requires delegation.
 
-Contributor portability is described in [compatibility](../../../../docs/COMPATIBILITY.md).
+Contributor portability is described in [compatibility](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/docs/COMPATIBILITY.md).
 Product host integration must be tested separately as described in
 [installation](INSTALL.md). Review [privacy](SECURITY_PRIVACY.md) before sending
 repository context to any model provider.

@@ -1,13 +1,25 @@
 {
-  "$schema": "https://raw.githubusercontent.com/github/copilot-agent-plugins/main/schemas/plugin.schema.json",
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "sentinel-hunt-workbench",
   "version": "1.0.0",
   "description": "Author and stress-test defensive Microsoft hunting workflows with deterministic offline evidence.",
-  "author": {"name": "Justin Soderberg", "url": "https://github.com/sodejm"},
+  "author": {
+    "name": "Justin Soderberg",
+    "url": "https://github.com/sodejm"
+  },
   "repository": "https://github.com/sodejm/copilot-operation-plugin-for-security",
   "license": "PolyForm-Noncommercial-1.0.0",
-  "keywords": ["cybersecurity", "sentinel", "kql", "threat-hunting"],
+  "keywords": [
+    "cybersecurity",
+    "sentinel",
+    "kql",
+    "threat-hunting"
+  ],
   "extensions": {
-    "com.openai": {"displayName": "COPS Sentinel Hunt Workbench", "category": "Developer Tools"}
+    "com.openai": {
+      "displayName": "COPS Sentinel Hunt Workbench",
+      "category": "Developer Tools"
+    },
+    "com.sodejm.copse": {}
   }
 }

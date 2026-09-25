@@ -1,5 +1,5 @@
 {
-  "$schema": "https://raw.githubusercontent.com/github/copilot-agent-plugins/main/schemas/plugin.schema.json",
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "attack-path-workbench",
   "version": "0.1.0",
   "description": "Offline evidence-linked attack-path analysis of user-supplied exports.",
@@ -19,6 +19,7 @@
     "com.openai": {
       "displayName": "COPS Attack Path Workbench",
       "category": "Developer Tools"
-    }
+    },
+    "com.sodejm.copse": {}
   }
 }
