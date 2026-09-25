@@ -1,0 +1,16 @@
+{
+  "schema_version": "illustrative_canonical/v1",
+  "records": [
+    {"record_type":"node","id":"ILL-ASSET-A","node_type":"asset","scope":"ILL-SCOPE","observed_at":"2026-01-01T00:00:00Z","support":"observed"},
+    {"record_type":"node","id":"ILL-ASSET-B","node_type":"asset","scope":"ILL-SCOPE","observed_at":"2026-01-01T00:00:00Z","support":"observed"},
+    {"record_type":"node","id":"ILL-CROWN","node_type":"asset","scope":"ILL-SCOPE","observed_at":"2026-01-01T00:00:00Z","support":"observed"},
+    {"record_type":"node","id":"ILL-SERVICE","node_type":"service","scope":"ILL-SCOPE","observed_at":"2026-01-01T00:00:00Z","support":"observed"},
+    {"record_type":"finding","id":"ILL-FINDING","asset_ref":"ILL-ASSET-A","scope":"ILL-SCOPE","observed_at":"2026-01-01T00:00:00Z","support":"observed"},
+    {"record_type":"edge","id":"ILL-REACH","from":"ILL-ASSET-A","to":"ILL-ASSET-B","relation":"reachable_from","preconditions":["finding_on_asset"],"postcondition":"network_reachability","scope":"ILL-SCOPE","observed_at":"2026-01-01T00:00:00Z","support":"observed"},
+    {"record_type":"edge","id":"ILL-PERMISSION","from":"ILL-ASSET-B","to":"ILL-CROWN","relation":"permission_to_act","preconditions":["network_reachability"],"postcondition":"read","scope":"ILL-SCOPE","observed_at":"2026-01-01T00:00:00Z","support":"observed"},
+    {"record_type":"edge","id":"ILL-DEPENDENCY","from":"ILL-SERVICE","to":"ILL-CROWN","relation":"service_depends_on","preconditions":[],"postcondition":"none","scope":"ILL-SCOPE","observed_at":"2026-01-01T00:00:00Z","support":"observed"},
+    {"record_type":"edge","id":"ILL-HYPOTHETICAL","from":"ILL-ASSET-A","to":"ILL-CROWN","relation":"permission_to_act","preconditions":["control"],"postcondition":"read","scope":"ILL-SCOPE","observed_at":"2026-01-01T00:00:00Z","support":"hypothesis"},
+    {"record_type":"edge","id":"ILL-BROKEN","from":"ILL-ASSET-A","to":"ILL-MISSING","relation":"permission_to_act","preconditions":["finding_on_asset"],"postcondition":"read","scope":"ILL-SCOPE","observed_at":"2026-01-01T00:00:00Z","support":"observed"},
+    {"record_type":"undocumented","id":"ILL-UNKNOWN"}
+  ]
+}

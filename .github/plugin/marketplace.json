@@ -22,6 +22,12 @@
       "description": "Author and stress-test defensive Microsoft hunting workflows with deterministic offline evidence.",
       "version": "1.0.0",
       "source": "./plugins/detection-hunting/sentinel-hunt-workbench"
+    },
+    {
+      "name": "attack-path-workbench",
+      "description": "Offline evidence-linked attack-path analysis of user-supplied exports.",
+      "version": "0.1.0",
+      "source": "./plugins/detection-hunting/attack-path-workbench"
     }
   ]
 }

@@ -1,0 +1,9 @@
+{
+  "name": "attack-path-workbench",
+  "version": "0.1.0",
+  "description": "Offline evidence-linked attack-path analysis of user-supplied exports.",
+  "author": {
+    "name": "Justin Soderberg"
+  },
+  "license": "PolyForm-Noncommercial-1.0.0"
+}

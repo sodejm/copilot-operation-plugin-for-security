@@ -15,7 +15,7 @@ Acceptance criteria:
 
 - the command exits successfully;
 - it reports Python 3.11 or newer;
-- it reports three catalog packages and current generated indexes;
+- it reports four catalog packages and current generated indexes;
 - it states that host installation and live-service behavior are separate gates.
 
 ## 2. Choose a capability
@@ -25,6 +25,7 @@ python3 -m cops list
 python3 -m cops info security-logging-advisor
 python3 -m cops info soc-investigation-workbench
 python3 -m cops info sentinel-hunt-workbench
+python3 -m cops info attack-path-workbench
 ```
 
 The table deliberately separates four questions: whether the package structure is
@@ -38,10 +39,11 @@ Choose based on the task:
 | Inspect repository technology and logging signals | `security-logging-advisor` |
 | Plan and review a bounded investigation from redacted evidence | `soc-investigation-workbench` |
 | Explain or stress-test Microsoft Sentinel hunt content offline | `sentinel-hunt-workbench` |
+| Trace conditional paths from illustrative local exports to a user-defined crown jewel | `attack-path-workbench` |
 
 Acceptance criteria:
 
-- all three IDs appear in `list`;
+- all four IDs appear in `list`;
 - each `info` result includes purpose, maturity, limitations, and all support states;
 - no package is presented as live or host-validated unless evidence supports it.
 
@@ -51,6 +53,7 @@ Acceptance criteria:
 python3 -m cops demo security-logging-advisor
 python3 -m cops demo soc-investigation-workbench
 python3 -m cops demo sentinel-hunt-workbench
+python3 -m cops demo attack-path-workbench
 ```
 
 Each command is declared by its package, invokes a repository-owned Python script
@@ -64,6 +67,7 @@ Acceptance criteria:
 - the logging demo emits repository context JSON;
 - the SOC demo validates the synthetic case and prints its content-addressed state;
 - the Sentinel demo explains hunt `H01` and its evidence contract;
+- the attack-path demo prints a blocked query intent without contacting Wiz;
 - no demo requires credentials or writes to a security service.
 
 ## 4. Validate what you intend to use

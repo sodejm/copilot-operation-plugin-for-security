@@ -1,0 +1,24 @@
+{
+  "$schema": "https://raw.githubusercontent.com/github/copilot-agent-plugins/main/schemas/plugin.schema.json",
+  "name": "attack-path-workbench",
+  "version": "0.1.0",
+  "description": "Offline evidence-linked attack-path analysis of user-supplied exports.",
+  "author": {
+    "name": "Justin Soderberg",
+    "url": "https://github.com/sodejm"
+  },
+  "repository": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "keywords": [
+    "cybersecurity",
+    "attack-path",
+    "graph",
+    "offline-analysis"
+  ],
+  "extensions": {
+    "com.openai": {
+      "displayName": "COPS Attack Path Workbench",
+      "category": "Developer Tools"
+    }
+  }
+}

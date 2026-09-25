@@ -11,7 +11,14 @@
       "version": "1.0.0",
       "primary_category": "logging-telemetry",
       "path": "plugins/logging-telemetry/security-logging-advisor",
-      "tags": ["audit", "github-copilot", "claude", "codex", "logging", "telemetry"]
+      "tags": [
+        "audit",
+        "github-copilot",
+        "claude",
+        "codex",
+        "logging",
+        "telemetry"
+      ]
     },
     {
       "id": "soc-investigation-workbench",
@@ -19,7 +26,13 @@
       "version": "0.1.0",
       "primary_category": "detection-hunting",
       "path": "plugins/detection-hunting/soc-investigation-workbench",
-      "tags": ["claude", "codex", "investigation", "soc", "threat-hunting"]
+      "tags": [
+        "claude",
+        "codex",
+        "investigation",
+        "soc",
+        "threat-hunting"
+      ]
     },
     {
       "id": "sentinel-hunt-workbench",
@@ -27,7 +40,28 @@
       "version": "1.0.0",
       "primary_category": "detection-hunting",
       "path": "plugins/detection-hunting/sentinel-hunt-workbench",
-      "tags": ["claude", "codex", "kql", "microsoft-sentinel", "threat-hunting"]
+      "tags": [
+        "claude",
+        "codex",
+        "kql",
+        "microsoft-sentinel",
+        "threat-hunting"
+      ]
+    },
+    {
+      "id": "attack-path-workbench",
+      "name": "COPS Attack Path Workbench",
+      "version": "0.1.0",
+      "primary_category": "detection-hunting",
+      "path": "plugins/detection-hunting/attack-path-workbench",
+      "tags": [
+        "attack-path",
+        "claude",
+        "codex",
+        "graph",
+        "offline-analysis",
+        "wiz"
+      ]
     }
   ]
 }

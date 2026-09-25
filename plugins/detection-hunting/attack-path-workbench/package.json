@@ -1,0 +1,42 @@
+{
+  "schema_version": "1.0",
+  "id": "attack-path-workbench",
+  "display_name": "COPS Attack Path Workbench",
+  "maturity": "experimental",
+  "summary": "Trace conditional paths in illustrative local exports with evidence, impact boundaries, and reviewable actions.",
+  "support": {
+    "structural_validation": "validated",
+    "offline_workflow": "validated",
+    "host_installation": "unverified",
+    "live_integration": "unverified"
+  },
+  "limitations": [
+    "The only supported export mapping is a synthetic illustrative contract; real Wiz exports and queries require approved documentation.",
+    "Business-impact ratings and MITRE mappings remain pending approved local reference material."
+  ],
+  "demo": {
+    "description": "Print a blocked Wiz query intent for illustrative selectors without making a network call.",
+    "command": [
+      "$PYTHON",
+      "plugins/detection-hunting/attack-path-workbench/scripts/attackpath.py",
+      "query-intent",
+      "--start",
+      "ILL-FINDING",
+      "--target",
+      "ILL-CROWN",
+      "--scope",
+      "ILL-SCOPE"
+    ],
+    "timeout_seconds": 30
+  },
+  "validation": [
+    {
+      "name": "offline package gate",
+      "command": [
+        "$PYTHON",
+        "plugins/detection-hunting/attack-path-workbench/scripts/validate-package.py"
+      ],
+      "timeout_seconds": 120
+    }
+  ]
+}

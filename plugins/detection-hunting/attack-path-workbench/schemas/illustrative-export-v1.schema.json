@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "illustrative-export-v1.schema.json",
+  "title": "Synthetic canonical export; not a Wiz field mapping",
+  "type": "object", "additionalProperties": false,
+  "required": ["schema_version", "records"],
+  "properties": {
+    "schema_version": {"const": "illustrative_canonical/v1"},
+    "records": {"type": "array", "items": {"type": "object"},
+      "description": "Untrusted raw envelope. Accepted rows must match one of the strict definitions below; other rows are quarantined and counted."}
+  },
+  "$defs": {
+    "node": {
+      "type": "object", "additionalProperties": false,
+      "required": ["record_type", "id", "node_type", "scope", "observed_at", "support"],
+      "properties": {
+        "record_type": {"const": "node"}, "id": {"type": "string"},
+        "node_type": {"enum": ["asset", "data", "service", "identity"]},
+        "scope": {"type": "string"}, "observed_at": {"type": "string", "pattern": "Z$"},
+        "support": {"enum": ["observed", "hypothesis"]}
+      }
+    },
+    "finding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["record_type", "id", "asset_ref", "scope", "observed_at", "support"],
+      "properties": {
+        "record_type": {"const": "finding"}, "id": {"type": "string"},
+        "asset_ref": {"type": "string"}, "scope": {"type": "string"},
+        "observed_at": {"type": "string", "pattern": "Z$"},
+        "support": {"enum": ["observed", "hypothesis"]}
+      }
+    },
+    "edge": {
+      "type": "object", "additionalProperties": false,
+      "required": ["record_type", "id", "from", "to", "relation", "preconditions", "postcondition", "scope", "observed_at", "support"],
+      "properties": {
+        "record_type": {"const": "edge"}, "id": {"type": "string"},
+        "from": {"type": "string"}, "to": {"type": "string"},
+        "relation": {"enum": ["reachable_from", "permission_to_act", "accesses_data", "service_depends_on"]},
+        "preconditions": {"type": "array", "minItems": 1, "items": {"enum": ["finding_on_asset", "network_reachability", "read", "modify", "disrupt", "control"]}},
+        "postcondition": {"enum": ["network_reachability", "read", "modify", "disrupt", "control", "none"]},
+        "scope": {"type": "string"}, "observed_at": {"type": "string", "pattern": "Z$"},
+        "support": {"enum": ["observed", "hypothesis"]}
+      }
+    }
+  }
+}

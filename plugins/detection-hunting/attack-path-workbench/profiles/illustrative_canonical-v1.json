@@ -1,0 +1,8 @@
+{
+  "profile_id": "illustrative_canonical/v1",
+  "purpose": "Synthetic fixture contract only; not a Wiz export mapping",
+  "record_collection_pointer": "/records",
+  "record_types": ["node", "finding", "edge"],
+  "approval_status": "illustrative_only",
+  "real_wiz_mapping": "[PENDING_APPROVED_EXPORT_FIELDS_AND_SEMANTICS]"
+}
