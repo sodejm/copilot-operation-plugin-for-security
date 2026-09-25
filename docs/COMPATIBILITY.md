@@ -25,8 +25,10 @@ Structural validation is not host validation. Offline fixture execution is not
 live integration validation. Generated marketplace membership is not installation.
 
 The repository source packages retain `.claude-plugin/` and `.codex-plugin/`
-manifests for native discovery. Those host files are omitted from the v1.0.0
-portable export. Run `python3 scripts/agent/export_portable.py --check` to verify
+manifests for native discovery. Those host manifests are omitted from the v1.0.0
+portable export. Optional `agents/` definitions may be included for Claude Code;
+they are outside the two portable v1.0.0 component types and other clients can
+ignore them. Run `python3 scripts/agent/export_portable.py --check` to verify
 the exported packages, or use `--output dist/agent-plugins` to create them.
 Tool prerequisites are data-only declarations under `com.sodejm.copse/`.
 `install_prerequisites.py --check` is read-only; `--dry-run` previews package

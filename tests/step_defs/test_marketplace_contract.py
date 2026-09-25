@@ -182,7 +182,11 @@ def native_excluded(context):
     destination = context["destination"]
     assert not (destination / ".claude-plugin").exists()
     assert not (destination / ".codex-plugin").exists()
-    assert not (destination / "agents").exists()
+
+
+@then("the portable package keeps optional Claude agents")
+def claude_agents_kept(context):
+    assert (context["destination"] / "agents/fixture.json").is_file()
 
 
 @then("the portable export is rejected")

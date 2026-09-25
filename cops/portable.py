@@ -20,13 +20,13 @@ PORTABLE_ENTRIES = {
     "plugin.json", "mcp.json", "skills", "scripts", "docs", "examples", "LICENSE", "README.md",
     "CHANGELOG.md", "SECURITY.md", "SOURCE_PROVENANCE.md", "walkthrough.md",
     "hunts", "profiles", "schemas", "fixtures", "evaluations", "huntwb",
-    "investigationwb", "com.github.copilot", "com.sodejm.copse",
+    "investigationwb", "attackpath", "agents", "com.github.copilot", "com.sodejm.copse",
 }
 SOURCE_ONLY_ENTRIES = {
-    ".claude-plugin", ".codex-plugin", "agents", "commands", "adapters",
+    ".claude-plugin", ".codex-plugin", "commands", "adapters",
     "package.json", ".gitignore", "Makefile", "task.md", "tests",
 }
-NATIVE_ENTRIES = {".claude-plugin", ".codex-plugin", "agents", "commands", "adapters"}
+NATIVE_ENTRIES = {".claude-plugin", ".codex-plugin", "commands", "adapters"}
 
 
 def _reject_links(path: Path) -> None:

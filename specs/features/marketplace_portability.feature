@@ -23,6 +23,7 @@ Feature: Portable cybersecurity marketplace
     When the package is exported for Agent Plugins v1.0.0
     Then the portable package keeps skills and namespaced extensions
     And the portable package excludes native host files
+    And the portable package keeps optional Claude agents
 
   Scenario: Reject an unreviewed package-root entry
     Given a package with an unreviewed package-root entry

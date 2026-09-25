@@ -40,6 +40,7 @@ jobs:
           python -m cops demo security-logging-advisor
           python -m cops demo soc-investigation-workbench
           python -m cops demo sentinel-hunt-workbench
+          python -m cops demo attack-path-workbench
 
   validate:
     runs-on: ubuntu-latest

@@ -1,6 +1,6 @@
 # Implementation state and required inputs
 
-The [specification](../../../../specs/attack-path-workbench.spec.md) and matching Gherkin feature preceded the code. The current package has a synthetic local intake profile, provenance records, graph/path engine, bounded blast radius, `unrated` impact, stable ranking, blocked query intent, JSON/Markdown reports, action ledger, specialist definitions, and positive/denial/recovery tests.
+The repository specification and matching Gherkin feature preceded the code. The current package has a synthetic local intake profile, provenance records, graph/path engine, bounded blast radius, `unrated` impact, stable ranking, blocked query intent, JSON/Markdown reports, action ledger, specialist definitions, and positive/denial/recovery tests.
 
 The following require supplied, approved inputs before implementation: real Wiz export mappings and query renderer; organization-approved NIST/business impact profile; pinned ATT&CK and Attack Flow reference bundle; agent execution/orchestration and human review workflow. The respective schemas and review contracts are extension points, not claims that these integrations run now.
 
