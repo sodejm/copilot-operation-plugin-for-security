@@ -78,6 +78,7 @@ def process_tools(tools: list[dict[str, Any]], *, install: bool = False,
     """Report missing tools; install only with an explicit opt-in flag."""
 
     missing: list[str] = []
+    planned: list[tuple[dict[str, Any], list[str]]] = []
     for tool in tools:
         if which(tool["command"]):
             continue
@@ -85,6 +86,8 @@ def process_tools(tools: list[dict[str, Any]], *, install: bool = False,
         if not install and not dry_run:
             continue
         command = install_command(tool, platform or sys.platform, which)
+        planned.append((tool, command))
+    for tool, command in planned:
         if dry_run:
             print("Would run: " + " ".join(command))
             continue

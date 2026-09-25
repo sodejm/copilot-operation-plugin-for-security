@@ -45,12 +45,12 @@ graph TD
 ### Manifests & Discovery Metadata
 
 - **[plugin.json](../plugin.json)**: The core manifest defining the plugin identity, associated agents, capabilities, modular skills mapping, and file paths to executable scripts.
-- **[GitHub marketplace index](../../../../.github/plugin/marketplace.json)**: Repository marketplace metadata; host registry acceptance requires separate verification.
-- **[Claude marketplace index](../../../../.claude-plugin/marketplace.json)**: Configuration manifest supporting registration and discovery inside Claude-compatible plugin tools.
+- **[GitHub marketplace index](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/.github/plugin/marketplace.json)**: Repository marketplace metadata; host registry acceptance requires separate verification.
+- **[Claude marketplace index](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/.claude-plugin/marketplace.json)**: Configuration manifest supporting registration and discovery inside Claude-compatible plugin tools.
 
 ### Agents & Skills Orchestration
 
-- **[security-logging-advisor.agent.md](../agents/security-logging-advisor.agent.md)**: Main instruction document defining the agent system persona, operational stages (Context Collection, Clarifying Questions, Gap Analysis, Report Generation), and security boundaries.
+- **[security-logging-advisor.agent.md](../com.github.copilot/agents/security-logging-advisor.agent.md)**: Main instruction document defining the agent system persona, operational stages (Context Collection, Clarifying Questions, Gap Analysis, Report Generation), and security boundaries.
 - **[repository-context SKILL.md](../skills/repository-context/SKILL.md)**: Details instruction guidelines for triggering and utilizing the scanning script to map languages, databases, cloud indicators, and pipelines.
 - **[logging-recommendations SKILL.md](../skills/logging-recommendations/SKILL.md)**: Directs the agent on evaluating identified technologies against security matrices (OWASP logging guides, MITRE ATT&CK) using environment calibration rules (Sandbox to Production).
 
@@ -111,5 +111,5 @@ This section documents the configuration variables, core regular expressions, an
 1. **`check_json_file(file_path, required_keys)`**: Opens a target file, verifies it parses as syntactically valid JSON, and confirms all keys in `required_keys` exist. This is run against `plugin.json` and the `marketplace.json` discovery files.
 2. **`check_skill_markdown(file_path)`**: Uses regular expressions to extract and parse the frontmatter section (delimited by standard `---` YAML boundaries) from `SKILL.md` files. It verifies that both `name` and `description` are declared, which is crucial for trigger matching by the Copilot orchestration engine.
 
-For the contributor foundation, see [COPS architecture](../../../../ARCHITECTURE.md).
+For the contributor foundation, see [COPS architecture](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/ARCHITECTURE.md).
 Local validation does not certify host integration; see [installation](INSTALL.md).

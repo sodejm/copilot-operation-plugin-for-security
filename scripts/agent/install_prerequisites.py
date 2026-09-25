@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import shutil
 import sys
 from pathlib import Path
 
@@ -11,7 +12,9 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from cops.catalog import load_json, plugin_records  # noqa: E402
-from cops.prerequisites import PrerequisiteError, process_tools, validate_prerequisites  # noqa: E402
+from cops.prerequisites import (  # noqa: E402
+    PrerequisiteError, install_command, process_tools, validate_prerequisites,
+)
 
 
 def main() -> int:
@@ -29,14 +32,22 @@ def main() -> int:
             records = [record for record in records if record.id == args.plugin]
             if not records:
                 raise PrerequisiteError(f"unknown plugin: {args.plugin}")
-        unavailable: list[str] = []
+        selected: list[tuple[str, list[dict]]] = []
         for record in records:
             location = f"{record.path}/com.sodejm.copse/prerequisites.json"
             document = load_json(ROOT / location, ROOT)
             tools = validate_prerequisites(document, location)
+            selected.append((record.id, tools))
+        if args.install or args.dry_run:
+            for _, tools in selected:
+                for tool in tools:
+                    if not shutil.which(tool["command"]):
+                        install_command(tool, sys.platform)
+        unavailable: list[str] = []
+        for plugin_id, tools in selected:
             if not args.validate:
                 missing = process_tools(tools, install=args.install, dry_run=args.dry_run)
-                unavailable.extend(f"{record.id}: {name}" for name in missing)
+                unavailable.extend(f"{plugin_id}: {name}" for name in missing)
         if unavailable:
             print("Missing tools: " + ", ".join(unavailable), file=sys.stderr)
             return 0 if args.dry_run else 1

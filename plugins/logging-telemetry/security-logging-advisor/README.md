@@ -31,7 +31,7 @@ Start with [Installation](docs/INSTALL.md), then review
 a real repository. Teams planning a broader deployment should also read the
 [Enterprise rollout guide](docs/ENTERPRISE_ROLLOUT.md).
 
-The canonical portable package metadata is in [package.json](package.json).
+The canonical portable package metadata is in [plugin.json](plugin.json).
 Host-specific manifests and adapters are compatibility surfaces generated from
 or checked against that package contract; they do not replace it.
 
@@ -47,7 +47,7 @@ python3 -m cops check security-logging-advisor
 
 See [Maintainers](docs/MAINTAINERS.md) for package-specific release and review
 guidance. Repository-wide contribution and acceptance requirements are in
-[`docs/ADDING_A_PLUGIN.md`](../../../docs/ADDING_A_PLUGIN.md).
+[`docs/ADDING_A_PLUGIN.md`](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/docs/ADDING_A_PLUGIN.md).
 
 ## Evidence boundary
 

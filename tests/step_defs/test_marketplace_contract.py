@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import copy
 import json
+import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
@@ -13,6 +15,8 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts" / "agent"))
 
 from validate_marketplace import ValidationError, validate_finding_document, validate_marketplace
+import export_portable
+import install_prerequisites
 from cops.prerequisites import PrerequisiteError, process_tools, validate_prerequisites
 from cops.validation import ValidationError as PackageValidationError, validate_agent_plugin_manifest
 from cops.portable import export_portable_package
@@ -76,6 +80,8 @@ def host_package(context, tmp_path):
     for native in (".claude-plugin", ".codex-plugin", "agents"):
         (source / native).mkdir()
         (source / native / "fixture.json").write_text("{}", encoding="utf-8")
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    subprocess.run(["git", "-C", str(source), "add", "."], check=True)
     context["source"] = source
     context["destination"] = tmp_path / "portable"
 
@@ -264,8 +270,100 @@ def test_portable_export_preserves_valid_mcp_configuration(context, tmp_path):
         },
     }
     (context["source"] / "mcp.json").write_text(json.dumps(mcp), encoding="utf-8")
+    subprocess.run(["git", "-C", str(context["source"]), "add", "mcp.json"], check=True)
     export_portable_package(context["source"], context["destination"])
     assert json.loads((context["destination"] / "mcp.json").read_text(encoding="utf-8")) == mcp
+
+
+def test_portable_export_excludes_untracked_nested_files(context, tmp_path):
+    host_package(context, tmp_path)
+    secret = context["source"] / "skills" / "fixture-skill" / ".env"
+    secret.write_text("PRIVATE_TOKEN=fixture", encoding="utf-8")
+    export_portable_package(context["source"], context["destination"])
+    assert not (context["destination"] / "skills" / "fixture-skill" / ".env").exists()
+
+
+def test_portable_export_rejects_broken_relative_link(context, tmp_path):
+    host_package(context, tmp_path)
+    (context["source"] / "README.md").write_text(
+        "[source-only](package.json)\n", encoding="utf-8"
+    )
+    subprocess.run(["git", "-C", str(context["source"]), "add", "README.md"], check=True)
+    with pytest.raises(PackageValidationError, match="broken portable documentation link"):
+        export_portable_package(context["source"], context["destination"])
+    assert not context["destination"].exists()
+
+
+def test_portable_export_cleans_partial_output(monkeypatch, tmp_path):
+    output = tmp_path / "packages"
+    monkeypatch.setattr(export_portable, "validate_repository", lambda root: None)
+
+    def fail_after_first_package(stage):
+        (stage / "first-package").mkdir()
+        raise PackageValidationError("later package failed")
+
+    monkeypatch.setattr(export_portable, "export_all", fail_after_first_package)
+    monkeypatch.setattr(sys, "argv", ["export_portable.py", "--output", str(output)])
+    assert export_portable.main() == 1
+    assert not output.exists()
+    assert not list(tmp_path.glob(".copse-agent-plugins-*"))
+
+
+def test_prerequisite_install_preflights_all_tools():
+    tools = [
+        {"id": "first", "command": "first", "packages": {"brew": "first"}},
+        {"id": "later", "command": "later", "packages": {"winget": "later"}},
+    ]
+    calls = []
+    with pytest.raises(PrerequisiteError, match="no supported installed package manager"):
+        process_tools(tools, install=True, platform="darwin",
+                      which=lambda name: "/usr/bin/brew" if name == "brew" else None,
+                      run=lambda *args, **kwargs: calls.append(args))
+    assert calls == []
+
+
+def test_prerequisite_cli_preflights_every_selected_plugin(monkeypatch):
+    records = [SimpleNamespace(id=name, path=name) for name in ("first", "later")]
+    monkeypatch.setattr(install_prerequisites, "plugin_records", lambda root: records)
+    monkeypatch.setattr(install_prerequisites, "load_json",
+                        lambda path, root: {"id": path.parts[-3]})
+    monkeypatch.setattr(install_prerequisites, "validate_prerequisites",
+                        lambda document, location: [{"id": document["id"],
+                                                     "command": document["id"],
+                                                     "packages": {}}])
+    monkeypatch.setattr(install_prerequisites.shutil, "which", lambda command: None)
+    calls = []
+
+    def preflight(tool, platform):
+        calls.append(tool["id"])
+        if tool["id"] == "later":
+            raise PrerequisiteError("unsupported later tool")
+        return ["brew", "install", "first"]
+
+    monkeypatch.setattr(install_prerequisites, "install_command", preflight)
+    monkeypatch.setattr(install_prerequisites, "process_tools",
+                        lambda *args, **kwargs: pytest.fail("install began before global preflight"))
+    monkeypatch.setattr(sys, "argv", ["install_prerequisites.py", "--install"])
+    assert install_prerequisites.main() == 1
+    assert calls == ["first", "later"]
+
+
+@pytest.mark.parametrize("env", [{"plugin_root": "/tmp"}, {"TOKEN": "a", "token": "b"}])
+def test_mcp_validator_rejects_case_insensitive_env_collisions(tmp_path, env):
+    server = {"type": "stdio", "command": "python3", "env": env}
+    with pytest.raises(MCPValidationError, match="reserved keys"):
+        validate_mcp_configuration({"$schema": MCP_SCHEMA, "mcpServers": {"bad": server}},
+                                   "mcp.json", tmp_path)
+
+
+@pytest.mark.parametrize("kind", ["missing", "directory"])
+def test_mcp_validator_requires_relative_command_file(tmp_path, kind):
+    if kind == "directory":
+        (tmp_path / "command").mkdir()
+    server = {"type": "stdio", "command": "./command"}
+    with pytest.raises(MCPValidationError, match="package file"):
+        validate_mcp_configuration({"$schema": MCP_SCHEMA, "mcpServers": {"bad": server}},
+                                   "mcp.json", tmp_path)
 
 
 @pytest.mark.parametrize("server", [

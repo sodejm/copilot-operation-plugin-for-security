@@ -20,4 +20,4 @@ must balance security value, privacy and ingestion costs.
 
 Scanner and model findings require human review. They do not certify compliance,
 prove absence of vulnerabilities, or automatically implement changes. Report
-product vulnerabilities through the [COPS security policy](../../../../SECURITY.md).
+product vulnerabilities through the [COPS security policy](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/SECURITY.md).

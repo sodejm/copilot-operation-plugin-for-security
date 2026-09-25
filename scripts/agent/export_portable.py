@@ -39,8 +39,14 @@ def main() -> int:
             output = args.output.resolve()
             if output.exists():
                 raise ValidationError(f"output directory already exists: {output}")
-            output.mkdir(parents=True)
-            export_all(output)
+            output.parent.mkdir(parents=True, exist_ok=True)
+            with TemporaryDirectory(prefix=".copse-agent-plugins-", dir=output.parent) as temporary:
+                stage = Path(temporary) / "packages"
+                stage.mkdir()
+                export_all(stage)
+                if output.exists():
+                    raise ValidationError(f"output directory already exists: {output}")
+                stage.rename(output)
     except (ValidationError, ValueError, OSError) as error:
         print(f"portable export error: {error}", file=sys.stderr)
         return 1

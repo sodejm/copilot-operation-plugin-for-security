@@ -68,6 +68,8 @@ def validate_mcp_configuration(document: Any, location: str, root: Path) -> None
                 raise MCPValidationError(f"{item}.command must be one executable token")
             if command.startswith("./"):
                 _contained(command, root, f"{item}.command")
+                if not (root / command).is_file():
+                    raise MCPValidationError(f"{item}.command must name a package file")
             elif not EXECUTABLE.fullmatch(command):
                 raise MCPValidationError(f"{item}.command must be one executable token")
             args = server.get("args", [])
@@ -75,9 +77,9 @@ def validate_mcp_configuration(document: Any, location: str, root: Path) -> None
                 raise MCPValidationError(f"{item}.args must be strings")
             env = server.get("env", {})
             if not isinstance(env, dict) or any(
-                not isinstance(key, str) or key in {"PLUGIN_ROOT", "PLUGIN_DATA"}
+                not isinstance(key, str) or key.casefold() in {"plugin_root", "plugin_data"}
                 or not isinstance(value, str) for key, value in env.items()
-            ):
+            ) or len({key.casefold() for key in env}) != len(env):
                 raise MCPValidationError(f"{item}.env must contain string values and no reserved keys")
             cwd = server.get("cwd")
             if cwd is not None:

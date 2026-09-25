@@ -17,7 +17,7 @@ modify the target. Review that context before sharing it with an assistant.
 
 ## Agent integration
 
-Use the [advisor instructions](../agents/security-logging-advisor.agent.md) with
+Use the [advisor instructions](../com.github.copilot/agents/security-logging-advisor.agent.md) with
 the [repository-context](../skills/repository-context/SKILL.md) and
 [logging-recommendations](../skills/logging-recommendations/SKILL.md) product skills
 in a host that supports those instruction and tool surfaces. The report target is
@@ -33,4 +33,4 @@ is no automatic registration or publication step in this repository.
 For working on COPS itself, root `AGENTS.md`, `CLAUDE.md`, and
 `.github/copilot-instructions.md` provide contributor guidance. Generated
 `.claude/skills/` entries are contributor workflows, separate from product skills.
-See [compatibility](../../../../docs/COMPATIBILITY.md).
+See [compatibility](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/docs/COMPATIBILITY.md).
