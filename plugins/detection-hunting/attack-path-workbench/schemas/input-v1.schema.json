@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "input-v1.schema.json",
+  "title": "Offline attack path input manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "sources", "context"],
+  "properties": {
+    "schema_version": {"const": "attackpath.input/v1"},
+    "sources": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/source_manifest"}},
+    "context": {"$ref": "#/$defs/analysis_context"}
+  },
+  "$defs": {
+    "id": {"type": "string", "minLength": 1, "maxLength": 256},
+    "timestamp": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "source_manifest": {
+      "type": "object", "additionalProperties": false,
+      "required": ["source_id", "kind", "path", "sha256", "exported_at", "scope", "profile_id", "coverage"],
+      "properties": {
+        "source_id": {"$ref": "#/$defs/id"}, "kind": {"const": "synthetic_export"},
+        "path": {"$ref": "#/$defs/id"}, "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "exported_at": {"$ref": "#/$defs/timestamp"}, "scope": {"$ref": "#/$defs/id"},
+        "profile_id": {"const": "illustrative_canonical/v1"},
+        "coverage": {"enum": ["unknown", "declared_partial", "declared_complete"]},
+        "record_count": {"type": "integer", "minimum": 0}
+      }
+    },
+    "analysis_context": {
+      "type": "object", "additionalProperties": false,
+      "required": ["crown_jewels", "scope", "impact_profile_id"],
+      "properties": {
+        "crown_jewels": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/crown_jewel"}},
+        "scope": {"$ref": "#/$defs/id"}, "impact_profile_id": {"type": "null"},
+        "time_window": {
+          "type": "object", "additionalProperties": false, "required": ["start", "end"],
+          "properties": {"start": {"$ref": "#/$defs/timestamp"}, "end": {"$ref": "#/$defs/timestamp"}}
+        }
+      }
+    },
+    "crown_jewel": {
+      "type": "object", "additionalProperties": false,
+      "required": ["asset_ref", "name", "priority", "business_service", "cia_objectives"],
+      "properties": {
+        "asset_ref": {"$ref": "#/$defs/id"}, "name": {"$ref": "#/$defs/id"},
+        "priority": {"type": ["integer", "null"], "minimum": 0},
+        "business_service": {"type": ["string", "null"]}, "cia_objectives": {"type": "null"}
+      }
+    }
+  }
+}

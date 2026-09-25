@@ -37,6 +37,7 @@ installed in a particular assistant or that a live security service was exercise
 | Security Logging Advisor | Collect repository signals and plan cost-aware, privacy-aware security logging | `python3 -m cops demo security-logging-advisor` |
 | SOC Investigation Workbench | Validate evidence associations and plan bounded investigations without running response actions | `python3 -m cops demo soc-investigation-workbench` |
 | Sentinel Hunt Workbench | Explain, render, and stress-test 12 defensive hunting workflows offline | `python3 -m cops demo sentinel-hunt-workbench` |
+| Attack Path Workbench | Trace conditional paths in illustrative local exports with evidence-linked reports | `python3 -m cops demo attack-path-workbench` |
 
 For the complete analyst walkthrough, command reference, and evidence boundaries,
 read [Getting Started](docs/GETTING_STARTED.md). Package-specific instructions live

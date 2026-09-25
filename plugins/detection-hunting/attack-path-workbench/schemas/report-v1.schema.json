@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "report-v1.schema.json",
+  "title": "Offline attack path report",
+  "type": "object", "additionalProperties": false,
+  "required": ["schema_version", "run", "context", "coverage", "reconciliation", "evidence", "graph", "quarantine", "graph_exclusions", "supported_paths", "candidate_paths", "partial_paths", "technique_mappings", "attack_flow", "actions", "assumptions", "evidence_gaps", "alternative_interpretations", "human_review", "gate_results"],
+  "properties": {
+    "schema_version": {"const": "attackpath.report/v1"},
+    "run": {
+      "type": "object", "additionalProperties": false,
+      "required": ["tool_version", "rule_version", "rule_sha256", "profile_sha256", "input_sha256", "source_sha256", "profile_versions", "reference_versions", "prompt_versions", "run_id"],
+      "properties": {
+        "tool_version": {"type": "string"}, "rule_version": {"type": "string"},
+        "rule_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "profile_sha256": {"type": "object", "additionalProperties": {"type": "string", "pattern": "^[0-9a-f]{64}$"}},
+        "input_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "source_sha256": {"type": "object", "additionalProperties": {"type": "string", "pattern": "^[0-9a-f]{64}$"}},
+        "profile_versions": {"type": "array", "items": {"type": "string"}},
+        "reference_versions": {"type": "array", "items": {"type": "string"}},
+        "prompt_versions": {"type": "array", "items": {"type": "string"}}, "run_id": {"type": "string"}
+      }
+    },
+    "context": {"$ref": "input-v1.schema.json#/$defs/analysis_context"},
+    "coverage": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["source_id", "declared_coverage", "independently_verified_complete"], "properties": {"source_id": {"type": "string"}, "declared_coverage": {"type": "string"}, "independently_verified_complete": {"const": false}}}},
+    "reconciliation": {"type": "object", "additionalProperties": false, "required": ["raw", "accepted", "quarantined", "rejected"], "properties": {"raw": {"type": "integer"}, "accepted": {"type": "integer"}, "quarantined": {"type": "integer"}, "rejected": {"type": "integer"}}},
+    "evidence": {"type": "array", "items": {"$ref": "records-v1.schema.json#/$defs/evidence"}},
+    "graph": {"$ref": "records-v1.schema.json#/$defs/graph"},
+    "quarantine": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["source", "reason"], "properties": {"source": {"$ref": "records-v1.schema.json#/$defs/source_ref"}, "reason": {"type": "string"}}}},
+    "graph_exclusions": {"type": "array", "items": {"type": "object"}},
+    "supported_paths": {"type": "array", "items": {"$ref": "records-v1.schema.json#/$defs/path"}},
+    "candidate_paths": {"type": "array", "items": {"$ref": "records-v1.schema.json#/$defs/path"}},
+    "partial_paths": {"type": "array", "items": {"type": "object"}},
+    "technique_mappings": {"type": "array", "items": {"$ref": "records-v1.schema.json#/$defs/technique_mapping"}},
+    "attack_flow": {"type": "object", "additionalProperties": false, "required": ["status"], "properties": {"status": {"const": "pending_reference_bundle"}}},
+    "actions": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["action_id", "path_id", "target_type", "target_id", "class", "proposal", "validation", "monitoring", "investigation", "evidence_refs", "owner", "status", "closure_evidence"], "properties": {"action_id": {"type": "string"}, "path_id": {"type": "string"}, "target_type": {"enum": ["finding", "transition"]}, "target_id": {"type": "string"}, "class": {"const": "recommendation"}, "proposal": {"type": "string"}, "validation": {"type": "string"}, "monitoring": {"type": "string"}, "investigation": {"type": "string"}, "evidence_refs": {"type": "array", "items": {"type": "string"}}, "owner": {"type": "null"}, "status": {"const": "proposed"}, "closure_evidence": {"type": "null"}}}},
+    "assumptions": {"type": "array", "items": {"type": "string"}},
+    "evidence_gaps": {"type": "array", "items": {"type": "string"}},
+    "alternative_interpretations": {"type": "array", "items": {"type": "string"}},
+    "human_review": {"type": "array", "items": {"$ref": "records-v1.schema.json#/$defs/review"}},
+    "gate_results": {"type": "object", "additionalProperties": false, "required": ["G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8"], "properties": {"G1": {"type": "string"}, "G2": {"type": "string"}, "G3": {"type": "string"}, "G4": {"type": "string"}, "G5": {"type": "string"}, "G6": {"type": "string"}, "G7": {"type": "string"}, "G8": {"type": "string"}}}
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "schema_version": "attackpath.input/v1",
+  "sources": [{
+    "source_id": "ILLUSTRATIVE-EXPORT-1",
+    "kind": "synthetic_export",
+    "path": "export.json",
+    "sha256": "01fe2849658fdc50d6cb60e2d759772d4c31e5b3df469102883799ca0dfc8cf2",
+    "exported_at": "2026-01-02T00:00:00Z",
+    "scope": "ILL-SCOPE",
+    "profile_id": "illustrative_canonical/v1",
+    "coverage": "unknown",
+    "record_count": 11
+  }],
+  "context": {
+    "crown_jewels": [{
+      "asset_ref": "ILL-CROWN",
+      "name": "[USER_DEFINED_CROWN_JEWEL]",
+      "business_service": null,
+      "priority": null,
+      "cia_objectives": null
+    }],
+    "scope": "ILL-SCOPE",
+    "impact_profile_id": null
+  }
+}
