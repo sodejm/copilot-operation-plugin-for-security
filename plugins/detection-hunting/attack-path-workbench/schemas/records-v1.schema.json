@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "records-v1.schema.json",
+  "title": "Versioned output and review contracts",
+  "$defs": {
+    "source_ref": {
+      "type": "object", "additionalProperties": false,
+      "required": ["source_id", "file_sha256", "record_pointer"],
+      "properties": {"source_id": {"type": "string"}, "file_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "record_pointer": {"type": "string"}}
+    },
+    "evidence": {
+      "type": "object", "additionalProperties": false,
+      "required": ["evidence_id", "class", "claim", "source", "observation_time", "scope", "transform_version", "confidence", "record"],
+      "properties": {
+        "evidence_id": {"type": "string"}, "class": {"enum": ["observed", "derived", "hypothesis", "recommendation"]},
+        "claim": {"type": "object", "additionalProperties": false, "required": ["subject", "predicate", "object"], "properties": {"subject": {"type": "string"}, "predicate": {"type": "string"}, "object": {"type": "string"}}},
+        "source": {"$ref": "#/$defs/source_ref"}, "observation_time": {"type": "string"},
+        "scope": {"type": "string"}, "transform_version": {"type": "string"},
+        "confidence": {"enum": ["high", "medium", "low", "undetermined"]},
+        "record": {"type": "object", "description": "Original accepted raw record; validated by its pinned source profile."}
+      }
+    },
+    "graph": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "nodes", "findings", "edges"],
+      "properties": {
+        "schema_version": {"const": "attackpath.graph/v1"},
+        "nodes": {"type": "array", "items": {"$ref": "#/$defs/graph_node"}},
+        "findings": {"type": "array", "items": {"$ref": "#/$defs/graph_finding"}},
+        "edges": {"type": "array", "items": {"$ref": "#/$defs/graph_edge"}}
+      }
+    },
+    "graph_node": {
+      "type": "object", "additionalProperties": false,
+      "required": ["node_id", "node_type", "evidence_ref", "support", "scope", "observed_at"],
+      "properties": {"node_id": {"type": "string"}, "node_type": {"enum": ["asset", "data", "service", "identity"]}, "evidence_ref": {"type": "string"}, "support": {"enum": ["observed", "hypothesis"]}, "scope": {"type": "string"}, "observed_at": {"type": "string"}}
+    },
+    "graph_finding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["finding_id", "asset_ref", "evidence_ref"],
+      "properties": {"finding_id": {"type": "string"}, "asset_ref": {"type": "string"}, "evidence_ref": {"type": "string"}}
+    },
+    "graph_edge": {
+      "type": "object", "additionalProperties": false,
+      "required": ["edge_id", "from", "to", "relation", "preconditions", "postcondition", "support", "evidence_ref", "scope", "observed_at"],
+      "properties": {
+        "edge_id": {"type": "string"}, "from": {"type": "string"}, "to": {"type": "string"},
+        "relation": {"enum": ["reachable_from", "permission_to_act", "accesses_data", "service_depends_on"]},
+        "preconditions": {"type": "array", "items": {"type": "string"}}, "postcondition": {"type": "string"},
+        "support": {"enum": ["observed", "hypothesis"]}, "evidence_ref": {"type": "string"},
+        "scope": {"type": "string"}, "observed_at": {"type": "string"}
+      }
+    },
+    "path_step": {
+      "type": "object", "additionalProperties": false,
+      "required": ["edge_id", "from", "to", "relation", "preconditions", "missing_preconditions", "postcondition", "support", "evidence_ref", "supporting_evidence_refs", "confidence"],
+      "properties": {
+        "edge_id": {"type": "string"}, "from": {"type": "string"}, "to": {"type": "string"},
+        "relation": {"type": "string"}, "preconditions": {"type": "array", "items": {"type": "string"}},
+        "missing_preconditions": {"type": "array", "items": {"type": "string"}},
+        "postcondition": {"type": "string"}, "support": {"enum": ["observed", "hypothesis"]},
+        "evidence_ref": {"type": "string"}, "supporting_evidence_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}},
+        "confidence": {"enum": ["high", "medium", "low", "undetermined"]}
+      }
+    },
+    "impact": {
+      "type": "object", "additionalProperties": false,
+      "required": ["potential_cia", "business_rating", "reason"],
+      "properties": {
+        "potential_cia": {"type": "array", "items": {"enum": ["confidentiality", "integrity", "availability"]}},
+        "business_rating": {"const": "unrated"}, "reason": {"type": "string"}
+      }
+    },
+    "path": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path_id", "start_finding", "start_asset", "target", "path_class", "premise", "steps", "evidence_refs", "gaps", "confidence", "confidence_scope", "blast_radius", "impact", "rank_inputs", "deduplication_key", "scope"],
+      "properties": {
+        "path_id": {"type": "string"}, "start_finding": {"type": "string"}, "start_asset": {"type": "string"},
+        "target": {"type": "string"}, "path_class": {"enum": ["supported_structural", "candidate"]},
+        "premise": {"const": "conditional_successful_exploitation_of_finding"},
+        "steps": {"type": "array", "items": {"$ref": "#/$defs/path_step"}},
+        "evidence_refs": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "gaps": {"type": "array", "items": {"type": "string"}},
+        "confidence": {"enum": ["high", "medium", "low", "undetermined"]},
+        "confidence_scope": {"const": "evidence_support"},
+        "blast_radius": {"type": "object", "additionalProperties": false, "required": ["evidenced_asset_ids", "evidenced_asset_count", "evidenced_service_ids", "evidenced_service_count", "service_dependency_evidence_refs", "coverage"], "properties": {"evidenced_asset_ids": {"type": "array", "items": {"type": "string"}}, "evidenced_asset_count": {"type": "integer"}, "evidenced_service_ids": {"type": "array", "items": {"type": "string"}}, "evidenced_service_count": {"type": "integer"}, "service_dependency_evidence_refs": {"type": "array", "items": {"type": "string"}}, "coverage": {"const": "bounded_to_supported_path"}}},
+        "impact": {"$ref": "#/$defs/impact"},
+        "rank_inputs": {"type": "object", "additionalProperties": false, "required": ["crown_priority", "business_rating", "supported_step_count", "total_step_count"], "properties": {"crown_priority": {"type": ["integer", "null"]}, "business_rating": {"const": "unrated"}, "supported_step_count": {"type": "integer"}, "total_step_count": {"type": "integer"}}},
+        "deduplication_key": {"type": "string"}, "scope": {"type": "string"}
+      }
+    },
+    "technique_mapping": {
+      "type": "object", "additionalProperties": false,
+      "required": ["action_id", "matrix", "technique_id", "reference_version", "behavior_evidence_refs", "status", "rationale"],
+      "properties": {"action_id": {"type": "string"}, "matrix": {"type": "string"}, "technique_id": {"type": "string"}, "reference_version": {"type": "string"}, "behavior_evidence_refs": {"type": "array", "items": {"type": "string"}}, "status": {"enum": ["supported", "proposed", "rejected"]}, "rationale": {"type": "string"}}
+    },
+    "query_intent": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "start_selector", "target_selector", "relationships", "scope_filters", "projected_fields", "documentation_profile_id", "operation_profile_id", "api_operation", "pagination", "authentication", "render_status"],
+      "properties": {"schema_version": {"const": "attackpath.query_intent/v1"}, "start_selector": {"type": "string"}, "target_selector": {"type": "string"}, "relationships": {"type": "array", "items": {"type": "string"}}, "scope_filters": {"type": "array", "items": {"type": "string"}}, "projected_fields": {"type": "array", "items": {"type": "string"}}, "documentation_profile_id": {"const": "[PENDING_WIZ_DOCS]"}, "operation_profile_id": {"const": "[PENDING_WIZ_DOCS]"}, "api_operation": {"const": "[PENDING_WIZ_DOCS]"}, "pagination": {"const": "[PENDING_WIZ_DOCS]"}, "authentication": {"const": "[PENDING_WIZ_DOCS]"}, "render_status": {"const": "blocked_pending_docs"}}
+    },
+    "review": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "specialist", "prompt_version", "input_sha256", "model_settings", "verdict", "rationale", "evidence_refs", "alternatives", "validation_questions", "disagrees_with_gate", "human_disposition"],
+      "properties": {"schema_version": {"const": "attackpath.review/v1"}, "specialist": {"enum": ["path_skeptic", "impact_reviewer", "attack_reviewer", "action_planner", "claim_auditor"]}, "prompt_version": {"type": "string"}, "input_sha256": {"type": "string"}, "model_settings": {"type": ["object", "null"]}, "verdict": {"enum": ["supported", "candidate", "invalid", "unrated", "mapped", "abstain", "proposed", "unsupported"]}, "rationale": {"type": "string"}, "evidence_refs": {"type": "array", "items": {"type": "string"}}, "alternatives": {"type": "array", "items": {"type": "string"}}, "validation_questions": {"type": "array", "items": {"type": "string"}}, "disagrees_with_gate": {"type": "boolean"}, "human_disposition": {"type": ["string", "null"]}}
+    }
+  }
+}

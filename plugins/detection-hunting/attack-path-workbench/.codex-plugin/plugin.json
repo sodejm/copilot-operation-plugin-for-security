@@ -1,0 +1,33 @@
+{
+  "name": "attack-path-workbench",
+  "version": "0.1.0",
+  "description": "Offline evidence-linked attack-path analysis of user-supplied exports.",
+  "author": {
+    "name": "Justin Soderberg",
+    "url": "https://github.com/sodejm"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "COPS Attack Path Workbench",
+    "shortDescription": "Offline, evidence-linked attack paths",
+    "longDescription": "Analyze user-supplied local exports and crown-jewel context with deterministic evidence, graph, path, and report gates. Wiz query syntax, business ratings, and MITRE mappings remain pending approved local reference material.",
+    "developerName": "Justin Soderberg",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Analyze a local export and user-defined crown jewel with explicit evidence gaps and conditional paths."
+    ]
+  },
+  "repository": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "homepage": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "keywords": [
+    "cybersecurity",
+    "attack-path",
+    "graph",
+    "offline-analysis"
+  ]
+}
