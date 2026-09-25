@@ -96,20 +96,17 @@ This section documents the configuration variables, core regular expressions, an
 
 #### Core Variables & Configurations
 
-- **`REQUIRED_STATIC_FILES` (List)**: Exhaustive list of target file paths required to make up a complete, compliant plugin package:
+- **`REQUIRED_FILES` and `NATIVE_FILES` (Lists)**: Required portable files and additional host manifests checked in the source repository:
 
   ```python
-  REQUIRED_STATIC_FILES = [
-      "plugins/logging-telemetry/security-logging-advisor/plugin.json",
-      "plugins/logging-telemetry/security-logging-advisor/agents/security-logging-advisor.agent.md",
-      ...
-  ]
+  REQUIRED_FILES = ["plugin.json", "agents/security-logging-advisor.agent.md", ...]
+  NATIVE_FILES = [".codex-plugin/plugin.json", ".claude-plugin/plugin.json", ...]
   ```
 
 #### Functionality
 
-1. **`check_json_file(file_path, required_keys)`**: Opens a target file, verifies it parses as syntactically valid JSON, and confirms all keys in `required_keys` exist. This is run against `plugin.json` and the `marketplace.json` discovery files.
-2. **`check_skill_markdown(file_path)`**: Uses regular expressions to extract and parse the frontmatter section (delimited by standard `---` YAML boundaries) from `SKILL.md` files. It verifies that both `name` and `description` are declared, which is crucial for trigger matching by the Copilot orchestration engine.
+1. **`read_json(path, errors)`**: Parses each manifest. The validator checks the portable `plugin.json` against the v1.0.0 schema identifier and required identity keys. From the source repository it also checks Codex and Claude manifest identity and Codex interface metadata.
+2. **`check_skill(path)`**: Checks each `SKILL.md` frontmatter block for the required `name` and `description` keys.
 
 For the contributor foundation, see [COPS architecture](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/ARCHITECTURE.md).
 Local validation does not certify host integration; see [installation](INSTALL.md).

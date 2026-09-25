@@ -23,6 +23,12 @@ def _contained(path: str, root: Path, location: str) -> None:
         raise MCPValidationError(f"{location} must be a contained plugin-relative path")
 
 
+def _contained_directory(path: str, root: Path, location: str) -> None:
+    _contained(path, root, location)
+    if not (root / path).is_dir():
+        raise MCPValidationError(f"{location} must name a package directory")
+
+
 def _validate_url(value: Any, location: str) -> None:
     if not isinstance(value, str):
         raise MCPValidationError(f"{location} must be an absolute HTTPS URL")
@@ -77,22 +83,27 @@ def validate_mcp_configuration(document: Any, location: str, root: Path) -> None
                 raise MCPValidationError(f"{item}.args must be strings")
             env = server.get("env", {})
             if not isinstance(env, dict) or any(
-                not isinstance(key, str) or key.casefold() in {"plugin_root", "plugin_data"}
-                or not isinstance(value, str) for key, value in env.items()
+                not isinstance(key, str) or not key or "=" in key or "\0" in key
+                or key.casefold() in {"plugin_root", "plugin_data"}
+                or not isinstance(value, str) or "\0" in value
+                for key, value in env.items()
             ) or len({key.casefold() for key in env}) != len(env):
-                raise MCPValidationError(f"{item}.env must contain string values and no reserved keys")
+                raise MCPValidationError(
+                    f"{item}.env must contain valid process environment names, "
+                    "string values, and no reserved keys"
+                )
             cwd = server.get("cwd")
             if cwd is not None:
                 if not isinstance(cwd, str):
                     raise MCPValidationError(f"{item}.cwd must be a string")
                 if cwd.startswith("./"):
-                    _contained(cwd, root, f"{item}.cwd")
+                    _contained_directory(cwd, root, f"{item}.cwd")
                 elif cwd.startswith("${PLUGIN_ROOT}"):
                     suffix = cwd[len("${PLUGIN_ROOT}"):]
                     if suffix and not suffix.startswith("/"):
                         raise MCPValidationError(f"{item}.cwd has invalid PLUGIN_ROOT syntax")
                     if suffix:
-                        _contained("." + suffix, root, f"{item}.cwd")
+                        _contained_directory("." + suffix, root, f"{item}.cwd")
                 elif cwd != "${PLUGIN_DATA}" and not cwd.startswith("${PLUGIN_DATA}/"):
                     raise MCPValidationError(f"{item}.cwd has an invalid root")
                 elif ".." in Path(cwd[len("${PLUGIN_DATA}"):]).parts:

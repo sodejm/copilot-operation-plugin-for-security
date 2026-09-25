@@ -91,8 +91,11 @@ def process_tools(tools: list[dict[str, Any]], *, install: bool = False,
         if dry_run:
             print("Would run: " + " ".join(command))
             continue
+        if which(tool["command"]):
+            missing.remove(tool["id"])
+            continue
         result = run(command, check=False)
         if result.returncode != 0 or not which(tool["command"]):
             raise PrerequisiteError(f"installation did not provide {tool['command']}")
-        missing.pop()
+        missing.remove(tool["id"])
     return missing

@@ -326,6 +326,29 @@ def test_prerequisite_install_preflights_all_tools():
     assert calls == []
 
 
+def test_prerequisite_install_skips_tool_provided_by_earlier_install():
+    tools = [
+        {"id": "first", "command": "first", "packages": {"brew": "bundle"}},
+        {"id": "second", "command": "second", "packages": {"brew": "bundle"}},
+    ]
+    installed = False
+    calls = []
+
+    def which(command):
+        return "/usr/bin/brew" if command == "brew" else (
+            f"/usr/bin/{command}" if installed else None
+        )
+
+    def run(command, *, check):
+        nonlocal installed
+        calls.append(command)
+        installed = True
+        return SimpleNamespace(returncode=0)
+
+    assert process_tools(tools, install=True, platform="darwin", which=which, run=run) == []
+    assert calls == [["brew", "install", "bundle"]]
+
+
 def test_prerequisite_cli_preflights_every_selected_plugin(monkeypatch):
     records = [SimpleNamespace(id=name, path=name) for name in ("first", "later")]
     monkeypatch.setattr(install_prerequisites, "plugin_records", lambda root: records)
@@ -356,6 +379,27 @@ def test_prerequisite_cli_preflights_every_selected_plugin(monkeypatch):
 def test_mcp_validator_rejects_case_insensitive_env_collisions(tmp_path, env):
     server = {"type": "stdio", "command": "python3", "env": env}
     with pytest.raises(MCPValidationError, match="reserved keys"):
+        validate_mcp_configuration({"$schema": MCP_SCHEMA, "mcpServers": {"bad": server}},
+                                   "mcp.json", tmp_path)
+
+
+@pytest.mark.parametrize("env", [
+    {"BAD=KEY": "value"}, {"BAD\0KEY": "value"}, {"KEY": "bad\0value"},
+])
+def test_mcp_validator_rejects_invalid_process_environment(tmp_path, env):
+    server = {"type": "stdio", "command": "python3", "env": env}
+    with pytest.raises(MCPValidationError, match="process environment names"):
+        validate_mcp_configuration({"$schema": MCP_SCHEMA, "mcpServers": {"bad": server}},
+                                   "mcp.json", tmp_path)
+
+
+@pytest.mark.parametrize("cwd", [
+    "./missing", "${PLUGIN_ROOT}/missing", "./file", "${PLUGIN_ROOT}/file",
+])
+def test_mcp_validator_requires_existing_package_cwd(tmp_path, cwd):
+    (tmp_path / "file").write_text("not a directory", encoding="utf-8")
+    server = {"type": "stdio", "command": "python3", "cwd": cwd}
+    with pytest.raises(MCPValidationError, match="package directory"):
         validate_mcp_configuration({"$schema": MCP_SCHEMA, "mcpServers": {"bad": server}},
                                    "mcp.json", tmp_path)
 

@@ -54,6 +54,18 @@ def execute_validation(context):
     context["result"] = result
 
 
+def test_validator_runs_from_portable_package_root(tmp_path):
+    package = tmp_path / "portable"
+    shutil.copytree(SOURCE_PACKAGE, package)
+    for native in (".claude-plugin", ".codex-plugin", "commands"):
+        shutil.rmtree(package / native)
+    result = subprocess.run(
+        ["python3", "scripts/validate-plugin.py"], cwd=package,
+        capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 @then("the Copilot manifest must contain required identity keys")
 def copilot_keys():
     manifest = json.loads((PACKAGE / "plugin.json").read_text())
