@@ -33,9 +33,13 @@ permission needs, deterministic results, and version. A repository check can awa
 structural or offline evidence only. Require a dated, reproducible evidence record
 before changing host-installation or live-integration status.
 
-CI runs the full contributor gate on supported Python versions and a dependency-free
-operator smoke test on Linux, macOS, and Windows. A green CI run establishes only
-the scopes named by those jobs.
+CI runs the full contributor gate on supported Python versions and an operator
+smoke test on Linux, macOS, and Windows. The operator checks run without test
+dependencies; jobs running acceptance tests install `requirements.txt` explicitly
+and verify prerequisites first. Local `make check` uses the same declaration and
+stops before repository checks if prerequisites are unavailable. See
+[Contributing](../CONTRIBUTING.md) for offline setup and interpreter selection.
+A green CI run establishes only the scopes named by those jobs.
 
 ## Generated content
 

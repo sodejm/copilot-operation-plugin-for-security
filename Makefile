@@ -1,32 +1,37 @@
+PYTHON ?= python3
+
 .PHONY: doctor list-plugins validate-packages check-packages generate-marketplaces \
-	check-marketplaces validate-contract sync-agent-adapters check-agent-adapters check
+	check-marketplaces validate-contract sync-agent-adapters check-agent-adapters check-prerequisites check
 
 doctor:
-	python3 scripts/agent/doctor.py
+	"$(PYTHON)" scripts/agent/doctor.py
 
 list-plugins:
-	python3 -m cops list
+	"$(PYTHON)" -m cops list
 
 validate-packages:
-	python3 -m cops validate
+	"$(PYTHON)" -m cops validate
 
 check-packages:
-	python3 -m cops check
+	"$(PYTHON)" -m cops check
 
 generate-marketplaces:
-	python3 -m cops generate
+	"$(PYTHON)" -m cops generate
 
 check-marketplaces:
-	python3 -m cops generate --check
+	"$(PYTHON)" -m cops generate --check
 
 validate-contract:
-	python3 scripts/agent/validate_contract.py
+	"$(PYTHON)" scripts/agent/validate_contract.py
 
 sync-agent-adapters:
-	python3 scripts/agent/sync_adapters.py
+	"$(PYTHON)" scripts/agent/sync_adapters.py
 
 check-agent-adapters:
-	python3 scripts/agent/sync_adapters.py --check
+	"$(PYTHON)" scripts/agent/sync_adapters.py --check
 
-check:
-	python3 scripts/agent/check.py
+check-prerequisites:
+	"$(PYTHON)" scripts/agent/check_prerequisites.py
+
+check: check-prerequisites
+	"$(PYTHON)" scripts/agent/check.py

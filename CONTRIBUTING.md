@@ -12,3 +12,77 @@ Thank you for improving this project.
 Never include secrets, personal data, proprietary prompts, or confidential logs.
 AI assistance does not change contributor responsibility: review all generated
 content and ensure licensing, correctness, security, and attribution are sound.
+
+## Prepare the test environment
+
+Contributor checks require Python 3.11 or newer. From the repository root, create
+a virtual environment and explicitly install the test dependencies:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+make check-prerequisites
+make check
+```
+
+On Windows, activate `.venv\Scripts\Activate.ps1` in PowerShell. If Make is not
+available, run `python scripts/agent/check_prerequisites.py` for verification alone
+or `python scripts/agent/check.py` for the full gate.
+
+Make defaults to `python3` on the active PATH. To select an interpreter explicitly,
+use `make check PYTHON=.venv/bin/python` (or `make check-prerequisites` with the same
+override). The preflight reports its executable and whether it is in a virtual
+environment. A prepared interpreter outside a virtual environment is also
+accepted, as in CI. Every Make target uses the selected interpreter.
+
+Both full-gate entry points stop before repository checks when Python is too old,
+a dependency is missing or cannot be imported, or an installed version is
+incompatible. Verification is offline, never runs pip, and never installs or
+upgrades packages. Installation is a separate command under your control.
+
+`requirements.txt` is the canonical declaration for local setup and all CI test
+jobs. Each non-comment line contains a distribution name with an optional numeric
+`>=` minimum version. The verifier checks stable numeric releases, including post
+releases, and imports the name with hyphens replaced by underscores. Unsupported
+declaration syntax, duplicate names, and prerelease or development versions fail
+explicitly. Extend the verifier and its tests before introducing other requirement
+formats or dependencies with different import names. This file sets minimum
+versions; it is not a lockfile.
+
+## Offline setup
+
+On a connected machine with the same operating system, architecture, and Python
+version as the offline machine, prepare dependencies from the same declaration:
+
+```bash
+python -m pip download --dest wheelhouse -r requirements.txt
+```
+
+Transfer `wheelhouse` and the matching `requirements.txt` to the offline machine.
+After creating and activating its virtual environment, install from local files:
+
+```bash
+python -m pip install --no-index --find-links wheelhouse -r requirements.txt
+make check-prerequisites
+make check
+```
+
+The download includes transitive dependencies. Prepare the artifacts before
+disconnecting; the verification gate does not fetch missing dependencies.
+
+## Troubleshooting prerequisites
+
+- **Missing or incompatible dependency:** activate the intended environment and
+  run `python -m pip install -r requirements.txt`, or use the offline command above.
+- **Unexpected interpreter:** compare the executable printed by the preflight
+  with your environment, then select it with Make's `PYTHON` override. The direct
+  Python entry point uses the interpreter that launches it.
+- **Unsupported Python:** recreate the environment with Python 3.11 or newer.
+- **Import failure:** recreate the environment and reinstall from the declaration;
+  installed metadata alone does not prove a usable dependency.
+- **Invalid requirement declaration:** correct `requirements.txt` or extend the
+  supported declaration format and regression tests together.
+
+CI installs `requirements.txt` explicitly before verifying prerequisites and
+running tests. A passing local gate does not establish hosted CI status.

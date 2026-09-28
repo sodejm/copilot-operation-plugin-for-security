@@ -10,6 +10,7 @@ from pytest_bdd import given, scenarios, then, when
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts" / "agent"))
 import check as gate
+import check_prerequisites as prerequisites
 from repository_files import repository_files
 
 scenarios("../../specs/features/repository_conformance.feature")
@@ -116,6 +117,7 @@ def live_catalog(context):
 @given("an aggregate gate with a failing package validation command")
 def failing_gate(context, monkeypatch):
     context["commands"] = []
+    monkeypatch.setattr(gate, "check_prerequisites", lambda root: True)
 
     def fake_run(command):
         context["commands"].append(command)
@@ -134,3 +136,36 @@ def aggregate(context):
 def aggregate_failed(context):
     assert context["exit"] == 1
     assert any("pytest" in command for command in context["commands"])
+
+
+@given("an aggregate gate with missing test prerequisites")
+def missing_prerequisites(context, monkeypatch):
+    context["commands"] = []
+    monkeypatch.setattr(gate, "check_prerequisites", lambda root: False)
+    monkeypatch.setattr(gate, "run", lambda command: context["commands"].append(command))
+    monkeypatch.setattr(gate, "validate_python", lambda: pytest.fail("unexpected source validation"))
+
+
+@then("the gate returns failure without running repository checks")
+def early_failure(context):
+    assert context["exit"] == 1
+    assert context["commands"] == []
+
+
+@given("a prepared interpreter matching the declared test requirements")
+def prepared_prerequisites(context, monkeypatch):
+    put(context["root"], "requirements.txt", "pytest>=8.0\npytest-bdd>=8.0\n")
+    monkeypatch.setattr(prerequisites.sys, "version_info", (3, 11, 0))
+    monkeypatch.setattr(prerequisites, "version", lambda name: "8.1.0")
+    monkeypatch.setattr(prerequisites, "import_module", lambda name: None)
+    monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: pytest.fail("unexpected subprocess"))
+
+
+@when("contributor test prerequisites are verified")
+def verify_prerequisites(context):
+    context["ready"] = prerequisites.check_prerequisites(context["root"])
+
+
+@then("prerequisite verification passes without installing dependencies")
+def prerequisites_ready(context):
+    assert context["ready"]

@@ -8,6 +8,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from check_prerequisites import check_prerequisites
 from repository_files import repository_files
 
 
@@ -36,6 +37,8 @@ def validate_python(root: Path = ROOT) -> bool:
 
 
 def main() -> int:
+    if not check_prerequisites(ROOT):
+        return 1
     checks = [
         validate_python(),
         run([sys.executable, "scripts/agent/validate_contract.py"]),
