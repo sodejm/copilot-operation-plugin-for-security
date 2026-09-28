@@ -29,9 +29,14 @@ def preview(adapter):
 def _receipt(state, now):
     item = {key: state[key] for key in ('acquisition_id', 'generation', 'adapter', 'adapter_version',
             'tenant', 'scope', 'request_fingerprint', 'started_at', 'limits', 'consumed')}
-    item.update(schema_version='cops.acquisition/v1', finished_at=now if timestamp(now) >= timestamp(state['started_at']) else state['started_at'],
+    finished_at = state['finished_at'] if state['status'] in ('complete', 'partial') else _finish_time(state, now)
+    item.update(schema_version='cops.acquisition/v1', finished_at=finished_at,
                 status=state['status'], reasons=list(state['reasons']), consistency='unknown')
     return validate_receipt(item)
+
+
+def _finish_time(state, now):
+    return now if timestamp(now) >= timestamp(state['started_at']) else state['started_at']
 
 
 def _delay(value, retry, now):
@@ -63,7 +68,7 @@ def collect(adapter, checkpoint, credentials, transport=None, *, limits=None,
                    scope=list(adapter.scope), request_fingerprint=fingerprint)
     state = checkpoint.load()
     if state is None:
-        state = dict(binding, acquisition_id=str(uuid.uuid4()), generation=1, started_at=now(),
+        state = dict(binding, acquisition_id=str(uuid.uuid4()), generation=1, started_at=now(), finished_at=None,
                      limits=limits.export(), consumed=dict(pages=0, attempts=0, records=0, duplicates=0,
                                                           bytes=0, storage_bytes=0, active_seconds=0),
                      cursor=None, status='unknown', reasons=[], refreshed=False, reservation=False, retry=0)
@@ -114,6 +119,7 @@ def collect(adapter, checkpoint, credentials, transport=None, *, limits=None,
     def finish(reason=None):
         state['status'] = 'partial' if reason else 'complete'
         state['reasons'] = [reason] if reason else []
+        state['finished_at'] = _finish_time(state, now())
         checkpoint.save(state)
         return Result(checkpoint.export(), _receipt(state, now()))
 
@@ -212,6 +218,11 @@ def collect(adapter, checkpoint, credentials, transport=None, *, limits=None,
             checkpoint.save(state)
         parsed_at = clock()
 
+        def check_page_time():
+            actual = elapsed + max(0, clock() - parsed_at)
+            if spent['active_seconds'] - timeout + actual >= limits.active_seconds:
+                raise EvidenceError('time_limit')
+
         def settle_page_time():
             actual = elapsed + max(0, clock() - parsed_at)
             spent['active_seconds'] = min(limits.active_seconds,
@@ -219,27 +230,51 @@ def collect(adapter, checkpoint, credentials, transport=None, *, limits=None,
             state['reservation'] = False
 
         try:
+            check_page_time()
             data = decode_json(response.body, max_bytes=byte_cap, max_depth=limits.depth)
+            check_page_time()
             page = adapter.parse(data, retried=retry > 0)
+            check_page_time()
             stamp = now()
             pending, seen, duplicates, storage, reason = [], set(), 0, 0, page.reason
-            for projected in page.records:
-                record = build_envelope(acquisition_id=state['acquisition_id'], product=adapter.product,
-                    api=adapter.api, tenant=adapter.tenant, scope=list(adapter.scope),
-                    acquired_at=stamp, transformed_at=stamp, request_fingerprint=fingerprint,
-                    page=spent['pages'] + 1, max_bytes=limits.record_bytes, max_depth=limits.depth, **projected)
-                if checkpoint.contains(record['record_id']) or record['record_id'] in seen:
-                    duplicates += 1
-                    continue
-                size = len(canonical(record, max_bytes=limits.record_bytes, max_depth=limits.depth))
-                if spent['records'] + len(pending) >= limits.records:
-                    reason = 'record_limit'; break
-                if spent['storage_bytes'] + storage + size > limits.storage_bytes:
-                    reason = 'storage_limit'; break
-                pending.append(record); seen.add(record['record_id']); storage += size
-            cursor_hash = digest(page.cursor) if page.cursor is not None else None
-            if cursor_hash and checkpoint.seen_cursor(cursor_hash):
-                reason, cursor_hash = 'cursor_cycle', None
+            cursor_hash = None
+            try:
+                projections = iter(page.records)
+                while True:
+                    check_page_time()
+                    try:
+                        projected = next(projections)
+                    except StopIteration:
+                        break
+                    check_page_time()
+                    record = build_envelope(acquisition_id=state['acquisition_id'], product=adapter.product,
+                        api=adapter.api, tenant=adapter.tenant, scope=list(adapter.scope),
+                        acquired_at=stamp, transformed_at=stamp, request_fingerprint=fingerprint,
+                        page=spent['pages'] + 1, max_bytes=limits.record_bytes, max_depth=limits.depth, **projected)
+                    check_page_time()
+                    duplicate = checkpoint.contains(record['record_id']) or record['record_id'] in seen
+                    check_page_time()
+                    if duplicate:
+                        duplicates += 1
+                        continue
+                    size = len(canonical(record, max_bytes=limits.record_bytes, max_depth=limits.depth))
+                    check_page_time()
+                    if spent['records'] + len(pending) >= limits.records:
+                        reason = 'record_limit'; break
+                    if spent['storage_bytes'] + storage + size > limits.storage_bytes:
+                        reason = 'storage_limit'; break
+                    pending.append(record); seen.add(record['record_id']); storage += size
+                check_page_time()
+                cursor_hash = digest(page.cursor) if page.cursor is not None else None
+                check_page_time()
+                if cursor_hash and checkpoint.seen_cursor(cursor_hash):
+                    reason, cursor_hash = 'cursor_cycle', None
+                check_page_time()
+            except EvidenceError as error:
+                if error.code != 'time_limit':
+                    raise
+                # Commit only the prefix accepted before this budget expired.
+                reason, cursor_hash = 'time_limit', None
         except EvidenceError as error:
             settle_page_time()
             code = error.code if error.code in REASONS else 'projection_failed'
@@ -258,6 +293,8 @@ def collect(adapter, checkpoint, credentials, transport=None, *, limits=None,
         state['retry'] = 0
         state['status'] = 'partial' if reason else 'complete' if page.cursor is None else 'unknown'
         state['reasons'] = [reason] if reason else []
+        if state['status'] != 'unknown':
+            state['finished_at'] = _finish_time(state, now())
         fault('before_commit')
         checkpoint.save(state, pending, cursor_hash)
         fault('after_commit')

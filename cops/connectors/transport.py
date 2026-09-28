@@ -70,6 +70,8 @@ class HttpsTransport:
 
     def _exchange(self, request, headers, parts, max_bytes, remaining, active):
         connection = http.client.HTTPSConnection(self.origin, timeout=remaining(), context=ssl.create_default_context())
+        # Closing during cancellation must not let request() reopen the socket.
+        connection.auto_open = 0
         active['connection'] = connection
         try:
             connection.connect()
@@ -79,6 +81,7 @@ class HttpsTransport:
             outgoing.update(headers)
             outgoing['Accept-Encoding'] = 'identity'
             target = parts.path + ('?' + parts.query if parts.query else '')
+            remaining()
             connection.request(request.method, target, body=request.body, headers=outgoing)
             if connection.sock is not None:
                 connection.sock.settimeout(remaining())

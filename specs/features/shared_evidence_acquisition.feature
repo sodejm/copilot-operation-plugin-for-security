@@ -23,3 +23,8 @@ Feature: Shared bounded evidence acquisition
     Given a private checkpoint for the "arg" adapter
     When a complete acquisition has an explicitly old observation
     Then the common assessment reports complete and stale freshness
+
+  Scenario: Reopening completed evidence preserves the collection interval
+    Given a private checkpoint for the "graph" adapter
+    When a completed acquisition is reopened on a later day
+    Then its original collection interval is preserved without another request

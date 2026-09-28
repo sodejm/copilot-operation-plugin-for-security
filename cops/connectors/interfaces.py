@@ -1,6 +1,6 @@
 """Ephemeral transport values are deliberately excluded from representations."""
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import Iterable, Protocol
 
 
 @dataclass(frozen=True)
@@ -20,7 +20,7 @@ class Response:
 
 @dataclass(frozen=True)
 class Page:
-    records: list = field(repr=False)
+    records: Iterable[dict] = field(repr=False)
     cursor: str | None = field(default=None, repr=False)
     reason: str | None = None
 

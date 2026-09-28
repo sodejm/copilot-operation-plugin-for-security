@@ -42,6 +42,17 @@ def test_round_trip_and_identity_scope():
     assert item["record_id"] != envelope(payload={"id": "changed"})["record_id"]
 
 
+def test_raw_reference_is_detached_before_hashing():
+    reference = {"store_id": "private_object_1", "sha256": "b" * 64}
+    item = envelope(raw_reference=reference)
+    original_hash = item["content_hash"]
+    reference["store_id"] = "changed"
+    reference["sha256"] = "c" * 64
+    assert item["raw_reference"] == {"store_id": "private_object_1", "sha256": "b" * 64}
+    assert item["content_hash"] == original_hash
+    validate_envelope(item)
+
+
 @pytest.mark.parametrize("field,value", [("schema_version", "v99"), ("acquired_at", "yesterday"),
                                          ("acquired_at", "2026-09-28T00:00:00"), ("source", {})])
 def test_reject_malformed_contract(field, value):

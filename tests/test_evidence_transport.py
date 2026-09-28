@@ -78,6 +78,42 @@ def test_deadline_includes_headers(monkeypatch):
     assert 'PRIVATE_RESPONSE' not in str(error.value)
 
 
+def test_cancelled_connection_cannot_reopen_before_sending_headers(monkeypatch):
+    released, entered, finished = threading.Event(), threading.Event(), threading.Event()
+    sent = []
+
+    class Client(http.client.HTTPSConnection):
+        connections = 0
+
+        def connect(self):
+            self.connections += 1
+            self.sock = SimpleNamespace(settimeout=lambda seconds: None,
+                shutdown=lambda how: None, close=lambda: None, sendall=sent.append)
+
+        def request(self, *args, **kwargs):
+            entered.set()
+            try:
+                assert released.wait(2)
+                # Exercise HTTPConnection.send's automatic reconnection path.
+                return super().request(*args, **kwargs)
+            finally:
+                finished.set()
+
+        def getresponse(self):
+            raise EvidenceError('transport')
+
+    connection = Client('example.invalid')
+    try:
+        with pytest.raises(EvidenceError, match='request_timeout'):
+            dispatch(monkeypatch, connection, timeout=0.1)
+        assert entered.is_set()
+    finally:
+        released.set()
+    assert finished.wait(1)
+    assert connection.connections == 1
+    assert sent == []
+
+
 @pytest.mark.parametrize('reply', [Reply(b'x' * 21), Reply(headers={'Content-Length': '21'}),
                                   Reply(headers={'Content-Encoding': 'gzip'}),
                                   Reply(headers={'Content-Length': 'invalid'})])

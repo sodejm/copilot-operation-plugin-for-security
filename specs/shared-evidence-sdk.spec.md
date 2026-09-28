@@ -19,6 +19,9 @@ unsupported versions and unknown fields. Hashes establish comparison, not trust.
 `cops.acquisition/v1` receipts describe scope, interval, configured limits, consumed
 budgets, generation, consistency and complete/partial/unknown status with reason
 codes. Completion means exhaustion of the authorized query, not tenant coverage.
+Terminal checkpoints persist the acquisition finish time atomically; later exports
+and resumes preserve that interval. Caller-owned raw references are detached before
+hashing, as are normalized payloads.
 Observation freshness is fresh/stale/unknown using an explicit assessment time;
 unknown observation times never inherit acquisition time. Reports omit payloads.
 Assessment validates the full receipt and joins it by acquisition ID, tenant,
@@ -29,7 +32,10 @@ scope and request fingerprint before making completeness claims.
 The runner owns positive finite page, attempt, record, response, aggregate byte,
 normalized storage, depth, request timeout and active time bounds. Retries and
 failed/duplicate pages consume budgets. Requests are reserved durably before
-dispatch; interrupted reservations retain conservative byte/time costs. Resume
+dispatch. Active time is checked between decoding, projection and record operations,
+including duplicates; adapters yield projections incrementally so a large page
+cannot defer the budget check until all records have been processed. Requests
+interrupted after reservation retain conservative byte/time costs. Resume
 cannot loosen bounds or change adapter/version, tenant, scope or request identity.
 Tighter bounds must still cover consumed budgets and committed record size/depth.
 Only page transactions advance cursors; accepted records and deduplication commit
@@ -37,8 +43,10 @@ atomically. Cursors are private, bounded and validated again before authenticati
 
 Transport verifies TLS, disables redirects and compression, streams within a
 monotonic deadline and byte cap, and validates exact origins/methods/paths before
-obtaining ephemeral credentials. No credentials enter serializable plans, errors,
-envelopes or receipts. Error messages are fixed codes without source exception text.
+obtaining ephemeral credentials. Cancellation closes the connection and disables
+automatic reopening before credentials can be sent. No credentials enter
+serializable plans, errors, envelopes or receipts. Error messages are fixed codes
+without source exception text.
 Projection omits unreviewed fields; redaction occurs before hashing. Private SQLite
 storage is owner-only on POSIX; other platforms require caller-confirmed private
 storage. It is not encrypted. The SDK trusts credential providers and adapters as

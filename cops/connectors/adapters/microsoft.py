@@ -60,21 +60,21 @@ class GraphUsers:
     def parse(self, data, *, retried=False):
         if not isinstance(data, dict) or not isinstance(data.get('value'), list):
             raise EvidenceError('schema_drift')
-        records = []
-        for item in data['value']:
-            if not isinstance(item, dict) or not UUID.fullmatch(str(item.get('id', ''))) or item.get('userType') not in ('Member', 'Guest', None):
-                raise EvidenceError('schema_drift')
-            identity = item['id'].lower()
-            records.append({'identity': identity, 'locator': identity,
-                            'payload': {'id': identity, 'userType': item.get('userType')}, 'region': None})
+        def records():
+            for item in data['value']:
+                if not isinstance(item, dict) or not UUID.fullmatch(str(item.get('id', ''))) or item.get('userType') not in ('Member', 'Guest', None):
+                    raise EvidenceError('schema_drift')
+                identity = item['id'].lower()
+                yield {'identity': identity, 'locator': identity,
+                       'payload': {'id': identity, 'userType': item.get('userType')}, 'region': None}
         cursor = data.get('@odata.nextLink')
         if cursor is not None:
             try:
                 self.request(cursor)
             except EvidenceError:
                 # Accept the current safe projection but never follow a hostile link.
-                return Page(records, reason='unsafe_destination')
-        return Page(records, cursor, 'retry_continuation' if retried and cursor is not None else None)
+                return Page(records(), reason='unsafe_destination')
+        return Page(records(), cursor, 'retry_continuation' if retried and cursor is not None else None)
 
 
 class ResourceGraph:
@@ -108,24 +108,24 @@ class ResourceGraph:
             raise EvidenceError('schema_drift')
         if type(data.get('count')) is not int or data['count'] != len(data['data']) or type(data.get('totalRecords')) is not int or data['totalRecords'] < data['count']:
             raise EvidenceError('schema_drift')
-        records = []
-        for item in data['data']:
-            if not isinstance(item, dict):
-                raise EvidenceError('schema_drift')
-            identity, kind, region = item.get('id'), item.get('type'), item.get('location')
-            if not isinstance(identity, str) or len(identity) > 2048 or not re.fullmatch(r'/subscriptions/[0-9a-fA-F-]{36}/resourceGroups/[A-Za-z0-9_.()-]+/providers/[A-Za-z0-9./_()-]+', identity):
-                raise EvidenceError('schema_drift')
-            if identity.split('/')[2].lower() not in self.scope or not isinstance(kind, str) or not re.fullmatch(r'[A-Za-z0-9.]+/[A-Za-z0-9/]+', kind):
-                raise EvidenceError('schema_drift')
-            if not isinstance(region, str) or not re.fullmatch(r'[a-z0-9-]{0,128}', region):
-                raise EvidenceError('schema_drift')
-            records.append({'identity': identity.lower(), 'locator': identity,
-                            'payload': {'id': identity, 'type': kind.lower(), 'location': region}, 'region': region or None})
+        def records():
+            for item in data['data']:
+                if not isinstance(item, dict):
+                    raise EvidenceError('schema_drift')
+                identity, kind, region = item.get('id'), item.get('type'), item.get('location')
+                if not isinstance(identity, str) or len(identity) > 2048 or not re.fullmatch(r'/subscriptions/[0-9a-fA-F-]{36}/resourceGroups/[A-Za-z0-9_.()-]+/providers/[A-Za-z0-9./_()-]+', identity):
+                    raise EvidenceError('schema_drift')
+                if identity.split('/')[2].lower() not in self.scope or not isinstance(kind, str) or not re.fullmatch(r'[A-Za-z0-9.]+/[A-Za-z0-9/]+', kind):
+                    raise EvidenceError('schema_drift')
+                if not isinstance(region, str) or not re.fullmatch(r'[a-z0-9-]{0,128}', region):
+                    raise EvidenceError('schema_drift')
+                yield {'identity': identity.lower(), 'locator': identity,
+                       'payload': {'id': identity, 'type': kind.lower(), 'location': region}, 'region': region or None}
         cursor = data.get('$skipToken')
         if cursor is not None:
             try:
                 opaque(cursor)
             except EvidenceError:
-                return Page(records, reason='unsafe_destination')
+                return Page(records(), reason='unsafe_destination')
         reason = 'truncated_without_cursor' if data['resultTruncated'] == 'true' and cursor is None else None
-        return Page(records, cursor, reason)
+        return Page(records(), cursor, reason)

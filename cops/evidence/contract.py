@@ -11,6 +11,9 @@ def build_envelope(*, acquisition_id, product, api, tenant, scope, identity, loc
     from .canonical import canonical, decode_json
     payload = decode_json(canonical(payload, max_bytes=max_bytes, max_depth=max_depth),
                           max_bytes=max_bytes, max_depth=max_depth)
+    if raw_reference is not None:
+        raw_reference = decode_json(canonical(raw_reference, max_bytes=max_bytes, max_depth=max_depth),
+                                    max_bytes=max_bytes, max_depth=max_depth)
     scope = sorted(set(scope))
     record_id = digest(["cops.record/v1", product, tenant, scope, identity, source_version,
                         digest(payload, max_bytes=max_bytes, max_depth=max_depth)], max_bytes=max_bytes)

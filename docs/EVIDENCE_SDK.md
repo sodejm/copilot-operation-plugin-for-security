@@ -89,7 +89,7 @@ but identifiers and aggregate results can still be sensitive.
 
 Adapters project an explicit field allowlist before hashing or persisting records.
 The included adapters omit names, mail, tags and other unselected response fields.
-`build_envelope` detaches caller-owned payload structures and records
+`build_envelope` detaches caller-owned payload and raw-reference structures and records
 `projection/v1` and `omit-unselected-fields/v1` metadata. It does not discover or
 remove arbitrary secrets: callers must supply a reviewed projection consistent
 with those declarations. New normalization/redaction semantics need a coordinated
@@ -109,7 +109,10 @@ safe to publish automatically.
 `Limits` requires finite positive bounds for pages, attempts, records, response and
 aggregate bytes, individual envelope size, normalized storage bytes, JSON depth,
 request duration and total active time. Retries may be zero and otherwise remain
-finite. Duplicate pages, failed requests and retry backoff consume budgets.
+finite. Duplicate pages, failed requests and retry backoff consume budgets. Active
+time is checked between decoding, adapter projection and record operations,
+including deduplication. Adapters yield projections incrementally, and a time limit
+preserves the record prefix accepted before it expired.
 Oversized, malformed or compressed responses stop partial. Fixed-length responses
 must reach their declared length. Provider error bodies are discarded; failures
 expose fixed reason codes rather than source exception text.
@@ -124,7 +127,8 @@ cursor; a crash after commit resumes the next page. Repeated cursors end partial
 Resume uses the same checkpoint and adapter/version, tenant, scope and initial
 request fingerprint. Limits can only tighten, and must still cover consumed
 budgets and the size/depth of committed records. A terminal partial or complete
-checkpoint exports its result without another request. To collect again, create a
+checkpoint exports its result without another request and preserves its original
+collection finish time. To collect again, create a
 new checkpoint directory and acquisition ID; increasing limits is not a resume.
 Do not edit checkpoint state to bypass these bindings.
 
@@ -151,7 +155,8 @@ plans, envelopes, receipts or checkpoints. Keep credentials out of fixture and
 provider exceptions too; fixed diagnostics are not a substitute for safe providers.
 
 The built-in transport applies one deadline across connection, headers and body,
-with socket cancellation. An OS DNS resolver may remain blocked in a daemon
+with socket cancellation and automatic reconnection disabled after the explicit
+connection opens. An OS DNS resolver may remain blocked in a daemon
 thread after the caller times out; cancellation prevents that delayed connection
 from sending credentials. Credential providers, adapters and injected callbacks
 are trusted code and must return promptly. Injected transports must enforce the
@@ -191,8 +196,9 @@ unverified.
 2. Implement the `Adapter` protocol: identity/version, fixed origin/path/method,
    `request`, `validate_request` and `parse`. Requests must be credential-free;
    validate each continuation against an exact destination and query allowlist.
-3. Return a `Page` of projected payloads with source identity, locator and accurate
-   timestamps when available. Preserve opaque pagination without exposing it in
+3. Return a `Page` with an iterable of projected payloads, yielding each projection
+   as the runner consumes it so time checks can interrupt page processing. Include
+   source identity, locator and accurate timestamps when available. Preserve opaque pagination without exposing it in
    reports. Mark truncation or uncertainty with a fixed reason code; never turn
    source text into a diagnostic.
 4. Reuse `collect`, `Checkpoint`, `Limits` and the transport contract. Do not add

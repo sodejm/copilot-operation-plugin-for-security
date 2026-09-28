@@ -78,6 +78,88 @@ def test_limits_stop_and_preserve_accepted_records(tmp_path):
     assert result.receipt['status'] == 'partial'
 
 
+@pytest.mark.parametrize('partial', [False, True])
+def test_terminal_resume_preserves_collection_interval(tmp_path, partial):
+    adapter, pages = fixture()
+    limits = Limits(records=1) if partial else Limits()
+    first = run(tmp_path, pages, adapter, limits, now=lambda: '2026-09-28T00:00:00Z')
+    credentials, transport = Credentials(), Transport([])
+    with Checkpoint(tmp_path / 'private') as checkpoint:
+        resumed = collect(adapter, checkpoint, credentials, transport, limits=limits,
+                          now=lambda: '2026-09-29T00:00:00Z')
+    assert resumed.receipt['finished_at'] == first.receipt['finished_at']
+    assert resumed.receipt['started_at'] == first.receipt['started_at']
+    assert resumed.receipt['status'] == ('partial' if partial else 'complete')
+    assert resumed.receipt['generation'] == 2
+    assert credentials.refreshes == transport.requests == []
+
+
+def test_terminal_commit_persists_finish_before_interruption(tmp_path):
+    adapter, pages = fixture()
+    with pytest.raises(Crash):
+        run(tmp_path, [pages[1]], adapter, now=lambda: '2026-09-28T00:00:00Z',
+            fault=lambda phase: (_ for _ in ()).throw(Crash()) if phase == 'after_commit' else None)
+    resumed = run(tmp_path, [], adapter, now=lambda: '2026-09-29T00:00:00Z')
+    assert resumed.receipt['finished_at'] == '2026-09-28T00:00:00Z'
+
+
+@pytest.mark.parametrize('name', ['graph', 'arg'])
+def test_duplicate_processing_stops_at_active_time_limit(tmp_path, monkeypatch, name):
+    import cops.connectors.runner as runner
+    adapter, pages = fixture(name)
+    key = 'value' if name == 'graph' else 'data'
+    pages[0][key] *= 100
+    if name == 'arg':
+        pages[0]['count'] = pages[0]['totalRecords'] = 100
+    current, calls = [0.0], []
+    original = runner.build_envelope
+
+    def processing_cost(**kwargs):
+        calls.append(kwargs['identity'])
+        current[0] += 0.4
+        return original(**kwargs)
+
+    monkeypatch.setattr(runner, 'build_envelope', processing_cost)
+    result = run(tmp_path, pages, adapter, Limits(active_seconds=1, request_seconds=1),
+                 clock=lambda: current[0])
+    assert len(calls) <= 3
+    assert len(result.records) == 1
+    assert result.receipt['reasons'] == ['time_limit']
+    assert result.receipt['consumed']['active_seconds'] == 1
+
+
+@pytest.mark.parametrize('name', ['graph', 'arg'])
+def test_adapter_projection_stops_at_active_time_limit(tmp_path, monkeypatch, name):
+    import cops.connectors.adapters.microsoft as microsoft
+    adapter, pages = fixture(name)
+    key = 'value' if name == 'graph' else 'data'
+    pages[0][key] *= 100
+    if name == 'arg':
+        pages[0]['count'] = pages[0]['totalRecords'] = 100
+    current, projections = [0.0], []
+    if name == 'graph':
+        original = microsoft.UUID
+        def match(value):
+            projections.append(value)
+            current[0] += 0.4
+            return original.fullmatch(value)
+        from types import SimpleNamespace
+        monkeypatch.setattr(microsoft, 'UUID', SimpleNamespace(fullmatch=match))
+    else:
+        original = microsoft.re.fullmatch
+        def match(pattern, value, *args, **kwargs):
+            if pattern.startswith('/subscriptions/'):
+                projections.append(value)
+                current[0] += 0.4
+            return original(pattern, value, *args, **kwargs)
+        monkeypatch.setattr(microsoft.re, 'fullmatch', match)
+    result = run(tmp_path, pages, adapter, Limits(active_seconds=1, request_seconds=1),
+                 clock=lambda: current[0])
+    assert len(projections) <= 3
+    assert len(result.records) == 1
+    assert result.receipt['reasons'] == ['time_limit']
+
+
 def test_auth_throttle_duplicates_and_secret_boundary(tmp_path, capsys):
     adapter, pages = fixture()
     pages[1]['value'].insert(0, pages[0]['value'][0])

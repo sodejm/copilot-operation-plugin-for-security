@@ -90,3 +90,21 @@ def stale(acquisition):
     assert assessment['status'] == 'complete'
     assert assessment['records'][0]['completeness'] == 'complete'
     assert assessment['records'][0]['freshness'] == 'stale'
+
+
+@when('a completed acquisition is reopened on a later day')
+def reopen_completed(acquisition):
+    with Checkpoint(acquisition['path']) as checkpoint:
+        acquisition['original'] = collect(acquisition['adapter'], checkpoint,
+            acquisition['credentials'], acquisition['transport'], now=lambda: AS_OF)
+    acquisition['credentials'], acquisition['transport'] = FixtureCredentials(), FixtureTransport([])
+    with Checkpoint(acquisition['path']) as checkpoint:
+        acquisition['result'] = collect(acquisition['adapter'], checkpoint,
+            acquisition['credentials'], acquisition['transport'], now=lambda: '2026-01-03T00:00:00Z')
+
+
+@then('its original collection interval is preserved without another request')
+def preserved_interval(acquisition):
+    for field in ('started_at', 'finished_at'):
+        assert acquisition['result'].receipt[field] == acquisition['original'].receipt[field]
+    assert acquisition['credentials'].calls == acquisition['transport'].calls == 0
