@@ -10,6 +10,7 @@
 ## Architecture and operations
 
 - [Repository architecture](../ARCHITECTURE.md): catalog, packages, generated adapters, and validation flow.
+- [Shared Evidence SDK](EVIDENCE_SDK.md): evidence contracts, bounded connectors, recovery, and contributor guidance.
 - [Repository Layout](REPOSITORY_LAYOUT.md): directory map and ownership.
 - [Portability Architecture](PORTABILITY.md): canonical sources and host adapters.
 - [Maintenance](MAINTENANCE.md): routine upgrades, releases, and evidence review.

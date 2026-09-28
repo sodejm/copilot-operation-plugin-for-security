@@ -87,6 +87,20 @@ offline before running repository checks. They never install dependencies. See
 [contributor setup and troubleshooting](CONTRIBUTING.md#prepare-the-test-environment)
 for interpreter selection and offline preparation.
 
+## Shared evidence SDK
+
+Repository tooling can use a versioned evidence envelope and one bounded connector
+lifecycle for pagination, retries, private checkpoints and interruption recovery.
+Try the synthetic Graph and Azure Resource Graph examples offline:
+
+```bash
+python3 -m cops.connectors.demo
+```
+
+Read the [Shared Evidence SDK guide](docs/EVIDENCE_SDK.md) for contracts, contributor
+steps, security boundaries and live prerequisites. The SDK is opt-in; fixture
+validation does not establish a live integration.
+
 ## Evidence and safety
 
 Offline validation proves only what its output states. Pattern matching is not a

@@ -1,0 +1,44 @@
+{
+  "example_version": "cops.connector-plans/v1",
+  "execution": "design_only",
+  "live_integration": "unverified",
+  "limitations": "These plans are not runnable adapters. A connector must validate its service-specific scope, identity, time semantics and continuation protocol before implementation.",
+  "plans": [
+    {
+      "service": "Log Analytics",
+      "operation": "Read an approved workspace query over a fixed UTC interval",
+      "scope": ["synthetic-tenant", "synthetic-workspace"],
+      "projection": ["source_record_identity", "observed_at", "approved_event_type"],
+      "raw_storage": "disabled",
+      "continuation": "Use a documented stable paging strategy; record-limit truncation remains partial",
+      "limits": {"pages": 10, "attempts": 31, "records": 1000, "response_bytes": 1048576, "total_bytes": 10485760, "request_seconds": 10, "active_seconds": 120, "retries": 2}
+    },
+    {
+      "service": "Sentinel",
+      "operation": "Read approved incident metadata from an explicit workspace",
+      "scope": ["synthetic-tenant", "synthetic-subscription", "synthetic-workspace"],
+      "projection": ["incident_identity", "source_version", "observed_at", "approved_status"],
+      "raw_storage": "disabled",
+      "continuation": "Validate the documented next link against the exact incident route before credentials",
+      "limits": {"pages": 10, "attempts": 31, "records": 1000, "response_bytes": 1048576, "total_bytes": 10485760, "request_seconds": 10, "active_seconds": 120, "retries": 2}
+    },
+    {
+      "service": "Splunk",
+      "operation": "Read results of an explicitly authorized existing search job",
+      "scope": ["synthetic-tenant", "synthetic-search-job"],
+      "projection": ["source_record_identity", "observed_at", "approved_event_type"],
+      "raw_storage": "disabled",
+      "continuation": "Bind offsets to the same completed job and distinguish job completion from result exhaustion",
+      "limits": {"pages": 10, "attempts": 31, "records": 1000, "response_bytes": 1048576, "total_bytes": 10485760, "request_seconds": 10, "active_seconds": 120, "retries": 2}
+    },
+    {
+      "service": "Cribl",
+      "operation": "Read approved pipeline configuration metadata from an explicit group",
+      "scope": ["synthetic-tenant", "synthetic-group"],
+      "projection": ["pipeline_identity", "source_version", "approved_processor_types"],
+      "raw_storage": "disabled",
+      "continuation": "Verify the supported API version and paging contract; do not treat an undocumented response as complete",
+      "limits": {"pages": 10, "attempts": 31, "records": 1000, "response_bytes": 1048576, "total_bytes": 10485760, "request_seconds": 10, "active_seconds": 120, "retries": 2}
+    }
+  ]
+}
