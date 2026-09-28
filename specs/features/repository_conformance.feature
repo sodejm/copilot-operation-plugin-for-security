@@ -28,3 +28,13 @@ Feature: Portable COPS repository validation
     Given an aggregate gate with a failing package validation command
     When the aggregate gate runs
     Then the gate returns failure and still runs the scenario suite
+
+  Scenario: Stop before repository checks when test prerequisites are missing
+    Given an aggregate gate with missing test prerequisites
+    When the aggregate gate runs
+    Then the gate returns failure without running repository checks
+
+  Scenario: Verify a prepared test environment without installing dependencies
+    Given a prepared interpreter matching the declared test requirements
+    When contributor test prerequisites are verified
+    Then prerequisite verification passes without installing dependencies

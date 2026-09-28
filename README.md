@@ -73,6 +73,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 python3 -m pip install -r requirements.txt
 python3 -m cops doctor --contributor
+make check-prerequisites
 make check
 ```
 
@@ -80,6 +81,11 @@ On Windows, activate `.venv\Scripts\Activate.ps1` in PowerShell. If Make is not
 available, run `python3 scripts/agent/check.py`. Before adding a capability, read
 [Adding a Plugin](docs/ADDING_A_PLUGIN.md), [AGENTS.md](AGENTS.md), and
 [CONTRIBUTING.md](CONTRIBUTING.md).
+
+Contributor checks require Python 3.11 or newer and verify test prerequisites
+offline before running repository checks. They never install dependencies. See
+[contributor setup and troubleshooting](CONTRIBUTING.md#prepare-the-test-environment)
+for interpreter selection and offline preparation.
 
 ## Evidence and safety
 

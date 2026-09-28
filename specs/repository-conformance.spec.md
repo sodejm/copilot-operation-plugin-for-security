@@ -19,6 +19,18 @@ and skills; distinguish included capabilities from potential future add-ons.
 - `make check` validates the repository contract, Markdown links, Python syntax,
   adapter drift, plugin package, plugin unit tests, pytest scenarios, and bundled
   skill tests. Failures must produce a nonzero exit status.
+- Before any aggregate checks, both `make check` and its Python entry point
+  verify Python 3.11 or newer plus importable test dependencies and compatible
+  installed versions from `requirements.txt`. Verification is offline and never
+  installs packages. Missing or incompatible prerequisites stop the gate early
+  with a virtual-environment setup and installation command.
+- `make check-prerequisites` runs verification alone. Make's `PYTHON` override
+  selects the same interpreter for verification and validation; an active virtual
+  environment or an explicitly prepared interpreter is accepted, including CI.
+- Test requirements use distribution names with optional numeric `>=` minimum
+  versions. Unsupported declarations or non-stable installed versions fail
+  explicitly rather than being silently ignored. CI installs from this same file;
+  dependency installation and offline wheel preparation remain explicit steps.
 - The SOC package check permits an entirely absent Sentinel snapshot for local
   development and reports that limitation. Its separate default release gate
   requires verified vendored content; repository CI does not establish release

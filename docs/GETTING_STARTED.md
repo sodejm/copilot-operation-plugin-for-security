@@ -104,13 +104,15 @@ host-specific smoke test before changing `host_installation` evidence.
 
 ## Contributor setup
 
-Third-party dependencies are needed only for the full test suite:
+Contributor checks require Python 3.11 or newer. Third-party dependencies are
+needed only for the full test suite:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 python3 -m pip install -r requirements.txt
 python3 -m cops doctor --contributor
+make check-prerequisites
 make check
 ```
 
@@ -118,6 +120,10 @@ On Windows, activate `.venv\Scripts\Activate.ps1`. If Make is unavailable, run
 `python3 scripts/agent/check.py`. Contributor validation includes contract checks,
 generated-index drift checks, package checks, unit tests, and executable BDD
 acceptance scenarios.
+
+The full gate verifies prerequisites first without installing packages or using
+the network. See [Contributing](../CONTRIBUTING.md#prepare-the-test-environment)
+for interpreter selection, offline dependency preparation, and troubleshooting.
 
 When adding a capability, follow [Adding a Plugin](ADDING_A_PLUGIN.md). When changing
 a canonical contributor skill under `.agents/skills/`, also run:
