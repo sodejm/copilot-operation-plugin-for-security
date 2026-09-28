@@ -27,3 +27,31 @@ Feature: Repository Scanning Edge Cases
     When the scanner script executes with target "."
     Then the scanner should complete successfully
     And the JSON output "scanned_files_count" should not exceed 10000
+
+  Scenario: Skip a symbolic link without reading its target
+    Given a workspace containing a symbolic link "package.json" to a file outside the workspace
+    When the scanner script executes with target "."
+    Then the scanner should complete successfully
+    And the scanner reports "package.json" skipped with reason "symlink"
+    And the scanner output must not contain the linked file content
+
+  Scenario: Skip a FIFO without waiting for a writer
+    Given a workspace containing a FIFO "config.env"
+    When the scanner script executes with target "."
+    Then the scanner should complete successfully
+    And the scanner reports "config.env" skipped with reason "non_regular"
+
+  Scenario: Skip file content that exceeds the byte limit
+    Given a workspace containing an oversized config file "oversized.env"
+    When the scanner script executes with target "."
+    Then the scanner should complete successfully
+    And the scanner reports "oversized.env" skipped with reason "too_large"
+    And the JSON output "secrets_findings" must be empty
+
+  Scenario: Preserve findings from bounded regular files
+    Given a workspace containing a file "bounded.env"
+    And "bounded.env" contains the line "db_password = 'FixturePassword123!'"
+    When the scanner script executes with target "."
+    Then the scanner should complete successfully
+    And the JSON output "secrets_findings" must list a finding for "bounded.env"
+    And the output JSON must NOT contain the string "FixturePassword123!"
