@@ -49,6 +49,25 @@ that can be reviewed or distributed independently.
 SOC-to-Sentinel handoff remains a guarded cross-package integration. The existence
 of both packages does not by itself validate the handoff or a live query path.
 
+## Shared evidence acquisition
+
+`cops.evidence` owns the versioned envelope and acquisition receipt schemas under
+`catalog/schemas/`, canonical hashes, validation and provider-independent
+completeness/freshness assessment. `cops.connectors` owns finite acquisition bounds,
+ephemeral authentication, fixed-route HTTPS and private transactional checkpoints.
+Reviewed adapters project source responses before this shared lifecycle persists
+evidence. Graph and Azure Resource Graph examples exercise it offline.
+
+Normalized envelopes and receipts are separate records joined by acquisition ID,
+tenant, scope and request fingerprint. Raw data, if authorized, belongs in a
+separate caller-owned store; envelopes carry only opaque references and hashes.
+Query completion does not establish source coverage or consistency.
+
+This root SDK is an opt-in repository dependency and is not included automatically
+in self-contained portable plugin exports. Existing plugin formats retain their
+contracts. See the [SDK guide](docs/EVIDENCE_SDK.md) for adapter authoring, storage,
+versioning and rollback boundaries.
+
 ## Contributor architecture
 
 `AGENTS.md`, `.agents/skills/`, `scripts/agent/`, and the `Makefile` own repository

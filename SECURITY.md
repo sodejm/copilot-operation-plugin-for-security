@@ -13,5 +13,11 @@ Keep secrets out of source, fixtures, prompts, logs and generated evidence. Loca
 hooks are opt-in; CI runs with least privilege. External content and agent output
 remain untrusted. Publishing and hosted mutations require explicit authority.
 
+The shared connector SDK uses fixed destinations, finite budgets, field allowlists
+and private checkpoints. Checkpoints are not encrypted and can contain sensitive
+identifiers and continuation tokens; callers own storage ACLs, credential-provider
+trust, live authorization and retention. See the
+[SDK security and storage boundaries](docs/EVIDENCE_SDK.md).
+
 See the [repository security model](docs/SECURITY_MODEL.md) and
 [plugin privacy guidance](plugins/logging-telemetry/security-logging-advisor/docs/SECURITY_PRIVACY.md).

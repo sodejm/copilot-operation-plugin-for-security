@@ -4,9 +4,12 @@
 | --- | --- |
 | `README.md`, `docs/GETTING_STARTED.md` | Analyst-first discovery and safe first use |
 | `cops/` | Standard-library catalog, validation, command safety, demos, and checks |
+| `cops/evidence/`, `cops/connectors/` | Opt-in evidence contracts and bounded acquisition SDK for repository tooling |
 | `catalog/categories.json` | Stable capability taxonomy |
 | `catalog/plugins.json` | Single canonical package inventory |
 | `catalog/schemas/package.schema.json` | Documented package governance contract |
+| `catalog/schemas/evidence-envelope.schema.json`, `catalog/schemas/acquisition-receipt.schema.json` | Shared evidence and acquisition receipt v1 contracts |
+| `examples/evidence-sdk/` | Offline SDK walkthrough and design-only connector request plans |
 | `plugins/<category>/<plugin-id>/` | Self-contained distributed product package |
 | `plugins/logging-telemetry/security-logging-advisor/` | Repository scanning and security logging guidance |
 | `plugins/detection-hunting/soc-investigation-workbench/` | Evidence-backed investigation planning and review |

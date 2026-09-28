@@ -43,6 +43,16 @@ in this repository does not establish compatibility or release readiness. Packag
 validation must continue to fail closed when required version or integrity evidence
 is absent.
 
+## Shared evidence SDK
+
+`cops.evidence` and `cops.connectors` provide opt-in versioned evidence contracts,
+finite acquisition budgets, exact-destination HTTPS, ephemeral authentication and
+private transactional interruption recovery. Graph and Azure Resource Graph
+fixtures exercise the shared lifecycle; other connector plans remain design-only.
+Portable plugins must explicitly declare and distribute a compatible SDK before
+adoption. See the [SDK specification](../specs/shared-evidence-sdk.spec.md) and
+[guide](../docs/EVIDENCE_SDK.md) for raw/normalized evidence, security and migration.
+
 ## Evidence policy
 
 Static structure, offline behavior, host installation, and live service behavior

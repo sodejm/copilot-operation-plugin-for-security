@@ -13,6 +13,16 @@ Never include secrets, personal data, proprietary prompts, or confidential logs.
 AI assistance does not change contributor responsibility: review all generated
 content and ensure licensing, correctness, security, and attribution are sound.
 
+## Evidence connector contributions
+
+Use the [Shared Evidence SDK guide](docs/EVIDENCE_SDK.md#add-a-connector) and
+[specification](specs/shared-evidence-sdk.spec.md) when adding acquisition tooling.
+Reuse the bounded runner and checkpoint contract, project only reviewed fields,
+and test interruption/resume and failure behavior with synthetic fixtures. A new
+adapter needs explicit permission and scope documentation; offline tests do not
+establish live service support. Portable packages must declare and distribute a
+compatible dependency before importing the root SDK.
+
 ## Prepare the test environment
 
 Contributor checks require Python 3.11 or newer. From the repository root, create
