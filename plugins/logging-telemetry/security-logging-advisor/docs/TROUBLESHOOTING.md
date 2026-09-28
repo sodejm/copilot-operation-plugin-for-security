@@ -28,8 +28,11 @@ issue. Do not assume organization-wide settings or automatic installation exist.
 
 ## Context or recommendations are incomplete
 
-The scanner skips excluded directories and files over 1 MB, and limits the scan
-to 10,000 files. Check target scope and permissions. Pattern-based detection can
-miss technologies or secrets. The scanner emits JSON only; a report requires the
+The scanner skips excluded directories, symbolic links, non-regular files, and
+file content over 1 MB, and limits the scan to 10,000 files. Check the
+`skipped_files` paths and reason codes (`symlink`, `non_regular`, `too_large`,
+`changed`, or `unreadable`) when context is missing. Check target scope and
+permissions. Pattern-based detection can miss technologies or secrets. The scanner
+emits JSON only; a report requires the
 advisor instructions and a host with appropriate model and file-write access.
 Review evidence and assumptions before acting on the report.

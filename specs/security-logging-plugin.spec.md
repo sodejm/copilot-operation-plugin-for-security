@@ -68,7 +68,7 @@ Provide software development teams with an automated, cost-conscious, and securi
 - **Local Boundary**: Scanning logic runs locally without network calls. Agent-assisted processing must respect the approved host/provider data boundary; review context before sharing.
 - **License Compliance**: Preserve the **PolyForm Noncommercial License 1.0.0** project terms and the separate notices for imported PARK foundation material.
 - **Zero-Dependency Core**: Validation and scanning scripts must run using standard libraries in Python 3.
-- **Circuit Breakers**: The scanner must not crash on massive repositories or single large log files. It will skip files over 1MB and stop scanning after 10,000 files to conserve memory.
+- **Circuit Breakers**: The scanner must not crash on massive repositories or single large log files. It will skip file content over 1MB and stop scanning after 10,000 files to conserve memory. It must skip symbolic links and non-regular files before opening them, reject a file replaced or grown beyond the limit between discovery and reading, and use a bounded reader for every repository-controlled content read. Skips must have stable reason codes without exposing file content or credential values.
 
 ## 5. Model Selection & Runtime Environment Guidelines
 

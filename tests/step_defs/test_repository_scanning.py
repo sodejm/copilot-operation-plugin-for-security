@@ -14,7 +14,10 @@ scenarios('../../specs/features/edge_cases_scanning.feature')
 import pytest
 @pytest.fixture
 def context():
-    return {}
+    state = {}
+    yield state
+    if 'external_path' in state:
+        os.unlink(state['external_path'])
 
 @pytest.fixture(autouse=True)
 def workspace_dir(tmpdir):
@@ -85,6 +88,29 @@ def create_massive_file(filename):
     with open(filename, 'wb') as f:
         f.write(os.urandom(5 * 1024 * 1024))
 
+@given(parsers.parse('a workspace containing a symbolic link "{filename}" to a file outside the workspace'))
+def create_external_symlink(filename, workspace_dir, context):
+    external_path = os.path.join(os.path.dirname(workspace_dir), f'{os.path.basename(workspace_dir)}-external.json')
+    with open(external_path, 'w') as f:
+        f.write('LINKED_FILE_CONTENT_DO_NOT_COPY')
+    context['external_path'] = external_path
+    try:
+        os.symlink(external_path, filename)
+    except OSError as exc:
+        pytest.skip(f'Symbolic links unavailable: {exc}')
+
+@given(parsers.parse('a workspace containing a FIFO "{filename}"'))
+def create_fifo(filename):
+    if not hasattr(os, 'mkfifo'):
+        pytest.skip('FIFOs unavailable')
+    os.mkfifo(filename)
+
+@given(parsers.parse('a workspace containing an oversized config file "{filename}"'))
+def create_oversized_config(filename):
+    with open(filename, 'wb') as f:
+        f.write(b'db_password = "FixturePassword123!"\n')
+        f.write(b'x' * (1024 * 1024))
+
 @given(parsers.parse('a workspace containing {count:d} dummy files'))
 def create_dummy_files(count):
     os.makedirs('dummy_dir', exist_ok=True)
@@ -104,7 +130,7 @@ def execute_scanner(context, target):
     script_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../plugins/logging-telemetry/security-logging-advisor/skills/repository-context/scripts/collect-repository-context.py'))
     
     try:
-        result = subprocess.run(['python3', script_path, target], capture_output=True, text=True, check=True)
+        result = subprocess.run(['python3', script_path, target], capture_output=True, text=True, check=True, timeout=5)
         context['output'] = result.stdout
         context['error'] = False
         
@@ -166,3 +192,15 @@ def check_processed(context, key):
     assert context['json'] is not None
     # Just checking it completed successfully handles the memory error part.
     pass
+
+@then(parsers.parse('the scanner reports "{filename}" skipped with reason "{reason}"'))
+def check_skip_reason(context, filename, reason):
+    assert {'file': filename, 'reason': reason} in context['json']['skipped_files']
+
+@then('the scanner output must not contain the linked file content')
+def no_linked_content(context):
+    assert 'LINKED_FILE_CONTENT_DO_NOT_COPY' not in context['output']
+
+@then(parsers.parse('the JSON output "{key}" must be empty'))
+def json_output_empty(context, key):
+    assert context['json'][key] == []

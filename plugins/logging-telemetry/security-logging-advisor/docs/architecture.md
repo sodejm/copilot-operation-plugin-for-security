@@ -87,8 +87,9 @@ This section documents the configuration variables, core regular expressions, an
 #### Functionality
 
 1. **`is_ignored(path, root_dir)`**: Evaluates relative components of a given directory traversal path. Returns `True` if any component matches a folder in `IGNORE_DIRS`.
-2. **`scan_repository(root_dir)`**: Walks the codebase directories. It compiles statistics about file extensions (mapping them to programming languages) and scans content patterns in package manifests (`package.json`, `requirements.txt`, `Pipfile`, `pyproject.toml`) to identify dependencies.
-3. **Secrets Detection Logic**: For text file formats (e.g. `.json`, `.yaml`, `.py`, `.ts`, `.env`), it reads lines sequentially, running matches against `SECRETS_PATTERNS`. When a match is detected, it logs only the **filepath**, **line number**, and **issue type**. The script **never stores or outputs the matched secret string** to maintain enterprise security integrity.
+2. **`scan_repository(root_dir)`**: Walks the codebase directories. It compiles statistics about file extensions (mapping them to programming languages) and scans content patterns in package manifests (`package.json`, `requirements.txt`, `Pipfile`, `pyproject.toml`) to identify dependencies. It skips symbolic links and non-regular files before reading. Every content inspection uses one bounded reader that checks the opened file against the discovered file and enforces the 1 MB limit during reading. The `skipped_files` output records relative paths with stable `symlink`, `non_regular`, `too_large`, `changed`, or `unreadable` reasons.
+   POSIX opens use nonblocking and terminal no-follow flags; Windows opens inspect a reparse-point handle before reading. This protects the discovered file entry and caps all reads; it does not provide containment against replacement of an ancestor directory or a read timeout for virtual files that report themselves as regular. Unsupported POSIX flag combinations fail closed with `unreadable`.
+3. **Secrets Detection Logic**: For text file formats (e.g. `.json`, `.yaml`, `.py`, `.ts`, `.env`), it checks each line of bounded content against `SECRETS_PATTERNS`. When a match is detected, the output contains only the **filepath**, **line number**, and **issue type**, not the matched secret string.
 
 ---
 
