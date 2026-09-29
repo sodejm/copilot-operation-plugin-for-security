@@ -1,0 +1,915 @@
+{
+  "$id": "urn:cops:attackpath:azure:report:v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "as_of": {
+      "format": "date-time",
+      "maxLength": 64,
+      "minLength": 1,
+      "type": "string"
+    },
+    "evidence_ledger": {
+      "additionalProperties": false,
+      "properties": {
+        "records": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "acquisition_id": {
+                "maxLength": 2048,
+                "minLength": 0,
+                "type": "string"
+              },
+              "content_hash": {
+                "maxLength": 64,
+                "minLength": 64,
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "file_sha256": {
+                "maxLength": 64,
+                "minLength": 64,
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "observed_at": {
+                "format": "date-time",
+                "maxLength": 64,
+                "minLength": 1,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "payload_sha256": {
+                "maxLength": 64,
+                "minLength": 64,
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "quality": {
+                "items": {
+                  "maxLength": 512,
+                  "minLength": 0,
+                  "type": "string"
+                },
+                "maxItems": 200000,
+                "minItems": 0,
+                "type": "array"
+              },
+              "receipt_sha256": {
+                "maxLength": 64,
+                "minLength": 64,
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "record_id": {
+                "maxLength": 2048,
+                "minLength": 0,
+                "type": "string"
+              },
+              "source_id": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "record_id",
+              "source_id",
+              "payload_sha256",
+              "content_hash",
+              "file_sha256",
+              "receipt_sha256",
+              "observed_at",
+              "quality",
+              "acquisition_id"
+            ],
+            "type": "object"
+          },
+          "maxItems": 200000,
+          "minItems": 0,
+          "type": "array"
+        },
+        "schema_version": {
+          "const": "attackpath.azure.ledger/v1",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "records"
+      ],
+      "type": "object"
+    },
+    "graph": {
+      "additionalProperties": false,
+      "properties": {
+        "coverage": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "complete": {
+                "type": "boolean"
+              },
+              "evidence": {
+                "items": {
+                  "maxLength": 2048,
+                  "minLength": 0,
+                  "type": "string"
+                },
+                "maxItems": 200000,
+                "minItems": 0,
+                "type": "array"
+              },
+              "family": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "scopes": {
+                "items": {
+                  "maxLength": 2048,
+                  "minLength": 0,
+                  "type": "string"
+                },
+                "maxItems": 200000,
+                "minItems": 0,
+                "type": "array"
+              },
+              "tenant": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "family",
+              "tenant",
+              "scopes",
+              "complete",
+              "evidence"
+            ],
+            "type": "object"
+          },
+          "maxItems": 200000,
+          "minItems": 0,
+          "type": "array"
+        },
+        "edges": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "end": {
+                "format": "date-time",
+                "maxLength": 64,
+                "minLength": 1,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "evidence": {
+                "items": {
+                  "maxLength": 2048,
+                  "minLength": 0,
+                  "type": "string"
+                },
+                "maxItems": 200000,
+                "minItems": 0,
+                "type": "array"
+              },
+              "id": {
+                "maxLength": 64,
+                "minLength": 64,
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "observed_at": {
+                "items": {
+                  "format": "date-time",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 200000,
+                "minItems": 0,
+                "type": "array"
+              },
+              "relation": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "scope": {
+                "maxLength": 2048,
+                "minLength": 0,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "source": {
+                "maxLength": 2048,
+                "minLength": 0,
+                "type": "string"
+              },
+              "start": {
+                "format": "date-time",
+                "maxLength": 64,
+                "minLength": 1,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "target": {
+                "maxLength": 2048,
+                "minLength": 0,
+                "type": "string"
+              },
+              "uncertainty": {
+                "items": {
+                  "maxLength": 512,
+                  "minLength": 0,
+                  "type": "string"
+                },
+                "maxItems": 200000,
+                "minItems": 0,
+                "type": "array"
+              }
+            },
+            "required": [
+              "id",
+              "source",
+              "target",
+              "relation",
+              "scope",
+              "observed_at",
+              "start",
+              "end",
+              "evidence",
+              "uncertainty"
+            ],
+            "type": "object"
+          },
+          "maxItems": 1000000,
+          "minItems": 0,
+          "type": "array"
+        },
+        "nodes": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "evidence": {
+                "items": {
+                  "maxLength": 2048,
+                  "minLength": 0,
+                  "type": "string"
+                },
+                "maxItems": 200000,
+                "minItems": 0,
+                "type": "array"
+              },
+              "id": {
+                "maxLength": 2048,
+                "minLength": 0,
+                "type": "string"
+              },
+              "tenant": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "type": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "uncertainty": {
+                "items": {
+                  "maxLength": 512,
+                  "minLength": 0,
+                  "type": "string"
+                },
+                "maxItems": 200000,
+                "minItems": 0,
+                "type": "array"
+              }
+            },
+            "required": [
+              "id",
+              "tenant",
+              "type",
+              "evidence",
+              "uncertainty"
+            ],
+            "type": "object"
+          },
+          "maxItems": 200000,
+          "minItems": 0,
+          "type": "array"
+        },
+        "schema_version": {
+          "const": "attackpath.azure.graph/v1",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "nodes",
+        "edges",
+        "coverage"
+      ],
+      "type": "object"
+    },
+    "limitations": {
+      "items": {
+        "maxLength": 512,
+        "minLength": 0,
+        "type": "string"
+      },
+      "maxItems": 200000,
+      "minItems": 0,
+      "type": "array"
+    },
+    "limits": {
+      "additionalProperties": false,
+      "properties": {
+        "edges": {
+          "maximum": 1000000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "expansions": {
+          "maximum": 2000000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "file_bytes": {
+          "maximum": 16777216,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "files": {
+          "maximum": 256,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "hops": {
+          "maximum": 32,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "nodes": {
+          "maximum": 200000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "output_bytes": {
+          "maximum": 134217728,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "paths": {
+          "maximum": 5000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "records": {
+          "maximum": 200000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "total_bytes": {
+          "maximum": 268435456,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "file_bytes",
+        "total_bytes",
+        "files",
+        "records",
+        "nodes",
+        "edges",
+        "hops",
+        "paths",
+        "expansions",
+        "output_bytes"
+      ],
+      "type": "object"
+    },
+    "partial_reasons": {
+      "items": {
+        "maxLength": 512,
+        "minLength": 0,
+        "type": "string"
+      },
+      "maxItems": 200000,
+      "minItems": 0,
+      "type": "array"
+    },
+    "paths": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "assumptions": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 0,
+              "type": "string"
+            },
+            "maxItems": 200000,
+            "minItems": 0,
+            "type": "array"
+          },
+          "business_impact": {
+            "maxLength": 256,
+            "minLength": 0,
+            "type": "string"
+          },
+          "classification": {
+            "enum": [
+              "modelled_reachable",
+              "conditional",
+              "latent_eligibility",
+              "unknown",
+              "blocked"
+            ],
+            "type": "string"
+          },
+          "cuts": {
+            "items": {
+              "maxLength": 64,
+              "minLength": 64,
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 200000,
+            "minItems": 0,
+            "type": "array"
+          },
+          "evidence": {
+            "items": {
+              "maxLength": 2048,
+              "minLength": 0,
+              "type": "string"
+            },
+            "maxItems": 200000,
+            "minItems": 0,
+            "type": "array"
+          },
+          "id": {
+            "maxLength": 64,
+            "minLength": 64,
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "rank": {
+            "maximum": 4,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "ranking_factors": {
+            "additionalProperties": false,
+            "properties": {
+              "authorization": {
+                "enum": [
+                  "modelled_reachable",
+                  "conditional",
+                  "latent_eligibility",
+                  "unknown",
+                  "blocked"
+                ],
+                "type": "string"
+              },
+              "evidence_count": {
+                "maximum": 9007199254740992,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "scope_depth": {
+                "maximum": 2048,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "steps": {
+                "maximum": 32,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "uncertainty_count": {
+                "maximum": 9007199254740992,
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "authorization",
+              "steps",
+              "scope_depth",
+              "uncertainty_count",
+              "evidence_count"
+            ],
+            "type": "object"
+          },
+          "start": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "tenant": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "tenant",
+              "id"
+            ],
+            "type": "object"
+          },
+          "steps": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "effect": {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "prerequisites": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "assumptions": {
+                        "items": {
+                          "maxLength": 512,
+                          "minLength": 0,
+                          "type": "string"
+                        },
+                        "maxItems": 200000,
+                        "minItems": 0,
+                        "type": "array"
+                      },
+                      "cuts": {
+                        "items": {
+                          "maxLength": 64,
+                          "minLength": 64,
+                          "pattern": "^[0-9a-f]{64}$",
+                          "type": "string"
+                        },
+                        "maxItems": 200000,
+                        "minItems": 0,
+                        "type": "array"
+                      },
+                      "decision": {
+                        "enum": [
+                          "allowed",
+                          "denied",
+                          "unknown",
+                          "latent_eligibility"
+                        ],
+                        "type": "string"
+                      },
+                      "evidence": {
+                        "items": {
+                          "maxLength": 2048,
+                          "minLength": 0,
+                          "type": "string"
+                        },
+                        "maxItems": 200000,
+                        "minItems": 0,
+                        "type": "array"
+                      },
+                      "reasons": {
+                        "items": {
+                          "maxLength": 512,
+                          "minLength": 0,
+                          "type": "string"
+                        },
+                        "maxItems": 200000,
+                        "minItems": 0,
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "decision",
+                      "reasons",
+                      "evidence",
+                      "cuts",
+                      "assumptions"
+                    ],
+                    "type": "object"
+                  },
+                  "maxItems": 200000,
+                  "minItems": 0,
+                  "type": "array"
+                },
+                "resource": {
+                  "maxLength": 2048,
+                  "minLength": 0,
+                  "type": "string"
+                },
+                "rule": {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "version": {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "rule",
+                "version",
+                "resource",
+                "effect",
+                "prerequisites"
+              ],
+              "type": "object"
+            },
+            "maxItems": 32,
+            "minItems": 0,
+            "type": "array"
+          },
+          "target": {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              },
+              "plane": {
+                "enum": [
+                  "control",
+                  "data"
+                ],
+                "type": "string"
+              },
+              "scope": {
+                "maxLength": 2048,
+                "minLength": 1,
+                "type": "string"
+              },
+              "tenant": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "tenant",
+              "scope",
+              "action",
+              "plane"
+            ],
+            "type": "object"
+          },
+          "uncertainty": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 0,
+              "type": "string"
+            },
+            "maxItems": 200000,
+            "minItems": 0,
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "start",
+          "target",
+          "classification",
+          "steps",
+          "evidence",
+          "assumptions",
+          "uncertainty",
+          "cuts",
+          "rank",
+          "ranking_factors",
+          "business_impact"
+        ],
+        "type": "object"
+      },
+      "maxItems": 5000,
+      "minItems": 0,
+      "type": "array"
+    },
+    "privacy": {
+      "maxLength": 512,
+      "minLength": 0,
+      "type": "string"
+    },
+    "remediation": {
+      "additionalProperties": false,
+      "properties": {
+        "actions": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "alternate_paths": {
+                "items": {
+                  "maxLength": 64,
+                  "minLength": 64,
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "maxItems": 5000,
+                "minItems": 0,
+                "type": "array"
+              },
+              "broken_paths": {
+                "items": {
+                  "maxLength": 64,
+                  "minLength": 64,
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "maxItems": 5000,
+                "minItems": 0,
+                "type": "array"
+              },
+              "conclusive_within_model": {
+                "type": "boolean"
+              },
+              "cut": {
+                "maxLength": 64,
+                "minLength": 64,
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "evidence": {
+                "items": {
+                  "maxLength": 2048,
+                  "minLength": 0,
+                  "type": "string"
+                },
+                "maxItems": 200000,
+                "minItems": 0,
+                "type": "array"
+              },
+              "family": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "maxLength": 64,
+                "minLength": 64,
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "limitations": {
+                "items": {
+                  "maxLength": 512,
+                  "minLength": 0,
+                  "type": "string"
+                },
+                "maxItems": 200000,
+                "minItems": 0,
+                "type": "array"
+              },
+              "object_id": {
+                "maxLength": 2048,
+                "minLength": 0,
+                "type": "string"
+              },
+              "operation": {
+                "const": "remove_observed_entitlement",
+                "type": "string"
+              },
+              "owner_validation_required": {
+                "const": true,
+                "type": "boolean"
+              },
+              "reachable_after": {
+                "maximum": 5000,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "scope": {
+                "maxLength": 2048,
+                "minLength": 0,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "surviving_paths": {
+                "items": {
+                  "maxLength": 64,
+                  "minLength": 64,
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "maxItems": 5000,
+                "minItems": 0,
+                "type": "array"
+              },
+              "tenant": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "operation",
+              "cut",
+              "family",
+              "tenant",
+              "object_id",
+              "scope",
+              "evidence",
+              "broken_paths",
+              "surviving_paths",
+              "alternate_paths",
+              "reachable_after",
+              "conclusive_within_model",
+              "limitations",
+              "owner_validation_required"
+            ],
+            "type": "object"
+          },
+          "maxItems": 64,
+          "minItems": 0,
+          "type": "array"
+        },
+        "global_minimum_claimed": {
+          "const": false,
+          "type": "boolean"
+        },
+        "method": {
+          "const": "single scoped entitlement removal and full bounded re-evaluation",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "attackpath.azure.remediation/v1",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "method",
+        "global_minimum_claimed",
+        "actions"
+      ],
+      "type": "object"
+    },
+    "rule_version": {
+      "const": "azure-entitlements/v1",
+      "type": "string"
+    },
+    "run_id": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "attackpath.azure.report/v1",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "partial",
+        "complete_within_model"
+      ],
+      "type": "string"
+    },
+    "work_units": {
+      "maximum": 9007199254740992,
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "as_of",
+    "rule_version",
+    "status",
+    "partial_reasons",
+    "work_units",
+    "limits",
+    "paths",
+    "graph",
+    "evidence_ledger",
+    "remediation",
+    "limitations",
+    "run_id"
+  ],
+  "title": "Azure report v1",
+  "type": "object"
+}

@@ -12,3 +12,17 @@ The following require supplied, approved inputs before implementation: real Wiz 
 4. Which ATT&CK matrix/version and Attack Flow bundle may be stored locally?
 5. Which authorized validation tests and telemetry sources may substantiate closure?
 6. Which person or process records and resolves specialist disagreements?
+
+## Azure entitlement implementation (#26)
+
+The additive Azure profile accepts SDK response pages and acquisition receipts,
+normalizes tenant and scope relationships, evaluates bounded authorization paths,
+exports evidence-linked reports and single-entitlement counterfactuals, and generates
+read-only collection plans. Paired fixtures cover RBAC grants, application credentials,
+VMs, Automation, Functions, Logic Apps, user-assigned identity attachment, federation,
+and Lighthouse delegation. Acceptance scenarios also cover incomplete acquisition,
+integrity failure, missing runtime context and alternate grants.
+
+Live collection, Attack Flow serialization, and workflow automation remain separate
+workstreams. This implementation authenticates to no service, sends no API requests,
+retrieves no secrets, changes no entitlements, and executes no suggested remediation.

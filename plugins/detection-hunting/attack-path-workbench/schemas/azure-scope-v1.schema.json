@@ -1,0 +1,117 @@
+{
+  "$id": "urn:cops:attackpath:azure:scope:v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "attackpath.azure.scope/v1",
+      "type": "string"
+    },
+    "tenants": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "administrative_units": {
+            "items": {
+              "maxLength": 2048,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 128,
+            "minItems": 0,
+            "type": "array"
+          },
+          "applications": {
+            "items": {
+              "maxLength": 2048,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 128,
+            "minItems": 0,
+            "type": "array"
+          },
+          "groups": {
+            "items": {
+              "maxLength": 2048,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 128,
+            "minItems": 0,
+            "type": "array"
+          },
+          "id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "management_groups": {
+            "items": {
+              "maxLength": 2048,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 128,
+            "minItems": 0,
+            "type": "array"
+          },
+          "resources": {
+            "items": {
+              "maxLength": 2048,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 128,
+            "minItems": 0,
+            "type": "array"
+          },
+          "scopes": {
+            "items": {
+              "maxLength": 2048,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 128,
+            "minItems": 1,
+            "type": "array"
+          },
+          "service_principals": {
+            "items": {
+              "maxLength": 2048,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 128,
+            "minItems": 0,
+            "type": "array"
+          },
+          "user_assigned_identities": {
+            "items": {
+              "maxLength": 2048,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 128,
+            "minItems": 0,
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "scopes"
+        ],
+        "type": "object"
+      },
+      "maxItems": 16,
+      "minItems": 0,
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "tenants"
+  ],
+  "title": "Azure scope v1",
+  "type": "object"
+}

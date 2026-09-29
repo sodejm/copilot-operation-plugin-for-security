@@ -1,0 +1,37 @@
+{
+  "contracts": [
+    "cops.evidence/v1",
+    "cops.acquisition/v1"
+  ],
+  "schema_version": "attackpath.sdk-bundle/v1",
+  "sources": [
+    {
+      "path": "cops/evidence/__init__.py",
+      "sha256": "f104b285bb1202f9b9447b2cde2b8ba8e1ea289a83213f28b21c5e658fd2e480"
+    },
+    {
+      "path": "cops/evidence/canonical.py",
+      "sha256": "4bafcadfcbc755e451faae1ce3531518da961b34460bb81e9e429c1897b556e5"
+    },
+    {
+      "path": "cops/evidence/contract.py",
+      "sha256": "1dcd511c0606ce747c0aff97bdb22ba453ef6ebfa44a3b063d94b784c69b32cc"
+    },
+    {
+      "path": "cops/evidence/validation.py",
+      "sha256": "0fc330b7c7bef14153791fb0c0d2ba6d61da9c86848a6824314bf784ce80122a"
+    },
+    {
+      "path": "cops/evidence/assessment.py",
+      "sha256": "a4c70a6465d2bbaaafc4d1fdff71da7cd3739880e465916c36a03ff45eff7448"
+    },
+    {
+      "path": "catalog/schemas/evidence-envelope.schema.json",
+      "sha256": "b8daa7b57d61e135a8929aabee7a1341f6266179444d4287b6cbe4c1a82508b5"
+    },
+    {
+      "path": "catalog/schemas/acquisition-receipt.schema.json",
+      "sha256": "b33cfb55b6fa63f9bb566ba9a7acc52ba2d28ed82e72587081bc45f4da0fc956"
+    }
+  ]
+}

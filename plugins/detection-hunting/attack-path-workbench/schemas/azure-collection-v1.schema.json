@@ -1,0 +1,343 @@
+{
+  "$id": "urn:cops:attackpath:azure:collection:v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "cloud": {
+      "const": "AzurePublic",
+      "type": "string"
+    },
+    "constraints": {
+      "items": {
+        "maxLength": 2048,
+        "minLength": 0,
+        "type": "string"
+      },
+      "maxItems": 200000,
+      "minItems": 0,
+      "type": "array"
+    },
+    "expected_evidence": {
+      "additionalProperties": false,
+      "properties": {
+        "counts": {
+          "maxLength": 2048,
+          "minLength": 0,
+          "type": "string"
+        },
+        "envelope": {
+          "maxLength": 2048,
+          "minLength": 0,
+          "type": "string"
+        },
+        "manifest": {
+          "maxLength": 2048,
+          "minLength": 0,
+          "type": "string"
+        },
+        "payload": {
+          "maxLength": 2048,
+          "minLength": 0,
+          "type": "string"
+        },
+        "projections": {
+          "maxLength": 2048,
+          "minLength": 0,
+          "type": "string"
+        },
+        "receipt": {
+          "maxLength": 2048,
+          "minLength": 0,
+          "type": "string"
+        },
+        "record": {
+          "maxLength": 2048,
+          "minLength": 0,
+          "type": "string"
+        }
+      },
+      "required": [
+        "envelope",
+        "record",
+        "receipt",
+        "payload",
+        "manifest",
+        "counts",
+        "projections"
+      ],
+      "type": "object"
+    },
+    "requests": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "api": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "context": {
+            "additionalProperties": false,
+            "properties": {
+              "groupId": {
+                "maxLength": 2048,
+                "minLength": 0,
+                "type": "string"
+              },
+              "objectId": {
+                "maxLength": 2048,
+                "minLength": 0,
+                "type": "string"
+              }
+            },
+            "required": [],
+            "type": "object"
+          },
+          "family": {
+            "enum": [
+              "administrative_members",
+              "administrative_units",
+              "app_role_assignments",
+              "applications",
+              "authentication_strengths",
+              "azure_pim_active",
+              "azure_pim_eligible",
+              "azure_pim_policies",
+              "azure_pim_policy_assignments",
+              "conditional_access",
+              "deny_assignments",
+              "directory_assignments",
+              "directory_definitions",
+              "directory_pim_active",
+              "directory_pim_eligible",
+              "directory_pim_policies",
+              "directory_pim_policy_assignments",
+              "federated_credentials",
+              "group_members",
+              "groups",
+              "lighthouse",
+              "lighthouse_assignments",
+              "owners",
+              "resource_inventory",
+              "resources",
+              "role_assignments",
+              "role_definitions",
+              "scope_parents",
+              "service_principals",
+              "users"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "maxLength": 64,
+            "minLength": 64,
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "GET",
+              "POST"
+            ]
+          },
+          "pagination": {
+            "maxLength": 2048,
+            "minLength": 0,
+            "type": "string"
+          },
+          "permission": {
+            "maxLength": 2048,
+            "minLength": 0,
+            "type": "string"
+          },
+          "product": {
+            "enum": [
+              "MicrosoftGraph",
+              "AzureResourceManager",
+              "AzureResourceGraph"
+            ],
+            "type": "string"
+          },
+          "reference": {
+            "maxLength": 8192,
+            "minLength": 1,
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "maxLength": 2048,
+              "minLength": 0,
+              "type": "string"
+            },
+            "maxItems": 200000,
+            "minItems": 0,
+            "type": "array"
+          },
+          "tenant": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "url": {
+            "maxLength": 8192,
+            "minLength": 1,
+            "type": "string"
+          },
+          "body": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "query",
+              "options"
+            ],
+            "properties": {
+              "query": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 32768
+              },
+              "subscriptions": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 1,
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2048
+                }
+              },
+              "managementGroups": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 1,
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2048
+                }
+              },
+              "options": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "$top",
+                  "resultFormat"
+                ],
+                "properties": {
+                  "$top": {
+                    "type": "integer",
+                    "const": 1000
+                  },
+                  "resultFormat": {
+                    "type": "string",
+                    "const": "objectArray"
+                  }
+                }
+              }
+            },
+            "oneOf": [
+              {
+                "required": [
+                  "subscriptions"
+                ],
+                "not": {
+                  "required": [
+                    "managementGroups"
+                  ]
+                }
+              },
+              {
+                "required": [
+                  "managementGroups"
+                ],
+                "not": {
+                  "required": [
+                    "subscriptions"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "tenant",
+          "family",
+          "product",
+          "api",
+          "method",
+          "url",
+          "scopes",
+          "permission",
+          "reference",
+          "context",
+          "pagination"
+        ],
+        "type": "object",
+        "if": {
+          "properties": {
+            "product": {
+              "const": "AzureResourceGraph"
+            }
+          },
+          "required": [
+            "product"
+          ]
+        },
+        "then": {
+          "required": [
+            "body"
+          ],
+          "properties": {
+            "method": {
+              "const": "POST"
+            },
+            "family": {
+              "const": "resource_inventory"
+            },
+            "api": {
+              "const": "2024-04-01"
+            },
+            "url": {
+              "const": "https://management.azure.com/providers/Microsoft.ResourceGraph/resources?api-version=2024-04-01"
+            }
+          }
+        },
+        "else": {
+          "properties": {
+            "method": {
+              "const": "GET"
+            },
+            "family": {
+              "not": {
+                "const": "resource_inventory"
+              }
+            }
+          },
+          "not": {
+            "required": [
+              "body"
+            ]
+          }
+        }
+      },
+      "maxItems": 2048,
+      "minItems": 0,
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "attackpath.azure.collection/v1",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "cloud",
+    "requests",
+    "expected_evidence",
+    "constraints"
+  ],
+  "title": "Azure collection v1",
+  "type": "object"
+}

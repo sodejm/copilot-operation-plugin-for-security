@@ -1,0 +1,75 @@
+{
+  "$id": "urn:cops:attackpath:azure:completion:v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "files": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence-ledger.json": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "graph.json": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "remediation.json": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "report.json": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "report.md": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "report.json",
+        "graph.json",
+        "evidence-ledger.json",
+        "remediation.json",
+        "report.md"
+      ],
+      "type": "object"
+    },
+    "run_id": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "attackpath.azure.completion/v1",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "partial",
+        "complete_within_model"
+      ],
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "run_id",
+    "status",
+    "files"
+  ],
+  "title": "Azure completion v1",
+  "type": "object"
+}

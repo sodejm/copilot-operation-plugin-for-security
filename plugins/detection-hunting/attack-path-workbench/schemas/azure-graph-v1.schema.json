@@ -1,0 +1,224 @@
+{
+  "$id": "urn:cops:attackpath:azure:graph:v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "coverage": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "complete": {
+            "type": "boolean"
+          },
+          "evidence": {
+            "items": {
+              "maxLength": 2048,
+              "minLength": 0,
+              "type": "string"
+            },
+            "maxItems": 200000,
+            "minItems": 0,
+            "type": "array"
+          },
+          "family": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "maxLength": 2048,
+              "minLength": 0,
+              "type": "string"
+            },
+            "maxItems": 200000,
+            "minItems": 0,
+            "type": "array"
+          },
+          "tenant": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "family",
+          "tenant",
+          "scopes",
+          "complete",
+          "evidence"
+        ],
+        "type": "object"
+      },
+      "maxItems": 200000,
+      "minItems": 0,
+      "type": "array"
+    },
+    "edges": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "end": {
+            "format": "date-time",
+            "maxLength": 64,
+            "minLength": 1,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "evidence": {
+            "items": {
+              "maxLength": 2048,
+              "minLength": 0,
+              "type": "string"
+            },
+            "maxItems": 200000,
+            "minItems": 0,
+            "type": "array"
+          },
+          "id": {
+            "maxLength": 64,
+            "minLength": 64,
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "observed_at": {
+            "items": {
+              "format": "date-time",
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 200000,
+            "minItems": 0,
+            "type": "array"
+          },
+          "relation": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "scope": {
+            "maxLength": 2048,
+            "minLength": 0,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source": {
+            "maxLength": 2048,
+            "minLength": 0,
+            "type": "string"
+          },
+          "start": {
+            "format": "date-time",
+            "maxLength": 64,
+            "minLength": 1,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "target": {
+            "maxLength": 2048,
+            "minLength": 0,
+            "type": "string"
+          },
+          "uncertainty": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 0,
+              "type": "string"
+            },
+            "maxItems": 200000,
+            "minItems": 0,
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "target",
+          "relation",
+          "scope",
+          "observed_at",
+          "start",
+          "end",
+          "evidence",
+          "uncertainty"
+        ],
+        "type": "object"
+      },
+      "maxItems": 1000000,
+      "minItems": 0,
+      "type": "array"
+    },
+    "nodes": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "evidence": {
+            "items": {
+              "maxLength": 2048,
+              "minLength": 0,
+              "type": "string"
+            },
+            "maxItems": 200000,
+            "minItems": 0,
+            "type": "array"
+          },
+          "id": {
+            "maxLength": 2048,
+            "minLength": 0,
+            "type": "string"
+          },
+          "tenant": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "uncertainty": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 0,
+              "type": "string"
+            },
+            "maxItems": 200000,
+            "minItems": 0,
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "tenant",
+          "type",
+          "evidence",
+          "uncertainty"
+        ],
+        "type": "object"
+      },
+      "maxItems": 200000,
+      "minItems": 0,
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "attackpath.azure.graph/v1",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "nodes",
+    "edges",
+    "coverage"
+  ],
+  "title": "Azure graph v1",
+  "type": "object"
+}

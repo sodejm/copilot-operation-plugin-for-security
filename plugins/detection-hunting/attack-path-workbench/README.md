@@ -1,6 +1,6 @@
 # Attack Path Workbench
 
-An offline plugin for evidence-linked, conditional attack-path analysis. This first release runs against a **synthetic illustrative export contract only**. It makes no Wiz or other network calls. Real Wiz field mapping and query rendering require approved documentation and representative redacted exports.
+An offline plugin for evidence-linked, conditional attack-path analysis. It supports a synthetic illustrative export contract and local Azure entitlement evidence. It makes no network calls. Real Wiz field mapping and query rendering require approved documentation and representative redacted exports.
 
 ## Try the illustrative fixture
 
@@ -13,6 +13,21 @@ python3 -m unittest discover -s tests -v
 ```
 
 Choose a fresh output directory. The analysis writes `report.json`, `report.md`, `graph.json`, and `remediation-ledger.json`. The fixture is invented test data, not a finding or a Wiz export. A structural route is conditional on exploiting its starting finding; the candidate route has explicit gaps. Business rating stays `unrated`; ATT&CK, Attack Flow, and Wiz rendering stay pending approved local material.
+
+## Analyze Azure entitlement evidence
+
+```sh
+python3 scripts/attackpath.py plan-azure-collection --scope-file scopes.json --output collection-plan
+python3 scripts/attackpath.py analyze-azure --input bundle/manifest.json --as-of 2026-09-28T12:00:00Z --output azure-report
+```
+
+Both commands operate offline and require a fresh output directory. The planner
+writes versioned Graph/ARM GET requests and Resource Graph inventory POST requests
+for a separately authorized collector. The analyzer
+requires checksummed COPS Evidence SDK pages and acquisition receipts; it models
+permissions and explicit runtime assumptions without executing a path. Read the
+[Azure entitlement guide](docs/azure-entitlements.md) for input contracts,
+prerequisites, output classifications, privacy controls, and limits.
 
 ## Contracts and boundaries
 
