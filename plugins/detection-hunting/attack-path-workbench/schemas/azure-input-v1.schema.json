@@ -1,0 +1,441 @@
+{
+  "$id": "urn:cops:attackpath:azure:input:v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "limits": {
+      "additionalProperties": false,
+      "properties": {
+        "edges": {
+          "maximum": 1000000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "expansions": {
+          "maximum": 2000000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "file_bytes": {
+          "maximum": 16777216,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "files": {
+          "maximum": 256,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "hops": {
+          "maximum": 32,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "nodes": {
+          "maximum": 200000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "output_bytes": {
+          "maximum": 134217728,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "paths": {
+          "maximum": 5000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "records": {
+          "maximum": 200000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "total_bytes": {
+          "maximum": 268435456,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "scenario": {
+      "additionalProperties": false,
+      "properties": {
+        "activations": {
+          "additionalProperties": {
+            "additionalProperties": false,
+            "properties": {
+              "approval": {
+                "type": "boolean"
+              },
+              "authentication_context": {
+                "type": "boolean"
+              },
+              "duration_minutes": {
+                "maximum": 1440,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "mfa": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "duration_minutes"
+            ],
+            "type": "object"
+          },
+          "type": "object"
+        },
+        "assertions": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "audience": {
+                "maxLength": 2048,
+                "minLength": 0,
+                "type": "string"
+              },
+              "controlled": {
+                "type": "boolean"
+              },
+              "issuer": {
+                "maxLength": 2048,
+                "minLength": 0,
+                "type": "string"
+              },
+              "subject": {
+                "maxLength": 2048,
+                "minLength": 0,
+                "type": "string"
+              }
+            },
+            "required": [
+              "issuer",
+              "subject",
+              "audience",
+              "controlled"
+            ],
+            "type": "object"
+          },
+          "maxItems": 200000,
+          "minItems": 0,
+          "type": "array"
+        },
+        "business_impact": {
+          "additionalProperties": {
+            "maxLength": 256,
+            "minLength": 0,
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "controlled": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "tenant": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "tenant",
+              "id"
+            ],
+            "type": "object"
+          },
+          "maxItems": 200000,
+          "minItems": 0,
+          "type": "array"
+        },
+        "credential_restrictions": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "credential_update_allowed": {
+                "type": "boolean"
+              },
+              "object": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "tenant": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "tenant",
+              "object",
+              "credential_update_allowed"
+            ],
+            "type": "object"
+          },
+          "maxItems": 200000,
+          "minItems": 0,
+          "type": "array"
+        },
+        "owner_credential_rights": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "object": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "principal": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "tenant": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "tenant",
+              "principal",
+              "object"
+            ],
+            "type": "object"
+          },
+          "maxItems": 200000,
+          "minItems": 0,
+          "type": "array"
+        },
+        "pseudonymize": {
+          "type": "boolean"
+        },
+        "runtime": {
+          "additionalProperties": {
+            "additionalProperties": false,
+            "properties": {
+              "automation_sandbox": {
+                "type": "boolean"
+              },
+              "function_deployment": {
+                "type": "boolean"
+              },
+              "identity_action": {
+                "type": "boolean"
+              },
+              "invocation": {
+                "type": "boolean"
+              },
+              "logic_consumption": {
+                "type": "boolean"
+              },
+              "network": {
+                "type": "boolean"
+              },
+              "token_endpoint": {
+                "type": "boolean"
+              },
+              "vm_agent": {
+                "type": "boolean"
+              }
+            },
+            "required": [],
+            "type": "object"
+          },
+          "type": "object"
+        },
+        "targets": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              },
+              "plane": {
+                "enum": [
+                  "control",
+                  "data"
+                ],
+                "type": "string"
+              },
+              "scope": {
+                "maxLength": 2048,
+                "minLength": 1,
+                "type": "string"
+              },
+              "tenant": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "tenant",
+              "scope",
+              "action",
+              "plane"
+            ],
+            "type": "object"
+          },
+          "maxItems": 200000,
+          "minItems": 0,
+          "type": "array"
+        }
+      },
+      "required": [
+        "controlled",
+        "targets"
+      ],
+      "type": "object"
+    },
+    "schema_version": {
+      "const": "attackpath.azure.input/v1",
+      "type": "string"
+    },
+    "sources": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "api": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "context": {
+            "additionalProperties": false,
+            "properties": {
+              "groupId": {
+                "maxLength": 2048,
+                "minLength": 1,
+                "type": "string"
+              },
+              "objectId": {
+                "maxLength": 2048,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [],
+            "type": "object"
+          },
+          "family": {
+            "enum": [
+              "administrative_members",
+              "administrative_units",
+              "app_role_assignments",
+              "applications",
+              "authentication_strengths",
+              "azure_pim_active",
+              "azure_pim_eligible",
+              "azure_pim_policies",
+              "azure_pim_policy_assignments",
+              "conditional_access",
+              "deny_assignments",
+              "directory_assignments",
+              "directory_definitions",
+              "directory_pim_active",
+              "directory_pim_eligible",
+              "directory_pim_policies",
+              "directory_pim_policy_assignments",
+              "federated_credentials",
+              "group_members",
+              "groups",
+              "lighthouse",
+              "lighthouse_assignments",
+              "owners",
+              "resources",
+              "role_assignments",
+              "role_definitions",
+              "scope_parents",
+              "service_principals",
+              "users"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "max_age_seconds": {
+            "maximum": 31536000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "path": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "type": "string"
+          },
+          "receipt": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "type": "string"
+          },
+          "receipt_sha256": {
+            "maxLength": 64,
+            "minLength": 64,
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "maxLength": 2048,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 200000,
+            "minItems": 1,
+            "type": "array"
+          },
+          "sha256": {
+            "maxLength": 64,
+            "minLength": 64,
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "tenant": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "family",
+          "api",
+          "tenant",
+          "scopes",
+          "path",
+          "sha256",
+          "receipt",
+          "receipt_sha256",
+          "max_age_seconds"
+        ],
+        "type": "object"
+      },
+      "maxItems": 127,
+      "minItems": 0,
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "sources",
+    "scenario"
+  ],
+  "title": "Azure input v1",
+  "type": "object"
+}

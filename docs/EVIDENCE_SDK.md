@@ -5,6 +5,10 @@ The repository-owned `cops.evidence` and `cops.connectors` modules implement the
 the standard library. They provide a common evidence contract and a bounded
 acquisition lifecycle for reviewed, read-only adapters. Existing plugin evidence
 formats remain independent; portable exports do not automatically include this SDK.
+The Attack Path Workbench Azure profile explicitly distributes a generated,
+allowlisted contract/validation subset without collector transport or authentication.
+`python3 scripts/agent/bundle_evidence.py --check` verifies this subset against the
+canonical sources and is part of `make check`.
 
 ## Try the offline examples
 

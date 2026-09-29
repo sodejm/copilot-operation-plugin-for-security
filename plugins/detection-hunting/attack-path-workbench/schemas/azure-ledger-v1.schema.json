@@ -1,0 +1,97 @@
+{
+  "$id": "urn:cops:attackpath:azure:ledger:v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "records": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "acquisition_id": {
+            "maxLength": 2048,
+            "minLength": 0,
+            "type": "string"
+          },
+          "content_hash": {
+            "maxLength": 64,
+            "minLength": 64,
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "file_sha256": {
+            "maxLength": 64,
+            "minLength": 64,
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "maxLength": 64,
+            "minLength": 1,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "payload_sha256": {
+            "maxLength": 64,
+            "minLength": 64,
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "quality": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 0,
+              "type": "string"
+            },
+            "maxItems": 200000,
+            "minItems": 0,
+            "type": "array"
+          },
+          "receipt_sha256": {
+            "maxLength": 64,
+            "minLength": 64,
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "record_id": {
+            "maxLength": 2048,
+            "minLength": 0,
+            "type": "string"
+          },
+          "source_id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "record_id",
+          "source_id",
+          "payload_sha256",
+          "content_hash",
+          "file_sha256",
+          "receipt_sha256",
+          "observed_at",
+          "quality",
+          "acquisition_id"
+        ],
+        "type": "object"
+      },
+      "maxItems": 200000,
+      "minItems": 0,
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "attackpath.azure.ledger/v1",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "records"
+  ],
+  "title": "Azure ledger v1",
+  "type": "object"
+}

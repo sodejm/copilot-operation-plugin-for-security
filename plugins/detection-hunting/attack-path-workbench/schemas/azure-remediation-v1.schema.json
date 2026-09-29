@@ -1,0 +1,159 @@
+{
+  "$id": "urn:cops:attackpath:azure:remediation:v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "actions": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "alternate_paths": {
+            "items": {
+              "maxLength": 64,
+              "minLength": 64,
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 5000,
+            "minItems": 0,
+            "type": "array"
+          },
+          "broken_paths": {
+            "items": {
+              "maxLength": 64,
+              "minLength": 64,
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 5000,
+            "minItems": 0,
+            "type": "array"
+          },
+          "conclusive_within_model": {
+            "type": "boolean"
+          },
+          "cut": {
+            "maxLength": 64,
+            "minLength": 64,
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "evidence": {
+            "items": {
+              "maxLength": 2048,
+              "minLength": 0,
+              "type": "string"
+            },
+            "maxItems": 200000,
+            "minItems": 0,
+            "type": "array"
+          },
+          "family": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "id": {
+            "maxLength": 64,
+            "minLength": 64,
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "limitations": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 0,
+              "type": "string"
+            },
+            "maxItems": 200000,
+            "minItems": 0,
+            "type": "array"
+          },
+          "object_id": {
+            "maxLength": 2048,
+            "minLength": 0,
+            "type": "string"
+          },
+          "operation": {
+            "const": "remove_observed_entitlement",
+            "type": "string"
+          },
+          "owner_validation_required": {
+            "const": true,
+            "type": "boolean"
+          },
+          "reachable_after": {
+            "maximum": 5000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "scope": {
+            "maxLength": 2048,
+            "minLength": 0,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "surviving_paths": {
+            "items": {
+              "maxLength": 64,
+              "minLength": 64,
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 5000,
+            "minItems": 0,
+            "type": "array"
+          },
+          "tenant": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "operation",
+          "cut",
+          "family",
+          "tenant",
+          "object_id",
+          "scope",
+          "evidence",
+          "broken_paths",
+          "surviving_paths",
+          "alternate_paths",
+          "reachable_after",
+          "conclusive_within_model",
+          "limitations",
+          "owner_validation_required"
+        ],
+        "type": "object"
+      },
+      "maxItems": 64,
+      "minItems": 0,
+      "type": "array"
+    },
+    "global_minimum_claimed": {
+      "const": false,
+      "type": "boolean"
+    },
+    "method": {
+      "const": "single scoped entitlement removal and full bounded re-evaluation",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "attackpath.azure.remediation/v1",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "method",
+    "global_minimum_claimed",
+    "actions"
+  ],
+  "title": "Azure remediation v1",
+  "type": "object"
+}

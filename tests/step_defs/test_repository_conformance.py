@@ -119,7 +119,7 @@ def failing_gate(context, monkeypatch):
     context["commands"] = []
     monkeypatch.setattr(gate, "check_prerequisites", lambda root: True)
 
-    def fake_run(command):
+    def fake_run(command, cwd=gate.ROOT):
         context["commands"].append(command)
         return command[-3:] != ["-m", "cops", "check"]
 

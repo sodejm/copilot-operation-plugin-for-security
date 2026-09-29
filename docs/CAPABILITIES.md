@@ -10,6 +10,7 @@ one catalog before choosing a particular assistant host.
 | [Security Logging Advisor](../plugins/logging-telemetry/security-logging-advisor/README.md) | Stable | Scans a local repository for technology and logging signals and supplies specialist logging guidance | Heuristics and recommendations require human review; host installation is unverified |
 | [SOC Investigation Workbench](../plugins/detection-hunting/soc-investigation-workbench/README.md) | Beta | Validates evidence associations, hypotheses, question dependencies, budgets, and bounded next steps | Does not execute queries or response actions; Sentinel integration and live behavior are unverified |
 | [Sentinel Hunt Workbench](../plugins/detection-hunting/sentinel-hunt-workbench/README.md) | Beta | Explains, renders, and deterministically stress-tests 12 defensive hunting workflows across declared surfaces | Reference evaluation is not Kusto or Microsoft Sentinel; tenant behavior and host installation are unverified |
+| [Attack Path Workbench](../plugins/detection-hunting/attack-path-workbench/README.md) | Experimental | Models illustrative paths and Azure entitlement chains from local, checksummed evidence; generates read-only collection plans | Modelled reachability depends on supplied evidence and assumptions; live execution, Wiz mapping, and MITRE serialization are unverified |
 
 Run `python3 -m cops list` for the machine-validated current inventory and support
 states. Run `python3 -m cops info <plugin-id>` before use to see limitations and the

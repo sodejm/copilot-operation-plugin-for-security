@@ -1,6 +1,6 @@
 # Architecture and analysis method
 
-The workbench is an offline package. The CLI reads a local manifest and local export, executes deterministic stages, and writes a canonical report plus readable projections. The only runnable source adapter is an **illustrative synthetic contract**. No installed code authenticates to Wiz, renders Wiz syntax, downloads references, or invokes a specialist model.
+The workbench is an offline package. The CLI reads a local manifest and local export, executes deterministic stages, and writes a canonical report plus readable projections. The runnable source adapters are an illustrative synthetic contract and an offline Azure entitlement profile. The table and flow below describe the illustrative profile; the Azure profile is described separately below. No installed code authenticates to Wiz, renders Wiz syntax, downloads references, or invokes a specialist model.
 
 | Component | Purpose and required inputs | Output | Failure or uncertainty behavior |
 |---|---|---|---|
@@ -49,3 +49,35 @@ Each recommendation is linked to a path and source evidence, with a validation c
 The five bounded specialist definitions in `agents/` state their packet input, typed output, and evaluation cases. Their opinions are advisory. An orchestrator must preserve each opinion, prompt version, packet hash, model settings, citations, alternatives, and human disposition. A gate/specialist disagreement stays visible. An unresolved material claim-auditor objection blocks publication of that claim. There is no automatic agent orchestration in this release.
 
 Before real integration, supply: redacted Wiz exports and field/relationship documentation; exact query/API and coverage semantics; user crown jewels, service map, and business-impact criteria; locally approved ATT&CK and Attack Flow bundles; and the human authority for review and remediation closure. The current illustrative records are invented test data and establish no real exposure.
+
+## Azure entitlement profile
+
+`attackpath/azure/input.py` verifies local SDK envelopes and receipts before
+`normalize.py` projects allowlisted Graph and ARM fields. `model.py` owns bounded,
+tenant-qualified identities, scope ancestry, observations, validity intervals, and
+coverage. `identity.py` resolves witnessed membership and activation prerequisites;
+`permissions.py` evaluates role-local exclusions, denies, supported conditions, and
+directory scopes. `rules.py` defines entitlement transitions and exact prerequisites.
+`paths.py` performs bounded deterministic search. `report.py` re-evaluates individual
+entitlement removals and writes the graph, ledger, JSON and Markdown report.
+`collection.py` creates a read-only request plan and never sends it. Resource Graph
+inventory queries retain explicit subscription or management-group scope and
+project only IDs and types for a later typed ARM collection plan. Partial inventory
+visibility cannot establish evidence completeness.
+
+Every prerequisite distinguishes acquired evidence from scenario assumptions.
+Unsupported policies, missing coverage, stale observations and ambiguous joins
+remain unknown. A supported route is `modelled_reachable` within the supplied
+model; it is not observed execution. Missing runtime assumptions produce conditional
+routes, while PIM eligibility without satisfied activation stays latent. A deny or
+explicitly false prerequisite blocks its route. Shared bounds cover normalization,
+search and counterfactual work; a limit produces partial results rather than a
+completeness claim.
+
+The portable plugin includes an allowlisted, generated subset of the canonical
+COPS Evidence SDK in `attackpath/_runtime/`. The generator copies only contract,
+canonicalization, validation and assessment code plus the two required schemas.
+It includes neither transport nor authentication. The repository check verifies
+byte-for-byte agreement with canonical sources. The Azure CLI imports this subset
+through the package so that an exported installation can run independently.
+See the [Azure guide](azure-entitlements.md) for the precise evidence boundary.

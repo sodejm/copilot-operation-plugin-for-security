@@ -21,7 +21,31 @@ def main(argv: list[str] | None = None) -> int:
     intent.add_argument("--start", required=True)
     intent.add_argument("--target", required=True)
     intent.add_argument("--scope", required=True)
+    azure = commands.add_parser("analyze-azure", help="Analyze local Azure SDK evidence")
+    azure.add_argument("--input", required=True, type=Path)
+    azure.add_argument("--as-of", required=True)
+    azure.add_argument("--output", required=True, type=Path)
+    collection = commands.add_parser("plan-azure-collection", help="Produce a read-only Azure collection plan")
+    collection.add_argument("--scope-file", required=True, type=Path)
+    collection.add_argument("--output", required=True, type=Path)
     args = parser.parse_args(argv)
+    if args.command in ("analyze-azure", "plan-azure-collection"):
+        from .azure.model import AzureError
+        from .azure.report import analyze as analyze_azure, write_files
+        try:
+            if args.command == "analyze-azure":
+                result = analyze_azure(args.input, args.as_of, args.output)
+            else:
+                from .azure.collection import plan
+                result = plan(args.scope_file)
+                write_files(args.output, {"collection-plan.json": result}, 4194304)
+                result = {"requests": len(result["requests"])}
+            print(json.dumps(result, sort_keys=True))
+            return 0
+        except (AzureError, OSError, ValueError, RecursionError):
+            # Source values, local paths and SDK diagnostics are not safe to echo.
+            print("attack-path-workbench: Azure input or output validation failed", file=sys.stderr)
+            return 2
     try:
         if args.command == "query-intent":
             sys.stdout.buffer.write(canonical(query_intent(args.start, args.target, args.scope)))

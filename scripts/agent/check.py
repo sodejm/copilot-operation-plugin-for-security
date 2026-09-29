@@ -15,9 +15,9 @@ from repository_files import repository_files
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def run(command: list[str]) -> bool:
+def run(command: list[str], cwd: Path = ROOT) -> bool:
     print("+ " + " ".join(command), flush=True)
-    result = subprocess.run(command, cwd=ROOT, check=False)
+    result = subprocess.run(command, cwd=cwd, check=False)
     return result.returncode == 0
 
 
@@ -46,11 +46,15 @@ def main() -> int:
         run([sys.executable, "scripts/agent/validate_marketplace.py"]),
         run([sys.executable, "scripts/agent/install_prerequisites.py", "--validate"]),
         run([sys.executable, "scripts/agent/export_portable.py", "--check"]),
+        run([sys.executable, "scripts/agent/bundle_evidence.py", "--check"]),
         run([sys.executable, "-m", "cops", "generate", "--check"]),
         run([sys.executable, "-m", "cops", "check"]),
     ]
     if (ROOT / "tests").is_dir():
         checks.append(run([sys.executable, "-m", "pytest", "tests", "-q"]))
+    plugin_tests = ROOT / "plugins/detection-hunting/attack-path-workbench/tests"
+    if plugin_tests.is_dir():
+        checks.append(run([sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"], cwd=plugin_tests.parent))
     for suite in sorted((ROOT / ".agents" / "skills").glob("*/tests")):
         checks.append(run([sys.executable, "-m", "unittest", "discover", "-s", str(suite), "-v"]))
     if (ROOT / ".git").exists():

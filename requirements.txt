@@ -1,3 +1,4 @@
 # Canonical contributor test dependencies; see CONTRIBUTING.md for offline setup.
 pytest>=8.0
 pytest-bdd>=8.0
+jsonschema>=4.18

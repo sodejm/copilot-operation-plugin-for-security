@@ -20,3 +20,38 @@ This sibling plugin analyzes local, user-supplied export files only. Its first m
 ## Evidence and safety constraints
 
 The engine has no network client. Raw export records are retained by source hash and pointer, but are not blindly promoted to normalized facts. All source and context content is untrusted data. Incomplete or unknown export coverage remains explicit. Capability transitions are conditional scenarios, and path confidence means evidence support only. No likelihood or NIST rating is inferred.
+
+## Azure entitlement analysis (#26)
+
+The additive `analyze-azure` command accepts a bounded local manifest of pinned
+Graph/ARM response pages wrapped in `cops.evidence/v1` and acquisition receipts.
+It requires an explicit UTC analysis time and controlled-principal/target scenario.
+It preserves tenant-qualified identities, direct membership witnesses, temporal
+assignments, scope ancestry, separate control/data permissions and source uncertainty.
+The legacy illustrative engine and its identifiers remain stable.
+
+- AZ-01: Validate hashes, receipts, pagination, supported APIs and allowlisted
+  projections before permission reasoning. Reject unsafe paths and malformed data.
+- AZ-02: Resolve role-local exclusions, denies, supported conditions, group witnesses,
+  directory object scopes, PIM activation and restricted Lighthouse delegation.
+- AZ-03: Model explicit hypothetical grants, credential changes, identity attachment,
+  VM, Automation, Functions, Logic Apps and federation routes with exact rights
+  and runtime prerequisites. ARM deployment execution requires all supported
+  deployment operations at the resource group and underlying extension rights on
+  an observed VM. Vault write alone never establishes secret access.
+- AZ-04: Bound traversal and counterfactual work; emit deterministic reachable,
+  conditional, latent, blocked or unknown paths with evidence and uncertainty.
+- AZ-05: Export a typed graph, evidence ledger, safe Markdown and ranked JSON,
+  optionally pseudonymized. Suggest narrow cuts only after bounded re-analysis.
+- AZ-06: Generate bounded read-only Graph, ARM and Resource Graph inventory plans
+  for declared scopes, including endpoint versions, least-privilege permissions,
+  completeness limits and SDK shapes. Resource Graph inventory is scope-bounded,
+  can omit inaccessible resources and requires typed ARM follow-up evidence.
+- AZ-07: Execute paired fixtures for every supported resource family, including
+  deployment exclusions and missing underlying rights, and exercise realistic SDK
+  bundles through the standalone exported CLI with no network access.
+
+Modelled reachability establishes supported predicates in supplied evidence and
+scenario assumptions; it does not establish compromise or successful exploitation.
+Missing or unsupported prerequisites remain visible. No command authenticates,
+collects live data, changes entitlements, retrieves secrets or executes remediation.
