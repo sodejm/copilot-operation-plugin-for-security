@@ -16,6 +16,7 @@ This sibling plugin analyzes local, user-supplied export files only. Its first m
 - [x] APW-08: Check material claim references and reproducible output hashes; write JSON, Markdown, and a local proposed-action ledger without invented owners or closure.
 - [x] APW-09: Ship versioned specialist review contracts that can disagree without changing deterministic gate results.
 - [x] APW-10: Provide a positive illustrative fixture, denial and recovery variants, and automated tests for the above gates.
+- [x] APW-11: Read untrusted manifests and sources through a shared descriptor-anchored ingestion boundary. Reject links, special files, unsupported compression, oversized or deeply nested JSON, and exhausted file, byte, or record budgets before report completion. Record effective limits and usage in the report.
 
 ## Evidence and safety constraints
 
@@ -50,6 +51,10 @@ The legacy illustrative engine and its identifiers remain stable.
 - AZ-07: Execute paired fixtures for every supported resource family, including
   deployment exclusions and missing underlying rights, and exercise realistic SDK
   bundles through the standalone exported CLI with no network access.
+- AZ-08: Apply the shared ingestion boundary to manifests, acquisition receipts,
+  and JSONL sources. Count page envelopes and projected records against one record
+  budget; bound physical lines and JSON depth; reject exhausted budgets before
+  producing a completion marker. CLI limits may only tighten manifest limits.
 
 Modelled reachability establishes supported predicates in supplied evidence and
 scenario assumptions; it does not establish compromise or successful exploitation.

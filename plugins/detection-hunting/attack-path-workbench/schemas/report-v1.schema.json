@@ -6,6 +6,17 @@
   "required": ["schema_version", "run", "context", "coverage", "reconciliation", "evidence", "graph", "quarantine", "graph_exclusions", "supported_paths", "candidate_paths", "partial_paths", "technique_mappings", "attack_flow", "actions", "assumptions", "evidence_gaps", "alternative_interpretations", "human_review", "gate_results"],
   "properties": {
     "schema_version": {"const": "attackpath.report/v1"},
+    "ingestion": {"type": "object", "additionalProperties": false, "required": ["run_id", "limits", "bytes", "files", "records", "lines"], "properties": {
+      "run_id": {"type": "string"},
+      "limits": {"type": "object", "additionalProperties": false, "required": ["file_bytes", "total_bytes", "files", "line_bytes", "records", "json_depth"], "properties": {
+        "file_bytes": {"type": "integer", "minimum": 1, "maximum": 16777216},
+        "total_bytes": {"type": "integer", "minimum": 1, "maximum": 268435456},
+        "files": {"type": "integer", "minimum": 1, "maximum": 256},
+        "line_bytes": {"type": "integer", "minimum": 1, "maximum": 4194304},
+        "records": {"type": "integer", "minimum": 1, "maximum": 200000},
+        "json_depth": {"type": "integer", "minimum": 1, "maximum": 64}}},
+      "bytes": {"type": "integer", "minimum": 0}, "files": {"type": "integer", "minimum": 0},
+      "records": {"type": "integer", "minimum": 0}, "lines": {"type": "integer", "minimum": 0}}},
     "run": {
       "type": "object", "additionalProperties": false,
       "required": ["tool_version", "rule_version", "rule_sha256", "profile_sha256", "input_sha256", "source_sha256", "profile_versions", "reference_versions", "prompt_versions", "run_id"],

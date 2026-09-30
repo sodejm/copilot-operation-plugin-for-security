@@ -16,10 +16,12 @@ class Budget(AzureError):
 
 
 DEFAULTS = {"file_bytes": 4194304, "total_bytes": 67108864, "files": 64,
-            "records": 50000, "nodes": 50000, "edges": 200000, "hops": 12,
+            "line_bytes": 1048576, "records": 50000, "json_depth": 32,
+            "nodes": 50000, "edges": 200000, "hops": 12,
             "paths": 1000, "expansions": 200000, "output_bytes": 33554432}
 CEILINGS = {"file_bytes": 16777216, "total_bytes": 268435456, "files": 256,
-            "records": 200000, "nodes": 200000, "edges": 1000000, "hops": 32,
+            "line_bytes": 4194304, "records": 200000, "json_depth": 64,
+            "nodes": 200000, "edges": 1000000, "hops": 32,
             "paths": 5000, "expansions": 2000000, "output_bytes": 134217728}
 
 

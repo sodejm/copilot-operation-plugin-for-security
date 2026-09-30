@@ -14,6 +14,8 @@ python3 -m unittest discover -s tests -v
 
 Choose a fresh output directory. The analysis writes `report.json`, `report.md`, `graph.json`, and `remediation-ledger.json`. The fixture is invented test data, not a finding or a Wiz export. A structural route is conditional on exploiting its starting finding; the candidate route has explicit gaps. Business rating stays `unrated`; ATT&CK, Attack Flow, and Wiz rendering stay pending approved local material.
 
+Both `analyze` and `analyze-azure` accept optional `--max-file-bytes`, `--max-total-bytes`, `--max-files`, `--max-line-bytes`, `--max-records`, and `--max-json-depth` flags to tighten ingestion budgets. Successful reports record effective limits and consumption; a rejected input produces no completion marker.
+
 ## Analyze Azure entitlement evidence
 
 ```sh

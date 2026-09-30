@@ -46,3 +46,13 @@ Feature: Offline Azure entitlement analysis
     And deployment validation is excluded from the role
     When the Azure analyzer evaluates the bundle
     Then ARM deployment remains unknown because alternate grants are unresolved
+
+  Scenario: Azure ingestion rejects exhausted budgets
+    Given an Azure bundle with a source exceeding a file, line, depth, or combined record limit
+    When the Azure analyzer evaluates the bundle
+    Then ingestion rejects the input without a completion marker
+
+  Scenario: Azure command limits tighten manifest limits
+    Given an Azure bundle whose manifest permits a larger bounded input
+    When the Azure analyzer evaluates the bundle with a smaller command limit
+    Then the smaller limit is enforced before report completion

@@ -83,6 +83,9 @@ def build(graph):
     report = {"schema_version": "attackpath.azure.report/v1", "as_of": graph.as_of,
         "rule_version": "azure-entitlements/v1", "status": "partial" if graph.partial else "complete_within_model",
         "partial_reasons": sorted(set(graph.partial)), "work_units": graph.work, "limits": graph.limits,
+        "ingestion": getattr(graph, "ingestion", {"limits": {key: graph.limits[key] for key in
+            ("file_bytes", "total_bytes", "files", "line_bytes", "records", "json_depth")},
+            "bytes": 0, "files": 0, "records": 0, "lines": 0}),
         "paths": paths, "graph": export, "evidence_ledger": ledger, "remediation": cuts,
         "limitations": ["Offline authorization hypotheses require owner and runtime validation.",
             "Missing, stale, conflicting, conditioned or incomplete evidence cannot establish reachability.",
@@ -162,8 +165,8 @@ def write_files(output, contents, limit):
             os.close(fd)
 
 
-def analyze(manifest, as_of, output):
-    graph = load(manifest, as_of)
+def analyze(manifest, as_of, output, limits=None):
+    graph = load(manifest, as_of, limits)
     report = build(graph)
     contents = {"report.json": report, "graph.json": report["graph"],
         "evidence-ledger.json": report["evidence_ledger"], "remediation.json": report["remediation"],

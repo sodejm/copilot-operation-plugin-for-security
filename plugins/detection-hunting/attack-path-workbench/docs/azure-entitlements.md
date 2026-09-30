@@ -61,7 +61,8 @@ JSONL `path`, SHA-256 `sha256`, relative `receipt`, `receipt_sha256`, and
 record uses `cops.record/v1`; its payload has a `value` array of projected objects.
 A `cops.acquisition/v1` receipt binds the ordered pages, counts, continuation state
 and terminal acquisition status. Both receipt `pages` and `records` equal consumed
-page-envelope count. Inner projected objects have a separate record budget.
+page-envelope count. Page envelopes and inner projected objects share one
+ingestion record budget.
 Original record parents and locators must survive collector-side projections.
 
 Hash mismatches, unsupported APIs, malformed receipts, inconsistent pagination,
@@ -215,15 +216,22 @@ entitlement removal, owner assignment or closure; owner validation is required.
 
 ## Limits, privacy and operations
 
-Defaults allow 64 files, 4 MiB per evidence file, 64 MiB total source bytes,
-50,000 projected records, 50,000 nodes, 200,000 edges, 12 hops, 1,000 paths,
-200,000 work expansions and 32 MiB output. Bounded manifest overrides cannot
-exceed the ceilings in the input schema. Manifest and collection scope files are
-capped at 256 KiB, receipts at 64 KiB, page envelopes at 1 MiB and JSON depth at
-32. Collection plans allow 16 tenants, 128 entries per optional object list and
-2,048 requests. A graph, hop, path or work limit makes the report partial and
-prevents a completeness claim. An input or output byte-limit violation rejects
-the run instead of emitting a successful marker.
+Defaults allow 64 files, 4 MiB per evidence file, 64 MiB total bytes read,
+50,000 combined page envelopes and projected records, 50,000 nodes, 200,000
+edges, 12 hops, 1,000 paths, 200,000 work expansions and 32 MiB output.
+Bounded manifest overrides cannot exceed the ceilings in the input schema.
+Manifest and collection scope files are capped at 256 KiB, receipts at 64 KiB,
+physical JSONL lines at 1 MiB and JSON depth at 32. The total includes
+manifests, receipts, sources and integrity rechecks. The per-file, total-byte,
+file-count, line-byte, record and JSON-depth ceilings are 16 MiB, 256 MiB, 256,
+4 MiB, 200,000 and 64 respectively. The analyzer accepts `--max-file-bytes`,
+`--max-total-bytes`, `--max-files`, `--max-line-bytes`, `--max-records` and
+`--max-json-depth` to tighten manifest limits. Successful reports record
+effective limits and counters with the run ID. Collection plans allow 16 tenants,
+128 entries per optional object list and 2,048 requests. A graph, hop, path or
+work limit makes the report partial and prevents a completeness claim. An input
+or output byte-limit violation rejects the run instead of emitting a successful
+marker.
 
 Set `scenario.pseudonymize` to `true` for stable opaque tenant, principal, scope
 and resource identifiers with consistent graph joins. Owner-supplied business
