@@ -1,0 +1,15 @@
+{
+  "records": [
+    {
+      "environment": "lab",
+      "ip": "192.0.2.10",
+      "owner": "security-team",
+      "url": "https://admin.example.test/"
+    },
+    {
+      "environment": "lab",
+      "ip": "192.0.2.11",
+      "url": "https://unknown.example.test/"
+    }
+  ]
+}

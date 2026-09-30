@@ -1,0 +1,14 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "attack-surface-planner",
+  "version": "0.1.0",
+  "description": "Offline authorized-scope reconciliation and passive attack surface test planning.",
+  "author": {"name": "Justin Soderberg", "url": "https://github.com/sodejm"},
+  "repository": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "keywords": ["cybersecurity", "offensive-security", "attack-surface", "offline-planning"],
+  "extensions": {
+    "com.openai": {"displayName": "COPS Attack Surface Planner", "category": "Developer Tools"},
+    "com.sodejm.copse": {}
+  }
+}

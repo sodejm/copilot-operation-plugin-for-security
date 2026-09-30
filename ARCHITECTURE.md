@@ -45,6 +45,11 @@ that can be reviewed or distributed independently.
 - Sentinel Hunt Workbench owns hunt content, profiles, rendering, deterministic
   reference evaluation, and generated platform adapters. Its offline suite does not
   emulate Kusto or prove Microsoft Sentinel tenant behavior.
+- Attack Path Workbench analyzes illustrative local exports and keeps conditional
+  path claims linked to their source evidence.
+- Attack Surface Planner validates approval and scope against pinned local exports,
+  then produces passive hypotheses and a test plan. It cannot execute active tests
+  or authorize targets discovered in those exports.
 
 SOC-to-Sentinel handoff remains a guarded cross-package integration. The existence
 of both packages does not by itself validate the handoff or a live query path.

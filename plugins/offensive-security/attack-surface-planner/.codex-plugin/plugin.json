@@ -1,0 +1,20 @@
+{
+  "name": "attack-surface-planner",
+  "version": "0.1.0",
+  "description": "Offline authorized-scope reconciliation and passive attack surface test planning.",
+  "author": {"name": "Justin Soderberg", "url": "https://github.com/sodejm"},
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "COPS Attack Surface Planner",
+    "shortDescription": "Scope-first passive surface planning",
+    "longDescription": "Reconcile a signed-off rules-of-engagement manifest with pinned local Azure, Entra, DNS/CT, and endpoint exports. Produce attributed scope decisions and passive test proposals. No network or tenant API calls.",
+    "developerName": "Justin Soderberg",
+    "category": "Developer Tools",
+    "capabilities": ["Read"],
+    "defaultPrompt": ["Build an offline, scope-first attack surface review plan from my approved local manifest and exports."]
+  },
+  "repository": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "homepage": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "keywords": ["cybersecurity", "offensive-security", "attack-surface", "offline-planning"]
+}

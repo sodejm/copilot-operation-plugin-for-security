@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0",
+  "id": "attack-surface-planner",
+  "display_name": "COPS Attack Surface Planner",
+  "maturity": "experimental",
+  "summary": "Reconcile approved Microsoft/Azure scope with pinned local exports and produce passive review plans.",
+  "support": {
+    "structural_validation": "validated",
+    "offline_workflow": "validated",
+    "host_installation": "unverified",
+    "live_integration": "unverified"
+  },
+  "limitations": [
+    "Approval and ownership are operator assertions, not independently verified or cryptographically signed.",
+    "Only the documented local JSON export profiles are supported; no live Azure, Entra, DNS, CT, or endpoint integration is exercised.",
+    "Hypotheses do not establish exposure, exploitability, effective consent, or comprehensive inventory.",
+    "Active methods are unavailable."
+  ],
+  "demo": {
+    "description": "Print a passive plan for synthetic scope and local exports without network access.",
+    "command": ["$PYTHON", "plugins/offensive-security/attack-surface-planner/scripts/plan.py", "plugins/offensive-security/attack-surface-planner/fixtures/synthetic/scope.json"],
+    "timeout_seconds": 30
+  },
+  "validation": [{
+    "name": "offline package gate",
+    "command": ["$PYTHON", "plugins/offensive-security/attack-surface-planner/scripts/validate-package.py"],
+    "timeout_seconds": 120
+  }]
+}

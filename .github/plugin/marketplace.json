@@ -28,6 +28,12 @@
       "description": "Offline evidence-linked attack-path analysis of user-supplied exports.",
       "version": "0.1.0",
       "source": "./plugins/detection-hunting/attack-path-workbench"
+    },
+    {
+      "name": "attack-surface-planner",
+      "description": "Offline authorized-scope reconciliation and passive attack surface test planning.",
+      "version": "0.1.0",
+      "source": "./plugins/offensive-security/attack-surface-planner"
     }
   ]
 }
