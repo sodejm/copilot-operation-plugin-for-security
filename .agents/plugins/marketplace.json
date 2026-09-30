@@ -72,6 +72,18 @@
         "authentication": "ON_INSTALL"
       },
       "category": "Developer Tools"
+    },
+    {
+      "name": "exposure-triage-workbench",
+      "source": {
+        "source": "local",
+        "path": "./plugins/vulnerability-management/exposure-triage-workbench"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
     }
   ]
 }

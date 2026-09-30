@@ -20,6 +20,11 @@
       "id": "identity-access",
       "name": "Identity and Access Management",
       "description": "Identity inventory, privilege boundary modeling, entitlement analysis, and agent credential governance."
+    },
+    {
+      "id": "vulnerability-management",
+      "name": "Vulnerability Management",
+      "description": "Vulnerability advisory tracking, SBOM dependency analysis, contextual exposure triage, and risk remediation."
     }
   ]
 }

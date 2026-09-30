@@ -98,6 +98,21 @@
         "offline-analysis",
         "rbac"
       ]
+    },
+    {
+      "id": "exposure-triage-workbench",
+      "name": "COPS Exposure Triage Workbench",
+      "version": "0.1.0",
+      "primary_category": "vulnerability-management",
+      "path": "plugins/vulnerability-management/exposure-triage-workbench",
+      "tags": [
+        "cve",
+        "exposure-triage",
+        "reachability",
+        "risk-prioritization",
+        "sbom",
+        "vulnerability-management"
+      ]
     }
   ]
 }

@@ -59,6 +59,20 @@
       "url": "https://attack.mitre.org/techniques/T1078/004/"
     },
     {
+      "id": "T1190",
+      "name": "Exploit Public-Facing Application",
+      "tactics": ["initial-access"],
+      "platforms": ["Windows", "Linux", "macOS", "IaaS", "SaaS", "Network"],
+      "data_components": [
+        "Application Log: Application Vulnerability",
+        "Network Traffic: Network Traffic Flow"
+      ],
+      "revoked": false,
+      "deprecated": false,
+      "version": "18.0",
+      "url": "https://attack.mitre.org/techniques/T1190/"
+    },
+    {
       "id": "T1059",
       "name": "Command and Scripting Interpreter",
       "tactics": ["execution"],

@@ -40,6 +40,12 @@
       "description": "Model, analyze, and review Entra ID and AI Agent identity graphs, privilege boundaries, and exposure paths offline.",
       "version": "0.1.0",
       "source": "./plugins/identity-access/entra-identity-workbench"
+    },
+    {
+      "name": "exposure-triage-workbench",
+      "description": "Prioritize vulnerability alerts using multi-source evidence including SBOM versions, cloud asset criticality, and network reachability.",
+      "version": "0.1.0",
+      "source": "./plugins/vulnerability-management/exposure-triage-workbench"
     }
   ]
 }
