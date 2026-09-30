@@ -4,7 +4,7 @@
 portable cybersecurity plugins, agents, skills, and deterministic local tools.
 Product packages use the category-first path `plugins/<category>/<plugin-id>/`.
 The current catalog contains Security Logging Advisor, SOC Investigation Workbench,
-and Sentinel Hunt Workbench.
+Sentinel Hunt Workbench, Attack Path Workbench, and Attack Surface Planner.
 
 Python 3.11+ implements the host-neutral `python3 -m cops` operator interface,
 local tools, and package validation. Markdown holds instructions and durable
@@ -37,6 +37,12 @@ dependency-free operator smoke test on Linux, macOS, and Windows.
   adapters. Its evaluator is not Kusto or Microsoft Sentinel; tenant behavior,
   cost, latency, false positives, host activation, and live integration remain
   unverified.
+- Attack Path Workbench analyzes illustrative local exports and records conditional,
+  evidence-linked paths without contacting a live graph provider.
+- Attack Surface Planner checks an approved scope manifest and four pinned local
+  export types before producing passive hypotheses and a test plan. It performs no
+  tenant, DNS, or endpoint requests, and a discovery finding does not grant
+  authorization for active testing.
 
 SOC-to-Sentinel handoff is an explicit, guarded integration boundary. Co-location
 in this repository does not establish compatibility or release readiness. Package

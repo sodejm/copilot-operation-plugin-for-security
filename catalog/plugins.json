@@ -62,6 +62,21 @@
         "offline-analysis",
         "wiz"
       ]
+    },
+    {
+      "id": "attack-surface-planner",
+      "name": "COPS Attack Surface Planner",
+      "version": "0.1.0",
+      "primary_category": "offensive-security",
+      "path": "plugins/offensive-security/attack-surface-planner",
+      "tags": [
+        "attack-surface",
+        "azure",
+        "claude",
+        "codex",
+        "offline-planning",
+        "offensive-security"
+      ]
     }
   ]
 }

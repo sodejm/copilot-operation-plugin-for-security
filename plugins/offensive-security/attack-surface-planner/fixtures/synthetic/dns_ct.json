@@ -1,0 +1,16 @@
+{
+  "records": [
+    {
+      "environment": "lab",
+      "hostname": "api.example.test",
+      "owner": "security-team",
+      "record_type": "dns"
+    },
+    {
+      "environment": "lab",
+      "hostname": "api.evil-example.test",
+      "owner": "security-team",
+      "record_type": "certificate"
+    }
+  ]
+}

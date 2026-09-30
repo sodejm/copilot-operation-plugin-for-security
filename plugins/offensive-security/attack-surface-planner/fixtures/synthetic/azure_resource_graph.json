@@ -1,0 +1,20 @@
+{
+  "records": [
+    {
+      "environment": "lab",
+      "id": "/subscriptions/sub-111/resourceGroups/lab/providers/Microsoft.Web/sites/sample-app",
+      "owner": "security-team",
+      "public_endpoint": true,
+      "subscription_id": "sub-111",
+      "tenant_id": "tenant-111"
+    },
+    {
+      "environment": "lab",
+      "id": "/subscriptions/sub-999/resourceGroups/other/providers/Microsoft.Web/sites/outside",
+      "owner": "security-team",
+      "public_endpoint": true,
+      "subscription_id": "sub-999",
+      "tenant_id": "tenant-111"
+    }
+  ]
+}

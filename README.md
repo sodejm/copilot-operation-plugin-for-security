@@ -4,7 +4,7 @@
   <img src="docs/assets/cops-logo.png" alt="COPS shield and copilot visor logo" width="260">
 </p>
 
-COPS is a portable catalog of defensive cybersecurity plugins, agents, skills,
+COPS is a portable catalog of cybersecurity plugins, agents, skills,
 and deterministic local tools. A security engineer can use the repository without
 first learning any host-specific packaging format: the catalog says what is
 available, each package declares its own safe demo and checks, and generated host
@@ -38,6 +38,7 @@ installed in a particular assistant or that a live security service was exercise
 | SOC Investigation Workbench | Validate evidence associations and plan bounded investigations without running response actions | `python3 -m cops demo soc-investigation-workbench` |
 | Sentinel Hunt Workbench | Explain, render, and stress-test 12 defensive hunting workflows offline | `python3 -m cops demo sentinel-hunt-workbench` |
 | Attack Path Workbench | Trace conditional paths in illustrative local exports with evidence-linked reports | `python3 -m cops demo attack-path-workbench` |
+| Attack Surface Planner | Review approved scope and four local export types to produce a passive test plan | `python3 -m cops demo attack-surface-planner` |
 
 For the complete analyst walkthrough, command reference, and evidence boundaries,
 read [Getting Started](docs/GETTING_STARTED.md). Package-specific instructions live

@@ -1,0 +1,7 @@
+{
+  "name": "attack-surface-planner",
+  "version": "0.1.0",
+  "description": "Offline authorized-scope reconciliation and passive attack surface test planning.",
+  "author": {"name": "Justin Soderberg"},
+  "license": "PolyForm-Noncommercial-1.0.0"
+}

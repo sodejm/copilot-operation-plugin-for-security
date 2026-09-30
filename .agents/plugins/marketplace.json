@@ -48,6 +48,18 @@
         "authentication": "ON_INSTALL"
       },
       "category": "Developer Tools"
+    },
+    {
+      "name": "attack-surface-planner",
+      "source": {
+        "source": "local",
+        "path": "./plugins/offensive-security/attack-surface-planner"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
     }
   ]
 }

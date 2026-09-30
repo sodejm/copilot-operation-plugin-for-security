@@ -1,0 +1,22 @@
+{
+  "records": [
+    {
+      "environment": "lab",
+      "id": "app-111",
+      "owner": "security-team",
+      "permissions": [
+        "Directory.ReadWrite.All"
+      ],
+      "record_type": "application",
+      "tenant_id": "tenant-111"
+    },
+    {
+      "environment": "lab",
+      "id": "sp-999",
+      "owner": "security-team",
+      "permissions": [],
+      "record_type": "service_principal",
+      "tenant_id": "tenant-999"
+    }
+  ]
+}

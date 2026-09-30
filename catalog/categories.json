@@ -10,6 +10,11 @@
       "id": "logging-telemetry",
       "name": "Logging and Telemetry",
       "description": "Security event collection, logging design, telemetry quality, and audit visibility."
+    },
+    {
+      "id": "offensive-security",
+      "name": "Offensive Security",
+      "description": "Authorized adversarial assessment planning and bounded offensive testing; distinct from defensive detection and telemetry workflows."
     }
   ]
 }

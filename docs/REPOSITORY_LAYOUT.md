@@ -15,6 +15,7 @@
 | `plugins/detection-hunting/soc-investigation-workbench/` | Evidence-backed investigation planning and review |
 | `plugins/detection-hunting/sentinel-hunt-workbench/` | Offline Sentinel hunt authoring, rendering, and stress evaluation |
 | `plugins/detection-hunting/attack-path-workbench/` | Offline, evidence-linked analysis of illustrative attack paths |
+| `plugins/offensive-security/attack-surface-planner/` | Approved-scope, offline attack-surface discovery and passive test planning |
 | `.agents/plugins/`, `.github/plugin/`, `.claude-plugin/` | Generated host marketplace indexes; do not edit manually |
 | `AGENTS.md`, `.agents/skills/` | Canonical contributor contract and maintenance workflows |
 | `.claude/skills/` | Generated contributor-skill mirrors; do not edit manually |

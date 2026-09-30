@@ -1,0 +1,84 @@
+{
+  "approval": {
+    "approved_at": "2026-09-01T00:00:00Z",
+    "approved_by": "Synthetic Assessment Owner",
+    "reference": "SYNTHETIC-ROE-001"
+  },
+  "mode": "offline",
+  "schema_version": "1.0",
+  "scope": {
+    "allowed_methods": [
+      "passive-review"
+    ],
+    "domains": [
+      "example.test"
+    ],
+    "environments": [
+      "lab"
+    ],
+    "exclusions": {
+      "domains": [
+        "blocked.example.test"
+      ],
+      "ip_ranges": [
+        "192.0.2.128/25"
+      ],
+      "subscription_ids": [
+        "sub-denied"
+      ],
+      "tenant_ids": []
+    },
+    "ip_ranges": [
+      "192.0.2.0/24"
+    ],
+    "owners": [
+      "security-team"
+    ],
+    "subscription_ids": [
+      "sub-111"
+    ],
+    "tenant_ids": [
+      "tenant-111"
+    ],
+    "time_windows": [
+      {
+        "end": "2026-12-01T00:00:00Z",
+        "start": "2026-09-01T00:00:00Z"
+      }
+    ]
+  },
+  "sources": [
+    {
+      "collected_at": "2026-09-01T00:00:00Z",
+      "kind": "azure_resource_graph",
+      "path": "azure_resource_graph.json",
+      "record_count": 2,
+      "sha256": "8804ce70cdf0c4beb313739a1cd94235f9a1ca81448adccfd9f6cf00c9ab9288",
+      "source_ref": "synthetic-local-azure_resource_graph"
+    },
+    {
+      "collected_at": "2026-09-01T00:00:00Z",
+      "kind": "entra",
+      "path": "entra.json",
+      "record_count": 2,
+      "sha256": "259b88180741278813c516a03b38e59b18b5b732d130a584e4a9a928fadabaf9",
+      "source_ref": "synthetic-local-entra"
+    },
+    {
+      "collected_at": "2026-09-01T00:00:00Z",
+      "kind": "dns_ct",
+      "path": "dns_ct.json",
+      "record_count": 2,
+      "sha256": "0c5d508b15ae9b55adbacac255b874cd1cc978d7de5e142488b0355da5297979",
+      "source_ref": "synthetic-local-dns_ct"
+    },
+    {
+      "collected_at": "2026-09-01T00:00:00Z",
+      "kind": "public_endpoint",
+      "path": "public_endpoint.json",
+      "record_count": 2,
+      "sha256": "4b192c112e4f98e6ac17b6cb5a51b8ca149e38624432abfce1e30ac43bb584ba",
+      "source_ref": "synthetic-local-public_endpoint"
+    }
+  ]
+}
