@@ -1,0 +1,18 @@
+[
+  {
+    "id": "res-corp-keyvault-01",
+    "name": "kv-contoso-secrets-prod",
+    "resource_type": "Microsoft.KeyVault/vaults",
+    "subscription_id": "sub-01",
+    "resource_group": "rg-core",
+    "is_critical": true
+  },
+  {
+    "id": "res-customer-storage-01",
+    "name": "stcontosopublicdata",
+    "resource_type": "Microsoft.Storage/storageAccounts",
+    "subscription_id": "sub-01",
+    "resource_group": "rg-ai",
+    "is_critical": false
+  }
+]

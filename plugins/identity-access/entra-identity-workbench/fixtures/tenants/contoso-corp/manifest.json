@@ -1,0 +1,80 @@
+{
+  "schema_version": "entra.export-manifest/v1",
+  "tenant_id": "tenant-contoso-01",
+  "tenant_name": "Contoso Corporation",
+  "exported_at": "2026-09-30T12:00:00Z",
+  "sources": [
+    {
+      "source_id": "users",
+      "path": "users.json",
+      "sha256": "60a7c88746759dad2c42e623863a9cd2f91e565e63d2f092006c42f2555aca80",
+      "completeness": "full"
+    },
+    {
+      "source_id": "groups",
+      "path": "groups.json",
+      "sha256": "14de02a794190731fe0ce758504dd9001dae56111cb5b26caf0a3faa387b1847",
+      "completeness": "full"
+    },
+    {
+      "source_id": "applications",
+      "path": "applications.json",
+      "sha256": "920f68055a3c4b2c30b759494611cba70bd59c4b52d3e8c86bfba2d307909960",
+      "completeness": "full"
+    },
+    {
+      "source_id": "service_principals",
+      "path": "service_principals.json",
+      "sha256": "f2b4d2f21b8a8eed4f786824cfe0fd56037c5a5221b10b64009ef2c3cc59fde8",
+      "completeness": "full"
+    },
+    {
+      "source_id": "managed_identities",
+      "path": "managed_identities.json",
+      "sha256": "78b6d43b63cb180c2ac35c2cce37e18f354300b1b489acf8562c44ef728751e0",
+      "completeness": "full"
+    },
+    {
+      "source_id": "federated_credentials",
+      "path": "federated_credentials.json",
+      "sha256": "4cfd8070e8d63cd6886701e1eb8e5299f1e33be25aca1070b6c1006e273c4072",
+      "completeness": "full"
+    },
+    {
+      "source_id": "agent_blueprints",
+      "path": "agent_blueprints.json",
+      "sha256": "66649313b4439228c676f8a94030de496392c695f661fc722ca2eca24be5d632",
+      "completeness": "full"
+    },
+    {
+      "source_id": "agent_identities",
+      "path": "agent_identities.json",
+      "sha256": "dedfbfc182d27a2aefb2e773660b909faf06b6bd05fab98bb05cde9a90ea6803",
+      "completeness": "full"
+    },
+    {
+      "source_id": "resources",
+      "path": "resources.json",
+      "sha256": "ac42ad2d17375771819727d734cc507df1b93f5c22924a72b27bb6709aa623b6",
+      "completeness": "full"
+    },
+    {
+      "source_id": "directory_roles",
+      "path": "directory_roles.json",
+      "sha256": "83518ff080aa4ae8c21113cffd7fe0a5d55b8641b50de1f5e76f556fe05baa78",
+      "completeness": "full"
+    },
+    {
+      "source_id": "role_assignments",
+      "path": "role_assignments.json",
+      "sha256": "63bc28f24c91b119c56ead12472bd50cd099591d8f10baa5ecd1422b192f37e6",
+      "completeness": "full"
+    },
+    {
+      "source_id": "oauth_grants",
+      "path": "oauth_grants.json",
+      "sha256": "c790858c612a89ca120e70f437bc1e838c9f15490b33656676bd49c269a815f0",
+      "completeness": "full"
+    }
+  ]
+}

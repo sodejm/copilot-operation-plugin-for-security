@@ -1,0 +1,18 @@
+[
+  {
+    "id": "ra-agent-mismatch-01",
+    "principal_id": "agent-id-support-bot-01",
+    "role_definition_name": "Contributor",
+    "resource_id": "res-corp-keyvault-01",
+    "grant_type": "direct",
+    "scope": "/subscriptions/sub-01/resourceGroups/rg-core/providers/Microsoft.KeyVault/vaults/kv-contoso-secrets-prod"
+  },
+  {
+    "id": "ra-mi-privileged-02",
+    "principal_id": "mi-rag-worker-01",
+    "role_definition_name": "Owner",
+    "resource_id": "res-customer-storage-01",
+    "grant_type": "direct",
+    "scope": "/subscriptions/sub-01/resourceGroups/rg-ai"
+  }
+]

@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "graph.schema.json",
+  "title": "Entra Identity Graph Schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "tenant_id",
+    "nodes",
+    "edges"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "entra.identity-graph/v1"
+    },
+    "tenant_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/node"
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/edge"
+      }
+    }
+  },
+  "$defs": {
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "node_id",
+        "node_type",
+        "display_name",
+        "tenant_id",
+        "properties"
+      ],
+      "properties": {
+        "node_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "node_type": {
+          "enum": [
+            "tenant",
+            "user",
+            "group",
+            "app_registration",
+            "service_principal",
+            "managed_identity",
+            "agent_blueprint",
+            "agent_identity",
+            "federated_credential",
+            "directory_role",
+            "resource"
+          ]
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "tenant_id": {
+          "type": "string"
+        },
+        "properties": {
+          "type": "object"
+        }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "edge_id",
+        "source_id",
+        "target_id",
+        "relation",
+        "grant_type",
+        "scope"
+      ],
+      "properties": {
+        "edge_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "relation": {
+          "enum": [
+            "member_of",
+            "owns",
+            "instantiates",
+            "sponsored_by",
+            "federated_with",
+            "assigned_azure_role",
+            "assigned_directory_role",
+            "consented_api_permission",
+            "accesses_resource"
+          ]
+        },
+        "grant_type": {
+          "enum": [
+            "direct",
+            "inherited",
+            "delegated_obo",
+            "application_autonomous"
+          ]
+        },
+        "pim_state": {
+          "enum": ["active", "eligible", "none"]
+        },
+        "scope": {
+          "type": "string"
+        },
+        "provenance": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

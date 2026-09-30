@@ -1,0 +1,9 @@
+[
+  {
+    "id": "agent-id-support-bot-01",
+    "display_name": "agent-support-runtime-01",
+    "blueprint_id": "blueprint-support-bot-01",
+    "sponsor_id": "user-alice-01",
+    "active_status": "active"
+  }
+]

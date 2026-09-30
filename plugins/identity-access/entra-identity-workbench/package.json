@@ -1,0 +1,36 @@
+{
+  "schema_version": "1.0",
+  "id": "entra-identity-workbench",
+  "display_name": "COPS Entra Identity Workbench",
+  "maturity": "beta",
+  "summary": "Offline Entra ID, Azure RBAC, and AI Agent identity graph modeling, privilege analysis, and exposure review.",
+  "support": {
+    "structural_validation": "validated",
+    "offline_workflow": "validated",
+    "host_installation": "unverified",
+    "live_integration": "unverified"
+  },
+  "limitations": [
+    "Operates entirely on offline read-only tenant exports; does not perform live Microsoft Graph or Azure Resource Manager API calls.",
+    "Graph paths establish structural entitlement reachability and privilege relationships; they do not prove active attacker exploitation.",
+    "Requires tenant export manifests with explicit SHA-256 checksums; incomplete exports are flagged as unknown rather than asserted safe."
+  ],
+  "demo": {
+    "description": "Run an offline analysis of a multi-principal Entra tenant with human, app, managed identity, and Agent ID relationships.",
+    "command": [
+      "$PYTHON",
+      "plugins/identity-access/entra-identity-workbench/scripts/run_demo.py"
+    ],
+    "timeout_seconds": 60
+  },
+  "validation": [
+    {
+      "name": "offline-package-gate",
+      "command": [
+        "$PYTHON",
+        "plugins/identity-access/entra-identity-workbench/scripts/validate_package.py"
+      ],
+      "timeout_seconds": 60
+    }
+  ]
+}

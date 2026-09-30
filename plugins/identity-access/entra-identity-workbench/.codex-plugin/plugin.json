@@ -1,0 +1,39 @@
+{
+  "author": {
+    "name": "Justin Soderberg",
+    "url": "https://github.com/sodejm"
+  },
+  "description": "Model, analyze, and review Entra ID and AI Agent identity graphs, privilege boundaries, and exposure paths offline.",
+  "homepage": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "interface": {
+    "displayName": "COPS Entra Identity Workbench",
+    "shortDescription": "Entra ID and AI Agent identity exposure review.",
+    "longDescription": "Build evidence-linked identity graphs across users, groups, service principals, managed identities, agent blueprints, and Entra Agent IDs to uncover privilege escalation and consent exposure.",
+    "developerName": "Justin Soderberg",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Entra identity graph analysis",
+      "Agent ID and blueprint privilege inspection",
+      "Consent and PIM escalation review"
+    ],
+    "defaultPrompt": [
+      "Analyze this Entra identity export manifest to identify high-privilege agent paths, broad consent, or ownerless principals."
+    ]
+  },
+  "keywords": [
+    "agent-id",
+    "azure",
+    "cybersecurity",
+    "entra-id",
+    "foundry",
+    "iam",
+    "identity",
+    "pim",
+    "rbac"
+  ],
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "name": "entra-identity-workbench",
+  "repository": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "skills": "./skills/",
+  "version": "0.1.0"
+}

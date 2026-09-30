@@ -1,0 +1,26 @@
+[
+  {
+    "id": "user-alice-01",
+    "display_name": "Alice Admin",
+    "user_principal_name": "alice@contoso.com",
+    "tenant_id": "tenant-contoso-01",
+    "is_guest": false,
+    "account_enabled": true
+  },
+  {
+    "id": "user-bob-02",
+    "display_name": "Bob Developer",
+    "user_principal_name": "bob@contoso.com",
+    "tenant_id": "tenant-contoso-01",
+    "is_guest": false,
+    "account_enabled": true
+  },
+  {
+    "id": "user-guest-charlie-03",
+    "display_name": "Charlie External",
+    "user_principal_name": "charlie_fabrikam.com#EXT#@contoso.com",
+    "tenant_id": "tenant-fabrikam-02",
+    "is_guest": true,
+    "account_enabled": true
+  }
+]
