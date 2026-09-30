@@ -52,6 +52,15 @@ flowchart TD
 
 ---
 
+## MITRE ATT&CK & Attack Flow Coverage
+
+COPS capability logic, queries, and investigation workflows are formally mapped to the MITRE ATT&CK Enterprise Matrix (pinned v18.0) and MITRE Attack Flow:
+
+- **[MITRE ATT&CK Coverage Matrix](COVERAGE_MATRIX.md)**: Explore normalized technique mappings, coverage roles (detection, investigation, prevention, response), validation states, and known bypass confounders.
+- **[Coverage & Attack Flow Guide](ATTACK_COVERAGE.md)**: Learn how to perform gap analysis separating missing telemetry from missing analytics, export STIX 2.1 Attack Flow bundles, and add new mappings.
+
+---
+
 ## Expanding the Catalog
 
 As COPS evolves, additional defensive domains are planned, including:

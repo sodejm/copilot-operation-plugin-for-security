@@ -1,0 +1,184 @@
+{
+  "type": "bundle",
+  "id": "bundle--04e95a9b-c717-5f7f-9fa5-954a2c68167c",
+  "spec_version": "2.1",
+  "objects": [
+    {
+      "type": "attack-flow",
+      "id": "attack-flow--c3fbff1e-214e-559c-b6f1-268fede60f55",
+      "spec_version": "2.1",
+      "name": "Azure / Entra ID Identity Compromise and Cloud Exfiltration",
+      "description": "Representative end-to-end Attack Flow illustrating password spray, privileged cloud role assignment, API persistence, and cloud storage collection.",
+      "created": "2026-09-30T22:19:23Z",
+      "modified": "2026-09-30T22:19:23Z",
+      "start_refs": [
+        "attack-action--a2c1d99c-a2ad-5444-928a-e2e79e144f7d"
+      ],
+      "scope": "enterprise"
+    },
+    {
+      "type": "attack-action",
+      "id": "attack-action--a2c1d99c-a2ad-5444-928a-e2e79e144f7d",
+      "spec_version": "2.1",
+      "name": "Password Spray against Entra ID",
+      "technique_id": "T1110.003",
+      "technique_name": "Password Spraying",
+      "tactic": "credential-access",
+      "execution_order": 1,
+      "evidence_refs": [
+        "ev-intake-signins-01"
+      ],
+      "capability_refs": [
+        "sentinel-hunt-workbench:H01",
+        "soc-investigation-workbench:intake"
+      ]
+    },
+    {
+      "type": "attack-condition",
+      "id": "attack-condition--b66f2f75-b4cf-5d96-8a22-ad2cb0823194",
+      "spec_version": "2.1",
+      "description": "Valid credentials obtained for user principal"
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--01afb125-5cda-5866-a81f-b38a9846d71c",
+      "spec_version": "2.1",
+      "relationship_type": "causes",
+      "source_ref": "attack-action--a2c1d99c-a2ad-5444-928a-e2e79e144f7d",
+      "target_ref": "attack-condition--b66f2f75-b4cf-5d96-8a22-ad2cb0823194"
+    },
+    {
+      "type": "attack-action",
+      "id": "attack-action--1d29dce6-7fb5-52b1-a286-e8ef97ee6f06",
+      "spec_version": "2.1",
+      "name": "Sign-in to Azure Portal with Cloud Account",
+      "technique_id": "T1078.004",
+      "technique_name": "Cloud Accounts",
+      "tactic": "initial-access",
+      "execution_order": 2,
+      "prerequisite_refs": [
+        "attack-condition--b66f2f75-b4cf-5d96-8a22-ad2cb0823194"
+      ],
+      "evidence_refs": [
+        "ev-intake-signins-02"
+      ],
+      "capability_refs": [
+        "sentinel-hunt-workbench:H02"
+      ]
+    },
+    {
+      "type": "attack-condition",
+      "id": "attack-condition--b86445df-2a21-5b9f-8631-909174a4fbb5",
+      "spec_version": "2.1",
+      "description": "Active interactive session established on Azure Portal"
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--fb0ccf54-5b5a-50c6-abef-4cd5ed821b0e",
+      "spec_version": "2.1",
+      "relationship_type": "causes",
+      "source_ref": "attack-action--1d29dce6-7fb5-52b1-a286-e8ef97ee6f06",
+      "target_ref": "attack-condition--b86445df-2a21-5b9f-8631-909174a4fbb5"
+    },
+    {
+      "type": "attack-action",
+      "id": "attack-action--6b0ebb4e-d390-50eb-850e-ba5482279cbc",
+      "spec_version": "2.1",
+      "name": "Assign Privileged Role to Target Identity",
+      "technique_id": "T1098.003",
+      "technique_name": "Additional Cloud Roles",
+      "tactic": "privilege-escalation",
+      "execution_order": 3,
+      "prerequisite_refs": [
+        "attack-condition--b86445df-2a21-5b9f-8631-909174a4fbb5"
+      ],
+      "evidence_refs": [
+        "ev-auditlogs-roleassign-01"
+      ],
+      "capability_refs": [
+        "sentinel-hunt-workbench:H10",
+        "attack-path-workbench:attackpath"
+      ]
+    },
+    {
+      "type": "attack-condition",
+      "id": "attack-condition--9db44830-167e-51cd-8a63-ab303be5b4e6",
+      "spec_version": "2.1",
+      "description": "Global Administrator or Contributor role assigned"
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--8300e0f3-1005-5f7d-ada2-dcd4960118c1",
+      "spec_version": "2.1",
+      "relationship_type": "causes",
+      "source_ref": "attack-action--6b0ebb4e-d390-50eb-850e-ba5482279cbc",
+      "target_ref": "attack-condition--9db44830-167e-51cd-8a63-ab303be5b4e6"
+    },
+    {
+      "type": "attack-action",
+      "id": "attack-action--c441bc7c-4419-5f65-b269-1b60bf4d28c9",
+      "spec_version": "2.1",
+      "name": "Add Password / Certificate Credential to Service Principal",
+      "technique_id": "T1098",
+      "technique_name": "Account Manipulation",
+      "tactic": "persistence",
+      "execution_order": 4,
+      "prerequisite_refs": [
+        "attack-condition--9db44830-167e-51cd-8a63-ab303be5b4e6"
+      ],
+      "evidence_refs": [
+        "ev-auditlogs-appcred-01"
+      ],
+      "capability_refs": [
+        "sentinel-hunt-workbench:H12"
+      ]
+    },
+    {
+      "type": "attack-condition",
+      "id": "attack-condition--ecf92dd9-2cd3-5db1-bad7-d329d05d54fd",
+      "spec_version": "2.1",
+      "description": "Persistent API access established via service principal"
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--8f769cda-c412-56f6-9249-339ca59de880",
+      "spec_version": "2.1",
+      "relationship_type": "causes",
+      "source_ref": "attack-action--c441bc7c-4419-5f65-b269-1b60bf4d28c9",
+      "target_ref": "attack-condition--ecf92dd9-2cd3-5db1-bad7-d329d05d54fd"
+    },
+    {
+      "type": "attack-action",
+      "id": "attack-action--c7196018-00c9-5646-bfc7-39c8f13864e2",
+      "spec_version": "2.1",
+      "name": "Read Sensitive Data from Azure Blob Storage",
+      "technique_id": "T1530",
+      "technique_name": "Data from Cloud Storage",
+      "tactic": "collection",
+      "execution_order": 4,
+      "prerequisite_refs": [
+        "attack-condition--9db44830-167e-51cd-8a63-ab303be5b4e6"
+      ],
+      "evidence_refs": [
+        "ev-storage-blob-01"
+      ],
+      "capability_refs": [
+        "sentinel-hunt-workbench:H-PREVIEW-STORAGE"
+      ]
+    },
+    {
+      "type": "attack-condition",
+      "id": "attack-condition--c8db8dfb-ee5b-5dcd-89a8-bab2dc947abe",
+      "spec_version": "2.1",
+      "description": "Confidential cloud data extracted"
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--dc75ec8a-cd73-5f5d-aab9-76e52e9bec79",
+      "spec_version": "2.1",
+      "relationship_type": "causes",
+      "source_ref": "attack-action--c7196018-00c9-5646-bfc7-39c8f13864e2",
+      "target_ref": "attack-condition--c8db8dfb-ee5b-5dcd-89a8-bab2dc947abe"
+    }
+  ]
+}

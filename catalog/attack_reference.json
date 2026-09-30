@@ -1,0 +1,388 @@
+{
+  "schema_version": "cops.attack-reference/v1",
+  "attck_version": "18.0",
+  "source": "MITRE ATT&CK Enterprise Matrix v18.0",
+  "license": "Apache-2.0",
+  "copyright": "Copyright 2025 The MITRE Corporation. Released under the Apache 2.0 license.",
+  "attribution": "This product contains content from the MITRE ATT&CK® knowledge base, available at https://attack.mitre.org/. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "techniques": [
+    {
+      "id": "T1110.003",
+      "name": "Password Spraying",
+      "tactics": ["credential-access"],
+      "platforms": ["Azure AD", "Office 365", "SaaS", "IaaS", "Windows", "Linux", "macOS"],
+      "data_components": [
+        "User Account: User Account Authentication",
+        "Logon Session: Logon Session Creation"
+      ],
+      "revoked": false,
+      "deprecated": false,
+      "version": "18.0",
+      "url": "https://attack.mitre.org/techniques/T1110/003/"
+    },
+    {
+      "id": "T1078",
+      "name": "Valid Accounts",
+      "tactics": [
+        "defense-evasion",
+        "persistence",
+        "privilege-escalation",
+        "initial-access"
+      ],
+      "platforms": ["Azure AD", "Office 365", "SaaS", "IaaS", "Windows", "Linux", "macOS"],
+      "data_components": [
+        "User Account: User Account Authentication",
+        "Logon Session: Logon Session Creation"
+      ],
+      "revoked": false,
+      "deprecated": false,
+      "version": "18.0",
+      "url": "https://attack.mitre.org/techniques/T1078/"
+    },
+    {
+      "id": "T1078.004",
+      "name": "Cloud Accounts",
+      "tactics": [
+        "defense-evasion",
+        "persistence",
+        "privilege-escalation",
+        "initial-access"
+      ],
+      "platforms": ["Azure AD", "Office 365", "SaaS", "IaaS", "Google Workspace"],
+      "data_components": [
+        "User Account: User Account Authentication",
+        "Logon Session: Logon Session Creation"
+      ],
+      "revoked": false,
+      "deprecated": false,
+      "version": "18.0",
+      "url": "https://attack.mitre.org/techniques/T1078/004/"
+    },
+    {
+      "id": "T1059",
+      "name": "Command and Scripting Interpreter",
+      "tactics": ["execution"],
+      "platforms": ["Windows", "Linux", "macOS", "Network"],
+      "data_components": [
+        "Command: Command Execution",
+        "Process: Process Creation"
+      ],
+      "revoked": false,
+      "deprecated": false,
+      "version": "18.0",
+      "url": "https://attack.mitre.org/techniques/T1059/"
+    },
+    {
+      "id": "T1059.001",
+      "name": "PowerShell",
+      "tactics": ["execution"],
+      "platforms": ["Windows", "Linux", "macOS"],
+      "data_components": [
+        "Command: Command Execution",
+        "Process: Process Creation",
+        "Script: Script Execution"
+      ],
+      "revoked": false,
+      "deprecated": false,
+      "version": "18.0",
+      "url": "https://attack.mitre.org/techniques/T1059/001/"
+    },
+    {
+      "id": "T1105",
+      "name": "Ingress Tool Transfer",
+      "tactics": ["command-and-control"],
+      "platforms": ["Windows", "Linux", "macOS", "Network"],
+      "data_components": [
+        "Network Traffic: Network Connection Creation",
+        "File: File Creation"
+      ],
+      "revoked": false,
+      "deprecated": false,
+      "version": "18.0",
+      "url": "https://attack.mitre.org/techniques/T1105/"
+    },
+    {
+      "id": "T1071.001",
+      "name": "Web Protocols",
+      "tactics": ["command-and-control"],
+      "platforms": ["Windows", "Linux", "macOS"],
+      "data_components": [
+        "Network Traffic: Network Connection Creation",
+        "Network Traffic: Network Traffic Flow"
+      ],
+      "revoked": false,
+      "deprecated": false,
+      "version": "18.0",
+      "url": "https://attack.mitre.org/techniques/T1071/001/"
+    },
+    {
+      "id": "T1547.001",
+      "name": "Registry Run Keys / Startup Folder",
+      "tactics": ["persistence", "privilege-escalation"],
+      "platforms": ["Windows"],
+      "data_components": [
+        "Windows Registry: Windows Registry Key Modification",
+        "File: File Creation"
+      ],
+      "revoked": false,
+      "deprecated": false,
+      "version": "18.0",
+      "url": "https://attack.mitre.org/techniques/T1547/001/"
+    },
+    {
+      "id": "T1114.003",
+      "name": "Email Forwarding Rule",
+      "tactics": ["collection"],
+      "platforms": ["Office 365", "Google Workspace"],
+      "data_components": [
+        "Application Log: Application Log Content"
+      ],
+      "revoked": false,
+      "deprecated": false,
+      "version": "18.0",
+      "url": "https://attack.mitre.org/techniques/T1114/003/"
+    },
+    {
+      "id": "T1213.002",
+      "name": "SharePoint",
+      "tactics": ["collection"],
+      "platforms": ["Office 365", "SaaS"],
+      "data_components": [
+        "File: File Access",
+        "Application Log: Application Log Content"
+      ],
+      "revoked": false,
+      "deprecated": false,
+      "version": "18.0",
+      "url": "https://attack.mitre.org/techniques/T1213/002/"
+    },
+    {
+      "id": "T1566.002",
+      "name": "Spearphishing Link",
+      "tactics": ["initial-access"],
+      "platforms": ["Windows", "Linux", "macOS", "SaaS"],
+      "data_components": [
+        "Application Log: Application Log Content",
+        "Network Traffic: Network Connection Creation"
+      ],
+      "revoked": false,
+      "deprecated": false,
+      "version": "18.0",
+      "url": "https://attack.mitre.org/techniques/T1566/002/"
+    },
+    {
+      "id": "T1098",
+      "name": "Account Manipulation",
+      "tactics": ["persistence"],
+      "platforms": ["Azure AD", "Office 365", "IaaS", "Windows", "Linux"],
+      "data_components": [
+        "User Account: User Account Modification"
+      ],
+      "revoked": false,
+      "deprecated": false,
+      "version": "18.0",
+      "url": "https://attack.mitre.org/techniques/T1098/"
+    },
+    {
+      "id": "T1098.003",
+      "name": "Additional Cloud Roles",
+      "tactics": ["persistence", "privilege-escalation"],
+      "platforms": ["Azure AD", "IaaS"],
+      "data_components": [
+        "User Account: User Account Modification"
+      ],
+      "revoked": false,
+      "deprecated": false,
+      "version": "18.0",
+      "url": "https://attack.mitre.org/techniques/T1098/003/"
+    },
+    {
+      "id": "T1098.005",
+      "name": "Device Registration",
+      "tactics": ["persistence"],
+      "platforms": ["Azure AD"],
+      "data_components": [
+        "User Account: User Account Modification"
+      ],
+      "revoked": false,
+      "deprecated": false,
+      "version": "18.0",
+      "url": "https://attack.mitre.org/techniques/T1098/005/"
+    },
+    {
+      "id": "T1021",
+      "name": "Remote Services",
+      "tactics": ["lateral-movement"],
+      "platforms": ["Windows", "Linux", "macOS"],
+      "data_components": [
+        "Network Traffic: Network Connection Creation",
+        "Logon Session: Logon Session Creation"
+      ],
+      "revoked": false,
+      "deprecated": false,
+      "version": "18.0",
+      "url": "https://attack.mitre.org/techniques/T1021/"
+    },
+    {
+      "id": "T1021.001",
+      "name": "Remote Desktop Protocol",
+      "tactics": ["lateral-movement"],
+      "platforms": ["Windows"],
+      "data_components": [
+        "Network Traffic: Network Connection Creation",
+        "Logon Session: Logon Session Creation"
+      ],
+      "revoked": false,
+      "deprecated": false,
+      "version": "18.0",
+      "url": "https://attack.mitre.org/techniques/T1021/001/"
+    },
+    {
+      "id": "T1021.002",
+      "name": "SMB/Windows Admin Shares",
+      "tactics": ["lateral-movement"],
+      "platforms": ["Windows"],
+      "data_components": [
+        "Network Traffic: Network Connection Creation",
+        "Logon Session: Logon Session Creation"
+      ],
+      "revoked": false,
+      "deprecated": false,
+      "version": "18.0",
+      "url": "https://attack.mitre.org/techniques/T1021/002/"
+    },
+    {
+      "id": "T1556",
+      "name": "Modify Authentication Process",
+      "tactics": ["credential-access", "defense-evasion", "persistence"],
+      "platforms": ["Azure AD", "Windows", "Linux"],
+      "data_components": [
+        "Active Directory: Active Directory Object Modification"
+      ],
+      "revoked": false,
+      "deprecated": false,
+      "version": "18.0",
+      "url": "https://attack.mitre.org/techniques/T1556/"
+    },
+    {
+      "id": "T1539",
+      "name": "Steal Web Session Cookie",
+      "tactics": ["credential-access"],
+      "platforms": ["Windows", "Linux", "macOS", "SaaS"],
+      "data_components": [
+        "File: File Access",
+        "Application Log: Application Log Content"
+      ],
+      "revoked": false,
+      "deprecated": false,
+      "version": "18.0",
+      "url": "https://attack.mitre.org/techniques/T1539/"
+    },
+    {
+      "id": "T1053.005",
+      "name": "Scheduled Task",
+      "tactics": ["execution", "persistence", "privilege-escalation"],
+      "platforms": ["Windows"],
+      "data_components": [
+        "Scheduled Job: Scheduled Job Creation"
+      ],
+      "revoked": false,
+      "deprecated": false,
+      "version": "18.0",
+      "url": "https://attack.mitre.org/techniques/T1053/005/"
+    },
+    {
+      "id": "T1484.002",
+      "name": "Trust Modification",
+      "tactics": ["persistence", "privilege-escalation"],
+      "platforms": ["Azure AD", "Windows"],
+      "data_components": [
+        "Active Directory: Active Directory Object Modification"
+      ],
+      "revoked": false,
+      "deprecated": false,
+      "version": "18.0",
+      "url": "https://attack.mitre.org/techniques/T1484/002/"
+    },
+    {
+      "id": "T1530",
+      "name": "Data from Cloud Storage",
+      "tactics": ["collection"],
+      "platforms": ["IaaS", "SaaS", "Azure AD"],
+      "data_components": [
+        "Cloud Storage: Cloud Storage Object Access"
+      ],
+      "revoked": false,
+      "deprecated": false,
+      "version": "18.0",
+      "url": "https://attack.mitre.org/techniques/T1530/"
+    },
+    {
+      "id": "T1562.001",
+      "name": "Disable or Modify Tools",
+      "tactics": ["defense-evasion"],
+      "platforms": ["Windows", "Linux", "macOS", "IaaS", "Azure AD"],
+      "data_components": [
+        "Sensor Health: Host Status",
+        "Service: Service Metadata"
+      ],
+      "revoked": false,
+      "deprecated": false,
+      "version": "18.0",
+      "url": "https://attack.mitre.org/techniques/T1562/001/"
+    },
+    {
+      "id": "T1048",
+      "name": "Exfiltration Over Alternative Protocol",
+      "tactics": ["exfiltration"],
+      "platforms": ["Windows", "Linux", "macOS", "Network"],
+      "data_components": [
+        "Network Traffic: Network Traffic Flow"
+      ],
+      "revoked": false,
+      "deprecated": false,
+      "version": "18.0",
+      "url": "https://attack.mitre.org/techniques/T1048/"
+    },
+    {
+      "id": "T1580",
+      "name": "Cloud Infrastructure Discovery",
+      "tactics": ["discovery"],
+      "platforms": ["IaaS", "Azure AD", "Office 365"],
+      "data_components": [
+        "Cloud Service: Cloud Service Enumeration"
+      ],
+      "revoked": false,
+      "deprecated": false,
+      "version": "18.0",
+      "url": "https://attack.mitre.org/techniques/T1580/"
+    },
+    {
+      "id": "T1086",
+      "name": "PowerShell",
+      "tactics": ["execution"],
+      "platforms": ["Windows"],
+      "data_components": [
+        "Process: Process Creation"
+      ],
+      "revoked": true,
+      "revoked_by": "T1059.001",
+      "deprecated": false,
+      "version": "18.0",
+      "url": "https://attack.mitre.org/techniques/T1086/"
+    },
+    {
+      "id": "T1064",
+      "name": "Scripting",
+      "tactics": ["execution", "defense-evasion"],
+      "platforms": ["Windows", "Linux", "macOS"],
+      "data_components": [
+        "Process: Process Creation"
+      ],
+      "revoked": false,
+      "deprecated": true,
+      "version": "18.0",
+      "url": "https://attack.mitre.org/techniques/T1064/"
+    }
+  ]
+}
