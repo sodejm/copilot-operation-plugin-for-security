@@ -1,0 +1,9 @@
+[
+  {
+    "id": "mi-rag-worker-01",
+    "display_name": "uami-rag-inference-worker",
+    "identity_type": "UserAssigned",
+    "associated_resource_id": "/subscriptions/sub-01/resourceGroups/rg-ai/providers/Microsoft.Compute/virtualMachines/vm-rag",
+    "client_id": "00000003-0000-0000-0000-000000000003"
+  }
+]

@@ -1,0 +1,22 @@
+[
+  {
+    "id": "app-customer-portal-01",
+    "display_name": "Contoso Customer Portal",
+    "client_id": "00000001-0000-0000-0000-000000000001",
+    "sign_in_audience": "AzureADMyOrg",
+    "has_credentials": true,
+    "credential_count": 2,
+    "owners": [
+      "user-alice-01"
+    ]
+  },
+  {
+    "id": "app-ownerless-tool-02",
+    "display_name": "Legacy Internal Tool",
+    "client_id": "00000002-0000-0000-0000-000000000002",
+    "sign_in_audience": "AzureADMyOrg",
+    "has_credentials": true,
+    "credential_count": 1,
+    "owners": []
+  }
+]

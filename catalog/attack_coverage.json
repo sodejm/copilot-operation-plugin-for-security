@@ -806,6 +806,86 @@
       ],
       "last_reviewed": "2026-09-30",
       "attck_version": "18.0"
+    },
+    {
+      "mapping_id": "COPS-COV-ENTRA-T1098",
+      "technique_id": "T1098",
+      "technique_name": "Account Manipulation",
+      "tactic": "persistence",
+      "platforms": ["Azure AD", "IaaS"],
+      "data_component": "User Account: User Account Modification",
+      "capability": {
+        "plugin_id": "entra-identity-workbench",
+        "component_type": "graph_rule",
+        "component_id": "HYP-FED-WILDCARD",
+        "query_or_analytic": "plugins/identity-access/entra-identity-workbench/skills/entra-identity-analysis/SKILL.md"
+      },
+      "evidence_sources": [
+        {
+          "product": "Entra ID",
+          "table_or_log": "AuditLogs",
+          "required_fields": [
+            "TimeGenerated",
+            "OperationName",
+            "TargetResources",
+            "InitiatedBy"
+          ],
+          "onboarding_status": "onboarded"
+        }
+      ],
+      "coverage_role": "investigation",
+      "coverage_maturity": "production",
+      "validation_state": "validated",
+      "validation_fixture": "plugins/identity-access/entra-identity-workbench/tests/test_workbench.py",
+      "time_window": "export_snapshot",
+      "assumptions": [
+        "Models federated credential trust relationships and catches wildcard subject patterns"
+      ],
+      "known_limitations": [
+        "Evaluates offline export state; does not verify live token exchange events"
+      ],
+      "last_reviewed": "2026-09-30",
+      "attck_version": "18.0"
+    },
+    {
+      "mapping_id": "COPS-COV-ENTRA-T1078-004",
+      "technique_id": "T1078.004",
+      "technique_name": "Valid Accounts: Cloud Accounts",
+      "tactic": "privilege-escalation",
+      "platforms": ["Azure AD", "IaaS"],
+      "data_component": "User Account: User Account Authentication",
+      "capability": {
+        "plugin_id": "entra-identity-workbench",
+        "component_type": "graph_rule",
+        "component_id": "HYP-AGENT-MISMATCH",
+        "query_or_analytic": "plugins/identity-access/entra-identity-workbench/skills/entra-identity-analysis/SKILL.md"
+      },
+      "evidence_sources": [
+        {
+          "product": "Entra ID",
+          "table_or_log": "AuditLogs",
+          "required_fields": [
+            "TimeGenerated",
+            "OperationName",
+            "TargetResources",
+            "InitiatedBy"
+          ],
+          "onboarding_status": "onboarded"
+        }
+      ],
+      "coverage_role": "investigation",
+      "coverage_maturity": "production",
+      "validation_state": "validated",
+      "validation_fixture": "plugins/identity-access/entra-identity-workbench/tests/test_workbench.py",
+      "time_window": "export_snapshot",
+      "assumptions": [
+        "Detects privilege mismatches between declarative agent blueprints and runtime agent principals"
+      ],
+      "known_limitations": [
+        "Identifies structural over-privilege; does not prove agent tool misuse"
+      ],
+      "last_reviewed": "2026-09-30",
+      "attck_version": "18.0"
     }
   ]
 }

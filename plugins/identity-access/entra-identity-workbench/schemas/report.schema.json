@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "report.schema.json",
+  "title": "Entra Identity Exposure Report Schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "tenant_id",
+    "analyzed_at",
+    "summary",
+    "hypotheses"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "entra.identity-report/v1"
+    },
+    "tenant_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "analyzed_at": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total_nodes",
+        "total_edges",
+        "human_users",
+        "service_principals",
+        "managed_identities",
+        "agent_blueprints",
+        "agent_identities",
+        "critical_hypotheses",
+        "high_hypotheses"
+      ],
+      "properties": {
+        "total_nodes": {"type": "integer", "minimum": 0},
+        "total_edges": {"type": "integer", "minimum": 0},
+        "human_users": {"type": "integer", "minimum": 0},
+        "service_principals": {"type": "integer", "minimum": 0},
+        "managed_identities": {"type": "integer", "minimum": 0},
+        "agent_blueprints": {"type": "integer", "minimum": 0},
+        "agent_identities": {"type": "integer", "minimum": 0},
+        "critical_hypotheses": {"type": "integer", "minimum": 0},
+        "high_hypotheses": {"type": "integer", "minimum": 0}
+      }
+    },
+    "hypotheses": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/hypothesis"
+      }
+    }
+  },
+  "$defs": {
+    "hypothesis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hypothesis_id",
+        "category",
+        "severity",
+        "principal_id",
+        "principal_name",
+        "principal_type",
+        "description",
+        "supporting_edges",
+        "missing_evidence",
+        "recommended_action"
+      ],
+      "properties": {
+        "hypothesis_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "category": {
+          "enum": [
+            "broad_app_consent",
+            "ownerless_principal",
+            "stale_federated_trust",
+            "privileged_managed_identity",
+            "agent_privilege_mismatch",
+            "cross_tenant_exposure"
+          ]
+        },
+        "severity": {
+          "enum": ["critical", "high", "medium", "low", "informational"]
+        },
+        "principal_id": {
+          "type": "string"
+        },
+        "principal_name": {
+          "type": "string"
+        },
+        "principal_type": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "supporting_edges": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "missing_evidence": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "recommended_action": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

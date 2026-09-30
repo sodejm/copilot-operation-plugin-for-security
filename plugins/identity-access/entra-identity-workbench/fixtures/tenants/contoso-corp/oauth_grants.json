@@ -1,0 +1,16 @@
+[
+  {
+    "id": "grant-broad-directory-01",
+    "principal_id": "sp-ownerless-daemon-03",
+    "api_name": "Microsoft Graph",
+    "permission": "Directory.AccessAsUser.All",
+    "grant_type": "application_autonomous"
+  },
+  {
+    "id": "grant-delegated-user-02",
+    "principal_id": "user-bob-02",
+    "api_name": "Microsoft Graph",
+    "permission": "User.Read",
+    "grant_type": "delegated_obo"
+  }
+]

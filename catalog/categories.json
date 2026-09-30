@@ -15,6 +15,11 @@
       "id": "offensive-security",
       "name": "Offensive Security",
       "description": "Authorized adversarial assessment planning and bounded offensive testing; distinct from defensive detection and telemetry workflows."
+    },
+    {
+      "id": "identity-access",
+      "name": "Identity and Access Management",
+      "description": "Identity inventory, privilege boundary modeling, entitlement analysis, and agent credential governance."
     }
   ]
 }

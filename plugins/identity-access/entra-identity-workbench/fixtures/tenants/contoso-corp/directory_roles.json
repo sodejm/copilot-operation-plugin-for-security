@@ -1,0 +1,18 @@
+[
+  {
+    "id": "role-global-admin-01",
+    "role_name": "Global Administrator",
+    "is_privileged": true,
+    "description": "Full access to all administrative features in Entra ID",
+    "assignments": [
+      {
+        "principal_id": "user-alice-01",
+        "pim_state": "eligible"
+      },
+      {
+        "principal_id": "user-guest-charlie-03",
+        "pim_state": "active"
+      }
+    ]
+  }
+]

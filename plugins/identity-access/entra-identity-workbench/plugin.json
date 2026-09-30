@@ -1,0 +1,30 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "entra-identity-workbench",
+  "version": "0.1.0",
+  "description": "Model, analyze, and review Entra ID and AI Agent identity graphs, privilege boundaries, and exposure paths offline.",
+  "author": {
+    "name": "Justin Soderberg",
+    "url": "https://github.com/sodejm"
+  },
+  "repository": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "keywords": [
+    "agent-id",
+    "azure",
+    "cybersecurity",
+    "entra-id",
+    "foundry",
+    "iam",
+    "identity",
+    "pim",
+    "rbac"
+  ],
+  "extensions": {
+    "com.openai": {
+      "displayName": "COPS Entra Identity Workbench",
+      "category": "Developer Tools"
+    },
+    "com.sodejm.copse": {}
+  }
+}

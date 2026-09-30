@@ -1,0 +1,11 @@
+[
+  {
+    "id": "group-ai-engineers-01",
+    "display_name": "AI Platform Engineers",
+    "is_role_assignable": true,
+    "security_enabled": true,
+    "members": [
+      "user-bob-02"
+    ]
+  }
+]

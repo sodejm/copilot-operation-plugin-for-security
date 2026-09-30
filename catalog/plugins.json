@@ -81,6 +81,23 @@
         "offline-planning",
         "offensive-security"
       ]
+    },
+    {
+      "id": "entra-identity-workbench",
+      "name": "COPS Entra Identity Workbench",
+      "version": "0.1.0",
+      "primary_category": "identity-access",
+      "path": "plugins/identity-access/entra-identity-workbench",
+      "tags": [
+        "azure",
+        "claude",
+        "codex",
+        "entra-id",
+        "github-copilot",
+        "identity",
+        "offline-analysis",
+        "rbac"
+      ]
     }
   ]
 }

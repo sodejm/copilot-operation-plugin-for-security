@@ -1,0 +1,33 @@
+[
+  {
+    "id": "sp-customer-portal-01",
+    "display_name": "Contoso Customer Portal SP",
+    "app_id": "app-customer-portal-01",
+    "service_principal_type": "Application",
+    "account_enabled": true,
+    "is_legacy_foundry_principal": false,
+    "owners": [
+      "user-alice-01"
+    ]
+  },
+  {
+    "id": "sp-legacy-foundry-02",
+    "display_name": "Foundry Legacy Agent SP",
+    "app_id": "app-ownerless-tool-02",
+    "service_principal_type": "LegacyFoundry",
+    "account_enabled": true,
+    "is_legacy_foundry_principal": true,
+    "owners": [
+      "user-alice-01"
+    ]
+  },
+  {
+    "id": "sp-ownerless-daemon-03",
+    "display_name": "Orphaned Sync Daemon",
+    "app_id": "app-ownerless-tool-02",
+    "service_principal_type": "Application",
+    "account_enabled": true,
+    "is_legacy_foundry_principal": false,
+    "owners": []
+  }
+]

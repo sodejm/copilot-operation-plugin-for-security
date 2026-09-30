@@ -1,0 +1,16 @@
+[
+  {
+    "id": "blueprint-support-bot-01",
+    "name": "Customer Support FAQ Blueprint",
+    "framework": "Microsoft Foundry",
+    "model": "gpt-4o",
+    "declared_tools": [
+      "search_knowledge_base",
+      "read_customer_faq"
+    ],
+    "declared_resources": [
+      "res-customer-storage-01"
+    ],
+    "intended_privilege": "read_only"
+  }
+]
