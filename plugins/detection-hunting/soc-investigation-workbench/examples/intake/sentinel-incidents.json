@@ -1,0 +1,29 @@
+[
+  {
+    "TenantId": "tenant-a",
+    "WorkspaceId": "workspace-a",
+    "IncidentNumber": 1042,
+    "Title": "Suspicious OAuth Application Consent",
+    "Severity": "High",
+    "Status": "Active",
+    "TimeGenerated": "2026-01-01T04:15:00Z",
+    "FirstActivityTimeUtc": "2026-01-01T04:10:00Z",
+    "LastActivityTimeUtc": "2026-01-01T04:15:00Z",
+    "Account": "admin-user@example.com",
+    "IPAddress": "198.51.100.42",
+    "AppDisplayName": "CloudDataSync",
+    "Description": "An unverified application CloudDataSync was granted broad Mail.Read permissions."
+  },
+  {
+    "TenantId": "tenant-a",
+    "WorkspaceId": "workspace-a",
+    "IncidentNumber": 1043,
+    "Title": "Anomalous Sign-in from Hosting Provider",
+    "Severity": "Medium",
+    "Status": "Active",
+    "TimeGenerated": "2026-01-01T04:12:00Z",
+    "Account": "admin-user@example.com",
+    "IPAddress": "198.51.100.42",
+    "Description": "Sign-in to Microsoft Azure CLI originated from an unexpected ASN."
+  }
+]

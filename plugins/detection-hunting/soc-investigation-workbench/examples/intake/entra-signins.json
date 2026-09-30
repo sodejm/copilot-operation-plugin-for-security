@@ -1,0 +1,33 @@
+[
+  {
+    "tenantId": "tenant-a",
+    "createdDateTime": "2026-01-01T04:11:30Z",
+    "userPrincipalName": "admin-user@example.com",
+    "userId": "usr-98765",
+    "appDisplayName": "Microsoft Azure CLI",
+    "appId": "04b07795-8ddb-461a-bbee-02f9e1bf7b46",
+    "ipAddress": "198.51.100.42",
+    "status": {
+      "errorCode": 0
+    },
+    "riskDetail": "hiddenNamespaceTraffic",
+    "conditionalAccessStatus": "success"
+  },
+  {
+    "tenantId": "tenant-a",
+    "activityDateTime": "2026-01-01T04:14:00Z",
+    "activityDisplayName": "Consent to application",
+    "initiatedBy": {
+      "user": {
+        "userPrincipalName": "admin-user@example.com"
+      }
+    },
+    "targetResources": [
+      {
+        "displayName": "CloudDataSync",
+        "id": "app-reg-4412"
+      }
+    ],
+    "result": "success"
+  }
+]

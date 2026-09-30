@@ -48,9 +48,18 @@ Invoke this workbench during active alert triage and incident handling under the
    - Extract identities (User Principal Names, Service Principal IDs, Object IDs).
    - Extract network coordinates (source/destination IP addresses, ASNs, user agents).
    - Extract resource identifiers (hosts, mailboxes, cloud resources).
-3. **Initialize Case Record**:
+3. **Initialize Case Record via Multi-Source Intake**:
    ```bash
-   python3 plugins/detection-hunting/soc-investigation-workbench/scripts/investigate.py plan plugins/detection-hunting/soc-investigation-workbench/examples/case.json
+   python3 plugins/detection-hunting/soc-investigation-workbench/scripts/investigate.py intake \
+     --case-id incident-402 \
+     --tenant tenant-a \
+     --workspace workspace-a \
+     --start 2026-01-01T00:00:00Z \
+     --end 2026-01-02T00:00:00Z \
+     --sources sentinel:examples/intake/sentinel-incidents.json \
+               splunk:examples/intake/splunk-events.json \
+               entra:examples/intake/entra-signins.json \
+     --out /tmp/case-snapshot.json
    ```
 
 ### Phase 2: Competing Hypothesis Formulation
@@ -88,8 +97,11 @@ Avoid fixation on a single premature conclusion by maintaining mutually exclusiv
 
 1. **Finalize Case Disposition**:
    - Classify outcome: `True Positive - Incident`, `True Positive - Benign/Authorized`, or `False Positive - Detection Tuning Required`.
-2. **Compile Handoff Artifact**:
-   - Export structured case JSON containing the complete hypothesis graph, cited evidence hashes, and remaining uncertainties.
+2. **Compile Shift Handoff Artifact**:
+   - Export structured Markdown and JSON handoffs containing the complete hypothesis graph, cited evidence hashes, and remaining uncertainties:
+   ```bash
+   python3 plugins/detection-hunting/soc-investigation-workbench/scripts/investigate.py export-handoff /tmp/case-snapshot.json --out-dir /tmp/case-handoff
+   ```
 3. **Recommend Containment / Tuning**:
    - If malicious: specify targeted containment (revoke OAuth refresh tokens, disable app).
    - If benign: formulate detection tuning rule to filter out authorized automation.
@@ -105,5 +117,6 @@ Verify the workbench implementation and example case evaluation:
 python3 plugins/detection-hunting/soc-investigation-workbench/scripts/validate-package.py --allow-pending-vendor
 
 # CLI case evaluation smoke test
-python3 plugins/detection-hunting/soc-investigation-workbench/scripts/investigate.py plan plugins/detection-hunting/soc-investigation-workbench/examples/case.json
+python3 plugins/detection-hunting/soc-investigation-workbench/scripts/investigate.py validate plugins/detection-hunting/soc-investigation-workbench/examples/case.json
+python3 plugins/detection-hunting/soc-investigation-workbench/scripts/investigate.py next plugins/detection-hunting/soc-investigation-workbench/examples/case.json
 ```
