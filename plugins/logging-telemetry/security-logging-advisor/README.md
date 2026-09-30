@@ -31,6 +31,17 @@ Start with [Installation](docs/INSTALL.md), then review
 a real repository. Teams planning a broader deployment should also read the
 [Enterprise rollout guide](docs/ENTERPRISE_ROLLOUT.md).
 
+## When to use & engineering playbook
+
+See the complete [Analyst & Engineer Playbook](docs/PLAYBOOK.md) for detailed workflows.
+
+Use this advisor when:
+- **Onboarding new services**: Establishing auditable, structured JSON telemetry on Day 1.
+- **Remediating post-incident gaps**: Closing forensic blind spots after an alert or security incident.
+- **Preparing for compliance audits**: Satisfying SOC 2 CC6.8, PCI-DSS v4.0 Req 10, or ISO 27001 requirements.
+- **Migrating to structured logging**: Transitioning legacy text logs to frameworks like Pino, structlog, or Zap.
+- **Assessing CVE reachability**: Verifying whether vulnerable dependency calls execute and generate audit trails.
+
 The canonical portable package metadata is in [plugin.json](plugin.json).
 Host-specific manifests and adapters are compatibility surfaces generated from
 or checked against that package contract; they do not replace it.

@@ -10,6 +10,16 @@ The plugin registers two skills: `soc-investigation-planning` and
 are consumed through an unmodified vendor snapshot. See
 [ownership and updates](docs/ownership.md).
 
+## When to use & SOC analyst playbook
+
+See the complete [SOC Analyst Playbook](docs/PLAYBOOK.md) for detailed investigative workflows.
+
+Use this workbench when:
+- **Investigating complex, multi-entity alerts**: Triaging ambiguous OAuth consent, credential spill, or privilege escalation events.
+- **Countering confirmation bias**: Maintaining competing hypotheses (malicious attack vs. approved administrative activity).
+- **Ranking next investigative questions**: Determining the highest-gain log queries to execute when facing alert fatigue.
+- **Structuring incident handoffs & reviews**: Documenting the complete evidence chain and remaining uncertainties.
+
 **Integration status:** the local planner is implemented. The canonical Sentinel
 skills and hunt catalog were not yet present at the implementation checkpoint,
 so no vendor snapshot is included. Query handoffs and the release validation gate

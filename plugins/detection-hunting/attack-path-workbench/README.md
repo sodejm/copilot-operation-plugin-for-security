@@ -2,6 +2,16 @@
 
 An offline plugin for evidence-linked, conditional attack-path analysis. It supports a synthetic illustrative export contract and local Azure entitlement evidence. It makes no network calls. Real Wiz field mapping and query rendering require approved documentation and representative redacted exports.
 
+## When to use & engineering playbook
+
+See the complete [Analyst & Engineer Playbook](docs/PLAYBOOK.md) for step-by-step methodologies.
+
+Use this workbench when:
+- **Reviewing cloud IAM & entitlements**: Analyzing multi-hop privilege escalation across Azure/AWS or Wiz export graphs.
+- **Evaluating vulnerability reachability**: Checking if an exposed workload finding can laterally reach crown jewels.
+- **Prioritizing choke-point remediations**: Finding the minimal policy/network changes that eliminate the most critical paths.
+- **Validating architecture changes offline**: Modeling planned identity and network boundaries before deployment.
+
 ## Try the illustrative fixture
 
 From this directory:
