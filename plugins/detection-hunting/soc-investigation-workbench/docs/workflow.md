@@ -12,12 +12,14 @@ root, or call the script with an absolute path.
 
 | Command | Result |
 | --- | --- |
+| `intake --case-id ID --tenant T --workspace W --start S --end E --sources S1 [S2...] --out OUT` | Ingest multi-source exports (Sentinel, Splunk, Entra), extract entities, sort timeline, and emit a validated initial case snapshot |
 | `validate CASE` | Validate the complete case and print a canonical snapshot hash |
 | `next CASE` | Rank ready steps and select a batch within remaining budget |
 | `handoff CASE --step ID` | Verify vendor bytes and hunt/surface support; return canonical skill and CLI paths relative to the plugin installation |
 | `import CASE RESULT --out NEW` | Deduplicate evidence and append one result to a new private snapshot |
 | `revise CASE STEPS --out NEW` | Replace the pending plan; preserve completed steps exactly |
 | `report CASE` | Print evidence references, associations, hypothesis states, coverage gaps, and next work |
+| `export-handoff CASE --out-dir DIR` | Export immutable case handoff artifacts (Markdown timeline and JSON handoff package) with 0600 permissions |
 | `verify-vendor [--source SOURCE]` | Check installed bytes, optionally compare a canonical source checkout |
 | `vendor-sync SOURCE` | Maintainer-only explicit replacement from canonical Sentinel source |
 

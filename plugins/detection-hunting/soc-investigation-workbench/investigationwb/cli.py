@@ -11,6 +11,8 @@ from typing import Any
 
 from .engine import ContractError, digest, import_result, next_steps, report, revise, validate
 from .files import read_regular
+from .handoff import write_handoff
+from .intake import ingest_sources
 from .vendor import handoff, sync, verify
 
 
@@ -56,6 +58,22 @@ def main(argv: list[str] | None = None) -> int:
             command.add_argument("--out", type=Path, required=True)
         if name == "handoff":
             command.add_argument("--step", required=True)
+
+    # intake command
+    intake_cmd = commands.add_parser("intake", help="Ingest multi-source exports into a validated case.")
+    intake_cmd.add_argument("--case-id", required=True, help="Unique case identifier alias.")
+    intake_cmd.add_argument("--tenant", required=True, help="Tenant identifier alias.")
+    intake_cmd.add_argument("--workspace", required=True, help="Workspace identifier alias.")
+    intake_cmd.add_argument("--start", required=True, help="Case window start UTC timestamp.")
+    intake_cmd.add_argument("--end", required=True, help="Case window end UTC timestamp.")
+    intake_cmd.add_argument("--sources", nargs="+", required=True, help="Export files [format:path or path].")
+    intake_cmd.add_argument("--out", type=Path, required=True, help="Output destination for initial case snapshot.")
+
+    # export-handoff command
+    handoff_cmd = commands.add_parser("export-handoff", help="Export Markdown and JSON handoff artifacts.")
+    handoff_cmd.add_argument("case", type=Path, help="Case snapshot JSON.")
+    handoff_cmd.add_argument("--out-dir", type=Path, required=True, help="Destination directory for handoff artifacts.")
+
     command = commands.add_parser("verify-vendor")
     command.add_argument("--source", type=Path)
     command = commands.add_parser("vendor-sync")
@@ -66,6 +84,20 @@ def main(argv: list[str] | None = None) -> int:
             output = verify(source=args.source)
         elif args.command == "vendor-sync":
             output = sync(args.source)
+        elif args.command == "intake":
+            case = ingest_sources(
+                source_specs=args.sources,
+                case_id=args.case_id,
+                tenant=args.tenant,
+                workspace=args.workspace,
+                start=args.start,
+                end=args.end,
+            )
+            write_snapshot(args.out, case)
+            output = {"status": "intake_complete", "case_id": case["id"], "snapshot_hash": digest(case)}
+        elif args.command == "export-handoff":
+            case = validate(read_json(args.case))
+            output = write_handoff(args.out_dir, case)
         else:
             case = validate(read_json(args.case))
             if args.command == "validate":

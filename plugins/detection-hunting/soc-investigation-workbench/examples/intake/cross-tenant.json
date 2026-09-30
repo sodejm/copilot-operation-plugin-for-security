@@ -1,0 +1,8 @@
+[
+  {
+    "tenantId": "tenant-other-compromised",
+    "createdDateTime": "2026-01-01T04:11:30Z",
+    "userPrincipalName": "infiltrator@other.com",
+    "appDisplayName": "MaliciousOAuthApp"
+  }
+]

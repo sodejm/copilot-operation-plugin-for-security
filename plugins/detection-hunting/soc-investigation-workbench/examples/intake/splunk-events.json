@@ -1,0 +1,25 @@
+{
+  "results": [
+    {
+      "tenant_id": "tenant-a",
+      "_time": "2026-01-01T04:18:00Z",
+      "signature": "API Token Generation",
+      "action": "success",
+      "user": "admin-user@example.com",
+      "src_ip": "198.51.100.42",
+      "dest_ip": "203.0.113.10",
+      "host": "bastion-host-01",
+      "app": "CloudDataSync"
+    },
+    {
+      "tenant_id": "tenant-a",
+      "_time": "2026-01-01T05:00:00Z",
+      "signature": "Outbound Data Transfer Burst",
+      "action": "blocked",
+      "user": "admin-user@example.com",
+      "src_ip": "198.51.100.42",
+      "dest_ip": "203.0.113.99",
+      "host": "bastion-host-01"
+    }
+  ]
+}

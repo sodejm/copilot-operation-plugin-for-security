@@ -26,6 +26,18 @@ You can run through an entire simulated investigation using the included synthet
 
 ```bash
 # Run from the soc-investigation-workbench directory:
+# 0. Ingest raw exports from Sentinel, Splunk, and Entra into a new case
+python3 scripts/investigate.py intake \
+  --case-id incident-402 \
+  --tenant tenant-a \
+  --workspace workspace-a \
+  --start 2026-01-01T00:00:00Z \
+  --end 2026-01-02T00:00:00Z \
+  --sources sentinel:examples/intake/sentinel-incidents.json \
+            splunk:examples/intake/splunk-events.json \
+            entra:examples/intake/entra-signins.json \
+  --out /tmp/soc-case-intake.json
+
 # 1. Validate the initial case structure
 python3 scripts/investigate.py validate examples/case.json
 
@@ -41,11 +53,16 @@ python3 scripts/investigate.py import /tmp/soc-case-01.json examples/consent-res
 # 5. Record an unmonitored mailbox gap and view the updated investigation report
 python3 scripts/investigate.py import /tmp/soc-case-02.json examples/mailbox-gap.json --out /tmp/soc-case-03.json
 python3 scripts/investigate.py report /tmp/soc-case-03.json
+
+# 6. Export an immutable case handoff package (Markdown & JSON) for the next shift analyst
+python3 scripts/investigate.py export-handoff /tmp/soc-case-03.json --out-dir /tmp/soc-handoff
 ```
 
 ### What to look for
+- **Multi-Source Intake**: Ingests raw Sentinel alerts, Splunk events, and Entra logs, parses timestamps into canonical UTC, extracts entities with case-scoped hashed keys, and strictly enforces tenant boundaries.
 - **Immutable Snapshots**: Each `import` command produces a new, immutable snapshot file without modifying the original.
-- **Privacy by Default**: Generated snapshot files are written with restricted POSIX permissions (`0600`) so other users on your machine cannot inspect sensitive investigation notes.
+- **Shift Handoff Reports**: `export-handoff` generates `handoff.md` and `handoff.json` with chronological timelines, competing hypotheses status, and ranked next questions.
+- **Privacy by Default**: Generated snapshot and handoff files are written with restricted POSIX permissions (`0600`) so other users on your machine cannot inspect sensitive investigation notes.
 - **Explicit Uncertainty**: Notice how the final report preserves conflicting assessments and clearly flags the unavailable mailbox telemetry rather than glossing over missing evidence.
 
 ---
