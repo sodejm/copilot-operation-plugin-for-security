@@ -886,6 +886,45 @@
       ],
       "last_reviewed": "2026-09-30",
       "attck_version": "18.0"
+    },
+    {
+      "mapping_id": "COPS-COV-TRIAGE-T1190",
+      "technique_id": "T1190",
+      "technique_name": "Exploit Public-Facing Application",
+      "tactic": "initial-access",
+      "platforms": ["IaaS", "SaaS", "Linux", "Windows"],
+      "data_component": "Application Log: Application Vulnerability",
+      "capability": {
+        "plugin_id": "exposure-triage-workbench",
+        "component_type": "workflow",
+        "component_id": "exposure-triage",
+        "query_or_analytic": "plugins/vulnerability-management/exposure-triage-workbench/skills/exposure-triage/SKILL.md"
+      },
+      "evidence_sources": [
+        {
+          "product": "Defender",
+          "table_or_log": "SecurityAlert",
+          "required_fields": [
+            "TimeGenerated",
+            "AlertName",
+            "CompromisedEntity"
+          ],
+          "onboarding_status": "onboarded"
+        }
+      ],
+      "coverage_role": "investigation",
+      "coverage_maturity": "production",
+      "validation_state": "validated",
+      "validation_fixture": "plugins/vulnerability-management/exposure-triage-workbench/tests/test_workbench.py",
+      "time_window": "triage_snapshot",
+      "assumptions": [
+        "Correlates advisory CVEs, SBOM component versions, and network reachability to triage exploit exposure"
+      ],
+      "known_limitations": [
+        "Prioritization indicates reachability and exposure potential, not confirmed adversary exploitation"
+      ],
+      "last_reviewed": "2026-09-30",
+      "attck_version": "18.0"
     }
   ]
 }
