@@ -29,6 +29,7 @@
       "tags": [
         "claude",
         "codex",
+        "github-copilot",
         "investigation",
         "soc",
         "threat-hunting"
@@ -43,6 +44,7 @@
       "tags": [
         "claude",
         "codex",
+        "github-copilot",
         "kql",
         "microsoft-sentinel",
         "threat-hunting"
@@ -58,6 +60,7 @@
         "attack-path",
         "claude",
         "codex",
+        "github-copilot",
         "graph",
         "offline-analysis",
         "wiz"
@@ -74,6 +77,7 @@
         "azure",
         "claude",
         "codex",
+        "github-copilot",
         "offline-planning",
         "offensive-security"
       ]

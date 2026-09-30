@@ -4,6 +4,16 @@ Plan a bounded review of **operator-supplied local exports** for an authorized
 Microsoft/Azure assessment. The command makes no network or tenant API calls and
 does not execute the proposed tests.
 
+## When to use & offensive engineer playbook
+
+See the complete [Offensive Engineer & Red Teamer Playbook](docs/PLAYBOOK.md) for detailed planning workflows.
+
+Use this planner when:
+- **Scoping authorized offensive engagements**: Mapping human-signed rules-of-engagement contracts to asset inventories.
+- **Reconciling multi-tenant cloud boundaries**: Partitioning Azure/Entra exports into in-scope, excluded, and unresolved assets.
+- **Planning passive reconnaissance**: Designing non-intrusive observation steps without executing unauthorized network calls.
+- **Documenting engagement compliance**: Establishing verifiable audit trails and stop conditions before testing.
+
 ## Rules of engagement
 
 Have the assessment owner sign off on tenant IDs, subscription IDs, DNS domains,
