@@ -233,6 +233,42 @@ def keep_disagreement(context):
     audit_report(reviewed, sources)
 
 
+@given("an illustrative manifest with an oversized source or unsafe path")
+def bounded_input(context):
+    context["source_size"] = context["export"].stat().st_size
+    (context["input"].parent / "linked-export.json").symlink_to(context["export"])
+
+
+@when("the export is analyzed")
+def analyze_bounded_input(context):
+    context["valid_report"] = analyze(context["input"])
+    with pytest.raises(GateError, match="file_limit") as oversized:
+        analyze(context["input"], {"file_bytes": context["source_size"] - 1})
+    context["oversized_error"] = oversized.value
+    manifest = json.loads(context["input"].read_text())
+    manifest["sources"][0]["path"] = "linked-export.json"
+    context["input"].write_bytes(canonical(manifest))
+    with pytest.raises(GateError, match="unsafe_file") as linked:
+        analyze(context["input"])
+    context["linked_error"] = linked.value
+
+
+@then("ingestion rejects the input before report completion")
+def bounded_input_rejected(context):
+    assert str(context["oversized_error"]) == "file_limit"
+    assert str(context["linked_error"]) == "unsafe_file"
+
+
+@then("successful runs record effective limits and consumed budget")
+def ingestion_receipt(context):
+    report = context["valid_report"]
+    receipt = report["ingestion"]
+    assert receipt["run_id"] == report["run"]["run_id"]
+    assert receipt["files"] == 2
+    assert receipt["bytes"] >= context["input"].stat().st_size + context["source_size"]
+    assert receipt["bytes"] <= receipt["limits"]["total_bytes"]
+
+
 @given("a broken illustrative export")
 def broken_export(context):
     context["export"].write_bytes(context["export"].read_bytes() + b"\n")

@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from . import VERSION
+from .ingestion import IngestError, Limits, RunBudget, parse_json as bounded_json, read_regular
 
 
 class GateError(ValueError):
@@ -76,26 +77,21 @@ def utc_time(value: Any, where: str) -> datetime:
 
 def parse_json(data: bytes, path: Path) -> Any:
     try:
-        def unique_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-            result: dict[str, Any] = {}
-            for key, value in pairs:
-                if key in result:
-                    raise GateError(f"{path}: duplicate JSON key {key!r}")
-                result[key] = value
-            return result
-        return json.loads(data.decode("utf-8"), object_pairs_hook=unique_pairs)
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise GateError(f"{path}: cannot read JSON: {exc}") from exc
+        return bounded_json(data, Limits(), max_bytes=Limits().file_bytes)
+    except IngestError as exc:
+        raise GateError(str(exc)) from None
 
 
 def load_json(path: Path) -> Any:
     try:
-        return parse_json(path.read_bytes(), path)
-    except OSError as exc:
-        raise GateError(f"{path}: cannot read JSON: {exc}") from exc
+        result = read_regular(path.parent, path.name, min(262144, Limits().file_bytes))
+        return parse_json(result.data, path)
+    except IngestError as exc:
+        raise GateError(str(exc)) from None
 
 
-def validate_input(value: Any, base: Path) -> tuple[dict[str, Any], list[tuple[dict[str, Any], Path, Any]]]:
+def validate_input(value: Any, base: Path, budget: RunBudget | None = None) -> tuple[dict[str, Any], list[tuple[dict[str, Any], Path, Any]]]:
+    budget = budget or RunBudget(Limits())
     obj = exact_keys(value, {"schema_version", "sources", "context"}, set(), "input")
     if obj["schema_version"] != SCHEMA:
         raise GateError("input.schema_version: unsupported")
@@ -151,19 +147,25 @@ def validate_input(value: Any, base: Path) -> tuple[dict[str, Any], list[tuple[d
         relative = Path(identifier(src["path"], f"sources[{i}].path"))
         if relative.is_absolute() or ".." in relative.parts:
             raise GateError(f"sources[{i}].path: must be relative to input file")
-        path = (base / relative).resolve()
-        if not path.is_relative_to(base.resolve()):
-            raise GateError(f"sources[{i}].path: resolves outside input directory")
+        path = base / relative
         try:
-            source_bytes = path.read_bytes()
-        except OSError as exc:
-            raise GateError(f"sources[{i}]: missing or unreadable file: {exc}") from exc
+            source_bytes = read_regular(base, src["path"], budget.limits.file_bytes, budget).data
+        except IngestError as exc:
+            raise GateError(str(exc)) from None
         if hashlib.sha256(source_bytes).hexdigest() != src["sha256"]:
             raise GateError(f"sources[{i}]: missing file or SHA-256 mismatch")
-        raw = parse_json(source_bytes, path)
-        exact_keys(raw, {"schema_version", "records"}, set(), str(path))
+        try:
+            raw = bounded_json(source_bytes, budget.limits, max_bytes=budget.limits.file_bytes,
+                               record_cap=budget.limits.records - budget.records)
+        except IngestError as exc:
+            raise GateError(str(exc)) from None
+        exact_keys(raw, {"schema_version", "records"}, set(), f"sources[{i}]")
         if raw["schema_version"] != PROFILE or not isinstance(raw["records"], list):
-            raise GateError(f"{path}: unsupported illustrative export structure")
+            raise GateError(f"sources[{i}]: unsupported illustrative export structure")
+        try:
+            budget.add_records(len(raw["records"]))
+        except IngestError as exc:
+            raise GateError(str(exc)) from None
         if "record_count" in src and (type(src["record_count"]) is not int or src["record_count"] != len(raw["records"])):
             raise GateError(f"sources[{i}].record_count: does not match records")
         sources.append((src, path, raw))
@@ -523,14 +525,17 @@ def audit_report(report: dict[str, Any], sources: list[tuple[dict[str, Any], Pat
         raise GateError("G7: specialist reviews are not in canonical order")
 
 
-def analyze(input_path: Path) -> dict[str, Any]:
+def analyze(input_path: Path, limits: dict[str, int] | None = None) -> dict[str, Any]:
     try:
-        input_bytes = input_path.read_bytes()
-    except OSError as exc:
-        raise GateError(f"{input_path}: cannot read JSON: {exc}") from exc
-    raw_input = parse_json(input_bytes, input_path)
+        policy = Limits.from_values(limits)
+        budget = RunBudget(policy)
+        input_path = input_path.absolute()
+        input_bytes = read_regular(input_path.parent, input_path.name, min(262144, policy.file_bytes), budget).data
+        raw_input = bounded_json(input_bytes, policy, max_bytes=min(262144, policy.file_bytes))
+    except IngestError as exc:
+        raise GateError(str(exc)) from None
     input_sha = hashlib.sha256(input_bytes).hexdigest()
-    context, sources = validate_input(raw_input, input_path.parent)
+    context, sources = validate_input(raw_input, input_path.parent, budget)
     facts, quarantine, counts = normalize(context, sources)
     nodes, findings, edges, graph_errors = build_graph(facts, context["crown_jewels"])
     paths, partial = trace_paths(nodes, findings, edges, context["crown_jewels"])
@@ -587,17 +592,21 @@ def analyze(input_path: Path) -> dict[str, Any]:
     audit_report(report, sources)
     for src, path, _ in sources:
         try:
-            current_hash = file_hash(path)
-        except OSError as exc:
-            raise GateError("G1: source disappeared during analysis") from exc
+            current_hash = hashlib.sha256(read_regular(input_path.parent, src["path"], policy.file_bytes,
+                                                        budget, count_file=False).data).hexdigest()
+        except IngestError as exc:
+            raise GateError(str(exc)) from None
         if current_hash != src["sha256"]:
             raise GateError("G1: source changed during analysis")
     try:
-        current_input_hash = file_hash(input_path)
-    except OSError as exc:
-        raise GateError("G1: input disappeared during analysis") from exc
+        current_input_hash = hashlib.sha256(read_regular(input_path.parent, input_path.name,
+                                                         min(262144, policy.file_bytes), budget,
+                                                         count_file=False).data).hexdigest()
+    except IngestError as exc:
+        raise GateError(str(exc)) from None
     if current_input_hash != input_sha:
         raise GateError("G1: input changed during analysis")
+    report["ingestion"] = {"run_id": run["run_id"], **budget.receipt()}
     if json.loads(canonical(report)) != report:
         raise GateError("G8: canonical round trip failed")
     return report

@@ -1,61 +1,28 @@
 """Bounded descriptor-based bundle ingestion with validated SDK provenance."""
 import hashlib
-import os
 from pathlib import Path
 import re
-import stat
 from .._runtime.cops.evidence import assess, validate_receipt
-from .._runtime.cops.evidence.canonical import decode_json, digest, EvidenceError
-from .model import AzureError, Budget, Graph, arm, object_id, absolute_parts
+from .._runtime.cops.evidence.canonical import digest, EvidenceError
+from ..ingestion import (DEFAULTS as INGEST_DEFAULTS, IngestError, Limits, RunBudget,
+                         iter_jsonl, parse_json, read_regular as bounded_read)
+from .model import AzureError, Budget, Graph, arm, object_id
 from .normalize import FAMILIES, normalize
 
 
-def read_regular(root, relative, limit):
-    if (not isinstance(relative, str) or not relative or len(relative) > 2048
-            or relative.startswith('/') or '\\' in relative or any(ord(c) < 32 for c in relative)
-            or any(p in ('', '.', '..') for p in relative.split('/'))):
-        raise AzureError('unsafe_path')
-    if not hasattr(os, 'O_NOFOLLOW') or os.open not in os.supports_dir_fd:
-        # Conservative fallback: refusing this platform is safer than a race-prone lstat/open.
-        raise AzureError('safe_reader_unavailable')
-    descriptors = []
+def read_regular(root, relative, limit, budget=None):
     try:
-        descriptors.append(os.open('/', os.O_RDONLY | os.O_DIRECTORY))
-        parts = absolute_parts(root) + relative.split('/')
-        for index, part in enumerate(parts):
-            flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
-            if index != len(parts) - 1:
-                flags |= os.O_DIRECTORY
-            descriptors.append(os.open(part, flags, dir_fd=descriptors[-1]))
-        fd = descriptors[-1]
-        before = os.fstat(fd)
-        if not stat.S_ISREG(before.st_mode):
-            raise AzureError('nonregular_file')
-        chunks, size = [], 0
-        while True:
-            chunk = os.read(fd, min(65536, limit + 1 - size))
-            if not chunk:
-                break
-            size += len(chunk)
-            if size > limit:
-                raise AzureError('file_limit')
-            chunks.append(chunk)
-        after = os.fstat(fd)
-        if (before.st_size, before.st_mtime_ns, before.st_ctime_ns) != (after.st_size, after.st_mtime_ns, after.st_ctime_ns):
-            raise AzureError('file_changed')
-        return b''.join(chunks)
-    except OSError:
-        raise AzureError('unsafe_file') from None
-    finally:
-        for fd in reversed(descriptors):
-            os.close(fd)
+        return bounded_read(root, relative, limit, budget).data
+    except IngestError as exc:
+        raise AzureError(str(exc)) from None
 
 
-def json_value(raw, limit):
+def json_value(raw, limit, policy=None, record_cap=None, record_path=('records',)):
     try:
-        return decode_json(raw, max_bytes=limit, max_depth=32)
-    except EvidenceError:
-        raise AzureError('invalid_json') from None
+        return parse_json(raw, policy or Limits(), max_bytes=limit, record_cap=record_cap,
+                          record_path=record_path)
+    except IngestError as exc:
+        raise AzureError(str(exc)) from None
 
 
 def fields(value, required, optional=()):
@@ -128,20 +95,37 @@ def scenario_contract(scenario):
         raise AzureError('invalid_scenario')
 
 
-def load(manifest, as_of):
+def load(manifest, as_of, cli_limits=None):
+    try:
+        return _load(manifest, as_of, cli_limits)
+    except IngestError as exc:
+        raise AzureError(str(exc)) from None
+
+
+def _load(manifest, as_of, cli_limits):
+    # Validate explicit limits before touching the manifest.
+    provisional = Limits.from_values(cli_limits)
     manifest = Path(manifest).absolute()
-    manifest_bytes = read_regular(manifest.parent, manifest.name, 262144)
-    data = json_value(manifest_bytes, 262144)
+    provisional_budget = RunBudget(provisional)
+    manifest_bytes = read_regular(manifest.parent, manifest.name, min(262144, provisional.file_bytes), provisional_budget)
+    data = json_value(manifest_bytes, 262144, provisional)
     fields(data, ('schema_version', 'sources', 'scenario'), ('limits',))
     if data['schema_version'] != 'attackpath.azure.input/v1' or not isinstance(data['sources'], list):
         raise AzureError('invalid_manifest')
     graph = Graph(as_of, data.get('limits'))
+    effective = Limits.from_values({key: value for key, value in graph.limits.items()
+                                    if key in INGEST_DEFAULTS}, ceiling_values=cli_limits)
+    graph.limits.update(effective.export())
+    budget = RunBudget(effective, bytes=len(manifest_bytes), files=1)
+    if budget.bytes > effective.file_bytes:
+        raise AzureError('file_limit')
+    if budget.bytes > effective.total_bytes:
+        raise AzureError('total_byte_limit')
     scenario_contract(data['scenario'])
     graph.scenario = data['scenario']
     if len(data['sources']) * 2 + 1 > graph.limits['files']:
         raise AzureError('file_count_limit')
-    seen, total, records = set(), len(manifest_bytes), 0
-    item_count = 0
+    seen = set()
     for source in data['sources']:
         fields(source, ('id', 'family', 'api', 'tenant', 'scopes', 'path', 'sha256', 'receipt', 'receipt_sha256', 'max_age_seconds'), ('context',))
         if not all(isinstance(source[k], str) and 0 < len(source[k]) <= 256 for k in ('id', 'family', 'api', 'tenant')) or not isinstance(source.get('context', {}), dict):
@@ -168,32 +152,26 @@ def load(manifest, as_of):
             raise AzureError('missing_group_context')
         if source['family'] in ('owners', 'administrative_members', 'federated_credentials') and (not isinstance(context.get('objectId'), str) or not context['objectId']):
             raise AzureError('missing_object_context')
-        receipt_bytes = read_regular(manifest.parent, source['receipt'], 65536)
-        raw = read_regular(manifest.parent, source['path'], graph.limits['file_bytes'])
-        total += len(receipt_bytes) + len(raw)
-        if total > graph.limits['total_bytes']:
-            raise AzureError('total_byte_limit')
+        receipt_bytes = read_regular(manifest.parent, source['receipt'], min(65536, effective.file_bytes), budget)
+        raw = read_regular(manifest.parent, source['path'], effective.file_bytes, budget)
         for content, key in ((raw, 'sha256'), (receipt_bytes, 'receipt_sha256')):
             if not isinstance(source[key], str) or not re.fullmatch('[0-9a-f]{64}', source[key]) or hashlib.sha256(content).hexdigest() != source[key]:
                 raise AzureError('integrity_mismatch')
-        receipt = json_value(receipt_bytes, 65536)
+        receipt = json_value(receipt_bytes, 65536, effective)
         try:
             validate_receipt(receipt)
         except EvidenceError:
             raise AzureError('invalid_receipt') from None
-        lines = raw.splitlines()
-        if receipt['consumed']['pages'] != len(lines) or receipt['consumed']['records'] != len(lines):
-            raise AzureError('receipt_count_mismatch')
         complete = receipt['status'] == 'complete'
         source_refs = set()
         pages = []
-        for line in lines:
+        for line in iter_jsonl(raw, effective, budget):
             if not line.strip():
                 raise AzureError('empty_record')
-            records += 1
-            if records > graph.limits['records']:
-                raise AzureError('record_limit')
-            envelope = json_value(line, 1048576)
+            budget.add_records()
+            envelope = json_value(line, effective.line_bytes, effective,
+                                  record_cap=effective.records - budget.records,
+                                  record_path=('payload', 'value'))
             try:
                 quality = assess(envelope, receipt, as_of=as_of, max_age_seconds=source['max_age_seconds'])
             except ValueError:
@@ -204,11 +182,9 @@ def load(manifest, as_of):
             payload = envelope['payload']
             if not isinstance(payload, dict) or not isinstance(payload.get('value'), list):
                 raise AzureError('unsupported_page_shape')
-            item_count += len(payload['value'])
-            if item_count > graph.limits['records']:
-                raise AzureError('record_limit')
+            budget.add_records(len(payload['value']))
             continuation = payload.get('@odata.nextLink', payload.get('nextLink'))
-            if bool(continuation) != (len(pages) < len(lines)):
+            if bool(continuation) != (len(pages) < receipt['consumed']['pages']):
                 complete = False
             es = envelope['source']
             if es['product'] != product or es['tenant'] != source['tenant'] or es['scope'] != sorted(set(source['scopes'])) or es['api'] != source['api']:
@@ -229,6 +205,8 @@ def load(manifest, as_of):
             except Budget as exc:
                 graph.partial.append(str(exc))
                 complete = False
+        if receipt['consumed']['pages'] != len(pages) or receipt['consumed']['records'] != len(pages):
+            raise AzureError('receipt_count_mismatch')
         if not complete:
             for row in graph.objects:
                 if set(row.evidence) & source_refs:
@@ -237,4 +215,5 @@ def load(manifest, as_of):
         if source['family'] == 'group_members':
             complete = False
         graph.cover(source['family'], source['tenant'], source['scopes'], complete and bool(raw), sorted(source_refs))
+    graph.ingestion = budget.receipt()
     return graph

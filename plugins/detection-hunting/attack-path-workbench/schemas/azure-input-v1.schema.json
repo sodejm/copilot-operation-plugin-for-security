@@ -55,6 +55,16 @@
           "maximum": 268435456,
           "minimum": 1,
           "type": "integer"
+        },
+        "line_bytes": {
+          "maximum": 4194304,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "json_depth": {
+          "maximum": 64,
+          "minimum": 1,
+          "type": "integer"
         }
       },
       "required": [],

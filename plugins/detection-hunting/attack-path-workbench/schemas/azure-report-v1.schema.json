@@ -386,6 +386,16 @@
           "maximum": 268435456,
           "minimum": 1,
           "type": "integer"
+        },
+        "line_bytes": {
+          "maximum": 4194304,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "json_depth": {
+          "maximum": 64,
+          "minimum": 1,
+          "type": "integer"
         }
       },
       "required": [
@@ -893,6 +903,79 @@
       "maximum": 9007199254740992,
       "minimum": 0,
       "type": "integer"
+    },
+    "ingestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "limits",
+        "bytes",
+        "files",
+        "records",
+        "lines"
+      ],
+      "properties": {
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "file_bytes",
+            "total_bytes",
+            "files",
+            "line_bytes",
+            "records",
+            "json_depth"
+          ],
+          "properties": {
+            "file_bytes": {
+              "maximum": 16777216,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "total_bytes": {
+              "maximum": 268435456,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "files": {
+              "maximum": 256,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "line_bytes": {
+              "maximum": 4194304,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "records": {
+              "maximum": 200000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "json_depth": {
+              "maximum": 64,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "files": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "records": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "lines": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
     }
   },
   "required": [

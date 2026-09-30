@@ -124,5 +124,7 @@ def decode_json(raw, *, max_bytes=4 * 1024 * 1024, max_depth=32):
                             parse_constant=invalid_constant)
         canonical(result, max_bytes=max_bytes * 6, max_depth=max_depth)
         return result
+    except EvidenceError:
+        raise
     except (ValueError, UnicodeError, RecursionError):
         raise EvidenceError("invalid_json") from None

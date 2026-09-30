@@ -48,3 +48,9 @@ Feature: Offline attack path workbench
     Given a broken illustrative export
     When the source is corrected and reanalyzed
     Then the corrected input succeeds without reusing the failed result
+
+  Scenario: APW-11 bounds every untrusted read
+    Given an illustrative manifest with an oversized source or unsafe path
+    When the export is analyzed
+    Then ingestion rejects the input before report completion
+    And successful runs record effective limits and consumed budget
