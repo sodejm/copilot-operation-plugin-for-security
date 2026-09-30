@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "scenario.schema.json",
+  "title": "Microsoft Foundry Adversarial Scenario Schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "scenario_id",
+    "title",
+    "target_agent",
+    "approved_test_environment",
+    "attacker_controlled_surface",
+    "objective",
+    "injected_artifact",
+    "legitimate_task",
+    "principal_tenant",
+    "tool_permissions",
+    "expected_safe_behavior",
+    "stop_conditions"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "foundry.scenario/v1"
+    },
+    "scenario_id": {
+      "type": "string",
+      "pattern": "^SCN-[A-Za-z0-9_-]+$"
+    },
+    "title": {
+      "type": "string"
+    },
+    "target_agent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["agent_name", "agent_version", "framework"],
+      "properties": {
+        "agent_name": { "type": "string" },
+        "agent_version": { "type": "string" },
+        "framework": { "type": "string" }
+      }
+    },
+    "approved_test_environment": {
+      "type": "string"
+    },
+    "attacker_controlled_surface": {
+      "enum": [
+        "retrieved_document",
+        "tool_response",
+        "cross_tenant_request",
+        "peer_agent_message",
+        "exfiltration_request",
+        "state_mutation_request"
+      ]
+    },
+    "objective": {
+      "type": "string"
+    },
+    "injected_artifact": {
+      "type": "string"
+    },
+    "legitimate_task": {
+      "type": "string"
+    },
+    "principal_tenant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tenant_id", "principal_id"],
+      "properties": {
+        "tenant_id": { "type": "string" },
+        "principal_id": { "type": "string" }
+      }
+    },
+    "tool_permissions": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "expected_safe_behavior": {
+      "type": "string"
+    },
+    "stop_conditions": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

@@ -46,6 +46,12 @@
       "description": "Prioritize vulnerability alerts using multi-source evidence including SBOM versions, cloud asset criticality, and network reachability.",
       "version": "0.1.0",
       "source": "./plugins/vulnerability-management/exposure-triage-workbench"
+    },
+    {
+      "name": "foundry-agent-harness",
+      "description": "Author adversarial scenarios and evaluate Microsoft Foundry and Semantic Kernel agents against deterministic mock sandboxes.",
+      "version": "0.1.0",
+      "source": "./plugins/offensive-security/foundry-agent-harness"
     }
   ]
 }

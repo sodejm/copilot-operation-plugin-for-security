@@ -1,0 +1,40 @@
+{
+  "author": {
+    "name": "Justin Soderberg",
+    "url": "https://github.com/sodejm"
+  },
+  "description": "Author adversarial scenarios and evaluate Microsoft Foundry and Semantic Kernel agents against deterministic mock sandboxes.",
+  "homepage": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "interface": {
+    "displayName": "COPS Microsoft Foundry Adversarial Agent Review Harness",
+    "shortDescription": "Adversarial evaluation harness for Microsoft Foundry agents.",
+    "longDescription": "Author structured adversarial scenarios, simulate indirect prompt injection and privilege escalation against Microsoft Foundry agents, and verify independent authorization gating outside model control.",
+    "developerName": "Justin Soderberg",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Author structured adversarial evaluation scenarios",
+      "Deterministic mock tool and sandbox simulation",
+      "Distinguish model output from executed tool effects",
+      "Independent authorization gate verification"
+    ],
+    "defaultPrompt": [
+      "Evaluate this Microsoft Foundry agent against adversarial scenarios for prompt injection and authorization gating."
+    ]
+  },
+  "keywords": [
+    "adversarial-testing",
+    "ai-security",
+    "cybersecurity",
+    "foundry",
+    "mock-sandbox",
+    "offensive-security",
+    "prompt-injection",
+    "red-teaming",
+    "semantic-kernel"
+  ],
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "name": "foundry-agent-harness",
+  "repository": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "skills": "./skills/",
+  "version": "0.1.0"
+}

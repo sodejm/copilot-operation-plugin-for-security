@@ -1,0 +1,36 @@
+{
+  "schema_version": "1.0",
+  "id": "foundry-agent-harness",
+  "display_name": "COPS Microsoft Foundry Adversarial Agent Review Harness",
+  "maturity": "beta",
+  "summary": "Author adversarial scenarios and evaluate Microsoft Foundry and Semantic Kernel agents against deterministic mock sandboxes.",
+  "support": {
+    "structural_validation": "validated",
+    "offline_workflow": "validated",
+    "host_installation": "unverified",
+    "live_integration": "unverified"
+  },
+  "limitations": [
+    "Operates strictly in an offline mock sandbox environment; does not perform live network calls or production agent probing.",
+    "Evaluations assess model prompt-injection resistance and independent authorization gating; a blocked tool call indicates effective gating, not an executed compromise.",
+    "Side-effects in the mock sandbox are recorded in an in-memory ledger and can be rolled back; no actual cloud infrastructure is created or deleted."
+  ],
+  "demo": {
+    "description": "Run an offline adversarial evaluation of 6 attack scenarios against a Microsoft Foundry agent with independent authorization gating.",
+    "command": [
+      "$PYTHON",
+      "plugins/offensive-security/foundry-agent-harness/scripts/run_demo.py"
+    ],
+    "timeout_seconds": 60
+  },
+  "validation": [
+    {
+      "name": "offline-package-gate",
+      "command": [
+        "$PYTHON",
+        "plugins/offensive-security/foundry-agent-harness/scripts/validate_package.py"
+      ],
+      "timeout_seconds": 60
+    }
+  ]
+}

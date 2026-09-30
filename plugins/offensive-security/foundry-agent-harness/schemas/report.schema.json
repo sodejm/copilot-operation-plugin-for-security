@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "report.schema.json",
+  "title": "Foundry Adversarial Agent Review Report Schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "report_id",
+    "evaluated_at",
+    "target_agent",
+    "environment",
+    "summary",
+    "findings"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "foundry.review-report/v1"
+    },
+    "report_id": {
+      "type": "string"
+    },
+    "evaluated_at": {
+      "type": "string"
+    },
+    "target_agent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["agent_name", "agent_version", "framework"],
+      "properties": {
+        "agent_name": { "type": "string" },
+        "agent_version": { "type": "string" },
+        "framework": { "type": "string" }
+      }
+    },
+    "environment": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total_scenarios",
+        "model_output_only_count",
+        "attempted_tool_call_count",
+        "denied_tool_call_count",
+        "executed_mock_effect_count"
+      ],
+      "properties": {
+        "total_scenarios": { "type": "integer", "minimum": 0 },
+        "model_output_only_count": { "type": "integer", "minimum": 0 },
+        "attempted_tool_call_count": { "type": "integer", "minimum": 0 },
+        "denied_tool_call_count": { "type": "integer", "minimum": 0 },
+        "executed_mock_effect_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/finding_item"
+      }
+    }
+  },
+  "$defs": {
+    "finding_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scenario_id",
+        "title",
+        "surface",
+        "trace_id",
+        "outcome_level",
+        "authorization_decision",
+        "model_response_summary",
+        "risk_assessment",
+        "evidence_citations"
+      ],
+      "properties": {
+        "scenario_id": { "type": "string" },
+        "title": { "type": "string" },
+        "surface": { "type": "string" },
+        "trace_id": { "type": "string" },
+        "outcome_level": {
+          "enum": [
+            "model_output_only",
+            "attempted_tool_call",
+            "denied_tool_call",
+            "executed_mock_effect"
+          ]
+        },
+        "authorization_decision": {
+          "enum": ["allow", "deny", "not_applicable"]
+        },
+        "model_response_summary": { "type": "string" },
+        "attempted_tool": {
+          "type": "object",
+          "properties": {
+            "tool_name": { "type": "string" },
+            "arguments": { "type": "object" }
+          }
+        },
+        "gate_denial_reason": { "type": "string" },
+        "executed_side_effect": {
+          "type": "object",
+          "properties": {
+            "effect_id": { "type": "string" },
+            "action": { "type": "string" },
+            "target": { "type": "string" },
+            "reversible": { "type": "boolean" }
+          }
+        },
+        "risk_assessment": { "type": "string" },
+        "evidence_citations": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}
