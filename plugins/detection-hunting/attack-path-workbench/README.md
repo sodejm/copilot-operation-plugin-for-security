@@ -1,54 +1,77 @@
 # Attack Path Workbench
 
-An offline plugin for evidence-linked, conditional attack-path analysis. It supports a synthetic illustrative export contract and local Azure entitlement evidence. It makes no network calls. Real Wiz field mapping and query rendering require approved documentation and representative redacted exports.
+The **Attack Path Workbench** models, analyzes, and disrupts multi-hop attack paths in cloud environments before adversaries can exploit them. Instead of getting overwhelmed by thousands of isolated vulnerability alerts, this workbench connects security findings, network reachability, and IAM entitlements into a coherent attack graph. This allows security engineers to identify and prioritize high-leverage **choke points**—the minimal policy or network adjustments that break dozens of critical attack paths simultaneously.
 
-## When to use & engineering playbook
+The workbench operates completely offline against local export files and Azure entitlement evidence, making zero network calls.
 
-See the complete [Analyst & Engineer Playbook](docs/PLAYBOOK.md) for step-by-step methodologies.
+---
+
+## When to Use & Engineering Playbook
+
+For comprehensive methodologies and remediation workflows, see the [Analyst & Engineer Playbook](docs/PLAYBOOK.md).
 
 Use this workbench when:
 - **Reviewing cloud IAM & entitlements**: Analyzing multi-hop privilege escalation across Azure/AWS or Wiz export graphs.
-- **Evaluating vulnerability reachability**: Checking if an exposed workload finding can laterally reach crown jewels.
-- **Prioritizing choke-point remediations**: Finding the minimal policy/network changes that eliminate the most critical paths.
-- **Validating architecture changes offline**: Modeling planned identity and network boundaries before deployment.
+- **Evaluating vulnerability reachability**: Determining whether an internet-exposed workload finding can laterally pivot to your crown-jewel databases.
+- **Prioritizing choke-point remediations**: Finding the minimal policy or network changes that eliminate the most critical attack paths.
+- **Validating architecture changes offline**: Modeling planned identity and network boundaries before rolling them out to production.
 
-## Try the illustrative fixture
+---
 
-From this directory:
+## Try the Offline Illustrative Fixture
 
-```sh
+You can explore the workbench immediately using the included synthetic test fixture:
+
+```bash
+# Run from the attack-path-workbench directory:
 python3 scripts/attackpath.py analyze fixtures/illustrative/input.json --output-dir /tmp/attack-path-illustrative
 python3 scripts/attackpath.py query-intent --start ILL-FINDING --target ILL-CROWN --scope ILL-SCOPE
 python3 -m unittest discover -s tests -v
 ```
 
-Choose a fresh output directory. The analysis writes `report.json`, `report.md`, `graph.json`, and `remediation-ledger.json`. The fixture is invented test data, not a finding or a Wiz export. A structural route is conditional on exploiting its starting finding; the candidate route has explicit gaps. Business rating stays `unrated`; ATT&CK, Attack Flow, and Wiz rendering stay pending approved local material.
+### What to look for
+The analyzer generates four detailed output files in your chosen directory:
+1. `report.md`: A human-readable Markdown summary breaking down candidate attack routes and candidate choke points.
+2. `report.json`: Machine-readable results containing complete route provenance and confidence ratings.
+3. `graph.json`: An exported node-and-edge graph model ready for visualization or SIEM ingestion.
+4. `remediation-ledger.json`: An auditable ledger mapping each identified risk to its concrete remediation step.
 
-Both `analyze` and `analyze-azure` accept optional `--max-file-bytes`, `--max-total-bytes`, `--max-files`, `--max-line-bytes`, `--max-records`, and `--max-json-depth` flags to tighten ingestion budgets. Successful reports record effective limits and consumption; a rejected input produces no completion marker.
+> [!NOTE]
+> The illustrative fixture contains synthetic test data designed to demonstrate graph analysis algorithms safely. Structural routes are conditional on exploiting starting findings, and candidate routes highlight explicit evidence gaps.
 
-## Analyze Azure entitlement evidence
+---
 
-```sh
+## Analyzing Azure Entitlement Evidence
+
+For teams operating in Microsoft Azure, the workbench provides offline analysis of Graph, ARM, and Azure Resource Graph evidence:
+
+```bash
+# 1. Plan read-only queries for an authorized external collector
 python3 scripts/attackpath.py plan-azure-collection --scope-file scopes.json --output collection-plan
+
+# 2. Analyze collected entitlement evidence offline
 python3 scripts/attackpath.py analyze-azure --input bundle/manifest.json --as-of 2026-09-28T12:00:00Z --output azure-report
 ```
 
-Both commands operate offline and require a fresh output directory. The planner
-writes versioned Graph/ARM GET requests and Resource Graph inventory POST requests
-for a separately authorized collector. The analyzer
-requires checksummed COPS Evidence SDK pages and acquisition receipts; it models
-permissions and explicit runtime assumptions without executing a path. Read the
-[Azure entitlement guide](docs/azure-entitlements.md) for input contracts,
-prerequisites, output classifications, privacy controls, and limits.
+Both commands run completely offline and write to fresh output directories. The planner outputs versioned queries for your operations team to run. The analyzer verifies checksummed evidence pages, modeling permissions and lateral movement assumptions without touching live cloud APIs.
 
-## Contracts and boundaries
+For schemas and privacy limits, see the [Azure Entitlement Guide](docs/azure-entitlements.md).
 
-- [Architecture and analysis method](docs/architecture.md) gives component responsibilities, workflow, graph rules, impact method, and review boundaries.
-- [Data contract](docs/data-contract.md) explains inputs, provenance, and output schemas.
-- [Decision gates](docs/gates.md) describes G1–G8, graph semantics, ranking, and confidence.
-- [Integration boundaries](docs/integration-boundaries.md) lists the materials needed for Wiz, business-impact, and MITRE integration.
-- [Operations](docs/operations.md) covers report review and remediation tracking.
-- [Implementation status](docs/implementation-plan.md) records what runs now and what remains gated.
-- [Specialist definitions](agents/README.md) define bounded advisory review.
+---
 
-The supplied background references are [Wiz attack-path analysis](https://www.wiz.io/academy/detection-and-response/attack-path-analysis), [Picus attack-path analysis](https://www.picussecurity.com/resource/blog/what-is-attack-path-analysis), [MITRE ATT&CK](https://attack.mitre.org/), and [MITRE Attack Flow](https://ctid.mitre.org/projects/attack-flow/). These links are context, not an installed reference bundle or executable integration.
+## Contracts, Schemas, & Boundaries
+
+To dive deeper into the workbench's internal design:
+- [Architecture & Analysis Method](docs/architecture.md): Component responsibilities, graph rules, and impact algorithms.
+- [Data Contract](docs/data-contract.md): Input schemas, data provenance, and output formats.
+- [Decision Gates](docs/gates.md): Gates G1 through G8, graph semantics, and confidence scoring.
+- [Integration Boundaries](docs/integration-boundaries.md): Prerequisites for Wiz exports, business impact scoring, and MITRE mapping.
+- [Operations Guide](docs/operations.md): Report review processes and remediation tracking.
+- [Implementation Status](docs/implementation-plan.md): Active capabilities and gated integrations.
+- [Specialist Agent Roles](agents/README.md): Defined advisory subagents (Path Skeptic, Claim Auditor, Impact Reviewer).
+
+---
+
+## Evidence & Verification Boundaries
+
+The Attack Path Workbench is an analytical modeling tool. It models potential lateral movement and privilege escalation paths based on supplied configuration data. It does not actively exploit vulnerabilities, execute cloud commands, or test network reachability in live environments. Always validate identified choke points in staging or during authorized change windows before applying production policy changes.

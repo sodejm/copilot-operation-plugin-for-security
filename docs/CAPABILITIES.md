@@ -1,40 +1,62 @@
-# COPS cybersecurity capabilities
+# Cybersecurity Capabilities in COPS
 
-COPS packages defensive workflows so analysts can discover and exercise them from
-one catalog before choosing a particular assistant host.
+COPS brings together practical, defensive cybersecurity tools and AI workflows into a single unified catalog. Instead of jumping between different plugin formats or vendor platforms, security engineers can discover, test, and run capabilities locally before deciding how to deploy them.
 
-## Included packages
+---
 
-| Package | Maturity | Offline capability | Important boundary |
-| --- | --- | --- | --- |
-| [Security Logging Advisor](../plugins/logging-telemetry/security-logging-advisor/README.md) | Stable | Scans a local repository for technology and logging signals and supplies specialist logging guidance | Heuristics and recommendations require human review; host installation is unverified |
-| [SOC Investigation Workbench](../plugins/detection-hunting/soc-investigation-workbench/README.md) | Beta | Validates evidence associations, hypotheses, question dependencies, budgets, and bounded next steps | Does not execute queries or response actions; Sentinel integration and live behavior are unverified |
-| [Sentinel Hunt Workbench](../plugins/detection-hunting/sentinel-hunt-workbench/README.md) | Beta | Explains, renders, and deterministically stress-tests 12 defensive hunting workflows across declared surfaces | Reference evaluation is not Kusto or Microsoft Sentinel; tenant behavior and host installation are unverified |
-| [Attack Path Workbench](../plugins/detection-hunting/attack-path-workbench/README.md) | Experimental | Models illustrative paths and Azure entitlement chains from local, checksummed evidence; generates read-only collection plans | Modelled reachability depends on supplied evidence and assumptions; live execution, Wiz mapping, and MITRE serialization are unverified |
+## Available Security Packages
 
-Run `python3 -m cops list` for the machine-validated current inventory and support
-states. Run `python3 -m cops info <plugin-id>` before use to see limitations and the
-declared demo.
+COPS currently packages five specialized security plugins across defensive domains:
 
-## Capability layers
+| Package | Category | Maturity | What it solves | Practical boundaries |
+| :--- | :--- | :---: | :--- | :--- |
+| **[Security Logging Advisor](../plugins/logging-telemetry/security-logging-advisor/README.md)** | Logging & Telemetry | **Stable** | Audits application codebases for missing audit trails, sensitive data leaks (PII, tokens), and CVE reachability. | Inspects local code and configs; does not ingest live SIEM streams or connect to runtime clusters. |
+| **[SOC Investigation Workbench](../plugins/detection-hunting/soc-investigation-workbench/README.md)** | Detection & Hunting | **Beta** | Guides analysts through complex alert triage using competing hypotheses, question ranking, and evidence graphs. | Decision-support and reasoning framework; does not execute automated SOAR containment actions directly. |
+| **[Sentinel Hunt Workbench](../plugins/detection-hunting/sentinel-hunt-workbench/README.md)** | Detection & Hunting | **Beta** | Authors, adapts, and stress-tests 12 defensive threat hunts across Microsoft Sentinel, Defender XDR, and Data Lake. | Evaluates query logic against synthetic event streams; does not connect to live customer tenants. |
+| **[Attack Path Workbench](../plugins/detection-hunting/attack-path-workbench/README.md)** | Detection & Hunting | **Experimental** | Traces multi-hop identity and lateral movement paths from cloud exports to high-value crown jewels. | Operates on offline export manifests; does not perform active network scanning or live exploitation. |
+| **[Attack Surface Planner](../plugins/offensive-security/attack-surface-planner/README.md)** | Offensive Security | **Experimental** | Reconciles authorized rules-of-engagement scopes with local exports to create passive, bounded review plans. | Planning only; makes zero network calls, runs zero exploits, and requires human-signed authorization. |
 
-Each package may contain three complementary layers:
+To inspect the real-time status of your local catalog from your terminal, run:
 
-- deterministic tools create or validate inspectable evidence;
-- skills describe a reusable workflow and when it should be selected;
-- agent instructions coordinate broader work that still needs judgment.
+```bash
+python3 -m cops list
+```
 
-A package may omit optional host-specific agents or commands. It must provide a
-canonical skill, the required Copilot, Codex, and Claude manifests, a governance
-contract, documentation, a safe demonstration, and deterministic validation.
+---
 
-## Scope
+## The Three Capability Layers
 
-Appropriate future categories include secure code review, threat modeling,
-dependency assessment, cloud configuration review, detection engineering, digital
-forensics, and incident triage. A roadmap entry is not a shipped capability. New
-packages must define inputs, outputs, permissions, data handling, limitations, and
-acceptance scenarios using [Adding a Plugin](ADDING_A_PLUGIN.md).
+Every security package in COPS is built from three complementary layers:
 
-Product skills live inside their package. Shared `.agents/skills/` are contributor
-workflows for maintaining COPS and are not part of the installable security catalog.
+```mermaid
+flowchart TD
+    subgraph L3["3. Autonomous Agents (Judgment & Context)"]
+        AG["High-level personas that coordinate complex workflows,<br/>ask clarifying questions, and assemble reports."]
+    end
+
+    subgraph L2["2. Reusable Skills (Workflows & Guidance)"]
+        SK["Step-by-step operational workflows (SKILL.md)<br/>that tell an AI assistant exactly when and how to act."]
+    end
+
+    subgraph L1["1. Deterministic Tools (Code & Data Verification)"]
+        TL["Fast, standard-library Python scripts and schemas<br/>that produce inspectable evidence without AI hallucination."]
+    end
+
+    L3 --> L2
+    L2 --> L1
+```
+
+1. **Deterministic Tools**: Python scripts and strict JSON schemas that validate evidence, compute hashes, parse graphs, and check syntax deterministically. These do the heavy mathematical and data validation work without relying on LLM guesswork.
+2. **Reusable Skills**: Structured operational recipes (defined in `SKILL.md` files conforming to the `agentskills.io` standard). These teach AI assistants *when* to trigger specific actions and *how* to guide analysts through complex workflows.
+3. **Autonomous Agents**: Optional specialist personas (e.g. `path-skeptic`, `claim-auditor`) that help review outputs, challenge assumptions, and ensure findings are backed by hard evidence.
+
+---
+
+## Expanding the Catalog
+
+As COPS evolves, additional defensive domains are planned, including:
+- **Secure Code Review**: Detecting vulnerabilities before code merges.
+- **Threat Modeling**: Automated stride/dread analysis from architectural diagrams and specifications.
+- **Cloud Infrastructure Hardening**: Verifying Terraform and Bicep policies against CIS benchmarks.
+
+If you would like to author a new capability, check out our **[Adding a Plugin Guide](ADDING_A_PLUGIN.md)** to learn about the manifest requirements, test conventions, and validation gates.
