@@ -84,6 +84,18 @@
         "authentication": "ON_INSTALL"
       },
       "category": "Developer Tools"
+    },
+    {
+      "name": "foundry-agent-harness",
+      "source": {
+        "source": "local",
+        "path": "./plugins/offensive-security/foundry-agent-harness"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
     }
   ]
 }

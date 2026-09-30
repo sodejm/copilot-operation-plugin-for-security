@@ -1,0 +1,30 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "foundry-agent-harness",
+  "version": "0.1.0",
+  "description": "Author adversarial scenarios and evaluate Microsoft Foundry and Semantic Kernel agents against deterministic mock sandboxes.",
+  "author": {
+    "name": "Justin Soderberg",
+    "url": "https://github.com/sodejm"
+  },
+  "repository": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "keywords": [
+    "adversarial-testing",
+    "ai-security",
+    "cybersecurity",
+    "foundry",
+    "mock-sandbox",
+    "offensive-security",
+    "prompt-injection",
+    "red-teaming",
+    "semantic-kernel"
+  ],
+  "extensions": {
+    "com.openai": {
+      "displayName": "COPS Microsoft Foundry Adversarial Agent Review Harness",
+      "category": "Developer Tools"
+    },
+    "com.sodejm.copse": {}
+  }
+}

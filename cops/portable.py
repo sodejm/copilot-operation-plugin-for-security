@@ -20,7 +20,8 @@ PORTABLE_ENTRIES = {
     "plugin.json", "mcp.json", "skills", "scripts", "docs", "examples", "LICENSE", "README.md",
     "CHANGELOG.md", "SECURITY.md", "SOURCE_PROVENANCE.md", "walkthrough.md",
     "hunts", "profiles", "schemas", "fixtures", "evaluations", "huntwb",
-    "investigationwb", "attackpath", "attack_surface_planner", "entrawb", "exposuretriage", "agents", "com.github.copilot", "com.sodejm.copse",
+    "investigationwb", "attackpath", "attack_surface_planner", "entrawb", "exposuretriage",
+    "foundryharness", "scenarios", "agents", "com.github.copilot", "com.sodejm.copse",
 }
 SOURCE_ONLY_ENTRIES = {
     ".claude-plugin", ".codex-plugin", "commands", "adapters",

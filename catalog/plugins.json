@@ -113,6 +113,24 @@
         "sbom",
         "vulnerability-management"
       ]
+    },
+    {
+      "id": "foundry-agent-harness",
+      "name": "COPS Microsoft Foundry Adversarial Agent Review Harness",
+      "version": "0.1.0",
+      "primary_category": "offensive-security",
+      "path": "plugins/offensive-security/foundry-agent-harness",
+      "tags": [
+        "adversarial-testing",
+        "ai-security",
+        "claude",
+        "codex",
+        "foundry",
+        "github-copilot",
+        "mock-sandbox",
+        "offensive-security",
+        "prompt-injection"
+      ]
     }
   ]
 }
