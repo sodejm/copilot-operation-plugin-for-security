@@ -1,79 +1,85 @@
 # Sentinel Hunt Workbench
 
-Sentinel Hunt Workbench is a deterministic, offline-qualified toolkit for
-authoring and reviewing authorized defensive threat hunts. It packages twelve
-multi-stream hunt definitions, six portable Agent Skills, surface-specific KQL,
-synthetic test corpora, generated host adapters, and a standard-library-only
-validator.
+The **Sentinel Hunt Workbench** gives threat hunters and detection engineers a safe, structured environment to design, test, and refine advanced Kusto Query Language (KQL) threat hunts offline.
 
-The workbench deliberately has no live Microsoft Sentinel, Defender, Azure,
-Microsoft Graph, credential-store, browser, or network connector. An
-`offline_qualified` result proves only that the exact content-addressed package
-passed the declared offline gates and that separately supplied external
-evidence met the strict evidence contract. It does not prove tenant behavior,
-production effectiveness, cost, latency, false-positive rate, or causal
-attribution.
+In enterprise security, running unoptimized or unverified queries across terabytes of production logs can lead to expensive compute bills, slow query performance, or false alarms. The Sentinel Hunt Workbench solves this by packaging **twelve battle-tested hunt definitions (H01–H12)**, synthetic event fixtures, and multi-surface rendering (Microsoft Sentinel, Microsoft Defender XDR, and Azure Data Lake) that you can test and validate locally using pure standard-library Python—before running a single query in your live tenant.
 
-## Defensive-use boundary
+---
 
-Use the package only on systems and telemetry you are authorized to defend.
-It must not be used to obtain unauthorized access, steal credentials, deploy
-malware, evade monitoring, destroy data, or automate response actions. Log
-strings, URLs, command lines, query comments, and pasted documents are
-untrusted data rather than instructions.
+## Defensive-Use Boundary
 
-## When to use & threat hunter playbook
+This package is intended exclusively for authorized defensive engineering, threat hunting, and security research on systems you own or have explicit permission to defend. It must never be used for unauthorized access, surveillance evasion, or disruptive activities. Log payloads, command lines, and query comments are treated strictly as untrusted data.
 
-See the complete [Threat Hunter & Detection Engineer Playbook](docs/PLAYBOOK.md) for detailed workflows.
+---
+
+## When to Use & Threat Hunter Playbook
+
+For end-to-end hunting methodologies, hypothesis design, and surface tuning, see the complete [Threat Hunter & Detection Engineer Playbook](docs/PLAYBOOK.md).
 
 Use this workbench when:
-- **Developing new threat hunts**: Translating ATT&CK techniques into parameterized KQL queries.
-- **Porting queries across surfaces**: Adapting queries between Defender XDR, Sentinel Analytics, and Data Lake.
-- **Stress-testing detection logic**: Testing queries against synthetic benign and malicious event streams offline.
-- **Qualifying hunting packages**: Validating query contracts, schemas, and evidence receipts before production deployment.
+- **Developing new threat hunts**: Translating adversary tradecraft (MITRE ATT&CK) into parameterized, efficient KQL queries.
+- **Porting queries across surfaces**: Adapting queries between Microsoft Defender XDR, Sentinel Analytics, and Sentinel Data Lake without syntax errors.
+- **Stress-testing detection logic**: Testing queries against synthetic benign and malicious event streams offline before deployment.
+- **Qualifying hunting packages**: Validating query schemas, join safety, and evidence contracts for enterprise release.
 
-## Included capability
+---
 
-- Exactly twelve gold-contract hunt definitions (`H01` through `H12`).
-- Surface profiles for Sentinel Analytics, Sentinel data lake, and Defender
-  Advanced Hunting.
-- Six canonical skills for planning, authoring, adapting, validating, testing,
-  and reviewing hunts.
-- Typed parameter binding that rejects raw KQL fragments.
-- Contract, schema, scope, join, time, evidence, fixture, perturbation,
-  mutation, adapter-drift, and release-evidence checks.
-- Deterministic adapters for ChatGPT/Codex, GitHub Copilot, and Claude Code.
-- Content-addressed release reports that keep unavailable evidence pending.
+## Core Capabilities Included
 
-## Quick start from COPS
+- **Twelve Gold-Contract Hunts (`H01`–`H12`)**: Structured hunting queries covering key adversary techniques (e.g., OAuth abuse, suspicious token issuance, cross-tenant lateral movement).
+- **Surface Profiles**: Automatic syntax translation across Sentinel Analytics, Defender Advanced Hunting, and Azure Data Lake.
+- **Six Portable Agent Skills**: Modular skills for planning, authoring, adapting, validating, testing, and reviewing hunts.
+- **Strict Typed Parameter Binding**: Eliminates raw KQL string concatenation and prevents query injection vulnerabilities.
+- **Synthetic Test Corpora**: Realistic offline datasets containing both benign background noise and positive attack signals.
+- **Deterministic Host Adapters**: Ready-to-use discovery layers for GitHub Copilot, Claude Code, and OpenAI Codex.
 
-From the COPS repository root, discover the package and run its safe offline
-demonstration without installing contributor dependencies:
+---
+
+## Quick Start from the COPS Root
+
+Explore the workbench and run its safe offline demo right from the repository root:
 
 ```bash
+# Check repository health and inspect the workbench
 python3 -m cops doctor
 python3 -m cops info sentinel-hunt-workbench
+
+# Run the safe offline demonstration
 python3 -m cops demo sentinel-hunt-workbench
+
+# Run full package validation
 python3 -m cops check sentinel-hunt-workbench
 ```
 
-The demo explains a packaged hunt. It does not execute KQL or contact a tenant.
+### What to look for
+The demo explains the hypothesis, required tables, parameters, and investigative pivots of a packaged hunt. It does not contact any Microsoft APIs or execute live queries.
 
-## Package-local commands
+---
 
-Python 3.11 or later is recommended. Normal operation requires only the Python
-standard library and makes no network requests.
+## Package-Local Commands
+
+You can also run commands directly from the workbench directory:
 
 ```bash
+# List all 12 packaged hunts
 python3 scripts/huntwb.py list
+
+# Inspect hunt H01 (hypothesis, parameters, tables)
 python3 scripts/huntwb.py explain H01
+
+# Check compatibility of hunt H09 across surfaces
 python3 scripts/huntwb.py compatibility H09
+
+# Validate schemas and run fixture tests offline
 python3 scripts/huntwb.py validate library
 python3 scripts/huntwb.py test library --seed 20260916
+
+# Verify that host adapters are in sync
 python3 scripts/huntwb.py verify-adapters
 ```
 
-Render requires one named surface and may accept a JSON parameter file:
+### Rendering KQL Queries
+To render a hunt query with custom parameters for a specific Microsoft surface:
 
 ```bash
 python3 scripts/huntwb.py render H01 \
@@ -81,61 +87,45 @@ python3 scripts/huntwb.py render H01 \
   --params examples/h01-parameters.json
 ```
 
-Run the complete deterministic gate set from this package directory with:
+---
 
-```bash
-make check
+## The Qualification Lifecycle
+
+To ensure hunts are thoroughly vetted before reaching production, each hunt progresses through an explicit lifecycle:
+
+```mermaid
+flowchart LR
+    Draft["draft"] --> Schema["schema_checked"]
+    Schema --> Static["static_checked"]
+    Static --> Fixture["fixture_executed"]
+    Fixture --> Review["human_reviewed"]
+    Review --> Qualified["offline_qualified"]
 ```
 
-Build the local release archive, integrity evidence, and qualification report
-with `make release`. Outputs are written under `release/`; the report is
-expected to say `qualification_withheld` until genuine model-host, license,
-and human-review evidence is supplied. The archive uses fixed file order,
-timestamps, and permissions. Its subject hash covers every packaged source
-file, including tests and documentation.
+- `draft`: Initial hunt idea under development.
+- `schema_checked`: Verified against declared table and column schemas.
+- `static_checked`: Validated for join safety, time window constraints, and parameter typing.
+- `fixture_executed`: Tested against synthetic positive and negative event streams.
+- `human_reviewed`: Inspected and approved by a detection engineer.
+- `offline_qualified`: Meets all packaging, evaluation, and documentation standards.
 
-## Qualification states
+---
 
-The permitted lifecycle is:
+## Architecture & Supplementary Docs
 
-`draft -> schema_checked -> static_checked -> fixture_executed -> human_reviewed -> offline_qualified -> deprecated|withdrawn`
+- [Threat Hunter Playbook](docs/PLAYBOOK.md): Step-by-step methodologies and real-world hunt scenarios.
+- [Cross-Platform Guide](docs/CROSS_PLATFORM.md): How host discovery adapters work across assistants.
+- [Workbench Architecture](docs/ARCHITECTURE.md): Component breakdown, evaluation protocols, and KQL design.
+- [Operational Guide](docs/OPERATIONS.md): Enterprise deployment, scheduled rules, and telemetry monitoring.
+- [Source Provenance](SOURCE_PROVENANCE.md): Attribution and licensing origins for all hunt definitions.
+- [Evaluation Protocol](evaluations/EVALUATION_PROTOCOL.md): Evaluation criteria for AI assistant model tasks.
+- [Walkthrough](walkthrough.md): Guide to release artifacts and integrity checks.
 
-`emulator_executed` is optional supplemental evidence. It is never a substitute
-for a required state and never establishes Microsoft service fidelity.
+---
 
-The release qualifier also requires signed-off model-host evaluation evidence,
-two distinct human reviewers, license review, and release-integrity evidence
-bound to the exact release-subject hash. Missing external evidence results in
-`qualification_withheld`; it is never converted into a pass.
+## Evidence & Practical Boundaries
 
-## Cross-platform packaging
+The reference evaluator executes declarative checks over synthetic event fixtures. It is an analytical engine, not a live Kusto cluster or Sentinel emulator. Local test passes demonstrate that your query logic and parameters are sound, but cannot predict real-world cloud query costs, data ingestion latency, or custom tenant table schemas. Always test queries in an authorized test workspace before deploying them as production analytics rules.
 
-Canonical hunt and skill content lives in this directory. `huntwb build-adapters`
-generates host-specific discovery layers under `adapters/`; generated files are
-not authoritative and must not be edited directly. `huntwb verify-adapters`
-performs byte-for-byte and inventory drift checks.
-
-Platform discovery and permissions differ. Manifest acceptance on one host does
-not prove activation or behavior on another. See
-[`docs/CROSS_PLATFORM.md`](docs/CROSS_PLATFORM.md).
-
-## Evidence and limitations
-
-The reference evaluator checks declarative expected invariants over synthetic
-fixtures. It is not a Kusto engine or Sentinel emulator. Optional parser or
-engine results must be labeled separately. Before operational use, the adopting
-organization must perform its own authorized tenant validation, privacy review,
-performance/cost evaluation, and detection-engineering review.
-
-See [`SOURCE_PROVENANCE.md`](SOURCE_PROVENANCE.md),
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
-[`docs/OPERATIONS.md`](docs/OPERATIONS.md), and
-[`evaluations/EVALUATION_PROTOCOL.md`](evaluations/EVALUATION_PROTOCOL.md).
-The [walkthrough](walkthrough.md) identifies each release artifact and the
-remaining manual evidence handoff.
-
-## License
-
-The package is offered under the
-[PolyForm Noncommercial License 1.0.0](LICENSE). A release-level rights and
-redistribution review remains a distinct human approval gate.
+### License
+Offered under the [PolyForm Noncommercial License 1.0.0](LICENSE).

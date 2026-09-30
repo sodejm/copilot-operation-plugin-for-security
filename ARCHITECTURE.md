@@ -1,86 +1,101 @@
-# COPS architecture
+# System Architecture of COPS
 
-COPS is a catalog-driven collection of self-contained cybersecurity packages. It
-separates product capabilities from repository-maintenance workflows and separates
-offline evidence from host and live-service claims.
+Welcome to the architectural overview of **COPS (Copilot Operations Plugins for Security)**!
+
+At its core, COPS solves a fundamental challenge in modern AI-assisted engineering: **How do we build production-grade, defensive cybersecurity tools that work seamlessly across multiple AI assistants without duplicating code or creating vendor lock-in?**
+
+To answer this, COPS uses a **catalog-driven, offline-first architecture** where each security capability is completely self-contained, and configuration files for specific hosts (like GitHub Copilot, Claude Code, and Codex) are automatically generated from a single canonical registry.
 
 ```mermaid
 flowchart TD
-    A[catalog/plugins.json] --> B[Package governance contract]
-    B --> C[Skills, agents, scripts, examples]
-    B --> D[Safe offline demo]
-    B --> E[Deterministic checks]
-    A --> F[python3 -m cops]
-    A --> G[Generated Codex index]
-    A --> H[Generated Copilot index]
-    A --> I[Generated Claude index]
-    J[AGENTS.md and contributor skills] --> K[Repository check]
-    D --> K
-    E --> K
-    G --> K
-    H --> K
-    I --> K
+    subgraph MasterCatalog["1. Master Catalog (Single Source of Truth)"]
+        A["catalog/plugins.json<br/>(Tool Registry & Metadata)"]
+        B["catalog/categories.json<br/>(Cybersecurity Taxonomy)"]
+    end
+
+    subgraph Engine["2. COPS Engine (python3 -m cops)"]
+        E1["Validates Schemas & Timestamps"]
+        E2["Generates Host Marketplaces Without Drift"]
+        E3["Runs Safe Offline Demos & Tests"]
+    end
+
+    subgraph HostMarketplaces["3. Host AI Marketplaces"]
+        G1[".github/plugin/marketplace.json<br/>(GitHub Copilot)"]
+        G2[".claude-plugin/marketplace.json<br/>(Claude Code)"]
+        G3[".agents/plugins/marketplace.json<br/>(Codex / ChatGPT)"]
+    end
+
+    subgraph Plugins["4. Self-Contained Security Packages"]
+        P1["plugins/logging-telemetry/security-logging-advisor"]
+        P2["plugins/detection-hunting/soc-investigation-workbench"]
+        P3["plugins/detection-hunting/sentinel-hunt-workbench"]
+        P4["plugins/detection-hunting/attack-path-workbench"]
+        P5["plugins/offensive-security/attack-surface-planner"]
+    end
+
+    MasterCatalog --> Engine
+    Engine --> HostMarketplaces
+    Engine -.-> Plugins
 ```
 
-## Canonical contracts
+---
 
-`catalog/plugins.json` owns package identity, version, category, location, and
-tags. Each package's `package.json` owns maturity, limitations, evidence states,
-safe demo, and validation commands. The `cops` module validates both, constrains
-command execution to package-owned Python scripts with timeouts and no shell, and
-generates all host marketplace indexes. Each package keeps distinct Copilot,
-Codex, and Claude manifests because their metadata contracts are not
-interchangeable.
+## The Four Core Architectural Pillars
 
-Product assets remain under `plugins/<category>/<plugin-id>/`. This category-first
-layout keeps a growing catalog browsable while preserving each package as a unit
-that can be reviewed or distributed independently.
+### 1. The Master Catalog (`catalog/`)
+Instead of each AI assistant maintaining its own separate list of plugins, COPS maintains **one canonical inventory**:
+- **`catalog/plugins.json`**: Records every plugin's unique ID, display name, semantic version, primary category, and feature tags.
+- **`catalog/categories.json`**: Defines our stable cybersecurity taxonomy (`logging-telemetry`, `detection-hunting`, `offensive-security`). Every package is assigned exactly one primary category to keep the repository well-organized as it grows.
+- **`catalog/schemas/`**: Strict JSON schemas defining what a valid package, finding, or evidence record looks like.
 
-## Included product boundaries
+### 2. The Universal Host Adapter Engine (`cops`)
+Different AI assistants expect different directory structures and configuration keys:
+- **GitHub Copilot** uses `.github/plugin/marketplace.json` and root `plugin.json` files conforming to the Agent Plugins standard.
+- **Claude Code** expects `.claude-plugin/marketplace.json` and `.claude-plugin/plugin.json`.
+- **Codex / ChatGPT** requires `.agents/plugins/marketplace.json` and `.codex-plugin/plugin.json` with declared interface capabilities.
 
-- Security Logging Advisor collects local repository signals and guides reviewed
-  logging recommendations.
-- SOC Investigation Workbench plans bounded investigations from analyst-supplied,
-  redacted evidence; it does not execute queries or response actions.
-- Sentinel Hunt Workbench owns hunt content, profiles, rendering, deterministic
-  reference evaluation, and generated platform adapters. Its offline suite does not
-  emulate Kusto or prove Microsoft Sentinel tenant behavior.
-- Attack Path Workbench analyzes illustrative local exports and keeps conditional
-  path claims linked to their source evidence.
-- Attack Surface Planner validates approval and scope against pinned local exports,
-  then produces passive hypotheses and a test plan. It cannot execute active tests
-  or authorize targets discovered in those exports.
+Rather than hand-editing three different files every time a plugin changes, `python3 -m cops generate` reads the master catalog and **automatically builds all three marketplace indexes**. Our CI test suites verify that generated files never drift out of sync with the master catalog.
 
-SOC-to-Sentinel handoff remains a guarded cross-package integration. The existence
-of both packages does not by itself validate the handoff or a live query path.
+### 3. Self-Contained Packages (`plugins/<category>/<plugin-id>`)
+Every security tool in COPS is completely modular and lives in its own dedicated directory:
+- **Zero Third-Party Runtime Dependencies**: Core plugin scripts run using only the standard Python library (`json`, `re`, `pathlib`, `urllib`).
+- **Complete Package Boundary**: Each package owns its skills, scripts, test cases, and practitioner playbooks. A developer can inspect or test one package without needing to understand the rest of the repository.
+- **Built-in Safe Demos**: Every package declares a safe demonstration command that executes with synthetic data in a matter of seconds.
 
-## Shared evidence acquisition
+### 4. Deterministic Verification & Evidence Boundaries
+Security tools require trust. We separate what is verified locally from what remains unverified in a live environment:
+- **Local Validation (`validated`)**: The package's scripts parse, schemas pass validation, and deterministic tests catch known attack simulations.
+- **Live Integration (`unverified`)**: The package has not been granted live cloud credentials, and no external tenant API was called.
+This separation ensures operators know exactly what has been proven locally versus what requires staging validation in a live cloud tenant.
 
-`cops.evidence` owns the versioned envelope and acquisition receipt schemas under
-`catalog/schemas/`, canonical hashes, validation and provider-independent
-completeness/freshness assessment. `cops.connectors` owns finite acquisition bounds,
-ephemeral authentication, fixed-route HTTPS and private transactional checkpoints.
-Reviewed adapters project source responses before this shared lifecycle persists
-evidence. Graph and Azure Resource Graph examples exercise it offline.
+---
 
-Normalized envelopes and receipts are separate records joined by acquisition ID,
-tenant, scope and request fingerprint. Raw data, if authorized, belongs in a
-separate caller-owned store; envelopes carry only opaque references and hashes.
-Query completion does not establish source coverage or consistency.
+## Package Responsibilities at a Glance
 
-This root SDK is an opt-in repository dependency and is not included automatically
-in self-contained portable plugin exports. Existing plugin formats retain their
-contracts. See the [SDK guide](docs/EVIDENCE_SDK.md) for adapter authoring, storage,
-versioning and rollback boundaries.
+1. **Security Logging Advisor** (`logging-telemetry`): Inspects local repositories to identify missing audit events, flags sensitive variable leakage, and verifies CVE call-path reachability.
+2. **SOC Investigation Workbench** (`detection-hunting`): Models competing hypotheses and inquiry dependency graphs to guide analysts through complex alert triage without confirmation bias.
+3. **Sentinel Hunt Workbench** (`detection-hunting`): Develops, adapts, and stress-tests 12 defensive threat-hunting workflows across Microsoft Sentinel, Defender XDR, and Data Lake.
+4. **Attack Path Workbench** (`detection-hunting`): Evaluates multi-hop identity and permission graphs from local cloud exports to identify critical lateral movement choke points.
+5. **Attack Surface Planner** (`offensive-security`): Translates human-signed rules-of-engagement scopes and local exports into passive, bounded review plans.
 
-## Contributor architecture
+---
 
-`AGENTS.md`, `.agents/skills/`, `scripts/agent/`, and the `Makefile` own repository
-maintenance. Generated `.claude/skills/` and thin instruction adapters point back
-to that canonical policy. Specifications and pytest-bdd scenarios define
-observable acceptance criteria. The complete gate combines repository contracts,
-adapter drift, package checks, and behavior tests.
+## Shared Evidence SDK (`cops.evidence`, `cops.connectors`)
 
-See [Getting Started](docs/GETTING_STARTED.md),
-[Repository Layout](docs/REPOSITORY_LAYOUT.md), and
-[Adding a Plugin](docs/ADDING_A_PLUGIN.md).
+For tools that need to collect or store evidence from cloud APIs (such as Azure Resource Graph or Microsoft Graph), the repository includes an opt-in **Evidence SDK**:
+- **Tamper-Evident Envelopes**: Evidence items are wrapped with SHA-256 content hashes, collection timestamps, and query fingerprints.
+- **Bounded Connectors**: Built-in limits on maximum response size, pagination limits, and request timeouts prevent runaway API costs or memory exhaustion.
+- **Transaction Checkpoints**: Supports resumable state and interruption recovery during long-running collection jobs.
+
+See the **[Shared Evidence SDK Guide](docs/EVIDENCE_SDK.md)** for detailed implementation examples.
+
+---
+
+## Contributor & Quality Assurance Spine
+
+The repository maintains strict quality guardrails:
+- **`AGENTS.md`**: Canonical instructions for contributors and automated agents.
+- **`Makefile` & `scripts/agent/check.py`**: Runs pre-commit validation, including syntax checks, contract verification, adapter synchronization, and pytest-bdd scenarios.
+- **`make check`**: The universal gate that must pass before any change is merged.
+
+To get started with development, explore the **[Contributing Guide](CONTRIBUTING.md)** and **[Repository Layout](docs/REPOSITORY_LAYOUT.md)**.

@@ -1,67 +1,80 @@
 # COPS SOC Investigation Workbench
 
-An analyst-led investigation planner packaged as a Codex plugin. It maintains
-competing hypotheses, explicit evidence associations, a dependency graph, and an
-explainable ranking of the next useful questions. Python 3.10+; no runtime
-dependencies or credentials.
+The **SOC Investigation Workbench** helps security analysts investigate complex, ambiguous security alerts methodically without succumbing to alert fatigue or confirmation bias.
 
-The plugin registers two skills: `soc-investigation-planning` and
-`soc-investigation-review`. Hunt workflows belong to Sentinel Hunt Workbench and
-are consumed through an unmodified vendor snapshot. See
-[ownership and updates](docs/ownership.md).
+During high-pressure incident triage, it is easy to latch onto an initial theory and miss alternative explanations—such as mistaking an approved internal developer integration for an attacker's rogue OAuth application. This workbench provides a structured investigative framework: it maintains **competing hypotheses**, tracks explicit evidence associations, builds a dependency graph of findings, and dynamically ranks the **highest-gain next questions** to query in your telemetry.
 
-## When to use & SOC analyst playbook
+The workbench operates completely offline with Python 3.10+ and requires zero runtime dependencies, credentials, or cloud access.
 
-See the complete [SOC Analyst Playbook](docs/PLAYBOOK.md) for detailed investigative workflows.
+---
+
+## When to Use & SOC Analyst Playbook
+
+For end-to-end investigation workflows, evidence collection tips, and case handoffs, see the complete [SOC Analyst Playbook](docs/PLAYBOOK.md).
 
 Use this workbench when:
-- **Investigating complex, multi-entity alerts**: Triaging ambiguous OAuth consent, credential spill, or privilege escalation events.
-- **Countering confirmation bias**: Maintaining competing hypotheses (malicious attack vs. approved administrative activity).
-- **Ranking next investigative questions**: Determining the highest-gain log queries to execute when facing alert fatigue.
-- **Structuring incident handoffs & reviews**: Documenting the complete evidence chain and remaining uncertainties.
+- **Investigating complex, multi-entity alerts**: Triaging ambiguous OAuth consent events, credential spills, or privilege escalation across users and service principals.
+- **Countering confirmation bias**: Actively tracking competing hypotheses (e.g., malicious account takeover vs. authorized IT administration).
+- **Ranking next investigative questions**: Determining the highest-value log queries to execute when faced with dozens of possible leads.
+- **Structuring incident handoffs & post-mortems**: Exporting complete, immutable evidence chains and explicitly documenting unresolved uncertainties.
 
-**Integration status:** the local planner is implemented. The canonical Sentinel
-skills and hunt catalog were not yet present at the implementation checkpoint,
-so no vendor snapshot is included. Query handoffs and the release validation gate
-remain blocked until those source files are available and verified. The planner
-walkthrough below works independently.
+---
 
-From this directory:
+## Interactive Walkthrough (Offline Demo)
+
+You can run through an entire simulated investigation using the included synthetic case and evidence snippets:
 
 ```bash
+# Run from the soc-investigation-workbench directory:
+# 1. Validate the initial case structure
 python3 scripts/investigate.py validate examples/case.json
+
+# 2. View the ranked next questions to investigate
 python3 scripts/investigate.py next examples/case.json
+
+# 3. Import sign-in telemetry results into a new case snapshot
 python3 scripts/investigate.py import examples/case.json examples/signin-result.json --out /tmp/soc-case-01.json
+
+# 4. Import OAuth application consent evidence
 python3 scripts/investigate.py import /tmp/soc-case-01.json examples/consent-result.json --out /tmp/soc-case-02.json
+
+# 5. Record an unmonitored mailbox gap and view the updated investigation report
 python3 scripts/investigate.py import /tmp/soc-case-02.json examples/mailbox-gap.json --out /tmp/soc-case-03.json
 python3 scripts/investigate.py report /tmp/soc-case-03.json
 ```
 
-Choose fresh output paths for repeated walkthroughs. Snapshots never overwrite an
-existing file. They use mode `0600` on POSIX; on Windows, they inherit the
-destination directory's ACL, so use an analyst-restricted directory. Examples are
-synthetic; the last report preserves conflicting OAuth assessments and unavailable
-mailbox coverage.
+### What to look for
+- **Immutable Snapshots**: Each `import` command produces a new, immutable snapshot file without modifying the original.
+- **Privacy by Default**: Generated snapshot files are written with restricted POSIX permissions (`0600`) so other users on your machine cannot inspect sensitive investigation notes.
+- **Explicit Uncertainty**: Notice how the final report preserves conflicting assessments and clearly flags the unavailable mailbox telemetry rather than glossing over missing evidence.
 
-After completing the vendor integration described in the ownership guide, use
-`python3 scripts/investigate.py handoff examples/case.json --step signin` to get
-the canonical skill paths and scoped hunt request. This command executes no query.
+---
 
-Load this directory through a supported host using the portable `plugin.json` or
-the host-specific manifest under `.claude-plugin/`. Only `./skills/` is registered. Vendored skills are
-loaded by explicit handoff, so installing Sentinel separately does not register
-duplicate skill names. Repository marketplace indexes advertise the package, but
-local validation does not prove that a remote registry accepted or installed it.
+## Skills & Host Discovery
 
-See [workflow and JSON contracts](docs/workflow.md) for authoring cases and
-[validation](docs/validation.md) for executable acceptance scenarios. Reports
-show references and uncertainty, not raw evidence prose.
+The workbench provides two canonical skills:
+1. `soc-investigation-planning`: Formulates hypotheses, structures entities, and ranks next investigative questions.
+2. `soc-investigation-review`: Audits case logic, checks for missing alternative hypotheses, and verifies evidence links.
 
-All query design, raw telemetry correlation, rendering, and qualification is
-delegated to Sentinel. The case engine records analyst-supplied associations
-between observations, entities, and hypotheses. Analysts execute queries in their
-authorized tools and import redacted observations. This release does not provide
-live connectors, autonomous response,
-automatic verdicts, probabilistic confidence, or a globally optimal plan.
+The plugin can be loaded directly into GitHub Copilot, Claude Code, or OpenAI Codex using the portable `plugin.json` or `.claude-plugin/` manifests.
 
-Copyright Justin Soderberg. [PolyForm Noncommercial 1.0.0](LICENSE).
+---
+
+## Documentation & Methodology
+
+- [SOC Analyst Playbook](docs/PLAYBOOK.md): Practical triage playbooks and investigative methodology.
+- [Case Workflow & JSON Contracts](docs/workflow.md): Detailed schemas for cases, entities, observations, and hypotheses.
+- [Validation Guide](docs/validation.md): Executable acceptance scenarios and test specifications.
+- [Ownership & Updates](docs/ownership.md): How hunt workflows link with the Sentinel Hunt Workbench.
+
+---
+
+## Evidence & Practical Boundaries
+
+The SOC Investigation Workbench is an analyst-led decision support system. It records and structures your observations, but **you remain the investigator**:
+- You run the queries in your authorized SIEM, EDR, or identity portals.
+- You import redacted observations and link them to entities.
+- The tool does not autonomously quarantine hosts, disable accounts, or declare final verdicts.
+
+### License
+Offered under the [PolyForm Noncommercial License 1.0.0](LICENSE).

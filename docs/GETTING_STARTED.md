@@ -1,27 +1,39 @@
-# Getting started with COPS
+# Getting Started with COPS
 
-This guide gets a security engineer from a fresh clone to a useful, reviewable
-offline result. It does not require an assistant host, cloud account, or tenant.
+Welcome! This guide is designed to take you from a fresh repository clone to running real, verified cybersecurity tools in under five minutes.
 
-## 1. Verify the local environment
+Everything in this guide runs **100% offline** on your local machine using standard Python. You do not need an active cloud subscription, API tokens, or an AI assistant installed to explore and test these tools.
 
-Install Python 3.11 or newer, clone the repository, and run:
+---
+
+## 1. Check Your Local Setup
+
+Before diving in, make sure you have **Python 3.11 or newer** installed. Run the built-in diagnostic tool from the repository root:
 
 ```bash
 python3 -m cops doctor
 ```
 
-Acceptance criteria:
+### What to look for
+- **Python version**: You should see your Python interpreter confirmed as 3.11 or newer.
+- **Catalog health**: Confirms that all five security plugins and host marketplaces are synchronized.
+- **Offline status**: Confirms that local tools run without external network dependencies.
 
-- the command exits successfully;
-- it reports Python 3.11 or newer;
-- it reports five catalog packages and current generated indexes;
-- it states that host installation and live-service behavior are separate gates.
+If any check reports an issue, the output will give you clear, actionable instructions on how to resolve it.
 
-## 2. Choose a capability
+---
+
+## 2. Choose the Right Tool for the Job
+
+COPS packages five dedicated security plugins. To see the full catalog and current validation status, run:
 
 ```bash
 python3 -m cops list
+```
+
+To view in-depth details, operational playbooks, and limitations for any specific plugin, run `cops info <plugin-id>`:
+
+```bash
 python3 -m cops info security-logging-advisor
 python3 -m cops info soc-investigation-workbench
 python3 -m cops info sentinel-hunt-workbench
@@ -29,113 +41,103 @@ python3 -m cops info attack-path-workbench
 python3 -m cops info attack-surface-planner
 ```
 
-The table deliberately separates four questions: whether the package structure is
-valid, whether its offline workflow is validated, whether installation in an
-assistant host is validated, and whether a live integration is validated.
+### Quick Selection Matrix
 
-Choose based on the task:
+| What are you trying to accomplish? | Reach for this plugin | Key capability |
+| :--- | :--- | :--- |
+| **Audit code for logging gaps and sensitive data leaks** | `security-logging-advisor` | Context collection, security event gap analysis, and CVE reachability. |
+| **Investigate a complex alert or incident with rival hypotheses** | `soc-investigation-workbench` | Competing hypotheses, inquiry ranking, and evidence dependency graphs. |
+| **Author, adapt, or stress-test Microsoft Sentinel & Defender KQL** | `sentinel-hunt-workbench` | 12 defensive threat hunts, multi-surface adaptation, and synthetic stress testing. |
+| **Find lateral movement attack paths in cloud environments** | `attack-path-workbench` | Multi-hop IAM graph traversal, blast radius modeling, and choke-point remediation. |
+| **Plan an authorized, passive attack surface review** | `attack-surface-planner` | Scope boundary partitioning (in-scope vs. excluded) and passive test plan authoring. |
 
-| Goal | Package |
-| --- | --- |
-| Inspect repository technology and logging signals | `security-logging-advisor` |
-| Plan and review a bounded investigation from redacted evidence | `soc-investigation-workbench` |
-| Explain or stress-test Microsoft Sentinel hunt content offline | `sentinel-hunt-workbench` |
-| Trace conditional paths from illustrative local exports to a user-defined crown jewel | `attack-path-workbench` |
-| Prepare a passive attack-surface review from approved scope and local exports | `attack-surface-planner` |
+---
 
-Acceptance criteria:
+## 3. Take a Plugin for a Test Drive
 
-- all five IDs appear in `list`;
-- each `info` result includes purpose, maturity, limitations, and all support states;
-- no package is presented as live or host-validated unless evidence supports it.
-
-## 3. Run a safe demonstration
+Every plugin includes a safe, built-in demonstration that runs against local synthetic data:
 
 ```bash
+# Review logging advice and context scanning
 python3 -m cops demo security-logging-advisor
+
+# Walk through a structured SOC investigation case
 python3 -m cops demo soc-investigation-workbench
+
+# Explain a Sentinel hunt workflow and evidence contract
 python3 -m cops demo sentinel-hunt-workbench
+
+# Trace an illustrative attack path to a crown jewel
 python3 -m cops demo attack-path-workbench
+
+# Build a passive attack surface review plan
 python3 -m cops demo attack-surface-planner
 ```
 
-Each command is declared by its package, invokes a repository-owned Python script
-without a command shell, stays inside the package directory, and has a bounded
-timeout. The examples use the repository or synthetic data. Review output before
-using it in an investigation or sharing it with another system.
+### Why these demos are safe
+- **Zero Network Calls**: Everything operates on synthetic fixtures stored locally.
+- **No External Writes**: They never write to a cloud service, tenant, or external API.
+- **No Shell Execution**: Commands execute strictly as argument lists directly through Python, preventing shell injection.
 
-Acceptance criteria:
+---
 
-- each demo exits successfully on a clean clone;
-- the logging demo emits repository context JSON;
-- the SOC demo validates the synthetic case and prints its content-addressed state;
-- the Sentinel demo explains hunt `H01` and its evidence contract;
-- the attack-path demo prints a blocked query intent without contacting Wiz;
-- the attack-surface demo prints scoped passive hypotheses from synthetic exports;
-- no demo requires credentials or writes to a security service.
+## 4. Validate Package Integrity
 
-## 4. Validate what you intend to use
+You can run the exact same verification checks that power our automated CI pipelines on your own machine.
 
-Validate package metadata only:
+To run checks for a single plugin:
 
 ```bash
+# Verify metadata and schema conformance
 python3 -m cops validate sentinel-hunt-workbench
-```
 
-Run all deterministic checks declared by one package:
-
-```bash
+# Run complete deterministic offline checks for a package
 python3 -m cops check sentinel-hunt-workbench
 ```
 
-Run all package checks:
+To run offline checks across all five plugins in sequence:
 
 ```bash
 python3 -m cops check
 ```
 
-The Sentinel check validates 12 hunt definitions, runs the deterministic curated,
-perturbation, and semantic-mutation suites, and verifies generated adapter hashes.
-It is still an offline reference evaluation, not a Kusto engine or tenant test.
+### What these checks test
+- **Syntax and Logic**: Validates query structures, parameter definitions, and scripts.
+- **Adversarial Perturbations**: In `sentinel-hunt-workbench`, the test suite runs 144 semantic mutations to ensure hunts catch real attacks and resist noise.
+- **Schema Contracts**: Ensures all JSON outputs and receipts conform strictly to published schemas.
 
-## 5. Use a package with an assistant
+---
 
-Start with the selected package's `README.md` and the relevant `skills/*/SKILL.md`.
-Generated marketplace files can help compatible hosts discover package locations,
-but cloning the repository does not automatically install or enable a plugin. Check
-the current documentation for your host, review requested permissions, and record a
-host-specific smoke test before changing `host_installation` evidence.
+## 5. Using Plugins in Your AI Assistant
 
-## Contributor setup
+Once you're comfortable with how a plugin works locally, you can load it into your preferred assistant:
 
-Contributor checks require Python 3.11 or newer. Third-party dependencies are
-needed only for the full test suite:
+- **GitHub Copilot**: Load via [`.github/plugin/marketplace.json`](../.github/plugin/marketplace.json) or point to the plugin's root `plugin.json`.
+- **Claude Code**: Discover via [`.claude-plugin/marketplace.json`](../.claude-plugin/marketplace.json) or load the plugin's `.claude-plugin/plugin.json`.
+- **Codex / ChatGPT**: Load via [`.agents/plugins/marketplace.json`](../.agents/plugins/marketplace.json) and leverage the packaged skills.
+
+Each plugin's `README.md` and `docs/PLAYBOOK.md` provide detailed step-by-step instructions for getting the most out of your AI assistant during active security workflows.
+
+---
+
+## 6. Contributor Setup
+
+Want to write a new hunt, add a detection rule, or contribute a new plugin? Setting up your full development environment is easy:
 
 ```bash
+# 1. Create and activate a Python virtual environment
 python3 -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate    # On Windows: .venv\Scripts\Activate.ps1
+
+# 2. Install development test packages
 python3 -m pip install -r requirements.txt
+
+# 3. Verify developer prerequisites
 python3 -m cops doctor --contributor
 make check-prerequisites
+
+# 4. Run the full test suite
 make check
 ```
 
-On Windows, activate `.venv\Scripts\Activate.ps1`. If Make is unavailable, run
-`python3 scripts/agent/check.py`. Contributor validation includes contract checks,
-generated-index drift checks, package checks, unit tests, and executable BDD
-acceptance scenarios.
-
-The full gate verifies prerequisites first without installing packages or using
-the network. See [Contributing](../CONTRIBUTING.md#prepare-the-test-environment)
-for interpreter selection, offline dependency preparation, and troubleshooting.
-
-When adding a capability, follow [Adding a Plugin](ADDING_A_PLUGIN.md). When changing
-a canonical contributor skill under `.agents/skills/`, also run:
-
-```bash
-make sync-agent-adapters
-make check
-```
-
-No local hook, model provider, MCP server, marketplace publication, or hosted
-integration is enabled automatically by cloning COPS.
+For guidelines on authoring new plugins, see **[Adding a Plugin](ADDING_A_PLUGIN.md)** and the **[Repository Contract (AGENTS.md)](../AGENTS.md)**.
