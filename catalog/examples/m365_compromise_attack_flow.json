@@ -1,0 +1,149 @@
+{
+  "type": "bundle",
+  "id": "bundle--b8ecebd0-d35a-527b-a38f-15fc94df8ad3",
+  "spec_version": "2.1",
+  "objects": [
+    {
+      "type": "attack-flow",
+      "id": "attack-flow--5c818385-edf0-5298-aaae-6aeb0f0e9693",
+      "spec_version": "2.1",
+      "name": "Microsoft 365 Phishing to Email Forwarding and SharePoint Exfiltration",
+      "description": "Representative end-to-end Attack Flow illustrating spearphishing, mailbox compromise, email forwarding rule creation, and bulk SharePoint exfiltration.",
+      "created": "2026-09-30T22:19:23Z",
+      "modified": "2026-09-30T22:19:23Z",
+      "start_refs": [
+        "attack-action--f8fc8d5e-d0d6-5a92-9af9-5bdaa99dc5b8"
+      ],
+      "scope": "enterprise"
+    },
+    {
+      "type": "attack-action",
+      "id": "attack-action--f8fc8d5e-d0d6-5a92-9af9-5bdaa99dc5b8",
+      "spec_version": "2.1",
+      "name": "Spearphishing Link Click in Mailbox",
+      "technique_id": "T1566.002",
+      "technique_name": "Spearphishing Link",
+      "tactic": "initial-access",
+      "execution_order": 1,
+      "evidence_refs": [
+        "ev-urlclick-01"
+      ],
+      "capability_refs": [
+        "sentinel-hunt-workbench:H09"
+      ]
+    },
+    {
+      "type": "attack-condition",
+      "id": "attack-condition--3d2aa1df-cd20-59db-985d-ea5f55bb66f6",
+      "spec_version": "2.1",
+      "description": "User credential entered into spoofed consent page"
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--40db270b-8364-5cf3-a953-f0cea563276b",
+      "spec_version": "2.1",
+      "relationship_type": "causes",
+      "source_ref": "attack-action--f8fc8d5e-d0d6-5a92-9af9-5bdaa99dc5b8",
+      "target_ref": "attack-condition--3d2aa1df-cd20-59db-985d-ea5f55bb66f6"
+    },
+    {
+      "type": "attack-action",
+      "id": "attack-action--9a83a3c8-30bb-5434-86a1-ef8a96fac75d",
+      "spec_version": "2.1",
+      "name": "Authenticate to Exchange Online via Compromised Account",
+      "technique_id": "T1078",
+      "technique_name": "Valid Accounts",
+      "tactic": "initial-access",
+      "execution_order": 2,
+      "prerequisite_refs": [
+        "attack-condition--3d2aa1df-cd20-59db-985d-ea5f55bb66f6"
+      ],
+      "evidence_refs": [
+        "ev-intake-signins-03"
+      ],
+      "capability_refs": [
+        "sentinel-hunt-workbench:H01"
+      ]
+    },
+    {
+      "type": "attack-condition",
+      "id": "attack-condition--c8362f21-bc56-58d7-ac00-35f98d7c4db0",
+      "spec_version": "2.1",
+      "description": "Attacker interactive access to Exchange Online and OneDrive"
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--6fa470ae-9b29-5b1e-a71e-c2c7d3c007f7",
+      "spec_version": "2.1",
+      "relationship_type": "causes",
+      "source_ref": "attack-action--9a83a3c8-30bb-5434-86a1-ef8a96fac75d",
+      "target_ref": "attack-condition--c8362f21-bc56-58d7-ac00-35f98d7c4db0"
+    },
+    {
+      "type": "attack-action",
+      "id": "attack-action--2e812db1-1e19-5735-a5f2-cff504b5e8c3",
+      "spec_version": "2.1",
+      "name": "Create Malicious Inbox Forwarding Rule",
+      "technique_id": "T1114.003",
+      "technique_name": "Email Forwarding Rule",
+      "tactic": "collection",
+      "execution_order": 3,
+      "prerequisite_refs": [
+        "attack-condition--c8362f21-bc56-58d7-ac00-35f98d7c4db0"
+      ],
+      "evidence_refs": [
+        "ev-officeactivity-inboxrule-01"
+      ],
+      "capability_refs": [
+        "sentinel-hunt-workbench:H07"
+      ]
+    },
+    {
+      "type": "attack-condition",
+      "id": "attack-condition--b9957aba-6d85-5452-91db-9e226e25077b",
+      "spec_version": "2.1",
+      "description": "Incoming messages forwarded to external actor mailbox"
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--a235105d-24ba-5968-b6a7-5642b36137c5",
+      "spec_version": "2.1",
+      "relationship_type": "causes",
+      "source_ref": "attack-action--2e812db1-1e19-5735-a5f2-cff504b5e8c3",
+      "target_ref": "attack-condition--b9957aba-6d85-5452-91db-9e226e25077b"
+    },
+    {
+      "type": "attack-action",
+      "id": "attack-action--8a5bdc01-9537-55b9-9a58-3f1730363ac8",
+      "spec_version": "2.1",
+      "name": "Bulk Download Confidential Documents from SharePoint",
+      "technique_id": "T1213.002",
+      "technique_name": "SharePoint",
+      "tactic": "collection",
+      "execution_order": 3,
+      "prerequisite_refs": [
+        "attack-condition--c8362f21-bc56-58d7-ac00-35f98d7c4db0"
+      ],
+      "evidence_refs": [
+        "ev-officeactivity-spdownload-01"
+      ],
+      "capability_refs": [
+        "sentinel-hunt-workbench:H08"
+      ]
+    },
+    {
+      "type": "attack-condition",
+      "id": "attack-condition--f9c25a63-d4cc-578a-a19b-fa704b276e93",
+      "spec_version": "2.1",
+      "description": "Bulk corporate document archive staged for exfiltration"
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--9842ac45-c0c6-5e5a-a1f2-b53a65961e78",
+      "spec_version": "2.1",
+      "relationship_type": "causes",
+      "source_ref": "attack-action--8a5bdc01-9537-55b9-9a58-3f1730363ac8",
+      "target_ref": "attack-condition--f9c25a63-d4cc-578a-a19b-fa704b276e93"
+    }
+  ]
+}

@@ -1,0 +1,811 @@
+{
+  "schema_version": "cops.attack-coverage/v1",
+  "attck_version": "18.0",
+  "last_updated": "2026-09-30",
+  "description": "Canonical MITRE ATT&CK coverage mapping for COPS hunting, logging, investigation, and attack-path workbench capabilities.",
+  "mappings": [
+    {
+      "mapping_id": "COPS-COV-H01-A",
+      "technique_id": "T1110.003",
+      "technique_name": "Password Spraying",
+      "tactic": "credential-access",
+      "platforms": ["Azure AD", "Office 365"],
+      "data_component": "User Account: User Account Authentication",
+      "capability": {
+        "plugin_id": "sentinel-hunt-workbench",
+        "component_type": "hunt",
+        "component_id": "H01",
+        "query_or_analytic": "plugins/detection-hunting/sentinel-hunt-workbench/hunts/H01.json"
+      },
+      "evidence_sources": [
+        {
+          "product": "Sentinel",
+          "table_or_log": "SigninLogs",
+          "required_fields": [
+            "TimeGenerated",
+            "UserPrincipalName",
+            "IPAddress",
+            "ResultType",
+            "AppDisplayName"
+          ],
+          "onboarding_status": "onboarded"
+        }
+      ],
+      "coverage_role": "detection",
+      "coverage_maturity": "production",
+      "validation_state": "validated",
+      "validation_fixture": "plugins/detection-hunting/sentinel-hunt-workbench/tests/test_workbench.py",
+      "time_window": "14d",
+      "assumptions": [
+        "Attacker tests passwords against multiple accounts from distributed or rotating IP addresses"
+      ],
+      "known_limitations": [
+        "NAT or proxy concentration can aggregate distinct failures",
+        "Shared egress infrastructure can produce false positives",
+        "MFA and conditional access outcomes must be confirmed"
+      ],
+      "last_reviewed": "2026-09-30",
+      "attck_version": "18.0"
+    },
+    {
+      "mapping_id": "COPS-COV-H01-B",
+      "technique_id": "T1078",
+      "technique_name": "Valid Accounts",
+      "tactic": "initial-access",
+      "platforms": ["Azure AD"],
+      "data_component": "User Account: User Account Authentication",
+      "capability": {
+        "plugin_id": "sentinel-hunt-workbench",
+        "component_type": "hunt",
+        "component_id": "H01",
+        "query_or_analytic": "plugins/detection-hunting/sentinel-hunt-workbench/hunts/H01.json"
+      },
+      "evidence_sources": [
+        {
+          "product": "Sentinel",
+          "table_or_log": "SigninLogs",
+          "required_fields": [
+            "TimeGenerated",
+            "UserPrincipalName",
+            "IPAddress",
+            "ResultType"
+          ],
+          "onboarding_status": "onboarded"
+        }
+      ],
+      "coverage_role": "investigation",
+      "coverage_maturity": "production",
+      "validation_state": "validated",
+      "validation_fixture": "plugins/detection-hunting/sentinel-hunt-workbench/tests/test_workbench.py",
+      "time_window": "14d",
+      "assumptions": [
+        "Correlates spray failures to subsequent successful authentication"
+      ],
+      "known_limitations": [
+        "A successful authentication following spray failures is consistent with misuse but does not establish compromise"
+      ],
+      "last_reviewed": "2026-09-30",
+      "attck_version": "18.0"
+    },
+    {
+      "mapping_id": "COPS-COV-H02",
+      "technique_id": "T1078",
+      "technique_name": "Valid Accounts",
+      "tactic": "defense-evasion",
+      "platforms": ["Azure AD"],
+      "data_component": "User Account: User Account Authentication",
+      "capability": {
+        "plugin_id": "sentinel-hunt-workbench",
+        "component_type": "hunt",
+        "component_id": "H02",
+        "query_or_analytic": "plugins/detection-hunting/sentinel-hunt-workbench/hunts/H02.json"
+      },
+      "evidence_sources": [
+        {
+          "product": "Sentinel",
+          "table_or_log": "SigninLogs",
+          "required_fields": [
+            "TimeGenerated",
+            "UserPrincipalName",
+            "IPAddress",
+            "Location",
+            "RiskLevelDuringSignIn"
+          ],
+          "onboarding_status": "onboarded"
+        }
+      ],
+      "coverage_role": "detection",
+      "coverage_maturity": "production",
+      "validation_state": "validated",
+      "validation_fixture": "plugins/detection-hunting/sentinel-hunt-workbench/tests/test_workbench.py",
+      "time_window": "7d",
+      "assumptions": [
+        "Compromised account exhibits atypical sign-in characteristics followed by sensitive actions"
+      ],
+      "known_limitations": [
+        "VPN roaming and legitimate travel can trigger anomalous location alerts"
+      ],
+      "last_reviewed": "2026-09-30",
+      "attck_version": "18.0"
+    },
+    {
+      "mapping_id": "COPS-COV-H03-A",
+      "technique_id": "T1059",
+      "technique_name": "Command and Scripting Interpreter",
+      "tactic": "execution",
+      "platforms": ["Windows"],
+      "data_component": "Command: Command Execution",
+      "capability": {
+        "plugin_id": "sentinel-hunt-workbench",
+        "component_type": "hunt",
+        "component_id": "H03",
+        "query_or_analytic": "plugins/detection-hunting/sentinel-hunt-workbench/hunts/H03.json"
+      },
+      "evidence_sources": [
+        {
+          "product": "Defender for Endpoint",
+          "table_or_log": "DeviceProcessEvents",
+          "required_fields": [
+            "TimeGenerated",
+            "DeviceName",
+            "FileName",
+            "ProcessCommandLine",
+            "AccountName"
+          ],
+          "onboarding_status": "onboarded"
+        }
+      ],
+      "coverage_role": "detection",
+      "coverage_maturity": "production",
+      "validation_state": "validated",
+      "validation_fixture": "plugins/detection-hunting/sentinel-hunt-workbench/tests/test_workbench.py",
+      "time_window": "24h",
+      "assumptions": [
+        "Adversary invokes command interpreters with encoded or obfuscated parameters"
+      ],
+      "known_limitations": [
+        "Administrative automation and orchestration scripts can match heuristic parameters"
+      ],
+      "last_reviewed": "2026-09-30",
+      "attck_version": "18.0"
+    },
+    {
+      "mapping_id": "COPS-COV-H03-B",
+      "technique_id": "T1105",
+      "technique_name": "Ingress Tool Transfer",
+      "tactic": "command-and-control",
+      "platforms": ["Windows"],
+      "data_component": "File: File Creation",
+      "capability": {
+        "plugin_id": "sentinel-hunt-workbench",
+        "component_type": "hunt",
+        "component_id": "H03",
+        "query_or_analytic": "plugins/detection-hunting/sentinel-hunt-workbench/hunts/H03.json"
+      },
+      "evidence_sources": [
+        {
+          "product": "Defender for Endpoint",
+          "table_or_log": "DeviceFileEvents",
+          "required_fields": [
+            "TimeGenerated",
+            "DeviceName",
+            "FileName",
+            "FolderPath",
+            "SHA256"
+          ],
+          "onboarding_status": "onboarded"
+        }
+      ],
+      "coverage_role": "detection",
+      "coverage_maturity": "production",
+      "validation_state": "validated",
+      "validation_fixture": "plugins/detection-hunting/sentinel-hunt-workbench/tests/test_workbench.py",
+      "time_window": "24h",
+      "assumptions": [
+        "Downloaded binaries or scripts are dropped to disk prior to invocation"
+      ],
+      "known_limitations": [
+        "Legitimate software updates routinely download files to temporary directories"
+      ],
+      "last_reviewed": "2026-09-30",
+      "attck_version": "18.0"
+    },
+    {
+      "mapping_id": "COPS-COV-H04",
+      "technique_id": "T1071.001",
+      "technique_name": "Web Protocols",
+      "tactic": "command-and-control",
+      "platforms": ["Windows"],
+      "data_component": "Network Traffic: Network Connection Creation",
+      "capability": {
+        "plugin_id": "sentinel-hunt-workbench",
+        "component_type": "hunt",
+        "component_id": "H04",
+        "query_or_analytic": "plugins/detection-hunting/sentinel-hunt-workbench/hunts/H04.json"
+      },
+      "evidence_sources": [
+        {
+          "product": "Defender for Endpoint",
+          "table_or_log": "DeviceNetworkEvents",
+          "required_fields": [
+            "TimeGenerated",
+            "DeviceName",
+            "RemoteIP",
+            "RemotePort",
+            "RemoteUrl"
+          ],
+          "onboarding_status": "onboarded"
+        }
+      ],
+      "coverage_role": "detection",
+      "coverage_maturity": "production",
+      "validation_state": "validated",
+      "validation_fixture": "plugins/detection-hunting/sentinel-hunt-workbench/tests/test_workbench.py",
+      "time_window": "48h",
+      "assumptions": [
+        "Outbound command and control channel communicates over HTTP/HTTPS"
+      ],
+      "known_limitations": [
+        "High-volume web browsing and SaaS integrations create noisy baseline traffic"
+      ],
+      "last_reviewed": "2026-09-30",
+      "attck_version": "18.0"
+    },
+    {
+      "mapping_id": "COPS-COV-H05",
+      "technique_id": "T1547.001",
+      "technique_name": "Registry Run Keys / Startup Folder",
+      "tactic": "persistence",
+      "platforms": ["Windows"],
+      "data_component": "Windows Registry: Windows Registry Key Modification",
+      "capability": {
+        "plugin_id": "sentinel-hunt-workbench",
+        "component_type": "hunt",
+        "component_id": "H05",
+        "query_or_analytic": "plugins/detection-hunting/sentinel-hunt-workbench/hunts/H05.json"
+      },
+      "evidence_sources": [
+        {
+          "product": "Defender for Endpoint",
+          "table_or_log": "DeviceRegistryEvents",
+          "required_fields": [
+            "TimeGenerated",
+            "DeviceName",
+            "RegistryKey",
+            "RegistryValueName",
+            "RegistryValueData"
+          ],
+          "onboarding_status": "onboarded"
+        }
+      ],
+      "coverage_role": "detection",
+      "coverage_maturity": "production",
+      "validation_state": "validated",
+      "validation_fixture": "plugins/detection-hunting/sentinel-hunt-workbench/tests/test_workbench.py",
+      "time_window": "7d",
+      "assumptions": [
+        "Adversary writes to common startup registry keys for persistence across reboots"
+      ],
+      "known_limitations": [
+        "Approved endpoint software and updater agents regularly update run keys"
+      ],
+      "last_reviewed": "2026-09-30",
+      "attck_version": "18.0"
+    },
+    {
+      "mapping_id": "COPS-COV-H06",
+      "technique_id": "T1071.001",
+      "technique_name": "Web Protocols",
+      "tactic": "command-and-control",
+      "platforms": ["Windows"],
+      "data_component": "Network Traffic: Network Traffic Flow",
+      "capability": {
+        "plugin_id": "sentinel-hunt-workbench",
+        "component_type": "hunt",
+        "component_id": "H06",
+        "query_or_analytic": "plugins/detection-hunting/sentinel-hunt-workbench/hunts/H06.json"
+      },
+      "evidence_sources": [
+        {
+          "product": "Defender for Endpoint",
+          "table_or_log": "DeviceNetworkEvents",
+          "required_fields": [
+            "TimeGenerated",
+            "DeviceName",
+            "RemoteIP",
+            "RemotePort"
+          ],
+          "onboarding_status": "onboarded"
+        }
+      ],
+      "coverage_role": "detection",
+      "coverage_maturity": "production",
+      "validation_state": "validated",
+      "validation_fixture": "plugins/detection-hunting/sentinel-hunt-workbench/tests/test_workbench.py",
+      "time_window": "7d",
+      "assumptions": [
+        "Beaconing communication exhibits periodic frequency patterns"
+      ],
+      "known_limitations": [
+        "Jitter algorithms or long sleep timers bypass interval heuristics"
+      ],
+      "last_reviewed": "2026-09-30",
+      "attck_version": "18.0"
+    },
+    {
+      "mapping_id": "COPS-COV-H07",
+      "technique_id": "T1114.003",
+      "technique_name": "Email Forwarding Rule",
+      "tactic": "collection",
+      "platforms": ["Office 365"],
+      "data_component": "Application Log: Application Log Content",
+      "capability": {
+        "plugin_id": "sentinel-hunt-workbench",
+        "component_type": "hunt",
+        "component_id": "H07",
+        "query_or_analytic": "plugins/detection-hunting/sentinel-hunt-workbench/hunts/H07.json"
+      },
+      "evidence_sources": [
+        {
+          "product": "Microsoft 365",
+          "table_or_log": "OfficeActivity",
+          "required_fields": [
+            "TimeGenerated",
+            "UserId",
+            "Operation",
+            "Parameters"
+          ],
+          "onboarding_status": "onboarded"
+        }
+      ],
+      "coverage_role": "detection",
+      "coverage_maturity": "production",
+      "validation_state": "validated",
+      "validation_fixture": "plugins/detection-hunting/sentinel-hunt-workbench/tests/test_workbench.py",
+      "time_window": "14d",
+      "assumptions": [
+        "Adversary creates mailbox inbox rules forwarding mail to external destinations"
+      ],
+      "known_limitations": [
+        "Authorized business forwarding rules require analyst confirmation"
+      ],
+      "last_reviewed": "2026-09-30",
+      "attck_version": "18.0"
+    },
+    {
+      "mapping_id": "COPS-COV-H08",
+      "technique_id": "T1213.002",
+      "technique_name": "SharePoint",
+      "tactic": "collection",
+      "platforms": ["Office 365"],
+      "data_component": "File: File Access",
+      "capability": {
+        "plugin_id": "sentinel-hunt-workbench",
+        "component_type": "hunt",
+        "component_id": "H08",
+        "query_or_analytic": "plugins/detection-hunting/sentinel-hunt-workbench/hunts/H08.json"
+      },
+      "evidence_sources": [
+        {
+          "product": "Microsoft 365",
+          "table_or_log": "OfficeActivity",
+          "required_fields": [
+            "TimeGenerated",
+            "UserId",
+            "Operation",
+            "SourceFileName",
+            "SiteUrl"
+          ],
+          "onboarding_status": "onboarded"
+        }
+      ],
+      "coverage_role": "detection",
+      "coverage_maturity": "production",
+      "validation_state": "validated",
+      "validation_fixture": "plugins/detection-hunting/sentinel-hunt-workbench/tests/test_workbench.py",
+      "time_window": "7d",
+      "assumptions": [
+        "High-volume file downloads from SharePoint or OneDrive indicate exfiltration staging"
+      ],
+      "known_limitations": [
+        "OneDrive sync engine performs bulk operations during initial machine configuration"
+      ],
+      "last_reviewed": "2026-09-30",
+      "attck_version": "18.0"
+    },
+    {
+      "mapping_id": "COPS-COV-H09",
+      "technique_id": "T1566.002",
+      "technique_name": "Spearphishing Link",
+      "tactic": "initial-access",
+      "platforms": ["Office 365"],
+      "data_component": "Application Log: Application Log Content",
+      "capability": {
+        "plugin_id": "sentinel-hunt-workbench",
+        "component_type": "hunt",
+        "component_id": "H09",
+        "query_or_analytic": "plugins/detection-hunting/sentinel-hunt-workbench/hunts/H09.json"
+      },
+      "evidence_sources": [
+        {
+          "product": "Defender for Office 365",
+          "table_or_log": "UrlClickEvents",
+          "required_fields": [
+            "TimeGenerated",
+            "AccountUpn",
+            "Url",
+            "ActionType"
+          ],
+          "onboarding_status": "onboarded"
+        }
+      ],
+      "coverage_role": "detection",
+      "coverage_maturity": "production",
+      "validation_state": "validated",
+      "validation_fixture": "plugins/detection-hunting/sentinel-hunt-workbench/tests/test_workbench.py",
+      "time_window": "7d",
+      "assumptions": [
+        "User clicks on malicious link delivered via inbound email message"
+      ],
+      "known_limitations": [
+        "Automated mail gateway scanners and link evaluation bots can produce click telemetry"
+      ],
+      "last_reviewed": "2026-09-30",
+      "attck_version": "18.0"
+    },
+    {
+      "mapping_id": "COPS-COV-H10",
+      "technique_id": "T1098.003",
+      "technique_name": "Additional Cloud Roles",
+      "tactic": "privilege-escalation",
+      "platforms": ["Azure AD"],
+      "data_component": "User Account: User Account Modification",
+      "capability": {
+        "plugin_id": "sentinel-hunt-workbench",
+        "component_type": "hunt",
+        "component_id": "H10",
+        "query_or_analytic": "plugins/detection-hunting/sentinel-hunt-workbench/hunts/H10.json"
+      },
+      "evidence_sources": [
+        {
+          "product": "Sentinel",
+          "table_or_log": "AuditLogs",
+          "required_fields": [
+            "TimeGenerated",
+            "OperationName",
+            "InitiatedBy",
+            "TargetResources"
+          ],
+          "onboarding_status": "onboarded"
+        }
+      ],
+      "coverage_role": "detection",
+      "coverage_maturity": "production",
+      "validation_state": "validated",
+      "validation_fixture": "plugins/detection-hunting/sentinel-hunt-workbench/tests/test_workbench.py",
+      "time_window": "14d",
+      "assumptions": [
+        "Adversary grants high-privilege roles to a user or service principal"
+      ],
+      "known_limitations": [
+        "Eligible PIM role assignments must be separated from standing administrative assignments"
+      ],
+      "last_reviewed": "2026-09-30",
+      "attck_version": "18.0"
+    },
+    {
+      "mapping_id": "COPS-COV-H11",
+      "technique_id": "T1021",
+      "technique_name": "Remote Services",
+      "tactic": "lateral-movement",
+      "platforms": ["Windows"],
+      "data_component": "Network Traffic: Network Connection Creation",
+      "capability": {
+        "plugin_id": "sentinel-hunt-workbench",
+        "component_type": "hunt",
+        "component_id": "H11",
+        "query_or_analytic": "plugins/detection-hunting/sentinel-hunt-workbench/hunts/H11.json"
+      },
+      "evidence_sources": [
+        {
+          "product": "Defender for Endpoint",
+          "table_or_log": "DeviceNetworkEvents",
+          "required_fields": [
+            "TimeGenerated",
+            "DeviceName",
+            "RemoteIP",
+            "RemotePort"
+          ],
+          "onboarding_status": "onboarded"
+        }
+      ],
+      "coverage_role": "detection",
+      "coverage_maturity": "production",
+      "validation_state": "validated",
+      "validation_fixture": "plugins/detection-hunting/sentinel-hunt-workbench/tests/test_workbench.py",
+      "time_window": "7d",
+      "assumptions": [
+        "Lateral movement occurs over administrative protocols such as RDP, SSH, or WinRM"
+      ],
+      "known_limitations": [
+        "Systems administrators routinely use these ports for fleet maintenance"
+      ],
+      "last_reviewed": "2026-09-30",
+      "attck_version": "18.0"
+    },
+    {
+      "mapping_id": "COPS-COV-H12-A",
+      "technique_id": "T1098",
+      "technique_name": "Account Manipulation",
+      "tactic": "persistence",
+      "platforms": ["Azure AD"],
+      "data_component": "User Account: User Account Modification",
+      "capability": {
+        "plugin_id": "sentinel-hunt-workbench",
+        "component_type": "hunt",
+        "component_id": "H12",
+        "query_or_analytic": "plugins/detection-hunting/sentinel-hunt-workbench/hunts/H12.json"
+      },
+      "evidence_sources": [
+        {
+          "product": "Sentinel",
+          "table_or_log": "AuditLogs",
+          "required_fields": [
+            "TimeGenerated",
+            "OperationName",
+            "InitiatedBy",
+            "TargetResources"
+          ],
+          "onboarding_status": "onboarded"
+        }
+      ],
+      "coverage_role": "detection",
+      "coverage_maturity": "production",
+      "validation_state": "validated",
+      "validation_fixture": "plugins/detection-hunting/sentinel-hunt-workbench/tests/test_workbench.py",
+      "time_window": "14d",
+      "assumptions": [
+        "Adversary attaches credentials or secrets to an existing application or service principal"
+      ],
+      "known_limitations": [
+        "DevOps automation regularly creates and updates service principal credentials"
+      ],
+      "last_reviewed": "2026-09-30",
+      "attck_version": "18.0"
+    },
+    {
+      "mapping_id": "COPS-COV-H12-B",
+      "technique_id": "T1078.004",
+      "technique_name": "Cloud Accounts",
+      "tactic": "privilege-escalation",
+      "platforms": ["Azure AD"],
+      "data_component": "User Account: User Account Authentication",
+      "capability": {
+        "plugin_id": "sentinel-hunt-workbench",
+        "component_type": "hunt",
+        "component_id": "H12",
+        "query_or_analytic": "plugins/detection-hunting/sentinel-hunt-workbench/hunts/H12.json"
+      },
+      "evidence_sources": [
+        {
+          "product": "Sentinel",
+          "table_or_log": "SigninLogs",
+          "required_fields": [
+            "TimeGenerated",
+            "UserPrincipalName",
+            "AppDisplayName"
+          ],
+          "onboarding_status": "onboarded"
+        }
+      ],
+      "coverage_role": "investigation",
+      "coverage_maturity": "production",
+      "validation_state": "validated",
+      "validation_fixture": "plugins/detection-hunting/sentinel-hunt-workbench/tests/test_workbench.py",
+      "time_window": "14d",
+      "assumptions": [
+        "Verifies usage of newly added service principal credentials"
+      ],
+      "known_limitations": [
+        "Sign-ins from automated jobs cannot be distinguished from attacker use without workload attribution"
+      ],
+      "last_reviewed": "2026-09-30",
+      "attck_version": "18.0"
+    },
+    {
+      "mapping_id": "COPS-COV-SOC-INTAKE-01",
+      "technique_id": "T1078",
+      "technique_name": "Valid Accounts",
+      "tactic": "initial-access",
+      "platforms": ["Azure AD"],
+      "data_component": "User Account: User Account Authentication",
+      "capability": {
+        "plugin_id": "soc-investigation-workbench",
+        "component_type": "intake",
+        "component_id": "intake",
+        "query_or_analytic": "plugins/detection-hunting/soc-investigation-workbench/investigationwb/intake.py"
+      },
+      "evidence_sources": [
+        {
+          "product": "Sentinel",
+          "table_or_log": "SigninLogs",
+          "required_fields": [
+            "TimeGenerated",
+            "UserPrincipalName",
+            "IPAddress",
+            "ResultType"
+          ],
+          "onboarding_status": "onboarded"
+        }
+      ],
+      "coverage_role": "investigation",
+      "coverage_maturity": "production",
+      "validation_state": "validated",
+      "validation_fixture": "tests/test_soc_intake_handoff.py",
+      "time_window": "30d",
+      "assumptions": [
+        "Raw sign-in records are normalized into immutable case timeline evidence"
+      ],
+      "known_limitations": [
+        "Requires UTC timestamp normalization and consistent entity hashing across disparate sources"
+      ],
+      "last_reviewed": "2026-09-30",
+      "attck_version": "18.0"
+    },
+    {
+      "mapping_id": "COPS-COV-SOC-HANDOFF-01",
+      "technique_id": "T1078",
+      "technique_name": "Valid Accounts",
+      "tactic": "defense-evasion",
+      "platforms": ["Azure AD"],
+      "data_component": "User Account: User Account Authentication",
+      "capability": {
+        "plugin_id": "soc-investigation-workbench",
+        "component_type": "workflow",
+        "component_id": "export-handoff",
+        "query_or_analytic": "plugins/detection-hunting/soc-investigation-workbench/investigationwb/handoff.py"
+      },
+      "evidence_sources": [
+        {
+          "product": "Sentinel",
+          "table_or_log": "SigninLogs",
+          "required_fields": [
+            "TimeGenerated",
+            "UserPrincipalName"
+          ],
+          "onboarding_status": "onboarded"
+        }
+      ],
+      "coverage_role": "response",
+      "coverage_maturity": "production",
+      "validation_state": "validated",
+      "validation_fixture": "tests/test_soc_intake_handoff.py",
+      "time_window": "30d",
+      "assumptions": [
+        "Synthesizes evidence timeline and findings into shift handoff document"
+      ],
+      "known_limitations": [
+        "Produces structured reporting; does not perform active tenant remediation"
+      ],
+      "last_reviewed": "2026-09-30",
+      "attck_version": "18.0"
+    },
+    {
+      "mapping_id": "COPS-COV-SLA-LOG-01",
+      "technique_id": "T1562.001",
+      "technique_name": "Disable or Modify Tools",
+      "tactic": "defense-evasion",
+      "platforms": ["Azure AD", "IaaS"],
+      "data_component": "Sensor Health: Host Status",
+      "capability": {
+        "plugin_id": "security-logging-advisor",
+        "component_type": "skill",
+        "component_id": "logging-recommendations",
+        "query_or_analytic": "plugins/logging-telemetry/security-logging-advisor/skills/logging-recommendations"
+      },
+      "evidence_sources": [
+        {
+          "product": "Azure",
+          "table_or_log": "DiagnosticSettings",
+          "required_fields": [
+            "ResourceId",
+            "Logs",
+            "Metrics"
+          ],
+          "onboarding_status": "onboarded"
+        }
+      ],
+      "coverage_role": "prevention",
+      "coverage_maturity": "production",
+      "validation_state": "validated",
+      "validation_fixture": "tests/test_repository_context_reader.py",
+      "time_window": "baseline",
+      "assumptions": [
+        "Audits repository and infrastructure configurations to ensure telemetry pipelines are enabled"
+      ],
+      "known_limitations": [
+        "Checks static telemetry policies; does not monitor real-time sensor tampering"
+      ],
+      "last_reviewed": "2026-09-30",
+      "attck_version": "18.0"
+    },
+    {
+      "mapping_id": "COPS-COV-APW-01",
+      "technique_id": "T1098.003",
+      "technique_name": "Additional Cloud Roles",
+      "tactic": "privilege-escalation",
+      "platforms": ["Azure AD", "IaaS"],
+      "data_component": "User Account: User Account Modification",
+      "capability": {
+        "plugin_id": "attack-path-workbench",
+        "component_type": "graph_rule",
+        "component_id": "attackpath",
+        "query_or_analytic": "plugins/detection-hunting/attack-path-workbench/attackpath/core.py"
+      },
+      "evidence_sources": [
+        {
+          "product": "Azure",
+          "table_or_log": "RoleAssignments",
+          "required_fields": [
+            "PrincipalId",
+            "RoleDefinitionId",
+            "Scope"
+          ],
+          "onboarding_status": "onboarded"
+        }
+      ],
+      "coverage_role": "investigation",
+      "coverage_maturity": "production",
+      "validation_state": "validated",
+      "validation_fixture": "plugins/detection-hunting/attack-path-workbench/tests/test_workbench.py",
+      "time_window": "graph_snapshot",
+      "assumptions": [
+        "Graph edges model conditional entitlement reachability toward crown jewel targets"
+      ],
+      "known_limitations": [
+        "Establishes structural reachability, not active adversary execution or exploitability"
+      ],
+      "last_reviewed": "2026-09-30",
+      "attck_version": "18.0"
+    },
+    {
+      "mapping_id": "COPS-COV-PREVIEW-STORAGE",
+      "technique_id": "T1530",
+      "technique_name": "Data from Cloud Storage",
+      "tactic": "collection",
+      "platforms": ["IaaS"],
+      "data_component": "Cloud Storage: Cloud Storage Object Access",
+      "capability": {
+        "plugin_id": "sentinel-hunt-workbench",
+        "component_type": "hunt",
+        "component_id": "H-PREVIEW-STORAGE",
+        "query_or_analytic": "draft_storage_collection.kql"
+      },
+      "evidence_sources": [
+        {
+          "product": "Azure",
+          "table_or_log": "StorageBlobLogs",
+          "required_fields": [
+            "TimeGenerated",
+            "Uri",
+            "CallerIpAddress",
+            "AuthenticationType"
+          ],
+          "onboarding_status": "available_not_onboarded"
+        }
+      ],
+      "coverage_role": "detection",
+      "coverage_maturity": "experimental",
+      "validation_state": "unverified",
+      "time_window": "24h",
+      "assumptions": [
+        "Monitors bulk blob read/download operations from unrecognized callers"
+      ],
+      "known_limitations": [
+        "Experimental draft query without deterministic test fixture verification"
+      ],
+      "last_reviewed": "2026-09-30",
+      "attck_version": "18.0"
+    }
+  ]
+}

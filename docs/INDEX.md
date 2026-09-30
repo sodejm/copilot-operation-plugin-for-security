@@ -8,6 +8,8 @@ Welcome to the COPS documentation library! Whether you are exploring defensive t
 
 - **[Getting Started Guide](GETTING_STARTED.md)**: Go from a fresh repository clone to running safe package demos and tests in under five minutes.
 - **[Cybersecurity Capabilities](CAPABILITIES.md)**: Explore the five defensive security domains covered by COPS and choose the right tool for your mission.
+- **[ATT&CK Coverage Matrix](COVERAGE_MATRIX.md)**: Explore normalized MITRE ATT&CK technique mappings and verified coverage across all COPS capabilities.
+- **[ATT&CK & Attack Flow Guide](ATTACK_COVERAGE.md)**: Telemetry vs analytics gap analysis, representative Attack Flow exports, and authoring guidelines.
 - **[Adding a Plugin](ADDING_A_PLUGIN.md)**: Step-by-step instructions for contributing a new security capability to the catalog.
 - **[Compatibility & Evidence](COMPATIBILITY.md)**: Learn what our offline tests prove, and how we keep offline proof distinct from live cloud claims.
 

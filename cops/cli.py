@@ -14,6 +14,16 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from .catalog import ROOT, CatalogError, PluginRecord, find_plugin, plugin_records, validate_declared_command
+from .coverage import (
+    CoverageError,
+    evaluate_coverage_gaps,
+    generate_attack_flow,
+    generate_coverage_matrix,
+    load_attack_coverage,
+    load_attack_reference,
+    render_gap_report_markdown,
+    review_coverage_freshness,
+)
 from .validation import ValidationError, generate_marketplaces, validate_repository
 
 
@@ -164,6 +174,86 @@ def command_generate(*, check: bool, root: Path = ROOT) -> int:
     return 0
 
 
+def command_coverage(
+    *,
+    matrix: bool = False,
+    output: Path | None = None,
+    check: bool = False,
+    gaps: bool = False,
+    profile_path: Path | None = None,
+    export_flow: str | None = None,
+    output_flow: Path | None = None,
+    as_json: bool = False,
+    root: Path = ROOT,
+) -> int:
+    ref = load_attack_reference(root=root)
+    mappings = load_attack_coverage(reference=ref, root=root, strict=True)
+
+    if check:
+        freshness = review_coverage_freshness(mappings, ref)
+        if freshness["status"] != "fresh":
+            print(
+                f"error: ATT&CK review findings detected: "
+                f"revoked={freshness['revoked_count']}, "
+                f"deprecated={freshness['deprecated_count']}, "
+                f"version_drift={freshness['version_drift_count']}",
+                file=sys.stderr,
+            )
+            return 1
+        matrix_file = root / "docs" / "COVERAGE_MATRIX.md"
+        if not matrix_file.is_file():
+            print(f"error: Coverage matrix file missing: {matrix_file}", file=sys.stderr)
+            return 1
+        expected_matrix = generate_coverage_matrix(mappings, ref)
+        actual_matrix = matrix_file.read_text(encoding="utf-8")
+        if actual_matrix.strip() != expected_matrix.strip():
+            print(
+                f"error: {matrix_file} is out of date with catalog/attack_coverage.json; "
+                f"run 'python3 -m cops coverage --matrix --output docs/COVERAGE_MATRIX.md'",
+                file=sys.stderr,
+            )
+            return 1
+        print("MITRE ATT&CK coverage mappings, reference data, and matrix are valid and synchronized.")
+        return 0
+
+    if gaps:
+        env_profile = None
+        if profile_path is not None:
+            profile_file = (root / profile_path) if not profile_path.is_absolute() else profile_path
+            if not profile_file.is_file():
+                print(f"error: profile file not found: {profile_file}", file=sys.stderr)
+                return 1
+            env_profile = json.loads(profile_file.read_text(encoding="utf-8"))
+        gap_data = evaluate_coverage_gaps(mappings, ref, environment_profile=env_profile)
+        if as_json:
+            print(json.dumps(gap_data, indent=2))
+        else:
+            print(render_gap_report_markdown(gap_data))
+        return 0
+
+    if export_flow:
+        flow_data = generate_attack_flow(export_flow, mappings=mappings, reference=ref)
+        if output_flow is not None:
+            out_path = (root / output_flow) if not output_flow.is_absolute() else output_flow
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(json.dumps(flow_data, indent=2) + "\n", encoding="utf-8")
+            print(f"Wrote Attack Flow bundle to {output_flow}")
+        else:
+            print(json.dumps(flow_data, indent=2))
+        return 0
+
+    # Default action: render matrix
+    text = generate_coverage_matrix(mappings, ref)
+    if output is not None:
+        out_path = (root / output) if not output.is_absolute() else output
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(text + "\n", encoding="utf-8")
+        print(f"Wrote coverage matrix to {output}")
+    else:
+        print(text)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python3 -m cops",
@@ -183,6 +273,17 @@ def build_parser() -> argparse.ArgumentParser:
     check.add_argument("plugin_ids", nargs="*")
     generate = subparsers.add_parser("generate", help="generate host indexes from the catalog")
     generate.add_argument("--check", action="store_true", help="fail instead of writing when indexes are stale")
+
+    cov_parser = subparsers.add_parser("coverage", help="inspect ATT&CK coverage, gap analysis, and Attack Flow")
+    cov_parser.add_argument("--matrix", action="store_true", help="render the Markdown coverage matrix")
+    cov_parser.add_argument("--output", type=Path, help="write coverage matrix to file")
+    cov_parser.add_argument("--check", action="store_true", help="validate mappings and check matrix freshness")
+    cov_parser.add_argument("--gaps", action="store_true", help="run telemetry and analytics gap analysis")
+    cov_parser.add_argument("--profile", type=Path, help="environment profile for gap analysis")
+    cov_parser.add_argument("--export-flow", choices=["azure-identity", "m365-compromise"], help="export STIX 2.1 Attack Flow bundle")
+    cov_parser.add_argument("--output-flow", type=Path, help="write Attack Flow bundle to file")
+    cov_parser.add_argument("--json", action="store_true", help="output structured JSON")
+
     return parser
 
 
@@ -204,7 +305,19 @@ def main(argv: list[str] | None = None, *, root: Path = ROOT) -> int:
             return command_check(args.plugin_ids, root)
         if args.command == "generate":
             return command_generate(check=args.check, root=root)
-    except (CatalogError, ValidationError) as error:
+        if args.command == "coverage":
+            return command_coverage(
+                matrix=args.matrix,
+                output=args.output,
+                check=args.check,
+                gaps=args.gaps,
+                profile_path=args.profile,
+                export_flow=args.export_flow,
+                output_flow=args.output_flow,
+                as_json=args.json,
+                root=root,
+            )
+    except (CatalogError, ValidationError, CoverageError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
     parser.error(f"unsupported command: {args.command}")
