@@ -54,3 +54,10 @@ Feature: Offline attack path workbench
     When the export is analyzed
     Then ingestion rejects the input before report completion
     And successful runs record effective limits and consumed budget
+
+  Scenario: APW-12 stops bounded path search reproducibly
+    Given an illustrative graph with more routes than the chosen search budget
+    When analysis reaches an expansion, frontier, path, or report byte limit
+    Then the v2 report records the effective limits, consumption, and stop reason
+    And incomplete rankings are labelled as best discovered routes
+    And the same policy and receipt replay during claim audit

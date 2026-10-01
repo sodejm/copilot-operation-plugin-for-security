@@ -17,6 +17,7 @@ This sibling plugin analyzes local, user-supplied export files only. Its first m
 - [x] APW-09: Ship versioned specialist review contracts that can disagree without changing deterministic gate results.
 - [x] APW-10: Provide a positive illustrative fixture, denial and recovery variants, and automated tests for the above gates.
 - [x] APW-11: Read untrusted manifests and sources through a shared descriptor-anchored ingestion boundary. Reject links, special files, unsupported compression, oversized or deeply nested JSON, and exhausted file, byte, or record budgets before report completion. Record effective limits and usage in the report.
+- [x] APW-12: Bound path expansions, frontier, retained complete and partial routes, emitted routes, and serialized report size. Emit a replayable v2 search receipt and bind the policy to run identity. Label incomplete rankings as best discovered routes. Audit legacy v1 reports only within hard limits, without inventing a missing completeness receipt.
 
 ## Evidence and safety constraints
 

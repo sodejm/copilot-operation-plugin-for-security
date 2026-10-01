@@ -13,6 +13,7 @@ from typing import Any
 
 from . import VERSION
 from .ingestion import IngestError, Limits, RunBudget, parse_json as bounded_json, read_regular
+from .search import SearchLimits, bounded_json_bytes
 
 
 class GateError(ValueError):
@@ -291,7 +292,7 @@ def build_graph(facts: list[dict[str, Any]], crowns: list[dict[str, Any]]) -> tu
     return nodes, valid_findings, valid_edges, errors
 
 
-def trace_paths(nodes: dict[str, dict[str, Any]], findings: list[dict[str, Any]], edges: list[dict[str, Any]], crowns: list[dict[str, Any]], max_depth: int = 8) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def trace_paths(nodes: dict[str, dict[str, Any]], findings: list[dict[str, Any]], edges: list[dict[str, Any]], crowns: list[dict[str, Any]], limits: SearchLimits, max_depth: int = 8) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
     targets = {c["asset_ref"]: c for c in crowns
                if c["asset_ref"] in nodes and nodes[c["asset_ref"]]["record"]["node_type"] == "asset"}
     adjacency: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -305,15 +306,26 @@ def trace_paths(nodes: dict[str, dict[str, Any]], findings: list[dict[str, Any]]
         rows.sort(key=lambda e: (e["record"]["id"], e["evidence_id"]))
     found: dict[str, dict[str, Any]] = {}
     partial: list[dict[str, Any]] = []
+    expansions = 0
+    max_frontier = 0
+    stop_reason: str | None = None
     for finding in sorted(findings, key=lambda f: f["record"]["id"]):
+        if expansions >= limits.expansions:
+            stop_reason = "expansion_limit"
+            break
         start = finding["record"]["asset_ref"]
         finding_gaps = [f"{finding['record']['id']}: hypothetical starting finding"] if finding["class"] == "hypothesis" else []
         if nodes[start]["class"] == "hypothesis":
             finding_gaps.append(f"{start}: hypothetical starting asset")
         stack = [(start, [start], [], {"finding_on_asset"}, finding_gaps,
                   [finding["evidence_id"], nodes[start]["evidence_id"]])]
+        max_frontier = max(max_frontier, len(stack))
         while stack:
+            if expansions >= limits.expansions:
+                stop_reason = "expansion_limit"
+                break
             current, visited, steps, capabilities, gaps, evidence = stack.pop()
+            expansions += 1
             if current in targets:
                 signature = {"finding": finding["record"]["id"], "target": current,
                              "sequence": [(s["from"], s["relation"], s["to"], tuple(sorted(set(s["preconditions"]))),
@@ -322,6 +334,9 @@ def trace_paths(nodes: dict[str, dict[str, Any]], findings: list[dict[str, Any]]
                 path_id = "P-" + digest(signature)[:16]
                 prior = found.get(path_id)
                 if prior is None:
+                    if len(found) >= limits.complete_paths:
+                        stop_reason = "complete_path_limit"
+                        break
                     supported_nodes = [start] if not finding_gaps and nodes[start]["class"] == "observed" else []
                     supported_steps = []
                     for step in steps:
@@ -367,6 +382,9 @@ def trace_paths(nodes: dict[str, dict[str, Any]], findings: list[dict[str, Any]]
                             existing_step["supporting_evidence_refs"] + new_step["supporting_evidence_refs"]))
                 continue
             if len(steps) >= max_depth:
+                if len(partial) >= limits.partial_paths:
+                    stop_reason = "partial_path_limit"
+                    break
                 partial.append({"start_finding": finding["record"]["id"], "stopped_at": current, "reason": "depth limit"})
                 continue
             advanced = False
@@ -386,13 +404,34 @@ def trace_paths(nodes: dict[str, dict[str, Any]], findings: list[dict[str, Any]]
                         "postcondition": row["postcondition"], "support": row["support"],
                         "evidence_ref": edge["evidence_id"], "supporting_evidence_refs": [edge["evidence_id"]],
                         "confidence": edge["confidence"]}
+                if len(stack) >= limits.frontier:
+                    stop_reason = "frontier_limit"
+                    break
                 stack.append((row["to"], visited + [row["to"]], steps + [step],
                               capabilities | {row["postcondition"]}, next_gaps,
                               evidence + [edge["evidence_id"], nodes[row["to"]]["evidence_id"]]))
+                max_frontier = max(max_frontier, len(stack))
+            if stop_reason:
+                break
             if not advanced:
+                if len(partial) >= limits.partial_paths:
+                    stop_reason = "partial_path_limit"
+                    break
                 partial.append({"start_finding": finding["record"]["id"], "stopped_at": current, "reason": "no further valid transition"})
+        if stop_reason:
+            break
     paths = list(found.values())
-    return paths, sorted(partial, key=lambda x: (x["start_finding"], x["stopped_at"], x["reason"]))
+    paths = rank_paths(paths, crowns)
+    if len(paths) > limits.emitted_paths:
+        paths = paths[:limits.emitted_paths]
+        stop_reason = stop_reason or "emitted_path_limit"
+    receipt = {"limits": limits.receipt_limits(),
+               "consumed": {"expansions": expansions, "max_frontier": max_frontier,
+                            "complete_paths": len(found), "partial_paths": len(partial),
+                            "emitted_paths": len(paths)},
+               "complete": stop_reason is None, "stop_reason": stop_reason,
+               "ranking_scope": "all_discovered" if stop_reason is None else "best_discovered"}
+    return paths, sorted(partial, key=lambda x: (x["start_finding"], x["stopped_at"], x["reason"])), receipt
 
 
 def rank_paths(paths: list[dict[str, Any]], crowns: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -479,6 +518,14 @@ def collect_reviews(report: dict[str, Any], reviews: list[dict[str, Any]]) -> di
 
 def audit_report(report: dict[str, Any], sources: list[tuple[dict[str, Any], Path, Any]]) -> None:
     """Rebuild report claims from the immutable, hash-checked source snapshots."""
+    version = report.get("schema_version")
+    if version not in {"attackpath.report/v1", "attackpath.report/v2"}:
+        raise GateError("G7: unsupported report version")
+    try:
+        search_limits = SearchLimits.from_values(report["search"]["limits"] if version.endswith("/v2") else None)
+        bounded_json_bytes(report, search_limits.report_bytes)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise GateError(f"G7: report exceeds bounded audit policy or has invalid search limits: {exc}") from None
     context = report["context"]
     source_by_id = {source["source_id"]: (source, raw) for source, _, raw in sources}
     for fact in report["evidence"]:
@@ -513,8 +560,20 @@ def audit_report(report: dict[str, Any], sources: list[tuple[dict[str, Any], Pat
                                  "observed_at": e["observation_time"]} for e in sorted(edges, key=lambda e: e["record"]["id"])]}
     if report["graph"] != expected_graph:
         raise GateError("G7: graph relationship differs from cited evidence")
-    expected_paths, expected_partial = trace_paths(nodes, findings, edges, context["crown_jewels"])
-    expected_paths = rank_paths(expected_paths, context["crown_jewels"])
+    expected_paths, expected_partial, expected_search = trace_paths(
+        nodes, findings, edges, context["crown_jewels"], search_limits)
+    if version.endswith("/v1"):
+        if not expected_search["complete"]:
+            raise GateError("G7: legacy report cannot be fully audited within hard search limits")
+    else:
+        policy_hash = digest({"schema_version": "attackpath.search-policy/v1", "limits": search_limits.receipt_limits(), "max_depth": 8})
+        if report["search"] != expected_search or report["run"].get("search_policy_sha256") != policy_hash:
+            raise GateError("G7: search receipt or policy fingerprint differs from bounded replay")
+        expected_run_id = "RUN-" + digest({"input_sha256": report["run"]["input_sha256"],
+                                           "source_sha256": report["run"]["source_sha256"],
+                                           "version": VERSION, "search_policy_sha256": policy_hash})[:16]
+        if report["run"]["run_id"] != expected_run_id:
+            raise GateError("G7: run identity differs from search policy")
     if (report["supported_paths"] != [p for p in expected_paths if p["path_class"] == "supported_structural"]
             or report["candidate_paths"] != [p for p in expected_paths if p["path_class"] == "candidate"]
             or report["partial_paths"] != expected_partial):
@@ -525,21 +584,22 @@ def audit_report(report: dict[str, Any], sources: list[tuple[dict[str, Any], Pat
         raise GateError("G7: specialist reviews are not in canonical order")
 
 
-def analyze(input_path: Path, limits: dict[str, int] | None = None) -> dict[str, Any]:
+def analyze(input_path: Path, limits: dict[str, int] | None = None,
+            search_limits: dict[str, int] | None = None) -> dict[str, Any]:
     try:
         policy = Limits.from_values(limits)
+        search_policy = SearchLimits.from_values(search_limits)
         budget = RunBudget(policy)
         input_path = input_path.absolute()
         input_bytes = read_regular(input_path.parent, input_path.name, min(262144, policy.file_bytes), budget).data
         raw_input = bounded_json(input_bytes, policy, max_bytes=min(262144, policy.file_bytes))
-    except IngestError as exc:
+    except (IngestError, ValueError) as exc:
         raise GateError(str(exc)) from None
     input_sha = hashlib.sha256(input_bytes).hexdigest()
     context, sources = validate_input(raw_input, input_path.parent, budget)
     facts, quarantine, counts = normalize(context, sources)
     nodes, findings, edges, graph_errors = build_graph(facts, context["crown_jewels"])
-    paths, partial = trace_paths(nodes, findings, edges, context["crown_jewels"])
-    paths = rank_paths(paths, context["crown_jewels"])
+    paths, partial, search_receipt = trace_paths(nodes, findings, edges, context["crown_jewels"], search_policy)
     evidence_ids = {f["evidence_id"] for f in facts}
     for path in paths:
         if not path["evidence_refs"] or not set(path["evidence_refs"]) <= evidence_ids:
@@ -549,13 +609,17 @@ def analyze(input_path: Path, limits: dict[str, int] | None = None) -> dict[str,
             raise GateError("G7: path step lacks cited evidence")
     actions = make_actions(paths)
     profile_path = Path(__file__).resolve().parents[1] / "profiles" / "illustrative_canonical-v1.json"
+    search_hash = digest({"schema_version": "attackpath.search-policy/v1", "limits": search_policy.receipt_limits(), "max_depth": 8})
     run = {"tool_version": VERSION, "rule_version": "attackpath.rules/v1",
            "rule_sha256": file_hash(Path(__file__).resolve()),
            "profile_sha256": {PROFILE: file_hash(profile_path)},
            "input_sha256": input_sha,
            "source_sha256": {src["source_id"]: src["sha256"] for src, _, _ in sources},
            "profile_versions": [PROFILE], "reference_versions": [], "prompt_versions": [],
-           "run_id": "RUN-" + digest({"input": raw_input, "sources": [s["sha256"] for s, _, _ in sources], "version": VERSION})[:16]}
+           "search_policy_sha256": search_hash,
+           "run_id": "RUN-" + digest({"input_sha256": input_sha,
+                                     "source_sha256": {src["source_id"]: src["sha256"] for src, _, _ in sources},
+                                     "version": VERSION, "search_policy_sha256": search_hash})[:16]}
     coverage = [{"source_id": src["source_id"], "declared_coverage": src["coverage"],
                  "independently_verified_complete": False} for src, _, _ in sources]
     graph = {"schema_version": "attackpath.graph/v1",
@@ -569,7 +633,7 @@ def analyze(input_path: Path, limits: dict[str, int] | None = None) -> dict[str,
                         "postcondition": e["record"]["postcondition"], "support": e["class"],
                         "evidence_ref": e["evidence_id"], "scope": e["scope"],
                         "observed_at": e["observation_time"]} for e in sorted(edges, key=lambda e: e["record"]["id"])]}
-    report = {"schema_version": "attackpath.report/v1", "run": run, "context": context,
+    report = {"schema_version": "attackpath.report/v2", "run": run, "search": search_receipt, "context": context,
               "coverage": coverage, "reconciliation": counts, "evidence": sorted(facts, key=lambda f: f["evidence_id"]), "graph": graph,
               "quarantine": quarantine, "graph_exclusions": graph_errors,
               "supported_paths": [p for p in paths if p["path_class"] == "supported_structural"],
@@ -607,6 +671,10 @@ def analyze(input_path: Path, limits: dict[str, int] | None = None) -> dict[str,
     if current_input_hash != input_sha:
         raise GateError("G1: input changed during analysis")
     report["ingestion"] = {"run_id": run["run_id"], **budget.receipt()}
+    try:
+        bounded_json_bytes(report, search_policy.report_bytes)
+    except ValueError as exc:
+        raise GateError(f"G8: {exc}") from None
     if json.loads(canonical(report)) != report:
         raise GateError("G8: canonical round trip failed")
     return report

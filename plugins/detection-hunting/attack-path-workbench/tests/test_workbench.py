@@ -9,7 +9,9 @@ import unittest
 from pathlib import Path
 
 from attackpath.core import (GateError, analyze, audit_report, canonical,
-                             file_hash, load_json, query_intent, rank_paths, validate_input)
+                             file_hash, load_json, query_intent, rank_paths,
+                             trace_paths, validate_input)
+from attackpath.search import SearchLimits
 
 
 FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "illustrative"
@@ -104,6 +106,71 @@ class WorkbenchTests(unittest.TestCase):
         self.assertEqual("[PENDING_WIZ_DOCS]", intent["api_operation"])
         self.assertEqual("[PENDING_WIZ_DOCS]", intent["documentation_profile_id"])
         self.assertEqual("[PENDING_WIZ_DOCS]", intent["operation_profile_id"])
+
+    def test_search_receipt_is_bounded_and_bound_to_run_identity(self) -> None:
+        manifest = FIXTURE / "input.json"
+        ordinary = analyze(manifest)
+        limited = analyze(manifest, search_limits={"expansions": 1})
+        self.assertEqual("attackpath.report/v2", limited["schema_version"])
+        self.assertFalse(limited["search"]["complete"])
+        self.assertEqual("expansion_limit", limited["search"]["stop_reason"])
+        self.assertEqual("best_discovered", limited["search"]["ranking_scope"])
+        self.assertEqual(1, limited["search"]["consumed"]["expansions"])
+        self.assertNotEqual(ordinary["run"]["run_id"], limited["run"]["run_id"])
+        _, sources = validate_input(load_json(manifest), manifest.parent)
+        audit_report(limited, sources)
+        changed = copy.deepcopy(limited)
+        changed["search"]["consumed"]["expansions"] += 1
+        with self.assertRaisesRegex(GateError, "search receipt"):
+            audit_report(changed, sources)
+
+    def test_search_hard_ceiling_and_report_byte_budget(self) -> None:
+        with self.assertRaisesRegex(ValueError, "positive integer"):
+            SearchLimits.from_values({"expansions": 50_001})
+        with self.assertRaisesRegex(ValueError, "positive integer"):
+            SearchLimits.from_values({"frontier": True})
+        with self.assertRaisesRegex(GateError, "report_byte_limit"):
+            analyze(FIXTURE / "input.json", search_limits={"report_bytes": 1})
+
+    def test_emitted_limit_labels_discovered_ranking(self) -> None:
+        report = analyze(FIXTURE / "input.json", search_limits={"emitted_paths": 1})
+        self.assertEqual("emitted_path_limit", report["search"]["stop_reason"])
+        self.assertFalse(report["search"]["complete"])
+        self.assertEqual("best_discovered", report["search"]["ranking_scope"])
+        self.assertEqual(1, report["search"]["consumed"]["emitted_paths"])
+
+    def test_frontier_complete_and_partial_limits_stop_search(self) -> None:
+        nodes = {name: {"record": {"node_type": "asset"}, "class": "observed",
+                        "evidence_id": f"N-{name}", "confidence": "high"}
+                 for name in ("A", "B", "C")}
+        findings = [{"record": {"id": "F", "asset_ref": "A"}, "class": "observed",
+                     "evidence_id": "E-F", "confidence": "high", "scope": "S"}]
+        edges = [{"record": {"id": f"E-{target}", "from": "A", "to": target,
+                             "relation": "reachable_from", "preconditions": ["finding_on_asset"],
+                             "postcondition": "network_reachability", "support": "observed"},
+                  "evidence_id": f"E-{target}",
+                  "class": "observed", "confidence": "high"} for target in ("B", "C")]
+        crowns = [{"asset_ref": "B", "priority": 1}, {"asset_ref": "C", "priority": 2}]
+        for overrides, targets, reason in (
+            ({"frontier": 1}, crowns, "frontier_limit"),
+            ({"complete_paths": 1}, crowns, "complete_path_limit"),
+            ({"partial_paths": 1}, [], "partial_path_limit"),
+        ):
+            with self.subTest(reason=reason):
+                _, _, receipt = trace_paths(nodes, findings, edges, targets,
+                                            SearchLimits.from_values(overrides))
+                self.assertEqual(reason, receipt["stop_reason"])
+                self.assertFalse(receipt["complete"])
+                self.assertEqual("best_discovered", receipt["ranking_scope"])
+
+    def test_v1_report_audits_without_claiming_search_completeness(self) -> None:
+        manifest = FIXTURE / "input.json"
+        report = analyze(manifest)
+        report["schema_version"] = "attackpath.report/v1"
+        del report["search"]
+        del report["run"]["search_policy_sha256"]
+        _, sources = validate_input(load_json(manifest), manifest.parent)
+        audit_report(report, sources)
 
     def test_claim_audit_rejects_cited_but_false_relationship_and_impact(self) -> None:
         manifest = FIXTURE / "input.json"
