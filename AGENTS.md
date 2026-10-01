@@ -103,7 +103,7 @@ Do not claim a check passed unless it ran in the current checkout. Separate:
 
 ## Documentation
 
-Update affected user, contributor, architecture, operations, and security docs in
+This is non-negotiable - Update affected user, contributor, architecture, operations, and security docs in
 the same change. If no documentation changes are needed, record a brief rationale
 in the pull request or handoff.
 
