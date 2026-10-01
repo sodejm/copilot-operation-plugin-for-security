@@ -66,6 +66,12 @@
       "source": "./plugins/vulnerability-management/patch-security-review"
     },
     {
+      "name": "threat-intelligence-enrichment",
+      "description": "Read-only source-specific threat intelligence lookups with explicit privacy approval and bounded requests.",
+      "version": "0.1.0",
+      "source": "./plugins/detection-hunting/threat-intelligence-enrichment"
+    },
+    {
       "name": "telemetry-proof-pack",
       "description": "Trace synthetic test markers across Cribl Stream routing, Splunk and Sentinel indexing, and detection evaluation to prove pipeline health.",
       "version": "0.1.0",

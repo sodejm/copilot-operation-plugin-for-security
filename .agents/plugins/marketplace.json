@@ -122,6 +122,18 @@
       "category": "Developer Tools"
     },
     {
+      "name": "threat-intelligence-enrichment",
+      "source": {
+        "source": "local",
+        "path": "./plugins/detection-hunting/threat-intelligence-enrichment"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
       "name": "telemetry-proof-pack",
       "source": {
         "source": "local",

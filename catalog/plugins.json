@@ -160,6 +160,14 @@
       "tags": ["appsec", "claude", "codex", "github-copilot", "offline-analysis", "patch-review", "vulnerability-management"]
     },
     {
+      "id": "threat-intelligence-enrichment",
+      "name": "COPS Threat Intelligence Enrichment",
+      "version": "0.1.0",
+      "primary_category": "detection-hunting",
+      "path": "plugins/detection-hunting/threat-intelligence-enrichment",
+      "tags": ["threat-intelligence", "misp", "taxii", "microsoft", "enrichment"]
+    },
+    {
       "id": "telemetry-proof-pack",
       "name": "COPS Telemetry-to-Detection Proof Pack",
       "version": "0.1.0",

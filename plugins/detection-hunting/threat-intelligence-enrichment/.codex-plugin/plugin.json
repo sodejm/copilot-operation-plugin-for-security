@@ -1,0 +1,20 @@
+{
+  "name": "threat-intelligence-enrichment",
+  "version": "0.1.0",
+  "description": "Read-only source-specific threat intelligence lookups with explicit privacy approval and bounded requests.",
+  "author": {"name": "Justin Soderberg", "url": "https://github.com/sodejm"},
+  "homepage": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "repository": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "skills": "./skills/",
+  "keywords": ["cybersecurity", "threat-intelligence", "misp", "taxii", "microsoft", "enrichment"],
+  "interface": {
+    "displayName": "COPS Threat Intelligence Enrichment",
+    "shortDescription": "Source-specific read-only intelligence lookups.",
+    "longDescription": "Approve each provider lookup, preserve each source claim, and mark conflicts, partial responses, and stale cache entries.",
+    "developerName": "Justin Soderberg",
+    "category": "Developer Tools",
+    "capabilities": ["Privacy-gated lookups", "MISP, TAXII, and Microsoft host reads", "Claim provenance and cache expiry"],
+    "defaultPrompt": ["Enrich these indicators against approved sources and preserve source-specific claims."]
+  }
+}

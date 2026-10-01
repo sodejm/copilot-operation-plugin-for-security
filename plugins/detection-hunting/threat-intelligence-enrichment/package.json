@@ -1,0 +1,30 @@
+{
+  "schema_version": "1.0",
+  "id": "threat-intelligence-enrichment",
+  "display_name": "COPS Threat Intelligence Enrichment",
+  "maturity": "experimental",
+  "summary": "Privacy-gated read-only enrichment with source-specific claims from MISP, TAXII, and Microsoft host data.",
+  "support": {
+    "structural_validation": "validated",
+    "offline_workflow": "validated",
+    "host_installation": "unverified",
+    "live_integration": "unverified"
+  },
+  "limitations": [
+    "Azure application IDs are validated locally but have no supported provider lookup.",
+    "TAXII complex STIX patterns and paginated collections are reported as incomplete.",
+    "Standalone portable installation requires explicit packaging of the shared COPS connector SDK."
+  ],
+  "demo": {
+    "description": "Run synthetic, no-network normalization of a MISP attribute.",
+    "command": ["$PYTHON", "plugins/detection-hunting/threat-intelligence-enrichment/scripts/run_demo.py"],
+    "timeout_seconds": 60
+  },
+  "validation": [
+    {
+      "name": "offline-unit-gate",
+      "command": ["$PYTHON", "plugins/detection-hunting/threat-intelligence-enrichment/scripts/validate_package.py"],
+      "timeout_seconds": 60
+    }
+  ]
+}
