@@ -1,0 +1,9 @@
+{
+  "record_id": "sentinel-law-rec-8802",
+  "TimeGenerated": "2026-10-01T14:00:18Z",
+  "indexed_time": "2026-10-01T14:00:18Z",
+  "table": "SigninLogs",
+  "workspace_id": "ws-secops-sentinel-01",
+  "marker": "SYN-SENTINEL-TRACE-202",
+  "raw": "SigninLogs record containing SYN-SENTINEL-TRACE-202 ingested into Log Analytics"
+}

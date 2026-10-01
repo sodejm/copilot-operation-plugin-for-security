@@ -1,0 +1,8 @@
+{
+  "route_id": "cribl-route-splunk-ent-01",
+  "timestamp": "2026-10-01T18:00:08Z",
+  "status": "dropped",
+  "filtered_out": true,
+  "synthetic_marker": "SYN-FAIL-CRIBL-404",
+  "drop_reason": "Regex filter dropped non-matching sourcetype"
+}

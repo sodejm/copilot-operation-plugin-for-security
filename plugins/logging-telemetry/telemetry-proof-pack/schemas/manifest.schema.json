@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "manifest.schema.json",
+  "title": "Telemetry Proof Run Manifest Schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "authorized_environment",
+    "synthetic_marker",
+    "source_event_type",
+    "pipeline_route",
+    "destination",
+    "detection_rule",
+    "time_window",
+    "evidence_capture_policy"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "cops.proof-manifest/v1"
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^RUN-[A-Za-z0-9_-]+$"
+    },
+    "authorized_environment": {
+      "type": "string"
+    },
+    "synthetic_marker": {
+      "type": "string",
+      "pattern": "^SYN-[A-Za-z0-9_-]+$"
+    },
+    "source_event_type": {
+      "type": "string"
+    },
+    "pipeline_route": {
+      "type": "string",
+      "enum": ["cribl_to_splunk", "cribl_to_sentinel"]
+    },
+    "destination": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["platform", "target_container"],
+      "properties": {
+        "platform": {
+          "type": "string",
+          "enum": ["splunk", "sentinel"]
+        },
+        "target_container": { "type": "string" },
+        "tenant_or_workspace_id": { "type": "string" }
+      }
+    },
+    "detection_rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rule_id", "rule_name", "rule_version"],
+      "properties": {
+        "rule_id": { "type": "string" },
+        "rule_name": { "type": "string" },
+        "rule_version": { "type": "string" }
+      }
+    },
+    "time_window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start_time", "end_time", "clock_skew_seconds"],
+      "properties": {
+        "start_time": { "type": "string" },
+        "end_time": { "type": "string" },
+        "clock_skew_seconds": { "type": "integer" }
+      }
+    },
+    "evidence_capture_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["retention_days", "redaction_required", "allowed_stages"],
+      "properties": {
+        "retention_days": { "type": "integer" },
+        "redaction_required": { "type": "boolean" },
+        "allowed_stages": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

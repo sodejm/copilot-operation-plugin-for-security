@@ -1,0 +1,1 @@
+{"name":"telemetry-proof-pack","version":"0.1.0","description":"Trace synthetic test markers across Cribl Stream routing, Splunk and Sentinel indexing, and detection evaluation to prove pipeline health.","author":{"name":"Justin Soderberg"},"license":"PolyForm-Noncommercial-1.0.0"}

@@ -1,0 +1,36 @@
+{
+  "schema_version": "1.0",
+  "id": "telemetry-proof-pack",
+  "display_name": "COPS Telemetry-to-Detection Proof Pack",
+  "maturity": "beta",
+  "summary": "Trace synthetic markers across emission, Cribl routing, Splunk and Sentinel indexing, and detection evaluation to prove end-to-end pipeline health.",
+  "support": {
+    "structural_validation": "validated",
+    "offline_workflow": "validated",
+    "host_installation": "unverified",
+    "live_integration": "unverified"
+  },
+  "limitations": [
+    "Operates offline with recorded stage evidence; does not make live network calls to production Cribl Stream workers or SIEM APIs.",
+    "Pipeline health reflects recorded evidence logs for synthetic markers and should not be confused with broad infrastructure telemetry uptime.",
+    "Automatic redaction strips common API keys, tokens, and passwords while strictly preserving synthetic correlation markers."
+  ],
+  "demo": {
+    "description": "Trace synthetic markers across Cribl-to-Splunk and Cribl-to-Sentinel pipelines, demonstrating healthy, degraded, and broken pipeline classifications.",
+    "command": [
+      "$PYTHON",
+      "plugins/logging-telemetry/telemetry-proof-pack/scripts/run_demo.py"
+    ],
+    "timeout_seconds": 60
+  },
+  "validation": [
+    {
+      "name": "offline-package-gate",
+      "command": [
+        "$PYTHON",
+        "plugins/logging-telemetry/telemetry-proof-pack/scripts/validate_package.py"
+      ],
+      "timeout_seconds": 60
+    }
+  ]
+}

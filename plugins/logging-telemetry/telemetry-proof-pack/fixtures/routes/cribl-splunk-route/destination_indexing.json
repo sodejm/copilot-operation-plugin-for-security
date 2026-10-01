@@ -1,0 +1,10 @@
+{
+  "record_id": "splunk-hec-rec-5001",
+  "_time": "2026-10-01T12:00:12Z",
+  "indexed_time": "2026-10-01T12:00:12Z",
+  "index": "endpoint",
+  "sourcetype": "azure:signin:json",
+  "host": "hec.splunk.internal",
+  "marker": "SYN-SPLUNK-TRACE-101",
+  "raw": "SignInLogs event SYN-SPLUNK-TRACE-101 indexed in endpoint index"
+}

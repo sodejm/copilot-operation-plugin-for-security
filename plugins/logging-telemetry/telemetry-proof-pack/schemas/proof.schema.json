@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "proof.schema.json",
+  "title": "Telemetry Proof Bundle Schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "synthetic_marker",
+    "stages"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "cops.proof-bundle/v1"
+    },
+    "run_id": { "type": "string" },
+    "synthetic_marker": { "type": "string" },
+    "stages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "stage_name",
+          "status",
+          "component",
+          "evidence_id"
+        ],
+        "properties": {
+          "stage_name": {
+            "enum": [
+              "source_emission",
+              "pipeline_routing",
+              "destination_indexing",
+              "query_evaluation",
+              "alert_creation"
+            ]
+          },
+          "status": {
+            "enum": ["observed", "missing", "unresolved"]
+          },
+          "timestamp": { "type": "string" },
+          "component": { "type": "string" },
+          "evidence_id": { "type": "string" },
+          "raw_evidence_hash": { "type": "string" },
+          "details": { "type": "object" }
+        }
+      }
+    }
+  }
+}

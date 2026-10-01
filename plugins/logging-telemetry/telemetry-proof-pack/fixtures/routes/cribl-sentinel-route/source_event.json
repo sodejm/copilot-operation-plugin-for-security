@@ -1,0 +1,9 @@
+{
+  "event_id": "EVT-AZURE-SEC-4410",
+  "timestamp": "2026-10-01T14:00:10Z",
+  "tenant_id": "ws-secops-sentinel-01",
+  "operation_name": "UserAuthenticationAttempt",
+  "user_id": "analyst-test@sentinel.example.com",
+  "marker": "SYN-SENTINEL-TRACE-202",
+  "description": "Synthetic Azure AD authentication event for Sentinel pipeline proof"
+}

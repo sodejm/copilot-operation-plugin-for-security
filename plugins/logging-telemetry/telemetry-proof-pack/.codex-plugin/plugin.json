@@ -1,0 +1,41 @@
+{
+  "author": {
+    "name": "Justin Soderberg",
+    "url": "https://github.com/sodejm"
+  },
+  "description": "Trace synthetic test markers across Cribl Stream routing, Splunk and Sentinel indexing, and detection evaluation to prove pipeline health.",
+  "homepage": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "interface": {
+    "displayName": "COPS Telemetry-to-Detection Proof Pack",
+    "shortDescription": "End-to-end telemetry and detection pipeline verification.",
+    "longDescription": "Trace synthetic markers through source emission, Cribl stream routing, SIEM indexing, and detection query evaluation, isolating dropped events, latency bottlenecks, and cross-tenant collisions across Splunk and Microsoft Sentinel.",
+    "developerName": "Justin Soderberg",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Synthetic marker end-to-end correlation",
+      "Multi-stage pipeline health classification",
+      "Cribl routing metrics and drop diagnosis",
+      "Cross-tenant collision detection"
+    ],
+    "defaultPrompt": [
+      "Trace this synthetic marker through the logging pipeline to verify whether it reached the SIEM and triggered an alert."
+    ]
+  },
+  "keywords": [
+    "cribl",
+    "cybersecurity",
+    "detection-engineering",
+    "microsoft-sentinel",
+    "pipeline-verification",
+    "proof-pack",
+    "siem",
+    "splunk",
+    "synthetic-markers",
+    "telemetry"
+  ],
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "name": "telemetry-proof-pack",
+  "repository": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "skills": "./skills/",
+  "version": "0.1.0"
+}

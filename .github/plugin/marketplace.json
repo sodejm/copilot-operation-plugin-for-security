@@ -58,6 +58,12 @@
       "description": "Evaluate detection rule quality, dependencies, schema drift, and regression baselines for Sentinel KQL and Splunk SPL.",
       "version": "0.1.0",
       "source": "./plugins/detection-hunting/detection-quality-workbench"
+    },
+    {
+      "name": "telemetry-proof-pack",
+      "description": "Trace synthetic test markers across Cribl Stream routing, Splunk and Sentinel indexing, and detection evaluation to prove pipeline health.",
+      "version": "0.1.0",
+      "source": "./plugins/logging-telemetry/telemetry-proof-pack"
     }
   ]
 }

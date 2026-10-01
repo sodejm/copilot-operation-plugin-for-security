@@ -1,0 +1,10 @@
+{
+  "event_id": "EVT-ENTRA-90210",
+  "timestamp": "2026-10-01T12:00:05Z",
+  "tenant_id": "corp-tenant-01",
+  "category": "SignInLogs",
+  "user_principal_name": "secops-test-user@corp.example.com",
+  "ip_address": "198.51.100.42",
+  "marker": "SYN-SPLUNK-TRACE-101",
+  "description": "Synthetic authentication test event for Splunk pipeline verification"
+}

@@ -1,0 +1,34 @@
+{
+  "schema_version": "cops.proof-manifest/v1",
+  "run_id": "RUN-SENTINEL-PROVE-02",
+  "authorized_environment": "staging-azure-sentinel",
+  "synthetic_marker": "SYN-SENTINEL-TRACE-202",
+  "source_event_type": "Microsoft.SecurityAlert",
+  "pipeline_route": "cribl_to_sentinel",
+  "destination": {
+    "platform": "sentinel",
+    "target_container": "SigninLogs",
+    "tenant_or_workspace_id": "ws-secops-sentinel-01"
+  },
+  "detection_rule": {
+    "rule_id": "RULE-KQL-ANOMALOUS-SIGNIN",
+    "rule_name": "Anomalous Sign-in Activity Observed",
+    "rule_version": "2.1.0"
+  },
+  "time_window": {
+    "start_time": "2026-10-01T14:00:00Z",
+    "end_time": "2026-10-01T15:00:00Z",
+    "clock_skew_seconds": 120
+  },
+  "evidence_capture_policy": {
+    "retention_days": 30,
+    "redaction_required": true,
+    "allowed_stages": [
+      "source_emission",
+      "pipeline_routing",
+      "destination_indexing",
+      "query_evaluation",
+      "alert_creation"
+    ]
+  }
+}

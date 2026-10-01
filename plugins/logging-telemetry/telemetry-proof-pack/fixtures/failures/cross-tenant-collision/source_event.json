@@ -1,0 +1,7 @@
+{
+  "event_id": "EVT-ENTRA-COLLISION-505",
+  "timestamp": "2026-10-01T20:00:05Z",
+  "tenant_id": "foreign-tenant-99",
+  "category": "SignInLogs",
+  "marker": "SYN-FAIL-TENANT-505"
+}

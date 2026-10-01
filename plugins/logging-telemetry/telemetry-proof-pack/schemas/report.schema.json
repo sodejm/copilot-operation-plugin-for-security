@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "report.schema.json",
+  "title": "Telemetry Proof Pack Report Schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "report_id",
+    "run_id",
+    "synthetic_marker",
+    "route_type",
+    "evaluated_at",
+    "pipeline_health",
+    "summary",
+    "stages_breakdown",
+    "diagnostics",
+    "next_recommended_checks",
+    "privacy_statement"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "cops.proof-report/v1"
+    },
+    "report_id": { "type": "string" },
+    "run_id": { "type": "string" },
+    "synthetic_marker": { "type": "string" },
+    "route_type": { "type": "string" },
+    "evaluated_at": { "type": "string" },
+    "pipeline_health": {
+      "enum": ["healthy", "broken", "degraded"]
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total_expected_stages",
+        "observed_stages_count",
+        "missing_stages_count",
+        "unresolved_stages_count",
+        "total_latency_seconds",
+        "detection_fired"
+      ],
+      "properties": {
+        "total_expected_stages": { "type": "integer" },
+        "observed_stages_count": { "type": "integer" },
+        "missing_stages_count": { "type": "integer" },
+        "unresolved_stages_count": { "type": "integer" },
+        "total_latency_seconds": { "type": "number" },
+        "detection_fired": { "type": "boolean" }
+      }
+    },
+    "stages_breakdown": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "next_recommended_checks": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "privacy_statement": { "type": "string" }
+  }
+}

@@ -150,6 +150,25 @@
         "splunk",
         "spl"
       ]
+    },
+    {
+      "id": "telemetry-proof-pack",
+      "name": "COPS Telemetry-to-Detection Proof Pack",
+      "version": "0.1.0",
+      "primary_category": "logging-telemetry",
+      "path": "plugins/logging-telemetry/telemetry-proof-pack",
+      "tags": [
+        "claude",
+        "codex",
+        "cribl",
+        "detection-engineering",
+        "github-copilot",
+        "logging",
+        "microsoft-sentinel",
+        "proof-pack",
+        "splunk",
+        "telemetry"
+      ]
     }
   ]
 }
