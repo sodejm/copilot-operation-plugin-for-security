@@ -12,7 +12,9 @@
   },
   "limitations": [
     "The local planner does not run security queries or response actions.",
-    "Sentinel vendor integration and live service behavior require separate validation."
+    "Sentinel vendor integration and live service behavior require separate validation.",
+    "Microsoft 365 acquisition requires the COPS shared evidence and connector SDK from this repository; standalone plugin installation does not include it.",
+    "Microsoft 365 live integration and the remaining issue #27 sources are unverified."
   ],
   "demo": {
     "description": "Validate the synthetic investigation case and print its content-addressed snapshot.",

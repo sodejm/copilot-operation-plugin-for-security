@@ -6,6 +6,35 @@ During high-pressure incident triage, it is easy to latch onto an initial theory
 
 The workbench operates completely offline with Python 3.10+ and requires zero runtime dependencies, credentials, or cloud access.
 
+## Microsoft 365 acquisition preview (issue #27)
+
+The optional Microsoft 365 slice requires Python 3.11+ and the COPS shared
+`cops.evidence` and `cops.connectors` SDK from this repository. Install the
+repository alongside this package; a copied plugin directory alone does not
+include the SDK. The existing case planner remains offline and standalone.
+
+Run `python3 plugins/detection-hunting/soc-investigation-workbench/scripts/m365-offline-demo.py`
+from the repository root to collect synthetic Graph pages and correlate
+tenant-bound identities without a credential or network call. The SDK's
+`GraphCollection(tenant, source)` supports `preview(adapter)` before credential
+use and `collect(adapter, checkpoint, credentials)` with a caller-provided
+ephemeral bearer-token provider. Its fixed GET paths and bounded shared runner
+support sign-ins, directory audits, service principals, and conditional access
+policies. A partial acquisition receipt must remain visible in any report.
+
+| Graph source | Least-privilege application permission | Prerequisites and limits |
+| --- | --- | --- |
+| [Sign-ins](https://learn.microsoft.com/graph/api/signin-list) | `AuditLog.Read.All` | Entra sign-in log access, applicable license and retention; collection can be partial at any SDK limit. |
+| [Directory audits](https://learn.microsoft.com/graph/api/directoryaudit-list) | `AuditLog.Read.All` | Entra audit log access and tenant retention; collection can be partial. |
+| [Service principals](https://learn.microsoft.com/graph/api/serviceprincipal-list) | `Application.Read.All` | Directory consent; the projection excludes credentials and other sensitive properties. |
+| [Conditional access policies](https://learn.microsoft.com/graph/api/conditionalaccessroot-list-policies) | `Policy.Read.All` | Applicable conditional access licensing and policy access; policy state alone does not prove enforcement. |
+
+Permissions above are endpoint-level minima for this adapter; a real tenant can
+require role assignments, consent, licenses, and retention checks. No authorized
+tenant has been tested. Defender XDR and Cloud, Purview, Exchange, SharePoint and
+OneDrive, Teams, authentication methods, and workload identity sources are not
+yet implemented. The three required tenant correlation scenarios remain unverified.
+
 ---
 
 ## When to Use & SOC Analyst Playbook
