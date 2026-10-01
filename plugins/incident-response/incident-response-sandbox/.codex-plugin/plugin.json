@@ -1,0 +1,20 @@
+{
+  "name": "incident-response-sandbox",
+  "version": "0.1.0",
+  "description": "Offline incident action planning and fixture-only sandbox execution.",
+  "author": {"name": "Justin Soderberg", "url": "https://github.com/sodejm"},
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "COPS Incident Response Sandbox",
+    "shortDescription": "Plan and rehearse fixture-only incident actions",
+    "longDescription": "Create typed expiring incident action plans, explicitly dry run them, and execute only against a synthetic local fixture. No production tenant mutation or approval attestation.",
+    "developerName": "Justin Soderberg",
+    "category": "Developer Tools",
+    "capabilities": ["Read", "Write"],
+    "defaultPrompt": ["Plan and rehearse an incident action against my synthetic local sandbox fixture."]
+  },
+  "repository": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "homepage": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "keywords": ["cybersecurity", "incident-response", "sandbox", "offline"]
+}

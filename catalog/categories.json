@@ -25,6 +25,11 @@
       "id": "vulnerability-management",
       "name": "Vulnerability Management",
       "description": "Vulnerability advisory tracking, SBOM dependency analysis, contextual exposure triage, and risk remediation."
+    },
+    {
+      "id": "incident-response",
+      "name": "Incident Response",
+      "description": "Post-detection containment and recovery action planning and bounded execution. Detection and Hunting covers discovery and investigation; Identity and Access Management covers entitlement analysis; neither primarily describes coordinated incident actions."
     }
   ]
 }

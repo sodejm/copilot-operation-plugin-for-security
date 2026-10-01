@@ -169,6 +169,20 @@
         "splunk",
         "telemetry"
       ]
+    },
+    {
+      "id": "incident-response-sandbox",
+      "name": "COPS Incident Response Sandbox",
+      "version": "0.1.0",
+      "primary_category": "incident-response",
+      "path": "plugins/incident-response/incident-response-sandbox",
+      "tags": [
+        "claude",
+        "codex",
+        "github-copilot",
+        "incident-response",
+        "offline-sandbox"
+      ]
     }
   ]
 }

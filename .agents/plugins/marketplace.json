@@ -120,6 +120,18 @@
         "authentication": "ON_INSTALL"
       },
       "category": "Developer Tools"
+    },
+    {
+      "name": "incident-response-sandbox",
+      "source": {
+        "source": "local",
+        "path": "./plugins/incident-response/incident-response-sandbox"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
     }
   ]
 }

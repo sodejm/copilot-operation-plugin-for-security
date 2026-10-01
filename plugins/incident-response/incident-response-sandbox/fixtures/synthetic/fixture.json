@@ -1,0 +1,12 @@
+{
+  "schema": "cops.ir-fixture/v1",
+  "tenant": "example-tenant",
+  "revision": 1,
+  "permissions": ["isolate-host"],
+  "throttled": false,
+  "failure_mode": "none",
+  "targets": {
+    "host-1": {"action": "isolate-host", "state": "active"}
+  },
+  "executions": []
+}
