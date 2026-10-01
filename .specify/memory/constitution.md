@@ -30,3 +30,13 @@ credentials. Security events should capture UTC timestamps, event category,
 pseudonymous actor references, action, target, and outcome. Review privacy and
 retention requirements before implementing recommendations. Keep local scanning
 and provider-mediated agent processing explicit in documentation.
+
+## Deterministic script offloading and token efficiency
+
+Core data processing, evidence parsing, schema validation, and security constraint
+checks must be implemented as deterministic, standard-library Python scripts.
+Agents orchestrate workflows, formulate hypotheses, and guide operators, but must
+not be used as brittle text parsers or calculation engines for raw data. This
+preserves token context, eliminates parsing hallucinations, enforces local
+credential scrubbing, and ensures all checks can be validated offline in automated
+CI pipelines.

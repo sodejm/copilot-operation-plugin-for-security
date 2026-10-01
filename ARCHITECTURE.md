@@ -40,7 +40,7 @@ flowchart TD
 
 ---
 
-## The Four Core Architectural Pillars
+## The Five Core Architectural Pillars
 
 ### 1. The Master Catalog (`catalog/`)
 Instead of each AI assistant maintaining its own separate list of plugins, COPS maintains **one canonical inventory**:
@@ -67,6 +67,17 @@ Security tools require trust. We separate what is verified locally from what rem
 - **Local Validation (`validated`)**: The package's scripts parse, schemas pass validation, and deterministic tests catch known attack simulations.
 - **Live Integration (`unverified`)**: The package has not been granted live cloud credentials, and no external tenant API was called.
 This separation ensures operators know exactly what has been proven locally versus what requires staging validation in a live cloud tenant.
+
+### 5. Script-First Determinism & Token Efficiency
+COPS follows a strict separation of responsibility: **scripts do the heavy data processing; agents do the cognitive reasoning**.
+
+When analyzing high-volume security artifacts—such as raw audit logs, entitlement graphs, repository trees, or multi-file Git diffs—we never stream raw payloads directly into an LLM context window. Instead, self-contained Python modules parse schemas, compute cryptographic hashes, evaluate constraints, and filter noise on the local workstation CPU.
+
+The AI agent interacts with tools through structured command-line interfaces and receives compact, high-signal summaries (Markdown tables, diagnostic flags, and pruned JSON reports). This pattern delivers:
+- **100% Deterministic Execution**: Mathematical evaluations, schema validation, and graph traversals are reproducible and free from probabilistic hallucinations.
+- **Dramatic Token Reduction**: Offloading bulk parsing preserves the agent's context window, slashes token usage by 90%+, and avoids context truncation on large datasets.
+- **Local Privacy & Secret Scrubbing**: Credentials, tokens, and sensitive customer data are scrubbed locally before any summary is passed to a model provider.
+- **Headless CI/CD Portability**: Security checks remain fully testable and runnable via standard CLI tools in automated environments without requiring an active LLM connection.
 
 ---
 
