@@ -21,6 +21,17 @@ entrypoints and supporting resources to `.claude/skills/` for environments that 
 not discover the open location. Local JSON settings and generated churn reports
 are excluded. Do not edit generated copies.
 
+### Skill as Orchestrator, Script as Engine
+
+Skills follow a strict division of responsibility: **skills direct the agent;
+scripts do the heavy data processing**. Never write skill instructions that ask
+the agent to parse bulk raw logs, calculate cryptographic hashes, or evaluate
+complex regexes in its conversational context window. Instead, author or call a
+standard-library Python script that processes the data on the host CPU and outputs
+a compact Markdown summary or structured JSON report. The agent consumes this
+high-density summary to reason, formulate hypotheses, and guide the user—minimizing
+token usage and eliminating parsing hallucinations.
+
 ## Included baseline
 
 - `repository-orientation`: safe startup in an unfamiliar checkout.

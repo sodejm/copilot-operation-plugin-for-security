@@ -65,7 +65,10 @@ Acceptance criteria:
 - prerequisite declarations pass validation and never install during discovery;
 - optional `mcp.json` passes the v1.0.0 configuration and path checks;
 - the portable export retains required support files while excluding native host
-  manifests and other source-only host directories.
+  manifests and other source-only host directories;
+- the package adheres to script-first determinism: data parsing, hashing, mathematical
+  scoring, and constraint filtering are implemented in standard-library Python modules,
+  emitting compact structured summaries for low-token agent reasoning.
 
 ## 3. Declare the runtime and evidence contract
 
