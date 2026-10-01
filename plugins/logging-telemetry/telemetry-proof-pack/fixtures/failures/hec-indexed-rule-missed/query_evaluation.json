@@ -1,0 +1,7 @@
+{
+  "execution_id": "exec-splunk-search-990",
+  "rule_id": "RULE-SPL-DEFENDER-POWERSHELL-EXEC",
+  "evaluation_time": "2026-10-01T16:01:00Z",
+  "marker": "SYN-FAIL-HEC-303",
+  "matched_count": 0
+}

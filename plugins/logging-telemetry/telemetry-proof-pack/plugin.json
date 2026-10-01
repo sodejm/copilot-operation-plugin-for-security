@@ -1,0 +1,31 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "telemetry-proof-pack",
+  "version": "0.1.0",
+  "description": "Trace synthetic test markers across Cribl Stream routing, Splunk and Sentinel indexing, and detection evaluation to prove pipeline health.",
+  "author": {
+    "name": "Justin Soderberg",
+    "url": "https://github.com/sodejm"
+  },
+  "repository": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "keywords": [
+    "cribl",
+    "cybersecurity",
+    "detection-engineering",
+    "microsoft-sentinel",
+    "pipeline-verification",
+    "proof-pack",
+    "siem",
+    "splunk",
+    "synthetic-markers",
+    "telemetry"
+  ],
+  "extensions": {
+    "com.openai": {
+      "displayName": "COPS Telemetry-to-Detection Proof Pack",
+      "category": "Developer Tools"
+    },
+    "com.sodejm.copse": {}
+  }
+}

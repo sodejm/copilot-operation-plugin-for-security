@@ -1,0 +1,6 @@
+{
+  "record_id": "splunk-hec-rec-9912",
+  "indexed_time": "2026-10-01T16:00:12Z",
+  "index": "endpoint",
+  "marker": "SYN-FAIL-HEC-303"
+}

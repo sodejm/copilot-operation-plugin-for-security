@@ -1,0 +1,7 @@
+{
+  "event_id": "EVT-ENTRA-SRC-404",
+  "timestamp": "2026-10-01T18:00:05Z",
+  "tenant_id": "corp-tenant-01",
+  "category": "SignInLogs",
+  "marker": "SYN-FAIL-CRIBL-404"
+}

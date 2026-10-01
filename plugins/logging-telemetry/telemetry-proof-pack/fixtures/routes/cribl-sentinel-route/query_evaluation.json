@@ -1,0 +1,9 @@
+{
+  "execution_id": "exec-sentinel-analytics-490",
+  "rule_id": "RULE-KQL-ANOMALOUS-SIGNIN",
+  "evaluation_time": "2026-10-01T14:02:00Z",
+  "rule_name": "Anomalous Sign-in Activity Observed",
+  "marker": "SYN-SENTINEL-TRACE-202",
+  "matched_count": 1,
+  "execution_duration_sec": 0.88
+}

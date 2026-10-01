@@ -1,0 +1,7 @@
+{
+  "event_id": "EVT-ENTRA-FAIL-101",
+  "timestamp": "2026-10-01T16:00:05Z",
+  "tenant_id": "corp-tenant-01",
+  "category": "SignInLogs",
+  "marker": "SYN-FAIL-HEC-303"
+}

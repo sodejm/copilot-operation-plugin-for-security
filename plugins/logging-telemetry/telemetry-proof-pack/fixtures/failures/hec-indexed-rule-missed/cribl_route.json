@@ -1,0 +1,10 @@
+{
+  "route_id": "cribl-route-splunk-ent-01",
+  "timestamp": "2026-10-01T16:00:08Z",
+  "status": "routed",
+  "synthetic_marker": "SYN-FAIL-HEC-303",
+  "metrics": {
+    "in_bytes": 1024,
+    "out_bytes": 980
+  }
+}

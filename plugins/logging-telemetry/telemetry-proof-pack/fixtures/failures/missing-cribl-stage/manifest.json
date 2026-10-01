@@ -1,0 +1,34 @@
+{
+  "schema_version": "cops.proof-manifest/v1",
+  "run_id": "RUN-FAIL-BROKEN-04",
+  "authorized_environment": "staging-telemetry-cluster",
+  "synthetic_marker": "SYN-FAIL-CRIBL-404",
+  "source_event_type": "Microsoft.Entra.UserSignin",
+  "pipeline_route": "cribl_to_splunk",
+  "destination": {
+    "platform": "splunk",
+    "target_container": "index=endpoint",
+    "tenant_or_workspace_id": "corp-tenant-01"
+  },
+  "detection_rule": {
+    "rule_id": "RULE-SPL-DEFENDER-POWERSHELL-EXEC",
+    "rule_name": "Suspicious PowerShell Execution",
+    "rule_version": "1.0.0"
+  },
+  "time_window": {
+    "start_time": "2026-10-01T18:00:00Z",
+    "end_time": "2026-10-01T19:00:00Z",
+    "clock_skew_seconds": 120
+  },
+  "evidence_capture_policy": {
+    "retention_days": 30,
+    "redaction_required": true,
+    "allowed_stages": [
+      "source_emission",
+      "pipeline_routing",
+      "destination_indexing",
+      "query_evaluation",
+      "alert_creation"
+    ]
+  }
+}

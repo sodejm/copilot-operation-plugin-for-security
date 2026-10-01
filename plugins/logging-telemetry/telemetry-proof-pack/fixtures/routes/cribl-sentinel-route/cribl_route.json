@@ -1,0 +1,13 @@
+{
+  "route_id": "cribl-route-sentinel-ent-02",
+  "pipeline": "pipeline-sentinel-telemetry",
+  "timestamp": "2026-10-01T14:00:14Z",
+  "status": "routed",
+  "synthetic_marker": "SYN-SENTINEL-TRACE-202",
+  "metrics": {
+    "in_bytes": 2048,
+    "out_bytes": 1960,
+    "events_routed": 1,
+    "drop_rate": 0
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "alert_id": "incident-sentinel-inc-10928",
+  "created_time": "2026-10-01T14:02:05Z",
+  "TimeGenerated": "2026-10-01T14:02:05Z",
+  "rule_id": "RULE-KQL-ANOMALOUS-SIGNIN",
+  "severity": "medium",
+  "marker": "SYN-SENTINEL-TRACE-202",
+  "title": "Incident: Anomalous Sign-in Activity Observed",
+  "status": "New"
+}

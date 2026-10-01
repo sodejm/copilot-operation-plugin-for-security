@@ -108,6 +108,18 @@
         "authentication": "ON_INSTALL"
       },
       "category": "Developer Tools"
+    },
+    {
+      "name": "telemetry-proof-pack",
+      "source": {
+        "source": "local",
+        "path": "./plugins/logging-telemetry/telemetry-proof-pack"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
     }
   ]
 }
