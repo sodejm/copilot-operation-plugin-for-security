@@ -60,6 +60,12 @@
       "source": "./plugins/detection-hunting/detection-quality-workbench"
     },
     {
+      "name": "patch-security-review",
+      "description": "Bounded offline security review of an immutable Git commit pair.",
+      "version": "0.1.0",
+      "source": "./plugins/vulnerability-management/patch-security-review"
+    },
+    {
       "name": "telemetry-proof-pack",
       "description": "Trace synthetic test markers across Cribl Stream routing, Splunk and Sentinel indexing, and detection evaluation to prove pipeline health.",
       "version": "0.1.0",

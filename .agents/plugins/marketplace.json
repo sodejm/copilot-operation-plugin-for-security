@@ -110,6 +110,18 @@
       "category": "Developer Tools"
     },
     {
+      "name": "patch-security-review",
+      "source": {
+        "source": "local",
+        "path": "./plugins/vulnerability-management/patch-security-review"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
       "name": "telemetry-proof-pack",
       "source": {
         "source": "local",

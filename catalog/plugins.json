@@ -152,6 +152,14 @@
       ]
     },
     {
+      "id": "patch-security-review",
+      "name": "COPS Patch Security Review",
+      "version": "0.1.0",
+      "primary_category": "vulnerability-management",
+      "path": "plugins/vulnerability-management/patch-security-review",
+      "tags": ["appsec", "claude", "codex", "github-copilot", "offline-analysis", "patch-review", "vulnerability-management"]
+    },
+    {
       "id": "telemetry-proof-pack",
       "name": "COPS Telemetry-to-Detection Proof Pack",
       "version": "0.1.0",
