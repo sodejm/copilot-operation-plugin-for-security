@@ -1,0 +1,36 @@
+{
+  "schema_version": "1.0",
+  "id": "detection-quality-workbench",
+  "display_name": "COPS Detection Quality & Regression Workbench",
+  "maturity": "beta",
+  "summary": "Validate Sentinel KQL and Splunk SPL detection rules against labeled positive, negative, and boundary telemetry fixtures.",
+  "support": {
+    "structural_validation": "validated",
+    "offline_workflow": "validated",
+    "host_installation": "unverified",
+    "live_integration": "unverified"
+  },
+  "limitations": [
+    "Operates offline with a deterministic reference evaluator; does not prove actual live Kusto or Splunk indexer scheduling and alert firing.",
+    "Precision and recall metrics are measured strictly on labeled test fixtures and must not be cited as production efficacy rates.",
+    "Detection fixtures model event streams and boundary conditions; live pipeline ingest latencies require dedicated telemetry proof packs."
+  ],
+  "demo": {
+    "description": "Run offline quality evaluation of Microsoft Sentinel KQL and Splunk SPL rules against positive, negative, and schema-drift fixtures.",
+    "command": [
+      "$PYTHON",
+      "plugins/detection-hunting/detection-quality-workbench/scripts/run_demo.py"
+    ],
+    "timeout_seconds": 60
+  },
+  "validation": [
+    {
+      "name": "offline-package-gate",
+      "command": [
+        "$PYTHON",
+        "plugins/detection-hunting/detection-quality-workbench/scripts/validate_package.py"
+      ],
+      "timeout_seconds": 60
+    }
+  ]
+}

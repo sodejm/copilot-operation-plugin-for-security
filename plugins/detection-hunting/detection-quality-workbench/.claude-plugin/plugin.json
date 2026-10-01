@@ -1,0 +1,1 @@
+{"name":"detection-quality-workbench","version":"0.1.0","description":"Evaluate detection rule quality, dependencies, schema drift, and regression baselines for Sentinel KQL and Splunk SPL.","author":{"name":"Justin Soderberg"},"license":"PolyForm-Noncommercial-1.0.0"}

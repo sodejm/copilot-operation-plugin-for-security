@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "fixture.schema.json",
+  "title": "Detection Quality Fixture Suite Schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "fixture_suite_id",
+    "target_rule_id",
+    "cases"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "cops.detection-fixtures/v1"
+    },
+    "fixture_suite_id": {
+      "type": "string"
+    },
+    "target_rule_id": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "case_id",
+          "label",
+          "expected_match",
+          "events"
+        ],
+        "properties": {
+          "case_id": { "type": "string" },
+          "description": { "type": "string" },
+          "label": {
+            "enum": ["positive", "negative", "boundary"]
+          },
+          "expected_match": { "type": "boolean" },
+          "tags": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "events": {
+            "type": "array",
+            "items": { "type": "object" }
+          }
+        }
+      }
+    }
+  }
+}

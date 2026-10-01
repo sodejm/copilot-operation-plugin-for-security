@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "report.schema.json",
+  "title": "Detection Quality & Regression Report Schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "report_id",
+    "evaluated_at",
+    "rule",
+    "evaluation_environment",
+    "disclaimer",
+    "metrics",
+    "static_checks",
+    "case_results",
+    "recommendations"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "cops.detection-quality-report/v1"
+    },
+    "report_id": {
+      "type": "string"
+    },
+    "evaluated_at": {
+      "type": "string"
+    },
+    "rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rule_id", "name", "platform", "version"],
+      "properties": {
+        "rule_id": { "type": "string" },
+        "name": { "type": "string" },
+        "platform": { "type": "string" },
+        "version": { "type": "string" }
+      }
+    },
+    "evaluation_environment": {
+      "type": "string"
+    },
+    "disclaimer": {
+      "type": "string"
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total_cases",
+        "true_positives",
+        "false_positives",
+        "true_negatives",
+        "false_negatives",
+        "precision_on_labeled_fixtures",
+        "recall_on_labeled_fixtures"
+      ],
+      "properties": {
+        "total_cases": { "type": "integer" },
+        "true_positives": { "type": "integer" },
+        "false_positives": { "type": "integer" },
+        "true_negatives": { "type": "integer" },
+        "false_negatives": { "type": "integer" },
+        "precision_on_labeled_fixtures": { "type": "number" },
+        "recall_on_labeled_fixtures": { "type": "number" }
+      }
+    },
+    "static_checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required_fields_present",
+        "missing_fields",
+        "schema_drift_detected"
+      ],
+      "properties": {
+        "required_fields_present": { "type": "boolean" },
+        "missing_fields": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "schema_drift_detected": { "type": "boolean" }
+      }
+    },
+    "case_results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "case_id",
+          "label",
+          "expected_match",
+          "actual_match",
+          "outcome_classification",
+          "details"
+        ],
+        "properties": {
+          "case_id": { "type": "string" },
+          "label": { "type": "string" },
+          "expected_match": { "type": "boolean" },
+          "actual_match": { "type": "boolean" },
+          "outcome_classification": {
+            "enum": [
+              "true_positive",
+              "true_negative",
+              "false_positive",
+              "false_negative",
+              "missing_field_error",
+              "boundary_handled"
+            ]
+          },
+          "details": { "type": "string" }
+        }
+      }
+    },
+    "recommendations": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

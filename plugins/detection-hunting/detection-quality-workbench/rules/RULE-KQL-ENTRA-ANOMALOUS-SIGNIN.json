@@ -1,0 +1,39 @@
+{
+  "schema_version": "cops.detection-rule/v1",
+  "rule_id": "RULE-KQL-ENTRA-ANOMALOUS-SIGNIN",
+  "name": "Anomalous Azure Portal Sign-in from External IP or Elevated Risk",
+  "version": "1.0.0",
+  "platform": "sentinel_kql",
+  "severity": "high",
+  "description": "Detects successful interactive sign-ins to the Azure Portal from external IP ranges or flagged with medium/high identity risk.",
+  "source_data": {
+    "primary_source": "SigninLogs",
+    "secondary_sources": ["IdentityRiskEvents"],
+    "joins": ["SigninLogs | join kind=inner (IdentityRiskEvents) on CorrelationId"]
+  },
+  "required_fields": [
+    "TimeGenerated",
+    "UserPrincipalName",
+    "IPAddress",
+    "ResultType",
+    "AppDisplayName"
+  ],
+  "optional_fields": [
+    "RiskLevelDuringSignIn",
+    "Location",
+    "DeviceDetail"
+  ],
+  "time_window": "1h",
+  "suppression_window": "6h",
+  "identity_scope": "user",
+  "expected_signal": "Targeted credential abuse or compromised user account accessing administrative cloud resources.",
+  "mitre_attack": [
+    "T1078.004",
+    "T1556"
+  ],
+  "logic": {
+    "query_template": "SigninLogs | where ResultType == 0 and AppDisplayName == 'Azure Portal' and (RiskLevelDuringSignIn in ('high', 'medium') or (not(ipv4_is_in_range(IPAddress, '10.0.0.0/8')) and not(ipv4_is_in_range(IPAddress, '192.168.0.0/16'))))",
+    "evaluation_type": "reference_evaluator"
+  },
+  "owner": "Cloud Detection Engineering"
+}

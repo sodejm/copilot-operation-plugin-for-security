@@ -21,7 +21,8 @@ PORTABLE_ENTRIES = {
     "CHANGELOG.md", "SECURITY.md", "SOURCE_PROVENANCE.md", "walkthrough.md",
     "hunts", "profiles", "schemas", "fixtures", "evaluations", "huntwb",
     "investigationwb", "attackpath", "attack_surface_planner", "entrawb", "exposuretriage",
-    "foundryharness", "scenarios", "agents", "com.github.copilot", "com.sodejm.copse",
+    "foundryharness", "scenarios", "detectionquality", "rules", "proofpack", "routes",
+    "agents", "com.github.copilot", "com.sodejm.copse",
 }
 SOURCE_ONLY_ENTRIES = {
     ".claude-plugin", ".codex-plugin", "commands", "adapters",

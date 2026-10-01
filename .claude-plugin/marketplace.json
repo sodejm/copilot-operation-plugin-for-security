@@ -52,6 +52,12 @@
       "description": "Author adversarial scenarios and evaluate Microsoft Foundry and Semantic Kernel agents against deterministic mock sandboxes.",
       "version": "0.1.0",
       "source": "./plugins/offensive-security/foundry-agent-harness"
+    },
+    {
+      "name": "detection-quality-workbench",
+      "description": "Evaluate detection rule quality, dependencies, schema drift, and regression baselines for Sentinel KQL and Splunk SPL.",
+      "version": "0.1.0",
+      "source": "./plugins/detection-hunting/detection-quality-workbench"
     }
   ]
 }

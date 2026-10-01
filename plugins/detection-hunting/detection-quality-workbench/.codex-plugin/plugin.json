@@ -1,0 +1,41 @@
+{
+  "author": {
+    "name": "Justin Soderberg",
+    "url": "https://github.com/sodejm"
+  },
+  "description": "Evaluate detection rule quality, dependencies, schema drift, and regression baselines for Sentinel KQL and Splunk SPL.",
+  "homepage": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "interface": {
+    "displayName": "COPS Detection Quality & Regression Workbench",
+    "shortDescription": "Detection quality, schema drift, and regression testing.",
+    "longDescription": "Map rule dependencies to telemetry schemas, run repeatable positive, negative, and edge-case fixtures, explain missed and noisy cases, and produce evidence-backed readiness reports for Microsoft Sentinel KQL and Splunk SPL.",
+    "developerName": "Justin Soderberg",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Rule contract validation",
+      "Static telemetry field and dependency analysis",
+      "Precision and recall evaluation on labeled fixtures",
+      "Explain false positives, false negatives, and schema drift"
+    ],
+    "defaultPrompt": [
+      "Evaluate this detection rule against its test fixtures to measure precision, recall, and schema drift."
+    ]
+  },
+  "keywords": [
+    "cybersecurity",
+    "detection-engineering",
+    "detection-quality",
+    "kql",
+    "microsoft-sentinel",
+    "precision-recall",
+    "regression-testing",
+    "rule-validation",
+    "splunk",
+    "spl"
+  ],
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "name": "detection-quality-workbench",
+  "repository": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "skills": "./skills/",
+  "version": "0.1.0"
+}
