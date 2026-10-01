@@ -1,0 +1,31 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "detection-quality-workbench",
+  "version": "0.1.0",
+  "description": "Evaluate detection rule quality, dependencies, schema drift, and regression baselines for Sentinel KQL and Splunk SPL.",
+  "author": {
+    "name": "Justin Soderberg",
+    "url": "https://github.com/sodejm"
+  },
+  "repository": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "keywords": [
+    "cybersecurity",
+    "detection-engineering",
+    "detection-quality",
+    "kql",
+    "microsoft-sentinel",
+    "precision-recall",
+    "regression-testing",
+    "rule-validation",
+    "splunk",
+    "spl"
+  ],
+  "extensions": {
+    "com.openai": {
+      "displayName": "COPS Detection Quality & Regression Workbench",
+      "category": "Developer Tools"
+    },
+    "com.sodejm.copse": {}
+  }
+}

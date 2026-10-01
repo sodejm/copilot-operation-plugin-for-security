@@ -1,0 +1,111 @@
+{
+  "schema_version": "cops.detection-fixtures/v1",
+  "fixture_suite_id": "FIXTURE-SUITE-KQL-ENTRA-01",
+  "target_rule_id": "RULE-KQL-ENTRA-ANOMALOUS-SIGNIN",
+  "description": "Comprehensive labeled validation suite for anomalous Azure Portal sign-in rule.",
+  "cases": [
+    {
+      "case_id": "CASE-POS-01",
+      "description": "True positive: External public IP login to Azure Portal with elevated identity risk",
+      "label": "positive",
+      "expected_match": true,
+      "tags": ["external_ip", "elevated_risk"],
+      "events": [
+        {
+          "TimeGenerated": "2026-10-01T12:00:00Z",
+          "UserPrincipalName": "admin@contoso.com",
+          "IPAddress": "198.51.100.45",
+          "ResultType": 0,
+          "AppDisplayName": "Azure Portal",
+          "RiskLevelDuringSignIn": "high",
+          "Location": "Unknown"
+        }
+      ]
+    },
+    {
+      "case_id": "CASE-POS-02",
+      "description": "True positive: External public IP login to Azure Portal with normal risk",
+      "label": "positive",
+      "expected_match": true,
+      "tags": ["external_ip"],
+      "events": [
+        {
+          "TimeGenerated": "2026-10-01T12:15:00Z",
+          "UserPrincipalName": "dev@contoso.com",
+          "IPAddress": "203.0.113.19",
+          "ResultType": 0,
+          "AppDisplayName": "Azure Portal",
+          "RiskLevelDuringSignIn": "none",
+          "Location": "Tokyo"
+        }
+      ]
+    },
+    {
+      "case_id": "CASE-NEG-01",
+      "description": "True negative: Corporate internal RFC-1918 IP login to Azure Portal",
+      "label": "negative",
+      "expected_match": false,
+      "tags": ["internal_ip", "benign"],
+      "events": [
+        {
+          "TimeGenerated": "2026-10-01T09:00:00Z",
+          "UserPrincipalName": "analyst@contoso.com",
+          "IPAddress": "10.50.2.14",
+          "ResultType": 0,
+          "AppDisplayName": "Azure Portal",
+          "RiskLevelDuringSignIn": "none",
+          "Location": "Corporate HQ"
+        }
+      ]
+    },
+    {
+      "case_id": "CASE-NEG-02",
+      "description": "True negative: Failed external login attempt (ResultType 50126)",
+      "label": "negative",
+      "expected_match": false,
+      "tags": ["failed_login"],
+      "events": [
+        {
+          "TimeGenerated": "2026-10-01T09:30:00Z",
+          "UserPrincipalName": "victim@contoso.com",
+          "IPAddress": "198.51.100.88",
+          "ResultType": 50126,
+          "AppDisplayName": "Azure Portal",
+          "RiskLevelDuringSignIn": "medium",
+          "Location": "External"
+        }
+      ]
+    },
+    {
+      "case_id": "CASE-BND-MISSING-FIELD",
+      "description": "Boundary edge-case: Missing required field IPAddress (schema drift simulation)",
+      "label": "boundary",
+      "expected_match": false,
+      "tags": ["missing_field", "schema_drift"],
+      "events": [
+        {
+          "TimeGenerated": "2026-10-01T10:00:00Z",
+          "UserPrincipalName": "service@contoso.com",
+          "ResultType": 0,
+          "AppDisplayName": "Azure Portal"
+        }
+      ]
+    },
+    {
+      "case_id": "CASE-BND-OTHER-APP",
+      "description": "Boundary edge-case: External login to Office 365 Exchange, not Azure Portal",
+      "label": "boundary",
+      "expected_match": false,
+      "tags": ["app_boundary"],
+      "events": [
+        {
+          "TimeGenerated": "2026-10-01T10:30:00Z",
+          "UserPrincipalName": "sales@contoso.com",
+          "IPAddress": "198.51.100.22",
+          "ResultType": 0,
+          "AppDisplayName": "Office 365 Exchange Online"
+        }
+      ]
+    }
+  ]
+}

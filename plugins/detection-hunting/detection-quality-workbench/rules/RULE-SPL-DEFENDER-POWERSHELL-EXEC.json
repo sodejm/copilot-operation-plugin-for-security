@@ -1,0 +1,36 @@
+{
+  "schema_version": "cops.detection-rule/v1",
+  "rule_id": "RULE-SPL-DEFENDER-POWERSHELL-EXEC",
+  "name": "Suspicious PowerShell Encoded or Download Cradle Execution",
+  "version": "1.0.0",
+  "platform": "splunk_spl",
+  "severity": "high",
+  "description": "Identifies PowerShell script block logging events containing obfuscated base64 encoded commands or web download cradles.",
+  "source_data": {
+    "primary_source": "index=endpoint sourcetype=\"WinEventLog:Microsoft-Windows-PowerShell/Operational\""
+  },
+  "required_fields": [
+    "_time",
+    "EventCode",
+    "ScriptBlockText",
+    "Computer",
+    "User"
+  ],
+  "optional_fields": [
+    "ProcessId",
+    "Path"
+  ],
+  "time_window": "15m",
+  "suppression_window": "1h",
+  "identity_scope": "host",
+  "expected_signal": "Living-off-the-land execution of in-memory payloads or remote stage downloads.",
+  "mitre_attack": [
+    "T1059.001",
+    "T1027"
+  ],
+  "logic": {
+    "query_template": "index=endpoint sourcetype=\"WinEventLog:Microsoft-Windows-PowerShell/Operational\" EventCode=4104 (ScriptBlockText=\"*-EncodedCommand*\" OR ScriptBlockText=\"*DownloadString*\" OR ScriptBlockText=\"*IEX*\" OR ScriptBlockText=\"*Invoke-Expression*\")",
+    "evaluation_type": "reference_evaluator"
+  },
+  "owner": "Endpoint Detection Engineering"
+}

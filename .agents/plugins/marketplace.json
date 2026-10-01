@@ -96,6 +96,18 @@
         "authentication": "ON_INSTALL"
       },
       "category": "Developer Tools"
+    },
+    {
+      "name": "detection-quality-workbench",
+      "source": {
+        "source": "local",
+        "path": "./plugins/detection-hunting/detection-quality-workbench"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
     }
   ]
 }

@@ -131,6 +131,25 @@
         "offensive-security",
         "prompt-injection"
       ]
+    },
+    {
+      "id": "detection-quality-workbench",
+      "name": "COPS Detection Quality & Regression Workbench",
+      "version": "0.1.0",
+      "primary_category": "detection-hunting",
+      "path": "plugins/detection-hunting/detection-quality-workbench",
+      "tags": [
+        "claude",
+        "codex",
+        "detection-engineering",
+        "detection-quality",
+        "github-copilot",
+        "kql",
+        "microsoft-sentinel",
+        "regression-testing",
+        "splunk",
+        "spl"
+      ]
     }
   ]
 }
