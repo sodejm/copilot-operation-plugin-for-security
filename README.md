@@ -59,6 +59,22 @@ For an in-depth walkthrough and step-by-step guidance, read the **[Getting Start
 
 ---
 
+## Specialist Cybersecurity Agent Profiles & Dynamic Routing
+
+COPS centralizes **18 specialist cybersecurity agent profiles** in [`agents/`](agents/README.md) across offensive, defensive, forensics, identity, and governance disciplines. The deterministic zero-token router dynamically matches incoming tasks to the best specialist profile:
+
+```bash
+# Route any security request or natural language task:
+python3 -m cops route "Optimize this Sentinel KQL query for low ingestion cost"
+
+# List all 18 specialist profiles:
+python3 -m cops specialists
+```
+
+For high-risk operations (e.g. penetration testing, red team emulation, active containment, or cloud privilege escalation), COPS automatically activates **Triad Orchestration** (Primary Specialist + Domain Skeptic + Evidence Auditor) with mandatory interactive operator authorization.
+
+---
+
 ## How Universal Portability Works
 
 Different AI assistants expect different file structures, manifests, and skill formats. COPS removes that headache through automated, drift-free synchronization:
