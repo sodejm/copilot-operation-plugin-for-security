@@ -7,3 +7,9 @@
 5. For an identical input and profile, compare canonical report bytes and run ID. Different source snapshots are separate runs and may be compared only within the same declared scope and compatible mapping rules.
 
 The illustrative fixture includes one supported structural route, one candidate route, a rejected graph transition, and a quarantined undocumented row. All names and records are invented. The report is suitable for inspecting semantics, not for operational conclusions.
+
+## Filesystem permissions and output boundary
+
+Report directories are created with owner-only permissions (`0700`) and individual report files (`report.json`, `graph.json`, `report.md`, `remediation-ledger.json`) with mode `0600`.
+
+Publish reports beneath an analyst-owned, private parent directory that untrusted accounts cannot mutate during a run. The CLI uses descriptor-anchored directory creation and file writes to reject existing paths, symlink redirections, and concurrent directory swaps. Concurrent mutation of output trees by untrusted accounts is not supported.

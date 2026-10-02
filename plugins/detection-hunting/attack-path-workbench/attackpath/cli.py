@@ -76,13 +76,21 @@ def main(argv: list[str] | None = None) -> int:
         if args.output_dir.exists():
             raise GateError(f"output directory exists: {args.output_dir}")
         report = analyze(args.input, ingestion_overrides(args), search_overrides(args))
-        args.output_dir.mkdir(parents=True)
-        (args.output_dir / "report.json").write_bytes(canonical(report))
-        (args.output_dir / "graph.json").write_bytes(canonical(report["graph"]))
-        (args.output_dir / "report.md").write_text(markdown(report), encoding="utf-8")
         ledger = {"schema_version": "attackpath.ledger/v1", "run_id": report["run"]["run_id"],
                   "actions": report["actions"]}
-        (args.output_dir / "remediation-ledger.json").write_bytes(canonical(ledger))
+        contents = {
+            "report.json": report,
+            "graph.json": report["graph"],
+            "report.md": markdown(report).encode("utf-8"),
+            "remediation-ledger.json": ledger,
+        }
+        from .azure.model import AzureError
+        from .azure.report import write_files
+        limit = search_overrides(args).get("report_bytes", 33554432)
+        try:
+            write_files(args.output_dir, contents, limit)
+        except AzureError as err:
+            raise GateError(f"output validation failed: {err}") from err
         print(json.dumps({"run_id": report["run"]["run_id"], "output_dir": str(args.output_dir)}, sort_keys=True))
         return 0
     except (GateError, OSError, RecursionError):
