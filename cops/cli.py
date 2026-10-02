@@ -284,6 +284,17 @@ def build_parser() -> argparse.ArgumentParser:
     cov_parser.add_argument("--output-flow", type=Path, help="write Attack Flow bundle to file")
     cov_parser.add_argument("--json", action="store_true", help="output structured JSON")
 
+    route_p = subparsers.add_parser("route", help="route a security task to the optimal specialist profile")
+    route_p.add_argument("query", help="natural language task description or request")
+    route_p.add_argument("--critical", action="store_true", help="force critical classification (triad)")
+    route_p.add_argument("--authorize", action="store_true", help="trigger authorization gate if required")
+    route_p.add_argument("--scope", nargs="+", help="target scope identifiers for authorization")
+    route_p.add_argument("--action", help="action name for authorization")
+    route_p.add_argument("--json", action="store_true", help="output structured JSON")
+
+    spec_p = subparsers.add_parser("specialists", help="list all specialist cybersecurity agent profiles")
+    spec_p.add_argument("--json", action="store_true", help="output structured JSON")
+
     return parser
 
 
@@ -317,6 +328,12 @@ def main(argv: list[str] | None = None, *, root: Path = ROOT) -> int:
                 as_json=args.json,
                 root=root,
             )
+        if args.command == "route":
+            from .routing.cli import command_route
+            return command_route(args)
+        if args.command == "specialists":
+            from .routing.cli import command_list as spec_list
+            return spec_list(args)
     except (CatalogError, ValidationError, CoverageError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
