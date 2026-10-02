@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sodejm/copilot-operation-plugin-for-security/catalog/schemas/specialist-profile.schema.json",
+  "title": "COPS Specialist Agent Profile Governance Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "display_name",
+    "domain",
+    "criticality",
+    "interactive_authorization_required",
+    "description",
+    "primary_plugin",
+    "skills",
+    "tools",
+    "contract_file",
+    "intent_keywords"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "id": {
+      "type": "string",
+      "pattern": "^cops-[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "display_name": {"type": "string", "minLength": 1},
+    "domain": {
+      "enum": [
+        "offensive-security",
+        "defensive-operations",
+        "incident-forensics",
+        "identity-exposure",
+        "governance-operations"
+      ]
+    },
+    "criticality": {"enum": ["normal", "critical"]},
+    "interactive_authorization_required": {"type": "boolean"},
+    "description": {"type": "string", "minLength": 1, "maxLength": 1024},
+    "primary_plugin": {"type": "string", "minLength": 1},
+    "skills": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "tools": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    },
+    "contract_file": {"type": "string", "minLength": 1},
+    "intent_keywords": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "triad_defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["skeptic_profile_id", "auditor_profile_id"],
+      "properties": {
+        "skeptic_profile_id": {"type": "string", "minLength": 1},
+        "auditor_profile_id": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

@@ -48,7 +48,13 @@ flowchart TD
 
 1. **Deterministic Tools**: Python scripts and strict JSON schemas that validate evidence, compute hashes, parse graphs, and check syntax deterministically. These do the heavy mathematical and data validation work without relying on LLM guesswork.
 2. **Reusable Skills**: Structured operational recipes (defined in `SKILL.md` files conforming to the `agentskills.io` standard). These teach AI assistants *when* to trigger specific actions and *how* to guide analysts through complex workflows.
-3. **Autonomous Agents**: Optional specialist personas (e.g. `path-skeptic`, `claim-auditor`) that help review outputs, challenge assumptions, and ensure findings are backed by hard evidence.
+3. **Autonomous Specialist Agents**: 18 callable specialist profiles housed in [`agents/`](../agents/README.md) across offensive, defensive, forensics, identity, and governance domains, orchestrated dynamically via `python3 -m cops route`:
+   - **Offensive Security**: Penetration testing (`cops-pentest-specialist`), red team emulation (`cops-redteam-operator`), attack surface planning (`cops-attack-surface-planner`), AI red teaming (`cops-ai-adversary-specialist`).
+   - **Defensive & Detection**: Microsoft Sentinel KQL engineering (`cops-sentinel-kql-engineer`), threat hunting (`cops-threat-hunter`), SOC alert triage (`cops-soc-analyst`), detection-as-code (`cops-detection-engineer`).
+   - **Incident Response & Forensics**: Blast radius and containment rehearsal (`cops-incident-responder`), tamper-evident evidence capture (`cops-forensic-collector`), static malware triage (`cops-malware-analyst`).
+   - **Identity & Exposure**: Entra ID and cloud IAM governance (`cops-identity-specialist`), SBOM CVE reachability (`cops-exposure-analyst`), secure code review (`cops-appsec-engineer`), cyber threat intelligence (`cops-threat-intel-analyst`).
+   - **Governance & Efficacy**: Purple team coordination (`cops-purple-team-coordinator`), audit telemetry architecture (`cops-logging-architect`), GRC compliance control auditing (`cops-compliance-auditor`).
+   - **Triad Orchestration**: Critical tasks automatically assemble a 3-agent team (Primary Specialist + Domain Skeptic + Evidence Auditor) with mandatory interactive operator authorization.
 
 ---
 

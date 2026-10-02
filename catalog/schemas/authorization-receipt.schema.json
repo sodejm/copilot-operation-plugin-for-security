@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sodejm/copilot-operation-plugin-for-security/catalog/schemas/authorization-receipt.schema.json",
+  "title": "COPS Interactive Authorization Receipt Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "receipt_id",
+    "timestamp_utc",
+    "operator",
+    "specialist_id",
+    "action_type",
+    "target_scope",
+    "allowed_operations",
+    "authorized_until_utc",
+    "approval_mode",
+    "verification_hash"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "receipt_id": {"type": "string", "minLength": 16},
+    "timestamp_utc": {"type": "string", "format": "date-time"},
+    "operator": {"type": "string", "minLength": 1},
+    "specialist_id": {"type": "string", "minLength": 1},
+    "action_type": {"type": "string", "minLength": 1},
+    "target_scope": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "allowed_operations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "authorized_until_utc": {"type": "string", "format": "date-time"},
+    "approval_mode": {
+      "enum": ["interactive_confirmation", "pre_signed_envelope"]
+    },
+    "verification_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

@@ -4,6 +4,7 @@ import importlib.util
 import json
 from pathlib import Path
 import re
+import stat
 import subprocess
 import sys
 
@@ -44,6 +45,7 @@ def initialize(workspace):
 @then('the report is unresolved and the repository is unchanged')
 def initialized(workspace):
     assert workspace['result'].returncode == 0
+    assert stat.S_IMODE(workspace['report_path'].stat().st_mode) == 0o600
     report = json.loads(workspace['report_path'].read_text())
     assert (report['conclusion'], report['trigger'], report['impact']) == (
         'unresolved', 'unknown', 'untested')
@@ -326,3 +328,42 @@ def test_evidence_size_boundary_and_binary_capture(tmp_path):
     assert json.loads(result.stdout)['sha256'] == hashlib.sha256(data).hexdigest()
     source.write_bytes(data + b'x')
     failed({'result': cli('evidence', '--root', tmp_path, '--file', 'source', '--id', 'E')})
+
+
+def test_cve_fingerprint_leaf_swap(tmp_path):
+    root = tmp_path / 'evidence'
+    root.mkdir()
+    target_file = root / 'valid.txt'
+    target_file.write_text('trusted evidence\n')
+
+    outside = tmp_path / 'outside'
+    outside.mkdir()
+    secret_file = outside / 'secret.txt'
+    secret_file.write_text('secret external content\n')
+
+    result = cli('evidence', '--root', root, '--file', 'valid.txt', '--id', 'E1')
+    assert result.returncode == 0
+    assert 'trusted evidence' not in result.stdout
+
+    # Swap leaf with symlink pointing outside root
+    target_file.unlink()
+    target_file.symlink_to(secret_file)
+
+    swap_result = cli('evidence', '--root', root, '--file', 'valid.txt', '--id', 'E1')
+    failed({'result': swap_result})
+    assert 'secret' not in swap_result.stdout
+    assert 'secret' not in swap_result.stderr
+
+    # Swap directory component with symlink pointing outside root
+    sub_dir = root / 'sub'
+    sub_dir.mkdir()
+    sub_file = sub_dir / 'subfile.txt'
+    sub_file.write_text('sub evidence\n')
+    sub_file.unlink()
+    sub_dir.rmdir()
+    sub_dir.symlink_to(outside)
+
+    dir_swap_result = cli('evidence', '--root', root, '--file', 'sub/secret.txt', '--id', 'E2')
+    failed({'result': dir_swap_result})
+    assert 'secret' not in dir_swap_result.stdout
+    assert 'secret' not in dir_swap_result.stderr

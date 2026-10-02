@@ -143,9 +143,17 @@ def write_files(output, contents, limit):
         os.mkdir(parts[-1], mode=0o700, dir_fd=parent)
         descriptors.append(os.open(parts[-1], os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent))
         directory = descriptors[-1]
+        try:
+            os.fchmod(directory, 0o700)
+        except OSError:
+            pass
         for name, data in encoded.items():
             fd = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=directory)
             try:
+                try:
+                    os.fchmod(fd, 0o600)
+                except OSError:
+                    pass
                 view = memoryview(data)
                 while view:
                     count = os.write(fd, view)

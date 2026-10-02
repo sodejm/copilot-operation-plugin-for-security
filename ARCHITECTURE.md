@@ -102,6 +102,19 @@ See the **[Shared Evidence SDK Guide](docs/EVIDENCE_SDK.md)** for detailed imple
 
 ---
 
+## Specialist Agent Profiles & Dynamic Routing (`cops.routing`, `agents/`)
+
+COPS centralizes **18 specialist cybersecurity agent profiles** in `agents/` and provides a deterministic, zero-token routing engine:
+- **Centralized Profiles Inventory**: `agents/registry.json` and `agents/profiles/*.agent.md` govern callable personas across offensive security, defensive detection, incident response, digital forensics, cloud identity, and compliance.
+- **Dynamic Selection Engine (`cops.routing`)**: Fast local Python classifier that maps natural language requests and artifact types to the most qualified specialist profile and recommended skills without model hallucinations.
+- **Triad Orchestration Topology**: For critical tasks (e.g. penetration testing, adversary emulation, active containment, or privilege escalation audits), the engine automatically assembles a three-agent team:
+  1. *Primary Specialist*: Conducts the core assessment or planning.
+  2. *Domain Skeptic*: Challenges assumptions, identifies benign alternatives, and stress-tests transition constraints.
+  3. *Evidence Auditor*: Verifies cryptographically signed authorization receipts and validates SHA-256 evidence envelopes.
+- **Interactive Authorization Gate (`cops.authorization`)**: High-consequence profiles enforce mandatory operator authorization, supporting interactive terminal approval and pre-signed cryptographic receipts while failing closed in non-interactive environments.
+
+---
+
 ## Contributor & Quality Assurance Spine
 
 The repository maintains strict quality guardrails:
