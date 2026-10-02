@@ -45,7 +45,8 @@ def initialize(workspace):
 @then('the report is unresolved and the repository is unchanged')
 def initialized(workspace):
     assert workspace['result'].returncode == 0
-    assert stat.S_IMODE(workspace['report_path'].stat().st_mode) == 0o600
+    if HELPER.os.name == 'posix':
+        assert stat.S_IMODE(workspace['report_path'].stat().st_mode) == 0o600
     report = json.loads(workspace['report_path'].read_text())
     assert (report['conclusion'], report['trigger'], report['impact']) == (
         'unresolved', 'unknown', 'untested')
