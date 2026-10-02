@@ -33,6 +33,8 @@ SECRETS_PATTERNS = {
 }
 
 MAX_FILES_TO_SCAN = 10000
+MAX_DIRS_TO_SCAN = 2000
+MAX_DIRECTORIES_TO_SCAN = MAX_DIRS_TO_SCAN
 MAX_FILE_SIZE_BYTES = 1 * 1024 * 1024 # 1 MB
 
 CONTENT_EXTENSIONS = {".json", ".yaml", ".yml", ".tf", ".tfvars", ".conf", ".properties", ".ini", ".env", ".py", ".ts", ".js", ".go", ".java", ".md", ".bicep", ".ps1", ".psm1", ".sh", ".pl", ".pm", ".cs", ".csproj", ".sln", ".rs", ".c", ".cpp", ".rb", ".php", ".swift", ".kt", ".scala"}
@@ -136,14 +138,23 @@ def read_bounded_regular_file(path, discovered):
 
 def is_ignored(path, root_dir):
     """Checks if a given path should be ignored."""
-    parts = os.path.relpath(path, root_dir).split(os.sep)
+    try:
+        rel = os.path.relpath(path, root_dir)
+    except ValueError:
+        return False
+    if rel == ".":
+        return os.path.basename(os.path.abspath(path)) in IGNORE_DIRS
+    parts = rel.split(os.sep)
     for part in parts:
         if part in IGNORE_DIRS:
             return True
     return False
 
-def scan_repository(root_dir):
+def scan_repository(root_dir, max_dirs=None, max_files=None):
     """Performs static analysis on the repository files."""
+    effective_max_dirs = max_dirs if max_dirs is not None else int(os.environ.get("COPS_SCANNER_MAX_DIRS", globals().get("MAX_DIRS_TO_SCAN", 2000)))
+    effective_max_files = max_files if max_files is not None else int(os.environ.get("COPS_SCANNER_MAX_FILES", globals().get("MAX_FILES_TO_SCAN", 10000)))
+
     results = {
         "repository_path": os.path.abspath(root_dir),
         "languages": {},
@@ -154,21 +165,48 @@ def scan_repository(root_dir):
         "cicd": [],
         "secrets_findings": [],
         "scanned_files_count": 0,
+        "scanned_directories_count": 0,
+        "coverage": "complete",
+        "incomplete_coverage": False,
+        "partial_scan_notice": None,
         "skipped_files": []
     }
 
     files_seen = 0
+    dirs_seen = 0
 
     # Configuration file detections
     for root, dirs, files in os.walk(root_dir):
         if is_ignored(root, root_dir):
+            dirs[:] = []
             continue
-            
-        if files_seen >= MAX_FILES_TO_SCAN:
+
+        # Prune ignored directory trees so os.walk does not descend into them
+        dirs[:] = [d for d in dirs if d not in IGNORE_DIRS and not is_ignored(os.path.join(root, d), root_dir)]
+
+        if dirs_seen >= effective_max_dirs:
+            dirs[:] = []
+            results["coverage"] = "partial"
+            results["incomplete_coverage"] = True
+            results["partial_scan_notice"] = f"Directory budget of {effective_max_dirs} reached; scan is partial."
+            break
+
+        dirs_seen += 1
+        results["scanned_directories_count"] = dirs_seen
+
+        if files_seen >= effective_max_files:
+            dirs[:] = []
+            results["coverage"] = "partial"
+            results["incomplete_coverage"] = True
+            results["partial_scan_notice"] = f"File budget of {effective_max_files} reached; scan is partial."
             break
 
         for file in files:
-            if files_seen >= MAX_FILES_TO_SCAN:
+            if files_seen >= effective_max_files:
+                dirs[:] = []
+                results["coverage"] = "partial"
+                results["incomplete_coverage"] = True
+                results["partial_scan_notice"] = f"File budget of {effective_max_files} reached; scan is partial."
                 break
             files_seen += 1
                 
@@ -353,6 +391,9 @@ def scan_repository(root_dir):
                                 "remediation": "Do not commit plain text secrets. Move key/credentials to vault/secrets manager or set as environment variables."
                             })
 
+        if files_seen >= MAX_FILES_TO_SCAN:
+            break
+
     # Deduplicate arrays
     results["frameworks_and_libraries"] = list(set(results["frameworks_and_libraries"]))
     results["databases"] = list(set(results["databases"]))
@@ -363,12 +404,18 @@ def scan_repository(root_dir):
     return results
 
 def main():
-    target_dir = sys.argv[1] if len(sys.argv) > 1 else "."
-    if not os.path.isdir(target_dir):
-        print(json.dumps({"error": f"Path '{target_dir}' is not a valid directory."}, indent=2))
+    import argparse
+    parser = argparse.ArgumentParser(description="Enterprise Security Logging Advisor - Repository Scanner")
+    parser.add_argument("target_dir", nargs="?", default=".", help="Directory to scan")
+    parser.add_argument("--max-dirs", type=int, default=None, help="Maximum directories to visit")
+    parser.add_argument("--max-files", type=int, default=None, help="Maximum files to scan")
+    args = parser.parse_args()
+
+    if not os.path.isdir(args.target_dir):
+        print(json.dumps({"error": f"Path '{args.target_dir}' is not a valid directory."}, indent=2))
         sys.exit(1)
 
-    scan_data = scan_repository(target_dir)
+    scan_data = scan_repository(args.target_dir, max_dirs=args.max_dirs, max_files=args.max_files)
     print(json.dumps(scan_data, indent=2))
 
 if __name__ == "__main__":

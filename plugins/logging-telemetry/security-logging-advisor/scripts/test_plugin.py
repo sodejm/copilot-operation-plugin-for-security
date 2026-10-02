@@ -146,6 +146,23 @@ class TestRepositoryScanning(unittest.TestCase):
         self.assertIn("Azure Bicep", output["iac_and_cloud"])
         self.assertIn("AWS", output["iac_and_cloud"])
 
+    def test_nested_ignored_directories_are_not_visited(self):
+        """Scenario: Prune ignored directories and assert descendants are not scanned"""
+        git_dir = os.path.join(self.temp_dir, ".git", "nested", "tree")
+        os.makedirs(git_dir, exist_ok=True)
+        with open(os.path.join(git_dir, "config.env"), "w") as f:
+            f.write("db_password = 'SecretGitPassword123!'\n")
+
+        with open(os.path.join(self.temp_dir, "app.py"), "w") as f:
+            f.write("print('hello')\n")
+
+        output = self.run_scanner()
+        self.assertEqual(output["secrets_findings"], [])
+        self.assertEqual(output["scanned_files_count"], 1)
+        self.assertEqual(output["coverage"], "complete")
+        self.assertFalse(output["incomplete_coverage"])
+        self.assertIsNone(output["partial_scan_notice"])
+
 
 if __name__ == "__main__":
     unittest.main()
