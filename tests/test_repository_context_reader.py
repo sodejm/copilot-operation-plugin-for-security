@@ -217,3 +217,70 @@ def test_windows_nul_is_rejected_before_read(tmp_path):
     target = tmp_path / "ordinary.env"
     target.write_text("bounded")
     assert scanner.read_bounded_regular_file("NUL", target.lstat()) == (None, "non_regular")
+
+
+def test_ignored_directories_are_pruned_before_descent(tmp_path, monkeypatch):
+    # Setup ignored nested tree
+    git_dir = tmp_path / ".git" / "objects" / "pack"
+    git_dir.mkdir(parents=True)
+    git_file = git_dir / "config.env"
+    git_file.write_text('db_password = "SecretGitPassword123!"\n')
+
+    node_dir = tmp_path / "node_modules" / "pkg" / "nested"
+    node_dir.mkdir(parents=True)
+    (node_dir / "index.js").write_text("console.log('ignored');\n")
+
+    # Setup non-ignored tree
+    src_dir = tmp_path / "src"
+    src_dir.mkdir()
+    (src_dir / "app.py").write_text("print('hello')\n")
+
+    visited_roots = []
+    real_walk = scanner.os.walk
+
+    def tracking_walk(top, *args, **kwargs):
+        for root, dirs, files in real_walk(top, *args, **kwargs):
+            visited_roots.append(root)
+            yield root, dirs, files
+
+    monkeypatch.setattr(scanner.os, "walk", tracking_walk)
+
+    result = scanner.scan_repository(tmp_path)
+
+    # Assert descendants of ignored directories were never yielded by os.walk
+    assert not any(".git" in Path(r).parts for r in visited_roots if Path(r) != tmp_path / ".git")
+    assert not any("node_modules" in Path(r).parts for r in visited_roots if Path(r) != tmp_path / "node_modules")
+
+    # Assert no secrets or files from ignored directories were processed
+    assert result["secrets_findings"] == []
+    assert result["scanned_files_count"] == 1
+    assert "Python" in result["languages"]
+    assert "TypeScript/JavaScript" not in result["languages"]
+    assert result["coverage"] == "complete"
+    assert result["incomplete_coverage"] is False
+    assert result["partial_scan_notice"] is None
+
+
+def test_directory_budget_stops_deep_traversal_and_reports_incomplete_coverage(tmp_path, monkeypatch):
+    monkeypatch.setattr(scanner, "MAX_DIRS_TO_SCAN", 2)
+
+    level1 = tmp_path / "level1"
+    level1.mkdir()
+    (level1 / "one.py").write_text("print('1')\n")
+
+    level2 = level1 / "level2"
+    level2.mkdir()
+    (level2 / "two.py").write_text("print('2')\n")
+
+    level3 = level2 / "level3"
+    level3.mkdir()
+    (level3 / "three.py").write_text("print('3')\n")
+
+    result = scanner.scan_repository(tmp_path)
+
+    assert result["coverage"] == "partial"
+    assert result["incomplete_coverage"] is True
+    assert result["partial_scan_notice"] is not None
+    assert "Directory budget" in result["partial_scan_notice"]
+    assert result["scanned_directories_count"] <= 2
+    assert result["scanned_files_count"] < 3
