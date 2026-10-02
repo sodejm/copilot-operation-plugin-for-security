@@ -21,6 +21,16 @@ def ingestion_overrides(args):
                                      "records", "json_depth") if (value := getattr(args, "max_" + name)) is not None}
 
 
+def add_search_flags(command):
+    for name in ("expansions", "frontier", "complete-paths", "partial-paths", "emitted-paths", "report-bytes"):
+        command.add_argument("--max-" + name, type=int)
+
+
+def search_overrides(args):
+    return {name: value for name in ("expansions", "frontier", "complete_paths", "partial_paths",
+                                     "emitted_paths", "report_bytes") if (value := getattr(args, "max_" + name)) is not None}
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Offline attack path workbench")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -28,6 +38,7 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("input", type=Path)
     run.add_argument("--output-dir", required=True, type=Path)
     add_ingestion_flags(run)
+    add_search_flags(run)
     intent = commands.add_parser("query-intent", help="Produce an unrendered Wiz query intent")
     intent.add_argument("--start", required=True)
     intent.add_argument("--target", required=True)
@@ -64,7 +75,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.output_dir.exists():
             raise GateError(f"output directory exists: {args.output_dir}")
-        report = analyze(args.input, ingestion_overrides(args))
+        report = analyze(args.input, ingestion_overrides(args), search_overrides(args))
         args.output_dir.mkdir(parents=True)
         (args.output_dir / "report.json").write_bytes(canonical(report))
         (args.output_dir / "graph.json").write_bytes(canonical(report["graph"]))

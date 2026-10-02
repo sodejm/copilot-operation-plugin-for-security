@@ -286,3 +286,39 @@ def correction(context):
 def recovered(context):
     assert context["report"]["gate_results"]["G1"] == "pass"
     assert len(context["report"]["supported_paths"]) == 1
+
+
+@given("an illustrative graph with more routes than the chosen search budget")
+def bounded_search_graph(context):
+    context["search_limits"] = {"expansions": 1}
+
+
+@when("analysis reaches an expansion, frontier, path, or report byte limit")
+def analyze_with_search_limits(context):
+    context["report"] = analyze(context["input"], search_limits=context["search_limits"])
+
+
+@then("the v2 report records the effective limits, consumption, and stop reason")
+def report_v2_search_receipt(context):
+    report = context["report"]
+    assert report["schema_version"] == "attackpath.report/v2"
+    assert report["search"]["stop_reason"] == "expansion_limit"
+    assert report["search"]["consumed"]["expansions"] == 1
+    assert not report["search"]["complete"]
+
+
+@then("incomplete rankings are labelled as best discovered routes")
+def incomplete_ranking_label(context):
+    assert context["report"]["search"]["ranking_scope"] == "best_discovered"
+
+
+@then("the same policy and receipt replay during claim audit")
+def replay_search_policy_audit(context):
+    report = context["report"]
+    manifest = json.loads(context["input"].read_text())
+    _, sources = validate_input(manifest, context["input"].parent)
+    audit_report(report, sources)
+    tampered = copy.deepcopy(report)
+    tampered["search"]["consumed"]["expansions"] += 1
+    with pytest.raises(GateError, match="search receipt"):
+        audit_report(tampered, sources)

@@ -32,12 +32,14 @@ python3 -m unittest discover -s tests -v
 ### What to look for
 The analyzer generates four detailed output files in your chosen directory:
 1. `report.md`: A human-readable Markdown summary breaking down candidate attack routes and candidate choke points.
-2. `report.json`: Machine-readable results containing complete route provenance and confidence ratings.
+2. `report.json`: Machine-readable results containing route provenance, confidence ratings, and a bounded search receipt. If a limit stops search, ranked paths are the best discovered paths only.
 3. `graph.json`: An exported node-and-edge graph model ready for visualization or SIEM ingestion.
 4. `remediation-ledger.json`: An auditable ledger mapping each identified risk to its concrete remediation step.
 
 > [!NOTE]
 > The illustrative fixture contains synthetic test data designed to demonstrate graph analysis algorithms safely. Structural routes are conditional on exploiting starting findings, and candidate routes highlight explicit evidence gaps.
+
+The illustrative graph search considers routes of at most eight transitions. Its default hard ceilings are 50,000 expansions, 10,000 frontier entries, 1,000 complete paths, 1,000 partial paths, 100 emitted paths, and 64 MiB of serialized report JSON. The `analyze` command exposes corresponding `--max-*` options that can only tighten these ceilings. The `attackpath.report/v2` search receipt records effective limits, consumed counts, completeness within the eight-transition search, and the stop reason. The policy hash is part of the run identity. A legacy v1 report has no such receipt; audit accepts it only if replay finishes within current hard limits and does not infer historical search completeness.
 
 ---
 

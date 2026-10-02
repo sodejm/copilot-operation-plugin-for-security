@@ -19,6 +19,16 @@ def markdown(report: dict[str, Any]) -> str:
              f"- Input SHA-256: {label(report['run']['input_sha256'])}"]
     for crown in report["context"]["crown_jewels"]:
         lines.append(f"- Crown jewel: {label(crown['asset_ref'])} ({label(crown['name'])}); priority {label(crown['priority'])}")
+    search = report.get("search")
+    if search is not None:
+        lines += ["", "## Search coverage", "",
+                  f"- Complete: {label(search['complete'])}; stop reason: {label(search['stop_reason'])}",
+                  f"- Limits: {label(search['limits'])}",
+                  f"- Consumed: {label(search['consumed'])}"]
+        if not search["complete"]:
+            lines.append("Ranked paths are the best discovered paths only. Undiscovered paths may rank higher.")
+    else:
+        lines += ["", "## Search coverage", "", "Legacy report: search completeness is unknown."]
     lines += ["", "## Source coverage and reconciliation", ""]
     for item in report["coverage"]:
         lines.append(f"- {label(item['source_id'])}: declared {label(item['declared_coverage'])}; completeness unverified")

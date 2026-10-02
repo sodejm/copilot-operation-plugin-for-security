@@ -1,0 +1,13 @@
+{
+  "action": "isolate-host",
+  "approver_assertion": "example-analyst",
+  "desired_state": "isolated",
+  "expected_state": "active",
+  "expires_at": "2099-01-01T00:00:00Z",
+  "nonce": "synthetic-plan-1",
+  "parameters": {},
+  "plan_hash": "542b28e0c2f978a500980bc97b1c7616e49c22a89738ebc9ee7011374de44bc5",
+  "schema": "cops.ir-plan/v1",
+  "target": "host-1",
+  "tenant": "example-tenant"
+}

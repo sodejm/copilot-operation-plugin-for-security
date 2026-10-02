@@ -1,0 +1,7 @@
+{
+  "name": "incident-response-sandbox",
+  "version": "0.1.0",
+  "description": "Offline incident action planning and fixture-only sandbox execution.",
+  "author": {"name": "Justin Soderberg"},
+  "license": "PolyForm-Noncommercial-1.0.0"
+}

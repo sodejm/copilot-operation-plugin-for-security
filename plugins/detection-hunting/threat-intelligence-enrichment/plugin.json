@@ -1,0 +1,14 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "threat-intelligence-enrichment",
+  "version": "0.1.0",
+  "description": "Read-only source-specific threat intelligence lookups with explicit privacy approval and bounded requests.",
+  "author": {"name": "Justin Soderberg", "url": "https://github.com/sodejm"},
+  "repository": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "keywords": ["cybersecurity", "threat-intelligence", "misp", "taxii", "microsoft", "enrichment"],
+  "extensions": {
+    "com.openai": {"displayName": "COPS Threat Intelligence Enrichment", "category": "Developer Tools"},
+    "com.sodejm.copse": {}
+  }
+}
