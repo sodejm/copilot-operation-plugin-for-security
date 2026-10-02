@@ -367,3 +367,22 @@ def test_cve_fingerprint_leaf_swap(tmp_path):
     failed({'result': dir_swap_result})
     assert 'secret' not in dir_swap_result.stdout
     assert 'secret' not in dir_swap_result.stderr
+
+
+def test_init_without_fchmod(tmp_path, monkeypatch):
+    """Windows lacks fchmod; initialization must still refuse overwrites."""
+    repo = tmp_path / 'repo'
+    repo.mkdir()
+    output = tmp_path / 'report.json'
+    monkeypatch.delattr(HELPER.os, 'fchmod', raising=False)
+    monkeypatch.setattr(sys, 'argv', [str(SCRIPT), 'init', '--repository', str(repo),
+                                    '--cve', '[CVE]', '--component', '[COMPONENT]',
+                                    '--output', str(output)])
+    assert HELPER.main() == 0
+    original = output.read_bytes()
+    assert json.loads(original)['conclusion'] == 'unresolved'
+    assert list(repo.iterdir()) == []
+    if HELPER.os.name == 'posix':
+        assert output.stat().st_mode & 0o777 == 0o600
+    assert HELPER.main() == 1
+    assert output.read_bytes() == original
