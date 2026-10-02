@@ -69,3 +69,30 @@ Without all external evidence, the only valid result is
 `qualification_withheld`. Offline qualification does not establish production
 effectiveness, Microsoft service fidelity, precision, recall, latency, cost, or
 safe autonomous response.
+
+## External Release Evidence and Assurance Policy
+
+### 1. Evidence Suppliers and Eligibility
+External release evidence (human approvals, model evaluations, license reviews, and integrity attestations) may only be submitted by authorized campaign evaluators with documented role separation. Human approval artifacts require two distinct reviewers with separated roles (e.g., author versus independent quality/security reviewer) bound to the exact release subject hash.
+
+### 2. Reviewer Identity Verification
+Reviewer identities recorded in approval artifacts (`reviewer_id`, `role`, `statement`) are structurally checked and content-addressed. Because artifacts are not cryptographically signed on a public key infrastructure (`not_cryptographically_attested`), downstream release managers must manually audit reviewer identity, tenant context, and artifact origins before relying on external assertions.
+
+### 3. Scope and Limitations of `offline_qualified`
+The status `offline_qualified` certifies that:
+- syntax, schema validation, and gold hunt definitions pass;
+- reference fixtures execute deterministically offline;
+- adapter integrity matches generated targets; and
+- external review artifacts conform structurally to schema requirements.
+
+`offline_qualified` explicitly does **NOT** authorize automated production deployment, nor does it certify live Microsoft Sentinel performance, execution fidelity, query cost, latency, false-positive suppression, or tenant schema compatibility. Downstream release gates must treat `offline_qualified` as advisory offline verification. Any automated admission path must reject unauthenticated or untrusted attestations.
+
+### 4. Fail-Closed Assurance Labels
+Reports persistently reflect:
+- `external_evidence_authenticity`: `"not_cryptographically_attested"`
+- `production_efficacy`: `"unverified"`
+- `production_cost`: `"unverified"`
+- `tenant_validation`: `"not_performed"`
+- `microsoft_service_execution`: `"not_performed"`
+
+Missing, mismatched, or stale subject hashes or artifact hashes fail closed with `qualification_withheld`.

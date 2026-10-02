@@ -96,6 +96,13 @@ flowchart TD
   - We clearly label test results: an offline demo verifies that the code runs against a fixture; it does not claim your production SIEM is configured correctly.
   - Every finding links directly to verifiable evidence.
 
+### Threat 6: Unauthorized High-Consequence or Offensive Actions
+- **The Risk**: An autonomous agent or automated script executes unauthorized vulnerability scanning, adversary emulation, or disruptive containment actions without explicit human approval.
+- **Our Defense**:
+  - **Interactive Authorization Gate (`cops.authorization`)**: High-consequence profiles (penetration testing, red team emulation, active containment, identity escalation audits) enforce an interactive approval prompt displaying the exact target scope, action type, and required `'APPROVE'` confirmation, emitting a tamper-evident, SHA-256 hashed `AuthorizationReceipt`.
+  - **Fail-Closed Non-Interactive Mode**: In automated CI/CD runners or headless environments, operations strictly abort unless a valid, pre-signed cryptographic receipt is provided.
+  - **Triad Orchestration Defense**: Critical tasks mandate a three-agent team (Primary Specialist + Domain Skeptic + Evidence Auditor) to stress-test assumptions and prevent unverified actions.
+
 ---
 
 ## 4. Local Audit & Privacy Safeguards

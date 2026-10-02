@@ -4,9 +4,13 @@ from __future__ import annotations
 
 import copy
 import json
+import os
+from pathlib import Path
+import stat
+import subprocess
+import sys
 import tempfile
 import unittest
-from pathlib import Path
 
 from attackpath.core import (GateError, analyze, audit_report, canonical,
                              file_hash, load_json, query_intent, rank_paths,
@@ -349,6 +353,40 @@ class WorkbenchTests(unittest.TestCase):
         self.assertEqual([], report["supported_paths"])
         self.assertEqual(2, sum("duplicate record identifier" in q["reason"] for q in report["quarantine"]))
         self.assertEqual(report["reconciliation"]["raw"], sum(report["reconciliation"][key] for key in ("accepted", "quarantined", "rejected")))
+
+    def test_legacy_attackpath_output_permissions_and_symlink_safety(self) -> None:
+        cli_script = Path(__file__).resolve().parents[1] / "scripts/attackpath.py"
+        fixture_input = FIXTURE / "input.json"
+        with tempfile.TemporaryDirectory() as base_dir:
+            base = Path(base_dir)
+            out_dir = base / "reports"
+            env = dict(os.environ, PYTHONPATH="", PYTHONNOUSERSITE="1", PYTHONDONTWRITEBYTECODE="1")
+            res = subprocess.run([sys.executable, str(cli_script), "analyze", str(fixture_input),
+                                  "--output-dir", str(out_dir)],
+                                 capture_output=True, text=True, env=env)
+            self.assertEqual(res.returncode, 0, f"CLI failed: {res.stderr}")
+            self.assertEqual(stat.S_IMODE(out_dir.stat().st_mode), 0o700)
+            for name in ("report.json", "graph.json", "report.md", "remediation-ledger.json"):
+                f = out_dir / name
+                self.assertTrue(f.exists(), f"missing report file: {name}")
+                self.assertEqual(stat.S_IMODE(f.stat().st_mode), 0o600)
+
+            # Pre-existing directory is rejected safely
+            res_exists = subprocess.run([sys.executable, str(cli_script), "analyze", str(fixture_input),
+                                         "--output-dir", str(out_dir)],
+                                        capture_output=True, text=True, env=env)
+            self.assertEqual(res_exists.returncode, 2)
+
+            # Symlinked output target is rejected safely
+            external_target = base / "external"
+            external_target.mkdir()
+            symlink_out = base / "symlink_dir"
+            symlink_out.symlink_to(external_target)
+            res_sym = subprocess.run([sys.executable, str(cli_script), "analyze", str(fixture_input),
+                                      "--output-dir", str(symlink_out)],
+                                     capture_output=True, text=True, env=env)
+            self.assertEqual(res_sym.returncode, 2)
+            self.assertEqual(list(external_target.iterdir()), [])
 
 
 if __name__ == "__main__":

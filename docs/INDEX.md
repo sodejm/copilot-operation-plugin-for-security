@@ -32,6 +32,7 @@ Each security plugin in COPS includes detailed documentation and a dedicated pra
 ## 🏛️ Architecture & Portability
 
 - **[Repository Architecture](../ARCHITECTURE.md)**: How the central catalog, packages, and automated host synchronization work together.
+- **[Specialist Agent Profiles & Routing Guide](../agents/README.md)**: Centralized catalog of 18 callable specialist profiles, Triad orchestration, and dynamic zero-token routing.
 - **[Repository Layout](REPOSITORY_LAYOUT.md)**: A complete map of directories, package boundaries, and file responsibilities.
 - **[Universal Portability](PORTABILITY.md)**: How COPS generates configuration files for GitHub Copilot, Claude Code, and Codex without configuration drift.
 - **[Shared Evidence SDK](EVIDENCE_SDK.md)**: Standardized evidence envelopes, pagination, and retry boundaries for data acquisition.

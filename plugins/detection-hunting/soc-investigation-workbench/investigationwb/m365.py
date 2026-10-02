@@ -6,10 +6,27 @@ import re
 from cops.evidence import EvidenceError, validate_envelope, validate_receipt
 
 GUID = re.compile(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')
-KEY_FIELDS = {'m365-signins': ('userId', 'appId'),
-              'm365-directory-audits': ('actorUserId',),
-              'm365-service-principals': ('appId',)}
-KEY_KIND = {'userId': 'user', 'actorUserId': 'user', 'appId': 'application'}
+KEY_FIELDS = {
+    'm365-signins': ('userId', 'appId'),
+    'm365-directory-audits': ('actorUserId',),
+    'm365-service-principals': ('appId',),
+    'm365-oauth2-permission-grants': ('principalId', 'clientId'),
+    'm365-security-alerts': ('userId', 'appId'),
+    'm365-mail-messages': ('userId',),
+    'm365-auth-methods': ('userId',),
+    'm365-conditional-access': (),
+    'm365-security-incidents': (),
+    'm365-purview-cases': (),
+    'm365-sharepoint-sites': (),
+    'm365-teams-chats': (),
+}
+KEY_KIND = {
+    'userId': 'user',
+    'actorUserId': 'user',
+    'principalId': 'user',
+    'appId': 'application',
+    'clientId': 'application',
+}
 
 
 def correlate(sources):
