@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from .errors import ContentError
-from .paths import load_json
+from .paths import load_bounded_json, load_json
 
 
 _UUID = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$")
@@ -204,7 +204,7 @@ def load_parameter_file(path: str | None) -> dict[str, Any]:
     if path is None:
         return {}
     try:
-        value = load_json(Path(path))
+        value = load_bounded_json(Path(path), max_bytes=1_048_576)
     except (OSError, UnicodeDecodeError, ValueError) as error:
         raise ContentError(f"cannot read parameter JSON: {error}") from error
     if not isinstance(value, dict):

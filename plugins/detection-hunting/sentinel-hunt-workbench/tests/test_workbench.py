@@ -12,13 +12,14 @@ from pathlib import Path
 from unittest import mock
 
 from huntwb import reports
-from huntwb.cli import main
+from huntwb.cli import main, _load_external_evidence
 from huntwb.errors import ContentError
 from huntwb.package_validation import validate_package
-from huntwb.paths import PACKAGE_ROOT, load_json, sha256_bytes
+from huntwb.parameters import load_parameter_file
+from huntwb.paths import PACKAGE_ROOT, load_bounded_json, load_json, sha256_bytes
 from huntwb.release_build import archive_bytes, secret_findings
 from huntwb.rendering import render_hunt
-from huntwb.reports import release_subject
+from huntwb.reports import release_report, release_subject
 
 
 class WorkbenchTests(unittest.TestCase):
@@ -97,6 +98,57 @@ class WorkbenchTests(unittest.TestCase):
         with contextlib.redirect_stderr(errors):
             self.assertEqual(main(["render", "H01", "--surface", "sentinel_analytics"]), 2)
         self.assertEqual(json.loads(errors.getvalue())["status"], "failed")
+
+    def test_bounded_json_loader_enforces_limits_and_type(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            target = folder / "valid.json"
+            target.write_text('{"key": "value"}')
+            self.assertEqual(load_bounded_json(target, 64), {"key": "value"})
+
+            # Exceeding limit fails
+            with self.assertRaises(ValueError) as ctx:
+                load_bounded_json(target, 5)
+            self.assertIn("byte limit", str(ctx.exception))
+
+            # Non-regular file (directory) fails
+            sub_dir = folder / "sub"
+            sub_dir.mkdir()
+            with self.assertRaises(ValueError) as ctx:
+                load_bounded_json(sub_dir, 64)
+            self.assertIn("regular file", str(ctx.exception))
+
+    def test_cli_evidence_and_param_size_limits(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+
+            # Oversized evidence (> 4 MiB) fails
+            evidence_path = folder / "oversized_evidence.json"
+            with open(evidence_path, "wb") as f:
+                f.write(b'{"key": "' + b'A' * (4_194_304 + 10) + b'"}')
+            with self.assertRaises(ContentError) as ctx:
+                _load_external_evidence(str(evidence_path))
+            self.assertIn("byte limit", str(ctx.exception))
+
+            # Oversized parameter file (> 1 MiB) fails
+            param_path = folder / "oversized_params.json"
+            with open(param_path, "wb") as f:
+                f.write(b'{"key": "' + b'B' * (1_048_576 + 10) + b'"}')
+            with self.assertRaises(ContentError) as ctx:
+                load_parameter_file(str(param_path))
+            self.assertIn("byte limit", str(ctx.exception))
+
+    def test_release_report_assurance_policy_and_fail_closed(self) -> None:
+        report = release_report()
+        # Unsupplied external evidence withholds qualification
+        self.assertEqual(report["status"], "qualification_withheld")
+        self.assertTrue(report["offline_only"])
+        # Assurance labels remain unverified/not_cryptographically_attested
+        self.assertEqual(report["assurance"]["external_evidence_authenticity"], "not_cryptographically_attested")
+        self.assertEqual(report["assurance"]["production_efficacy"], "unverified")
+        self.assertEqual(report["assurance"]["production_cost"], "unverified")
+        self.assertEqual(report["assurance"]["microsoft_service_execution"], "not_performed")
+        self.assertEqual(report["assurance"]["tenant_validation"], "not_performed")
 
 
 if __name__ == "__main__":

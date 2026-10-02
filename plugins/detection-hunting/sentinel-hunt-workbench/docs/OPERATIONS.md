@@ -80,3 +80,11 @@ invalidates earlier evidence. See `walkthrough.md` for artifact interpretation.
 Never edit an evidence wrapper to turn a pending gate into a pass. Evidence
 payloads and pointers are verified by digest, exact keys, subject hash, record
 counts, and gate-specific semantics.
+
+## Input byte limits and external evidence policy
+
+Top-level CLI commands enforce explicit byte limits before reading or parsing external JSON:
+- External evidence envelopes (`--evidence`): bounded to 4 MiB (`4,194,304` bytes).
+- Parameter files (`--params`): bounded to 1 MiB (`1,048,576` bytes).
+
+Oversized exports or parameters must be summarized or partitioned before analysis. External evidence authenticity remains `not_cryptographically_attested`; `offline_qualified` is an advisory offline verification and does not authorize automated production deployment. See `evaluations/EVALUATION_PROTOCOL.md` for the complete assurance policy.

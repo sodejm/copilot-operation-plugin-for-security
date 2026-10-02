@@ -13,7 +13,7 @@ from .contracts import validate_target
 from .errors import ContentError, HuntWorkbenchError
 from .evaluator import run_target
 from .parameters import load_parameter_file
-from .paths import load_json
+from .paths import load_bounded_json, load_json
 from .rendering import compatibility_report, explain_hunt, list_hunts, render_hunt
 from .reports import release_report
 
@@ -26,7 +26,7 @@ def _load_external_evidence(path: str | None) -> dict[str, Any] | None:
     if path is None:
         return None
     try:
-        value = load_json(Path(path))
+        value = load_bounded_json(Path(path), max_bytes=4_194_304)
     except (OSError, UnicodeError, ValueError) as error:
         raise ContentError(f"cannot read external evidence JSON: {error}") from error
     if not isinstance(value, dict):

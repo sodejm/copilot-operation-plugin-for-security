@@ -57,6 +57,18 @@ def load_json(path: Path) -> Any:
     return parse_json_bytes(path.read_bytes())
 
 
+def load_bounded_json(path: Path, max_bytes: int = 4_194_304) -> Any:
+    """Load strict UTF-8 JSON from a regular file within a byte limit."""
+
+    if not path.is_file():
+        raise ValueError(f"expected a regular file: {path}")
+    with path.open("rb") as stream:
+        chunk = stream.read(max_bytes + 1)
+    if len(chunk) > max_bytes:
+        raise ValueError(f"file exceeds {max_bytes} byte limit")
+    return parse_json_bytes(chunk)
+
+
 def canonical_json(value: Any) -> str:
     """Return the stable representation used for content hashes."""
 
