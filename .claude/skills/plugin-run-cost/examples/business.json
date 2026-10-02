@@ -1,0 +1,45 @@
+{
+  "runs_per_week": 3,
+  "hourly_rates": [
+    75,
+    150
+  ],
+  "alternatives": [
+    {
+      "name": "manual",
+      "qualified": true,
+      "active_minutes": 240
+    },
+    {
+      "name": "local-tools",
+      "qualified": false,
+      "active_minutes": 150,
+      "build_hours": 8,
+      "monthly_maintenance_hours": 1
+    },
+    {
+      "name": "AI",
+      "qualified": true,
+      "active_minutes": 60,
+      "variable_usd": 5
+    },
+    {
+      "name": "hybrid",
+      "qualified": true,
+      "active_minutes": 45,
+      "variable_usd": 3,
+      "build_hours": 16,
+      "monthly_maintenance_hours": 1
+    }
+  ],
+  "opportunities": [
+    {
+      "name": "inventory-and-deduplication",
+      "evidence": "synthetic-assumption",
+      "saved_usd_per_run": 1,
+      "saved_minutes_per_run": 10,
+      "build_hours": 8,
+      "monthly_maintenance_hours": 0.5
+    }
+  ]
+}

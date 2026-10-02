@@ -110,3 +110,13 @@ The repository maintains strict quality guardrails:
 - **`make check`**: The universal gate that must pass before any change is merged.
 
 To get started with development, explore the **[Contributing Guide](CONTRIBUTING.md)** and **[Repository Layout](docs/REPOSITORY_LAYOUT.md)**.
+
+## Local execution cost accounting
+
+The [plugin-run-cost skill](.agents/skills/plugin-run-cost/SKILL.md) layers explicit
+run membership, dated request pricing, bounded input profiles and employee/tool
+economics over the existing session-usage-audit parser. This is contributor tooling,
+not a distributed product package or telemetry service. The adapter exports only
+normalized request metadata on opt-in; ledgers stay outside Git. See its
+[accounting contract](.agents/skills/plugin-run-cost/references/accounting.md) for
+privacy, missing evidence, pricing expiry and forecast limitations.

@@ -86,7 +86,7 @@ def finish_bucket(bucket):
     }
 
 
-def aggregate(paths, start, end, session_ids=None):
+def aggregate(paths, start, end, session_ids=None, include_requests=False):
     diagnostics = Counter()
     candidates, activity = [], []
     metadata = {}
@@ -94,6 +94,7 @@ def aggregate(paths, start, end, session_ids=None):
     for path in sorted(set(map(Path, paths))):
         sid, model, created, fork, own_context = path.stem, "unknown", None, False, False
         previous_total, epoch, pending_canonical = None, "initial", None
+        effort, tier = "unknown", "unknown"
         try:
             handle = path.open(encoding="utf-8", errors="replace")
         except OSError:
@@ -141,6 +142,8 @@ def aggregate(paths, start, end, session_ids=None):
                     continue
                 if kind == "turn_context":
                     model = p.get("model") or "unknown"
+                    effort = p.get("reasoning_effort") or p.get("effort") or "unknown"
+                    tier = p.get("service_tier") or "unknown"
                     own_context = True
                     pending_canonical = None
                     continue
@@ -190,6 +193,8 @@ def aggregate(paths, start, end, session_ids=None):
                             previous_total = cumulative
                     if usage:
                         candidates.append({"sid": sid, "model": str(model), "time": timestamp,
+                            "requested_effort": str(effort), "service_tier": str(p.get("service_tier") or tier),
+                            "effective_effort": str(p.get("effective_reasoning_effort") or "unknown"),
                             "usage": usage, "cumulative": cumulative, "canonical": canonical,
                             "response_id": p.get("response_id") if canonical else None,
                             "epoch": epoch, "source": source, "mirror": mirror})
@@ -218,6 +223,8 @@ def aggregate(paths, start, end, session_ids=None):
     # usage, not by file position, so interrupted writes and hybrid logs work.
     mirror_keys = {(e["sid"], e["time"], signature(e["usage"])) for e in candidates if e["canonical"]}
     seen_usage = set()
+    request_evidence = {}
+    requests = []
     total, by_model, by_task = new_bucket(), defaultdict(new_bucket), defaultdict(new_bucket)
     evidence = defaultdict(list)
     for event in candidates:
@@ -232,12 +239,24 @@ def aggregate(paths, start, end, session_ids=None):
                    timestamp, signature(usage), signature(event["cumulative"]), event["epoch"])
             if event["canonical"]:
                 diagnostics["canonical_records_without_response_id"] += 1
+        if include_requests:
+            fingerprint = signature([usage, timestamp.isoformat(), event["model"],
+                                     event["requested_effort"], event["effective_effort"], event["service_tier"]])
+            if key in request_evidence and request_evidence[key] != fingerprint:
+                raise ValueError("conflicting duplicate request evidence")
+            request_evidence[key] = fingerprint
         if key in seen_usage:
             diagnostics["duplicate_usage_records_ignored"] += 1
             continue
         seen_usage.add(key)
         if not start <= timestamp < end:
             continue
+        if include_requests:
+            requests.append({"id": signature([str(v) for v in key]),
+                "session_id": sid, "timestamp": timestamp.isoformat(),
+                "model": event["model"], "requested_effort": event["requested_effort"],
+                "effective_effort": event["effective_effort"],
+                "service_tier": event["service_tier"], "usage": usage})
         for bucket in (total, by_model[event["model"]], by_task[sid]):
             add_usage(bucket, usage)
         if len(evidence[sid]) < 3:
@@ -281,7 +300,8 @@ def aggregate(paths, start, end, session_ids=None):
                       **finish_bucket(by_task[sid]), "metrics": {k: metrics[sid][k] for k in metric_fields},
                       "evidence": evidence[sid]})
     tasks.sort(key=lambda row: row["observed_tokens"]["uncached_input_tokens"], reverse=True)
-    return {"schema_version": 1, "window": {"start_inclusive": start.isoformat(), "end_exclusive": end.isoformat()},
+    return {**({"requests": requests} if include_requests else {}),
+            "schema_version": 1, "window": {"start_inclusive": start.isoformat(), "end_exclusive": end.isoformat()},
             "files_scanned": scanned, "tasks_in_window": len(tasks), "total": finish_bucket(total),
             "by_model": {m: finish_bucket(b) for m, b in sorted(by_model.items())},
             "metrics": {k: sum(t["metrics"][k] for t in tasks) for k in metric_fields},
