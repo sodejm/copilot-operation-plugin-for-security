@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'plugins/detection-hunting/soc-investigation-workbench'))
 
 from cops.connectors import Checkpoint, GraphCollection, Response, collect
+from cops.connectors.adapters.m365 import SOURCES
 from cops.evidence import EvidenceError, canonical
 from investigationwb.m365 import correlate
 
@@ -74,6 +75,54 @@ class M365InvestigationTests(unittest.TestCase):
             changed = dict(receipt, tenant='00000000-0000-0000-0000-000000000009')
             with self.assertRaises(EvidenceError):
                 correlate({'m365-signins': (records, changed)})
+
+    def test_all_named_sources_accepted_by_adapter(self):
+        self.assertEqual(len(SOURCES), 12)
+        for source, (path, permission, fields) in SOURCES.items():
+            adapter = GraphCollection(TENANT, source)
+            self.assertEqual(adapter.path, path)
+            self.assertEqual(adapter.permission, permission)
+            req = adapter.request()
+            self.assertTrue(req.url.startswith('https://graph.microsoft.com/v1.0/'))
+            page = adapter.parse({'value': []})
+            self.assertEqual(list(page.records), [])
+
+    def test_oauth2_and_mail_correlation(self):
+        with TemporaryDirectory() as directory:
+            grants = acquire(directory, 'oauth2-permission-grants',
+                             {'id': 'grant-1', 'clientId': APP, 'consentType': 'Principal',
+                              'principalId': USER, 'scope': 'Mail.Read'})
+            mail = acquire(directory, 'mail-messages',
+                           {'id': 'msg-1', 'userId': USER, 'subject': 'Report'})
+            principals = acquire(directory, 'service-principals',
+                                 {'id': APP, 'appId': APP})
+            report = correlate({'m365-oauth2-permission-grants': grants,
+                                'm365-mail-messages': mail,
+                                'm365-service-principals': principals})
+        self.assertEqual(len(report['leads']), 2)
+        self.assertEqual(set(report['coverage']),
+                         {'m365-oauth2-permission-grants', 'm365-mail-messages', 'm365-service-principals'})
+
+    def test_security_alerts_correlation(self):
+        with TemporaryDirectory() as directory:
+            alerts = acquire(directory, 'security-alerts',
+                             {'id': 'alert-1', 'createdDateTime': '2026-01-01T00:00:00Z',
+                              'userId': USER, 'appId': APP, 'severity': 'high'})
+            signins = acquire(directory, 'signins',
+                              {'id': 'signin-1', 'userId': USER, 'appId': APP, 'ipAddress': '198.51.100.1'})
+            report = correlate({'m365-security-alerts': alerts, 'm365-signins': signins})
+        self.assertEqual(len(report['leads']), 2)
+        self.assertNotIn('198.51.100.1', str(report))
+
+    def test_non_keyed_source_retained_in_coverage(self):
+        with TemporaryDirectory() as directory:
+            policies = acquire(directory, 'conditional-access',
+                               {'id': 'policy-1', 'displayName': 'Require MFA', 'state': 'enabled'})
+            signins = acquire(directory, 'signins',
+                              {'id': 'signin-1', 'userId': USER, 'appId': APP, 'ipAddress': '198.51.100.1'})
+            report = correlate({'m365-conditional-access': policies, 'm365-signins': signins})
+        self.assertEqual(len(report['leads']), 0)
+        self.assertEqual(set(report['coverage']), {'m365-conditional-access', 'm365-signins'})
 
 
 if __name__ == '__main__':

@@ -6,6 +6,7 @@ import pytest
 from pytest_bdd import given, scenarios, then, when
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / 'plugins/detection-hunting/soc-investigation-workbench'))
 
 from cops.connectors import Checkpoint, GraphCollection, Response, collect
@@ -90,3 +91,58 @@ def leads(state):
     assert len(state['report']['leads']) == 2
     assert set(state['report']['coverage']) == set(state['sources'])
     assert '192.0.2.1' not in str(state['report'])
+
+
+@given('synthetic OAuth grant, mail message, and service principal evidence')
+def cloud_app_evidence(state):
+    state['sources'] = {
+        'm365-oauth2-permission-grants': acquire(state, 'oauth2-permission-grants', {'value': [
+            {'id': 'grant-1', 'clientId': APP, 'consentType': 'Principal', 'principalId': USER, 'scope': 'Mail.Read'}]}),
+        'm365-mail-messages': acquire(state, 'mail-messages', {'value': [
+            {'id': 'msg-1', 'userId': USER, 'subject': 'Confidential memo'}]}),
+        'm365-service-principals': acquire(state, 'service-principals', {'value': [
+            {'id': APP, 'appId': APP, 'displayName': 'OAuth Client App'}]}),
+    }
+    state['sources'] = {name: (result.records, result.receipt)
+                        for name, result in state['sources'].items()}
+
+
+@when('the analyst correlates the cloud app evidence')
+def correlate_cloud_app(state):
+    state['report'] = correlate(state['sources'])
+
+
+@then('the report correlates user and application entities without leaking tokens')
+def cloud_app_leads(state):
+    assert len(state['report']['leads']) == 2
+    assert set(state['report']['coverage']) == set(state['sources'])
+    assert 'synthetic' not in str(state['report'])
+    assert 'Bearer' not in str(state['report'])
+
+
+@given('synthetic Defender security alert and sign-in evidence')
+def defender_alert_evidence(state):
+    state['sources'] = {
+        'm365-security-alerts': acquire(state, 'security-alerts', {'value': [
+            {'id': 'alert-1', 'createdDateTime': '2026-01-01T01:00:00Z',
+             'userId': USER, 'appId': APP, 'severity': 'high'}]}),
+        'm365-signins': acquire(state, 'signins', {'value': [
+            {'id': 'signin-1', 'createdDateTime': '2026-01-01T00:55:00Z',
+             'userId': USER, 'appId': APP, 'ipAddress': '198.51.100.25'}]}),
+    }
+    state['sources'] = {name: (result.records, result.receipt)
+                        for name, result in state['sources'].items()}
+
+
+@when('the analyst correlates the endpoint alert evidence')
+def correlate_endpoint(state):
+    state['report'] = correlate(state['sources'])
+
+
+@then('the report identifies matching entity leads while preserving alert severity')
+def endpoint_leads(state):
+    assert len(state['report']['leads']) == 2
+    assert set(state['report']['coverage']) == {'m365-security-alerts', 'm365-signins'}
+    assert '198.51.100.25' not in str(state['report'])
+    records, receipt = state['sources']['m365-security-alerts']
+    assert records[0]['payload']['severity'] == 'high'
