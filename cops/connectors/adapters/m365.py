@@ -17,6 +17,22 @@ SOURCES = {
                             ('id', 'appId', 'displayName')),
     'conditional-access': ('/v1.0/identity/conditionalAccess/policies', 'Policy.Read.All',
                              ('id', 'displayName', 'state')),
+    'security-alerts': ('/v1.0/security/alerts_v2', 'SecurityAlert.Read.All',
+                        ('id', 'createdDateTime', 'userId', 'appId', 'severity')),
+    'security-incidents': ('/v1.0/security/incidents', 'SecurityIncident.Read.All',
+                           ('id', 'createdDateTime', 'incidentWebUrl', 'severity')),
+    'purview-cases': ('/v1.0/security/cases/ediscoveryCases', 'eDiscovery.Read.All',
+                      ('id', 'displayName', 'status')),
+    'mail-messages': ('/v1.0/messages', 'Mail.ReadBasic.All',
+                      ('id', 'receivedDateTime', 'userId', 'subject')),
+    'sharepoint-sites': ('/v1.0/sites', 'Sites.Read.All',
+                         ('id', 'name', 'displayName', 'webUrl')),
+    'teams-chats': ('/v1.0/chats', 'Chat.Read.All',
+                    ('id', 'chatType', 'createdDateTime')),
+    'auth-methods': ('/v1.0/reports/credentialUserRegistrationDetails', 'Reports.Read.All',
+                     ('id', 'userId', 'userPrincipalName', 'authMethodStatus')),
+    'oauth2-permission-grants': ('/v1.0/oauth2PermissionGrants', 'DelegatedPermissionGrant.Read.All',
+                                 ('id', 'clientId', 'consentType', 'principalId', 'scope')),
 }
 
 

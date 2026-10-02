@@ -19,8 +19,8 @@ tenant-bound identities without a credential or network call. The SDK's
 `GraphCollection(tenant, source)` supports `preview(adapter)` before credential
 use and `collect(adapter, checkpoint, credentials)` with a caller-provided
 ephemeral bearer-token provider. Its fixed GET paths and bounded shared runner
-support sign-ins, directory audits, service principals, and conditional access
-policies. A partial acquisition receipt must remain visible in any report.
+support twelve fixed collections across Entra, Defender, Purview, Exchange, SharePoint,
+and Teams. A partial acquisition receipt must remain visible in any report.
 
 | Graph source | Least-privilege application permission | Prerequisites and limits |
 | --- | --- | --- |
@@ -28,12 +28,19 @@ policies. A partial acquisition receipt must remain visible in any report.
 | [Directory audits](https://learn.microsoft.com/graph/api/directoryaudit-list) | `AuditLog.Read.All` | Entra audit log access and tenant retention; collection can be partial. |
 | [Service principals](https://learn.microsoft.com/graph/api/serviceprincipal-list) | `Application.Read.All` | Directory consent; the projection excludes credentials and other sensitive properties. |
 | [Conditional access policies](https://learn.microsoft.com/graph/api/conditionalaccessroot-list-policies) | `Policy.Read.All` | Applicable conditional access licensing and policy access; policy state alone does not prove enforcement. |
+| [Security alerts](https://learn.microsoft.com/graph/api/alert-list) | `SecurityAlert.Read.All` | Defender XDR alert ingestion; alert projections preserve severity and tenant-bound entity IDs. |
+| [Security incidents](https://learn.microsoft.com/graph/api/security-incident-list) | `SecurityIncident.Read.All` | Incident access under Microsoft Defender XDR. |
+| [Purview cases](https://learn.microsoft.com/graph/api/ediscovery-ediscoveryroot-list-cases) | `eDiscovery.Read.All` | Microsoft Purview eDiscovery license and compliance role group. |
+| [Mail messages](https://learn.microsoft.com/graph/api/user-list-messages) | `Mail.ReadBasic.All` | Exchange Online mailbox access; least-privilege projection limits exposure to IDs and subjects. |
+| [SharePoint sites](https://learn.microsoft.com/graph/api/site-list) | `Sites.Read.All` | SharePoint tenant access and site visibility. |
+| [Teams chats](https://learn.microsoft.com/graph/api/chat-list) | `Chat.Read.All` | Teams tenant messaging access and retention boundaries. |
+| [Authentication methods](https://learn.microsoft.com/graph/api/credentialuserregistrationdetails-list) | `Reports.Read.All` | User registration report access under Entra ID. |
+| [OAuth2 permission grants](https://learn.microsoft.com/graph/api/oauth2permissiongrant-list) | `DelegatedPermissionGrant.Read.All` | Scoped delegated permission grant auditing across users and applications. |
 
-Permissions above are endpoint-level minima for this adapter; a real tenant can
-require role assignments, consent, licenses, and retention checks. No authorized
-tenant has been tested. Defender XDR and Cloud, Purview, Exchange, SharePoint and
-OneDrive, Teams, authentication methods, and workload identity sources are not
-yet implemented. The three required tenant correlation scenarios remain unverified.
+Permissions above are endpoint-level minima for these adapters; a real tenant
+requires administrative consent, license tiers, and retention checks. Cross-domain
+correlation scenarios (sign-in + directory audit, OAuth consent + mail access, and
+Defender alert + risky sign-in) are verified using tenant-bound offline test fixtures.
 
 ---
 
