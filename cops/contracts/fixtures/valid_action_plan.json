@@ -1,0 +1,29 @@
+{
+  "schema_version": "cops.action-plan/v1",
+  "plan_id": "plan-scan-10-0-0-5",
+  "engagement_id": "eng-secops-20261002",
+  "scenario_id": "COPS-E01.03-S01",
+  "status": "draft",
+  "target": "10.0.0.5",
+  "specialist_id": "cops-network-specialist",
+  "operations": [
+    {
+      "step_id": "step-1",
+      "tool": "nmap",
+      "action": "port_scan",
+      "arguments": {
+        "ports": "80,443",
+        "timing": 3
+      },
+      "timeout_seconds": 60
+    }
+  ],
+  "limits": {
+    "max_duration_seconds": 300,
+    "max_output_bytes": 65536,
+    "egress_allowed": false
+  },
+  "credential_references": ["corp_service_account_token_ref"],
+  "plan_digest": "0aedaf187e93ccd7779616f04a89aaaa100c50d69a60002bad448b58d5f5fac5",
+  "created_at": "2026-10-02T10:00:00Z"
+}

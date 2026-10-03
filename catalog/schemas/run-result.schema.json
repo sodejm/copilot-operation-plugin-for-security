@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sodejm/copilot-operation-plugin-for-security/catalog/schemas/run-result.schema.json",
+  "title": "COPS Run Result Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "result_id",
+    "plan_id",
+    "engagement_id",
+    "status",
+    "started_at",
+    "finished_at",
+    "status_details",
+    "evidence_records",
+    "artifacts",
+    "cleanup_status",
+    "worker_identity"
+  ],
+  "properties": {
+    "schema_version": {"const": "cops.run-result/v1"},
+    "result_id": {
+      "type": "string",
+      "pattern": "^res-[a-z0-9_-]{4,64}$"
+    },
+    "plan_id": {
+      "type": "string",
+      "pattern": "^plan-[a-z0-9_-]{4,64}$"
+    },
+    "engagement_id": {
+      "type": "string",
+      "pattern": "^eng-[a-z0-9_-]{4,64}$"
+    },
+    "status": {
+      "enum": ["success", "partial", "cancelled", "failed", "uncertain", "not_assessed"]
+    },
+    "started_at": {"type": "string", "format": "date-time"},
+    "finished_at": {"type": "string", "format": "date-time"},
+    "exit_code": {
+      "type": ["integer", "null"]
+    },
+    "status_details": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["summary"],
+      "properties": {
+        "summary": {"type": "string", "minLength": 1},
+        "reason": {"type": "string"}
+      }
+    },
+    "evidence_records": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "path", "sha256"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "path": {"type": "string", "minLength": 1},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    },
+    "cleanup_status": {
+      "enum": ["not_required", "pending", "completed", "failed"]
+    },
+    "worker_identity": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

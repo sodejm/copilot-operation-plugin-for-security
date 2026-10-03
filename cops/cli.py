@@ -254,6 +254,29 @@ def command_coverage(
     return 0
 
 
+def command_contract_validate(file_path: Path, contract_type: str | None = None) -> int:
+    from .contracts import ContractError, validate_contract
+    try:
+        data = json.loads(file_path.read_text(encoding="utf-8"))
+        validate_contract(data, contract_type)
+        print(f"Contract valid ({data.get('schema_version')}): {file_path}")
+        return 0
+    except (json.JSONDecodeError, ContractError, OSError) as err:
+        print(f"error: {err}", file=sys.stderr)
+        return 1
+
+
+def command_contract_transition(current: str, target: str, contract_type: str) -> int:
+    from .contracts import ContractError, validate_transition
+    try:
+        validate_transition(current, target, contract_type)
+        print(f"Valid transition for {contract_type}: {current} -> {target}")
+        return 0
+    except ContractError as err:
+        print(f"error: {err}", file=sys.stderr)
+        return 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python3 -m cops",
@@ -295,6 +318,17 @@ def build_parser() -> argparse.ArgumentParser:
     spec_p = subparsers.add_parser("specialists", help="list all specialist cybersecurity agent profiles")
     spec_p.add_argument("--json", action="store_true", help="output structured JSON")
 
+    contract_p = subparsers.add_parser("contract", help="validate and transition operational contracts")
+    contract_sub = contract_p.add_subparsers(dest="contract_command", required=True)
+    c_val = contract_sub.add_parser("validate", help="validate an operational contract file")
+    c_val.add_argument("file", type=Path, help="path to contract JSON file")
+    c_val.add_argument("--type", choices=["engagement", "scenario", "action_plan", "run_result", "finding"], help="explicit contract type")
+
+    c_trans = contract_sub.add_parser("transition", help="validate a lifecycle transition")
+    c_trans.add_argument("current", help="current lifecycle state")
+    c_trans.add_argument("target", help="target lifecycle state")
+    c_trans.add_argument("--type", choices=["engagement", "action_plan"], default="engagement", help="contract type")
+
     return parser
 
 
@@ -334,6 +368,11 @@ def main(argv: list[str] | None = None, *, root: Path = ROOT) -> int:
         if args.command == "specialists":
             from .routing.cli import command_list as spec_list
             return spec_list(args)
+        if args.command == "contract":
+            if args.contract_command == "validate":
+                return command_contract_validate(args.file, args.type)
+            if args.contract_command == "transition":
+                return command_contract_transition(args.current, args.target, args.type)
     except (CatalogError, ValidationError, CoverageError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2

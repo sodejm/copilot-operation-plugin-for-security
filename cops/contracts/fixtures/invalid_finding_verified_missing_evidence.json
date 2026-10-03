@@ -1,0 +1,18 @@
+{
+  "schema_version": "cops.finding/v1",
+  "finding_id": "find-unsubstantiated-claim",
+  "engagement_id": "eng-secops-20261002",
+  "result_id": "res-scan-10-0-0-5-001",
+  "scenario_id": "COPS-E01.03-S01",
+  "title": "Unsubstantiated Critical Vulnerability Claim",
+  "severity": "critical",
+  "classification": "assessment",
+  "verification": "verified",
+  "confidence": "high",
+  "claim": "Remote Code Execution verified without attached evidence.",
+  "evidence_references": [],
+  "mitre_attack": ["T1210"],
+  "remediation": "Investigate claim.",
+  "uncertainty": "none",
+  "created_at": "2026-10-02T10:06:00Z"
+}

@@ -1,0 +1,17 @@
+{
+  "schema_version": "cops.run-result/v1",
+  "result_id": "res-scan-silent-fail",
+  "plan_id": "plan-scan-10-0-0-5",
+  "engagement_id": "eng-secops-20261002",
+  "status": "failed",
+  "started_at": "2026-10-02T10:15:00Z",
+  "finished_at": "2026-10-02T10:15:10Z",
+  "exit_code": 1,
+  "status_details": {
+    "summary": "Execution did not succeed."
+  },
+  "evidence_records": [],
+  "artifacts": [],
+  "cleanup_status": "not_required",
+  "worker_identity": "worker-linux-sandbox-01"
+}

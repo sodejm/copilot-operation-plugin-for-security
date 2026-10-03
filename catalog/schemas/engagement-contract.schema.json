@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sodejm/copilot-operation-plugin-for-security/catalog/schemas/engagement-contract.schema.json",
+  "title": "COPS Engagement Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "engagement_id",
+    "name",
+    "status",
+    "scope",
+    "window",
+    "operator",
+    "rules_of_engagement",
+    "created_at"
+  ],
+  "properties": {
+    "schema_version": {"const": "cops.engagement/v1"},
+    "engagement_id": {
+      "type": "string",
+      "pattern": "^eng-[a-z0-9_-]{4,64}$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "status": {
+      "enum": ["planned", "active", "completed", "cancelled", "aborted"]
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["included_targets", "excluded_targets"],
+      "properties": {
+        "included_targets": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "excluded_targets": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["started_at", "authorized_until_utc"],
+      "properties": {
+        "started_at": {"type": "string", "format": "date-time"},
+        "authorized_until_utc": {"type": "string", "format": "date-time"}
+      }
+    },
+    "operator": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "rules_of_engagement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_intensity", "allowed_actions", "emergency_contact", "safe_mode"],
+      "properties": {
+        "max_intensity": {"enum": ["low", "medium", "high"]},
+        "allowed_actions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "emergency_contact": {"type": "string", "minLength": 1},
+        "safe_mode": {"type": "boolean"}
+      }
+    },
+    "created_at": {"type": "string", "format": "date-time"},
+    "metadata": {
+      "type": "object"
+    }
+  }
+}
