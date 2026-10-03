@@ -26,6 +26,10 @@ calling a paid API. Defaults are three runs weekly and employee rates of $75–1
 
 ## Verification
 
+Executable CLI acceptance scenarios in `specs/features/plugin_run_cost.feature`
+cover import, pricing, profiling, forecasting and business comparison. Step
+definitions live in `tests/step_defs/test_plugin_run_cost.py`.
+
 Synthetic unit tests in `.agents/skills/plugin-run-cost/tests/` cover accounting,
 imports, privacy boundaries, forecasts and economics. Existing session parser
 regressions remain required. `make check` is the repository gate. No paid benchmark

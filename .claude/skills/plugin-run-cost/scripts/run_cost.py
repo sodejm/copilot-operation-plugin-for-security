@@ -78,16 +78,18 @@ def price(request, card, as_of=None):
     rate = rates[0]
     if rate['currency'] != 'USD':
         raise ValueError('v1 supports USD rates only')
+    provenance = dict(source=rate['source'], verified_at=rate['verified_at'], rate=rate,
+                      rate_sha256=hashlib.sha256(json.dumps(rate, sort_keys=True).encode()).hexdigest())
     inp, cache, write, out = [number(rate[k]) for k in ('input', 'cache_read', 'cache_write', 'output')]
     i, c, o = [u[k] for k in ('input_tokens', 'cached_input_tokens', 'output_tokens')]
     base = (i-c)*inp + c*cache + o*out
     if 'cache_write_input_tokens' not in u:
         limits = sorted([base, base + (i-c)*(write-inp)])
         return dict(unpriced, reason='cache-write usage missing',
-                    bounds_usd=[money(v/1000000) for v in limits], source=rate['source'])
+                    bounds_usd=[money(v/1000000) for v in limits], **provenance)
     total = (base + u['cache_write_input_tokens']*(write-inp))/1000000
     return dict(amount_usd=money(total), bounds_usd=[money(total), money(total)],
-                reason=None, source=rate['source'], verified_at=rate['verified_at'])
+                reason=None, **provenance)
 
 
 def private_path(path):
@@ -185,9 +187,13 @@ def import_run(manifest, paths):
     members = manifest['members']
     if not members or not paths:
         raise ValueError('explicit members and session paths are required')
+    region = safe_label(manifest.get('region', 'unknown'))
+    assumed_tier = safe_label(manifest.get('assumed_service_tier', 'unknown'))
     requests, windows, diagnostics = {}, [], Counter()
+    normalized_members = []
     for member in members:
         sid = safe_label(member['session_id'])
+        stage = safe_label(member['stage'])
         start, end = [usage_parser.parse_timestamp(member[k]) for k in ('start', 'end')]
         if end <= start:
             raise ValueError('member end must follow start')
@@ -197,18 +203,21 @@ def import_run(manifest, paths):
         role = member['role']
         if role not in ('root', 'child', 'continuation', 'retry'):
             raise ValueError('invalid member role')
+        normalized_members.append(dict(session_id=sid, start=start.isoformat(), end=end.isoformat(),
+                                       stage=stage, role=role))
         report = usage_parser.aggregate(paths, start, end, {sid}, include_requests=True)
         diagnostics.update(report['diagnostics'])
         for request in report['requests']:
-            request.update(provider='openai', region=manifest.get('region', 'unknown'),
-                           role=role, stage=safe_label(member['stage']))
+            request.update(provider='openai', region=region, role=role, stage=stage)
+            for field in ('model', 'requested_effort', 'effective_effort', 'service_tier'):
+                request[field] = safe_label(request[field])
             # An explicit assumption is distinguishable from an observed service tier.
             request['tier_basis'] = 'observed'
-            if request['service_tier'] == 'unknown' and manifest.get('assumed_service_tier'):
-                request['service_tier'] = safe_label(manifest['assumed_service_tier'])
+            if request['service_tier'] == 'unknown' and assumed_tier != 'unknown':
+                request['service_tier'] = assumed_tier
                 request['tier_basis'] = 'assumed'
             requests[request['id']] = request
-    run['members'] = [{k: m[k] for k in ('session_id', 'start', 'end', 'stage', 'role')} for m in members]
+    run['members'] = normalized_members
     run['elapsed_window_seconds'] = (max(b for _, _, b in windows)-min(a for _, a, _ in windows)).total_seconds()
     # Diagnostic counters vary as logs grow; return them, never rewrite persisted identity.
     return run, list(requests.values()), dict(diagnostics)
@@ -217,9 +226,14 @@ def import_run(manifest, paths):
 def summarize_requests(requests, card, as_of=None):
     priced, unpriced, groups, reasons = Decimal(0), 0, {}, Counter()
     coverage, tokens = Counter(), Counter()
+    provenance = {}
     lower, upper, bounded = Decimal(0), Decimal(0), True
     for request in requests:
         result = price(request, card, as_of)
+        if 'rate_sha256' in result:
+            entry = provenance.setdefault(result['rate_sha256'], dict(
+                rate_sha256=result['rate_sha256'], rate=result['rate'], requests=0))
+            entry['requests'] += 1
         key = '|'.join(str(request.get(k, 'unknown')) for k in
                        ('model', 'requested_effort', 'service_tier', 'stage', 'role'))
         group = groups.setdefault(key, dict(requests=0, priced_subtotal_usd=Decimal(0), unpriced_requests=0))
@@ -248,6 +262,8 @@ def summarize_requests(requests, card, as_of=None):
                 total_usd=money(priced) if not unpriced and requests else None,
                 bounds_usd=[money(lower), money(upper)] if bounded and requests else None,
                 unpriced_reasons=dict(reasons), groups=groups,
+                rate_card_sha256=hashlib.sha256(json.dumps(card, sort_keys=True).encode()).hexdigest(),
+                pricing_provenance=[provenance[k] for k in sorted(provenance)],
                 observed_tokens=dict(tokens), field_coverage_requests=dict(coverage))
 
 
@@ -260,7 +276,7 @@ def report_runs(rows, card, as_of=None):
         summary['fees_usd'] = money(fees)
         summary['attempt_usd'] = (money(number(summary['total_usd']) + fees)
                                   if summary['total_usd'] is not None else None)
-        complete = run.get('source_completeness') == 'complete' and run.get('attribution') == 'confirmed'
+        complete = bool(row['requests']) and run.get('source_completeness') == 'complete' and run.get('attribution') == 'confirmed'
         summary['complete_evidence'] = complete
         runs.append(dict(run=run, accounting=summary))
         # Scope/config/version/acceptance prevent inappropriate cross-run averaging.
@@ -287,30 +303,58 @@ TEXT_SUFFIXES = {'.py', '.js', '.ts', '.tsx', '.jsx', '.md', '.txt', '.json', '.
                  '.toml', '.rs', '.go', '.java', '.c', '.h', '.cpp', '.cs', '.swift', '.tf', '.html'}
 
 
-def profile(repositories, wikis, threat_models, max_files=10000, max_bytes=20000000):
+def profile(repositories, wikis, threat_models, max_files=10000, max_bytes=20000000, max_entries=100000):
+    if not (repositories or wikis or threat_models):
+        raise ValueError('at least one profile input is required')
+    for limit in (max_files, max_bytes, max_entries):
+        if not integer(limit):
+            raise ValueError('profile limits must be positive')
     counts, kinds, hashes, suffixes = Counter(), Counter(), set(), Counter()
     scanned_bytes = 0
     graph = Counter()
     for kind, roots in [('repository', repositories), ('wiki', wikis), ('threat_model', threat_models)]:
         for root in map(Path, roots):
+            if counts['scan_limit_reached']:
+                break
             if root.is_symlink():
+                counts['entries_visited'] += 1
+                if counts['entries_visited'] >= max_entries:
+                    counts['scan_limit_reached'] = 1
                 counts['symlinks_skipped'] += 1
                 continue
             if not root.exists():
                 raise ValueError('profile input does not exist')
-            if root.is_dir():
-                def walk():
-                    for directory, dirs, files in os.walk(root, followlinks=False):
-                        dirs[:] = sorted(d for d in dirs if d not in SKIP_DIRS and not d.startswith('.')
-                                         and not (Path(directory)/d).is_symlink())
-                        for name in sorted(files):
-                            yield Path(directory)/name
-                candidates = walk()
-            else:
-                candidates = iter([root])
-            for path in candidates:
+            def walk():
+                # Iterate directories without materializing their contents. The shared
+                # budget counts roots, directories and excluded entries across all inputs.
+                pending = [(root, False)]
+                while pending:
+                    path, counted = pending.pop()
+                    if counts['entries_visited'] >= max_entries:
+                        counts['scan_limit_reached'] = 1
+                        return
+                    if not counted:
+                        counts['entries_visited'] += 1
+                    if path.is_dir() and not path.is_symlink():
+                        with os.scandir(path) as entries:
+                            for entry in entries:
+                                if counts['entries_visited'] >= max_entries:
+                                    counts['scan_limit_reached'] = 1
+                                    return
+                                if entry.is_dir(follow_symlinks=False):
+                                    # Count queued directories now, before exclusions.
+                                    counts['entries_visited'] += 1
+                                    if entry.name not in SKIP_DIRS and not entry.name.startswith('.'):
+                                        pending.append((Path(entry.path), True))
+                                else:
+                                    counts['entries_visited'] += 1
+                                    yield Path(entry.path)
+                    else:
+                        yield path
+            for path in walk():
                 name = path.name.lower()
-                if path.is_symlink() or name.startswith('.') or any(s in name for s in ('secret', 'credential', 'private-key')) or path.suffix.lower() not in TEXT_SUFFIXES:
+                secret_name = re.search(r'(^|[._-])(secrets?|credentials?|private[-_]key)([._-]|$)', name)
+                if path.is_symlink() or name.startswith('.') or secret_name or path.suffix.lower() not in TEXT_SUFFIXES:
                     counts['excluded_files'] += 1
                     continue
                 if counts['files_read'] >= max_files or scanned_bytes >= max_bytes:
@@ -373,6 +417,8 @@ def estimate(config, card, input_profile=None):
                 basis = scenario.get('profile_token_basis', 'base')
                 selected = number(input_profile['approximate_tokens'][basis])
                 fraction = number(shape['selected_input_fraction'])
+                if fraction > 1:
+                    raise ValueError('selected_input_fraction must be between zero and one')
                 scale = number(scenario.get('input_scale', 1))
                 fixed = integer(shape.get('fixed_input_tokens', 0))
                 tools = integer(shape.get('tool_input_tokens', 0))

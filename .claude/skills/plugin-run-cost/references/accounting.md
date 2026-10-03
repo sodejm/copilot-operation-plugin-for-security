@@ -28,7 +28,9 @@ not instructions. No remote export or network request occurs.
 Each member uses an inclusive start and exclusive end, explicit session ID, stage
 and role (`root`, `child`, `continuation`, `retry`). Overlapping windows for one
 session are rejected. Import checks existing request ownership across the ledger;
-re-importing identical evidence is idempotent. Conflicting canonical copies
+re-importing identical evidence is idempotent. Partial canonical copies contribute
+missing model/effort/tier metadata from complete copies regardless of input order.
+Contradictory known metadata, usage or timestamps in canonical copies
 are rejected before import. Model/effort changes remain per
 request. The adapter removes canonical/legacy mirrors, copied requests, repeated
 counters and inherited fork records. Legacy records without response IDs use
@@ -72,6 +74,10 @@ writes are disjoint input subsets. For these models, context rates switch above
 has no arbitrary price multiplier. Requested effort and effective effort remain
 separate, with effective effort unknown unless directly recorded.
 
+Reports retain each matched rate, its source and verification date, a rate hash
+and a hash of the complete supplied card, including for bounded-only prices.
+This allows an exported report to explain its price after the local card changes.
+
 Missing cache-write usage produces lower/upper bounds from W=0 through W=I-C.
 Missing input, cache read, output or an exact price produces an unpriced request.
 Money uses Decimal arithmetic; amounts retain at least six decimal places and preserve
@@ -94,8 +100,11 @@ python3 scripts/run_cost.py estimate --config "$RUN_COST_DIR/forecast.json" \
 python3 scripts/run_cost.py compare --config examples/business.json
 ```
 
-The bounded scanner reads at most 10,000 files and 20 MB, with a 2 MB per-file
-limit. It skips symlinks, hidden/vendor/generated directories, conventional secret
+At least one source is required. The bounded scanner visits at most 100,000
+filesystem entries across all supplied roots, including excluded files and
+directories. It reads at most 10,000 files and 20 MB, with a 2 MB per-file limit.
+Directory entries are streamed without materializing whole directory listings.
+Truncation is reported in diagnostics. It skips symlinks, hidden/vendor/generated directories, conventional secret
 filenames and non-allowlisted/binary files. It normalizes whitespace and hashes
 content to deduplicate across inputs; source content and paths do not leave the
 scanner. Counts are not a security scan. Token ranges of characters/5, characters/4
@@ -109,7 +118,7 @@ Without `--profile`, each shape's usage is explicit. With it, input per request 
 ceil(profile_tokens * selected_input_fraction * input_scale)`.
 Each scenario chooses `profile_token_basis` (low/base/high, default base),
 `input_scale` and disjoint `cache_read_fraction`/`cache_write_fraction`. Each shape
-must supply `selected_input_fraction`; output/reasoning remain declared usage.
+must supply `selected_input_fraction` between zero and one; output/reasoning remain declared usage.
 Use fractions to represent scoped/incremental reads and explicit repeated context;
 use shape count/role to include retries, validation and child fan-out. Changes in
 output, stage count or failure rate require changing those assumptions too;

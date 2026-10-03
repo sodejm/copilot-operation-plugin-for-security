@@ -219,11 +219,33 @@ def aggregate(paths, start, end, session_ids=None, include_requests=False):
                     else:
                         diagnostics["duration_events_without_turn_id"] += 1
 
+    if include_requests:
+        # A partial copy may lack context that another copy preserves. Merge only
+        # missing metadata; contradictory known values or usage remain errors.
+        canonical_evidence = {}
+        fields = ("model", "requested_effort", "effective_effort", "service_tier")
+        for event in candidates:
+            if not event["canonical"] or not event["response_id"]:
+                continue
+            key = (event["sid"], str(event["response_id"]))
+            prior = canonical_evidence.setdefault(key, event.copy())
+            if prior["usage"] != event["usage"] or prior["time"] != event["time"]:
+                raise ValueError("conflicting duplicate request evidence")
+            for field in fields:
+                known, incoming = prior[field], event[field]
+                if known != "unknown" and incoming != "unknown" and known != incoming:
+                    raise ValueError("conflicting duplicate request evidence")
+                if known == "unknown":
+                    prior[field] = incoming
+        for event in candidates:
+            if event["canonical"] and event["response_id"]:
+                merged = canonical_evidence[(event["sid"], str(event["response_id"]))]
+                event.update({field: merged[field] for field in fields})
+
     # New writers mirror canonical usage into token_count. Match by time and
     # usage, not by file position, so interrupted writes and hybrid logs work.
     mirror_keys = {(e["sid"], e["time"], signature(e["usage"])) for e in candidates if e["canonical"]}
     seen_usage = set()
-    request_evidence = {}
     requests = []
     total, by_model, by_task = new_bucket(), defaultdict(new_bucket), defaultdict(new_bucket)
     evidence = defaultdict(list)
@@ -239,12 +261,6 @@ def aggregate(paths, start, end, session_ids=None, include_requests=False):
                    timestamp, signature(usage), signature(event["cumulative"]), event["epoch"])
             if event["canonical"]:
                 diagnostics["canonical_records_without_response_id"] += 1
-        if include_requests:
-            fingerprint = signature([usage, timestamp.isoformat(), event["model"],
-                                     event["requested_effort"], event["effective_effort"], event["service_tier"]])
-            if key in request_evidence and request_evidence[key] != fingerprint:
-                raise ValueError("conflicting duplicate request evidence")
-            request_evidence[key] = fingerprint
         if key in seen_usage:
             diagnostics["duplicate_usage_records_ignored"] += 1
             continue

@@ -105,6 +105,53 @@ class CostTests(unittest.TestCase):
         self.assertTrue(all(s['input_profile_used'] for s in result['scenarios']))
         self.assertTrue(all(s['total_usd'] is not None for s in result['scenarios']))
 
+    def test_price_provenance_survives_summary(self):
+        for missing_write in (False, True):
+            if missing_write:
+                self.request['usage'].pop('cache_write_input_tokens')
+            result = m.summarize_requests([self.request], self.card)
+            provenance = result['pricing_provenance']
+            self.assertEqual(len(provenance), 1)
+            self.assertEqual(provenance[0]['requests'], 1)
+            self.assertIn('verified_at', provenance[0]['rate'])
+            self.assertEqual(len(result['rate_card_sha256']), 64)
+
+    def test_profile_requires_input_and_preserves_ordinary_names(self):
+        with self.assertRaises(ValueError):
+            m.profile([], [], [])
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ('secretary.py', 'credentialing.json', 'secrets.json', 'app.credentials.json', 'private-key.txt'):
+                (root/name).write_text(name)
+            result = m.profile([root], [], [])
+            self.assertEqual(result['unique_documents'], 2)
+            self.assertEqual(result['diagnostics']['excluded_files'], 3)
+
+    def test_profile_bounds_all_entries_across_roots(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for i in range(20):
+                (root/f'entry{i}.bin').write_bytes(b'x')
+            result = m.profile([root, root], [], [], max_entries=5)
+            self.assertEqual(result['diagnostics']['entries_visited'], 5)
+            self.assertEqual(result['diagnostics']['scan_limit_reached'], 1)
+            self.assertEqual(result['unique_documents'], 0)
+
+    def test_profile_bounds_directories(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for i in range(20):
+                (root/f'directory{i}').mkdir()
+            result = m.profile([root], [], [], max_entries=5)
+            self.assertEqual(result['diagnostics']['entries_visited'], 5)
+            self.assertEqual(result['diagnostics']['scan_limit_reached'], 1)
+
+    def test_selected_fraction_is_bounded(self):
+        config = m.read_json(ROOT/'examples/forecast.json')
+        config['scenarios'][0]['request_shapes'][0]['selected_input_fraction'] = 25
+        with self.assertRaises(ValueError):
+            m.estimate(config, self.card, dict(approximate_tokens=dict(low=10, base=10, high=10)))
+
 
 class ImportTests(unittest.TestCase):
     def fixture(self, root):
@@ -191,6 +238,59 @@ class ImportTests(unittest.TestCase):
             copy.write_text(''.join(json.dumps(r)+'\n' for r in records))
             with self.assertRaisesRegex(ValueError, 'conflicting'):
                 m.import_run(manifest, [path, copy])
+
+    def test_all_persisted_labels_are_validated(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for field in ('model', 'effort', 'service_tier', 'effective_reasoning_effort'):
+                manifest, path = self.fixture(root)
+                records = [json.loads(line) for line in path.read_text().splitlines()]
+                index = 2 if field == 'effective_reasoning_effort' else 1
+                records[index]['payload'][field] = '/private/path with spaces'
+                path.write_text(''.join(json.dumps(r)+'\n' for r in records))
+                with self.assertRaises(ValueError, msg=field):
+                    m.import_run(manifest, [path])
+            for field in ('region', 'assumed_service_tier', 'stage'):
+                manifest, path = self.fixture(root)
+                manifest['members'][0]['start'] = '2026-10-02T13:00:00Z'
+                target = manifest['members'][0] if field == 'stage' else manifest
+                target[field] = '/private/path with spaces'
+                with self.assertRaises(ValueError, msg=field):
+                    m.import_run(manifest, [path])
+
+    def test_empty_membership_is_incomplete(self):
+        with tempfile.TemporaryDirectory() as directory:
+            manifest, path = self.fixture(Path(directory))
+            manifest['members'][0]['start'] = '2026-10-02T13:00:00Z'
+            run, requests, _ = m.import_run(manifest, [path])
+            report = m.report_runs([dict(run=run, requests=requests)], m.read_json(ROOT/'references/prices.json'))
+            self.assertFalse(report['runs'][0]['accounting']['complete_evidence'])
+            self.assertIsNone(report['cohorts'][0]['cost_per_accepted_result_usd'])
+
+    def test_partial_copies_merge_known_metadata_in_either_order(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest, path = self.fixture(root)
+            partial = root/'partial.jsonl'
+            records = [json.loads(line) for line in path.read_text().splitlines()]
+            partial.write_text(''.join(json.dumps(r)+'\n' for r in records if r['type'] != 'turn_context'))
+            expected = m.import_run(manifest, [path])[1]
+            for paths in ([path, partial], [partial, path]):
+                actual = m.import_run(manifest, paths)[1]
+                self.assertEqual(actual, expected)
+                member = manifest['members'][0]
+                parsed = m.usage_parser.aggregate(paths, m.usage_parser.parse_timestamp(member['start']),
+                    m.usage_parser.parse_timestamp(member['end']), {'synthetic-session'}, include_requests=True)
+                self.assertNotIn('unknown', json.dumps(parsed['by_model']))
+
+    def test_conflicting_known_model_copies_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest, path = self.fixture(root)
+            other = root/'other.jsonl'
+            other.write_text(path.read_text().replace('gpt-6-sol', 'gpt-6-astra'))
+            with self.assertRaisesRegex(ValueError, 'conflicting'):
+                m.import_run(manifest, [path, other])
 
 
 if __name__ == '__main__':
