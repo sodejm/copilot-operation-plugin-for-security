@@ -6,7 +6,7 @@ COPS brings together practical, defensive cybersecurity tools and AI workflows i
 
 ## Available Security Packages
 
-COPS currently packages five specialized security plugins across defensive domains:
+COPS currently packages thirteen specialized security plugins across defensive and offensive domains:
 
 | Package | Category | Maturity | What it solves | Practical boundaries |
 | :--- | :--- | :---: | :--- | :--- |
@@ -15,6 +15,14 @@ COPS currently packages five specialized security plugins across defensive domai
 | **[Sentinel Hunt Workbench](../plugins/detection-hunting/sentinel-hunt-workbench/README.md)** | Detection & Hunting | **Beta** | Authors, adapts, and stress-tests 12 defensive threat hunts across Microsoft Sentinel, Defender XDR, and Data Lake. | Evaluates query logic against synthetic event streams; does not connect to live customer tenants. |
 | **[Attack Path Workbench](../plugins/detection-hunting/attack-path-workbench/README.md)** | Detection & Hunting | **Experimental** | Traces multi-hop identity and lateral movement paths from cloud exports to high-value crown jewels. | Operates on offline export manifests; does not perform active network scanning or live exploitation. |
 | **[Attack Surface Planner](../plugins/offensive-security/attack-surface-planner/README.md)** | Offensive Security | **Experimental** | Reconciles authorized rules-of-engagement scopes with local exports to create passive, bounded review plans. | Planning only; makes zero network calls, runs zero exploits, and requires human-signed authorization. |
+| **[Entra Identity Workbench](../plugins/identity-access/entra-identity-workbench/README.md)** | Identity & Access | **Beta** | Evaluates Entra ID role assignments, service principals, consent grants, and credential exposures. | Operates on offline tenant JSON exports; does not perform live Microsoft Graph mutations. |
+| **[Exposure Triage Workbench](../plugins/vulnerability-management/exposure-triage-workbench/README.md)** | Vulnerability Management | **Beta** | Prioritizes vulnerability triage by correlating advisory CVEs, SBOM components, and network reachability. | Bounded offline correlation; reachability indicates exposure potential, not confirmed live exploitability. |
+| **[Foundry Agent Harness](../plugins/offensive-security/foundry-agent-harness/README.md)** | Offensive Security | **Beta** | Evaluates AI agent behavior, prompt injection resistance, and safety boundaries in a simulated sandbox. | Mock runtime sandbox; isolates testing without contacting third-party model inference APIs. |
+| **[Detection Quality Workbench](../plugins/detection-hunting/detection-quality-workbench/README.md)** | Detection & Hunting | **Beta** | Validates detection syntax, regressions, and quality metrics across Microsoft Sentinel KQL and Splunk SPL. | Offline parser and regression engine; does not execute queries against live search clusters. |
+| **[Patch Security Review](../plugins/vulnerability-management/patch-security-review/README.md)** | Vulnerability Management | **Beta** | Analyzes code patches and pull request diffs for dangerous patterns, authorization flaws, and regression risks. | Static diff inspection; does not execute dynamic application security or runtime exploit payloads. |
+| **[Threat Intelligence Enrichment](../plugins/detection-hunting/threat-intelligence-enrichment/README.md)** | Detection & Hunting | **Beta** | Enriches network, host, and hash indicators with provenance-tracked threat intelligence metadata. | Local offline correlation against cached feeds; live threat intelligence API calls require separate opt-in. |
+| **[Telemetry Proof Pack](../plugins/logging-telemetry/telemetry-proof-pack/README.md)** | Logging & Telemetry | **Beta** | Verifies end-to-end telemetry routes and event delivery health from Cribl Stream to Splunk and Sentinel. | Validates pipeline topology models and synthetic health proofs; does not inspect live stream buffers. |
+| **[Incident Response Sandbox](../plugins/incident-response/incident-response-sandbox/README.md)** | Incident Response | **Beta** | Rehearses containment workflows, calculates blast radius, and generates cryptographic execution receipts. | Approval-gated rehearsal only; does not execute destructive containment actions on live infrastructure. |
 
 To inspect the real-time status of your local catalog from your terminal, run:
 
@@ -70,8 +78,7 @@ COPS capability logic, queries, and investigation workflows are formally mapped 
 ## Expanding the Catalog
 
 As COPS evolves, additional defensive domains are planned, including:
-- **Secure Code Review**: Detecting vulnerabilities before code merges.
-- **Threat Modeling**: Automated stride/dread analysis from architectural diagrams and specifications.
-- **Cloud Infrastructure Hardening**: Verifying Terraform and Bicep policies against CIS benchmarks.
+- **Threat Modeling**: Automated STRIDE and DREAD risk scoring from architectural specifications and component graphs.
+- **Cloud Infrastructure Hardening**: Verifying Terraform, Bicep, and ARM policy declarations against CIS benchmarks.
 
 If you would like to author a new capability, check out our **[Adding a Plugin Guide](ADDING_A_PLUGIN.md)** to learn about the manifest requirements, test conventions, and validation gates.

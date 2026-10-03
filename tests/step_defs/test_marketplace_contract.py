@@ -64,7 +64,7 @@ def host_package(context, tmp_path):
     (source / "plugin.json").write_text(json.dumps({
         "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
         "name": "fixture-plugin",
-        "extensions": {"com.sodejm.copse": {}},
+        "extensions": {"org.cops": {}},
     }), encoding="utf-8")
     skill = source / "skills" / "fixture-skill"
     skill.mkdir(parents=True)
@@ -72,7 +72,7 @@ def host_package(context, tmp_path):
         "---\nname: fixture-skill\ndescription: Fixture skill.\n---\n\nRun a check.\n",
         encoding="utf-8",
     )
-    namespace = source / "com.sodejm.copse"
+    namespace = source / "org.cops"
     namespace.mkdir()
     (namespace / "prerequisites.json").write_text(
         '{"schema_version":"1.0","tools":[]}', encoding="utf-8"
@@ -174,7 +174,7 @@ def prerequisites_rejected(context):
 def portable_content(context):
     destination = context["destination"]
     assert (destination / "skills/fixture-skill/SKILL.md").is_file()
-    assert (destination / "com.sodejm.copse/prerequisites.json").is_file()
+    assert (destination / "org.cops/prerequisites.json").is_file()
 
 
 @then("the portable package excludes native host files")

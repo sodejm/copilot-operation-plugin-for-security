@@ -1,7 +1,7 @@
 {
   "schema_version": "cops.attack-coverage/v1",
   "attck_version": "18.0",
-  "last_updated": "2026-09-30",
+  "last_updated": "2026-10-02",
   "description": "Canonical MITRE ATT&CK coverage mapping for COPS hunting, logging, investigation, and attack-path workbench capabilities.",
   "mappings": [
     {
@@ -9,7 +9,10 @@
       "technique_id": "T1110.003",
       "technique_name": "Password Spraying",
       "tactic": "credential-access",
-      "platforms": ["Azure AD", "Office 365"],
+      "platforms": [
+        "Azure AD",
+        "Office 365"
+      ],
       "data_component": "User Account: User Account Authentication",
       "capability": {
         "plugin_id": "sentinel-hunt-workbench",
@@ -52,7 +55,9 @@
       "technique_id": "T1078",
       "technique_name": "Valid Accounts",
       "tactic": "initial-access",
-      "platforms": ["Azure AD"],
+      "platforms": [
+        "Azure AD"
+      ],
       "data_component": "User Account: User Account Authentication",
       "capability": {
         "plugin_id": "sentinel-hunt-workbench",
@@ -92,7 +97,9 @@
       "technique_id": "T1078",
       "technique_name": "Valid Accounts",
       "tactic": "defense-evasion",
-      "platforms": ["Azure AD"],
+      "platforms": [
+        "Azure AD"
+      ],
       "data_component": "User Account: User Account Authentication",
       "capability": {
         "plugin_id": "sentinel-hunt-workbench",
@@ -133,7 +140,9 @@
       "technique_id": "T1059",
       "technique_name": "Command and Scripting Interpreter",
       "tactic": "execution",
-      "platforms": ["Windows"],
+      "platforms": [
+        "Windows"
+      ],
       "data_component": "Command: Command Execution",
       "capability": {
         "plugin_id": "sentinel-hunt-workbench",
@@ -174,7 +183,9 @@
       "technique_id": "T1105",
       "technique_name": "Ingress Tool Transfer",
       "tactic": "command-and-control",
-      "platforms": ["Windows"],
+      "platforms": [
+        "Windows"
+      ],
       "data_component": "File: File Creation",
       "capability": {
         "plugin_id": "sentinel-hunt-workbench",
@@ -215,7 +226,9 @@
       "technique_id": "T1071.001",
       "technique_name": "Web Protocols",
       "tactic": "command-and-control",
-      "platforms": ["Windows"],
+      "platforms": [
+        "Windows"
+      ],
       "data_component": "Network Traffic: Network Connection Creation",
       "capability": {
         "plugin_id": "sentinel-hunt-workbench",
@@ -256,7 +269,9 @@
       "technique_id": "T1547.001",
       "technique_name": "Registry Run Keys / Startup Folder",
       "tactic": "persistence",
-      "platforms": ["Windows"],
+      "platforms": [
+        "Windows"
+      ],
       "data_component": "Windows Registry: Windows Registry Key Modification",
       "capability": {
         "plugin_id": "sentinel-hunt-workbench",
@@ -297,7 +312,9 @@
       "technique_id": "T1071.001",
       "technique_name": "Web Protocols",
       "tactic": "command-and-control",
-      "platforms": ["Windows"],
+      "platforms": [
+        "Windows"
+      ],
       "data_component": "Network Traffic: Network Traffic Flow",
       "capability": {
         "plugin_id": "sentinel-hunt-workbench",
@@ -337,7 +354,9 @@
       "technique_id": "T1114.003",
       "technique_name": "Email Forwarding Rule",
       "tactic": "collection",
-      "platforms": ["Office 365"],
+      "platforms": [
+        "Office 365"
+      ],
       "data_component": "Application Log: Application Log Content",
       "capability": {
         "plugin_id": "sentinel-hunt-workbench",
@@ -377,7 +396,9 @@
       "technique_id": "T1213.002",
       "technique_name": "SharePoint",
       "tactic": "collection",
-      "platforms": ["Office 365"],
+      "platforms": [
+        "Office 365"
+      ],
       "data_component": "File: File Access",
       "capability": {
         "plugin_id": "sentinel-hunt-workbench",
@@ -418,7 +439,9 @@
       "technique_id": "T1566.002",
       "technique_name": "Spearphishing Link",
       "tactic": "initial-access",
-      "platforms": ["Office 365"],
+      "platforms": [
+        "Office 365"
+      ],
       "data_component": "Application Log: Application Log Content",
       "capability": {
         "plugin_id": "sentinel-hunt-workbench",
@@ -458,7 +481,9 @@
       "technique_id": "T1098.003",
       "technique_name": "Additional Cloud Roles",
       "tactic": "privilege-escalation",
-      "platforms": ["Azure AD"],
+      "platforms": [
+        "Azure AD"
+      ],
       "data_component": "User Account: User Account Modification",
       "capability": {
         "plugin_id": "sentinel-hunt-workbench",
@@ -498,7 +523,9 @@
       "technique_id": "T1021",
       "technique_name": "Remote Services",
       "tactic": "lateral-movement",
-      "platforms": ["Windows"],
+      "platforms": [
+        "Windows"
+      ],
       "data_component": "Network Traffic: Network Connection Creation",
       "capability": {
         "plugin_id": "sentinel-hunt-workbench",
@@ -538,7 +565,9 @@
       "technique_id": "T1098",
       "technique_name": "Account Manipulation",
       "tactic": "persistence",
-      "platforms": ["Azure AD"],
+      "platforms": [
+        "Azure AD"
+      ],
       "data_component": "User Account: User Account Modification",
       "capability": {
         "plugin_id": "sentinel-hunt-workbench",
@@ -578,7 +607,9 @@
       "technique_id": "T1078.004",
       "technique_name": "Cloud Accounts",
       "tactic": "privilege-escalation",
-      "platforms": ["Azure AD"],
+      "platforms": [
+        "Azure AD"
+      ],
       "data_component": "User Account: User Account Authentication",
       "capability": {
         "plugin_id": "sentinel-hunt-workbench",
@@ -617,7 +648,9 @@
       "technique_id": "T1078",
       "technique_name": "Valid Accounts",
       "tactic": "initial-access",
-      "platforms": ["Azure AD"],
+      "platforms": [
+        "Azure AD"
+      ],
       "data_component": "User Account: User Account Authentication",
       "capability": {
         "plugin_id": "soc-investigation-workbench",
@@ -657,7 +690,9 @@
       "technique_id": "T1078",
       "technique_name": "Valid Accounts",
       "tactic": "defense-evasion",
-      "platforms": ["Azure AD"],
+      "platforms": [
+        "Azure AD"
+      ],
       "data_component": "User Account: User Account Authentication",
       "capability": {
         "plugin_id": "soc-investigation-workbench",
@@ -695,7 +730,10 @@
       "technique_id": "T1562.001",
       "technique_name": "Disable or Modify Tools",
       "tactic": "defense-evasion",
-      "platforms": ["Azure AD", "IaaS"],
+      "platforms": [
+        "Azure AD",
+        "IaaS"
+      ],
       "data_component": "Sensor Health: Host Status",
       "capability": {
         "plugin_id": "security-logging-advisor",
@@ -734,7 +772,10 @@
       "technique_id": "T1098.003",
       "technique_name": "Additional Cloud Roles",
       "tactic": "privilege-escalation",
-      "platforms": ["Azure AD", "IaaS"],
+      "platforms": [
+        "Azure AD",
+        "IaaS"
+      ],
       "data_component": "User Account: User Account Modification",
       "capability": {
         "plugin_id": "attack-path-workbench",
@@ -773,7 +814,9 @@
       "technique_id": "T1530",
       "technique_name": "Data from Cloud Storage",
       "tactic": "collection",
-      "platforms": ["IaaS"],
+      "platforms": [
+        "IaaS"
+      ],
       "data_component": "Cloud Storage: Cloud Storage Object Access",
       "capability": {
         "plugin_id": "sentinel-hunt-workbench",
@@ -812,7 +855,10 @@
       "technique_id": "T1098",
       "technique_name": "Account Manipulation",
       "tactic": "persistence",
-      "platforms": ["Azure AD", "IaaS"],
+      "platforms": [
+        "Azure AD",
+        "IaaS"
+      ],
       "data_component": "User Account: User Account Modification",
       "capability": {
         "plugin_id": "entra-identity-workbench",
@@ -852,7 +898,10 @@
       "technique_id": "T1078.004",
       "technique_name": "Valid Accounts: Cloud Accounts",
       "tactic": "privilege-escalation",
-      "platforms": ["Azure AD", "IaaS"],
+      "platforms": [
+        "Azure AD",
+        "IaaS"
+      ],
       "data_component": "User Account: User Account Authentication",
       "capability": {
         "plugin_id": "entra-identity-workbench",
@@ -892,7 +941,12 @@
       "technique_id": "T1190",
       "technique_name": "Exploit Public-Facing Application",
       "tactic": "initial-access",
-      "platforms": ["IaaS", "SaaS", "Linux", "Windows"],
+      "platforms": [
+        "IaaS",
+        "SaaS",
+        "Linux",
+        "Windows"
+      ],
       "data_component": "Application Log: Application Vulnerability",
       "capability": {
         "plugin_id": "exposure-triage-workbench",
@@ -924,6 +978,265 @@
         "Prioritization indicates reachability and exposure potential, not confirmed adversary exploitation"
       ],
       "last_reviewed": "2026-09-30",
+      "attck_version": "18.0"
+    },
+    {
+      "mapping_id": "COPS-COV-ASP-T1580",
+      "technique_id": "T1580",
+      "technique_name": "Cloud Infrastructure Discovery",
+      "tactic": "discovery",
+      "platforms": [
+        "IaaS",
+        "Azure"
+      ],
+      "data_component": "Cloud Service: Cloud Service Enumeration",
+      "capability": {
+        "plugin_id": "attack-surface-planner",
+        "component_type": "workflow",
+        "component_id": "attack-surface-scope",
+        "query_or_analytic": "plugins/offensive-security/attack-surface-planner/skills/authorized-attack-surface-planning/SKILL.md"
+      },
+      "evidence_sources": [
+        {
+          "product": "Azure",
+          "table_or_log": "ResourceGraph",
+          "required_fields": [
+            "id",
+            "name",
+            "type",
+            "resourceGroup",
+            "subscriptionId"
+          ],
+          "onboarding_status": "onboarded"
+        }
+      ],
+      "coverage_role": "investigation",
+      "coverage_maturity": "preview",
+      "validation_state": "validated",
+      "validation_fixture": "plugins/offensive-security/attack-surface-planner/scripts/validate-package.py",
+      "time_window": "static",
+      "assumptions": [
+        "Operator supplies authorized scope manifest and offline Azure resource export"
+      ],
+      "known_limitations": [
+        "Performs passive boundary check only; does not perform active network scanning or validation"
+      ],
+      "last_reviewed": "2026-10-02",
+      "attck_version": "18.0"
+    },
+    {
+      "mapping_id": "COPS-COV-PSR-T1190",
+      "technique_id": "T1190",
+      "technique_name": "Exploit Public-Facing Application",
+      "tactic": "initial-access",
+      "platforms": [
+        "Linux",
+        "Windows",
+        "macOS"
+      ],
+      "data_component": "Application Log: Application Log Content",
+      "capability": {
+        "plugin_id": "patch-security-review",
+        "component_type": "rule",
+        "component_id": "patch-security-review",
+        "query_or_analytic": "plugins/vulnerability-management/patch-security-review/skills/patch-review/SKILL.md"
+      },
+      "evidence_sources": [
+        {
+          "product": "Git",
+          "table_or_log": "PullRequestDiff",
+          "required_fields": [
+            "diff",
+            "filename",
+            "patch_type"
+          ],
+          "onboarding_status": "onboarded"
+        }
+      ],
+      "coverage_role": "prevention",
+      "coverage_maturity": "preview",
+      "validation_state": "validated",
+      "validation_fixture": "plugins/vulnerability-management/patch-security-review/tests/test_review.py",
+      "time_window": "diff",
+      "assumptions": [
+        "Patches contain code changes that can be statically evaluated against known security weaknesses"
+      ],
+      "known_limitations": [
+        "Evaluates diff heuristics offline; does not execute dynamic application security testing"
+      ],
+      "last_reviewed": "2026-10-02",
+      "attck_version": "18.0"
+    },
+    {
+      "mapping_id": "COPS-COV-TIE-T1071-001",
+      "technique_id": "T1071.001",
+      "technique_name": "Web Protocols",
+      "tactic": "command-and-control",
+      "platforms": [
+        "Linux",
+        "Windows",
+        "macOS"
+      ],
+      "data_component": "Network Traffic: Network Connection Creation",
+      "capability": {
+        "plugin_id": "threat-intelligence-enrichment",
+        "component_type": "workflow",
+        "component_id": "ti-enrichment",
+        "query_or_analytic": "plugins/detection-hunting/threat-intelligence-enrichment/skills/threat-intelligence-enrichment/SKILL.md"
+      },
+      "evidence_sources": [
+        {
+          "product": "ThreatIntelligence",
+          "table_or_log": "ThreatIntelIndicators",
+          "required_fields": [
+            "indicator",
+            "type",
+            "confidence",
+            "source"
+          ],
+          "onboarding_status": "onboarded"
+        }
+      ],
+      "coverage_role": "investigation",
+      "coverage_maturity": "preview",
+      "validation_state": "validated",
+      "validation_fixture": "plugins/detection-hunting/threat-intelligence-enrichment/tests/test_core.py",
+      "time_window": "30d",
+      "assumptions": [
+        "Network indicators match observable C2 web protocol infrastructure in offline threat feeds"
+      ],
+      "known_limitations": [
+        "Provenance and confidence depend on external threat intelligence feed quality and recency"
+      ],
+      "last_reviewed": "2026-10-02",
+      "attck_version": "18.0"
+    },
+    {
+      "mapping_id": "COPS-COV-TPP-T1562-001",
+      "technique_id": "T1562.001",
+      "technique_name": "Disable or Modify Tools",
+      "tactic": "defense-evasion",
+      "platforms": [
+        "Linux",
+        "Windows",
+        "macOS"
+      ],
+      "data_component": "Sensor Health: Host Status",
+      "capability": {
+        "plugin_id": "telemetry-proof-pack",
+        "component_type": "workflow",
+        "component_id": "telemetry-route-verification",
+        "query_or_analytic": "plugins/logging-telemetry/telemetry-proof-pack/skills/telemetry-proof/SKILL.md"
+      },
+      "evidence_sources": [
+        {
+          "product": "Cribl",
+          "table_or_log": "RouteMetrics",
+          "required_fields": [
+            "in_events",
+            "out_events",
+            "drop_events",
+            "route_id"
+          ],
+          "onboarding_status": "onboarded"
+        }
+      ],
+      "coverage_role": "prevention",
+      "coverage_maturity": "preview",
+      "validation_state": "validated",
+      "validation_fixture": "plugins/logging-telemetry/telemetry-proof-pack/scripts/validate_package.py",
+      "time_window": "pipeline",
+      "assumptions": [
+        "Telemetry pipeline routing rules must preserve security event delivery to downstream SIEMs without silent drops"
+      ],
+      "known_limitations": [
+        "Validates route topologies and synthetic health proofs; does not monitor real-time network backpressure"
+      ],
+      "last_reviewed": "2026-10-02",
+      "attck_version": "18.0"
+    },
+    {
+      "mapping_id": "COPS-COV-IRS-T1078",
+      "technique_id": "T1078",
+      "technique_name": "Valid Accounts",
+      "tactic": "defense-evasion",
+      "platforms": [
+        "Azure AD",
+        "IaaS"
+      ],
+      "data_component": "User Account: User Account Modification",
+      "capability": {
+        "plugin_id": "incident-response-sandbox",
+        "component_type": "workflow",
+        "component_id": "containment-plan-rehearsal",
+        "query_or_analytic": "plugins/incident-response/incident-response-sandbox/skills/incident-response-sandbox/SKILL.md"
+      },
+      "evidence_sources": [
+        {
+          "product": "IncidentPlan",
+          "table_or_log": "ContainmentReceipt",
+          "required_fields": [
+            "action",
+            "target",
+            "approved_by",
+            "timestamp"
+          ],
+          "onboarding_status": "onboarded"
+        }
+      ],
+      "coverage_role": "response",
+      "coverage_maturity": "preview",
+      "validation_state": "validated",
+      "validation_fixture": "plugins/incident-response/incident-response-sandbox/tests/test_core.py",
+      "time_window": "incident",
+      "assumptions": [
+        "Operator designs containment steps against compromised valid accounts with explicit approval gates"
+      ],
+      "known_limitations": [
+        "Produces approval-gated cryptographic execution receipts; does not mutate live tenant identity state"
+      ],
+      "last_reviewed": "2026-10-02",
+      "attck_version": "18.0"
+    },
+    {
+      "mapping_id": "COPS-COV-DQW-T1059-001",
+      "technique_id": "T1059.001",
+      "technique_name": "PowerShell",
+      "tactic": "execution",
+      "platforms": [
+        "Windows"
+      ],
+      "data_component": "Command: Command Execution",
+      "capability": {
+        "plugin_id": "detection-quality-workbench",
+        "component_type": "rule",
+        "component_id": "detection-quality-regression",
+        "query_or_analytic": "plugins/detection-hunting/detection-quality-workbench/skills/detection-regression-testing/SKILL.md"
+      },
+      "evidence_sources": [
+        {
+          "product": "Sentinel",
+          "table_or_log": "DeviceProcessEvents",
+          "required_fields": [
+            "TimeGenerated",
+            "ProcessCommandLine",
+            "DeviceName"
+          ],
+          "onboarding_status": "onboarded"
+        }
+      ],
+      "coverage_role": "detection",
+      "coverage_maturity": "preview",
+      "validation_state": "validated",
+      "validation_fixture": "plugins/detection-hunting/detection-quality-workbench/scripts/validate_package.py",
+      "time_window": "14d",
+      "assumptions": [
+        "Detection rules targeting PowerShell execution are validated against regression test suites and syntax parsers"
+      ],
+      "known_limitations": [
+        "Validates query syntax and true/false positive regression benchmarks; does not execute queries against live tenants"
+      ],
+      "last_reviewed": "2026-10-02",
       "attck_version": "18.0"
     }
   ]

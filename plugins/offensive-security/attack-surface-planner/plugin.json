@@ -9,6 +9,6 @@
   "keywords": ["cybersecurity", "offensive-security", "attack-surface", "offline-planning"],
   "extensions": {
     "com.openai": {"displayName": "COPS Attack Surface Planner", "category": "Developer Tools"},
-    "com.sodejm.copse": {}
+    "org.cops": {}
   }
 }

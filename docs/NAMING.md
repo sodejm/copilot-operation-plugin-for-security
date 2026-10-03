@@ -8,6 +8,7 @@
 | Repository slug | `copilot-operation-plugin-for-security` |
 | Existing package, agent, command and plugin ID | `security-logging-advisor` |
 | Marketplace ID | `cops-security-marketplace` |
+| COPS extension namespace and directory | `org.cops` |
 
 Use the expanded project name in introductions and COPS in headings and everyday
 prose. Describe COPS as a cybersecurity project for plugins, agents, and skills.

@@ -73,7 +73,7 @@ The harness includes 6 pre-built scenarios covering the major attack vectors aga
 foundry-agent-harness/
 ├── .claude-plugin/plugin.json            # Claude marketplace manifest
 ├── .codex-plugin/plugin.json             # Codex marketplace manifest
-├── com.sodejm.copse/prerequisites.json    # Copilot Studio runtime configuration
+├── org.cops/prerequisites.json    # Copilot Studio runtime configuration
 ├── package.json                          # Canonical plugin package descriptor
 ├── plugin.json                           # Universal plugin manifest
 ├── README.md                             # Overview, design principles, and guide

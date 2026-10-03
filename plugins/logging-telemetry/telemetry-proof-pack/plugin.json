@@ -26,6 +26,6 @@
       "displayName": "COPS Telemetry-to-Detection Proof Pack",
       "category": "Developer Tools"
     },
-    "com.sodejm.copse": {}
+    "org.cops": {}
   }
 }

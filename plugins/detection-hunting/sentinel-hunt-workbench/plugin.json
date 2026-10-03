@@ -20,6 +20,6 @@
       "displayName": "COPS Sentinel Hunt Workbench",
       "category": "Developer Tools"
     },
-    "com.sodejm.copse": {}
+    "org.cops": {}
   }
 }
