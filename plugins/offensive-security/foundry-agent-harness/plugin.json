@@ -25,6 +25,6 @@
       "displayName": "COPS Microsoft Foundry Adversarial Agent Review Harness",
       "category": "Developer Tools"
     },
-    "com.sodejm.copse": {}
+    "org.cops": {}
   }
 }

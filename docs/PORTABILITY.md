@@ -94,7 +94,12 @@ python3 scripts/agent/export_portable.py --output dist/agent-plugins
 The exported packages strip away internal host-specific directories (such as `.claude-plugin/` and `.codex-plugin/`), leaving a lean, standards-compliant plugin containing:
 - `plugin.json`: The standard root manifest.
 - `skills/`: Markdown-documented capabilities conforming to the Agent Skills standard.
-- `com.sodejm.copse/prerequisites.json`: Declarative system dependencies.
+- `org.cops/prerequisites.json`: Declarative system dependencies.
+
+COPS uses the project namespace `org.cops` for both the manifest's
+`extensions["org.cops"]` key and its support directory. When updating an older
+package that uses the username-based namespace, replace the manifest key and
+directory together, update references, and regenerate any portable exports.
 
 ### Declarative Prerequisites (No Surprise Scripts)
 Rather than executing arbitrary installation scripts during setup, COPS declares prerequisites as structured JSON metadata. You can inspect what external tools (like `git` or specific linters) a plugin requires without running untrusted code:

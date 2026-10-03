@@ -26,6 +26,6 @@
       "displayName": "COPS Detection Quality & Regression Workbench",
       "category": "Developer Tools"
     },
-    "com.sodejm.copse": {}
+    "org.cops": {}
   }
 }

@@ -20,6 +20,6 @@
       "displayName": "COPS Attack Path Workbench",
       "category": "Developer Tools"
     },
-    "com.sodejm.copse": {}
+    "org.cops": {}
   }
 }

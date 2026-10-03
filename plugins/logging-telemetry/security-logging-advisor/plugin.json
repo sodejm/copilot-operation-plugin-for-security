@@ -20,6 +20,6 @@
       "displayName": "COPS Security Logging Advisor",
       "category": "Developer Tools"
     },
-    "com.sodejm.copse": {}
+    "org.cops": {}
   }
 }

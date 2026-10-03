@@ -29,7 +29,7 @@ At minimum, add:
 plugin.json
 .codex-plugin/plugin.json
 .claude-plugin/plugin.json
-com.sodejm.copse/prerequisites.json
+org.cops/prerequisites.json
 package.json
 README.md
 skills/<globally-unique-skill-id>/SKILL.md
@@ -43,8 +43,8 @@ host manifests may point to the same canonical skills and scripts, but must not
 fork their behavior.
 
 Use only v1 standard fields in the root manifest. Put COPS-specific manifest
-data under `extensions.com.sodejm.copse` and its support files in the
-`com.sodejm.copse/` directory. Declare required external commands in
+data under `extensions["org.cops"]` and its support files in the
+`org.cops/` directory. Declare required external commands in
 `prerequisites.json` using `schema_version: "1.0"` and a `tools` array. Each tool
 has an `id`, the command to detect, and package IDs keyed by supported managers
 (`brew`, `apt-get`, `dnf`, or `winget`). Use an empty array when no external tool

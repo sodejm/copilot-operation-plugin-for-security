@@ -34,7 +34,7 @@ def main() -> int:
                 raise PrerequisiteError(f"unknown plugin: {args.plugin}")
         selected: list[tuple[str, list[dict]]] = []
         for record in records:
-            location = f"{record.path}/com.sodejm.copse/prerequisites.json"
+            location = f"{record.path}/org.cops/prerequisites.json"
             document = load_json(ROOT / location, ROOT)
             tools = validate_prerequisites(document, location)
             selected.append((record.id, tools))

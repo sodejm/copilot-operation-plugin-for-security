@@ -34,8 +34,8 @@ delivery state.
 - New package-root entries must be classified as portable or source-only before
   export; unreviewed entries fail validation. An optional `mcp.json` is retained
   and checked against the v1 configuration contract.
-- Each package declares tool prerequisites in
-  `com.sodejm.copse/prerequisites.json`. Installation
+- Each package declares COPS-specific manifest data under `extensions["org.cops"]`
+  and tool prerequisites in `org.cops/prerequisites.json`. Installation
   is a separate, explicit command and never runs during discovery or validation.
 - Package descriptions state only capabilities present in the distributed
   package. Development-only or pending integrations remain explicit.

@@ -25,6 +25,6 @@
       "displayName": "COPS Entra Identity Workbench",
       "category": "Developer Tools"
     },
-    "com.sodejm.copse": {}
+    "org.cops": {}
   }
 }

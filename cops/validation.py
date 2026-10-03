@@ -247,7 +247,7 @@ def validate_package(record: PluginRecord, root: Path = ROOT) -> None:
 
     package_root = root / record.path
     resolved_root = package_root.resolve()
-    prereq_path = "com.sodejm.copse/prerequisites.json"
+    prereq_path = "org.cops/prerequisites.json"
     for relative in ("plugin.json", ".claude-plugin/plugin.json", ".codex-plugin/plugin.json",
                      prereq_path, "skills"):
         path = package_root / relative

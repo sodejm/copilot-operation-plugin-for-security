@@ -9,6 +9,6 @@
   "keywords": ["cybersecurity", "threat-intelligence", "misp", "taxii", "microsoft", "enrichment"],
   "extensions": {
     "com.openai": {"displayName": "COPS Threat Intelligence Enrichment", "category": "Developer Tools"},
-    "com.sodejm.copse": {}
+    "org.cops": {}
   }
 }

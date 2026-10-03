@@ -30,7 +30,7 @@ def validate() -> int:
         PLUGIN_ROOT / "plugin.json",
         PLUGIN_ROOT / ".claude-plugin" / "plugin.json",
         PLUGIN_ROOT / ".codex-plugin" / "plugin.json",
-        PLUGIN_ROOT / "com.sodejm.copse" / "prerequisites.json",
+        PLUGIN_ROOT / "org.cops" / "prerequisites.json",
         PLUGIN_ROOT / "schemas" / "scenario.schema.json",
         PLUGIN_ROOT / "schemas" / "report.schema.json",
     ]

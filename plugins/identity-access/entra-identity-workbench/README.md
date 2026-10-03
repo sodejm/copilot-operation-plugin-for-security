@@ -42,7 +42,7 @@ flowchart LR
 entra-identity-workbench/
 ├── .claude-plugin/plugin.json         # Claude marketplace manifest
 ├── .codex-plugin/plugin.json          # Codex marketplace manifest
-├── com.sodejm.copse/prerequisites.json # Copilot Studio runtime prerequisites
+├── org.cops/prerequisites.json # Copilot Studio runtime prerequisites
 ├── package.json                       # Canonical package descriptor
 ├── plugin.json                        # Universal plugin manifest
 ├── README.md                          # Primary overview and usage documentation

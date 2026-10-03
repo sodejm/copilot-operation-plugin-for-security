@@ -9,6 +9,6 @@
   "keywords": ["cybersecurity", "incident-response", "sandbox", "offline"],
   "extensions": {
     "com.openai": {"displayName": "COPS Incident Response Sandbox", "category": "Developer Tools"},
-    "com.sodejm.copse": {}
+    "org.cops": {}
   }
 }

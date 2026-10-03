@@ -23,11 +23,12 @@ PORTABLE_ENTRIES = {
     "investigationwb", "attackpath", "attack_surface_planner", "entrawb", "exposuretriage",
     "foundryharness", "scenarios", "detectionquality", "rules", "proofpack", "routes",
     "patchreview", "incident_response", "threat_intel",
-    "agents", "com.github.copilot", "com.sodejm.copse",
+    "agents", "com.github.copilot", "org.cops",
 }
 SOURCE_ONLY_ENTRIES = {
     ".claude-plugin", ".codex-plugin", "commands", "adapters",
     "package.json", ".gitignore", "Makefile", "task.md", "tests",
+    ".pytest_cache", "__pycache__", ".mypy_cache",
 }
 NATIVE_ENTRIES = {".claude-plugin", ".codex-plugin", "commands", "adapters"}
 
@@ -95,7 +96,7 @@ def validate_portable_package(package: Path) -> None:
         raise ValidationError(f"{package} must contain at least one skill")
     for skill in skills:
         _skill_frontmatter(skill, package)
-    namespace = "com.sodejm.copse"
+    namespace = "org.cops"
     if manifest.get("extensions", {}).get(namespace) is None:
         raise ValidationError(f"{package}/plugin.json must declare {namespace}")
     prereq = package / namespace / "prerequisites.json"
