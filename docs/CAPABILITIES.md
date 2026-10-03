@@ -32,6 +32,27 @@ python3 -m cops list
 
 ---
 
+## Operational Readiness Modes & Truth-in-Advertising
+
+To maintain absolute integrity and avoid capability over-claiming, COPS reconciles all capabilities into four explicit operational readiness modes:
+
+- **`planned`**: Specification, routing persona, or scoping defined; no autonomous runtime execution (e.g., scoping plugins, specialist agent routing personas, planned scenarios).
+- **`import`**: Offline static file, code AST, git diff, or export manifest ingestion only; zero live service mutation (e.g., `security-logging-advisor`, `entra-identity-workbench`, `patch-security-review`).
+- **`laboratory`**: Controlled offline simulation, synthetic event replay, or sandbox rehearsal; zero external egress (e.g., `sentinel-hunt-workbench`, `foundry-agent-harness`, `incident-response-sandbox`).
+- **`live-validated`**: Fully authorized, live-tested execution path against an authorized environment with cryptographic evidence receipt. Currently 0 capabilities claim live-validated, ensuring zero false claims.
+
+To audit all 63 capabilities (13 plugins, 18 specialist profiles, 32 canonical scenarios) against truth-in-advertising rules:
+
+```bash
+python3 -m cops capabilities audit --check
+python3 -m cops capabilities list
+```
+
+See the complete **[Capability Reconciliation Specification](../specs/capability-reconciliation.spec.md)** and machine-readable **[Capabilities Registry](../catalog/capabilities.json)**.
+
+---
+
+
 ## The Three Capability Layers
 
 Every security package in COPS is built from three complementary layers:

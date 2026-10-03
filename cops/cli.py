@@ -366,6 +366,54 @@ def command_scenario_provenance(source_id: str | None = None, as_json: bool = Fa
     return 0
 
 
+def command_capabilities_list(mode: str | None = None, kind: str | None = None, as_json: bool = False, root: Path = ROOT) -> int:
+    from .capabilities import build_capability_registry
+    reg = build_capability_registry(root)
+    caps = reg["capabilities"]
+    if mode:
+        caps = [c for c in caps if c["mode"] == mode]
+    if kind:
+        caps = [c for c in caps if c["kind"] == kind]
+    if as_json:
+        print(json.dumps(caps, indent=2))
+        return 0
+    print(f"Reconciled Capabilities ({len(caps)}):")
+    for c in caps:
+        print(f"  {c['id']:<32} | {c['kind']:<10} | [{c['mode']:<14}] {c['name']}")
+    return 0
+
+
+def command_capabilities_audit(check: bool = False, root: Path = ROOT) -> int:
+    from .capabilities import CapabilityTruthError, audit_capabilities, build_capability_registry
+    try:
+        reg = build_capability_registry(root)
+        summary = audit_capabilities(root, registry_data=reg)
+        print("Capability Truth-in-Advertising Audit Passed:")
+        print(f"  Total Audited: {summary['total_capabilities']}")
+        print(f"  Plugins: {summary['by_kind']['plugin']}")
+        print(f"  Specialist Profiles: {summary['by_kind']['specialist']}")
+        print(f"  Scenarios: {summary['by_kind']['scenario']}")
+        print("  By Operational Mode:")
+        for mode, count in summary["by_mode"].items():
+            print(f"    - {mode}: {count}")
+        return 0
+    except CapabilityTruthError as err:
+        print(f"audit failure: [{err.code}] {err.message}", file=sys.stderr)
+        return 1
+
+
+def command_capabilities_matrix(output: Path | None = None, root: Path = ROOT) -> int:
+    from .capabilities import build_capability_registry, generate_capability_matrix_markdown
+    reg = build_capability_registry(root)
+    text = generate_capability_matrix_markdown(reg)
+    if output:
+        out_path = (root / output) if not output.is_absolute() else output
+        out_path.write_text(text + "\n", encoding="utf-8")
+        print(f"Wrote capability matrix to {output}")
+    else:
+        print(text)
+    return 0
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -437,6 +485,19 @@ def build_parser() -> argparse.ArgumentParser:
     scen_prov.add_argument("--source", dest="source_id", help="specific source ID to inspect")
     scen_prov.add_argument("--json", action="store_true", help="output structured JSON")
 
+    cap_p = subparsers.add_parser("capabilities", help="inspect, audit, and render capability truth-in-advertising matrices")
+    cap_sub = cap_p.add_subparsers(dest="capabilities_command", required=True)
+    cap_l = cap_sub.add_parser("list", help="list reconciled capabilities")
+    cap_l.add_argument("--mode", choices=["planned", "import", "laboratory", "live-validated"], help="filter by operational mode")
+    cap_l.add_argument("--kind", choices=["plugin", "specialist", "scenario"], help="filter by capability kind")
+    cap_l.add_argument("--json", action="store_true", help="output structured JSON")
+
+    cap_a = cap_sub.add_parser("audit", help="audit capability claims against truth-in-advertising rules")
+    cap_a.add_argument("--check", action="store_true", help="exit with non-zero if audit fails")
+
+    cap_m = cap_sub.add_parser("matrix", help="render the capability truth-in-advertising matrix")
+    cap_m.add_argument("--output", type=Path, help="write matrix Markdown to file")
+
     return parser
 
 
@@ -484,13 +545,19 @@ def main(argv: list[str] | None = None, *, root: Path = ROOT) -> int:
         if args.command == "scenario":
             if args.scenario_command == "list":
                 return command_scenario_list(family_id=args.family_id, tactic=args.tactic, coverage_mode=args.coverage_mode, as_json=args.json, root=root)
-
             if args.scenario_command == "info":
                 return command_scenario_info(args.scenario_id, as_json=args.json, root=root)
             if args.scenario_command == "validate":
                 return command_scenario_validate(root=root)
             if args.scenario_command == "provenance":
                 return command_scenario_provenance(source_id=args.source_id, as_json=args.json, root=root)
+        if args.command == "capabilities":
+            if args.capabilities_command == "list":
+                return command_capabilities_list(mode=args.mode, kind=args.kind, as_json=args.json, root=root)
+            if args.capabilities_command == "audit":
+                return command_capabilities_audit(check=args.check, root=root)
+            if args.capabilities_command == "matrix":
+                return command_capabilities_matrix(output=args.output, root=root)
     except (CatalogError, ValidationError, CoverageError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
