@@ -1,0 +1,1958 @@
+{
+  "schema_version": "cops.provenance/v1",
+  "sources": [
+    {
+      "applicability": {
+        "domains": [
+          "reconnaissance",
+          "web",
+          "active_directory",
+          "privilege_escalation"
+        ],
+        "platforms": [
+          "linux",
+          "windows",
+          "network"
+        ],
+        "tool_maintenance": "active"
+      },
+      "category": "cheatsheet_inventory",
+      "inventory": [
+        {
+          "item_id": "s01-001",
+          "notes": "Network port and service mapping",
+          "path_or_section": "recon/nmap.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E01.01-S01"
+        },
+        {
+          "item_id": "s01-002",
+          "notes": "High-speed port scanner",
+          "path_or_section": "recon/masscan.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.02-S01"
+        },
+        {
+          "item_id": "s01-003",
+          "notes": "Adaptive port discovery",
+          "path_or_section": "recon/rustscan.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.02-S01"
+        },
+        {
+          "item_id": "s01-004",
+          "notes": "Local ARP discovery",
+          "path_or_section": "recon/arp-scan.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E12.02-S01"
+        },
+        {
+          "item_id": "s01-005",
+          "notes": "Passive and active ARP network scanner",
+          "path_or_section": "recon/netdiscover.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E12.02-S01"
+        },
+        {
+          "item_id": "s01-006",
+          "notes": "Userland distributed TCP/UDP scanner",
+          "path_or_section": "recon/unicornscan.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.02-S01"
+        },
+        {
+          "item_id": "s01-007",
+          "notes": "ICMP echo sweep procedures",
+          "path_or_section": "recon/ping-sweep.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.02-S01"
+        },
+        {
+          "item_id": "s01-008",
+          "notes": "Layer 3 hop analysis",
+          "path_or_section": "recon/traceroute.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.02-S01"
+        },
+        {
+          "item_id": "s01-009",
+          "notes": "Custom packet crafting and probing",
+          "path_or_section": "recon/hping3.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.02-S01"
+        },
+        {
+          "item_id": "s01-010",
+          "notes": "DNS enumeration and zone transfer checks",
+          "path_or_section": "recon/dnsrecon.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.01-S01"
+        },
+        {
+          "item_id": "s01-011",
+          "notes": "DNS reconnaissance tool for locating non-contiguous IP space",
+          "path_or_section": "recon/fierce.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.01-S01"
+        },
+        {
+          "item_id": "s01-012",
+          "notes": "Multithreaded script for DNS enumerating",
+          "path_or_section": "recon/dnsenum.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.01-S01"
+        },
+        {
+          "item_id": "s01-013",
+          "notes": "DNS lookup and zone transfer verification",
+          "path_or_section": "recon/dig.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.01-S01"
+        },
+        {
+          "item_id": "s01-014",
+          "notes": "Fast subdomains enumeration tool",
+          "path_or_section": "recon/sublist3r.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.01-S01"
+        },
+        {
+          "item_id": "s01-015",
+          "notes": "In-depth attack surface mapping and asset discovery",
+          "path_or_section": "recon/amass.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.01-S01"
+        },
+        {
+          "item_id": "s01-016",
+          "notes": "Find domains and subdomains related to a given domain",
+          "path_or_section": "recon/assetfinder.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.01-S01"
+        },
+        {
+          "item_id": "s01-017",
+          "notes": "Fast passive subdomain discovery tool",
+          "path_or_section": "recon/subfinder.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.01-S01"
+        },
+        {
+          "item_id": "s01-018",
+          "notes": "Cross-platform subdomain finder",
+          "path_or_section": "recon/findomain.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.01-S01"
+        },
+        {
+          "item_id": "s01-019",
+          "notes": "DNS subdomain brute-forcing",
+          "path_or_section": "recon/gobuster-dns.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.01-S01"
+        },
+        {
+          "item_id": "s01-020",
+          "notes": "Passive certificate transparency and asset search",
+          "path_or_section": "recon/censys.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.01-S01"
+        },
+        {
+          "item_id": "s01-021",
+          "notes": "Passive search engine for Internet-connected devices",
+          "path_or_section": "recon/shodan.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.01-S01"
+        },
+        {
+          "item_id": "s01-022",
+          "notes": "CLI integration for Censys API querying",
+          "path_or_section": "recon/censys-cli.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.01-S01"
+        },
+        {
+          "item_id": "s01-023",
+          "notes": "Directory and file brute-forcing",
+          "path_or_section": "web/gobuster-dir.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.01-S01"
+        },
+        {
+          "item_id": "s01-024",
+          "notes": "Fast web fuzzer for endpoints and headers",
+          "path_or_section": "web/ffuf.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.01-S01"
+        },
+        {
+          "item_id": "s01-025",
+          "notes": "Web application fuzzer",
+          "path_or_section": "web/wfuzz.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.01-S01"
+        },
+        {
+          "item_id": "s01-026",
+          "notes": "Web path scanner",
+          "path_or_section": "web/dirsearch.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.01-S01"
+        },
+        {
+          "item_id": "s01-027",
+          "notes": "Web server scanner for dangerous files/CGIs",
+          "path_or_section": "web/nikto.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.01-S01"
+        },
+        {
+          "item_id": "s01-028",
+          "notes": "WordPress security scanner",
+          "path_or_section": "web/wpscan.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.01-S01"
+        },
+        {
+          "item_id": "s01-029",
+          "notes": "Joomla vulnerability scanner",
+          "path_or_section": "web/joomscan.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.01-S01"
+        },
+        {
+          "item_id": "s01-030",
+          "notes": "Plugin-based scanner for Drupal/Silverstripe",
+          "path_or_section": "web/droopescan.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.01-S01"
+        },
+        {
+          "item_id": "s01-031",
+          "notes": "Next generation web scanner identifying CMS and technologies",
+          "path_or_section": "web/whatweb.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.01-S01"
+        },
+        {
+          "item_id": "s01-032",
+          "notes": "Web Application Firewall fingerprinting tool",
+          "path_or_section": "web/wafw00f.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.01-S01"
+        },
+        {
+          "item_id": "s01-033",
+          "notes": "Automated command injection exploiter",
+          "path_or_section": "web/commix.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.03-S01"
+        },
+        {
+          "item_id": "s01-034",
+          "notes": "Automatic SQL injection tool",
+          "path_or_section": "web/sqlmap.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.03-S01"
+        },
+        {
+          "item_id": "s01-035",
+          "notes": "HTTP parameter discovery suite",
+          "path_or_section": "web/arjun.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.01-S01"
+        },
+        {
+          "item_id": "s01-036",
+          "notes": "Mining parameters from dark corners of Web Archives",
+          "path_or_section": "web/paramspider.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.01-S01"
+        },
+        {
+          "item_id": "s01-037",
+          "notes": "Hidden parameter discovery tool",
+          "path_or_section": "web/x8.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.01-S01"
+        },
+        {
+          "item_id": "s01-038",
+          "notes": "GetAllUrls fetches known URLs from alienvault, wayback",
+          "path_or_section": "web/gau.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.01-S01"
+        },
+        {
+          "item_id": "s01-039",
+          "notes": "Fetch all URLs that the Wayback Machine knows",
+          "path_or_section": "web/waybackurls.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.01-S01"
+        },
+        {
+          "item_id": "s01-040",
+          "notes": "Next-generation crawling and spidering framework",
+          "path_or_section": "web/katana.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.01-S01"
+        },
+        {
+          "item_id": "s01-041",
+          "notes": "SQL injection authentication bypass",
+          "path_or_section": "web-vulns/sqli-auth-bypass.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.02-S01"
+        },
+        {
+          "item_id": "s01-042",
+          "notes": "UNION-based SQL injection extraction",
+          "path_or_section": "web-vulns/sqli-union.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.03-S01"
+        },
+        {
+          "item_id": "s01-043",
+          "notes": "Boolean and time-based blind SQL injection",
+          "path_or_section": "web-vulns/sqli-blind.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.03-S01"
+        },
+        {
+          "item_id": "s01-044",
+          "notes": "Reflected cross-site scripting validation",
+          "path_or_section": "web-vulns/xss-reflected.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.06-S01"
+        },
+        {
+          "item_id": "s01-045",
+          "notes": "Stored cross-site scripting audit",
+          "path_or_section": "web-vulns/xss-stored.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.06-S01"
+        },
+        {
+          "item_id": "s01-046",
+          "notes": "DOM-based client vulnerability analysis",
+          "path_or_section": "web-vulns/xss-dom.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.06-S01"
+        },
+        {
+          "item_id": "s01-047",
+          "notes": "Server-side request forgery basic validation",
+          "path_or_section": "web-vulns/ssrf-basic.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.05-S01"
+        },
+        {
+          "item_id": "s01-048",
+          "notes": "SSRF targeting cloud metadata endpoints (169.254.169.254)",
+          "path_or_section": "web-vulns/ssrf-cloud-metadata.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.05-S01"
+        },
+        {
+          "item_id": "s01-049",
+          "notes": "Server-side template injection in Jinja2",
+          "path_or_section": "web-vulns/ssti-jinja.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.03-S01"
+        },
+        {
+          "item_id": "s01-050",
+          "notes": "Server-side template injection in Mako templates",
+          "path_or_section": "web-vulns/ssti-mako.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.03-S01"
+        },
+        {
+          "item_id": "s01-051",
+          "notes": "Arbitrary file upload extension and MIME bypass",
+          "path_or_section": "web-vulns/file-upload-bypass.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.04-S01"
+        },
+        {
+          "item_id": "s01-052",
+          "notes": "Local file inclusion directory traversal",
+          "path_or_section": "web-vulns/lfi-path-traversal.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.04-S01"
+        },
+        {
+          "item_id": "s01-053",
+          "notes": "LFI using PHP stream filters and data wrappers",
+          "path_or_section": "web-vulns/lfi-php-wrappers.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.04-S01"
+        },
+        {
+          "item_id": "s01-054",
+          "notes": "LFI via access log injection",
+          "path_or_section": "web-vulns/lfi-log-poisoning.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.04-S01"
+        },
+        {
+          "item_id": "s01-055",
+          "notes": "Remote file inclusion testing",
+          "path_or_section": "web-vulns/rfi-inclusion.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.04-S01"
+        },
+        {
+          "item_id": "s01-056",
+          "notes": "XML external entity injection and entity resolution",
+          "path_or_section": "web-vulns/xxe-injection.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.03-S01"
+        },
+        {
+          "item_id": "s01-057",
+          "notes": "Cross-origin resource sharing wildcard and null origin checks",
+          "path_or_section": "web-vulns/cors-misconfig.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.06-S01"
+        },
+        {
+          "item_id": "s01-058",
+          "notes": "Cross-site request forgery validation",
+          "path_or_section": "web-vulns/csrf-poc.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.06-S01"
+        },
+        {
+          "item_id": "s01-059",
+          "notes": "JSON Web Token none algorithm bypass",
+          "path_or_section": "web-vulns/jwt-none-alg.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.02-S01"
+        },
+        {
+          "item_id": "s01-060",
+          "notes": "HMAC secret brute-forcing for JWT tokens",
+          "path_or_section": "web-vulns/jwt-weak-secret.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.02-S01"
+        },
+        {
+          "item_id": "s01-061",
+          "notes": "Insecure direct object reference authorization testing",
+          "path_or_section": "web-vulns/idor-parameter-tampering.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.02-S01"
+        },
+        {
+          "item_id": "s01-062",
+          "notes": "OS command injection evasion techniques",
+          "path_or_section": "web-vulns/cmd-injection-filter-bypass.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.03-S01"
+        },
+        {
+          "item_id": "s01-063",
+          "notes": "Insecure Java object deserialization gadgets",
+          "path_or_section": "web-vulns/des-java-ysoserial.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.03-S01"
+        },
+        {
+          "item_id": "s01-064",
+          "notes": "Python pickle unsafe deserialization payload verification",
+          "path_or_section": "web-vulns/des-python-pickle.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.03-S01"
+        },
+        {
+          "item_id": "s01-065",
+          "notes": "SMB share enumeration and permissions",
+          "path_or_section": "services/smb-enum-shares.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.04-S01"
+        },
+        {
+          "item_id": "s01-066",
+          "notes": "SMB IPC$ null session accessibility",
+          "path_or_section": "services/smb-null-session.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.04-S01"
+        },
+        {
+          "item_id": "s01-067",
+          "notes": "MS17-010 EternalBlue vulnerability detection",
+          "path_or_section": "services/smb-cve-2017-0143.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.04-S01"
+        },
+        {
+          "item_id": "s01-068",
+          "notes": "SMBGhost SMBv3 compression vulnerability detection",
+          "path_or_section": "services/smb-cve-2020-0796.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.04-S01"
+        },
+        {
+          "item_id": "s01-069",
+          "notes": "RPC endpoint mapper (port 135) querying",
+          "path_or_section": "services/rpc-enum.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.03-S01"
+        },
+        {
+          "item_id": "s01-070",
+          "notes": "NFS export list querying",
+          "path_or_section": "services/nfs-showmount.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.04-S01"
+        },
+        {
+          "item_id": "s01-071",
+          "notes": "NFS mount with no_root_squash misconfiguration",
+          "path_or_section": "services/nfs-no-root-squash.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E06.01-S01"
+        },
+        {
+          "item_id": "s01-072",
+          "notes": "FTP anonymous authentication checks",
+          "path_or_section": "services/ftp-anonymous.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.04-S01"
+        },
+        {
+          "item_id": "s01-073",
+          "notes": "FTP PORT bounce scan checks",
+          "path_or_section": "services/ftp-bounce.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.04-S01"
+        },
+        {
+          "item_id": "s01-074",
+          "notes": "SSH server cipher and MAC audit",
+          "path_or_section": "services/ssh-audit.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.04-S01"
+        },
+        {
+          "item_id": "s01-075",
+          "notes": "SSH legacy key exchange detection",
+          "path_or_section": "services/ssh-weak-kex.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.04-S01"
+        },
+        {
+          "item_id": "s01-076",
+          "notes": "RDP Network Level Authentication enforcement",
+          "path_or_section": "services/rdp-nla-check.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.04-S01"
+        },
+        {
+          "item_id": "s01-077",
+          "notes": "BlueKeep RDP vulnerability probe",
+          "path_or_section": "services/rdp-cve-2019-0708.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.04-S01"
+        },
+        {
+          "item_id": "s01-078",
+          "notes": "SNMP MIB walk for system context",
+          "path_or_section": "services/snmp-walk.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.03-S01"
+        },
+        {
+          "item_id": "s01-079",
+          "notes": "SNMP community string dictionary check",
+          "path_or_section": "services/snmp-community-brute.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.03-S01"
+        },
+        {
+          "item_id": "s01-080",
+          "notes": "LDAP anonymous rootDSE queries",
+          "path_or_section": "services/ldap-anonymous-bind.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E07.01-S01"
+        },
+        {
+          "item_id": "s01-081",
+          "notes": "LDAP search filter queries for domain objects",
+          "path_or_section": "services/ldap-search.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E07.01-S01"
+        },
+        {
+          "item_id": "s01-082",
+          "notes": "SMTP VRFY and EXPN user enumeration",
+          "path_or_section": "services/smtp-user-enum.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.06-S01"
+        },
+        {
+          "item_id": "s01-083",
+          "notes": "SMTP unauthenticated open relay testing",
+          "path_or_section": "services/smtp-open-relay.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.06-S01"
+        },
+        {
+          "item_id": "s01-084",
+          "notes": "POP3 service authentication checks",
+          "path_or_section": "services/pop3-brute.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.06-S01"
+        },
+        {
+          "item_id": "s01-085",
+          "notes": "IMAP service authentication checks",
+          "path_or_section": "services/imap-brute.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.06-S01"
+        },
+        {
+          "item_id": "s01-086",
+          "notes": "Telnet unencrypted service detection",
+          "path_or_section": "services/telnet-banner.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.04-S01"
+        },
+        {
+          "item_id": "s01-087",
+          "notes": "Kerbrute pre-authentication user enumeration",
+          "path_or_section": "ad/kerbrute-user-enum.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E07.02-S01"
+        },
+        {
+          "item_id": "s01-088",
+          "notes": "AS-REP roasting for accounts without preauth",
+          "path_or_section": "ad/asreproast.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E07.02-S01"
+        },
+        {
+          "item_id": "s01-089",
+          "notes": "Kerberoasting SPN registered service accounts",
+          "path_or_section": "ad/kerberoast.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E07.02-S01"
+        },
+        {
+          "item_id": "s01-090",
+          "notes": "BloodHound graph ingest and relationship analysis",
+          "path_or_section": "ad/bloodhound-ingest.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E07.01-S01"
+        },
+        {
+          "item_id": "s01-091",
+          "notes": "SharpHound domain object collection",
+          "path_or_section": "ad/sharphound-collect.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E07.01-S01"
+        },
+        {
+          "item_id": "s01-092",
+          "notes": "DCSync and SAM credential dumping",
+          "path_or_section": "ad/secretsdump.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E06.03-S01"
+        },
+        {
+          "item_id": "s01-093",
+          "notes": "PsExec lateral movement via service creation",
+          "path_or_section": "ad/psexec-impacket.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E15.02-S01"
+        },
+        {
+          "item_id": "s01-094",
+          "notes": "WMI command execution without service installation",
+          "path_or_section": "ad/wmiexec-impacket.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E15.02-S01"
+        },
+        {
+          "item_id": "s01-095",
+          "notes": "SMBExec remote command execution",
+          "path_or_section": "ad/smbexec-impacket.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E15.02-S01"
+        },
+        {
+          "item_id": "s01-096",
+          "notes": "DCOM-based lateral movement",
+          "path_or_section": "ad/dcomexec-impacket.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E15.02-S01"
+        },
+        {
+          "item_id": "s01-097",
+          "notes": "LSASS memory credential extraction",
+          "path_or_section": "ad/mimikatz-logonpasswords.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E06.03-S01"
+        },
+        {
+          "item_id": "s01-098",
+          "notes": "DRSUAPI directory replication replication simulation",
+          "path_or_section": "ad/mimikatz-dcsync.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E07.02-S01"
+        },
+        {
+          "item_id": "s01-099",
+          "notes": "KRBTGT ticket-granting ticket forging",
+          "path_or_section": "ad/mimikatz-golden-ticket.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E07.02-S01"
+        },
+        {
+          "item_id": "s01-100",
+          "notes": "Service ticket forging for specific SPNs",
+          "path_or_section": "ad/mimikatz-silver-ticket.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E07.02-S01"
+        },
+        {
+          "item_id": "s01-101",
+          "notes": "LLMNR and NBT-NS poisoning",
+          "path_or_section": "ad/responder-llmnr-poison.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E07.03-S01"
+        },
+        {
+          "item_id": "s01-102",
+          "notes": "NTLM cross-protocol relay to LDAP/SMB",
+          "path_or_section": "ad/ntlm-relayx.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E07.03-S01"
+        },
+        {
+          "item_id": "s01-103",
+          "notes": "Netlogon cryptographic authentication bypass",
+          "path_or_section": "ad/zero-logon-cve-2020-1472.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E07.02-S01"
+        },
+        {
+          "item_id": "s01-104",
+          "notes": "Print Spooler remote driver installation",
+          "path_or_section": "ad/print-nightmare-cve-2021-34527.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E07.04-S01"
+        },
+        {
+          "item_id": "s01-105",
+          "notes": "MS-EFSR machine account authentication coerce",
+          "path_or_section": "ad/petitpotam-cve-2021-36942.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E07.03-S01"
+        },
+        {
+          "item_id": "s01-106",
+          "notes": "AD CS ESC1 client authentication certificate request",
+          "path_or_section": "ad/certipy-adcs-esc1.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E07.04-S01"
+        },
+        {
+          "item_id": "s01-107",
+          "notes": "AD CS ESC8 NTLM relay to HTTP certificate enrollment",
+          "path_or_section": "ad/certipy-adcs-esc8.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E07.04-S01"
+        },
+        {
+          "item_id": "s01-108",
+          "notes": "sudo -l misconfiguration and NOPASSWD entries",
+          "path_or_section": "linux-privesc/sudo-rights.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E06.01-S01"
+        },
+        {
+          "item_id": "s01-109",
+          "notes": "Unusual SUID binary inspection",
+          "path_or_section": "linux-privesc/suid-binaries.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E06.01-S01"
+        },
+        {
+          "item_id": "s01-110",
+          "notes": "POSIX file capabilities (e.g. cap_setuid)",
+          "path_or_section": "linux-privesc/capabilities.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E06.01-S01"
+        },
+        {
+          "item_id": "s01-111",
+          "notes": "Writable cron scripts and schedules",
+          "path_or_section": "linux-privesc/cron-jobs.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E06.01-S01"
+        },
+        {
+          "item_id": "s01-112",
+          "notes": "World-writable /etc/passwd audit",
+          "path_or_section": "linux-privesc/writable-passwd.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E06.01-S01"
+        },
+        {
+          "item_id": "s01-113",
+          "notes": "Readable or writable /etc/shadow file check",
+          "path_or_section": "linux-privesc/writable-shadow.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E06.01-S01"
+        },
+        {
+          "item_id": "s01-114",
+          "notes": "Kernel race condition CVE-2016-5195 check",
+          "path_or_section": "linux-privesc/dirtycow.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E06.01-S01"
+        },
+        {
+          "item_id": "s01-115",
+          "notes": "Kernel pipe buffer overwrite CVE-2022-0847 check",
+          "path_or_section": "linux-privesc/dirtypipe.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E06.01-S01"
+        },
+        {
+          "item_id": "s01-116",
+          "notes": "NFS mount with root squash disabled",
+          "path_or_section": "linux-privesc/nfs-root-squash.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E06.01-S01"
+        },
+        {
+          "item_id": "s01-117",
+          "notes": "Unix wildcard injection in tar/chown/rsync",
+          "path_or_section": "linux-privesc/wildcard-injection.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E06.01-S01"
+        },
+        {
+          "item_id": "s01-118",
+          "notes": "Relative PATH variable search order hijacking",
+          "path_or_section": "linux-privesc/path-hijack.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E06.01-S01"
+        },
+        {
+          "item_id": "s01-119",
+          "notes": "LD_PRELOAD and RPATH shared library hijacking",
+          "path_or_section": "linux-privesc/shared-library-hijack.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E06.01-S01"
+        },
+        {
+          "item_id": "s01-120",
+          "notes": "AlwaysInstallElevated registry policy audit",
+          "path_or_section": "win-privesc/always-install-elevated.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E06.02-S01"
+        },
+        {
+          "item_id": "s01-121",
+          "notes": "Unquoted Windows service executable path review",
+          "path_or_section": "win-privesc/unquoted-service-path.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E06.02-S01"
+        },
+        {
+          "item_id": "s01-122",
+          "notes": "Modifiable Windows service binary permissions",
+          "path_or_section": "win-privesc/service-permissions.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E06.02-S01"
+        },
+        {
+          "item_id": "s01-123",
+          "notes": "Writable autorun registry keys",
+          "path_or_section": "win-privesc/registry-run-keys.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E06.02-S01"
+        },
+        {
+          "item_id": "s01-124",
+          "notes": "SeImpersonatePrivilege abuse via BITS/COM",
+          "path_or_section": "win-privesc/juicypotato.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E06.02-S01"
+        },
+        {
+          "item_id": "s01-125",
+          "notes": "SeImpersonatePrivilege abuse via DCOM",
+          "path_or_section": "win-privesc/godpotato.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E06.02-S01"
+        },
+        {
+          "item_id": "s01-126",
+          "notes": "Windows Credential Manager saved credential audit",
+          "path_or_section": "win-privesc/credman-dump.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E06.03-S01"
+        },
+        {
+          "item_id": "s01-127",
+          "notes": "DefaultPassword in Winlogon registry keys",
+          "path_or_section": "win-privesc/autologon-creds.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E06.03-S01"
+        },
+        {
+          "item_id": "s01-128",
+          "notes": "Unattend.xml plaintext administrative credentials",
+          "path_or_section": "win-privesc/unattended-install.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E06.03-S01"
+        },
+        {
+          "item_id": "s01-129",
+          "notes": "Missing DLL search order hijacking",
+          "path_or_section": "win-privesc/dll-hijacking.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E06.02-S01"
+        },
+        {
+          "item_id": "s01-130",
+          "notes": "Chisel TCP/UDP reverse SOCKS5 proxy",
+          "path_or_section": "tunneling/chisel-socks.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E15.02-S01"
+        },
+        {
+          "item_id": "s01-131",
+          "notes": "Ligolo-ng TUN interface pivoting",
+          "path_or_section": "tunneling/ligolo-ng.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E15.02-S01"
+        },
+        {
+          "item_id": "s01-132",
+          "notes": "Proxychains multi-hop routing",
+          "path_or_section": "tunneling/proxychains.md",
+          "resolution": "scenario",
+          "target_id": "COPS-E15.02-S01"
+        },
+        {
+          "item_id": "s01-133",
+          "notes": "John the Ripper hash cracking modes",
+          "path_or_section": "passwords/john-usage.md",
+          "resolution": "supporting_guidance",
+          "target_id": "COPS-E06.03-GUIDE"
+        },
+        {
+          "item_id": "s01-134",
+          "notes": "Hashcat acceleration rules and mask attacks",
+          "path_or_section": "passwords/hashcat-usage.md",
+          "resolution": "supporting_guidance",
+          "target_id": "COPS-E06.03-GUIDE"
+        },
+        {
+          "item_id": "s01-135",
+          "notes": "Upstream cheatsheet usage guidelines and legal constraints",
+          "path_or_section": "guidance/README.md",
+          "resolution": "supporting_guidance",
+          "target_id": "COPS-E01.01-GUIDE"
+        }
+      ],
+      "item_count": 135,
+      "license": "MIT",
+      "name": "command-cheatsheet",
+      "pinned_revision": "4c118399602212f205c91e8f01e418e226fa320c",
+      "source_id": "S01",
+      "url": "https://github.com/gunyakit/command-cheatsheet/tree/4c118399602212f205c91e8f01e418e226fa320c"
+    },
+    {
+      "applicability": {
+        "domains": [
+          "red_team",
+          "active_directory",
+          "pivoting",
+          "web"
+        ],
+        "platforms": [
+          "windows",
+          "linux",
+          "cloud"
+        ],
+        "tool_maintenance": "historical"
+      },
+      "category": "cheatsheet_inventory",
+      "inventory": [
+        {
+          "item_id": "s02-001",
+          "notes": "Active Directory attack methodologies",
+          "path_or_section": "active-directory-attacks.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E07.01-S01"
+        },
+        {
+          "item_id": "s02-002",
+          "notes": "LDAP queries for user and computer enumeration",
+          "path_or_section": "ldap-queries.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E07.01-S01"
+        },
+        {
+          "item_id": "s02-003",
+          "notes": "Kerberos ticket requests and pass-the-ticket procedures",
+          "path_or_section": "kerberos-tickets.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E07.02-S01"
+        },
+        {
+          "item_id": "s02-004",
+          "notes": "Bloodhound Cypher queries for shortest domain escalation paths",
+          "path_or_section": "bloodhound-queries.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E07.01-S01"
+        },
+        {
+          "item_id": "s02-005",
+          "notes": "Mimikatz memory scraping and credential extraction",
+          "path_or_section": "mimikatz-commands.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E06.03-S01"
+        },
+        {
+          "item_id": "s02-006",
+          "notes": "Impacket protocol suite command reference",
+          "path_or_section": "impacket-usage.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E15.02-S01"
+        },
+        {
+          "item_id": "s02-007",
+          "notes": "Responder LLMNR and NBT-NS spoofing configuration",
+          "path_or_section": "responder-options.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E07.03-S01"
+        },
+        {
+          "item_id": "s02-008",
+          "notes": "CrackMapExec credential stuffing across SMB/WinRM",
+          "path_or_section": "crackmapexec-commands.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E07.03-S01"
+        },
+        {
+          "item_id": "s02-009",
+          "notes": "Evil-WinRM remote shell usage",
+          "path_or_section": "evil-winrm-usage.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E15.02-S01"
+        },
+        {
+          "item_id": "s02-010",
+          "notes": "PowerShell execution policy and AMSI memory patch procedures",
+          "path_or_section": "powershell-bypass.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E15.03-S01"
+        },
+        {
+          "item_id": "s02-011",
+          "notes": "Living Off The Land binaries for arbitrary payload execution",
+          "path_or_section": "lolbas-execution.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E15.03-S01"
+        },
+        {
+          "item_id": "s02-012",
+          "notes": "Living Off The Land binaries for ingress tool transfer",
+          "path_or_section": "lolbas-download.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E15.03-S01"
+        },
+        {
+          "item_id": "s02-013",
+          "notes": "Certutil file decode and ingress transfer techniques",
+          "path_or_section": "certutil-tricks.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E15.03-S01"
+        },
+        {
+          "item_id": "s02-014",
+          "notes": "Mshta HTA payload execution",
+          "path_or_section": "mshta-execution.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E15.03-S01"
+        },
+        {
+          "item_id": "s02-015",
+          "notes": "Regsvr32 Squiblydoo scriptlet execution",
+          "path_or_section": "regsvr32-execution.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E15.03-S01"
+        },
+        {
+          "item_id": "s02-016",
+          "notes": "WMIC command queries for patch and process audit",
+          "path_or_section": "wmic-queries.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E06.02-S01"
+        },
+        {
+          "item_id": "s02-017",
+          "notes": "Critical security event IDs for detection mapping",
+          "path_or_section": "windows-event-ids.txt",
+          "resolution": "supporting_guidance",
+          "target_id": "COPS-E17.02-GUIDE"
+        },
+        {
+          "item_id": "s02-018",
+          "notes": "Linux system and configuration enumeration command set",
+          "path_or_section": "linux-enum-commands.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E06.01-S01"
+        },
+        {
+          "item_id": "s02-019",
+          "notes": "GTFOBins sudo binary bypass commands",
+          "path_or_section": "gtfobins-sudo.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E06.01-S01"
+        },
+        {
+          "item_id": "s02-020",
+          "notes": "GTFOBins SUID binary escalation commands",
+          "path_or_section": "gtfobins-suid.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E06.01-S01"
+        },
+        {
+          "item_id": "s02-021",
+          "notes": "GTFOBins POSIX capabilities escalation commands",
+          "path_or_section": "gtfobins-capabilities.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E06.01-S01"
+        },
+        {
+          "item_id": "s02-022",
+          "notes": "Bash TCP and UDP reverse shell commands",
+          "path_or_section": "bash-reverse-shells.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E15.01-S01"
+        },
+        {
+          "item_id": "s02-023",
+          "notes": "Python socket reverse shell one-liners",
+          "path_or_section": "python-reverse-shells.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E15.01-S01"
+        },
+        {
+          "item_id": "s02-024",
+          "notes": "PHP interactive web shells and reverse connections",
+          "path_or_section": "php-reverse-shells.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E15.01-S01"
+        },
+        {
+          "item_id": "s02-025",
+          "notes": "PowerShell Net.Sockets TCP reverse shells",
+          "path_or_section": "powershell-reverse-shells.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E15.01-S01"
+        },
+        {
+          "item_id": "s02-026",
+          "notes": "SQL injection payload list across DBMS vendors",
+          "path_or_section": "web-sqli-payloads.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.03-S01"
+        },
+        {
+          "item_id": "s02-027",
+          "notes": "Cross-site scripting filter evasion vectors",
+          "path_or_section": "web-xss-payloads.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.06-S01"
+        },
+        {
+          "item_id": "s02-028",
+          "notes": "SSRF IP representation bypass payloads",
+          "path_or_section": "web-ssrf-payloads.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.05-S01"
+        },
+        {
+          "item_id": "s02-029",
+          "notes": "Common Linux and Windows sensitive file paths",
+          "path_or_section": "web-lfi-wordlist.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.04-S01"
+        },
+        {
+          "item_id": "s02-030",
+          "notes": "Polyglot template injection payloads",
+          "path_or_section": "web-ssti-payloads.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.03-S01"
+        },
+        {
+          "item_id": "s02-031",
+          "notes": "Object deserialization detection rules",
+          "path_or_section": "web-deserialization-tips.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E05.03-S01"
+        },
+        {
+          "item_id": "s02-032",
+          "notes": "Nmap timing and NSE script scanning profiles",
+          "path_or_section": "nmap-scan-profiles.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.02-S01"
+        },
+        {
+          "item_id": "s02-033",
+          "notes": "SMB client tools comparison and usage",
+          "path_or_section": "smb-enum-tools.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.04-S01"
+        },
+        {
+          "item_id": "s02-034",
+          "notes": "Standard SNMP OIDs for system enumeration",
+          "path_or_section": "snmp-mibs-oid.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.03-S01"
+        },
+        {
+          "item_id": "s02-035",
+          "notes": "Tunneling RDP over SSH and SOCKS",
+          "path_or_section": "rdp-tunneling.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E15.02-S01"
+        },
+        {
+          "item_id": "s02-036",
+          "notes": "Chisel client and server proxy commands",
+          "path_or_section": "chisel-cheatsheet.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E15.02-S01"
+        },
+        {
+          "item_id": "s02-037",
+          "notes": "Ligolo-ng agent and controller routing",
+          "path_or_section": "ligolo-setup.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E15.02-S01"
+        },
+        {
+          "item_id": "s02-038",
+          "notes": "Linux kernel IP forwarding and iptables routing",
+          "path_or_section": "pivoting-routes.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E15.02-S01"
+        },
+        {
+          "item_id": "s02-039",
+          "notes": "Hashcat hash type reference codes",
+          "path_or_section": "hashcat-modes.txt",
+          "resolution": "supporting_guidance",
+          "target_id": "COPS-E06.03-GUIDE"
+        },
+        {
+          "item_id": "s02-040",
+          "notes": "John the Ripper mangling rules",
+          "path_or_section": "john-rules.txt",
+          "resolution": "supporting_guidance",
+          "target_id": "COPS-E06.03-GUIDE"
+        },
+        {
+          "item_id": "s02-041",
+          "notes": "Hydra syntax for common network services",
+          "path_or_section": "hydra-services.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E04.04-S01"
+        },
+        {
+          "item_id": "s02-042",
+          "notes": "Container escape vectors via mounted docker.sock",
+          "path_or_section": "docker-breakout-tips.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.07-S01"
+        },
+        {
+          "item_id": "s02-043",
+          "notes": "Kubectl commands for cluster discovery",
+          "path_or_section": "k8s-kubectl-tricks.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.01-S01"
+        },
+        {
+          "item_id": "s02-044",
+          "notes": "Service account token mounting and API interrogation",
+          "path_or_section": "k8s-serviceaccount-enum.txt",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.08-S01"
+        },
+        {
+          "item_id": "s02-045",
+          "notes": "Volatility memory analysis commands",
+          "path_or_section": "forensics-memory-volatility.txt",
+          "resolution": "supporting_guidance",
+          "target_id": "COPS-E17.02-GUIDE"
+        },
+        {
+          "item_id": "s02-046",
+          "notes": "Safe CVE reproduction workflow constraints",
+          "path_or_section": "cve-reproduction-notes.txt",
+          "resolution": "supporting_guidance",
+          "target_id": "COPS-E14.01-GUIDE"
+        },
+        {
+          "item_id": "s02-047",
+          "notes": "Rules of engagement operational checklist",
+          "path_or_section": "redteam-field-checklist.txt",
+          "resolution": "supporting_guidance",
+          "target_id": "COPS-E03.01-GUIDE"
+        },
+        {
+          "item_id": "s02-048",
+          "notes": "SANS pentest command reference PDF",
+          "path_or_section": "sans-penetration-testing-cheatsheet.pdf",
+          "resolution": "supporting_guidance",
+          "target_id": "COPS-E01.01-GUIDE"
+        },
+        {
+          "item_id": "s02-049",
+          "notes": "SANS hacker tools and incident handling PDF",
+          "path_or_section": "sans-sec504-hacker-tools.pdf",
+          "resolution": "supporting_guidance",
+          "target_id": "COPS-E01.01-GUIDE"
+        },
+        {
+          "item_id": "s02-050",
+          "notes": "Red team tactical field reference PDF",
+          "path_or_section": "red-team-field-reference-guide.pdf",
+          "resolution": "supporting_guidance",
+          "target_id": "COPS-E01.01-GUIDE"
+        },
+        {
+          "item_id": "s02-051",
+          "notes": "Cheatsheet-God repository guidelines",
+          "path_or_section": "README.md",
+          "resolution": "supporting_guidance",
+          "target_id": "COPS-E01.01-GUIDE"
+        }
+      ],
+      "item_count": 51,
+      "license": "MIT",
+      "name": "Cheatsheet-God",
+      "pinned_revision": "b879fd62eaae297b38087b8227dde5f8f0cf7668",
+      "source_id": "S02",
+      "url": "https://github.com/OlivierLaflamme/Cheatsheet-God/tree/b879fd62eaae297b38087b8227dde5f8f0cf7668"
+    },
+    {
+      "applicability": {
+        "domains": [
+          "container_security",
+          "privilege_escalation"
+        ],
+        "platforms": [
+          "kubernetes",
+          "linux_containers"
+        ],
+        "tool_maintenance": "reference_only"
+      },
+      "category": "article",
+      "inventory": [
+        {
+          "item_id": "s03-001",
+          "notes": "Dynatrace: hostPID namespace sharing inspection",
+          "path_or_section": "section/hostPID",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.07-S01"
+        },
+        {
+          "item_id": "s03-002",
+          "notes": "Dynatrace: hostNetwork exposure analysis",
+          "path_or_section": "section/hostNetwork",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.07-S01"
+        },
+        {
+          "item_id": "s03-003",
+          "notes": "Dynatrace: privileged container escape vectors",
+          "path_or_section": "section/privileged",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.07-S01"
+        },
+        {
+          "item_id": "s03-004",
+          "notes": "Dynatrace: writable root filesystem persistence",
+          "path_or_section": "section/writableRootfs",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.07-S01"
+        },
+        {
+          "item_id": "s03-005",
+          "notes": "Dynatrace: kernel capabilities over-granting",
+          "path_or_section": "section/capabilities",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.07-S01"
+        }
+      ],
+      "item_count": 5,
+      "license": "Copyrighted Technical Article (fair use citation)",
+      "name": "Dynatrace: container misconfigurations",
+      "pinned_revision": "2026-10-02",
+      "source_id": "S03",
+      "url": "https://www.dynatrace.com/news/blog/kubernetes-security-essentials-container-misconfigurations-from-theory-to-exploitation/"
+    },
+    {
+      "applicability": {
+        "domains": [
+          "cloud_threats",
+          "control_plane"
+        ],
+        "platforms": [
+          "kubernetes"
+        ],
+        "tool_maintenance": "reference_only"
+      },
+      "category": "article",
+      "inventory": [
+        {
+          "item_id": "s04-001",
+          "notes": "Unit 42: Exposed Kubernetes API server attacks",
+          "path_or_section": "section/initial-access-api",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.09-S01"
+        },
+        {
+          "item_id": "s04-002",
+          "notes": "Unit 42: Deploying unauthorized container workloads",
+          "path_or_section": "section/execution-malicious-pod",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.07-S01"
+        },
+        {
+          "item_id": "s04-003",
+          "notes": "Unit 42: Automated service account token abuse",
+          "path_or_section": "section/privilege-escalation-sa",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.08-S01"
+        },
+        {
+          "item_id": "s04-004",
+          "notes": "Unit 42: Hiding malicious workloads via DaemonSets",
+          "path_or_section": "section/defense-evasion-daemonset",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.07-S01"
+        },
+        {
+          "item_id": "s04-005",
+          "notes": "Unit 42: Cluster control-plane pivoting to etcd",
+          "path_or_section": "section/lateral-movement-etcd",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.10-S01"
+        }
+      ],
+      "item_count": 5,
+      "license": "Copyrighted Threat Research (fair use citation)",
+      "name": "Unit 42: modern Kubernetes threats",
+      "pinned_revision": "2026-10-02",
+      "source_id": "S04",
+      "url": "https://unit42.paloaltonetworks.com/modern-kubernetes-threats/"
+    },
+    {
+      "applicability": {
+        "domains": [
+          "privilege_escalation",
+          "rbac"
+        ],
+        "platforms": [
+          "kubernetes"
+        ],
+        "tool_maintenance": "reference_only"
+      },
+      "category": "article",
+      "inventory": [
+        {
+          "item_id": "s05-001",
+          "notes": "SentinelOne: Token extraction from /var/run/secrets/",
+          "path_or_section": "section/sa-token-leak",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.08-S01"
+        },
+        {
+          "item_id": "s05-002",
+          "notes": "SentinelOne: HostPath volume directory traversal to host /etc",
+          "path_or_section": "section/hostpath-traversal",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.07-S01"
+        },
+        {
+          "item_id": "s05-003",
+          "notes": "SentinelOne: Escalating privileges via ClusterRoleBinding creation",
+          "path_or_section": "section/clusterrolebinding",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.08-S01"
+        },
+        {
+          "item_id": "s05-004",
+          "notes": "SentinelOne: Gaining control over worker node daemon",
+          "path_or_section": "section/node-takeover",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.09-S01"
+        }
+      ],
+      "item_count": 4,
+      "license": "Copyrighted Threat Research (fair use citation)",
+      "name": "SentinelOne: Kubernetes privilege escalation",
+      "pinned_revision": "2026-10-02",
+      "source_id": "S05",
+      "url": "https://www.sentinelone.com/blog/climbing-the-ladder-kubernetes-privilege-escalation-part-1/"
+    },
+    {
+      "applicability": {
+        "domains": [
+          "rbac",
+          "privilege_escalation"
+        ],
+        "platforms": [
+          "kubernetes"
+        ],
+        "tool_maintenance": "reference_only"
+      },
+      "category": "article",
+      "inventory": [
+        {
+          "item_id": "s06-001",
+          "notes": "Seif Rajhi: RBAC privilege escalation via 'bind' permission",
+          "path_or_section": "section/rbac-bind",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.08-S01"
+        },
+        {
+          "item_id": "s06-002",
+          "notes": "Seif Rajhi: Privilege escalation via 'escalate' verb on ClusterRoles",
+          "path_or_section": "section/rbac-escalate",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.08-S01"
+        },
+        {
+          "item_id": "s06-003",
+          "notes": "Seif Rajhi: Impersonating system:masters or admin service accounts",
+          "path_or_section": "section/rbac-impersonate",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.08-S01"
+        },
+        {
+          "item_id": "s06-004",
+          "notes": "Seif Rajhi: Stealing cluster admin credentials via secrets/get",
+          "path_or_section": "section/rbac-get-secrets",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.08-S01"
+        },
+        {
+          "item_id": "s06-005",
+          "notes": "Seif Rajhi: Escalation to node root via pods/create privilege",
+          "path_or_section": "section/rbac-create-pods",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.07-S01"
+        },
+        {
+          "item_id": "s06-006",
+          "notes": "Seif Rajhi: Code execution in existing pods via pods/exec",
+          "path_or_section": "section/rbac-pod-exec",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.08-S01"
+        }
+      ],
+      "item_count": 6,
+      "license": "Creative Commons Attribution 4.0",
+      "name": "Kubernetes RBAC privilege escalation and mitigation",
+      "pinned_revision": "2026-10-02",
+      "source_id": "S06",
+      "url": "https://seifrajhi.github.io/blog/kubernetes-rbac-privilege-escalation-mitigation/"
+    },
+    {
+      "applicability": {
+        "domains": [
+          "pod_security",
+          "node_escape"
+        ],
+        "platforms": [
+          "kubernetes",
+          "linux_containers"
+        ],
+        "tool_maintenance": "reference_only"
+      },
+      "category": "article",
+      "inventory": [
+        {
+          "item_id": "s07-001",
+          "notes": "Bishop Fox: Everything-allowed super-privileged pod escape",
+          "path_or_section": "manifests/everything-allowed.yaml",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.07-S01"
+        },
+        {
+          "item_id": "s07-002",
+          "notes": "Bishop Fox: Privileged container kernel parameter compromise",
+          "path_or_section": "manifests/privileged.yaml",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.07-S01"
+        },
+        {
+          "item_id": "s07-003",
+          "notes": "Bishop Fox: Root filesystem hostPath mount traversal",
+          "path_or_section": "manifests/hostpath.yaml",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.07-S01"
+        },
+        {
+          "item_id": "s07-004",
+          "notes": "Bishop Fox: Host PID namespace injection and process inspection",
+          "path_or_section": "manifests/hostpid.yaml",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.07-S01"
+        },
+        {
+          "item_id": "s07-005",
+          "notes": "Bishop Fox: Host IPC shared memory compromise",
+          "path_or_section": "manifests/hostipc.yaml",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.07-S01"
+        },
+        {
+          "item_id": "s07-006",
+          "notes": "Bishop Fox: Host network namespace sniffing and loopback binding",
+          "path_or_section": "manifests/hostnet.yaml",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.07-S01"
+        },
+        {
+          "item_id": "s07-007",
+          "notes": "Bishop Fox: CAP_SYS_ADMIN cgroup v1 release_agent escape",
+          "path_or_section": "manifests/cap-sys-admin.yaml",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.07-S01"
+        },
+        {
+          "item_id": "s07-008",
+          "notes": "Bishop Fox: CAP_SYS_PTRACE process injection on host",
+          "path_or_section": "manifests/cap-sys-ptrace.yaml",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.07-S01"
+        }
+      ],
+      "item_count": 8,
+      "license": "Copyrighted Technical Research (fair use citation)",
+      "name": "Bishop Fox: Kubernetes Bad Pods",
+      "pinned_revision": "2026-10-02",
+      "source_id": "S07",
+      "url": "https://bishopfox.com/blog/kubernetes-pod-privilege-escalation"
+    },
+    {
+      "applicability": {
+        "domains": [
+          "compliance",
+          "cis_benchmarks",
+          "rbac"
+        ],
+        "platforms": [
+          "kubernetes"
+        ],
+        "tool_maintenance": "active"
+      },
+      "category": "tool_repository",
+      "inventory": [
+        {
+          "item_id": "s08-001",
+          "notes": "Kubescape: NSA-CISA Kubernetes hardening evaluation",
+          "path_or_section": "controls/nsa-cisa-control-01",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.02-S01"
+        },
+        {
+          "item_id": "s08-002",
+          "notes": "Kubescape: CIS benchmark compliance scan",
+          "path_or_section": "controls/cis-benchmark",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.02-S01"
+        },
+        {
+          "item_id": "s08-003",
+          "notes": "Kubescape: Over-permissive RBAC query evaluation",
+          "path_or_section": "controls/rbac-risk",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.08-S01"
+        },
+        {
+          "item_id": "s08-004",
+          "notes": "Kubescape: Namespace isolation compliance audit",
+          "path_or_section": "controls/host-namespace-audit",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.07-S01"
+        },
+        {
+          "item_id": "s08-005",
+          "notes": "Kubescape: Control plane API server endpoint exposure check",
+          "path_or_section": "controls/api-server-audit",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.09-S01"
+        }
+      ],
+      "item_count": 5,
+      "license": "Apache-2.0",
+      "name": "Kubescape",
+      "pinned_revision": "v3.0.0",
+      "source_id": "S08",
+      "url": "https://github.com/kubescape/kubescape"
+    },
+    {
+      "applicability": {
+        "domains": [
+          "cis_benchmarks",
+          "control_plane"
+        ],
+        "platforms": [
+          "kubernetes",
+          "linux"
+        ],
+        "tool_maintenance": "active"
+      },
+      "category": "tool_repository",
+      "inventory": [
+        {
+          "item_id": "s09-001",
+          "notes": "kube-bench: Control plane CIS benchmark checks",
+          "path_or_section": "cfg/master.yaml",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.04-S01"
+        },
+        {
+          "item_id": "s09-002",
+          "notes": "kube-bench: etcd node TLS and configuration checks",
+          "path_or_section": "cfg/etcd.yaml",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.04-S01"
+        },
+        {
+          "item_id": "s09-003",
+          "notes": "kube-bench: Controller manager and scheduler validation",
+          "path_or_section": "cfg/controlplane.yaml",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.04-S01"
+        },
+        {
+          "item_id": "s09-004",
+          "notes": "kube-bench: Kubelet configuration file permission audits",
+          "path_or_section": "cfg/node.yaml",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.04-S01"
+        }
+      ],
+      "item_count": 4,
+      "license": "Apache-2.0",
+      "name": "kube-bench",
+      "pinned_revision": "v0.8.0",
+      "source_id": "S09",
+      "url": "https://github.com/aquasecurity/kube-bench"
+    },
+    {
+      "applicability": {
+        "domains": [
+          "cluster_hunting",
+          "network_exposure"
+        ],
+        "platforms": [
+          "kubernetes"
+        ],
+        "tool_maintenance": "active"
+      },
+      "category": "tool_repository",
+      "inventory": [
+        {
+          "item_id": "s10-001",
+          "notes": "kube-hunter: Port 10250 unauthenticated kubelet command execution",
+          "path_or_section": "hunting/kubelet-10250",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.05-S01"
+        },
+        {
+          "item_id": "s10-002",
+          "notes": "kube-hunter: Port 10255 read-only pod specification leak",
+          "path_or_section": "hunting/kubelet-readonly-10255",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.05-S01"
+        },
+        {
+          "item_id": "s10-003",
+          "notes": "kube-hunter: Open kubectl proxy port 8001 exposure",
+          "path_or_section": "hunting/proxy-exposure",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.05-S01"
+        },
+        {
+          "item_id": "s10-004",
+          "notes": "kube-hunter: Unauthenticated Kubernetes dashboard access",
+          "path_or_section": "hunting/dashboard-access",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.05-S01"
+        },
+        {
+          "item_id": "s10-005",
+          "notes": "kube-hunter: Port 2379 unauthenticated etcd key-value retrieval",
+          "path_or_section": "hunting/etcd-unauth",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.05-S01"
+        }
+      ],
+      "item_count": 5,
+      "license": "Apache-2.0",
+      "name": "kube-hunter",
+      "pinned_revision": "v0.6.8",
+      "source_id": "S10",
+      "url": "https://github.com/aquasecurity/kube-hunter"
+    },
+    {
+      "applicability": {
+        "domains": [
+          "vulnerability_scanning",
+          "misconfiguration"
+        ],
+        "platforms": [
+          "kubernetes",
+          "container_images"
+        ],
+        "tool_maintenance": "active"
+      },
+      "category": "tool_repository",
+      "inventory": [
+        {
+          "item_id": "s11-001",
+          "notes": "Trivy: Cluster-wide vulnerability and misconfiguration scanning",
+          "path_or_section": "target/k8s-cluster",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.06-S01"
+        },
+        {
+          "item_id": "s11-002",
+          "notes": "Trivy: Workload spec securityContext misconfiguration check",
+          "path_or_section": "target/k8s-misconfig",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.06-S01"
+        },
+        {
+          "item_id": "s11-003",
+          "notes": "Trivy: RBAC role granting cluster-admin or wildcard verbs",
+          "path_or_section": "target/k8s-rbac",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.08-S01"
+        },
+        {
+          "item_id": "s11-004",
+          "notes": "Trivy: Container image CVE scanning in live pods",
+          "path_or_section": "target/k8s-vuln",
+          "resolution": "scenario",
+          "target_id": "COPS-E10.06-S01"
+        }
+      ],
+      "item_count": 4,
+      "license": "Apache-2.0",
+      "name": "Trivy Kubernetes documentation",
+      "pinned_revision": "v0.58.0",
+      "source_id": "S11",
+      "url": "https://trivy.dev/docs/latest/target/kubernetes/"
+    },
+    {
+      "applicability": {
+        "domains": [
+          "rbac",
+          "governance"
+        ],
+        "platforms": [
+          "kubernetes"
+        ],
+        "tool_maintenance": "reference_only"
+      },
+      "category": "primary_documentation",
+      "inventory": [
+        {
+          "item_id": "s12-001",
+          "notes": "Kubernetes Official: Least privilege RBAC definition guidelines",
+          "path_or_section": "rbac/least-privilege",
+          "resolution": "supporting_guidance",
+          "target_id": "COPS-E10.08-GUIDE"
+        },
+        {
+          "item_id": "s12-002",
+          "notes": "Kubernetes Official: Eliminating wildcard API groups and resources",
+          "path_or_section": "rbac/wildcards",
+          "resolution": "supporting_guidance",
+          "target_id": "COPS-E10.08-GUIDE"
+        },
+        {
+          "item_id": "s12-003",
+          "notes": "Kubernetes Official: Disabling automountServiceAccountToken",
+          "path_or_section": "rbac/serviceaccounts",
+          "resolution": "supporting_guidance",
+          "target_id": "COPS-E10.08-GUIDE"
+        }
+      ],
+      "item_count": 3,
+      "license": "Creative Commons Attribution 4.0",
+      "name": "Kubernetes RBAC good practices",
+      "pinned_revision": "2026-10-02",
+      "source_id": "S12",
+      "url": "https://kubernetes.io/docs/concepts/security/rbac-good-practices/"
+    },
+    {
+      "applicability": {
+        "domains": [
+          "pod_security",
+          "admission_control"
+        ],
+        "platforms": [
+          "kubernetes"
+        ],
+        "tool_maintenance": "reference_only"
+      },
+      "category": "primary_documentation",
+      "inventory": [
+        {
+          "item_id": "s13-001",
+          "notes": "Kubernetes Official: Privileged Pod Security Standard definition",
+          "path_or_section": "pss/privileged",
+          "resolution": "supporting_guidance",
+          "target_id": "COPS-E10.07-GUIDE"
+        },
+        {
+          "item_id": "s13-002",
+          "notes": "Kubernetes Official: Baseline Pod Security Standard constraints",
+          "path_or_section": "pss/baseline",
+          "resolution": "supporting_guidance",
+          "target_id": "COPS-E10.07-GUIDE"
+        },
+        {
+          "item_id": "s13-003",
+          "notes": "Kubernetes Official: Restricted Pod Security Standard hardening",
+          "path_or_section": "pss/restricted",
+          "resolution": "supporting_guidance",
+          "target_id": "COPS-E10.07-GUIDE"
+        }
+      ],
+      "item_count": 3,
+      "license": "Creative Commons Attribution 4.0",
+      "name": "Kubernetes Pod Security Standards",
+      "pinned_revision": "2026-10-02",
+      "source_id": "S13",
+      "url": "https://kubernetes.io/docs/concepts/security/pod-security-standards/"
+    }
+  ],
+  "updated_at": "2026-10-02T23:00:00Z"
+}

@@ -277,6 +277,96 @@ def command_contract_transition(current: str, target: str, contract_type: str) -
         return 1
 
 
+def command_scenario_list(family_id: str | None = None, tactic: str | None = None, coverage_mode: str | None = None, as_json: bool = False, root: Path = ROOT) -> int:
+    from .scenarios import list_scenarios
+    scenarios = list_scenarios(root, family_id=family_id, tactic=tactic, coverage_mode=coverage_mode)
+    if as_json:
+        print(json.dumps(scenarios, indent=2))
+        return 0
+    print(f"Registered Scenarios ({len(scenarios)}):")
+    for s in scenarios:
+        techs = ", ".join(s.get("mitre_attack", {}).get("techniques", []))
+        print(f"  {s['scenario_id']:<20} | {s.get('family_id', ''):<15} | [{s.get('coverage_mode', '')}] {s['title']} ({techs})")
+    return 0
+
+
+def command_scenario_info(scenario_id: str, as_json: bool = False, root: Path = ROOT) -> int:
+    from .scenarios import RegistryError, get_scenario
+    try:
+        scen = get_scenario(scenario_id, root)
+    except RegistryError as err:
+        print(f"error: {err}", file=sys.stderr)
+        return 1
+    if as_json:
+        print(json.dumps(scen, indent=2))
+        return 0
+    print(f"Scenario: {scen['scenario_id']} - {scen['title']}")
+    print(f"Family: {scen.get('family_id', '')}")
+    print(f"Coverage Mode: {scen.get('coverage_mode', '')}")
+    print(f"Description: {scen.get('description', '')}")
+    print(f"MITRE Tactics: {', '.join(scen.get('mitre_attack', {}).get('tactics', []))}")
+    print(f"MITRE Techniques: {', '.join(scen.get('mitre_attack', {}).get('techniques', []))}")
+    prov = scen.get("provenance", {})
+    print(f"Provenance: {prov.get('source_id', '')} ({prov.get('source_reference', '')})")
+    print(f"License: {prov.get('license', '')} (version bound: {prov.get('version_bound', '')})")
+    safety = scen.get("safety_profile", {})
+    print(f"Safety: impact={safety.get('impact')}, safe_for_production={safety.get('safe_for_production')}, reversible={safety.get('reversible')}")
+    env = scen.get("environment", {})
+    print(f"Environment: os={env.get('os', [])}, tools={env.get('required_tools', [])}, isolated_worker={env.get('isolated_worker_required')}")
+    prereqs = scen.get("prerequisites", [])
+    if prereqs:
+        print("Prerequisites:")
+        for p in prereqs:
+            print(f"  - {p}")
+    return 0
+
+
+def command_scenario_validate(root: Path = ROOT) -> int:
+    from .scenarios import RegistryError, validate_scenario_and_provenance_integrity
+    try:
+        res = validate_scenario_and_provenance_integrity(root)
+        print("Scenario and Provenance Registry valid:")
+        print(f"  Sources: {res['sources_count']}")
+        print(f"  Inventory Items: {res['inventory_items_count']}")
+        print(f"  Scenarios: {res['scenarios_count']}")
+        return 0
+    except RegistryError as err:
+        print(f"error: {err}", file=sys.stderr)
+        return 1
+
+
+def command_scenario_provenance(source_id: str | None = None, as_json: bool = False, root: Path = ROOT) -> int:
+    from .scenarios import RegistryError, get_provenance_source, list_provenance_sources
+    if source_id:
+        try:
+            src = get_provenance_source(source_id, root)
+        except RegistryError as err:
+            print(f"error: {err}", file=sys.stderr)
+            return 1
+        if as_json:
+            print(json.dumps(src, indent=2))
+            return 0
+        print(f"Provenance Source: {src['source_id']} - {src['name']}")
+        print(f"Category: {src.get('category')}")
+        print(f"URL: {src['url']}")
+        print(f"Pinned Revision: {src.get('pinned_revision')}")
+        print(f"License: {src.get('license')}")
+        print(f"Item Count: {src.get('item_count')}")
+        print(f"Inventory Items ({len(src.get('inventory', []))}):")
+        for item in src.get("inventory", []):
+            print(f"  {item['item_id']:<10} | [{item['resolution']}] {item['target_id']} ({item.get('notes', '')})")
+        return 0
+    sources = list_provenance_sources(root)
+    if as_json:
+        print(json.dumps(sources, indent=2))
+        return 0
+    print(f"Registered Provenance Sources ({len(sources)}):")
+    for s in sources:
+        print(f"  {s['source_id']:<6} | {s.get('category', ''):<22} | {len(s.get('inventory', [])):>3} items | {s['name']}")
+    return 0
+
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python3 -m cops",
@@ -329,6 +419,24 @@ def build_parser() -> argparse.ArgumentParser:
     c_trans.add_argument("target", help="target lifecycle state")
     c_trans.add_argument("--type", choices=["engagement", "action_plan"], default="engagement", help="contract type")
 
+    scen_p = subparsers.add_parser("scenario", help="inspect and validate scenario and provenance registries")
+    scen_sub = scen_p.add_subparsers(dest="scenario_command", required=True)
+    scen_list = scen_sub.add_parser("list", help="list registered scenarios")
+    scen_list.add_argument("--family", dest="family_id", help="filter by scenario family ID")
+    scen_list.add_argument("--tactic", help="filter by MITRE ATT&CK tactic")
+    scen_list.add_argument("--mode", dest="coverage_mode", choices=["planned", "implemented", "unsupported"], help="filter by coverage mode")
+    scen_list.add_argument("--json", action="store_true", help="output structured JSON")
+
+    scen_info = scen_sub.add_parser("info", help="display details for a specific scenario")
+    scen_info.add_argument("scenario_id", help="canonical scenario identifier")
+    scen_info.add_argument("--json", action="store_true", help="output structured JSON")
+
+    scen_sub.add_parser("validate", help="validate scenario and provenance registry integrity")
+
+    scen_prov = scen_sub.add_parser("provenance", help="inspect pinned provenance sources")
+    scen_prov.add_argument("--source", dest="source_id", help="specific source ID to inspect")
+    scen_prov.add_argument("--json", action="store_true", help="output structured JSON")
+
     return parser
 
 
@@ -373,6 +481,16 @@ def main(argv: list[str] | None = None, *, root: Path = ROOT) -> int:
                 return command_contract_validate(args.file, args.type)
             if args.contract_command == "transition":
                 return command_contract_transition(args.current, args.target, args.type)
+        if args.command == "scenario":
+            if args.scenario_command == "list":
+                return command_scenario_list(family_id=args.family_id, tactic=args.tactic, coverage_mode=args.coverage_mode, as_json=args.json, root=root)
+
+            if args.scenario_command == "info":
+                return command_scenario_info(args.scenario_id, as_json=args.json, root=root)
+            if args.scenario_command == "validate":
+                return command_scenario_validate(root=root)
+            if args.scenario_command == "provenance":
+                return command_scenario_provenance(source_id=args.source_id, as_json=args.json, root=root)
     except (CatalogError, ValidationError, CoverageError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2

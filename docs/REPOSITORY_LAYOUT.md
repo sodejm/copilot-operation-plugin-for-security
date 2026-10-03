@@ -5,15 +5,21 @@
 | `README.md`, `docs/GETTING_STARTED.md` | Analyst-first discovery and safe first use |
 | `agents/` | Centralized specialist agent profiles (`profiles/*.agent.md`) and canonical registry (`registry.json`) |
 | `cops/` | Standard-library catalog, validation, command safety, demos, and checks |
+| `cops/contracts/` | Operational contracts runtime, lifecycle state machines, and evidence verification |
+| `cops/scenarios/` | Scenario and provenance registry loaders, queries, and cross-validation |
 | `cops/routing/` | Deterministic zero-token intent classifier and Triad execution plan generator |
 | `cops/authorization.py` | Interactive operator authorization gate and cryptographic receipt validation |
 | `cops/evidence/`, `cops/connectors/` | Opt-in evidence contracts and bounded acquisition SDK for repository tooling |
 | `catalog/categories.json` | Stable capability taxonomy |
 | `catalog/plugins.json` | Single canonical package inventory |
+| `catalog/scenarios.json` | Canonical operational cybersecurity scenario registry |
+| `catalog/provenance.json` | Pinned external research and tool provenance registry |
 | `catalog/schemas/package.schema.json` | Documented package governance contract |
 | `catalog/schemas/specialist-profile.schema.json` | Specialist agent profile contract |
 | `catalog/schemas/authorization-receipt.schema.json` | Tamper-evident authorization receipt contract |
 | `catalog/schemas/evidence-envelope.schema.json`, `catalog/schemas/acquisition-receipt.schema.json` | Shared evidence and acquisition receipt v1 contracts |
+| `catalog/schemas/*-contract.schema.json`, `catalog/schemas/*-registry.schema.json` | Operational contracts, scenario, and provenance registry schemas |
+
 | `examples/evidence-sdk/` | Offline SDK walkthrough and design-only connector request plans |
 | `plugins/<category>/<plugin-id>/` | Self-contained distributed product package |
 | `plugins/logging-telemetry/security-logging-advisor/` | Repository scanning and security logging guidance |

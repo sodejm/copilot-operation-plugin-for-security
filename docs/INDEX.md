@@ -45,7 +45,9 @@ Each security plugin in COPS includes detailed documentation and a dedicated pra
 - **[Universal Portability](PORTABILITY.md)**: How COPS generates configuration files for GitHub Copilot, Claude Code, and Codex without configuration drift.
 - **[Shared Evidence SDK](EVIDENCE_SDK.md)**: Standardized evidence envelopes, pagination, and retry boundaries for data acquisition.
 - **[Operational Contracts Specification](../specs/engagement-contracts.spec.md)**: Tamper-evident Engagement, Scenario, ActionPlan, RunResult, and Finding schema contracts.
+- **[Pinned Scenario & Provenance Registry](../specs/pinned-scenario-registry.spec.md)**: Pinned external research sources, inventory resolutions, and canonical scenario registry.
 - **[Agent Skills Architecture](SKILLS.md)**: Authoring standards, line limits, and host-synchronization rules for reusable AI skills.
+
 - **[Model Context Protocol (MCP)](MCP.md)**: Tool-server integration strategy and client configuration rules.
 - **[Customization Guide](CUSTOMIZATION.md)**: How to tailor COPS for your organization without breaking upstream updates.
 

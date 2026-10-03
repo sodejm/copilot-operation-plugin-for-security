@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sodejm/copilot-operation-plugin-for-security/catalog/schemas/provenance-registry.schema.json",
+  "title": "COPS Provenance Reference Registry Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "updated_at",
+    "sources"
+  ],
+  "properties": {
+    "schema_version": {"const": "cops.provenance/v1"},
+    "updated_at": {"type": "string", "format": "date-time"},
+    "sources": {
+      "type": "array",
+      "minItems": 13,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source_id",
+          "name",
+          "category",
+          "url",
+          "pinned_revision",
+          "license",
+          "item_count",
+          "applicability",
+          "inventory"
+        ],
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "pattern": "^S[0-9]{2}$"
+          },
+          "name": {"type": "string", "minLength": 1},
+          "category": {
+            "enum": ["cheatsheet_inventory", "article", "tool_repository", "primary_documentation"]
+          },
+          "url": {"type": "string", "minLength": 1},
+          "pinned_revision": {"type": "string", "minLength": 1},
+          "license": {"type": "string", "minLength": 1},
+          "item_count": {"type": "integer", "minimum": 1},
+          "applicability": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["platforms", "domains", "tool_maintenance"],
+            "properties": {
+              "platforms": {
+                "type": "array",
+                "items": {"type": "string"}
+              },
+              "domains": {
+                "type": "array",
+                "items": {"type": "string"}
+              },
+              "tool_maintenance": {
+                "enum": ["active", "historical", "reference_only"]
+              }
+            }
+          },
+          "inventory": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["item_id", "path_or_section", "resolution", "target_id", "notes"],
+              "properties": {
+                "item_id": {"type": "string", "minLength": 1},
+                "path_or_section": {"type": "string", "minLength": 1},
+                "resolution": {
+                  "enum": ["scenario", "supporting_guidance", "applicability_decision"]
+                },
+                "target_id": {"type": "string", "minLength": 1},
+                "notes": {"type": "string"}
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

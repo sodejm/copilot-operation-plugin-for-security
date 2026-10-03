@@ -1,0 +1,1276 @@
+{
+  "scenarios": [
+    {
+      "coverage_mode": "planned",
+      "description": "Performs TCP SYN and version detection against authorized IP addresses to map active listening services.",
+      "environment": {
+        "isolated_worker_required": true,
+        "os": [
+          "linux"
+        ],
+        "required_tools": [
+          "nmap"
+        ]
+      },
+      "family_id": "COPS-E01.01",
+      "mitre_attack": {
+        "tactics": [
+          "discovery"
+        ],
+        "techniques": [
+          "T1046"
+        ]
+      },
+      "owner_issue": 80,
+      "prerequisites": [
+        "Target network CIDR scope authorization"
+      ],
+      "provenance": {
+        "license": "MIT",
+        "source_id": "S01",
+        "source_reference": "https://github.com/gunyakit/command-cheatsheet/tree/4c118399602212f205c91e8f01e418e226fa320c/recon/nmap.md",
+        "version_bound": "4c11839"
+      },
+      "safety_profile": {
+        "impact": "read_only",
+        "reversible": true,
+        "safe_for_production": true
+      },
+      "scenario_id": "COPS-E01.01-S01",
+      "title": "Network Port and Service Discovery"
+    },
+    {
+      "coverage_mode": "planned",
+      "description": "Discovers active hosts on local Ethernet broadcast domains using ARP queries and verifies VLAN segmentation boundaries.",
+      "environment": {
+        "isolated_worker_required": true,
+        "os": [
+          "linux"
+        ],
+        "required_tools": [
+          "arp-scan"
+        ]
+      },
+      "family_id": "COPS-E12.02",
+      "mitre_attack": {
+        "tactics": [
+          "discovery"
+        ],
+        "techniques": [
+          "T1018"
+        ]
+      },
+      "owner_issue": 139,
+      "prerequisites": [
+        "Target local network interface scope"
+      ],
+      "provenance": {
+        "license": "MIT",
+        "source_id": "S01",
+        "source_reference": "https://github.com/gunyakit/command-cheatsheet/tree/4c118399602212f205c91e8f01e418e226fa320c/recon/arp-scan.md",
+        "version_bound": "4c11839"
+      },
+      "safety_profile": {
+        "impact": "read_only",
+        "reversible": true,
+        "safe_for_production": true
+      },
+      "scenario_id": "COPS-E12.02-S01",
+      "title": "Local ARP and Network Segmentation Discovery"
+    },
+    {
+      "coverage_mode": "import",
+      "description": "Queries public DNS records and certificate transparency logs to identify exposed subdomains without connecting to target infrastructure.",
+      "environment": {
+        "isolated_worker_required": false,
+        "os": [
+          "linux",
+          "darwin"
+        ],
+        "required_tools": [
+          "dig",
+          "subfinder"
+        ]
+      },
+      "family_id": "COPS-E04.01",
+      "mitre_attack": {
+        "tactics": [
+          "reconnaissance"
+        ],
+        "techniques": [
+          "T1596"
+        ]
+      },
+      "owner_issue": 92,
+      "prerequisites": [
+        "Approved target domain names"
+      ],
+      "provenance": {
+        "license": "MIT",
+        "source_id": "S01",
+        "source_reference": "https://github.com/gunyakit/command-cheatsheet/tree/4c118399602212f205c91e8f01e418e226fa320c/recon/sublist3r.md",
+        "version_bound": "4c11839"
+      },
+      "safety_profile": {
+        "impact": "read_only",
+        "reversible": true,
+        "safe_for_production": true
+      },
+      "scenario_id": "COPS-E04.01-S01",
+      "title": "Passive DNS and Certificate Transparency Enumeration"
+    },
+    {
+      "coverage_mode": "planned",
+      "description": "Performs rate-limited active port discovery across perimeter IP addresses with banner capture.",
+      "environment": {
+        "isolated_worker_required": true,
+        "os": [
+          "linux"
+        ],
+        "required_tools": [
+          "masscan",
+          "rustscan"
+        ]
+      },
+      "family_id": "COPS-E04.02",
+      "mitre_attack": {
+        "tactics": [
+          "discovery"
+        ],
+        "techniques": [
+          "T1046"
+        ]
+      },
+      "owner_issue": 93,
+      "prerequisites": [
+        "Network authorization receipt"
+      ],
+      "provenance": {
+        "license": "MIT",
+        "source_id": "S01",
+        "source_reference": "https://github.com/gunyakit/command-cheatsheet/tree/4c118399602212f205c91e8f01e418e226fa320c/recon/masscan.md",
+        "version_bound": "4c11839"
+      },
+      "safety_profile": {
+        "impact": "read_only",
+        "reversible": true,
+        "safe_for_production": true
+      },
+      "scenario_id": "COPS-E04.02-S01",
+      "title": "High-Speed Active Network Boundary Discovery"
+    },
+    {
+      "coverage_mode": "planned",
+      "description": "Interrogates RPC endpoint mappers (TCP 135) and SNMP agents (UDP 161) for system context and installed components.",
+      "environment": {
+        "isolated_worker_required": true,
+        "os": [
+          "linux"
+        ],
+        "required_tools": [
+          "rpcdump",
+          "snmpwalk"
+        ]
+      },
+      "family_id": "COPS-E04.03",
+      "mitre_attack": {
+        "tactics": [
+          "discovery"
+        ],
+        "techniques": [
+          "T1046"
+        ]
+      },
+      "owner_issue": 94,
+      "prerequisites": [
+        "Target host IP address"
+      ],
+      "provenance": {
+        "license": "MIT",
+        "source_id": "S01",
+        "source_reference": "https://github.com/gunyakit/command-cheatsheet/tree/4c118399602212f205c91e8f01e418e226fa320c/services/rpc-enum.md",
+        "version_bound": "4c11839"
+      },
+      "safety_profile": {
+        "impact": "read_only",
+        "reversible": true,
+        "safe_for_production": true
+      },
+      "scenario_id": "COPS-E04.03-S01",
+      "title": "Infrastructure RPC and Management Endpoint Evaluation"
+    },
+    {
+      "coverage_mode": "planned",
+      "description": "Enumerates accessible SMB shares, IPC$ null session bindings, and RDP NLA requirements on target hosts.",
+      "environment": {
+        "isolated_worker_required": true,
+        "os": [
+          "linux"
+        ],
+        "required_tools": [
+          "smbclient",
+          "crackmapexec"
+        ]
+      },
+      "family_id": "COPS-E04.04",
+      "mitre_attack": {
+        "tactics": [
+          "discovery"
+        ],
+        "techniques": [
+          "T1135"
+        ]
+      },
+      "owner_issue": 95,
+      "prerequisites": [
+        "Target host IP scope"
+      ],
+      "provenance": {
+        "license": "MIT",
+        "source_id": "S01",
+        "source_reference": "https://github.com/gunyakit/command-cheatsheet/tree/4c118399602212f205c91e8f01e418e226fa320c/services/smb-enum-shares.md",
+        "version_bound": "4c11839"
+      },
+      "safety_profile": {
+        "impact": "read_only",
+        "reversible": true,
+        "safe_for_production": true
+      },
+      "scenario_id": "COPS-E04.04-S01",
+      "title": "Remote Administration and SMB Share Security Audit"
+    },
+    {
+      "coverage_mode": "laboratory",
+      "description": "Verifies whether SMTP endpoints reject unauthorized open relay attempts and enforce TLS encryption.",
+      "environment": {
+        "isolated_worker_required": true,
+        "os": [
+          "linux"
+        ],
+        "required_tools": [
+          "swaks",
+          "nmap"
+        ]
+      },
+      "family_id": "COPS-E04.06",
+      "mitre_attack": {
+        "tactics": [
+          "initial-access"
+        ],
+        "techniques": [
+          "T1566"
+        ]
+      },
+      "owner_issue": 97,
+      "prerequisites": [
+        "Authorized mail gateway test scope"
+      ],
+      "provenance": {
+        "license": "MIT",
+        "source_id": "S01",
+        "source_reference": "https://github.com/gunyakit/command-cheatsheet/tree/4c118399602212f205c91e8f01e418e226fa320c/services/smtp-open-relay.md",
+        "version_bound": "4c11839"
+      },
+      "safety_profile": {
+        "impact": "non_destructive",
+        "reversible": true,
+        "safe_for_production": false
+      },
+      "scenario_id": "COPS-E04.06-S01",
+      "title": "Mail Relay and Messaging Boundary Verification"
+    },
+    {
+      "coverage_mode": "planned",
+      "description": "Crawls web endpoints and parses OpenAPI schemas to discover exposed APIs and unauthenticated routes.",
+      "environment": {
+        "isolated_worker_required": false,
+        "os": [
+          "linux",
+          "darwin"
+        ],
+        "required_tools": [
+          "ffuf"
+        ]
+      },
+      "family_id": "COPS-E05.01",
+      "mitre_attack": {
+        "tactics": [
+          "discovery"
+        ],
+        "techniques": [
+          "T1595"
+        ]
+      },
+      "owner_issue": 100,
+      "prerequisites": [
+        "Target URL within scope"
+      ],
+      "provenance": {
+        "license": "MIT",
+        "source_id": "S01",
+        "source_reference": "https://github.com/gunyakit/command-cheatsheet/tree/4c118399602212f205c91e8f01e418e226fa320c/web/ffuf.md",
+        "version_bound": "4c11839"
+      },
+      "safety_profile": {
+        "impact": "read_only",
+        "reversible": true,
+        "safe_for_production": true
+      },
+      "scenario_id": "COPS-E05.01-S01",
+      "title": "Web Application Inventory and Endpoint Discovery"
+    },
+    {
+      "coverage_mode": "laboratory",
+      "description": "Tests JWT endpoints for algorithm none vulnerabilities and weak HMAC secret keys.",
+      "environment": {
+        "isolated_worker_required": false,
+        "os": [
+          "linux",
+          "darwin"
+        ],
+        "required_tools": [
+          "python3"
+        ]
+      },
+      "family_id": "COPS-E05.02",
+      "mitre_attack": {
+        "tactics": [
+          "initial-access"
+        ],
+        "techniques": [
+          "T1078"
+        ]
+      },
+      "owner_issue": 101,
+      "prerequisites": [
+        "Sample issued test JWT token"
+      ],
+      "provenance": {
+        "license": "MIT",
+        "source_id": "S01",
+        "source_reference": "https://github.com/gunyakit/command-cheatsheet/tree/4c118399602212f205c91e8f01e418e226fa320c/web-vulns/jwt-none-alg.md",
+        "version_bound": "4c11839"
+      },
+      "safety_profile": {
+        "impact": "non_destructive",
+        "reversible": true,
+        "safe_for_production": false
+      },
+      "scenario_id": "COPS-E05.02-S01",
+      "title": "API Authentication and Token Algorithm Bypass"
+    },
+    {
+      "coverage_mode": "laboratory",
+      "description": "Submits harmless boundary-probing payloads (e.g. arithmetic expressions) to identify unescaped interpreter execution.",
+      "environment": {
+        "isolated_worker_required": true,
+        "os": [
+          "linux"
+        ],
+        "required_tools": [
+          "sqlmap"
+        ]
+      },
+      "family_id": "COPS-E05.03",
+      "mitre_attack": {
+        "tactics": [
+          "initial-access"
+        ],
+        "techniques": [
+          "T1190"
+        ]
+      },
+      "owner_issue": 102,
+      "prerequisites": [
+        "Designated staging database instance"
+      ],
+      "provenance": {
+        "license": "MIT",
+        "source_id": "S01",
+        "source_reference": "https://github.com/gunyakit/command-cheatsheet/tree/4c118399602212f205c91e8f01e418e226fa320c/web-vulns/sqli-blind.md",
+        "version_bound": "4c11839"
+      },
+      "safety_profile": {
+        "impact": "non_destructive",
+        "reversible": true,
+        "safe_for_production": false
+      },
+      "scenario_id": "COPS-E05.03-S01",
+      "title": "Structured SQL and Template Injection Boundary Testing"
+    },
+    {
+      "coverage_mode": "planned",
+      "description": "Verifies that file download and display parameters strictly reject directory traversal patterns (../) and stream wrappers.",
+      "environment": {
+        "isolated_worker_required": false,
+        "os": [
+          "linux"
+        ],
+        "required_tools": [
+          "curl"
+        ]
+      },
+      "family_id": "COPS-E05.04",
+      "mitre_attack": {
+        "tactics": [
+          "credential-access"
+        ],
+        "techniques": [
+          "T1552"
+        ]
+      },
+      "owner_issue": 103,
+      "prerequisites": [
+        "Target URL and parameter specification"
+      ],
+      "provenance": {
+        "license": "MIT",
+        "source_id": "S01",
+        "source_reference": "https://github.com/gunyakit/command-cheatsheet/tree/4c118399602212f205c91e8f01e418e226fa320c/web-vulns/lfi-path-traversal.md",
+        "version_bound": "4c11839"
+      },
+      "safety_profile": {
+        "impact": "read_only",
+        "reversible": true,
+        "safe_for_production": true
+      },
+      "scenario_id": "COPS-E05.04-S01",
+      "title": "Path Traversal and Content Boundary Verification"
+    },
+    {
+      "coverage_mode": "planned",
+      "description": "Verifies whether backend URL fetching parameters enforce network egress restrictions and block cloud metadata IP addresses (169.254.169.254).",
+      "environment": {
+        "isolated_worker_required": true,
+        "os": [
+          "linux"
+        ],
+        "required_tools": [
+          "curl"
+        ]
+      },
+      "family_id": "COPS-E05.05",
+      "mitre_attack": {
+        "tactics": [
+          "credential-access"
+        ],
+        "techniques": [
+          "T1552.005"
+        ]
+      },
+      "owner_issue": 104,
+      "prerequisites": [
+        "Authorized HTTP listener for out-of-band detection"
+      ],
+      "provenance": {
+        "license": "MIT",
+        "source_id": "S01",
+        "source_reference": "https://github.com/gunyakit/command-cheatsheet/tree/4c118399602212f205c91e8f01e418e226fa320c/web-vulns/ssrf-cloud-metadata.md",
+        "version_bound": "4c11839"
+      },
+      "safety_profile": {
+        "impact": "read_only",
+        "reversible": true,
+        "safe_for_production": true
+      },
+      "scenario_id": "COPS-E05.05-S01",
+      "title": "Server-Side Request Forgery and Cloud Metadata Boundary Check"
+    },
+    {
+      "coverage_mode": "planned",
+      "description": "Evaluates Access-Control-Allow-Origin response headers against untrusted and null Origin headers.",
+      "environment": {
+        "isolated_worker_required": false,
+        "os": [
+          "linux",
+          "darwin"
+        ],
+        "required_tools": [
+          "curl"
+        ]
+      },
+      "family_id": "COPS-E05.06",
+      "mitre_attack": {
+        "tactics": [
+          "initial-access"
+        ],
+        "techniques": [
+          "T1189"
+        ]
+      },
+      "owner_issue": 105,
+      "prerequisites": [
+        "Target API endpoint URL"
+      ],
+      "provenance": {
+        "license": "MIT",
+        "source_id": "S01",
+        "source_reference": "https://github.com/gunyakit/command-cheatsheet/tree/4c118399602212f205c91e8f01e418e226fa320c/web-vulns/cors-misconfig.md",
+        "version_bound": "4c11839"
+      },
+      "safety_profile": {
+        "impact": "read_only",
+        "reversible": true,
+        "safe_for_production": true
+      },
+      "scenario_id": "COPS-E05.06-S01",
+      "title": "Cross-Origin Resource Sharing (CORS) Policy Audit"
+    },
+    {
+      "coverage_mode": "planned",
+      "description": "Inspects local file permissions, SUID/SGID bits, POSIX file capabilities, and sudo -l privileges for escalation vectors.",
+      "environment": {
+        "isolated_worker_required": true,
+        "os": [
+          "linux"
+        ],
+        "required_tools": [
+          "find",
+          "getcap"
+        ]
+      },
+      "family_id": "COPS-E06.01",
+      "mitre_attack": {
+        "tactics": [
+          "privilege-escalation"
+        ],
+        "techniques": [
+          "T1548.001"
+        ]
+      },
+      "owner_issue": 106,
+      "prerequisites": [
+        "Local shell access on test Linux node"
+      ],
+      "provenance": {
+        "license": "MIT",
+        "source_id": "S01",
+        "source_reference": "https://github.com/gunyakit/command-cheatsheet/tree/4c118399602212f205c91e8f01e418e226fa320c/linux-privesc/suid-binaries.md",
+        "version_bound": "4c11839"
+      },
+      "safety_profile": {
+        "impact": "read_only",
+        "reversible": true,
+        "safe_for_production": true
+      },
+      "scenario_id": "COPS-E06.01-S01",
+      "title": "Linux Privilege Boundary and SUID Binary Audit"
+    },
+    {
+      "coverage_mode": "planned",
+      "description": "Audits Windows service executable permissions, unquoted service paths, and AlwaysInstallElevated registry keys.",
+      "environment": {
+        "isolated_worker_required": true,
+        "os": [
+          "windows"
+        ],
+        "required_tools": [
+          "powershell"
+        ]
+      },
+      "family_id": "COPS-E06.02",
+      "mitre_attack": {
+        "tactics": [
+          "privilege-escalation"
+        ],
+        "techniques": [
+          "T1574.009"
+        ]
+      },
+      "owner_issue": 107,
+      "prerequisites": [
+        "Authenticated Windows test endpoint"
+      ],
+      "provenance": {
+        "license": "MIT",
+        "source_id": "S01",
+        "source_reference": "https://github.com/gunyakit/command-cheatsheet/tree/4c118399602212f205c91e8f01e418e226fa320c/win-privesc/unquoted-service-path.md",
+        "version_bound": "4c11839"
+      },
+      "safety_profile": {
+        "impact": "read_only",
+        "reversible": true,
+        "safe_for_production": true
+      },
+      "scenario_id": "COPS-E06.02-S01",
+      "title": "Windows Service and Registry Privilege Escalation Audit"
+    },
+    {
+      "coverage_mode": "planned",
+      "description": "Scans filesystem for cleartext credentials in configuration files, bash history, and saved connection profiles.",
+      "environment": {
+        "isolated_worker_required": false,
+        "os": [
+          "linux",
+          "windows"
+        ],
+        "required_tools": [
+          "grep",
+          "findstr"
+        ]
+      },
+      "family_id": "COPS-E06.03",
+      "mitre_attack": {
+        "tactics": [
+          "credential-access"
+        ],
+        "techniques": [
+          "T1552.001"
+        ]
+      },
+      "owner_issue": 108,
+      "prerequisites": [
+        "File access permissions"
+      ],
+      "provenance": {
+        "license": "MIT",
+        "source_id": "S01",
+        "source_reference": "https://github.com/gunyakit/command-cheatsheet/tree/4c118399602212f205c91e8f01e418e226fa320c/win-privesc/unattended-install.md",
+        "version_bound": "4c11839"
+      },
+      "safety_profile": {
+        "impact": "read_only",
+        "reversible": true,
+        "safe_for_production": true
+      },
+      "scenario_id": "COPS-E06.03-S01",
+      "title": "Local Host Credential Storage and File Audit"
+    },
+    {
+      "coverage_mode": "import",
+      "description": "Performs read-only LDAP enumeration to identify domain trust relationships, high-privilege groups, and delegation risks.",
+      "environment": {
+        "isolated_worker_required": true,
+        "os": [
+          "linux",
+          "windows"
+        ],
+        "required_tools": [
+          "ldapsearch",
+          "sharphound"
+        ]
+      },
+      "family_id": "COPS-E07.01",
+      "mitre_attack": {
+        "tactics": [
+          "discovery"
+        ],
+        "techniques": [
+          "T1087.002"
+        ]
+      },
+      "owner_issue": 110,
+      "prerequisites": [
+        "Domain authenticated read account"
+      ],
+      "provenance": {
+        "license": "MIT",
+        "source_id": "S01",
+        "source_reference": "https://github.com/gunyakit/command-cheatsheet/tree/4c118399602212f205c91e8f01e418e226fa320c/ad/bloodhound-ingest.md",
+        "version_bound": "4c11839"
+      },
+      "safety_profile": {
+        "impact": "read_only",
+        "reversible": true,
+        "safe_for_production": true
+      },
+      "scenario_id": "COPS-E07.01-S01",
+      "title": "Active Directory Object and Relationship Analysis"
+    },
+    {
+      "coverage_mode": "laboratory",
+      "description": "Identifies domain accounts configured with DONT_REQ_PREAUTH (AS-REP roasting) and service principal names with weak encryption.",
+      "environment": {
+        "isolated_worker_required": true,
+        "os": [
+          "linux"
+        ],
+        "required_tools": [
+          "impacket"
+        ]
+      },
+      "family_id": "COPS-E07.02",
+      "mitre_attack": {
+        "tactics": [
+          "credential-access"
+        ],
+        "techniques": [
+          "T1558.003",
+          "T1558.004"
+        ]
+      },
+      "owner_issue": 111,
+      "prerequisites": [
+        "Domain account credentials reference"
+      ],
+      "provenance": {
+        "license": "MIT",
+        "source_id": "S01",
+        "source_reference": "https://github.com/gunyakit/command-cheatsheet/tree/4c118399602212f205c91e8f01e418e226fa320c/ad/kerberoast.md",
+        "version_bound": "4c11839"
+      },
+      "safety_profile": {
+        "impact": "read_only",
+        "reversible": true,
+        "safe_for_production": true
+      },
+      "scenario_id": "COPS-E07.02-S01",
+      "title": "Kerberos Service Ticket and AS-REP Pre-Authentication Audit"
+    },
+    {
+      "coverage_mode": "laboratory",
+      "description": "Verifies whether SMB signing, LDAP signing, and channel binding tokens are enforced to prevent NTLM credential relay.",
+      "environment": {
+        "isolated_worker_required": true,
+        "os": [
+          "linux"
+        ],
+        "required_tools": [
+          "responder",
+          "impacket"
+        ]
+      },
+      "family_id": "COPS-E07.03",
+      "mitre_attack": {
+        "tactics": [
+          "credential-access"
+        ],
+        "techniques": [
+          "T1557.001"
+        ]
+      },
+      "owner_issue": 112,
+      "prerequisites": [
+        "Isolated test subnet"
+      ],
+      "provenance": {
+        "license": "MIT",
+        "source_id": "S01",
+        "source_reference": "https://github.com/gunyakit/command-cheatsheet/tree/4c118399602212f205c91e8f01e418e226fa320c/ad/ntlm-relayx.md",
+        "version_bound": "4c11839"
+      },
+      "safety_profile": {
+        "impact": "non_destructive",
+        "reversible": true,
+        "safe_for_production": false
+      },
+      "scenario_id": "COPS-E07.03-S01",
+      "title": "NTLM Relay and Multicast Poisoning Defense Verification"
+    },
+    {
+      "coverage_mode": "planned",
+      "description": "Audits published certificate templates for ESC1 through ESC8 vulnerabilities allowing unauthorized privilege escalation.",
+      "environment": {
+        "isolated_worker_required": true,
+        "os": [
+          "linux"
+        ],
+        "required_tools": [
+          "certipy"
+        ]
+      },
+      "family_id": "COPS-E07.04",
+      "mitre_attack": {
+        "tactics": [
+          "privilege-escalation"
+        ],
+        "techniques": [
+          "T1649"
+        ]
+      },
+      "owner_issue": 113,
+      "prerequisites": [
+        "Domain account credentials reference"
+      ],
+      "provenance": {
+        "license": "MIT",
+        "source_id": "S01",
+        "source_reference": "https://github.com/gunyakit/command-cheatsheet/tree/4c118399602212f205c91e8f01e418e226fa320c/ad/certipy-adcs-esc1.md",
+        "version_bound": "4c11839"
+      },
+      "safety_profile": {
+        "impact": "read_only",
+        "reversible": true,
+        "safe_for_production": true
+      },
+      "scenario_id": "COPS-E07.04-S01",
+      "title": "Active Directory Certificate Services (AD CS) Misconfiguration Audit"
+    },
+    {
+      "coverage_mode": "planned",
+      "description": "Discovers cluster endpoint, version, authentication provider, and verifies non-root worker execution boundaries.",
+      "environment": {
+        "isolated_worker_required": true,
+        "os": [
+          "linux"
+        ],
+        "required_tools": [
+          "kubectl"
+        ]
+      },
+      "family_id": "COPS-E10.01",
+      "mitre_attack": {
+        "tactics": [
+          "discovery"
+        ],
+        "techniques": [
+          "T1613"
+        ]
+      },
+      "owner_issue": 121,
+      "prerequisites": [
+        "Kubeconfig context reference"
+      ],
+      "provenance": {
+        "license": "Apache-2.0",
+        "source_id": "S08",
+        "source_reference": "https://github.com/kubescape/kubescape",
+        "version_bound": "v3.0.0"
+      },
+      "safety_profile": {
+        "impact": "read_only",
+        "reversible": true,
+        "safe_for_production": true
+      },
+      "scenario_id": "COPS-E10.01-S01",
+      "title": "Kubernetes Cluster Identity and Context Verification"
+    },
+    {
+      "coverage_mode": "import",
+      "description": "Runs Kubescape compliance framework scans against cluster objects to identify NSA-CISA and CIS benchmark deviations.",
+      "environment": {
+        "isolated_worker_required": true,
+        "os": [
+          "linux"
+        ],
+        "required_tools": [
+          "kubescape"
+        ]
+      },
+      "family_id": "COPS-E10.02",
+      "mitre_attack": {
+        "tactics": [
+          "discovery"
+        ],
+        "techniques": [
+          "T1613"
+        ]
+      },
+      "owner_issue": 122,
+      "prerequisites": [
+        "Cluster read-only ServiceAccount"
+      ],
+      "provenance": {
+        "license": "Apache-2.0",
+        "source_id": "S08",
+        "source_reference": "https://github.com/kubescape/kubescape",
+        "version_bound": "v3.0.0"
+      },
+      "safety_profile": {
+        "impact": "read_only",
+        "reversible": true,
+        "safe_for_production": true
+      },
+      "scenario_id": "COPS-E10.02-S01",
+      "title": "Kubescape Automated Hardening and Control Assessment"
+    },
+    {
+      "coverage_mode": "import",
+      "description": "Executes kube-bench on master and worker nodes to evaluate CIS Kubernetes Benchmark compliance.",
+      "environment": {
+        "isolated_worker_required": true,
+        "os": [
+          "linux"
+        ],
+        "required_tools": [
+          "kube-bench"
+        ]
+      },
+      "family_id": "COPS-E10.04",
+      "mitre_attack": {
+        "tactics": [
+          "discovery"
+        ],
+        "techniques": [
+          "T1613"
+        ]
+      },
+      "owner_issue": 124,
+      "prerequisites": [
+        "Node shell access or benchmark job spec"
+      ],
+      "provenance": {
+        "license": "Apache-2.0",
+        "source_id": "S09",
+        "source_reference": "https://github.com/aquasecurity/kube-bench",
+        "version_bound": "v0.8.0"
+      },
+      "safety_profile": {
+        "impact": "read_only",
+        "reversible": true,
+        "safe_for_production": true
+      },
+      "scenario_id": "COPS-E10.04-S01",
+      "title": "kube-bench CIS Benchmark Control Plane Audit"
+    },
+    {
+      "coverage_mode": "laboratory",
+      "description": "Probes Kubernetes clusters for open kubelet ports (10250/10255), unauthenticated etcd, and open dashboard services.",
+      "environment": {
+        "isolated_worker_required": true,
+        "os": [
+          "linux"
+        ],
+        "required_tools": [
+          "kube-hunter"
+        ]
+      },
+      "family_id": "COPS-E10.05",
+      "mitre_attack": {
+        "tactics": [
+          "discovery"
+        ],
+        "techniques": [
+          "T1046"
+        ]
+      },
+      "owner_issue": 125,
+      "prerequisites": [
+        "Target cluster IP range and worker authorization"
+      ],
+      "provenance": {
+        "license": "Apache-2.0",
+        "source_id": "S10",
+        "source_reference": "https://github.com/aquasecurity/kube-hunter",
+        "version_bound": "v0.6.8"
+      },
+      "safety_profile": {
+        "impact": "non_destructive",
+        "reversible": true,
+        "safe_for_production": false
+      },
+      "scenario_id": "COPS-E10.05-S01",
+      "title": "kube-hunter Active Vulnerability and Port Hunting"
+    },
+    {
+      "coverage_mode": "import",
+      "description": "Scans deployed container images and workload manifests using Trivy for known CVEs and high-severity misconfigurations.",
+      "environment": {
+        "isolated_worker_required": true,
+        "os": [
+          "linux"
+        ],
+        "required_tools": [
+          "trivy"
+        ]
+      },
+      "family_id": "COPS-E10.06",
+      "mitre_attack": {
+        "tactics": [
+          "initial-access"
+        ],
+        "techniques": [
+          "T1190"
+        ]
+      },
+      "owner_issue": 126,
+      "prerequisites": [
+        "Image registry or cluster read access"
+      ],
+      "provenance": {
+        "license": "Apache-2.0",
+        "source_id": "S11",
+        "source_reference": "https://trivy.dev/docs/latest/target/kubernetes/",
+        "version_bound": "v0.58.0"
+      },
+      "safety_profile": {
+        "impact": "read_only",
+        "reversible": true,
+        "safe_for_production": true
+      },
+      "scenario_id": "COPS-E10.06-S01",
+      "title": "Container Image and Cluster Workload CVE Assessment"
+    },
+    {
+      "coverage_mode": "laboratory",
+      "description": "Evaluates container isolation against the 8 canonical Bishop Fox Bad Pods archetypes (hostPath, hostPID, hostNetwork, hostIPC, privileged, CAP_SYS_ADMIN).",
+      "environment": {
+        "isolated_worker_required": true,
+        "os": [
+          "linux"
+        ],
+        "required_tools": [
+          "kubectl"
+        ]
+      },
+      "family_id": "COPS-E10.07",
+      "mitre_attack": {
+        "tactics": [
+          "privilege-escalation"
+        ],
+        "techniques": [
+          "T1611"
+        ]
+      },
+      "owner_issue": 127,
+      "prerequisites": [
+        "Disposable test namespace and worker approval"
+      ],
+      "provenance": {
+        "license": "Copyrighted Technical Research (fair use citation)",
+        "source_id": "S07",
+        "source_reference": "https://bishopfox.com/blog/kubernetes-pod-privilege-escalation",
+        "version_bound": "2026-10-02"
+      },
+      "safety_profile": {
+        "impact": "disruptive",
+        "reversible": true,
+        "safe_for_production": false
+      },
+      "scenario_id": "COPS-E10.07-S01",
+      "title": "Kubernetes Bad Pods and Container Escape Boundary Verification"
+    },
+    {
+      "coverage_mode": "planned",
+      "description": "Analyzes RoleBindings and ClusterRoleBindings for dangerous permissions (bind, escalate, impersonate, pods/exec, secrets/get).",
+      "environment": {
+        "isolated_worker_required": false,
+        "os": [
+          "linux",
+          "darwin"
+        ],
+        "required_tools": [
+          "kubectl"
+        ]
+      },
+      "family_id": "COPS-E10.08",
+      "mitre_attack": {
+        "tactics": [
+          "privilege-escalation"
+        ],
+        "techniques": [
+          "T1078.001"
+        ]
+      },
+      "owner_issue": 128,
+      "prerequisites": [
+        "Cluster RBAC manifest export"
+      ],
+      "provenance": {
+        "license": "Creative Commons Attribution 4.0",
+        "source_id": "S06",
+        "source_reference": "https://seifrajhi.github.io/blog/kubernetes-rbac-privilege-escalation-mitigation/",
+        "version_bound": "2026-10-02"
+      },
+      "safety_profile": {
+        "impact": "read_only",
+        "reversible": true,
+        "safe_for_production": true
+      },
+      "scenario_id": "COPS-E10.08-S01",
+      "title": "Kubernetes RBAC and Service Account Privilege Escalation Analysis"
+    },
+    {
+      "coverage_mode": "planned",
+      "description": "Scans control plane components and node Kubelet API boundaries for unauthenticated or insecurely exposed endpoints.",
+      "environment": {
+        "isolated_worker_required": true,
+        "os": [
+          "linux"
+        ],
+        "required_tools": [
+          "nmap",
+          "curl"
+        ]
+      },
+      "family_id": "COPS-E10.09",
+      "mitre_attack": {
+        "tactics": [
+          "initial-access"
+        ],
+        "techniques": [
+          "T1190"
+        ]
+      },
+      "owner_issue": 129,
+      "prerequisites": [
+        "Target node IP list"
+      ],
+      "provenance": {
+        "license": "Copyrighted Threat Research (fair use citation)",
+        "source_id": "S04",
+        "source_reference": "https://unit42.paloaltonetworks.com/modern-kubernetes-threats/",
+        "version_bound": "2026-10-02"
+      },
+      "safety_profile": {
+        "impact": "read_only",
+        "reversible": true,
+        "safe_for_production": true
+      },
+      "scenario_id": "COPS-E10.09-S01",
+      "title": "Kubernetes Node and Control Plane Exposure Assessment"
+    },
+    {
+      "coverage_mode": "laboratory",
+      "description": "Simulates multi-step kill chains linking compromised web workload to pod escape, service account token theft, and cluster admin escalation.",
+      "environment": {
+        "isolated_worker_required": true,
+        "os": [
+          "linux"
+        ],
+        "required_tools": [
+          "kubectl",
+          "curl"
+        ]
+      },
+      "family_id": "COPS-E10.10",
+      "mitre_attack": {
+        "tactics": [
+          "lateral-movement"
+        ],
+        "techniques": [
+          "T1611",
+          "T1078.001"
+        ]
+      },
+      "owner_issue": 130,
+      "prerequisites": [
+        "Ephemeral staging cluster with full rollback automation"
+      ],
+      "provenance": {
+        "license": "Copyrighted Threat Research (fair use citation)",
+        "source_id": "S05",
+        "source_reference": "https://www.sentinelone.com/blog/climbing-the-ladder-kubernetes-privilege-escalation-part-1/",
+        "version_bound": "2026-10-02"
+      },
+      "safety_profile": {
+        "impact": "disruptive",
+        "reversible": true,
+        "safe_for_production": false
+      },
+      "scenario_id": "COPS-E10.10-S01",
+      "title": "Multi-Stage Kubernetes Kill-Chain Validation"
+    },
+    {
+      "coverage_mode": "laboratory",
+      "description": "Simulates controlled, reversible adversary commands in disposable containers using synthetic telemetry generators.",
+      "environment": {
+        "isolated_worker_required": true,
+        "os": [
+          "linux"
+        ],
+        "required_tools": [
+          "bash"
+        ]
+      },
+      "family_id": "COPS-E15.01",
+      "mitre_attack": {
+        "tactics": [
+          "execution"
+        ],
+        "techniques": [
+          "T1059.004"
+        ]
+      },
+      "owner_issue": 145,
+      "prerequisites": [
+        "Disposable worker container"
+      ],
+      "provenance": {
+        "license": "MIT",
+        "source_id": "S02",
+        "source_reference": "https://github.com/OlivierLaflamme/Cheatsheet-God/tree/b879fd62eaae297b38087b8227dde5f8f0cf7668/bash-reverse-shells.txt",
+        "version_bound": "b879fd6"
+      },
+      "safety_profile": {
+        "impact": "non_destructive",
+        "reversible": true,
+        "safe_for_production": false
+      },
+      "scenario_id": "COPS-E15.01-S01",
+      "title": "Controlled Adversary Payload and Command Simulation"
+    },
+    {
+      "coverage_mode": "laboratory",
+      "description": "Verifies network segmentation and egress controls using authorized SOCKS5 proxies and TUN tunnels in a laboratory environment.",
+      "environment": {
+        "isolated_worker_required": true,
+        "os": [
+          "linux"
+        ],
+        "required_tools": [
+          "chisel"
+        ]
+      },
+      "family_id": "COPS-E15.02",
+      "mitre_attack": {
+        "tactics": [
+          "lateral-movement"
+        ],
+        "techniques": [
+          "T1090.001"
+        ]
+      },
+      "owner_issue": 146,
+      "prerequisites": [
+        "Isolated multi-tier lab network"
+      ],
+      "provenance": {
+        "license": "MIT",
+        "source_id": "S01",
+        "source_reference": "https://github.com/gunyakit/command-cheatsheet/tree/4c118399602212f205c91e8f01e418e226fa320c/tunneling/chisel-socks.md",
+        "version_bound": "4c11839"
+      },
+      "safety_profile": {
+        "impact": "non_destructive",
+        "reversible": true,
+        "safe_for_production": false
+      },
+      "scenario_id": "COPS-E15.02-S01",
+      "title": "Internal Network Pivoting and Tunneling Simulation"
+    },
+    {
+      "coverage_mode": "laboratory",
+      "description": "Tests host detection telemetry against Living-off-the-Land (LOLBAS) binary execution with automated cleanup verification.",
+      "environment": {
+        "isolated_worker_required": true,
+        "os": [
+          "windows",
+          "linux"
+        ],
+        "required_tools": [
+          "powershell",
+          "bash"
+        ]
+      },
+      "family_id": "COPS-E15.03",
+      "mitre_attack": {
+        "tactics": [
+          "defense-evasion"
+        ],
+        "techniques": [
+          "T1218"
+        ]
+      },
+      "owner_issue": 147,
+      "prerequisites": [
+        "Automated rollback receipt verification"
+      ],
+      "provenance": {
+        "license": "MIT",
+        "source_id": "S02",
+        "source_reference": "https://github.com/OlivierLaflamme/Cheatsheet-God/tree/b879fd62eaae297b38087b8227dde5f8f0cf7668/lolbas-execution.txt",
+        "version_bound": "b879fd6"
+      },
+      "safety_profile": {
+        "impact": "non_destructive",
+        "reversible": true,
+        "safe_for_production": false
+      },
+      "scenario_id": "COPS-E15.03-S01",
+      "title": "Reversible Persistence and Defense Evasion Simulation"
+    }
+  ],
+  "schema_version": "cops.scenario-registry/v1",
+  "updated_at": "2026-10-02T23:00:00Z"
+}
