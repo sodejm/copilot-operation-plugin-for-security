@@ -46,3 +46,8 @@ manifests so Claude Code discovery remains available in the source marketplace.
 The validator rejects unknown categories, incorrect category-first paths,
 uncataloged packages, duplicate IDs or skill names, manifest/catalog divergence,
 unsafe declared commands, unsupported evidence claims, and generated-index drift.
+
+The `.agents/skills/plugin-run-cost/` contributor skill provides local retrospective
+run accounting, input profiles, explicit forecasts and business comparisons. Its
+synthetic fixtures are public; execution ledgers and customer source exports must
+remain private outside the checkout. See the [skill](../.agents/skills/plugin-run-cost/SKILL.md).

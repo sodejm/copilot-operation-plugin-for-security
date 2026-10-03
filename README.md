@@ -131,3 +131,10 @@ In security engineering, confidence comes from verification:
 
 - COPS project code and documentation are licensed under the **[PolyForm Noncommercial License 1.0.0](LICENSE)**.
 - Reusable components imported from PARK retain their original Apache-2.0 notices. See **[Third-Party Notices](THIRD_PARTY_NOTICES.md)** and **[Licensing Guide](docs/LICENSING.md)** for details.
+
+### Plugin execution cost analysis
+
+Contributors can use [plugin-run-cost](.agents/skills/plugin-run-cost/SKILL.md) to
+measure explicitly assigned COPS runs, estimate input scaling, and compare API,
+local-tool and employee costs. It runs locally with synthetic examples, preserves
+unknown charges, and distinguishes API-equivalent estimates from actual bills.

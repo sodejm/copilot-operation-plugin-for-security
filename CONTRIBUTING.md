@@ -96,3 +96,10 @@ disconnecting; the verification gate does not fetch missing dependencies.
 
 CI installs `requirements.txt` explicitly before verifying prerequisites and
 running tests. A passing local gate does not establish hosted CI status.
+
+## Plugin run economics
+
+Use the [plugin-run-cost contributor skill](.agents/skills/plugin-run-cost/SKILL.md)
+for local execution accounting and input-based forecasts. It reuses session audit
+request normalization. Keep private ledgers outside Git, and keep development costs
+separate from plugin executions. Synthetic examples are not production benchmarks.

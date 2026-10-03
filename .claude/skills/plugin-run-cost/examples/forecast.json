@@ -1,0 +1,98 @@
+{
+  "provider": "openai",
+  "service_tier": "standard",
+  "region": "default",
+  "as_of": "2026-10-02T12:00:00Z",
+  "scenarios": [
+    {
+      "name": "low",
+      "assumptions": {
+        "input_mode": "full",
+        "cache": "warm-assumed",
+        "retries_included": true,
+        "scale": 1,
+        "profile_basis": "synthetic; replace with measured selected tokens"
+      },
+      "request_shapes": [
+        {
+          "count": 6,
+          "model": "gpt-6-sol",
+          "effort": "medium",
+          "stage": "analysis",
+          "usage": {
+            "input_tokens": 5000,
+            "cached_input_tokens": 3000,
+            "cache_write_input_tokens": 0,
+            "output_tokens": 2000,
+            "reasoning_output_tokens": 1000
+          },
+          "selected_input_fraction": 0.1,
+          "fixed_input_tokens": 1000
+        }
+      ],
+      "profile_token_basis": "low",
+      "cache_read_fraction": 0.6,
+      "cache_write_fraction": 0
+    },
+    {
+      "name": "base",
+      "assumptions": {
+        "input_mode": "full",
+        "cache": "warm-assumed",
+        "retries_included": true,
+        "scale": 1,
+        "profile_basis": "synthetic; replace with measured selected tokens"
+      },
+      "request_shapes": [
+        {
+          "count": 12,
+          "model": "gpt-6-sol",
+          "effort": "medium",
+          "stage": "analysis",
+          "usage": {
+            "input_tokens": 12000,
+            "cached_input_tokens": 4000,
+            "cache_write_input_tokens": 0,
+            "output_tokens": 2000,
+            "reasoning_output_tokens": 1000
+          },
+          "selected_input_fraction": 0.25,
+          "fixed_input_tokens": 1000
+        }
+      ],
+      "profile_token_basis": "base",
+      "cache_read_fraction": 0.333333,
+      "cache_write_fraction": 0
+    },
+    {
+      "name": "high",
+      "assumptions": {
+        "input_mode": "full",
+        "cache": "cold",
+        "retries_included": true,
+        "scale": 1,
+        "profile_basis": "synthetic; replace with measured selected tokens"
+      },
+      "request_shapes": [
+        {
+          "count": 24,
+          "model": "gpt-6-sol",
+          "effort": "medium",
+          "stage": "analysis",
+          "usage": {
+            "input_tokens": 30000,
+            "cached_input_tokens": 0,
+            "cache_write_input_tokens": 0,
+            "output_tokens": 2000,
+            "reasoning_output_tokens": 1000
+          },
+          "selected_input_fraction": 0.5,
+          "fixed_input_tokens": 1000
+        }
+      ],
+      "profile_token_basis": "high",
+      "cache_read_fraction": 0,
+      "cache_write_fraction": 0
+    }
+  ]
+}

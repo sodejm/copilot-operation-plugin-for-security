@@ -1,0 +1,27 @@
+{
+  "run_id": "synthetic-cops-001",
+  "plugin": "security-logging-advisor",
+  "version": "example",
+  "cohort": "example-scope-v1",
+  "scope": "scope-sha256-placeholder",
+  "acceptance": "reviewed-report-v1",
+  "config": "config-sha256-placeholder",
+  "kind": "execution",
+  "status": "completed",
+  "attribution": "confirmed",
+  "source_completeness": "unknown",
+  "accepted": true,
+  "assumed_service_tier": "standard",
+  "region": "default",
+  "human_active_minutes": 30,
+  "fees_usd": {},
+  "members": [
+    {
+      "session_id": "synthetic-session",
+      "start": "2026-10-02T00:00:00Z",
+      "end": "2026-10-03T00:00:00Z",
+      "role": "root",
+      "stage": "analysis"
+    }
+  ]
+}
