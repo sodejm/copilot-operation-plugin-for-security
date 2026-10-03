@@ -9,14 +9,14 @@
 
 | Metric | Count | Description |
 | :--- | :--- | :--- |
-| **Total Mappings** | 23 | Total capability-to-technique associations |
-| **Distinct Techniques** | 16 | Unique ATT&CK techniques and sub-techniques |
-| **Validated Analytics** | 22 | Backed by automated deterministic offline test fixtures |
+| **Total Mappings** | 29 | Total capability-to-technique associations |
+| **Distinct Techniques** | 18 | Unique ATT&CK techniques and sub-techniques |
+| **Validated Analytics** | 28 | Backed by automated deterministic offline test fixtures |
 | **Unverified / Experimental** | 1 | Draft analytics without automated test verification |
-| **Detective Coverage** | 14 | Threat hunting and detection engineering queries |
-| **Investigative Coverage** | 7 | Deep-dive triage, entity tracing, and path analysis |
-| **Preventive Coverage** | 1 | Telemetry posture and configuration recommendations |
-| **Response Coverage** | 1 | Incident timeline and case handoff workflows |
+| **Detective Coverage** | 15 | Threat hunting and detection engineering queries |
+| **Investigative Coverage** | 9 | Deep-dive triage, entity tracing, and path analysis |
+| **Preventive Coverage** | 3 | Telemetry posture and configuration recommendations |
+| **Response Coverage** | 2 | Incident timeline and case handoff workflows |
 
 ## Capabilities and Techniques
 
@@ -27,15 +27,21 @@
 | [`T1530`](https://attack.mitre.org/techniques/T1530/) | Data from Cloud Storage | `collection` | `sentinel-hunt-workbench`<br>(H-PREVIEW-STORAGE) | Azure: `StorageBlobLogs` | `detection` | *Unverified (Draft)* | Experimental draft query without deterministic test fixture verification |
 | [`T1071.001`](https://attack.mitre.org/techniques/T1071/001/) | Web Protocols | `command-and-control` | `sentinel-hunt-workbench`<br>(H04) | Defender for Endpoint: `DeviceNetworkEvents` | `detection` | **Validated** | High-volume web browsing and SaaS integrations create noisy baseline tra... |
 | [`T1071.001`](https://attack.mitre.org/techniques/T1071/001/) | Web Protocols | `command-and-control` | `sentinel-hunt-workbench`<br>(H06) | Defender for Endpoint: `DeviceNetworkEvents` | `detection` | **Validated** | Jitter algorithms or long sleep timers bypass interval heuristics |
+| [`T1071.001`](https://attack.mitre.org/techniques/T1071/001/) | Web Protocols | `command-and-control` | `threat-intelligence-enrichment`<br>(ti-enrichment) | ThreatIntelligence: `ThreatIntelIndicators` | `investigation` | **Validated** | Provenance and confidence depend on external threat intelligence feed qu... |
 | [`T1105`](https://attack.mitre.org/techniques/T1105/) | Ingress Tool Transfer | `command-and-control` | `sentinel-hunt-workbench`<br>(H03) | Defender for Endpoint: `DeviceFileEvents` | `detection` | **Validated** | Legitimate software updates routinely download files to temporary direct... |
 | [`T1110.003`](https://attack.mitre.org/techniques/T1110/003/) | Password Spraying | `credential-access` | `sentinel-hunt-workbench`<br>(H01) | Sentinel: `SigninLogs` | `detection` | **Validated** | NAT or proxy concentration can aggregate distinct failures |
 | [`T1078`](https://attack.mitre.org/techniques/T1078/) | Valid Accounts | `defense-evasion` | `sentinel-hunt-workbench`<br>(H02) | Sentinel: `SigninLogs` | `detection` | **Validated** | VPN roaming and legitimate travel can trigger anomalous location alerts |
+| [`T1078`](https://attack.mitre.org/techniques/T1078/) | Valid Accounts | `defense-evasion` | `incident-response-sandbox`<br>(containment-plan-rehearsal) | IncidentPlan: `ContainmentReceipt` | `response` | **Validated** | Produces approval-gated cryptographic execution receipts; does not mutat... |
 | [`T1078`](https://attack.mitre.org/techniques/T1078/) | Valid Accounts | `defense-evasion` | `soc-investigation-workbench`<br>(export-handoff) | Sentinel: `SigninLogs` | `response` | **Validated** | Produces structured reporting; does not perform active tenant remediation |
 | [`T1562.001`](https://attack.mitre.org/techniques/T1562/001/) | Disable or Modify Tools | `defense-evasion` | `security-logging-advisor`<br>(logging-recommendations) | Azure: `DiagnosticSettings` | `prevention` | **Validated** | Checks static telemetry policies; does not monitor real-time sensor tamp... |
+| [`T1562.001`](https://attack.mitre.org/techniques/T1562/001/) | Disable or Modify Tools | `defense-evasion` | `telemetry-proof-pack`<br>(telemetry-route-verification) | Cribl: `RouteMetrics` | `prevention` | **Validated** | Validates route topologies and synthetic health proofs; does not monitor... |
+| [`T1580`](https://attack.mitre.org/techniques/T1580/) | Cloud Infrastructure Discovery | `discovery` | `attack-surface-planner`<br>(attack-surface-scope) | Azure: `ResourceGraph` | `investigation` | **Validated** | Performs passive boundary check only; does not perform active network sc... |
 | [`T1059`](https://attack.mitre.org/techniques/T1059/) | Command and Scripting Interpreter | `execution` | `sentinel-hunt-workbench`<br>(H03) | Defender for Endpoint: `DeviceProcessEvents` | `detection` | **Validated** | Administrative automation and orchestration scripts can match heuristic ... |
+| [`T1059.001`](https://attack.mitre.org/techniques/T1059/001/) | PowerShell | `execution` | `detection-quality-workbench`<br>(detection-quality-regression) | Sentinel: `DeviceProcessEvents` | `detection` | **Validated** | Validates query syntax and true/false positive regression benchmarks; do... |
 | [`T1078`](https://attack.mitre.org/techniques/T1078/) | Valid Accounts | `initial-access` | `sentinel-hunt-workbench`<br>(H01) | Sentinel: `SigninLogs` | `investigation` | **Validated** | A successful authentication following spray failures is consistent with ... |
 | [`T1078`](https://attack.mitre.org/techniques/T1078/) | Valid Accounts | `initial-access` | `soc-investigation-workbench`<br>(intake) | Sentinel: `SigninLogs` | `investigation` | **Validated** | Requires UTC timestamp normalization and consistent entity hashing acros... |
 | [`T1190`](https://attack.mitre.org/techniques/T1190/) | Exploit Public-Facing Application | `initial-access` | `exposure-triage-workbench`<br>(exposure-triage) | Defender: `SecurityAlert` | `investigation` | **Validated** | Prioritization indicates reachability and exposure potential, not confir... |
+| [`T1190`](https://attack.mitre.org/techniques/T1190/) | Exploit Public-Facing Application | `initial-access` | `patch-security-review`<br>(patch-security-review) | Git: `PullRequestDiff` | `prevention` | **Validated** | Evaluates diff heuristics offline; does not execute dynamic application ... |
 | [`T1566.002`](https://attack.mitre.org/techniques/T1566/002/) | Spearphishing Link | `initial-access` | `sentinel-hunt-workbench`<br>(H09) | Defender for Office 365: `UrlClickEvents` | `detection` | **Validated** | Automated mail gateway scanners and link evaluation bots can produce cli... |
 | [`T1021`](https://attack.mitre.org/techniques/T1021/) | Remote Services | `lateral-movement` | `sentinel-hunt-workbench`<br>(H11) | Defender for Endpoint: `DeviceNetworkEvents` | `detection` | **Validated** | Systems administrators routinely use these ports for fleet maintenance |
 | [`T1098`](https://attack.mitre.org/techniques/T1098/) | Account Manipulation | `persistence` | `sentinel-hunt-workbench`<br>(H12) | Sentinel: `AuditLogs` | `detection` | **Validated** | DevOps automation regularly creates and updates service principal creden... |

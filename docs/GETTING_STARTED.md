@@ -16,7 +16,7 @@ python3 -m cops doctor
 
 ### What to look for
 - **Python version**: You should see your Python interpreter confirmed as 3.11 or newer.
-- **Catalog health**: Confirms that all five security plugins and host marketplaces are synchronized.
+- **Catalog health**: Confirms that all thirteen security plugins and host marketplaces are synchronized.
 - **Offline status**: Confirms that local tools run without external network dependencies.
 
 If any check reports an issue, the output will give you clear, actionable instructions on how to resolve it.
@@ -25,7 +25,7 @@ If any check reports an issue, the output will give you clear, actionable instru
 
 ## 2. Choose the Right Tool for the Job
 
-COPS packages five dedicated security plugins. To see the full catalog and current validation status, run:
+COPS packages thirteen dedicated security plugins across defensive and offensive domains. To see the full catalog and current validation status, run:
 
 ```bash
 python3 -m cops list
@@ -39,6 +39,14 @@ python3 -m cops info soc-investigation-workbench
 python3 -m cops info sentinel-hunt-workbench
 python3 -m cops info attack-path-workbench
 python3 -m cops info attack-surface-planner
+python3 -m cops info entra-identity-workbench
+python3 -m cops info exposure-triage-workbench
+python3 -m cops info foundry-agent-harness
+python3 -m cops info detection-quality-workbench
+python3 -m cops info patch-security-review
+python3 -m cops info threat-intelligence-enrichment
+python3 -m cops info telemetry-proof-pack
+python3 -m cops info incident-response-sandbox
 ```
 
 ### Quick Selection Matrix
@@ -50,6 +58,14 @@ python3 -m cops info attack-surface-planner
 | **Author, adapt, or stress-test Microsoft Sentinel & Defender KQL** | `sentinel-hunt-workbench` | 12 defensive threat hunts, multi-surface adaptation, and synthetic stress testing. |
 | **Find lateral movement attack paths in cloud environments** | `attack-path-workbench` | Multi-hop IAM graph traversal, blast radius modeling, and choke-point remediation. |
 | **Plan an authorized, passive attack surface review** | `attack-surface-planner` | Scope boundary partitioning (in-scope vs. excluded) and passive test plan authoring. |
+| **Audit Entra ID role assignments, app registrations, and credentials** | `entra-identity-workbench` | Offline analysis of role grants, service principal keys, and account exposures. |
+| **Prioritize vulnerability remediation with SBOM reachability** | `exposure-triage-workbench` | Multi-source CVE reachability correlation and exploit exposure prioritization. |
+| **Simulate adversarial prompt injection and test agent safety** | `foundry-agent-harness` | Offline red-team evaluation harness for LLM agent boundary robustness. |
+| **Validate detection query syntax and catch regressions** | `detection-quality-workbench` | Offline parser, syntax checker, and regression runner for Sentinel and Splunk. |
+| **Review code diffs and pull requests for security weaknesses** | `patch-security-review` | Static diff inspection for authorization flaws, injection, and security defects. |
+| **Enrich observable indicators with threat intelligence** | `threat-intelligence-enrichment` | Provenance-tracked indicator correlation against MISP/TAXII offline feeds. |
+| **Verify telemetry pipelines and avoid SIEM blind spots** | `telemetry-proof-pack` | End-to-end health verification for Cribl Stream, Splunk, and Sentinel routes. |
+| **Rehearse incident containment with cryptographic execution receipts** | `incident-response-sandbox` | Approval-gated containment planning, blast-radius calculation, and receipts. |
 
 ---
 
@@ -95,7 +111,7 @@ python3 -m cops validate sentinel-hunt-workbench
 python3 -m cops check sentinel-hunt-workbench
 ```
 
-To run offline checks across all five plugins in sequence:
+To run offline checks across all thirteen plugins in sequence:
 
 ```bash
 python3 -m cops check
