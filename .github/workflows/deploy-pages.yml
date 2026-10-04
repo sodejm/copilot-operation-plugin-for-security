@@ -43,7 +43,9 @@ jobs:
           destination: ./_site
 
       - name: Prepare index and redirect files
-        run: python scripts/agent/prepare_pages.py --site ./_site
+        run: |
+          sudo chmod -R ugo+rwX ./_site
+          python scripts/agent/prepare_pages.py --site ./_site
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
