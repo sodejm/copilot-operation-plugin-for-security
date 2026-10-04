@@ -460,12 +460,12 @@ def build_parser() -> argparse.ArgumentParser:
     contract_sub = contract_p.add_subparsers(dest="contract_command", required=True)
     c_val = contract_sub.add_parser("validate", help="validate an operational contract file")
     c_val.add_argument("file", type=Path, help="path to contract JSON file")
-    c_val.add_argument("--type", choices=["engagement", "scenario", "action_plan", "run_result", "finding"], help="explicit contract type")
+    c_val.add_argument("--type", choices=["engagement", "scenario", "action_plan", "run_result", "finding", "execution_authorization"], help="explicit contract type")
 
     c_trans = contract_sub.add_parser("transition", help="validate a lifecycle transition")
     c_trans.add_argument("current", help="current lifecycle state")
     c_trans.add_argument("target", help="target lifecycle state")
-    c_trans.add_argument("--type", choices=["engagement", "action_plan"], default="engagement", help="contract type")
+    c_trans.add_argument("--type", choices=["engagement", "action_plan", "execution_authorization"], default="engagement", help="contract type")
 
     scen_p = subparsers.add_parser("scenario", help="inspect and validate scenario and provenance registries")
     scen_sub = scen_p.add_subparsers(dest="scenario_command", required=True)

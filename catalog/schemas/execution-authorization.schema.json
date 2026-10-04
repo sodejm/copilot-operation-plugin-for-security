@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sodejm/copilot-operation-plugin-for-security/catalog/schemas/execution-authorization.schema.json",
+  "title": "COPS Execution Authorization Contract",
+  "description": "Cryptographically bound, operator-authenticated approval envelope for immutable action plans.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "authorization_id",
+    "action_plan_id",
+    "plan_digest",
+    "engagement_id",
+    "operator",
+    "status",
+    "issued_at",
+    "authorized_until_utc",
+    "bound_parameters",
+    "approval_mode",
+    "signature_digest"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "cops.execution-authorization/v1"
+    },
+    "authorization_id": {
+      "type": "string",
+      "pattern": "^auth-[a-z0-9_-]{8,64}$"
+    },
+    "action_plan_id": {
+      "type": "string",
+      "pattern": "^plan-[a-z0-9_-]{4,64}$"
+    },
+    "plan_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "engagement_id": {
+      "type": "string",
+      "pattern": "^eng-[a-z0-9_-]{4,64}$"
+    },
+    "operator": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "enum": ["approved", "consumed", "revoked", "expired"]
+    },
+    "issued_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "authorized_until_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "bound_parameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "specialist_id",
+        "target",
+        "operations_summary",
+        "limits",
+        "credential_references"
+      ],
+      "properties": {
+        "specialist_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target": {
+          "type": "string",
+          "minLength": 1
+        },
+        "worker_identity": {
+          "type": "string"
+        },
+        "operations_summary": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["step_id", "tool", "action"],
+            "properties": {
+              "step_id": {"type": "string", "minLength": 1},
+              "tool": {"type": "string", "minLength": 1},
+              "action": {"type": "string", "minLength": 1}
+            }
+          }
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["max_duration_seconds", "max_output_bytes", "egress_allowed"],
+          "properties": {
+            "max_duration_seconds": {"type": "integer", "minimum": 1},
+            "max_output_bytes": {"type": "integer", "minimum": 1},
+            "egress_allowed": {"type": "boolean"}
+          }
+        },
+        "credential_references": {
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      }
+    },
+    "approval_mode": {
+      "enum": ["interactive_confirmation", "pre_signed_envelope"]
+    },
+    "consumed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "consumed_by_worker": {
+      "type": "string",
+      "minLength": 1
+    },
+    "signature_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

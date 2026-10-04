@@ -19,6 +19,7 @@ IDENTIFIER_PATTERNS: dict[str, re.Pattern[str]] = {
     "action_plan": re.compile(r"^plan-[a-z0-9_-]{4,64}$"),
     "run_result": re.compile(r"^res-[a-z0-9_-]{4,64}$"),
     "finding": re.compile(r"^find-[a-z0-9_-]{4,64}$"),
+    "execution_authorization": re.compile(r"^auth-[a-z0-9_-]{8,64}$"),
 }
 
 SCHEMA_MAP: dict[str, str] = {
@@ -27,6 +28,7 @@ SCHEMA_MAP: dict[str, str] = {
     "cops.action-plan/v1": "action-plan.schema.json",
     "cops.run-result/v1": "run-result.schema.json",
     "cops.finding/v1": "finding-contract.schema.json",
+    "cops.execution-authorization/v1": "execution-authorization.schema.json",
 }
 
 TYPE_MAP: dict[str, str] = {
@@ -35,6 +37,7 @@ TYPE_MAP: dict[str, str] = {
     "cops.action-plan/v1": "action_plan",
     "cops.run-result/v1": "run_result",
     "cops.finding/v1": "finding",
+    "cops.execution-authorization/v1": "execution_authorization",
 }
 
 
@@ -120,6 +123,7 @@ def validate_contract(
         "action_plan": "plan_id",
         "run_result": "result_id",
         "finding": "finding_id",
+        "execution_authorization": "authorization_id",
     }
     primary_id_field = id_field_map.get(expected_type)
     if primary_id_field and primary_id_field in document:
@@ -166,6 +170,34 @@ def validate_contract(
             raise ContractError(
                 "integrity_mismatch",
                 f"plan_digest mismatch: expected {expected_digest}, got {document['plan_digest']}"
+            )
+
+    elif expected_type == "execution_authorization":
+        validate_identifier(document["authorization_id"], "execution_authorization")
+        validate_identifier(document["action_plan_id"], "action_plan")
+        validate_identifier(document["engagement_id"], "engagement")
+
+        t_issued = timestamp(document["issued_at"])
+        t_auth_until = timestamp(document["authorized_until_utc"])
+        if t_auth_until < t_issued:
+            raise ContractError("invalid_timestamp", "authorized_until_utc cannot precede issued_at")
+
+        # Verify signature_digest over payload
+        payload = {
+            "action_plan_id": document["action_plan_id"],
+            "plan_digest": document["plan_digest"],
+            "engagement_id": document["engagement_id"],
+            "operator": document["operator"],
+            "issued_at": document["issued_at"],
+            "authorized_until_utc": document["authorized_until_utc"],
+            "bound_parameters": document["bound_parameters"],
+            "approval_mode": document["approval_mode"],
+        }
+        expected_sig = digest(payload, max_bytes=max_bytes)
+        if document["signature_digest"] != expected_sig:
+            raise ContractError(
+                "integrity_mismatch",
+                f"signature_digest mismatch: expected {expected_sig}, got {document['signature_digest']}"
             )
 
     elif expected_type == "run_result":

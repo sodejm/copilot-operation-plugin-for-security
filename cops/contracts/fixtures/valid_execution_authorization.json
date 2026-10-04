@@ -1,0 +1,32 @@
+{
+  "schema_version": "cops.execution-authorization/v1",
+  "authorization_id": "auth-secops-20261002-001",
+  "action_plan_id": "plan-scan-10-0-0-5",
+  "plan_digest": "0aedaf187e93ccd7779616f04a89aaaa100c50d69a60002bad448b58d5f5fac5",
+  "engagement_id": "eng-secops-20261002",
+  "operator": "secops-operator@corp.internal",
+  "status": "approved",
+  "issued_at": "2026-10-02T10:00:00Z",
+  "authorized_until_utc": "2026-10-03T10:00:00Z",
+  "bound_parameters": {
+    "specialist_id": "cops-network-specialist",
+    "target": "10.0.0.5",
+    "operations_summary": [
+      {
+        "step_id": "step-1",
+        "tool": "nmap",
+        "action": "port_scan"
+      }
+    ],
+    "limits": {
+      "max_duration_seconds": 300,
+      "max_output_bytes": 65536,
+      "egress_allowed": false
+    },
+    "credential_references": [
+      "corp_service_account_token_ref"
+    ]
+  },
+  "approval_mode": "interactive_confirmation",
+  "signature_digest": "d478084baeaf65d6f857c4784658c5e0ef762711d3c79eec095ab24206401cb0"
+}

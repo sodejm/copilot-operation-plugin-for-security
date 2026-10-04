@@ -40,6 +40,17 @@ ACTION_PLAN_TRANSITIONS: Final[dict[str, frozenset[str]]] = {
     "cancelled": frozenset(),
 }
 
+EXECUTION_AUTHORIZATION_STATES: Final[frozenset[str]] = frozenset(
+    {"approved", "consumed", "revoked", "expired"}
+)
+
+EXECUTION_AUTHORIZATION_TRANSITIONS: Final[dict[str, frozenset[str]]] = {
+    "approved": frozenset({"consumed", "revoked", "expired"}),
+    "consumed": frozenset(),
+    "revoked": frozenset(),
+    "expired": frozenset(),
+}
+
 RUN_RESULT_STATUSES: Final[frozenset[str]] = frozenset(
     {"success", "partial", "cancelled", "failed", "uncertain", "not_assessed"}
 )
@@ -68,6 +79,17 @@ def validate_transition(current_state: str, next_state: str, contract_type: str)
             raise ContractError(
                 "illegal_transition",
                 f"illegal action plan transition from '{current_state}' to '{next_state}'"
+            )
+    elif contract_type in ("execution_authorization", "execution-authorization"):
+        if current_state not in EXECUTION_AUTHORIZATION_STATES:
+            raise ContractError("invalid_contract", f"unknown execution authorization state: {current_state}")
+        if next_state not in EXECUTION_AUTHORIZATION_STATES:
+            raise ContractError("invalid_contract", f"unknown target execution authorization state: {next_state}")
+        allowed = EXECUTION_AUTHORIZATION_TRANSITIONS.get(current_state, frozenset())
+        if next_state not in allowed:
+            raise ContractError(
+                "illegal_transition",
+                f"illegal execution authorization transition from '{current_state}' to '{next_state}'"
             )
     else:
         raise ContractError("invalid_contract", f"contract type '{contract_type}' does not define lifecycle transitions")
