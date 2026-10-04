@@ -197,9 +197,31 @@ class IsolatedWorker:
                         output = proc.stdout + proc.stderr
                         exit_code = proc.returncode
                     else:
-                        # Generic simulated execution
-                        output = f"Executed {tool} action {action}".encode("utf-8")
-                        exit_code = 0
+                        # Check ToolAdapterRegistry
+                        from cops.adapters import ToolAdapterRegistry, AdapterError
+                        registry = ToolAdapterRegistry()
+                        if tool in registry.list_tools():
+                            adapter = registry.get_adapter(tool)
+                            try:
+                                cmd = adapter.assemble_command(action, op.get("arguments"))
+                            except AdapterError as err:
+                                status = "failed"
+                                status_reason = f"adapter validation error: {err}"
+                                overall_exit_code = 1
+                                break
+                            proc = subprocess.run(
+                                cmd,
+                                cwd=target_workspace,
+                                capture_output=True,
+                                timeout=timeout,
+                                check=False,
+                            )
+                            output = proc.stdout + proc.stderr
+                            exit_code = proc.returncode
+                        else:
+                            # Generic simulated execution
+                            output = f"Executed {tool} action {action}".encode("utf-8")
+                            exit_code = 0
 
                     # Check max output bytes
                     if len(output) > self.config.max_output_bytes:
