@@ -12,10 +12,12 @@ from .lifecycle import (
     ContractError,
     ENGAGEMENT_STATES,
     ENGAGEMENT_TRANSITIONS,
+    EXECUTION_AUTHORIZATION_STATES,
+    EXECUTION_AUTHORIZATION_TRANSITIONS,
     RUN_RESULT_STATUSES,
     validate_transition,
 )
-from .models import ActionPlan, Engagement, Finding, RunResult, Scenario
+from .models import ActionPlan, Engagement, ExecutionAuthorization, Finding, RunResult, Scenario
 from .validation import (
     SCHEMAS,
     build_action_plan_digest,
@@ -31,7 +33,10 @@ __all__ = [
     "ContractError",
     "ENGAGEMENT_STATES",
     "ENGAGEMENT_TRANSITIONS",
+    "EXECUTION_AUTHORIZATION_STATES",
+    "EXECUTION_AUTHORIZATION_TRANSITIONS",
     "Engagement",
+    "ExecutionAuthorization",
     "Finding",
     "RUN_RESULT_STATUSES",
     "RunResult",

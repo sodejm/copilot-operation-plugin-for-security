@@ -99,10 +99,13 @@ flowchart TD
 ### Threat 6: Unauthorized High-Consequence or Offensive Actions
 - **The Risk**: An autonomous agent or automated script executes unauthorized vulnerability scanning, adversary emulation, or disruptive containment actions without explicit human approval.
 - **Our Defense**:
-  - **Interactive Authorization Gate (`cops.authorization`)**: High-consequence profiles (penetration testing, red team emulation, active containment, identity escalation audits) enforce an interactive approval prompt displaying the exact target scope, action type, and required `'APPROVE'` confirmation, emitting a tamper-evident, SHA-256 hashed `AuthorizationReceipt`.
+  - **Interactive Authorization Gate (`cops.authorization` & `cops.execution`)**: High-consequence profiles enforce an interactive approval prompt displaying target scope, action type, and required `'APPROVE'` confirmation.
+  - **Descriptor-Bound Execution Envelopes (`cops.execution-authorization/v1`)**: Execution authority replaces legacy unkeyed checksum receipts with cryptographically signed envelopes strictly bound to immutable Action Plans (`cops.action-plan/v1`). Any change to targets, operations, arguments, limits, or credentials invalidates the envelope.
+  - **Legacy Receipt Deprecation**: Obsolete unkeyed receipts (`1.0`) are retained as historical evidence only and fail closed when presented as authority for new execution.
+  - **Atomic Consumption & Anti-Replay**: Authorization envelopes transition to `consumed` on dispatch, preventing reuse or replay across workers.
   - **Operational Contracts & Immutable Action Plans (`cops.contracts`)**: Operational security actions require explicit binding across Engagement (`cops.engagement/v1`), Scenario (`cops.scenario/v1`), and ActionPlan (`cops.action-plan/v1`) contracts with cryptographic plan digests and lifecycle state machines (e.g., unapproved or rejected plans cannot transition to executing).
   - **Execution Truthfulness (`cops.run-result/v1`)**: Non-success outcomes (`partial`, `cancelled`, `failed`, `uncertain`, `not_assessed`) require explicit reasons and are never silently converted into success claims. Findings marked `verified` must reference affirmative `cops.evidence/v1` records.
-  - **Fail-Closed Non-Interactive Mode**: In automated CI/CD runners or headless environments, operations strictly abort unless a valid, pre-signed cryptographic receipt is provided.
+  - **Fail-Closed Non-Interactive Mode**: In automated CI/CD runners or headless environments, operations strictly abort unless a valid, pre-signed cryptographic envelope is provided.
   - **Triad Orchestration Defense**: Critical tasks mandate a three-agent team (Primary Specialist + Domain Skeptic + Evidence Auditor) to stress-test assumptions and prevent unverified actions.
 
 ---

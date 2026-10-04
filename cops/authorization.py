@@ -121,8 +121,25 @@ def create_authorization_receipt(
     )
 
 
+class LegacyReceiptDeprecationWarning(UserWarning):
+    """Warning emitted when an obsolete unkeyed checksum receipt is encountered."""
+
+
 def validate_receipt_document(document: dict[str, Any]) -> AuthorizationReceipt:
-    """Validate an existing receipt document against cryptographic hash and expiration."""
+    """Validate an existing receipt document against cryptographic hash and expiration.
+
+    Note: Legacy receipts (schema_version 1.0) serve as historical evidence only.
+    For executable operations, cops.execution-authorization/v1 envelopes are required.
+    """
+    import warnings
+
+    warnings.warn(
+        "Legacy authorization receipts (schema_version 1.0) are unkeyed and retained as historical evidence only; "
+        "they are deprecated for authorizing new execution.",
+        category=LegacyReceiptDeprecationWarning,
+        stacklevel=2,
+    )
+
     required = {
         "schema_version",
         "receipt_id",

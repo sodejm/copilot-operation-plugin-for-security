@@ -200,6 +200,85 @@ class ActionPlan:
         )
 
 
+@dataclass
+class ExecutionAuthorization:
+    """Cryptographically bound, operator-authenticated approval envelope for an action plan."""
+
+    schema_version: str
+    authorization_id: str
+    action_plan_id: str
+    plan_digest: str
+    engagement_id: str
+    operator: str
+    status: str
+    issued_at: str
+    authorized_until_utc: str
+    bound_parameters: dict[str, Any]
+    approval_mode: str
+    signature_digest: str
+    consumed_at: str | None = None
+    consumed_by_worker: str | None = None
+
+    def transition_to(self, next_state: str) -> None:
+        """Attempt to transition execution authorization to a new lifecycle state."""
+        validate_transition(self.status, next_state, "execution_authorization")
+        self.status = next_state
+
+    def is_valid_at(self, current_time_iso: str | None = None) -> bool:
+        """Check if authorization is in approved state and within the authorized time window."""
+        from datetime import datetime, timezone
+        from cops.evidence.canonical import timestamp
+
+        if self.status != "approved":
+            return False
+        if current_time_iso is not None:
+            now_dt = timestamp(current_time_iso)
+        else:
+            now_dt = datetime.now(timezone.utc)
+        return now_dt <= timestamp(self.authorized_until_utc)
+
+    def to_dict(self) -> dict[str, Any]:
+        data: dict[str, Any] = {
+            "schema_version": self.schema_version,
+            "authorization_id": self.authorization_id,
+            "action_plan_id": self.action_plan_id,
+            "plan_digest": self.plan_digest,
+            "engagement_id": self.engagement_id,
+            "operator": self.operator,
+            "status": self.status,
+            "issued_at": self.issued_at,
+            "authorized_until_utc": self.authorized_until_utc,
+            "bound_parameters": self.bound_parameters,
+            "approval_mode": self.approval_mode,
+            "signature_digest": self.signature_digest,
+        }
+        if self.consumed_at is not None:
+            data["consumed_at"] = self.consumed_at
+        if self.consumed_by_worker is not None:
+            data["consumed_by_worker"] = self.consumed_by_worker
+        return data
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> ExecutionAuthorization:
+        validate_contract(data, "execution_authorization")
+        return cls(
+            schema_version=data["schema_version"],
+            authorization_id=data["authorization_id"],
+            action_plan_id=data["action_plan_id"],
+            plan_digest=data["plan_digest"],
+            engagement_id=data["engagement_id"],
+            operator=data["operator"],
+            status=data["status"],
+            issued_at=data["issued_at"],
+            authorized_until_utc=data["authorized_until_utc"],
+            bound_parameters=data["bound_parameters"],
+            approval_mode=data["approval_mode"],
+            signature_digest=data["signature_digest"],
+            consumed_at=data.get("consumed_at"),
+            consumed_by_worker=data.get("consumed_by_worker"),
+        )
+
+
 @dataclass(frozen=True)
 class RunResult:
     """Outcome of action plan execution, retaining non-success states explicitly."""
