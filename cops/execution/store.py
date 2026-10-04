@@ -63,7 +63,7 @@ class ApprovalStore:
     """Concurrency-safe, ACID-compliant approval state store backed by SQLite."""
 
     def __init__(self, db_path: Path | str, *, require_secure_perms: bool = True) -> None:
-        self.db_path = Path(db_path).resolve()
+        self.db_path = Path(db_path).expanduser().resolve()
         self.require_secure_perms = require_secure_perms
         self._ensure_storage_security()
         self._init_db()
@@ -71,27 +71,38 @@ class ApprovalStore:
     def _ensure_storage_security(self) -> None:
         """Verify storage directory exists and has safe permissions (owner-only on POSIX)."""
         parent_dir = self.db_path.parent
+        existed_before = parent_dir.exists()
         parent_dir.mkdir(parents=True, exist_ok=True)
 
         if os.name == "posix" and self.require_secure_perms:
             try:
-                # Set 0700 on parent dir if newly created or enforce check
-                current_mode = parent_dir.stat().st_mode & 0o777
-                if current_mode & 0o077:  # Group or others have read/write/exec
-                    # Restrict permissions to owner only
+                # If directory was just created by us, set 0700
+                if not existed_before:
                     try:
                         parent_dir.chmod(0o700)
                     except OSError:
                         pass
-                
-                # If file exists, ensure not world-writable
+
+                # Check parent dir permissions
+                p_stat = parent_dir.stat()
+                if p_stat.st_mode & 0o077:
+                    # Reject insecure pre-existing directory rather than chmoding arbitrary caller directory
+                    raise ApprovalStoreAccessError(
+                        f"approval store directory '{parent_dir}' has insecure permissions {oct(p_stat.st_mode & 0o777)}: "
+                        "must be owner-only (0700); use a private directory"
+                    )
+
+                # If file exists, ensure owner-only (0600)
                 if self.db_path.exists():
-                    f_mode = self.db_path.stat().st_mode & 0o777
-                    if f_mode & 0o077:
-                        try:
-                            self.db_path.chmod(0o600)
-                        except OSError:
-                            pass
+                    try:
+                        self.db_path.chmod(0o600)
+                    except OSError:
+                        pass
+                    if self.db_path.stat().st_mode & 0o077:
+                        raise ApprovalStoreAccessError(
+                            f"approval store database file '{self.db_path}' has insecure permissions: "
+                            f"{oct(self.db_path.stat().st_mode & 0o777)}"
+                        )
             except OSError as err:
                 raise ApprovalStoreAccessError(f"failed to secure approval store permissions: {err}") from err
 
@@ -110,6 +121,16 @@ class ApprovalStore:
     def _init_db(self) -> None:
         with self._get_connection() as conn:
             conn.executescript(SCHEMA_SQL)
+        if os.name == "posix" and self.require_secure_perms and self.db_path.exists():
+            try:
+                self.db_path.chmod(0o600)
+                if self.db_path.stat().st_mode & 0o077:
+                    raise ApprovalStoreAccessError(
+                        f"approval store database file '{self.db_path}' has insecure permissions: "
+                        f"{oct(self.db_path.stat().st_mode & 0o777)}"
+                    )
+            except OSError as err:
+                raise ApprovalStoreAccessError(f"failed to secure approval store permissions: {err}") from err
 
     def store_authorization(self, auth: ExecutionAuthorization) -> None:
         """Store a newly signed execution authorization."""
@@ -213,6 +234,7 @@ class ApprovalStore:
 
         with self._get_connection() as conn:
             conn.execute("BEGIN IMMEDIATE")
+            committed = False
             try:
                 cur = conn.execute(
                     """
@@ -242,6 +264,8 @@ class ApprovalStore:
                         "UPDATE approvals SET status = 'expired' WHERE authorization_id = ?",
                         (authorization_id,),
                     )
+                    conn.execute("COMMIT")
+                    committed = True
                     raise ApprovalStoreConflictError(
                         f"authorization '{authorization_id}' expired at {row['authorized_until_utc']}"
                     )
@@ -257,6 +281,7 @@ class ApprovalStore:
                 )
 
                 conn.execute("COMMIT")
+                committed = True
 
                 doc = {
                     "schema_version": "cops.execution-authorization/v1",
@@ -276,7 +301,11 @@ class ApprovalStore:
                 }
                 return ExecutionAuthorization.from_dict(doc)
             except Exception:
-                conn.execute("ROLLBACK")
+                if not committed:
+                    try:
+                        conn.execute("ROLLBACK")
+                    except Exception:
+                        pass
                 raise
 
     def list_approvals(self, status: str | None = None) -> list[ExecutionAuthorization]:

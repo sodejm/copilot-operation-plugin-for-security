@@ -91,15 +91,29 @@ class IsolatedWorker:
         else:
             plan_model = action_plan
 
-        # 2. Resolve Authorization envelope
+        if plan_model.status in ("fulfilled", "rejected", "cancelled"):
+            raise WorkerExecutionError(
+                f"cannot execute action plan '{plan_model.plan_id}' with terminal status '{plan_model.status}'"
+            )
+
+        # 2. Resolve Authorization envelope and ensure durable storage
+        if self.store is None:
+            self.store = ApprovalStore(Path.home() / ".cops" / "approvals.sqlite3")
+
         if isinstance(authorization, str):
-            if not self.store:
-                raise WorkerError("authorization ID provided but no ApprovalStore configured on worker")
             auth_model = self.store.get_authorization(authorization)
         elif isinstance(authorization, dict):
             auth_model = ExecutionAuthorization.from_dict(authorization)
+            try:
+                self.store.store_authorization(auth_model)
+            except Exception:
+                pass
         else:
             auth_model = authorization
+            try:
+                self.store.store_authorization(auth_model)
+            except Exception:
+                pass
 
         # 3. Cryptographically verify authorization against plan and worker identity
         verify_execution_authorization(
@@ -109,18 +123,10 @@ class IsolatedWorker:
         )
 
         # 4. Atomically consume authorization envelope to prevent replay
-        if self.store:
-            consumed_auth = self.store.atomically_consume(
-                auth_model.authorization_id,
-                worker_identity=self.config.worker_id,
-            )
-        else:
-            # Standalone consumption
-            from .authorization import consume_execution_authorization
-            consumed_auth = consume_execution_authorization(
-                auth_model,
-                worker_identity=self.config.worker_id,
-            )
+        consumed_auth = self.store.atomically_consume(
+            auth_model.authorization_id,
+            worker_identity=self.config.worker_id,
+        )
 
         # 5. Set up isolated ephemeral workspace
         ephemeral = False
@@ -143,8 +149,18 @@ class IsolatedWorker:
         redactor = StreamRedactor()
         evidence_recorder = EvidenceRecorder(workspace_dir=target_workspace, redactor=redactor)
 
+        max_duration_seconds = plan_model.limits.get("max_duration_seconds", self.config.max_wall_time_seconds)
+        max_output_bytes = plan_model.limits.get("max_output_bytes", self.config.max_output_bytes)
+        start_dt = datetime.now(timezone.utc)
+
+        clean_env = {
+            "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+            "HOME": str(target_workspace),
+            "TMPDIR": str(target_workspace),
+        }
+
         try:
-            # 5.5. Enforce execution-time scope boundary
+            # 5.5. Enforce execution-time scope boundary on plan target
             if hasattr(self, "scope_guard") and self.scope_guard is not None:
                 from .scope_guard import ScopeViolationError
                 try:
@@ -160,7 +176,17 @@ class IsolatedWorker:
                     step_id = op["step_id"]
                     tool = op["tool"]
                     action = op["action"]
-                    timeout = min(op.get("timeout_seconds", 60), self.config.max_wall_time_seconds)
+
+                    # Check overall plan duration limit
+                    elapsed_seconds = (datetime.now(timezone.utc) - start_dt).total_seconds()
+                    if elapsed_seconds >= max_duration_seconds:
+                        status = "partial"
+                        status_reason = f"operation exceeded action plan max_duration_seconds limit ({max_duration_seconds}s)"
+                        overall_exit_code = 124
+                        break
+
+                    remaining_time = max(1, int(max_duration_seconds - elapsed_seconds))
+                    timeout = min(op.get("timeout_seconds", 60), remaining_time)
                     step_started = utc_now()
 
                     # Tool whitelist boundary
@@ -170,44 +196,32 @@ class IsolatedWorker:
                         overall_exit_code = 127
                         break
 
-                    # Prepare isolated execution
-                    # Standardize command execution via argv array
+                    # Enforce scope on any destination-bearing arguments
+                    if hasattr(self, "scope_guard") and self.scope_guard is not None:
+                        from .scope_guard import ScopeViolationError
+                        op_args = op.get("arguments", {})
+                        if isinstance(op_args, dict):
+                            for dest_key in ("target", "host", "destination", "ip"):
+                                dest_val = op_args.get(dest_key)
+                                if dest_val and isinstance(dest_val, str):
+                                    try:
+                                        self.scope_guard.check_destination(dest_val)
+                                    except ScopeViolationError as err:
+                                        status = "failed"
+                                        status_reason = f"scope violation in step '{step_id}': {err}"
+                                        overall_exit_code = 2
+                                        break
+                        if status != "success":
+                            break
+
+                    # Prepare isolated execution via adapter or simulated inert
                     stdout_bytes = b""
                     stderr_bytes = b""
                     if tool == "inert":
                         # Simulated execution for testing
                         stdout_bytes = f"Inert step {step_id} executed successfully: {action}".encode("utf-8")
                         exit_code = 0
-                    elif tool == "echo":
-                        args = op.get("arguments", {})
-                        msg = args.get("message", "ok") if isinstance(args, dict) else str(args)
-                        cmd = ["echo", str(msg)]
-                        proc = subprocess.run(
-                            cmd,
-                            cwd=target_workspace,
-                            capture_output=True,
-                            timeout=timeout,
-                            check=False,
-                        )
-                        stdout_bytes = proc.stdout
-                        stderr_bytes = proc.stderr
-                        exit_code = proc.returncode
-                    elif tool == "python3":
-                        args = op.get("arguments", {})
-                        script = args.get("script", "print('ok')") if isinstance(args, dict) else str(args)
-                        cmd = [sys.executable, "-c", script]
-                        proc = subprocess.run(
-                            cmd,
-                            cwd=target_workspace,
-                            capture_output=True,
-                            timeout=timeout,
-                            check=False,
-                        )
-                        stdout_bytes = proc.stdout
-                        stderr_bytes = proc.stderr
-                        exit_code = proc.returncode
                     else:
-                        # Check ToolAdapterRegistry
                         from cops.adapters import ToolAdapterRegistry, AdapterError
                         registry = ToolAdapterRegistry()
                         if tool in registry.list_tools():
@@ -215,24 +229,30 @@ class IsolatedWorker:
                             try:
                                 cmd = adapter.assemble_command(action, op.get("arguments"))
                             except AdapterError as err:
+                                redacted_err = redactor.redact_string(str(err))
                                 status = "failed"
-                                status_reason = f"adapter validation error: {err}"
+                                status_reason = f"adapter validation error: {redacted_err}"
                                 overall_exit_code = 1
                                 break
+                            exec_cmd = [shutil.which(cmd[0]) or cmd[0]] + cmd[1:]
                             proc = subprocess.run(
-                                cmd,
+                                exec_cmd,
                                 cwd=target_workspace,
+                                env=clean_env,
+                                start_new_session=(os.name == "posix"),
                                 capture_output=True,
                                 timeout=timeout,
                                 check=False,
                             )
                             stdout_bytes = proc.stdout
                             stderr_bytes = proc.stderr
-                            exit_code = proc.returncode
+                            exit_code = 128 + abs(proc.returncode) if proc.returncode < 0 else proc.returncode
                         else:
-                            # Generic simulated execution
-                            stdout_bytes = f"Executed {tool} action {action}".encode("utf-8")
-                            exit_code = 0
+                            # Tool has no registered adapter - fail closed
+                            status = "failed"
+                            status_reason = f"tool '{tool}' has no registered execution adapter"
+                            overall_exit_code = 127
+                            break
 
                     step_finished = utc_now()
                     # Record and redact evidence
@@ -248,9 +268,9 @@ class IsolatedWorker:
                     )
 
                     # Check max output bytes
-                    if len(redacted_output) > self.config.max_output_bytes:
+                    if len(redacted_output) > max_output_bytes:
                         status = "partial"
-                        status_reason = f"step '{step_id}' exceeded max_output_bytes limit ({len(redacted_output)} > {self.config.max_output_bytes})"
+                        status_reason = f"step '{step_id}' exceeded max_output_bytes limit ({len(redacted_output)} > {max_output_bytes})"
                         overall_exit_code = 1
                         break
 
@@ -274,8 +294,10 @@ class IsolatedWorker:
             cleanup_status = "completed"
             if ephemeral and target_workspace.exists():
                 try:
-                    shutil.rmtree(target_workspace, ignore_errors=True)
+                    shutil.rmtree(target_workspace, ignore_errors=False)
                 except Exception:
+                    pass
+                if target_workspace.exists():
                     cleanup_status = "failed"
             elif not ephemeral:
                 cleanup_status = "not_required"
@@ -289,7 +311,7 @@ class IsolatedWorker:
 
         # Combine authorization proof and recorded step evidence hashes
         evidence_hashes = [
-            digest({"auth_id": consumed_auth.authorization_id, "plan_id": plan_model.plan_id})
+            digest(consumed_auth.to_dict())
         ]
         evidence_hashes.extend(evidence_recorder.get_evidence_hashes())
 

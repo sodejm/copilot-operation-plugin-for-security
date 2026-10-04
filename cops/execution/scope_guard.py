@@ -166,19 +166,29 @@ class ScopeGuard:
         else:
             host = dest_clean
 
-        # Check cloud resource ID match
-        if host.lower() in self.scope.excluded_cloud_resources:
-            raise ScopeViolationError(f"Target '{destination}' is in explicitly excluded cloud resources")
-        if any(host.lower().startswith(res) for res in self.scope.excluded_cloud_resources):
-            raise ScopeViolationError(f"Target '{destination}' matches excluded cloud resource prefix")
+        # Check cloud resource ID match with identifier boundary awareness
+        def _matches_resource(t: str, prefix: str) -> bool:
+            tl = t.lower()
+            pl = prefix.lower()
+            if tl == pl:
+                return True
+            if tl.startswith(pl) and len(tl) > len(pl):
+                return tl[len(pl)] in ("/", ":", ".", "-")
+            return False
 
-        if host.lower() in self.scope.included_cloud_resources or any(host.lower().startswith(res) for res in self.scope.included_cloud_resources):
+        if any(_matches_resource(host, res) for res in self.scope.excluded_cloud_resources):
+            raise ScopeViolationError(f"Target '{destination}' is in explicitly excluded cloud resources")
+
+        if any(_matches_resource(host, res) for res in self.scope.included_cloud_resources):
             return  # Explicitly in-scope cloud resource
 
-        # Check if direct IP address
+        # Check if direct IP address or CIDR network
         parsed_ip = parse_ip_or_network(host)
         if isinstance(parsed_ip, (ipaddress.IPv4Address, ipaddress.IPv6Address)):
             self._validate_ip(parsed_ip, original_target=destination)
+            return
+        elif isinstance(parsed_ip, (ipaddress.IPv4Network, ipaddress.IPv6Network)):
+            self._validate_network(parsed_ip, original_target=destination)
             return
 
         # It is a hostname / domain
@@ -205,6 +215,50 @@ class ScopeGuard:
             parsed = parse_ip_or_network(ip_str)
             if isinstance(parsed, (ipaddress.IPv4Address, ipaddress.IPv6Address)):
                 self._validate_ip(parsed, original_target=f"{destination} -> {ip_str}")
+            elif isinstance(parsed, (ipaddress.IPv4Network, ipaddress.IPv6Network)):
+                self._validate_network(parsed, original_target=f"{destination} -> {ip_str}")
+
+    def _validate_network(
+        self,
+        net: ipaddress.IPv4Network | ipaddress.IPv6Network,
+        *,
+        original_target: str,
+    ) -> None:
+        """Validate a CIDR network destination against metadata, exclusions, and inclusions."""
+        # 1. Cloud metadata guard
+        for meta_ip_str in METADATA_ADDRESSES:
+            try:
+                meta_ip = ipaddress.ip_address(meta_ip_str)
+                if meta_ip.version == net.version and meta_ip in net:
+                    raise ScopeViolationError(
+                        f"Network '{net}' covers cloud metadata service '{meta_ip_str}' ({original_target})"
+                    )
+            except ValueError:
+                pass
+
+        # 2. Loopback guard
+        if self.scope.block_loopback_unless_explicit and net.is_loopback:
+            if not any(net.subnet_of(inc_net) for inc_net in self.scope.included_networks if inc_net.version == net.version):
+                raise ScopeViolationError(
+                    f"Access to loopback network '{net}' is blocked without explicit inclusion ({original_target})"
+                )
+
+        # 3. Explicit exclusion check
+        for exc_ip in self.scope.excluded_ips:
+            if exc_ip.version == net.version and exc_ip in net:
+                raise ScopeViolationError(f"Network '{net}' covers excluded IP '{exc_ip}' ({original_target})")
+        for exc_net in self.scope.excluded_networks:
+            if net.overlaps(exc_net):
+                raise ScopeViolationError(f"Network '{net}' overlaps with excluded subnet '{exc_net}' ({original_target})")
+
+        # 4. Inclusion check
+        for inc_net in self.scope.included_networks:
+            if net.subnet_of(inc_net):
+                return
+
+        raise ScopeViolationError(
+            f"Destination network '{net}' ({original_target}) is NOT within authorized scope"
+        )
 
     def _validate_ip(
         self,
@@ -213,6 +267,9 @@ class ScopeGuard:
         original_target: str,
     ) -> None:
         """Validate an individual IP address against metadata, exclusions, and inclusions."""
+        # Normalize IPv4-mapped IPv6 address (e.g. ::ffff:169.254.169.254)
+        if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
+            ip = ip.ipv4_mapped
         ip_str = str(ip)
 
         # 1. Cloud metadata guard (SSRF / credential exfiltration protection)

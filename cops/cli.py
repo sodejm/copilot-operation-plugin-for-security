@@ -460,8 +460,8 @@ def command_worker_store_list(args: argparse.Namespace) -> int:
 
 
 def command_worker_execute(args: argparse.Namespace) -> int:
-    from .contracts.models import ActionPlan
-    from .execution import ApprovalStore, IsolatedWorker, WorkerConfig
+    from .contracts.models import ActionPlan, ExecutionAuthorization
+    from .execution import ApprovalStore, IsolatedWorker, WorkerConfig, ScopeGuard
     plan_path = Path(args.plan)
     if not plan_path.is_file():
         print(f"error: plan file not found: {plan_path}", file=sys.stderr)
@@ -470,9 +470,29 @@ def command_worker_execute(args: argparse.Namespace) -> int:
     db_path = getattr(args, "db", None) or (Path.home() / ".cops" / "approvals.sqlite3")
     try:
         store = ApprovalStore(db_path)
-        worker = IsolatedWorker(WorkerConfig(), store=store)
+        worker_id = getattr(args, "worker_id", None) or "worker-local-01"
+
+        # Load engagement and scope guard if provided
+        scope_guard = None
+        eng_path = getattr(args, "engagement", None)
+        if eng_path and Path(eng_path).is_file():
+            eng_doc = json.loads(Path(eng_path).read_text(encoding="utf-8"))
+            scope_guard = ScopeGuard.from_engagement(eng_doc)
+
+        worker = IsolatedWorker(WorkerConfig(worker_id=worker_id), store=store, scope_guard=scope_guard)
         plan_doc = json.loads(plan_path.read_text(encoding="utf-8"))
-        result = worker.execute_plan(plan_doc, authorization=args.authorization)
+
+        auth_val: str
+        auth_path = Path(args.authorization)
+        if auth_path.is_file():
+            auth_doc = json.loads(auth_path.read_text(encoding="utf-8"))
+            auth_model = ExecutionAuthorization.from_dict(auth_doc)
+            store.store_authorization(auth_model)
+            auth_val = auth_model.authorization_id
+        else:
+            auth_val = args.authorization
+
+        result = worker.execute_plan(plan_doc, authorization=auth_val)
         if getattr(args, "json", False):
             print(json.dumps(result.to_dict(), indent=2))
         else:
@@ -565,6 +585,9 @@ def build_parser() -> argparse.ArgumentParser:
     cap_a = cap_sub.add_parser("audit", help="audit capability claims against truth-in-advertising rules")
     cap_a.add_argument("--check", action="store_true", help="exit with non-zero if audit fails")
 
+    cap_m = cap_sub.add_parser("matrix", help="render the Markdown capability matrix")
+    cap_m.add_argument("--output", type=Path, help="write capability matrix to file")
+
     worker_p = subparsers.add_parser("worker", help="isolated execution worker and approval store operations")
     worker_sub = worker_p.add_subparsers(dest="worker_command", required=True)
     w_status = worker_sub.add_parser("status", help="display worker readiness and configuration")
@@ -579,6 +602,8 @@ def build_parser() -> argparse.ArgumentParser:
     w_exec = worker_sub.add_parser("execute", help="execute an authorized action plan")
     w_exec.add_argument("plan", help="path to ActionPlan JSON file")
     w_exec.add_argument("--authorization", required=True, help="authorization ID or path to authorization JSON file")
+    w_exec.add_argument("--worker-id", default="worker-local-01", help="override worker identity")
+    w_exec.add_argument("--engagement", type=Path, help="path to engagement JSON file for scope enforcement")
     w_exec.add_argument("--db", type=Path, help="path to sqlite approval store")
     w_exec.add_argument("--json", action="store_true", help="output structured JSON")
 

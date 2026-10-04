@@ -71,16 +71,49 @@ def create_execution_authorization(
     valid_hours: int = 4,
     worker_identity: str | None = None,
     approval_mode: str = "interactive_confirmation",
+    engagement: Any | None = None,
 ) -> ExecutionAuthorization:
     """Create and seal a new ExecutionAuthorization envelope bound to an immutable ActionPlan."""
     if isinstance(action_plan, dict):
         action_plan_model = ActionPlan.from_dict(action_plan)
     else:
+        validate_contract(action_plan.to_dict(), "action_plan")
         action_plan_model = action_plan
+
+    if action_plan_model.status in ("fulfilled", "rejected", "cancelled"):
+        raise AuthorizationError(
+            f"cannot authorize action plan '{action_plan_model.plan_id}' with terminal status '{action_plan_model.status}'"
+        )
 
     now = datetime.now(timezone.utc)
     issued_at = now.isoformat(timespec="seconds").replace("+00:00", "Z")
     authorized_until_utc = (now + timedelta(hours=valid_hours)).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+    if engagement is not None:
+        eng_doc = engagement.to_dict() if hasattr(engagement, "to_dict") else engagement
+        validate_contract(eng_doc, "engagement")
+        if eng_doc["status"] != "active":
+            raise AuthorizationError(
+                f"cannot issue authorization for non-active engagement '{eng_doc['engagement_id']}' (status: '{eng_doc['status']}')"
+            )
+        if eng_doc["engagement_id"] != action_plan_model.engagement_id:
+            raise AuthorizationError(
+                f"engagement ID mismatch: plan has '{action_plan_model.engagement_id}', but engagement is '{eng_doc['engagement_id']}'"
+            )
+        eng_start = timestamp(eng_doc["window"]["started_at"])
+        eng_end = timestamp(eng_doc["window"]["authorized_until_utc"])
+        now_ts = timestamp(issued_at)
+        until_ts = timestamp(authorized_until_utc)
+        if now_ts < eng_start or now_ts > eng_end:
+            raise AuthorizationError(
+                f"authorization issue time {issued_at} falls outside engagement window "
+                f"[{eng_doc['window']['started_at']}, {eng_doc['window']['authorized_until_utc']}]"
+            )
+        if until_ts > eng_end:
+            raise AuthorizationError(
+                f"authorized_until_utc {authorized_until_utc} extends beyond engagement window end "
+                f"{eng_doc['window']['authorized_until_utc']}"
+            )
 
     operations_summary = [
         {
@@ -140,6 +173,7 @@ def verify_execution_authorization(
     *,
     worker_identity: str | None = None,
     current_time_iso: str | None = None,
+    engagement: Any | None = None,
 ) -> ExecutionAuthorization:
     """Verify that an authorization envelope cryptographically binds to the exact ActionPlan and runtime context.
 
@@ -165,17 +199,40 @@ def verify_execution_authorization(
                 "legacy authorization receipts (1.0) cannot authorize new execution; "
                 "re-authorization with cops.execution-authorization/v1 envelope required"
             )
+        if authorization.get("status") != "approved":
+            raise AuthorizationError(
+                f"execution authorization '{authorization.get('authorization_id')}' is not in approved state "
+                f"(status: '{authorization.get('status')}')"
+            )
         try:
             auth_model = ExecutionAuthorization.from_dict(authorization)
         except (ContractError, ValueError) as err:
             raise AuthorizationError(f"invalid or tampered execution authorization envelope: {err}") from err
     else:
         auth_model = authorization
+        if auth_model.status != "approved":
+            raise AuthorizationError(
+                f"execution authorization '{auth_model.authorization_id}' is not in approved state "
+                f"(status: '{auth_model.status}')"
+            )
 
     if isinstance(action_plan, dict):
         plan_model = ActionPlan.from_dict(action_plan)
     else:
+        validate_contract(action_plan.to_dict(), "action_plan")
         plan_model = action_plan
+
+    if engagement is not None:
+        eng_doc = engagement.to_dict() if hasattr(engagement, "to_dict") else engagement
+        validate_contract(eng_doc, "engagement")
+        if eng_doc["status"] != "active":
+            raise AuthorizationError(
+                f"cannot verify authorization for non-active engagement '{eng_doc['engagement_id']}'"
+            )
+        if eng_doc["engagement_id"] != plan_model.engagement_id:
+            raise AuthorizationError(
+                f"engagement ID mismatch between plan ({plan_model.engagement_id}) and engagement ({eng_doc['engagement_id']})"
+            )
 
     # Verify status
     if auth_model.status != "approved":
@@ -309,8 +366,10 @@ def request_interactive_plan_authorization(
     except Exception:
         current_user = os.environ.get("USER", "unknown-operator")
 
+    from .redaction import StreamRedactor
+    redactor = StreamRedactor()
     ops_lines = [
-        f"    [{op['step_id']}] {op['tool']}:{op['action']} (timeout: {op['timeout_seconds']}s)"
+        f"    [{op['step_id']}] {op['tool']}:{op['action']} args={redactor.redact_string(json.dumps(op.get('arguments', {}), sort_keys=True))} (timeout: {op['timeout_seconds']}s)"
         for op in plan_model.operations
     ]
 

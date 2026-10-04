@@ -121,5 +121,9 @@
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
     }
+  },
+  "dependentRequired": {
+    "consumed_at": ["consumed_by_worker"],
+    "consumed_by_worker": ["consumed_at"]
   }
 }

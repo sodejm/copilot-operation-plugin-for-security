@@ -6,10 +6,13 @@ assembly without arbitrary shell interpolation.
 
 from __future__ import annotations
 
-import json
-import re
 from dataclasses import dataclass, field
+import ipaddress
+import json
 from pathlib import Path
+import re
+import shutil
+import sys
 from typing import Any, Sequence
 
 
@@ -60,11 +63,9 @@ class ToolParameter:
 
         # Type checks
         if self.param_type == "integer":
-            try:
-                int_val = int(value)
-                val_token = str(int_val)
-            except (ValueError, TypeError):
+            if isinstance(value, bool) or not isinstance(value, int):
                 raise AdapterParameterError(f"Parameter '{self.name}' must be an integer, got {value!r}")
+            val_token = str(value)
         elif self.param_type == "boolean":
             if not isinstance(value, bool):
                 raise AdapterParameterError(f"Parameter '{self.name}' must be a boolean, got {value!r}")
@@ -77,6 +78,18 @@ class ToolParameter:
                     f"Parameter '{self.name}' value '{str_val}' not in allowed values: {self.allowed_values}"
                 )
             val_token = str_val
+        elif self.param_type == "ip":
+            try:
+                ipaddress.ip_address(str_val)
+                val_token = str_val
+            except ValueError:
+                raise AdapterParameterError(f"Parameter '{self.name}' must be a valid IP address, got {str_val!r}")
+        elif self.param_type == "cidr":
+            try:
+                ipaddress.ip_network(str_val, strict=False)
+                val_token = str_val
+            except ValueError:
+                raise AdapterParameterError(f"Parameter '{self.name}' must be a valid CIDR network, got {str_val!r}")
         else:
             val_token = str_val
 
@@ -89,6 +102,10 @@ class ToolParameter:
 
         if self.flag:
             return [self.flag, val_token]
+        if val_token.startswith("-"):
+            raise AdapterInjectionError(
+                f"Positional parameter '{self.name}' cannot start with '-' (option-like argument rejected): {val_token!r}"
+            )
         return [val_token]
 
 
@@ -117,6 +134,12 @@ class ToolAdapter:
         """Assemble deterministic argument array for tool execution."""
         if action not in self.actions:
             raise AdapterError(f"Action '{action}' is not supported by tool '{self.tool}'. Allowed: {sorted(self.actions)}")
+
+        current_env = "darwin" if sys.platform == "darwin" else ("linux" if sys.platform.startswith("linux") else sys.platform)
+        if self.supported_environments and current_env not in self.supported_environments:
+            raise AdapterError(
+                f"Tool '{self.tool}' does not support environment '{current_env}'. Supported: {self.supported_environments}"
+            )
 
         action_def = self.actions[action]
         cmd: list[str] = [self.binary] + list(action_def.base_args)

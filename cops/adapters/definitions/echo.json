@@ -19,6 +19,17 @@
           "regex_pattern": "^[a-zA-Z0-9 _.,!?:/-]+$"
         }
       }
+    },
+    "run_echo": {
+      "description": "Echo a message to standard output",
+      "base_args": [],
+      "parameters": {
+        "message": {
+          "type": "string",
+          "required": true,
+          "regex_pattern": "^[a-zA-Z0-9 _.,!?:/-]+$"
+        }
+      }
     }
   }
 }

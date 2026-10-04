@@ -34,6 +34,10 @@ class StreamRedactor:
         self.known_secrets.sort(key=len, reverse=True)
         self.patterns = list(custom_patterns or DEFAULT_SENSITIVE_PATTERNS)
 
+    def redact_string(self, text: str) -> str:
+        """Alias for redact string."""
+        return self.redact(text)
+
     def redact(self, text: str) -> str:
         """Redact sensitive patterns and known secrets from text string."""
         if not text:

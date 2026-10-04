@@ -7,7 +7,10 @@ redacted outputs, artifact checksums, and authorization context.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import hashlib
+import os
 from pathlib import Path
+import re
 from typing import Any
 
 from cops.evidence.canonical import digest, utc_now
@@ -73,11 +76,33 @@ class EvidenceRecorder:
         # Write redacted output to artifact file in workspace
         artifacts_dir = self.workspace_dir / "artifacts"
         artifacts_dir.mkdir(parents=True, exist_ok=True)
-        artifact_filename = f"{step_id}_output.txt"
-        artifact_path = artifacts_dir / artifact_filename
-        artifact_path.write_bytes(redacted_bytes)
+        if os.name == "posix":
+            try:
+                artifacts_dir.chmod(0o700)
+            except OSError:
+                pass
 
-        artifact_sha256 = digest({"step_id": step_id, "data": redacted_bytes.decode("utf-8", errors="replace")})
+        # Sanitize step_id against traversal and invalid filename characters
+        clean_step_id = re.sub(r"[^a-zA-Z0-9_-]", "_", step_id)
+        existing_names = {art.name for art in self.artifacts}
+        base_name = f"{clean_step_id}_output.txt"
+        if base_name in existing_names:
+            artifact_filename = f"{clean_step_id}_{len(self.artifacts)+1}_output.txt"
+        else:
+            artifact_filename = base_name
+
+        artifact_path = (artifacts_dir / artifact_filename).resolve()
+        if not artifact_path.is_relative_to(artifacts_dir.resolve()):
+            raise ValueError(f"Path traversal detected in artifact filename: {artifact_filename}")
+
+        artifact_path.write_bytes(redacted_bytes)
+        if os.name == "posix":
+            try:
+                artifact_path.chmod(0o600)
+            except OSError:
+                pass
+
+        artifact_sha256 = hashlib.sha256(redacted_bytes).hexdigest()
         rel_path = f"artifacts/{artifact_filename}"
         artifact = CapturedArtifact(
             name=artifact_filename,

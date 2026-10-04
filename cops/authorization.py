@@ -261,6 +261,11 @@ def ensure_authorization(
     if receipt_path is not None and receipt_path.is_file():
         try:
             document = json.loads(receipt_path.read_text(encoding="utf-8"))
+            if document.get("schema_version") == "1.0":
+                raise AuthorizationError(
+                    "legacy unkeyed authorization receipts (schema_version 1.0) cannot authorize execution; "
+                    "re-authorization with cops.execution-authorization/v1 envelope required"
+                )
             receipt = validate_receipt_document(document)
             # Verify that receipt matches the requested action and specialist
             if receipt.specialist_id != specialist_id:
