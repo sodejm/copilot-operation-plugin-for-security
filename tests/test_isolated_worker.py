@@ -1,0 +1,193 @@
+"""Unit tests for COPS isolated execution worker and approval store."""
+
+from __future__ import annotations
+
+import json
+import shutil
+import tempfile
+import threading
+from pathlib import Path
+import pytest
+
+from cops.contracts.models import ActionPlan
+from cops.execution import (
+    ApprovalStore,
+    ApprovalStoreConflictError,
+    ApprovalStoreNotFoundError,
+    AuthorizationError,
+    IsolatedWorker,
+    WorkerConfig,
+    WorkerIsolationError,
+    create_execution_authorization,
+)
+
+ROOT = Path(__file__).resolve().parents[1]
+FIXTURES = ROOT / "cops" / "contracts" / "fixtures"
+
+
+@pytest.fixture
+def temp_store(tmp_path):
+    db_file = tmp_path / "test_approvals.sqlite3"
+    return ApprovalStore(db_file)
+
+
+@pytest.fixture
+def sample_plan() -> ActionPlan:
+    data = json.loads((FIXTURES / "valid_action_plan.json").read_text(encoding="utf-8"))
+    return ActionPlan.from_dict(data)
+
+
+def test_approval_store_roundtrip(temp_store, sample_plan):
+    """Test storing, retrieving, and listing authorizations in ApprovalStore."""
+    auth = create_execution_authorization(
+        sample_plan,
+        operator="lead-secops@corp.internal",
+        valid_hours=4,
+    )
+    temp_store.store_authorization(auth)
+
+    retrieved = temp_store.get_authorization(auth.authorization_id)
+    assert retrieved.authorization_id == auth.authorization_id
+    assert retrieved.status == "approved"
+    assert retrieved.plan_digest == sample_plan.plan_digest
+
+    all_approvals = temp_store.list_approvals()
+    assert len(all_approvals) == 1
+    assert all_approvals[0].authorization_id == auth.authorization_id
+
+
+def test_approval_store_not_found(temp_store):
+    """Test retrieving non-existent authorization raises ApprovalStoreNotFoundError."""
+    with pytest.raises(ApprovalStoreNotFoundError, match="not found in store"):
+        temp_store.get_authorization("auth-nonexistent-1234")
+
+
+def test_atomic_consume_and_double_spend_prevention(temp_store, sample_plan):
+    """Test that atomic consumption succeeds once and subsequent consume fails."""
+    auth = create_execution_authorization(
+        sample_plan,
+        operator="lead-secops@corp.internal",
+        valid_hours=4,
+    )
+    temp_store.store_authorization(auth)
+
+    # First consume succeeds
+    consumed = temp_store.atomically_consume(auth.authorization_id, worker_identity="worker-01")
+    assert consumed.status == "consumed"
+    assert consumed.consumed_by_worker == "worker-01"
+
+    # Second consume fails
+    with pytest.raises(ApprovalStoreConflictError, match="status is 'consumed'"):
+        temp_store.atomically_consume(auth.authorization_id, worker_identity="worker-02")
+
+
+def test_concurrent_worker_atomic_consume(temp_store, sample_plan):
+    """Test that concurrent worker threads racing to consume the same approval only succeed once."""
+    auth = create_execution_authorization(
+        sample_plan,
+        operator="lead-secops@corp.internal",
+        valid_hours=4,
+    )
+    temp_store.store_authorization(auth)
+
+    success_workers: list[str] = []
+    conflict_count = [0]
+    lock = threading.Lock()
+
+    def attempt_consume(worker_name: str):
+        try:
+            temp_store.atomically_consume(auth.authorization_id, worker_identity=worker_name)
+            with lock:
+                success_workers.append(worker_name)
+        except ApprovalStoreConflictError:
+            with lock:
+                conflict_count[0] += 1
+
+    threads = [threading.Thread(target=attempt_consume, args=(f"worker-{i}",)) for i in range(10)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert len(success_workers) == 1
+    assert conflict_count[0] == 9
+
+
+def test_isolated_worker_execute_plan_success(temp_store, sample_plan):
+    """Test worker successfully executing an authorized plan and cleaning up workspace."""
+    # Build plan using inert/echo tool
+    plan_dict = sample_plan.to_dict()
+    plan_dict["operations"] = [
+        {
+            "step_id": "step-1",
+            "tool": "echo",
+            "action": "print_status",
+            "arguments": {"message": "worker execution successful"},
+            "timeout_seconds": 10,
+        }
+    ]
+    plan = ActionPlan.create(
+        plan_id=sample_plan.plan_id,
+        engagement_id=sample_plan.engagement_id,
+        scenario_id=sample_plan.scenario_id,
+        target=sample_plan.target,
+        specialist_id=sample_plan.specialist_id,
+        operations=plan_dict["operations"],
+        limits=sample_plan.limits,
+        credential_references=sample_plan.credential_references,
+        created_at=sample_plan.created_at,
+    )
+
+    auth = create_execution_authorization(
+        plan,
+        operator="operator@corp",
+        valid_hours=1,
+    )
+    temp_store.store_authorization(auth)
+
+    worker = IsolatedWorker(WorkerConfig(worker_id="test-worker-alpha"), store=temp_store)
+    result = worker.execute_plan(plan, authorization=auth.authorization_id)
+
+    assert result.is_successful()
+    assert result.status == "success"
+    assert result.cleanup_status == "completed"
+    assert len(result.artifacts) == 1
+    assert "step-1" in result.artifacts[0]["name"]
+
+    # Verify authorization is marked consumed in store
+    retrieved_auth = temp_store.get_authorization(auth.authorization_id)
+    assert retrieved_auth.status == "consumed"
+
+
+def test_isolated_worker_rejects_unauthorized_tool(temp_store, sample_plan):
+    """Test worker rejects plan containing tools not in worker's allowed whitelist."""
+    plan_dict = sample_plan.to_dict()
+    plan_dict["operations"] = [
+        {
+            "step_id": "step-unauthorized",
+            "tool": "forbidden_tool_x",
+            "action": "run",
+            "arguments": {},
+            "timeout_seconds": 10,
+        }
+    ]
+    plan = ActionPlan.create(
+        plan_id=sample_plan.plan_id,
+        engagement_id=sample_plan.engagement_id,
+        scenario_id=sample_plan.scenario_id,
+        target=sample_plan.target,
+        specialist_id=sample_plan.specialist_id,
+        operations=plan_dict["operations"],
+        limits=sample_plan.limits,
+        credential_references=sample_plan.credential_references,
+        created_at=sample_plan.created_at,
+    )
+    auth = create_execution_authorization(plan, operator="op", valid_hours=1)
+    temp_store.store_authorization(auth)
+
+    worker = IsolatedWorker(WorkerConfig(worker_id="worker-beta", allowed_tools=("echo",)), store=temp_store)
+    result = worker.execute_plan(plan, authorization=auth.authorization_id)
+
+    assert not result.is_successful()
+    assert result.status == "failed"
+    assert "not in worker allowed tools" in result.status_details["reason"]
