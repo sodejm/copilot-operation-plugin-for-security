@@ -1,0 +1,24 @@
+<!-- Renders documentation pages with provenance metadata and shared site navigation. -->
+<!DOCTYPE html>
+<html lang="{{ site.lang | default: 'en-US' }}">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    {% seo %}
+    <link rel="stylesheet" href="{{ '/assets/css/style.css?v=' | append: site.github.build_revision | relative_url }}">
+    <link rel="stylesheet" href="{{ '/assets/css/documentation.css?v=' | append: site.github.build_revision | relative_url }}">
+  </head>
+  <body>
+    <a id="skip-to-content" href="#main-content">Skip to the content.</a>
+    <main id="content" class="main-content" role="main">
+      <div class="documentation-shell">
+        <aside class="documentation-navigation" aria-label="Documentation navigation">
+          {% include sidebar.html %}
+        </aside>
+        <article class="documentation-content" id="main-content">
+          {{ content }}
+        </article>
+      </div>
+    </main>
+  </body>
+</html>
