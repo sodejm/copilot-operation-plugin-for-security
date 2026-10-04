@@ -135,5 +135,6 @@ Learn more in the [Specialist Agents Guide](specialist-agents.md).
 - [Engagement Contracts Specification](../specs/engagement-contracts.spec.md): Schema contracts for engagements, scenarios, action plans, and findings.
 - [Execution Authorization Specification](../specs/execution-authorization.spec.md): Cryptographically bound approval envelopes and legacy receipt rejection.
 - [Isolated Worker and Approval Store Specification](../specs/isolated-worker-approval-store.spec.md): Process boundaries, SQLite approval store, and anti-replay execution.
+- [Execution Scope & Egress Specification](../specs/execution-scope-enforcement.spec.md): Execution-time destination verification, cloud metadata defense, and DNS pinning.
 - [Pinned Scenario Registry](../specs/pinned-scenario-registry.spec.md): Pinned research sources and canonical scenario registry.
 - [Capability Reconciliation](../specs/capability-reconciliation.spec.md): Operational readiness taxonomy and truth-in-advertising invariants.
