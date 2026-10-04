@@ -1,0 +1,37 @@
+{
+  "tool": "nmap",
+  "version": "7.94",
+  "binary": "nmap",
+  "provenance": {
+    "source": "https://nmap.org",
+    "license": "Nmap Public Source License",
+    "pinned_revision": "v7.94"
+  },
+  "supported_environments": ["linux", "darwin"],
+  "actions": {
+    "port_scan": {
+      "description": "Scan TCP ports on target",
+      "base_args": ["-sT", "-Pn", "--max-retries", "1"],
+      "parameters": {
+        "ports": {
+          "type": "string",
+          "flag": "-p",
+          "required": false,
+          "default": "80,443",
+          "regex_pattern": "^[0-9,-]+$"
+        },
+        "timing": {
+          "type": "integer",
+          "flag": "-T",
+          "required": false,
+          "default": 3
+        },
+        "target": {
+          "type": "string",
+          "required": true,
+          "regex_pattern": "^[a-zA-Z0-9_.-]+$"
+        }
+      }
+    }
+  }
+}
