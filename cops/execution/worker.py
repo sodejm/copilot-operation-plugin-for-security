@@ -57,9 +57,15 @@ class WorkerConfig:
 class IsolatedWorker:
     """Isolated execution worker that executes authorized ActionPlans."""
 
-    def __init__(self, config: WorkerConfig | None = None, store: ApprovalStore | None = None) -> None:
+    def __init__(
+        self,
+        config: WorkerConfig | None = None,
+        store: ApprovalStore | None = None,
+        scope_guard: Any | None = None,
+    ) -> None:
         self.config = config or WorkerConfig()
         self.store = store
+        self.scope_guard = scope_guard
         self._verify_worker_environment()
 
     def _verify_worker_environment(self) -> None:
@@ -133,75 +139,86 @@ class IsolatedWorker:
         status_reason = ""
 
         try:
-            # 6. Execute operations in sequence
-            for op in plan_model.operations:
-                step_id = op["step_id"]
-                tool = op["tool"]
-                action = op["action"]
-                timeout = min(op.get("timeout_seconds", 60), self.config.max_wall_time_seconds)
-
-                # Tool whitelist boundary
-                if tool not in self.config.allowed_tools and tool != "inert":
+            # 5.5. Enforce execution-time scope boundary
+            if hasattr(self, "scope_guard") and self.scope_guard is not None:
+                from .scope_guard import ScopeViolationError
+                try:
+                    self.scope_guard.check_destination(plan_model.target)
+                except ScopeViolationError as err:
                     status = "failed"
-                    status_reason = f"tool '{tool}' is not in worker allowed tools: {sorted(self.config.allowed_tools)}"
-                    overall_exit_code = 127
-                    break
+                    status_reason = f"scope violation: {err}"
+                    overall_exit_code = 2
 
-                # Prepare isolated execution
-                # Standardize command execution via argv array
-                if tool == "inert":
-                    # Simulated execution for testing
-                    output = f"Inert step {step_id} executed successfully: {action}".encode("utf-8")
-                    exit_code = 0
-                elif tool == "echo":
-                    args = op.get("arguments", {})
-                    msg = args.get("message", "ok") if isinstance(args, dict) else str(args)
-                    cmd = ["echo", str(msg)]
-                    proc = subprocess.run(
-                        cmd,
-                        cwd=target_workspace,
-                        capture_output=True,
-                        timeout=timeout,
-                        check=False,
-                    )
-                    output = proc.stdout
-                    exit_code = proc.returncode
-                elif tool == "python3":
-                    args = op.get("arguments", {})
-                    script = args.get("script", "print('ok')") if isinstance(args, dict) else str(args)
-                    cmd = [sys.executable, "-c", script]
-                    proc = subprocess.run(
-                        cmd,
-                        cwd=target_workspace,
-                        capture_output=True,
-                        timeout=timeout,
-                        check=False,
-                    )
-                    output = proc.stdout + proc.stderr
-                    exit_code = proc.returncode
-                else:
-                    # Generic simulated execution
-                    output = f"Executed {tool} action {action}".encode("utf-8")
-                    exit_code = 0
+            # 6. Execute operations in sequence (if scope check passed)
+            if status == "success":
+                for op in plan_model.operations:
+                    step_id = op["step_id"]
+                    tool = op["tool"]
+                    action = op["action"]
+                    timeout = min(op.get("timeout_seconds", 60), self.config.max_wall_time_seconds)
 
-                # Check max output bytes
-                if len(output) > self.config.max_output_bytes:
-                    status = "partial"
-                    status_reason = f"step '{step_id}' exceeded max_output_bytes limit ({len(output)} > {self.config.max_output_bytes})"
-                    overall_exit_code = 1
-                    break
+                    # Tool whitelist boundary
+                    if tool not in self.config.allowed_tools and tool != "inert":
+                        status = "failed"
+                        status_reason = f"tool '{tool}' is not in worker allowed tools: {sorted(self.config.allowed_tools)}"
+                        overall_exit_code = 127
+                        break
 
-                if exit_code != 0:
-                    status = "failed"
-                    status_reason = f"step '{step_id}' exited with non-zero code {exit_code}"
-                    overall_exit_code = exit_code
-                    break
+                    # Prepare isolated execution
+                    # Standardize command execution via argv array
+                    if tool == "inert":
+                        # Simulated execution for testing
+                        output = f"Inert step {step_id} executed successfully: {action}".encode("utf-8")
+                        exit_code = 0
+                    elif tool == "echo":
+                        args = op.get("arguments", {})
+                        msg = args.get("message", "ok") if isinstance(args, dict) else str(args)
+                        cmd = ["echo", str(msg)]
+                        proc = subprocess.run(
+                            cmd,
+                            cwd=target_workspace,
+                            capture_output=True,
+                            timeout=timeout,
+                            check=False,
+                        )
+                        output = proc.stdout
+                        exit_code = proc.returncode
+                    elif tool == "python3":
+                        args = op.get("arguments", {})
+                        script = args.get("script", "print('ok')") if isinstance(args, dict) else str(args)
+                        cmd = [sys.executable, "-c", script]
+                        proc = subprocess.run(
+                            cmd,
+                            cwd=target_workspace,
+                            capture_output=True,
+                            timeout=timeout,
+                            check=False,
+                        )
+                        output = proc.stdout + proc.stderr
+                        exit_code = proc.returncode
+                    else:
+                        # Generic simulated execution
+                        output = f"Executed {tool} action {action}".encode("utf-8")
+                        exit_code = 0
 
-                collected_artifacts.append({
-                    "name": f"{step_id}_output.txt",
-                    "path": f"artifacts/{step_id}_output.txt",
-                    "sha256": digest({"step": step_id, "output": output.decode("utf-8", errors="replace")}),
-                })
+                    # Check max output bytes
+                    if len(output) > self.config.max_output_bytes:
+                        status = "partial"
+                        status_reason = f"step '{step_id}' exceeded max_output_bytes limit ({len(output)} > {self.config.max_output_bytes})"
+                        overall_exit_code = 1
+                        break
+
+                    if exit_code != 0:
+                        status = "failed"
+                        status_reason = f"step '{step_id}' exited with non-zero code {exit_code}"
+                        overall_exit_code = exit_code
+                        break
+
+                    collected_artifacts.append({
+                        "name": f"{step_id}_output.txt",
+                        "path": f"artifacts/{step_id}_output.txt",
+                        "sha256": digest({"step": step_id, "output": output.decode("utf-8", errors="replace")}),
+                    })
 
         except subprocess.TimeoutExpired as err:
             status = "partial"

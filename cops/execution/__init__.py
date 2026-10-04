@@ -9,6 +9,11 @@ from .authorization import (
     request_interactive_plan_authorization,
     verify_execution_authorization,
 )
+from .scope_guard import (
+    ScopeDefinition,
+    ScopeGuard,
+    ScopeViolationError,
+)
 from .store import (
     ApprovalStore,
     ApprovalStoreAccessError,
@@ -35,6 +40,9 @@ __all__ = [
     "AuthorizationRequiredError",
     "IsolatedWorker",
     "LegacyReceiptDeprecationWarning",
+    "ScopeDefinition",
+    "ScopeGuard",
+    "ScopeViolationError",
     "WorkerConfig",
     "WorkerError",
     "WorkerExecutionError",
