@@ -34,14 +34,17 @@ def process_site(site_dir: Path) -> int:
 
     # 1. Rewrite any remaining .md links in generated HTML files to .html
     for html_path in html_files:
-        content = html_path.read_text(encoding="utf-8")
-        rewritten = re.sub(
-            r'href="([^":#?]+\.md)(#[^"]*)?"',
-            lambda m: f'href="{m.group(1)[:-3]}.html{m.group(2) or ""}"',
-            content,
-        )
-        if rewritten != content:
-            html_path.write_text(rewritten, encoding="utf-8")
+        try:
+            content = html_path.read_text(encoding="utf-8")
+            rewritten = re.sub(
+                r'href="([^":#?]+\.md)(#[^"]*)?"',
+                lambda m: f'href="{m.group(1)[:-3]}.html{m.group(2) or ""}"',
+                content,
+            )
+            if rewritten != content:
+                html_path.write_text(rewritten, encoding="utf-8")
+        except Exception as err:
+            print(f"Warning: could not rewrite links in {html_path}: {err}", file=sys.stderr)
 
     # 2. For every HTML file (e.g., getting-started.html), create:
     #    a) getting-started.md redirect file
@@ -56,21 +59,27 @@ def process_site(site_dir: Path) -> int:
         md_file = html_path.with_suffix(".md")
         if not md_file.exists():
             target_url = html_path.name
-            md_file.write_text(
-                MD_REDIRECT_TEMPLATE.format(target_url=target_url),
-                encoding="utf-8",
-            )
-            created_redirects += 1
+            try:
+                md_file.write_text(
+                    MD_REDIRECT_TEMPLATE.format(target_url=target_url),
+                    encoding="utf-8",
+                )
+                created_redirects += 1
+            except Exception as err:
+                print(f"Warning: could not create {md_file}: {err}", file=sys.stderr)
 
         # b) Create directory index (e.g., getting-started/index.html)
         dir_index = html_path.parent / stem / "index.html"
         if not dir_index.exists():
-            dir_index.parent.mkdir(parents=True, exist_ok=True)
-            dir_index.write_text(
-                MD_REDIRECT_TEMPLATE.format(target_url=f"../{html_path.name}"),
-                encoding="utf-8",
-            )
-            created_indexes += 1
+            try:
+                dir_index.parent.mkdir(parents=True, exist_ok=True)
+                dir_index.write_text(
+                    MD_REDIRECT_TEMPLATE.format(target_url=f"../{html_path.name}"),
+                    encoding="utf-8",
+                )
+                created_indexes += 1
+            except Exception as err:
+                print(f"Warning: could not create {dir_index}: {err}", file=sys.stderr)
 
     print(
         f"Pages post-processing complete: created {created_redirects} .md redirect(s) and {created_indexes} directory index(es)."
