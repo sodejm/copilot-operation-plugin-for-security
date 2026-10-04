@@ -1,7 +1,10 @@
 PYTHON ?= python3
 
 .PHONY: doctor list-plugins validate-packages check-packages generate-marketplaces \
-	check-marketplaces validate-contract sync-agent-adapters check-agent-adapters check-prerequisites check
+	check-marketplaces validate-contract check-docs sync-agent-adapters check-agent-adapters check-prerequisites check
+
+check-docs:
+	"$(PYTHON)" scripts/agent/validate_docs.py
 
 doctor:
 	"$(PYTHON)" scripts/agent/doctor.py

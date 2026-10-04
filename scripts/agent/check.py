@@ -42,6 +42,7 @@ def main() -> int:
     checks = [
         validate_python(),
         run([sys.executable, "scripts/agent/validate_contract.py"]),
+        run([sys.executable, "scripts/agent/validate_docs.py"]),
         run([sys.executable, "scripts/agent/sync_adapters.py", "--check"]),
         run([sys.executable, "scripts/agent/validate_marketplace.py"]),
         run([sys.executable, "scripts/agent/install_prerequisites.py", "--validate"]),

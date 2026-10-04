@@ -1,0 +1,319 @@
+/* Responsive layout rules for the COPS documentation Pages shell. */
+
+:root {
+  --cops-primary: #159957;
+  --cops-primary-dark: #155799;
+  --cops-text: #24292e;
+  --cops-text-muted: #586069;
+  --cops-bg: #ffffff;
+  --cops-bg-alt: #f6f8fa;
+  --cops-border: #e1e4e8;
+  --cops-link: #0366d6;
+  --cops-link-hover: #0056b3;
+}
+
+.main-content {
+  max-width: 100%;
+}
+
+.documentation-shell {
+  display: grid;
+  grid-template-columns: minmax(15rem, 19rem) minmax(0, 72rem);
+  gap: clamp(1.5rem, 4vw, 3rem);
+  align-items: start;
+  max-inline-size: 96rem;
+  margin-inline: auto;
+  padding: 1.5rem 1rem;
+}
+
+.documentation-navigation {
+  position: sticky;
+  top: 1rem;
+  max-block-size: calc(100vh - 2rem);
+  overflow-y: auto;
+  font-size: 0.9rem;
+  padding-right: 0.75rem;
+  border-right: 1px solid var(--cops-border);
+}
+
+.documentation-navigation .nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--cops-text);
+  margin-bottom: 1.25rem;
+  text-decoration: none;
+}
+
+.documentation-navigation .nav-brand img {
+  width: 28px;
+  height: auto;
+}
+
+.documentation-navigation h2,
+.documentation-navigation h3 {
+  font-size: 0.8rem;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--cops-primary);
+  font-weight: 700;
+}
+
+.documentation-navigation ul {
+  margin: 0;
+  padding: 0;
+  list-style-type: none;
+}
+
+.documentation-navigation li {
+  margin-bottom: 0.4rem;
+}
+
+.documentation-navigation a {
+  text-decoration: none;
+  color: var(--cops-text-muted);
+  display: block;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  transition: all 0.15s ease-in-out;
+}
+
+.documentation-navigation a:hover {
+  color: var(--cops-link);
+  background-color: var(--cops-bg-alt);
+}
+
+.documentation-navigation a.active {
+  color: var(--cops-primary);
+  font-weight: 600;
+  background-color: rgba(21, 153, 87, 0.08);
+}
+
+.documentation-content {
+  min-width: 0;
+  max-inline-size: 72rem;
+  line-height: 1.6;
+}
+
+.documentation-content h1 {
+  font-size: 2.2rem;
+  margin-top: 0;
+  margin-bottom: 1rem;
+  color: var(--cops-text);
+  border-bottom: 1px solid var(--cops-border);
+  padding-bottom: 0.5rem;
+}
+
+.documentation-content h2 {
+  font-size: 1.6rem;
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+  color: var(--cops-text);
+  border-bottom: 1px solid var(--cops-border);
+  padding-bottom: 0.3rem;
+}
+
+.documentation-content h3 {
+  font-size: 1.25rem;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+  color: var(--cops-text);
+}
+
+.documentation-content pre,
+.documentation-content .highlight {
+  max-width: 100%;
+  overflow-x: auto;
+  border-radius: 6px;
+  background-color: var(--cops-bg-alt);
+  border: 1px solid var(--cops-border);
+}
+
+.documentation-content table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  margin: 1.25rem 0;
+  font-size: 0.92rem;
+}
+
+.documentation-content th,
+.documentation-content td {
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--cops-border);
+  text-align: left;
+}
+
+.documentation-content th {
+  background-color: var(--cops-bg-alt);
+  font-weight: 600;
+}
+
+.documentation-content tr:nth-child(even) {
+  background-color: rgba(246, 248, 250, 0.5);
+}
+
+/* Badges */
+.badge {
+  display: inline-block;
+  padding: 0.2em 0.55em;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+  vertical-align: baseline;
+  border-radius: 10rem;
+}
+
+.badge-stable {
+  background-color: #28a745;
+  color: #ffffff;
+}
+
+.badge-beta {
+  background-color: #0366d6;
+  color: #ffffff;
+}
+
+.badge-experimental {
+  background-color: #e36209;
+  color: #ffffff;
+}
+
+.badge-mode {
+  background-color: #6f42c1;
+  color: #ffffff;
+}
+
+/* Hero & Feature Cards */
+.cops-hero {
+  text-align: center;
+  padding: 2.5rem 1rem;
+  margin-bottom: 2rem;
+  background: linear-gradient(135deg, rgba(21, 153, 87, 0.08) 0%, rgba(21, 87, 153, 0.08) 100%);
+  border-radius: 8px;
+  border: 1px solid var(--cops-border);
+}
+
+.cops-hero img {
+  max-width: 220px;
+  height: auto;
+  margin-bottom: 1rem;
+}
+
+.cops-hero-title {
+  font-size: 2.4rem;
+  font-weight: 800;
+  margin-bottom: 0.5rem;
+  color: var(--cops-text);
+  border: none;
+  padding: 0;
+}
+
+.cops-hero-tagline {
+  font-size: 1.2rem;
+  color: var(--cops-text-muted);
+  max-width: 48rem;
+  margin: 0 auto 1.5rem;
+}
+
+.cops-cta-row {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.cops-btn {
+  display: inline-block;
+  padding: 0.65rem 1.4rem;
+  font-size: 1rem;
+  font-weight: 600;
+  text-decoration: none;
+  border-radius: 6px;
+  transition: all 0.2s ease-in-out;
+}
+
+.cops-btn-primary {
+  background-color: var(--cops-primary);
+  color: #ffffff !important;
+}
+
+.cops-btn-primary:hover {
+  background-color: #128249;
+  text-decoration: none;
+}
+
+.cops-btn-secondary {
+  background-color: var(--cops-bg);
+  color: var(--cops-text) !important;
+  border: 1px solid var(--cops-border);
+}
+
+.cops-btn-secondary:hover {
+  background-color: var(--cops-bg-alt);
+  text-decoration: none;
+}
+
+.cops-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.25rem;
+  margin: 1.5rem 0;
+}
+
+.cops-card {
+  padding: 1.25rem;
+  border-radius: 6px;
+  border: 1px solid var(--cops-border);
+  background-color: var(--cops-bg);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.cops-card h3 {
+  margin-top: 0;
+  font-size: 1.15rem;
+  color: var(--cops-primary);
+}
+
+.cops-card p {
+  margin-bottom: 0.5rem;
+  font-size: 0.92rem;
+  color: var(--cops-text-muted);
+}
+
+/* Callout Boxes */
+blockquote {
+  margin: 1.25rem 0;
+  padding: 0.75rem 1.25rem;
+  border-left: 4px solid var(--cops-primary);
+  background-color: var(--cops-bg-alt);
+  color: var(--cops-text);
+  border-radius: 0 4px 4px 0;
+}
+
+blockquote p {
+  margin: 0;
+}
+
+@media (max-width: 48rem) {
+  .documentation-shell {
+    display: block;
+    padding: 1rem 0.5rem;
+  }
+
+  .documentation-navigation {
+    position: static;
+    max-block-size: none;
+    margin-bottom: 2rem;
+    border-right: none;
+    border-bottom: 1px solid var(--cops-border);
+    padding-bottom: 1.5rem;
+  }
+}
