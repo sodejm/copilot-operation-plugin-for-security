@@ -1,0 +1,28 @@
+---
+layout: documentation
+title: "Page Not Found"
+permalink: /404.html
+---
+
+<div style="text-align: center; padding: 3rem 1rem;">
+  <h1>Page Not Found (404)</h1>
+  <p id="redirect-message">Looking for a documentation page? Checking redirect...</p>
+  <p><a id="fallback-link" href="{{ site.baseurl }}/">Return to Documentation Home</a></p>
+</div>
+
+<script>
+  (function() {
+    var pathname = window.location.pathname;
+    if (pathname.endsWith('.md')) {
+      var target = pathname.slice(0, -3) + '.html' + window.location.search + window.location.hash;
+      document.getElementById('redirect-message').innerHTML = 'Redirecting to <a href="' + target + '">' + target + '</a>...';
+      window.location.replace(target);
+    } else if (!pathname.endsWith('/') && !pathname.endsWith('.html')) {
+      var target = pathname + '.html' + window.location.search + window.location.hash;
+      document.getElementById('redirect-message').innerHTML = 'Redirecting to <a href="' + target + '">' + target + '</a>...';
+      window.location.replace(target);
+    } else {
+      document.getElementById('redirect-message').innerText = "The requested page could not be found.";
+    }
+  })();
+</script>

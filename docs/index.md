@@ -11,9 +11,9 @@ description: "Universal catalog of offline-first defensive cybersecurity plugins
     Copilot Operations Plugins for Security: an open-source, universal catalog of defensive cybersecurity plugins, 18 specialist agent profiles, and offline verification tools for AI coding assistants.
   </p>
   <div class="cops-cta-row">
-    <a href="getting-started.md" class="cops-btn cops-btn-primary">5-Minute Quickstart</a>
-    <a href="plugin-guide.md" class="cops-btn cops-btn-secondary">Explore 13 Plugins</a>
-    <a href="specialist-agents.md" class="cops-btn cops-btn-secondary">18 Specialist Agents</a>
+    <a href="getting-started.html" class="cops-btn cops-btn-primary">5-Minute Quickstart</a>
+    <a href="plugin-guide.html" class="cops-btn cops-btn-secondary">Explore 13 Plugins</a>
+    <a href="specialist-agents.html" class="cops-btn cops-btn-secondary">18 Specialist Agents</a>
     <a href="https://github.com/sodejm/copilot-operation-plugin-for-security" class="cops-btn cops-btn-secondary">GitHub Repository</a>
   </div>
 </div>
@@ -68,32 +68,32 @@ COPS organizes 13 dedicated security plugins across six cybersecurity discipline
   <div class="cops-card">
     <h3>📡 Logging &amp; Telemetry</h3>
     <p>Audit codebases for security logging gaps, flag sensitive data leaks, and verify end-to-end pipeline routes from Cribl to Splunk and Sentinel.</p>
-    <p><strong>Plugins:</strong> <a href="plugin-guide.md#security-logging-advisor">Security Logging Advisor</a> <span class="badge badge-stable">Stable</span>, <a href="plugin-guide.md#telemetry-proof-pack">Telemetry Proof Pack</a> <span class="badge badge-beta">Beta</span></p>
+    <p><strong>Plugins:</strong> <a href="plugin-guide.html#security-logging-advisor">Security Logging Advisor</a> <span class="badge badge-stable">Stable</span>, <a href="plugin-guide.html#telemetry-proof-pack">Telemetry Proof Pack</a> <span class="badge badge-beta">Beta</span></p>
   </div>
   <div class="cops-card">
     <h3>🔍 Detection &amp; Hunting</h3>
     <p>Guide SOC alert triage with rival hypotheses, stress-test 12 Microsoft Sentinel KQL hunts, trace cloud lateral movement paths, and enrich indicators.</p>
-    <p><strong>Plugins:</strong> <a href="plugin-guide.md#soc-investigation-workbench">SOC Investigation</a>, <a href="plugin-guide.md#sentinel-hunt-workbench">Sentinel Hunt</a>, <a href="plugin-guide.md#attack-path-workbench">Attack Path</a>, <a href="plugin-guide.md#detection-quality-workbench">Detection Quality</a>, <a href="plugin-guide.md#threat-intelligence-enrichment">Threat Intel</a></p>
+    <p><strong>Plugins:</strong> <a href="plugin-guide.html#soc-investigation-workbench">SOC Investigation</a>, <a href="plugin-guide.html#sentinel-hunt-workbench">Sentinel Hunt</a>, <a href="plugin-guide.html#attack-path-workbench">Attack Path</a>, <a href="plugin-guide.html#detection-quality-workbench">Detection Quality</a>, <a href="plugin-guide.html#threat-intelligence-enrichment">Threat Intel</a></p>
   </div>
   <div class="cops-card">
     <h3>🔑 Identity &amp; Access</h3>
     <p>Audit Microsoft Entra ID role assignments, app registrations, service principal credentials, and consent grants from offline JSON exports.</p>
-    <p><strong>Plugins:</strong> <a href="plugin-guide.md#entra-identity-workbench">Entra Identity Workbench</a> <span class="badge badge-beta">Beta</span></p>
+    <p><strong>Plugins:</strong> <a href="plugin-guide.html#entra-identity-workbench">Entra Identity Workbench</a> <span class="badge badge-beta">Beta</span></p>
   </div>
   <div class="cops-card">
     <h3>🛡️ Vulnerability Management</h3>
     <p>Correlate advisory CVEs with software bills of materials (SBOM) and call graph reachability, and inspect pull request diffs for dangerous patterns.</p>
-    <p><strong>Plugins:</strong> <a href="plugin-guide.md#exposure-triage-workbench">Exposure Triage</a> <span class="badge badge-beta">Beta</span>, <a href="plugin-guide.md#patch-security-review">Patch Security Review</a> <span class="badge badge-beta">Beta</span></p>
+    <p><strong>Plugins:</strong> <a href="plugin-guide.html#exposure-triage-workbench">Exposure Triage</a> <span class="badge badge-beta">Beta</span>, <a href="plugin-guide.html#patch-security-review">Patch Security Review</a> <span class="badge badge-beta">Beta</span></p>
   </div>
   <div class="cops-card">
     <h3>⚔️ Offensive Security</h3>
     <p>Translate authorized rules of engagement into bounded, passive review plans and evaluate AI agent prompt injection resistance in a sandbox.</p>
-    <p><strong>Plugins:</strong> <a href="plugin-guide.md#attack-surface-planner">Attack Surface Planner</a> <span class="badge badge-experimental">Experimental</span>, <a href="plugin-guide.md#foundry-agent-harness">Foundry Agent Harness</a> <span class="badge badge-beta">Beta</span></p>
+    <p><strong>Plugins:</strong> <a href="plugin-guide.html#attack-surface-planner">Attack Surface Planner</a> <span class="badge badge-experimental">Experimental</span>, <a href="plugin-guide.html#foundry-agent-harness">Foundry Agent Harness</a> <span class="badge badge-beta">Beta</span></p>
   </div>
   <div class="cops-card">
     <h3>🚨 Incident Response</h3>
     <p>Rehearse containment playbooks, calculate cloud resource blast radius, and generate cryptographic execution receipts under interactive operator approval.</p>
-    <p><strong>Plugins:</strong> <a href="plugin-guide.md#incident-response-sandbox">Incident Response Sandbox</a> <span class="badge badge-beta">Beta</span></p>
+    <p><strong>Plugins:</strong> <a href="plugin-guide.html#incident-response-sandbox">Incident Response Sandbox</a> <span class="badge badge-beta">Beta</span></p>
   </div>
 </div>
 
