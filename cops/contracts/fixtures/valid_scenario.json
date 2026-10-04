@@ -1,0 +1,26 @@
+{
+  "schema_version": "cops.scenario/v1",
+  "scenario_id": "COPS-E01.03-S01",
+  "family_id": "COPS-E01.03",
+  "title": "Unauthenticated Network Port and Service Mapping",
+  "description": "Performs passive and bounded active service discovery against approved network scopes.",
+  "mitre_attack": {
+    "tactics": ["discovery"],
+    "techniques": ["T1046"]
+  },
+  "provenance": {
+    "source_reference": "https://github.com/gunyakit/command-cheatsheet/tree/4c118399602212f205c91e8f01e418e226fa320c",
+    "version_bound": "4c11839",
+    "license": "MIT"
+  },
+  "environment": {
+    "os": ["linux"],
+    "required_tools": ["nmap"],
+    "isolated_worker_required": true
+  },
+  "safety_profile": {
+    "impact": "read_only",
+    "reversible": true,
+    "safe_for_production": true
+  }
+}

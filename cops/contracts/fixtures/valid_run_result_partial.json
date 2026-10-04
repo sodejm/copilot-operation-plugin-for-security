@@ -1,0 +1,20 @@
+{
+  "schema_version": "cops.run-result/v1",
+  "result_id": "res-scan-10-0-0-5-002",
+  "plan_id": "plan-scan-10-0-0-5",
+  "engagement_id": "eng-secops-20261002",
+  "status": "partial",
+  "started_at": "2026-10-02T10:10:00Z",
+  "finished_at": "2026-10-02T10:11:00Z",
+  "exit_code": 124,
+  "status_details": {
+    "summary": "Port scan exceeded timeout limit before scanning all requested ports.",
+    "reason": "execution_timeout_exceeded"
+  },
+  "evidence_records": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  ],
+  "artifacts": [],
+  "cleanup_status": "completed",
+  "worker_identity": "worker-linux-sandbox-01"
+}

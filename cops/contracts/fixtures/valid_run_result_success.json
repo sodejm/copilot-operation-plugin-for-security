@@ -1,0 +1,25 @@
+{
+  "schema_version": "cops.run-result/v1",
+  "result_id": "res-scan-10-0-0-5-001",
+  "plan_id": "plan-scan-10-0-0-5",
+  "engagement_id": "eng-secops-20261002",
+  "status": "success",
+  "started_at": "2026-10-02T10:05:00Z",
+  "finished_at": "2026-10-02T10:05:30Z",
+  "exit_code": 0,
+  "status_details": {
+    "summary": "Port scan completed successfully. Open ports: 80, 443."
+  },
+  "evidence_records": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  ],
+  "artifacts": [
+    {
+      "name": "scan_output.xml",
+      "path": "reports/scan_output.xml",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "cleanup_status": "not_required",
+  "worker_identity": "worker-linux-sandbox-01"
+}

@@ -1,0 +1,20 @@
+{
+  "schema_version": "cops.finding/v1",
+  "finding_id": "find-open-port-http-80",
+  "engagement_id": "eng-secops-20261002",
+  "result_id": "res-scan-10-0-0-5-001",
+  "scenario_id": "COPS-E01.03-S01",
+  "title": "Unencrypted HTTP Port 80 Open on Boundary Host",
+  "severity": "medium",
+  "classification": "observation",
+  "verification": "verified",
+  "confidence": "high",
+  "claim": "Target host 10.0.0.5 is exposing an unencrypted plaintext HTTP service on TCP port 80.",
+  "evidence_references": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  ],
+  "mitre_attack": ["T1046"],
+  "remediation": "Enforce TLS redirection or disable unencrypted HTTP on port 80.",
+  "uncertainty": "none",
+  "created_at": "2026-10-02T10:06:00Z"
+}

@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sodejm/copilot-operation-plugin-for-security/catalog/schemas/scenario-contract.schema.json",
+  "title": "COPS Scenario Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "scenario_id",
+    "family_id",
+    "title",
+    "description",
+    "mitre_attack",
+    "provenance",
+    "environment",
+    "safety_profile"
+  ],
+  "properties": {
+    "schema_version": {"const": "cops.scenario/v1"},
+    "scenario_id": {
+      "type": "string",
+      "pattern": "^(scen-[a-z0-9_-]{4,64}|COPS-[A-Z0-9_.-]+)$"
+    },
+    "family_id": {
+      "type": "string",
+      "pattern": "^COPS-[A-Z0-9_.-]+$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "mitre_attack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tactics", "techniques"],
+      "properties": {
+        "tactics": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "techniques": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^T[0-9]{4}(?:\\.[0-9]{3})?$"}
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_reference", "version_bound", "license"],
+      "properties": {
+        "source_reference": {"type": "string", "minLength": 1},
+        "version_bound": {"type": "string", "minLength": 1},
+        "license": {"type": "string", "minLength": 1}
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["os", "required_tools", "isolated_worker_required"],
+      "properties": {
+        "os": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "required_tools": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "isolated_worker_required": {"type": "boolean"}
+      }
+    },
+    "safety_profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["impact", "reversible", "safe_for_production"],
+      "properties": {
+        "impact": {"enum": ["read_only", "non_destructive", "disruptive", "destructive"]},
+        "reversible": {"type": "boolean"},
+        "safe_for_production": {"type": "boolean"}
+      }
+    }
+  }
+}

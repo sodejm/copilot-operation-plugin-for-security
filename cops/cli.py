@@ -254,6 +254,167 @@ def command_coverage(
     return 0
 
 
+def command_contract_validate(file_path: Path, contract_type: str | None = None) -> int:
+    from .contracts import ContractError, validate_contract
+    try:
+        data = json.loads(file_path.read_text(encoding="utf-8"))
+        validate_contract(data, contract_type)
+        print(f"Contract valid ({data.get('schema_version')}): {file_path}")
+        return 0
+    except (json.JSONDecodeError, ContractError, OSError) as err:
+        print(f"error: {err}", file=sys.stderr)
+        return 1
+
+
+def command_contract_transition(current: str, target: str, contract_type: str) -> int:
+    from .contracts import ContractError, validate_transition
+    try:
+        validate_transition(current, target, contract_type)
+        print(f"Valid transition for {contract_type}: {current} -> {target}")
+        return 0
+    except ContractError as err:
+        print(f"error: {err}", file=sys.stderr)
+        return 1
+
+
+def command_scenario_list(family_id: str | None = None, tactic: str | None = None, coverage_mode: str | None = None, as_json: bool = False, root: Path = ROOT) -> int:
+    from .scenarios import list_scenarios
+    scenarios = list_scenarios(root, family_id=family_id, tactic=tactic, coverage_mode=coverage_mode)
+    if as_json:
+        print(json.dumps(scenarios, indent=2))
+        return 0
+    print(f"Registered Scenarios ({len(scenarios)}):")
+    for s in scenarios:
+        techs = ", ".join(s.get("mitre_attack", {}).get("techniques", []))
+        print(f"  {s['scenario_id']:<20} | {s.get('family_id', ''):<15} | [{s.get('coverage_mode', '')}] {s['title']} ({techs})")
+    return 0
+
+
+def command_scenario_info(scenario_id: str, as_json: bool = False, root: Path = ROOT) -> int:
+    from .scenarios import RegistryError, get_scenario
+    try:
+        scen = get_scenario(scenario_id, root)
+    except RegistryError as err:
+        print(f"error: {err}", file=sys.stderr)
+        return 1
+    if as_json:
+        print(json.dumps(scen, indent=2))
+        return 0
+    print(f"Scenario: {scen['scenario_id']} - {scen['title']}")
+    print(f"Family: {scen.get('family_id', '')}")
+    print(f"Coverage Mode: {scen.get('coverage_mode', '')}")
+    print(f"Description: {scen.get('description', '')}")
+    print(f"MITRE Tactics: {', '.join(scen.get('mitre_attack', {}).get('tactics', []))}")
+    print(f"MITRE Techniques: {', '.join(scen.get('mitre_attack', {}).get('techniques', []))}")
+    prov = scen.get("provenance", {})
+    print(f"Provenance: {prov.get('source_id', '')} ({prov.get('source_reference', '')})")
+    print(f"License: {prov.get('license', '')} (version bound: {prov.get('version_bound', '')})")
+    safety = scen.get("safety_profile", {})
+    print(f"Safety: impact={safety.get('impact')}, safe_for_production={safety.get('safe_for_production')}, reversible={safety.get('reversible')}")
+    env = scen.get("environment", {})
+    print(f"Environment: os={env.get('os', [])}, tools={env.get('required_tools', [])}, isolated_worker={env.get('isolated_worker_required')}")
+    prereqs = scen.get("prerequisites", [])
+    if prereqs:
+        print("Prerequisites:")
+        for p in prereqs:
+            print(f"  - {p}")
+    return 0
+
+
+def command_scenario_validate(root: Path = ROOT) -> int:
+    from .scenarios import RegistryError, validate_scenario_and_provenance_integrity
+    try:
+        res = validate_scenario_and_provenance_integrity(root)
+        print("Scenario and Provenance Registry valid:")
+        print(f"  Sources: {res['sources_count']}")
+        print(f"  Inventory Items: {res['inventory_items_count']}")
+        print(f"  Scenarios: {res['scenarios_count']}")
+        return 0
+    except RegistryError as err:
+        print(f"error: {err}", file=sys.stderr)
+        return 1
+
+
+def command_scenario_provenance(source_id: str | None = None, as_json: bool = False, root: Path = ROOT) -> int:
+    from .scenarios import RegistryError, get_provenance_source, list_provenance_sources
+    if source_id:
+        try:
+            src = get_provenance_source(source_id, root)
+        except RegistryError as err:
+            print(f"error: {err}", file=sys.stderr)
+            return 1
+        if as_json:
+            print(json.dumps(src, indent=2))
+            return 0
+        print(f"Provenance Source: {src['source_id']} - {src['name']}")
+        print(f"Category: {src.get('category')}")
+        print(f"URL: {src['url']}")
+        print(f"Pinned Revision: {src.get('pinned_revision')}")
+        print(f"License: {src.get('license')}")
+        print(f"Item Count: {src.get('item_count')}")
+        print(f"Inventory Items ({len(src.get('inventory', []))}):")
+        for item in src.get("inventory", []):
+            print(f"  {item['item_id']:<10} | [{item['resolution']}] {item['target_id']} ({item.get('notes', '')})")
+        return 0
+    sources = list_provenance_sources(root)
+    if as_json:
+        print(json.dumps(sources, indent=2))
+        return 0
+    print(f"Registered Provenance Sources ({len(sources)}):")
+    for s in sources:
+        print(f"  {s['source_id']:<6} | {s.get('category', ''):<22} | {len(s.get('inventory', [])):>3} items | {s['name']}")
+    return 0
+
+
+def command_capabilities_list(mode: str | None = None, kind: str | None = None, as_json: bool = False, root: Path = ROOT) -> int:
+    from .capabilities import build_capability_registry
+    reg = build_capability_registry(root)
+    caps = reg["capabilities"]
+    if mode:
+        caps = [c for c in caps if c["mode"] == mode]
+    if kind:
+        caps = [c for c in caps if c["kind"] == kind]
+    if as_json:
+        print(json.dumps(caps, indent=2))
+        return 0
+    print(f"Reconciled Capabilities ({len(caps)}):")
+    for c in caps:
+        print(f"  {c['id']:<32} | {c['kind']:<10} | [{c['mode']:<14}] {c['name']}")
+    return 0
+
+
+def command_capabilities_audit(check: bool = False, root: Path = ROOT) -> int:
+    from .capabilities import CapabilityTruthError, audit_capabilities, build_capability_registry
+    try:
+        reg = build_capability_registry(root)
+        summary = audit_capabilities(root, registry_data=reg)
+        print("Capability Truth-in-Advertising Audit Passed:")
+        print(f"  Total Audited: {summary['total_capabilities']}")
+        print(f"  Plugins: {summary['by_kind']['plugin']}")
+        print(f"  Specialist Profiles: {summary['by_kind']['specialist']}")
+        print(f"  Scenarios: {summary['by_kind']['scenario']}")
+        print("  By Operational Mode:")
+        for mode, count in summary["by_mode"].items():
+            print(f"    - {mode}: {count}")
+        return 0
+    except CapabilityTruthError as err:
+        print(f"audit failure: [{err.code}] {err.message}", file=sys.stderr)
+        return 1
+
+
+def command_capabilities_matrix(output: Path | None = None, root: Path = ROOT) -> int:
+    from .capabilities import build_capability_registry, generate_capability_matrix_markdown
+    reg = build_capability_registry(root)
+    text = generate_capability_matrix_markdown(reg)
+    if output:
+        out_path = (root / output) if not output.is_absolute() else output
+        out_path.write_text(text + "\n", encoding="utf-8")
+        print(f"Wrote capability matrix to {output}")
+    else:
+        print(text)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python3 -m cops",
@@ -295,6 +456,48 @@ def build_parser() -> argparse.ArgumentParser:
     spec_p = subparsers.add_parser("specialists", help="list all specialist cybersecurity agent profiles")
     spec_p.add_argument("--json", action="store_true", help="output structured JSON")
 
+    contract_p = subparsers.add_parser("contract", help="validate and transition operational contracts")
+    contract_sub = contract_p.add_subparsers(dest="contract_command", required=True)
+    c_val = contract_sub.add_parser("validate", help="validate an operational contract file")
+    c_val.add_argument("file", type=Path, help="path to contract JSON file")
+    c_val.add_argument("--type", choices=["engagement", "scenario", "action_plan", "run_result", "finding"], help="explicit contract type")
+
+    c_trans = contract_sub.add_parser("transition", help="validate a lifecycle transition")
+    c_trans.add_argument("current", help="current lifecycle state")
+    c_trans.add_argument("target", help="target lifecycle state")
+    c_trans.add_argument("--type", choices=["engagement", "action_plan"], default="engagement", help="contract type")
+
+    scen_p = subparsers.add_parser("scenario", help="inspect and validate scenario and provenance registries")
+    scen_sub = scen_p.add_subparsers(dest="scenario_command", required=True)
+    scen_list = scen_sub.add_parser("list", help="list registered scenarios")
+    scen_list.add_argument("--family", dest="family_id", help="filter by scenario family ID")
+    scen_list.add_argument("--tactic", help="filter by MITRE ATT&CK tactic")
+    scen_list.add_argument("--mode", dest="coverage_mode", choices=["planned", "implemented", "unsupported"], help="filter by coverage mode")
+    scen_list.add_argument("--json", action="store_true", help="output structured JSON")
+
+    scen_info = scen_sub.add_parser("info", help="display details for a specific scenario")
+    scen_info.add_argument("scenario_id", help="canonical scenario identifier")
+    scen_info.add_argument("--json", action="store_true", help="output structured JSON")
+
+    scen_sub.add_parser("validate", help="validate scenario and provenance registry integrity")
+
+    scen_prov = scen_sub.add_parser("provenance", help="inspect pinned provenance sources")
+    scen_prov.add_argument("--source", dest="source_id", help="specific source ID to inspect")
+    scen_prov.add_argument("--json", action="store_true", help="output structured JSON")
+
+    cap_p = subparsers.add_parser("capabilities", help="inspect, audit, and render capability truth-in-advertising matrices")
+    cap_sub = cap_p.add_subparsers(dest="capabilities_command", required=True)
+    cap_l = cap_sub.add_parser("list", help="list reconciled capabilities")
+    cap_l.add_argument("--mode", choices=["planned", "import", "laboratory", "live-validated"], help="filter by operational mode")
+    cap_l.add_argument("--kind", choices=["plugin", "specialist", "scenario"], help="filter by capability kind")
+    cap_l.add_argument("--json", action="store_true", help="output structured JSON")
+
+    cap_a = cap_sub.add_parser("audit", help="audit capability claims against truth-in-advertising rules")
+    cap_a.add_argument("--check", action="store_true", help="exit with non-zero if audit fails")
+
+    cap_m = cap_sub.add_parser("matrix", help="render the capability truth-in-advertising matrix")
+    cap_m.add_argument("--output", type=Path, help="write matrix Markdown to file")
+
     return parser
 
 
@@ -334,6 +537,27 @@ def main(argv: list[str] | None = None, *, root: Path = ROOT) -> int:
         if args.command == "specialists":
             from .routing.cli import command_list as spec_list
             return spec_list(args)
+        if args.command == "contract":
+            if args.contract_command == "validate":
+                return command_contract_validate(args.file, args.type)
+            if args.contract_command == "transition":
+                return command_contract_transition(args.current, args.target, args.type)
+        if args.command == "scenario":
+            if args.scenario_command == "list":
+                return command_scenario_list(family_id=args.family_id, tactic=args.tactic, coverage_mode=args.coverage_mode, as_json=args.json, root=root)
+            if args.scenario_command == "info":
+                return command_scenario_info(args.scenario_id, as_json=args.json, root=root)
+            if args.scenario_command == "validate":
+                return command_scenario_validate(root=root)
+            if args.scenario_command == "provenance":
+                return command_scenario_provenance(source_id=args.source_id, as_json=args.json, root=root)
+        if args.command == "capabilities":
+            if args.capabilities_command == "list":
+                return command_capabilities_list(mode=args.mode, kind=args.kind, as_json=args.json, root=root)
+            if args.capabilities_command == "audit":
+                return command_capabilities_audit(check=args.check, root=root)
+            if args.capabilities_command == "matrix":
+                return command_capabilities_matrix(output=args.output, root=root)
     except (CatalogError, ValidationError, CoverageError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2

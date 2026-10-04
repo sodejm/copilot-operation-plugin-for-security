@@ -1,0 +1,964 @@
+{
+  "schema_version": "cops.capabilities/v1",
+  "updated_at": "2026-10-03T03:23:31.475685Z",
+  "summary": {
+    "total_capabilities": 63,
+    "by_kind": {
+      "plugin": 13,
+      "specialist": 18,
+      "scenario": 32
+    },
+    "by_mode": {
+      "planned": 35,
+      "import": 11,
+      "laboratory": 17,
+      "live-validated": 0
+    }
+  },
+  "capabilities": [
+    {
+      "id": "security-logging-advisor",
+      "name": "COPS Security Logging Advisor",
+      "kind": "plugin",
+      "mode": "import",
+      "domain": "logging-telemetry",
+      "validation_status": "validated",
+      "truth_boundaries": "The scanner reports local repository signals; an analyst or agent must review them before making recommendations.; CVE reachability report checks validate structure and evidence integrity only; semantic reachability and agent behavior require separate repository-specific review.; No host installation is proven by the repository checks.",
+      "evidence_requirements": [
+        "Local static file/manifest parsing",
+        "Deterministic AST/schema validation",
+        "Zero live service mutation"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "soc-investigation-workbench",
+      "name": "COPS SOC Investigation Workbench",
+      "kind": "plugin",
+      "mode": "laboratory",
+      "domain": "detection-hunting",
+      "validation_status": "validated",
+      "truth_boundaries": "The local planner does not run security queries or response actions.; Sentinel vendor integration and live service behavior require separate validation.; Microsoft 365 acquisition requires the COPS shared evidence and connector SDK from this repository; standalone plugin installation does not include it.; Microsoft 365 live integration and the remaining issue #27 sources are unverified.",
+      "evidence_requirements": [
+        "Deterministic offline test execution",
+        "Synthetic fixture validation",
+        "Zero network egress"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "sentinel-hunt-workbench",
+      "name": "COPS Sentinel Hunt Workbench",
+      "kind": "plugin",
+      "mode": "laboratory",
+      "domain": "detection-hunting",
+      "validation_status": "validated",
+      "truth_boundaries": "The reference evaluator is not a Kusto engine or a Microsoft Sentinel emulator.; Tenant behavior, cost, latency, false-positive rates, host activation, and live integrations remain unverified.",
+      "evidence_requirements": [
+        "Deterministic offline test execution",
+        "Synthetic fixture validation",
+        "Zero network egress"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "attack-path-workbench",
+      "name": "COPS Attack Path Workbench",
+      "kind": "plugin",
+      "mode": "import",
+      "domain": "detection-hunting",
+      "validation_status": "validated",
+      "truth_boundaries": "The only supported export mapping is a synthetic illustrative contract; real Wiz exports and queries require approved documentation.; Business-impact ratings and MITRE mappings remain pending approved local reference material.",
+      "evidence_requirements": [
+        "Local static file/manifest parsing",
+        "Deterministic AST/schema validation",
+        "Zero live service mutation"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "attack-surface-planner",
+      "name": "COPS Attack Surface Planner",
+      "kind": "plugin",
+      "mode": "planned",
+      "domain": "offensive-security",
+      "validation_status": "validated",
+      "truth_boundaries": "Approval and ownership are operator assertions, not independently verified or cryptographically signed.; Only the documented local JSON export profiles are supported; no live Azure, Entra, DNS, CT, or endpoint integration is exercised.; Hypotheses do not establish exposure, exploitability, effective consent, or comprehensive inventory.; Active methods are unavailable.",
+      "evidence_requirements": [
+        "Scoping specification",
+        "Human-approved rules of engagement"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "entra-identity-workbench",
+      "name": "COPS Entra Identity Workbench",
+      "kind": "plugin",
+      "mode": "import",
+      "domain": "identity-access",
+      "validation_status": "validated",
+      "truth_boundaries": "Operates entirely on offline read-only tenant exports; does not perform live Microsoft Graph or Azure Resource Manager API calls.; Graph paths establish structural entitlement reachability and privilege relationships; they do not prove active attacker exploitation.; Requires tenant export manifests with explicit SHA-256 checksums; incomplete exports are flagged as unknown rather than asserted safe.",
+      "evidence_requirements": [
+        "Local static file/manifest parsing",
+        "Deterministic AST/schema validation",
+        "Zero live service mutation"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "exposure-triage-workbench",
+      "name": "COPS Exposure Triage Workbench",
+      "kind": "plugin",
+      "mode": "import",
+      "domain": "vulnerability-management",
+      "validation_status": "validated",
+      "truth_boundaries": "Operates strictly on offline evidence bundles; does not initiate live network vulnerability scans or external probe requests.; Prioritization reflects contextual exposure and entitlement potential; it does not prove active attacker exploitation or remote code execution feasibility.; Unknown or missing inputs (such as unspecified package versions or contradictory route records) are explicitly flagged rather than guessed.",
+      "evidence_requirements": [
+        "Local static file/manifest parsing",
+        "Deterministic AST/schema validation",
+        "Zero live service mutation"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "foundry-agent-harness",
+      "name": "COPS Microsoft Foundry Adversarial Agent Review Harness",
+      "kind": "plugin",
+      "mode": "laboratory",
+      "domain": "offensive-security",
+      "validation_status": "validated",
+      "truth_boundaries": "Operates strictly in an offline mock sandbox environment; does not perform live network calls or production agent probing.; Evaluations assess model prompt-injection resistance and independent authorization gating; a blocked tool call indicates effective gating, not an executed compromise.; Side-effects in the mock sandbox are recorded in an in-memory ledger and can be rolled back; no actual cloud infrastructure is created or deleted.",
+      "evidence_requirements": [
+        "Deterministic offline test execution",
+        "Synthetic fixture validation",
+        "Zero network egress"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "detection-quality-workbench",
+      "name": "COPS Detection Quality & Regression Workbench",
+      "kind": "plugin",
+      "mode": "laboratory",
+      "domain": "detection-hunting",
+      "validation_status": "validated",
+      "truth_boundaries": "Operates offline with a deterministic reference evaluator; does not prove actual live Kusto or Splunk indexer scheduling and alert firing.; Precision and recall metrics are measured strictly on labeled test fixtures and must not be cited as production efficacy rates.; Detection fixtures model event streams and boundary conditions; live pipeline ingest latencies require dedicated telemetry proof packs.",
+      "evidence_requirements": [
+        "Deterministic offline test execution",
+        "Synthetic fixture validation",
+        "Zero network egress"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "patch-security-review",
+      "name": "COPS Patch Security Review",
+      "kind": "plugin",
+      "mode": "import",
+      "domain": "vulnerability-management",
+      "validation_status": "validated",
+      "truth_boundaries": "Python and JavaScript candidate rules are incomplete; no candidate does not mean safe.; Analyst validation is self-recorded and unverified, not cryptographic attestation.; Concurrent mutation of the selected local repository is outside the current guarantee.",
+      "evidence_requirements": [
+        "Local static file/manifest parsing",
+        "Deterministic AST/schema validation",
+        "Zero live service mutation"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "threat-intelligence-enrichment",
+      "name": "COPS Threat Intelligence Enrichment",
+      "kind": "plugin",
+      "mode": "import",
+      "domain": "detection-hunting",
+      "validation_status": "validated",
+      "truth_boundaries": "Azure application IDs are validated locally but have no supported provider lookup.; TAXII complex STIX patterns and paginated collections are reported as incomplete.; Standalone portable installation requires explicit packaging of the shared COPS connector SDK.",
+      "evidence_requirements": [
+        "Local static file/manifest parsing",
+        "Deterministic AST/schema validation",
+        "Zero live service mutation"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "telemetry-proof-pack",
+      "name": "COPS Telemetry-to-Detection Proof Pack",
+      "kind": "plugin",
+      "mode": "laboratory",
+      "domain": "logging-telemetry",
+      "validation_status": "validated",
+      "truth_boundaries": "Operates offline with recorded stage evidence; does not make live network calls to production Cribl Stream workers or SIEM APIs.; Pipeline health reflects recorded evidence logs for synthetic markers and should not be confused with broad infrastructure telemetry uptime.; Automatic redaction strips common API keys, tokens, and passwords while strictly preserving synthetic correlation markers.",
+      "evidence_requirements": [
+        "Deterministic offline test execution",
+        "Synthetic fixture validation",
+        "Zero network egress"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "incident-response-sandbox",
+      "name": "COPS Incident Response Sandbox",
+      "kind": "plugin",
+      "mode": "laboratory",
+      "domain": "incident-response",
+      "validation_status": "validated",
+      "truth_boundaries": "Only synthetic local JSON fixture actions are executable; production integrations are unavailable.; Approver identity and plan hash are self-recorded assertions, not approval attestation or immutable provenance.; Concurrent mutation by untrusted local accounts is not supported; use private staging.; Host installation and live incident response behavior have not been verified.",
+      "evidence_requirements": [
+        "Deterministic offline test execution",
+        "Synthetic fixture validation",
+        "Zero network egress"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "cops-pentest-specialist",
+      "name": "COPS Penetration Testing Specialist",
+      "kind": "specialist",
+      "mode": "planned",
+      "domain": "offensive-security",
+      "validation_status": "validated",
+      "truth_boundaries": "Advisory, reasoning, and planning profile; requires human-signed ActionPlan and authorization receipt for active execution.",
+      "evidence_requirements": [
+        "Specialist profile frontmatter validation",
+        "Intent routing keyword mapping",
+        "Contract file presence"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "cops-redteam-operator",
+      "name": "COPS Red Team Operator",
+      "kind": "specialist",
+      "mode": "planned",
+      "domain": "offensive-security",
+      "validation_status": "validated",
+      "truth_boundaries": "Advisory, reasoning, and planning profile; requires human-signed ActionPlan and authorization receipt for active execution.",
+      "evidence_requirements": [
+        "Specialist profile frontmatter validation",
+        "Intent routing keyword mapping",
+        "Contract file presence"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "cops-attack-surface-planner",
+      "name": "COPS Attack Surface Planner",
+      "kind": "specialist",
+      "mode": "planned",
+      "domain": "offensive-security",
+      "validation_status": "validated",
+      "truth_boundaries": "Advisory, reasoning, and planning profile; requires human-signed ActionPlan and authorization receipt for active execution.",
+      "evidence_requirements": [
+        "Specialist profile frontmatter validation",
+        "Intent routing keyword mapping",
+        "Contract file presence"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "cops-ai-adversary-specialist",
+      "name": "COPS AI Adversarial Assessment Specialist",
+      "kind": "specialist",
+      "mode": "planned",
+      "domain": "offensive-security",
+      "validation_status": "validated",
+      "truth_boundaries": "Advisory, reasoning, and planning profile; requires human-signed ActionPlan and authorization receipt for active execution.",
+      "evidence_requirements": [
+        "Specialist profile frontmatter validation",
+        "Intent routing keyword mapping",
+        "Contract file presence"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "cops-sentinel-kql-engineer",
+      "name": "COPS Sentinel KQL Engineer",
+      "kind": "specialist",
+      "mode": "planned",
+      "domain": "defensive-operations",
+      "validation_status": "validated",
+      "truth_boundaries": "Advisory, reasoning, and planning profile; requires human-signed ActionPlan and authorization receipt for active execution.",
+      "evidence_requirements": [
+        "Specialist profile frontmatter validation",
+        "Intent routing keyword mapping",
+        "Contract file presence"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "cops-threat-hunter",
+      "name": "COPS Threat Hunter",
+      "kind": "specialist",
+      "mode": "planned",
+      "domain": "defensive-operations",
+      "validation_status": "validated",
+      "truth_boundaries": "Advisory, reasoning, and planning profile; requires human-signed ActionPlan and authorization receipt for active execution.",
+      "evidence_requirements": [
+        "Specialist profile frontmatter validation",
+        "Intent routing keyword mapping",
+        "Contract file presence"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "cops-soc-analyst",
+      "name": "COPS SOC Investigation Analyst",
+      "kind": "specialist",
+      "mode": "planned",
+      "domain": "defensive-operations",
+      "validation_status": "validated",
+      "truth_boundaries": "Advisory, reasoning, and planning profile; requires human-signed ActionPlan and authorization receipt for active execution.",
+      "evidence_requirements": [
+        "Specialist profile frontmatter validation",
+        "Intent routing keyword mapping",
+        "Contract file presence"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "cops-detection-engineer",
+      "name": "COPS Detection Engineer",
+      "kind": "specialist",
+      "mode": "planned",
+      "domain": "defensive-operations",
+      "validation_status": "validated",
+      "truth_boundaries": "Advisory, reasoning, and planning profile; requires human-signed ActionPlan and authorization receipt for active execution.",
+      "evidence_requirements": [
+        "Specialist profile frontmatter validation",
+        "Intent routing keyword mapping",
+        "Contract file presence"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "cops-incident-responder",
+      "name": "COPS Internal Incident Responder",
+      "kind": "specialist",
+      "mode": "planned",
+      "domain": "incident-forensics",
+      "validation_status": "validated",
+      "truth_boundaries": "Advisory, reasoning, and planning profile; requires human-signed ActionPlan and authorization receipt for active execution.",
+      "evidence_requirements": [
+        "Specialist profile frontmatter validation",
+        "Intent routing keyword mapping",
+        "Contract file presence"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "cops-forensic-collector",
+      "name": "COPS Digital Forensics & Evidence Collector",
+      "kind": "specialist",
+      "mode": "planned",
+      "domain": "incident-forensics",
+      "validation_status": "validated",
+      "truth_boundaries": "Advisory, reasoning, and planning profile; requires human-signed ActionPlan and authorization receipt for active execution.",
+      "evidence_requirements": [
+        "Specialist profile frontmatter validation",
+        "Intent routing keyword mapping",
+        "Contract file presence"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "cops-malware-analyst",
+      "name": "COPS Static Malware & Script Analyst",
+      "kind": "specialist",
+      "mode": "planned",
+      "domain": "incident-forensics",
+      "validation_status": "validated",
+      "truth_boundaries": "Advisory, reasoning, and planning profile; requires human-signed ActionPlan and authorization receipt for active execution.",
+      "evidence_requirements": [
+        "Specialist profile frontmatter validation",
+        "Intent routing keyword mapping",
+        "Contract file presence"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "cops-identity-specialist",
+      "name": "COPS Identity & Access Governance Specialist",
+      "kind": "specialist",
+      "mode": "planned",
+      "domain": "identity-exposure",
+      "validation_status": "validated",
+      "truth_boundaries": "Advisory, reasoning, and planning profile; requires human-signed ActionPlan and authorization receipt for active execution.",
+      "evidence_requirements": [
+        "Specialist profile frontmatter validation",
+        "Intent routing keyword mapping",
+        "Contract file presence"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "cops-exposure-analyst",
+      "name": "COPS Vulnerability & Exposure Analyst",
+      "kind": "specialist",
+      "mode": "planned",
+      "domain": "identity-exposure",
+      "validation_status": "validated",
+      "truth_boundaries": "Advisory, reasoning, and planning profile; requires human-signed ActionPlan and authorization receipt for active execution.",
+      "evidence_requirements": [
+        "Specialist profile frontmatter validation",
+        "Intent routing keyword mapping",
+        "Contract file presence"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "cops-appsec-engineer",
+      "name": "COPS Application Security Engineer",
+      "kind": "specialist",
+      "mode": "planned",
+      "domain": "identity-exposure",
+      "validation_status": "validated",
+      "truth_boundaries": "Advisory, reasoning, and planning profile; requires human-signed ActionPlan and authorization receipt for active execution.",
+      "evidence_requirements": [
+        "Specialist profile frontmatter validation",
+        "Intent routing keyword mapping",
+        "Contract file presence"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "cops-threat-intel-analyst",
+      "name": "COPS Cyber Threat Intelligence Analyst",
+      "kind": "specialist",
+      "mode": "planned",
+      "domain": "identity-exposure",
+      "validation_status": "validated",
+      "truth_boundaries": "Advisory, reasoning, and planning profile; requires human-signed ActionPlan and authorization receipt for active execution.",
+      "evidence_requirements": [
+        "Specialist profile frontmatter validation",
+        "Intent routing keyword mapping",
+        "Contract file presence"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "cops-purple-team-coordinator",
+      "name": "COPS Purple Team Coordinator",
+      "kind": "specialist",
+      "mode": "planned",
+      "domain": "governance-operations",
+      "validation_status": "validated",
+      "truth_boundaries": "Advisory, reasoning, and planning profile; requires human-signed ActionPlan and authorization receipt for active execution.",
+      "evidence_requirements": [
+        "Specialist profile frontmatter validation",
+        "Intent routing keyword mapping",
+        "Contract file presence"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "cops-logging-architect",
+      "name": "COPS Security Logging Architect",
+      "kind": "specialist",
+      "mode": "planned",
+      "domain": "governance-operations",
+      "validation_status": "validated",
+      "truth_boundaries": "Advisory, reasoning, and planning profile; requires human-signed ActionPlan and authorization receipt for active execution.",
+      "evidence_requirements": [
+        "Specialist profile frontmatter validation",
+        "Intent routing keyword mapping",
+        "Contract file presence"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "cops-compliance-auditor",
+      "name": "COPS Cybersecurity Compliance & GRC Auditor",
+      "kind": "specialist",
+      "mode": "planned",
+      "domain": "governance-operations",
+      "validation_status": "validated",
+      "truth_boundaries": "Advisory, reasoning, and planning profile; requires human-signed ActionPlan and authorization receipt for active execution.",
+      "evidence_requirements": [
+        "Specialist profile frontmatter validation",
+        "Intent routing keyword mapping",
+        "Contract file presence"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "COPS-E01.01-S01",
+      "name": "Network Port and Service Discovery",
+      "kind": "scenario",
+      "mode": "planned",
+      "domain": "COPS-E01.01",
+      "validation_status": "validated",
+      "truth_boundaries": "Impact: read_only; Safe for production: True; Reversible: True. Performs TCP SYN and version detection against authorized IP addresses to map active listening services.",
+      "evidence_requirements": [
+        "Pinned research source S01",
+        "MITRE ATT&CK technique mapping",
+        "Isolated worker configuration"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "COPS-E12.02-S01",
+      "name": "Local ARP and Network Segmentation Discovery",
+      "kind": "scenario",
+      "mode": "planned",
+      "domain": "COPS-E12.02",
+      "validation_status": "validated",
+      "truth_boundaries": "Impact: read_only; Safe for production: True; Reversible: True. Discovers active hosts on local Ethernet broadcast domains using ARP queries and verifies VLAN segmentation boundaries.",
+      "evidence_requirements": [
+        "Pinned research source S01",
+        "MITRE ATT&CK technique mapping",
+        "Isolated worker configuration"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "COPS-E04.01-S01",
+      "name": "Passive DNS and Certificate Transparency Enumeration",
+      "kind": "scenario",
+      "mode": "import",
+      "domain": "COPS-E04.01",
+      "validation_status": "validated",
+      "truth_boundaries": "Impact: read_only; Safe for production: True; Reversible: True. Queries public DNS records and certificate transparency logs to identify exposed subdomains without connecting to target infrastructure.",
+      "evidence_requirements": [
+        "Pinned research source S01",
+        "MITRE ATT&CK technique mapping",
+        "Standard runner"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "COPS-E04.02-S01",
+      "name": "High-Speed Active Network Boundary Discovery",
+      "kind": "scenario",
+      "mode": "planned",
+      "domain": "COPS-E04.02",
+      "validation_status": "validated",
+      "truth_boundaries": "Impact: read_only; Safe for production: True; Reversible: True. Performs rate-limited active port discovery across perimeter IP addresses with banner capture.",
+      "evidence_requirements": [
+        "Pinned research source S01",
+        "MITRE ATT&CK technique mapping",
+        "Isolated worker configuration"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "COPS-E04.03-S01",
+      "name": "Infrastructure RPC and Management Endpoint Evaluation",
+      "kind": "scenario",
+      "mode": "planned",
+      "domain": "COPS-E04.03",
+      "validation_status": "validated",
+      "truth_boundaries": "Impact: read_only; Safe for production: True; Reversible: True. Interrogates RPC endpoint mappers (TCP 135) and SNMP agents (UDP 161) for system context and installed components.",
+      "evidence_requirements": [
+        "Pinned research source S01",
+        "MITRE ATT&CK technique mapping",
+        "Isolated worker configuration"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "COPS-E04.04-S01",
+      "name": "Remote Administration and SMB Share Security Audit",
+      "kind": "scenario",
+      "mode": "planned",
+      "domain": "COPS-E04.04",
+      "validation_status": "validated",
+      "truth_boundaries": "Impact: read_only; Safe for production: True; Reversible: True. Enumerates accessible SMB shares, IPC$ null session bindings, and RDP NLA requirements on target hosts.",
+      "evidence_requirements": [
+        "Pinned research source S01",
+        "MITRE ATT&CK technique mapping",
+        "Isolated worker configuration"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "COPS-E04.06-S01",
+      "name": "Mail Relay and Messaging Boundary Verification",
+      "kind": "scenario",
+      "mode": "laboratory",
+      "domain": "COPS-E04.06",
+      "validation_status": "validated",
+      "truth_boundaries": "Impact: non_destructive; Safe for production: False; Reversible: True. Verifies whether SMTP endpoints reject unauthorized open relay attempts and enforce TLS encryption.",
+      "evidence_requirements": [
+        "Pinned research source S01",
+        "MITRE ATT&CK technique mapping",
+        "Isolated worker configuration"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "COPS-E05.01-S01",
+      "name": "Web Application Inventory and Endpoint Discovery",
+      "kind": "scenario",
+      "mode": "planned",
+      "domain": "COPS-E05.01",
+      "validation_status": "validated",
+      "truth_boundaries": "Impact: read_only; Safe for production: True; Reversible: True. Crawls web endpoints and parses OpenAPI schemas to discover exposed APIs and unauthenticated routes.",
+      "evidence_requirements": [
+        "Pinned research source S01",
+        "MITRE ATT&CK technique mapping",
+        "Standard runner"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "COPS-E05.02-S01",
+      "name": "API Authentication and Token Algorithm Bypass",
+      "kind": "scenario",
+      "mode": "laboratory",
+      "domain": "COPS-E05.02",
+      "validation_status": "validated",
+      "truth_boundaries": "Impact: non_destructive; Safe for production: False; Reversible: True. Tests JWT endpoints for algorithm none vulnerabilities and weak HMAC secret keys.",
+      "evidence_requirements": [
+        "Pinned research source S01",
+        "MITRE ATT&CK technique mapping",
+        "Standard runner"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "COPS-E05.03-S01",
+      "name": "Structured SQL and Template Injection Boundary Testing",
+      "kind": "scenario",
+      "mode": "laboratory",
+      "domain": "COPS-E05.03",
+      "validation_status": "validated",
+      "truth_boundaries": "Impact: non_destructive; Safe for production: False; Reversible: True. Submits harmless boundary-probing payloads (e.g. arithmetic expressions) to identify unescaped interpreter execution.",
+      "evidence_requirements": [
+        "Pinned research source S01",
+        "MITRE ATT&CK technique mapping",
+        "Isolated worker configuration"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "COPS-E05.04-S01",
+      "name": "Path Traversal and Content Boundary Verification",
+      "kind": "scenario",
+      "mode": "planned",
+      "domain": "COPS-E05.04",
+      "validation_status": "validated",
+      "truth_boundaries": "Impact: read_only; Safe for production: True; Reversible: True. Verifies that file download and display parameters strictly reject directory traversal patterns (../) and stream wrappers.",
+      "evidence_requirements": [
+        "Pinned research source S01",
+        "MITRE ATT&CK technique mapping",
+        "Standard runner"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "COPS-E05.05-S01",
+      "name": "Server-Side Request Forgery and Cloud Metadata Boundary Check",
+      "kind": "scenario",
+      "mode": "planned",
+      "domain": "COPS-E05.05",
+      "validation_status": "validated",
+      "truth_boundaries": "Impact: read_only; Safe for production: True; Reversible: True. Verifies whether backend URL fetching parameters enforce network egress restrictions and block cloud metadata IP addresses (169.254.169.254).",
+      "evidence_requirements": [
+        "Pinned research source S01",
+        "MITRE ATT&CK technique mapping",
+        "Isolated worker configuration"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "COPS-E05.06-S01",
+      "name": "Cross-Origin Resource Sharing (CORS) Policy Audit",
+      "kind": "scenario",
+      "mode": "planned",
+      "domain": "COPS-E05.06",
+      "validation_status": "validated",
+      "truth_boundaries": "Impact: read_only; Safe for production: True; Reversible: True. Evaluates Access-Control-Allow-Origin response headers against untrusted and null Origin headers.",
+      "evidence_requirements": [
+        "Pinned research source S01",
+        "MITRE ATT&CK technique mapping",
+        "Standard runner"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "COPS-E06.01-S01",
+      "name": "Linux Privilege Boundary and SUID Binary Audit",
+      "kind": "scenario",
+      "mode": "planned",
+      "domain": "COPS-E06.01",
+      "validation_status": "validated",
+      "truth_boundaries": "Impact: read_only; Safe for production: True; Reversible: True. Inspects local file permissions, SUID/SGID bits, POSIX file capabilities, and sudo -l privileges for escalation vectors.",
+      "evidence_requirements": [
+        "Pinned research source S01",
+        "MITRE ATT&CK technique mapping",
+        "Isolated worker configuration"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "COPS-E06.02-S01",
+      "name": "Windows Service and Registry Privilege Escalation Audit",
+      "kind": "scenario",
+      "mode": "planned",
+      "domain": "COPS-E06.02",
+      "validation_status": "validated",
+      "truth_boundaries": "Impact: read_only; Safe for production: True; Reversible: True. Audits Windows service executable permissions, unquoted service paths, and AlwaysInstallElevated registry keys.",
+      "evidence_requirements": [
+        "Pinned research source S01",
+        "MITRE ATT&CK technique mapping",
+        "Isolated worker configuration"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "COPS-E06.03-S01",
+      "name": "Local Host Credential Storage and File Audit",
+      "kind": "scenario",
+      "mode": "planned",
+      "domain": "COPS-E06.03",
+      "validation_status": "validated",
+      "truth_boundaries": "Impact: read_only; Safe for production: True; Reversible: True. Scans filesystem for cleartext credentials in configuration files, bash history, and saved connection profiles.",
+      "evidence_requirements": [
+        "Pinned research source S01",
+        "MITRE ATT&CK technique mapping",
+        "Standard runner"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "COPS-E07.01-S01",
+      "name": "Active Directory Object and Relationship Analysis",
+      "kind": "scenario",
+      "mode": "import",
+      "domain": "COPS-E07.01",
+      "validation_status": "validated",
+      "truth_boundaries": "Impact: read_only; Safe for production: True; Reversible: True. Performs read-only LDAP enumeration to identify domain trust relationships, high-privilege groups, and delegation risks.",
+      "evidence_requirements": [
+        "Pinned research source S01",
+        "MITRE ATT&CK technique mapping",
+        "Isolated worker configuration"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "COPS-E07.02-S01",
+      "name": "Kerberos Service Ticket and AS-REP Pre-Authentication Audit",
+      "kind": "scenario",
+      "mode": "laboratory",
+      "domain": "COPS-E07.02",
+      "validation_status": "validated",
+      "truth_boundaries": "Impact: read_only; Safe for production: True; Reversible: True. Identifies domain accounts configured with DONT_REQ_PREAUTH (AS-REP roasting) and service principal names with weak encryption.",
+      "evidence_requirements": [
+        "Pinned research source S01",
+        "MITRE ATT&CK technique mapping",
+        "Isolated worker configuration"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "COPS-E07.03-S01",
+      "name": "NTLM Relay and Multicast Poisoning Defense Verification",
+      "kind": "scenario",
+      "mode": "laboratory",
+      "domain": "COPS-E07.03",
+      "validation_status": "validated",
+      "truth_boundaries": "Impact: non_destructive; Safe for production: False; Reversible: True. Verifies whether SMB signing, LDAP signing, and channel binding tokens are enforced to prevent NTLM credential relay.",
+      "evidence_requirements": [
+        "Pinned research source S01",
+        "MITRE ATT&CK technique mapping",
+        "Isolated worker configuration"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "COPS-E07.04-S01",
+      "name": "Active Directory Certificate Services (AD CS) Misconfiguration Audit",
+      "kind": "scenario",
+      "mode": "planned",
+      "domain": "COPS-E07.04",
+      "validation_status": "validated",
+      "truth_boundaries": "Impact: read_only; Safe for production: True; Reversible: True. Audits published certificate templates for ESC1 through ESC8 vulnerabilities allowing unauthorized privilege escalation.",
+      "evidence_requirements": [
+        "Pinned research source S01",
+        "MITRE ATT&CK technique mapping",
+        "Isolated worker configuration"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "COPS-E10.01-S01",
+      "name": "Kubernetes Cluster Identity and Context Verification",
+      "kind": "scenario",
+      "mode": "planned",
+      "domain": "COPS-E10.01",
+      "validation_status": "validated",
+      "truth_boundaries": "Impact: read_only; Safe for production: True; Reversible: True. Discovers cluster endpoint, version, authentication provider, and verifies non-root worker execution boundaries.",
+      "evidence_requirements": [
+        "Pinned research source S08",
+        "MITRE ATT&CK technique mapping",
+        "Isolated worker configuration"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "COPS-E10.02-S01",
+      "name": "Kubescape Automated Hardening and Control Assessment",
+      "kind": "scenario",
+      "mode": "import",
+      "domain": "COPS-E10.02",
+      "validation_status": "validated",
+      "truth_boundaries": "Impact: read_only; Safe for production: True; Reversible: True. Runs Kubescape compliance framework scans against cluster objects to identify NSA-CISA and CIS benchmark deviations.",
+      "evidence_requirements": [
+        "Pinned research source S08",
+        "MITRE ATT&CK technique mapping",
+        "Isolated worker configuration"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "COPS-E10.04-S01",
+      "name": "kube-bench CIS Benchmark Control Plane Audit",
+      "kind": "scenario",
+      "mode": "import",
+      "domain": "COPS-E10.04",
+      "validation_status": "validated",
+      "truth_boundaries": "Impact: read_only; Safe for production: True; Reversible: True. Executes kube-bench on master and worker nodes to evaluate CIS Kubernetes Benchmark compliance.",
+      "evidence_requirements": [
+        "Pinned research source S09",
+        "MITRE ATT&CK technique mapping",
+        "Isolated worker configuration"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "COPS-E10.05-S01",
+      "name": "kube-hunter Active Vulnerability and Port Hunting",
+      "kind": "scenario",
+      "mode": "laboratory",
+      "domain": "COPS-E10.05",
+      "validation_status": "validated",
+      "truth_boundaries": "Impact: non_destructive; Safe for production: False; Reversible: True. Probes Kubernetes clusters for open kubelet ports (10250/10255), unauthenticated etcd, and open dashboard services.",
+      "evidence_requirements": [
+        "Pinned research source S10",
+        "MITRE ATT&CK technique mapping",
+        "Isolated worker configuration"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "COPS-E10.06-S01",
+      "name": "Container Image and Cluster Workload CVE Assessment",
+      "kind": "scenario",
+      "mode": "import",
+      "domain": "COPS-E10.06",
+      "validation_status": "validated",
+      "truth_boundaries": "Impact: read_only; Safe for production: True; Reversible: True. Scans deployed container images and workload manifests using Trivy for known CVEs and high-severity misconfigurations.",
+      "evidence_requirements": [
+        "Pinned research source S11",
+        "MITRE ATT&CK technique mapping",
+        "Isolated worker configuration"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "COPS-E10.07-S01",
+      "name": "Kubernetes Bad Pods and Container Escape Boundary Verification",
+      "kind": "scenario",
+      "mode": "laboratory",
+      "domain": "COPS-E10.07",
+      "validation_status": "validated",
+      "truth_boundaries": "Impact: disruptive; Safe for production: False; Reversible: True. Evaluates container isolation against the 8 canonical Bishop Fox Bad Pods archetypes (hostPath, hostPID, hostNetwork, hostIPC, privileged, CAP_SYS_ADMIN).",
+      "evidence_requirements": [
+        "Pinned research source S07",
+        "MITRE ATT&CK technique mapping",
+        "Isolated worker configuration"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "COPS-E10.08-S01",
+      "name": "Kubernetes RBAC and Service Account Privilege Escalation Analysis",
+      "kind": "scenario",
+      "mode": "planned",
+      "domain": "COPS-E10.08",
+      "validation_status": "validated",
+      "truth_boundaries": "Impact: read_only; Safe for production: True; Reversible: True. Analyzes RoleBindings and ClusterRoleBindings for dangerous permissions (bind, escalate, impersonate, pods/exec, secrets/get).",
+      "evidence_requirements": [
+        "Pinned research source S06",
+        "MITRE ATT&CK technique mapping",
+        "Standard runner"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "COPS-E10.09-S01",
+      "name": "Kubernetes Node and Control Plane Exposure Assessment",
+      "kind": "scenario",
+      "mode": "planned",
+      "domain": "COPS-E10.09",
+      "validation_status": "validated",
+      "truth_boundaries": "Impact: read_only; Safe for production: True; Reversible: True. Scans control plane components and node Kubelet API boundaries for unauthenticated or insecurely exposed endpoints.",
+      "evidence_requirements": [
+        "Pinned research source S04",
+        "MITRE ATT&CK technique mapping",
+        "Isolated worker configuration"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "COPS-E10.10-S01",
+      "name": "Multi-Stage Kubernetes Kill-Chain Validation",
+      "kind": "scenario",
+      "mode": "laboratory",
+      "domain": "COPS-E10.10",
+      "validation_status": "validated",
+      "truth_boundaries": "Impact: disruptive; Safe for production: False; Reversible: True. Simulates multi-step kill chains linking compromised web workload to pod escape, service account token theft, and cluster admin escalation.",
+      "evidence_requirements": [
+        "Pinned research source S05",
+        "MITRE ATT&CK technique mapping",
+        "Isolated worker configuration"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "COPS-E15.01-S01",
+      "name": "Controlled Adversary Payload and Command Simulation",
+      "kind": "scenario",
+      "mode": "laboratory",
+      "domain": "COPS-E15.01",
+      "validation_status": "validated",
+      "truth_boundaries": "Impact: non_destructive; Safe for production: False; Reversible: True. Simulates controlled, reversible adversary commands in disposable containers using synthetic telemetry generators.",
+      "evidence_requirements": [
+        "Pinned research source S02",
+        "MITRE ATT&CK technique mapping",
+        "Isolated worker configuration"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "COPS-E15.02-S01",
+      "name": "Internal Network Pivoting and Tunneling Simulation",
+      "kind": "scenario",
+      "mode": "laboratory",
+      "domain": "COPS-E15.02",
+      "validation_status": "validated",
+      "truth_boundaries": "Impact: non_destructive; Safe for production: False; Reversible: True. Verifies network segmentation and egress controls using authorized SOCKS5 proxies and TUN tunnels in a laboratory environment.",
+      "evidence_requirements": [
+        "Pinned research source S01",
+        "MITRE ATT&CK technique mapping",
+        "Isolated worker configuration"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "COPS-E15.03-S01",
+      "name": "Reversible Persistence and Defense Evasion Simulation",
+      "kind": "scenario",
+      "mode": "laboratory",
+      "domain": "COPS-E15.03",
+      "validation_status": "validated",
+      "truth_boundaries": "Impact: non_destructive; Safe for production: False; Reversible: True. Tests host detection telemetry against Living-off-the-Land (LOLBAS) binary execution with automated cleanup verification.",
+      "evidence_requirements": [
+        "Pinned research source S02",
+        "MITRE ATT&CK technique mapping",
+        "Isolated worker configuration"
+      ],
+      "live_evidence_verified": false
+    }
+  ]
+}

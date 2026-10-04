@@ -132,3 +132,6 @@ Learn more in the [Specialist Agents Guide](specialist-agents.md).
 - [Contributor Guide](contributing.md): Development environment setup, adding plugins, and test gates.
 - [Troubleshooting](troubleshooting.md): Step-by-step solutions for common setup issues.
 - [Security Model](SECURITY_MODEL.md): Threat modeling, prompt injection resistance, and readiness modes.
+- [Engagement Contracts Specification](../specs/engagement-contracts.spec.md): Schema contracts for engagements, scenarios, action plans, and findings.
+- [Pinned Scenario Registry](../specs/pinned-scenario-registry.spec.md): Pinned research sources and canonical scenario registry.
+- [Capability Reconciliation](../specs/capability-reconciliation.spec.md): Operational readiness taxonomy and truth-in-advertising invariants.

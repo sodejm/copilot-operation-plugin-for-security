@@ -1,0 +1,22 @@
+{
+  "schema_version": "cops.engagement/v1",
+  "engagement_id": "INVALID IDENTIFIER WITH SPACES AND CAPS",
+  "name": "Malformed ID Engagement",
+  "status": "planned",
+  "scope": {
+    "included_targets": ["10.0.0.0/24"],
+    "excluded_targets": []
+  },
+  "window": {
+    "started_at": "2026-10-02T00:00:00Z",
+    "authorized_until_utc": "2026-10-02T23:59:59Z"
+  },
+  "operator": "secops-lead",
+  "rules_of_engagement": {
+    "max_intensity": "low",
+    "allowed_actions": ["ping"],
+    "emergency_contact": "soc@internal.net",
+    "safe_mode": true
+  },
+  "created_at": "2026-10-02T00:00:00Z"
+}
