@@ -1,7 +1,3 @@
-"""Execution runtime framework for COPS security operations."""
-
-from __future__ import annotations
-
 from .authorization import (
     AuthorizationDeniedError,
     AuthorizationError,
@@ -13,12 +9,36 @@ from .authorization import (
     request_interactive_plan_authorization,
     verify_execution_authorization,
 )
+from .store import (
+    ApprovalStore,
+    ApprovalStoreAccessError,
+    ApprovalStoreConflictError,
+    ApprovalStoreError,
+    ApprovalStoreNotFoundError,
+)
+from .worker import (
+    IsolatedWorker,
+    WorkerConfig,
+    WorkerError,
+    WorkerExecutionError,
+    WorkerIsolationError,
+)
 
 __all__ = [
+    "ApprovalStore",
+    "ApprovalStoreAccessError",
+    "ApprovalStoreConflictError",
+    "ApprovalStoreError",
+    "ApprovalStoreNotFoundError",
     "AuthorizationDeniedError",
     "AuthorizationError",
     "AuthorizationRequiredError",
+    "IsolatedWorker",
     "LegacyReceiptDeprecationWarning",
+    "WorkerConfig",
+    "WorkerError",
+    "WorkerExecutionError",
+    "WorkerIsolationError",
     "compute_authorization_signature",
     "consume_execution_authorization",
     "create_execution_authorization",
