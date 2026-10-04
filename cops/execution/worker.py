@@ -133,10 +133,15 @@ class IsolatedWorker:
             target_workspace.mkdir(parents=True, exist_ok=True)
 
         started_at = utc_now()
-        collected_artifacts: list[dict[str, Any]] = []
         overall_exit_code = 0
         status = "success"
         status_reason = ""
+
+        from .evidence import EvidenceRecorder
+        from .redaction import StreamRedactor
+        # Initialize evidence recorder with redactor
+        redactor = StreamRedactor()
+        evidence_recorder = EvidenceRecorder(workspace_dir=target_workspace, redactor=redactor)
 
         try:
             # 5.5. Enforce execution-time scope boundary
@@ -156,6 +161,7 @@ class IsolatedWorker:
                     tool = op["tool"]
                     action = op["action"]
                     timeout = min(op.get("timeout_seconds", 60), self.config.max_wall_time_seconds)
+                    step_started = utc_now()
 
                     # Tool whitelist boundary
                     if tool not in self.config.allowed_tools and tool != "inert":
@@ -166,9 +172,11 @@ class IsolatedWorker:
 
                     # Prepare isolated execution
                     # Standardize command execution via argv array
+                    stdout_bytes = b""
+                    stderr_bytes = b""
                     if tool == "inert":
                         # Simulated execution for testing
-                        output = f"Inert step {step_id} executed successfully: {action}".encode("utf-8")
+                        stdout_bytes = f"Inert step {step_id} executed successfully: {action}".encode("utf-8")
                         exit_code = 0
                     elif tool == "echo":
                         args = op.get("arguments", {})
@@ -181,7 +189,8 @@ class IsolatedWorker:
                             timeout=timeout,
                             check=False,
                         )
-                        output = proc.stdout
+                        stdout_bytes = proc.stdout
+                        stderr_bytes = proc.stderr
                         exit_code = proc.returncode
                     elif tool == "python3":
                         args = op.get("arguments", {})
@@ -194,7 +203,8 @@ class IsolatedWorker:
                             timeout=timeout,
                             check=False,
                         )
-                        output = proc.stdout + proc.stderr
+                        stdout_bytes = proc.stdout
+                        stderr_bytes = proc.stderr
                         exit_code = proc.returncode
                     else:
                         # Check ToolAdapterRegistry
@@ -216,17 +226,31 @@ class IsolatedWorker:
                                 timeout=timeout,
                                 check=False,
                             )
-                            output = proc.stdout + proc.stderr
+                            stdout_bytes = proc.stdout
+                            stderr_bytes = proc.stderr
                             exit_code = proc.returncode
                         else:
                             # Generic simulated execution
-                            output = f"Executed {tool} action {action}".encode("utf-8")
+                            stdout_bytes = f"Executed {tool} action {action}".encode("utf-8")
                             exit_code = 0
 
+                    step_finished = utc_now()
+                    # Record and redact evidence
+                    redacted_output, _ = evidence_recorder.record_step_output(
+                        step_id=step_id,
+                        tool=tool,
+                        action=action,
+                        stdout=stdout_bytes,
+                        stderr=stderr_bytes,
+                        exit_code=exit_code,
+                        started_at=step_started,
+                        finished_at=step_finished,
+                    )
+
                     # Check max output bytes
-                    if len(output) > self.config.max_output_bytes:
+                    if len(redacted_output) > self.config.max_output_bytes:
                         status = "partial"
-                        status_reason = f"step '{step_id}' exceeded max_output_bytes limit ({len(output)} > {self.config.max_output_bytes})"
+                        status_reason = f"step '{step_id}' exceeded max_output_bytes limit ({len(redacted_output)} > {self.config.max_output_bytes})"
                         overall_exit_code = 1
                         break
 
@@ -235,12 +259,6 @@ class IsolatedWorker:
                         status_reason = f"step '{step_id}' exited with non-zero code {exit_code}"
                         overall_exit_code = exit_code
                         break
-
-                    collected_artifacts.append({
-                        "name": f"{step_id}_output.txt",
-                        "path": f"artifacts/{step_id}_output.txt",
-                        "sha256": digest({"step": step_id, "output": output.decode("utf-8", errors="replace")}),
-                    })
 
         except subprocess.TimeoutExpired as err:
             status = "partial"
@@ -269,6 +287,12 @@ class IsolatedWorker:
         if status != "success":
             status_details["reason"] = status_reason
 
+        # Combine authorization proof and recorded step evidence hashes
+        evidence_hashes = [
+            digest({"auth_id": consumed_auth.authorization_id, "plan_id": plan_model.plan_id})
+        ]
+        evidence_hashes.extend(evidence_recorder.get_evidence_hashes())
+
         result_doc = {
             "schema_version": "cops.run-result/v1",
             "result_id": result_id,
@@ -279,10 +303,8 @@ class IsolatedWorker:
             "finished_at": finished_at,
             "exit_code": overall_exit_code,
             "status_details": status_details,
-            "evidence_records": [
-                digest({"auth_id": consumed_auth.authorization_id, "plan_id": plan_model.plan_id})
-            ],
-            "artifacts": collected_artifacts,
+            "evidence_records": evidence_hashes,
+            "artifacts": evidence_recorder.get_artifact_dicts(),
             "cleanup_status": cleanup_status,
             "worker_identity": self.config.worker_id,
         }

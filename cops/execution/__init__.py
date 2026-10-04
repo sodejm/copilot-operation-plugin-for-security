@@ -9,6 +9,14 @@ from .authorization import (
     request_interactive_plan_authorization,
     verify_execution_authorization,
 )
+from .evidence import (
+    CapturedArtifact,
+    EvidenceRecorder,
+    StepTelemetry,
+)
+from .redaction import (
+    StreamRedactor,
+)
 from .scope_guard import (
     ScopeDefinition,
     ScopeGuard,
@@ -38,11 +46,15 @@ __all__ = [
     "AuthorizationDeniedError",
     "AuthorizationError",
     "AuthorizationRequiredError",
+    "CapturedArtifact",
+    "EvidenceRecorder",
     "IsolatedWorker",
     "LegacyReceiptDeprecationWarning",
     "ScopeDefinition",
     "ScopeGuard",
     "ScopeViolationError",
+    "StepTelemetry",
+    "StreamRedactor",
     "WorkerConfig",
     "WorkerError",
     "WorkerExecutionError",
