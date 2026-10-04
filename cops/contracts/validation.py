@@ -200,6 +200,13 @@ def validate_contract(
                 f"signature_digest mismatch: expected {expected_sig}, got {document['signature_digest']}"
             )
 
+        if document.get("status") == "consumed":
+            if not document.get("consumed_at") or not document.get("consumed_by_worker"):
+                raise ContractError(
+                    "missing_consumption_metadata",
+                    "status 'consumed' requires consumed_at and consumed_by_worker"
+                )
+
     elif expected_type == "run_result":
         validate_identifier(document["result_id"], "run_result")
         validate_identifier(document["plan_id"], "action_plan")

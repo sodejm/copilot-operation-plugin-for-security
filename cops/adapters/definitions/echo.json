@@ -1,0 +1,35 @@
+{
+  "tool": "echo",
+  "version": "coreutils-9.4",
+  "binary": "echo",
+  "provenance": {
+    "source": "https://www.gnu.org/software/coreutils/",
+    "license": "GPL-3.0",
+    "pinned_revision": "9.4"
+  },
+  "supported_environments": ["linux", "darwin"],
+  "actions": {
+    "print_status": {
+      "description": "Echo a status message",
+      "base_args": [],
+      "parameters": {
+        "message": {
+          "type": "string",
+          "required": true,
+          "regex_pattern": "^[a-zA-Z0-9 _.,!?:/-]+$"
+        }
+      }
+    },
+    "run_echo": {
+      "description": "Echo a message to standard output",
+      "base_args": [],
+      "parameters": {
+        "message": {
+          "type": "string",
+          "required": true,
+          "regex_pattern": "^[a-zA-Z0-9 _.,!?:/-]+$"
+        }
+      }
+    }
+  }
+}

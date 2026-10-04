@@ -415,6 +415,96 @@ def command_capabilities_matrix(output: Path | None = None, root: Path = ROOT) -
     return 0
 
 
+def command_worker_status(args: argparse.Namespace) -> int:
+    from .execution import IsolatedWorker, WorkerConfig
+    try:
+        worker = IsolatedWorker(WorkerConfig(worker_id=getattr(args, "worker_id", None) or "worker-local-01"))
+        info = {
+            "worker_id": worker.config.worker_id,
+            "status": "ready",
+            "enforce_unprivileged": worker.config.enforce_unprivileged,
+            "allowed_tools": list(worker.config.allowed_tools),
+            "max_wall_time_seconds": worker.config.max_wall_time_seconds,
+            "max_output_bytes": worker.config.max_output_bytes,
+        }
+        if getattr(args, "json", False):
+            print(json.dumps(info, indent=2))
+        else:
+            print(f"Worker Identity: {info['worker_id']}")
+            print(f"Status         : {info['status']}")
+            print(f"Allowed Tools  : {', '.join(info['allowed_tools'])}")
+            print(f"Max Wall Time  : {info['max_wall_time_seconds']}s")
+            print(f"Max Output     : {info['max_output_bytes']} bytes")
+        return 0
+    except Exception as err:
+        print(f"error: {err}", file=sys.stderr)
+        return 1
+
+
+def command_worker_store_list(args: argparse.Namespace) -> int:
+    from .execution import ApprovalStore
+    db_path = getattr(args, "db", None) or (Path.home() / ".cops" / "approvals.sqlite3")
+    try:
+        store = ApprovalStore(db_path)
+        approvals = store.list_approvals(status=getattr(args, "status", None))
+        if getattr(args, "json", False):
+            print(json.dumps([a.to_dict() for a in approvals], indent=2))
+        else:
+            print(f"Approvals Store ({len(approvals)} records at {db_path}):")
+            for a in approvals:
+                print(f"  {a.authorization_id:<28} | plan: {a.action_plan_id:<20} | [{a.status:<8}] operator: {a.operator}")
+        return 0
+    except Exception as err:
+        print(f"error: {err}", file=sys.stderr)
+        return 1
+
+
+def command_worker_execute(args: argparse.Namespace) -> int:
+    from .contracts.models import ActionPlan, ExecutionAuthorization
+    from .execution import ApprovalStore, IsolatedWorker, WorkerConfig, ScopeGuard
+    plan_path = Path(args.plan)
+    if not plan_path.is_file():
+        print(f"error: plan file not found: {plan_path}", file=sys.stderr)
+        return 1
+
+    db_path = getattr(args, "db", None) or (Path.home() / ".cops" / "approvals.sqlite3")
+    try:
+        store = ApprovalStore(db_path)
+        worker_id = getattr(args, "worker_id", None) or "worker-local-01"
+
+        # Load engagement and scope guard if provided
+        scope_guard = None
+        eng_path = getattr(args, "engagement", None)
+        if eng_path and Path(eng_path).is_file():
+            eng_doc = json.loads(Path(eng_path).read_text(encoding="utf-8"))
+            scope_guard = ScopeGuard.from_engagement(eng_doc)
+
+        worker = IsolatedWorker(WorkerConfig(worker_id=worker_id), store=store, scope_guard=scope_guard)
+        plan_doc = json.loads(plan_path.read_text(encoding="utf-8"))
+
+        auth_val: str
+        auth_path = Path(args.authorization)
+        if auth_path.is_file():
+            auth_doc = json.loads(auth_path.read_text(encoding="utf-8"))
+            auth_model = ExecutionAuthorization.from_dict(auth_doc)
+            store.store_authorization(auth_model)
+            auth_val = auth_model.authorization_id
+        else:
+            auth_val = args.authorization
+
+        result = worker.execute_plan(plan_doc, authorization=auth_val)
+        if getattr(args, "json", False):
+            print(json.dumps(result.to_dict(), indent=2))
+        else:
+            print(f"Execution complete: {result.result_id} ({result.status})")
+            if result.status != "success":
+                print(f"Reason: {result.status_details.get('reason')}")
+        return 0 if result.is_successful() else 1
+    except Exception as err:
+        print(f"error: {err}", file=sys.stderr)
+        return 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python3 -m cops",
@@ -495,8 +585,27 @@ def build_parser() -> argparse.ArgumentParser:
     cap_a = cap_sub.add_parser("audit", help="audit capability claims against truth-in-advertising rules")
     cap_a.add_argument("--check", action="store_true", help="exit with non-zero if audit fails")
 
-    cap_m = cap_sub.add_parser("matrix", help="render the capability truth-in-advertising matrix")
-    cap_m.add_argument("--output", type=Path, help="write matrix Markdown to file")
+    cap_m = cap_sub.add_parser("matrix", help="render the Markdown capability matrix")
+    cap_m.add_argument("--output", type=Path, help="write capability matrix to file")
+
+    worker_p = subparsers.add_parser("worker", help="isolated execution worker and approval store operations")
+    worker_sub = worker_p.add_subparsers(dest="worker_command", required=True)
+    w_status = worker_sub.add_parser("status", help="display worker readiness and configuration")
+    w_status.add_argument("--worker-id", help="override worker identity")
+    w_status.add_argument("--json", action="store_true", help="output structured JSON")
+
+    w_store = worker_sub.add_parser("store", help="inspect approvals in the approval store")
+    w_store.add_argument("--db", type=Path, help="path to sqlite approval store")
+    w_store.add_argument("--status", choices=["approved", "consumed", "revoked", "expired"], help="filter by status")
+    w_store.add_argument("--json", action="store_true", help="output structured JSON")
+
+    w_exec = worker_sub.add_parser("execute", help="execute an authorized action plan")
+    w_exec.add_argument("plan", help="path to ActionPlan JSON file")
+    w_exec.add_argument("--authorization", required=True, help="authorization ID or path to authorization JSON file")
+    w_exec.add_argument("--worker-id", default="worker-local-01", help="override worker identity")
+    w_exec.add_argument("--engagement", type=Path, help="path to engagement JSON file for scope enforcement")
+    w_exec.add_argument("--db", type=Path, help="path to sqlite approval store")
+    w_exec.add_argument("--json", action="store_true", help="output structured JSON")
 
     return parser
 
@@ -558,6 +667,13 @@ def main(argv: list[str] | None = None, *, root: Path = ROOT) -> int:
                 return command_capabilities_audit(check=args.check, root=root)
             if args.capabilities_command == "matrix":
                 return command_capabilities_matrix(output=args.output, root=root)
+        if args.command == "worker":
+            if args.worker_command == "status":
+                return command_worker_status(args)
+            if args.worker_command == "store":
+                return command_worker_store_list(args)
+            if args.worker_command == "execute":
+                return command_worker_execute(args)
     except (CatalogError, ValidationError, CoverageError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
