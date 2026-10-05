@@ -1312,6 +1312,49 @@
       },
       "scenario_id": "COPS-E03.01-S01",
       "title": "Authorized Adversary Engagement Intake and Action Planning"
+    },
+    {
+      "coverage_mode": "planned",
+      "description": "Structured Triad task and evidence handoffs between Planner, Specialist, Skeptic, and Auditor with capability verification and authorization invariance.",
+      "environment": {
+        "isolated_worker_required": true,
+        "os": [
+          "linux"
+        ],
+        "required_tools": [
+          "python3",
+          "cops"
+        ]
+      },
+      "family_id": "COPS-E03.02",
+      "mitre_attack": {
+        "tactics": [
+          "execution",
+          "persistence"
+        ],
+        "techniques": [
+          "T1059",
+          "T1543"
+        ]
+      },
+      "owner_issue": 89,
+      "prerequisites": [
+        "Authorized ActionPlan contract",
+        "Registered specialist profile in catalog"
+      ],
+      "provenance": {
+        "license": "MIT",
+        "source_id": "S01",
+        "source_reference": "https://github.com/gunyakit/command-cheatsheet/tree/4c118399602212f205c91e8f01e418e226fa320c",
+        "version_bound": "4c11839"
+      },
+      "safety_profile": {
+        "impact": "read_only",
+        "reversible": true,
+        "safe_for_production": true
+      },
+      "scenario_id": "COPS-E03.02-S01",
+      "title": "Specialist Routing and Bounded Workflow Handoffs"
     }
   ],
   "schema_version": "cops.scenario-registry/v1",

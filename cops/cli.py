@@ -645,6 +645,48 @@ def build_parser() -> argparse.ArgumentParser:
     e_info.add_argument("file", help="path to engagement JSON file")
     e_info.add_argument("--json", action="store_true", help="output structured JSON")
 
+    e_handoff = eng_sub.add_parser("handoff", help="specialist routing and bounded workflow handoffs")
+    e_h_sub = e_handoff.add_subparsers(dest="handoff_command", required=True)
+
+    h_propose = e_h_sub.add_parser("propose", help="propose specialist handoff from planner")
+    h_propose.add_argument("--engagement", required=True, type=Path, help="path to engagement contract")
+    h_propose.add_argument("--plan", required=True, type=Path, help="path to action plan contract")
+    h_propose.add_argument("--task", required=True, help="task description")
+    h_propose.add_argument("--planner", default="secops-lead", help="planner identifier")
+    h_propose.add_argument("--specialist", help="target specialist profile ID (default: auto-route)")
+    h_propose.add_argument("--output", help="output path for handoff JSON")
+    h_propose.add_argument("--json", action="store_true", help="output JSON")
+
+    h_accept = e_h_sub.add_parser("accept", help="specialist accepts handoff with capability validation")
+    h_accept.add_argument("--handoff", required=True, type=Path, help="path to proposed handoff JSON")
+    h_accept.add_argument("--specialist", required=True, help="specialist profile ID")
+    h_accept.add_argument("--output", help="output path for updated handoff JSON")
+    h_accept.add_argument("--json", action="store_true", help="output JSON")
+
+    h_review = e_h_sub.add_parser("review", help="skeptic reviews evidence envelopes")
+    h_review.add_argument("--handoff", required=True, type=Path, help="path to accepted handoff JSON")
+    h_review.add_argument("--skeptic", default="cops-threat-hunter", help="skeptic specialist ID")
+    h_review.add_argument("--evidence", nargs="*", help="evidence envelope references")
+    h_review.add_argument("--findings", nargs="*", help="finding IDs")
+    h_review.add_argument("--output", help="output path for updated handoff JSON")
+    h_review.add_argument("--json", action="store_true", help="output JSON")
+
+    h_audit = e_h_sub.add_parser("audit", help="auditor verifies plan bounds and approves handoff")
+    h_audit.add_argument("--handoff", required=True, type=Path, help="path to reviewed handoff JSON")
+    h_audit.add_argument("--plan", required=True, type=Path, help="path to approved action plan contract")
+    h_audit.add_argument("--auditor", default="cops-compliance-auditor", help="auditor specialist ID")
+    h_audit.add_argument("--output", help="output path for approved handoff JSON")
+    h_audit.add_argument("--json", action="store_true", help="output JSON")
+
+    h_workflow = e_h_sub.add_parser("workflow", help="orchestrate complete Triad handoff workflow")
+    h_workflow.add_argument("--engagement", required=True, type=Path, help="path to engagement contract")
+    h_workflow.add_argument("--plan", required=True, type=Path, help="path to action plan contract")
+    h_workflow.add_argument("--task", required=True, help="task description")
+    h_workflow.add_argument("--planner", default="secops-lead", help="planner identifier")
+    h_workflow.add_argument("--specialist", help="target specialist profile ID (default: auto-route)")
+    h_workflow.add_argument("--output", help="output path for completed handoff JSON")
+    h_workflow.add_argument("--json", action="store_true", help="output JSON")
+
     return parser
 
 
@@ -715,6 +757,7 @@ def main(argv: list[str] | None = None, *, root: Path = ROOT) -> int:
         if args.command == "engagement":
             from .engagement.cli import (
                 command_engagement_create,
+                command_engagement_handoff,
                 command_engagement_info,
                 command_engagement_plan,
                 command_engagement_validate,
@@ -727,6 +770,8 @@ def main(argv: list[str] | None = None, *, root: Path = ROOT) -> int:
                 return command_engagement_plan(args)
             if args.engagement_command == "info":
                 return command_engagement_info(args)
+            if args.engagement_command == "handoff":
+                return command_engagement_handoff(args)
     except (CatalogError, ValidationError, CoverageError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2

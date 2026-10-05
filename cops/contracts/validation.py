@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import re
+from pathlib import Path
 from typing import Any
 
 from cops.evidence.canonical import EvidenceError, canonical, digest, timestamp
 from cops.evidence.validation import _check
-from .lifecycle import ContractError, RUN_RESULT_STATUSES
+
+from .lifecycle import RUN_RESULT_STATUSES, ContractError
 
 SCHEMAS: Path = Path(__file__).resolve().parents[2] / "catalog" / "schemas"
 
@@ -21,6 +22,7 @@ IDENTIFIER_PATTERNS: dict[str, re.Pattern[str]] = {
     "finding": re.compile(r"^find-[a-z0-9_-]{4,64}$"),
     "execution_authorization": re.compile(r"^auth-[a-z0-9_-]{8,64}$"),
     "cleanup_receipt": re.compile(r"^cln-[a-z0-9_-]{4,64}$"),
+    "specialist_handoff": re.compile(r"^hnd-[a-z0-9_-]{4,64}$"),
 }
 
 SCHEMA_MAP: dict[str, str] = {
@@ -31,6 +33,7 @@ SCHEMA_MAP: dict[str, str] = {
     "cops.finding/v1": "finding-contract.schema.json",
     "cops.execution-authorization/v1": "execution-authorization.schema.json",
     "cops.cleanup-receipt/v1": "cleanup-receipt.schema.json",
+    "cops.specialist-handoff/v1": "specialist-handoff.schema.json",
 }
 
 TYPE_MAP: dict[str, str] = {
@@ -41,6 +44,7 @@ TYPE_MAP: dict[str, str] = {
     "cops.finding/v1": "finding",
     "cops.execution-authorization/v1": "execution_authorization",
     "cops.cleanup-receipt/v1": "cleanup_receipt",
+    "cops.specialist-handoff/v1": "specialist_handoff",
 }
 
 
@@ -128,6 +132,7 @@ def validate_contract(
         "finding": "finding_id",
         "execution_authorization": "authorization_id",
         "cleanup_receipt": "receipt_id",
+        "specialist_handoff": "handoff_id",
     }
     primary_id_field = id_field_map.get(expected_type)
     if primary_id_field and primary_id_field in document:
@@ -267,5 +272,10 @@ def validate_contract(
                 "missing_unresolved_effects",
                 "a cleanup_receipt with status 'failed' must report unresolved_effects"
             )
+
+    elif expected_type == "specialist_handoff":
+        validate_identifier(document["handoff_id"], "specialist_handoff")
+        validate_identifier(document["engagement_id"], "engagement")
+        validate_identifier(document["action_plan_id"], "action_plan")
 
     return document

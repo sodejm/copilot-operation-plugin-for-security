@@ -132,8 +132,8 @@ Use this guide to determine which plugin best matches your operational requireme
 
 #### Offensive Engagement Workbench
 - **Maturity**: <span class="badge badge-experimental">Experimental</span> | **Operational Mode**: `planned`
-- **When to use**: When intaking authorized adversary engagements, enforcing target scope and boundary exclusions, and compiling immutable execution action plans.
-- **Key Capabilities**: Scope intake validation, CIDR collision checks, immutable action plan generation.
+- **When to use**: When intaking authorized adversary engagements, enforcing target scope and boundary exclusions, compiling immutable action plans, and orchestrating Triad specialist handoffs.
+- **Key Capabilities**: Scope intake validation, CIDR collision checks, immutable action plan generation, Triad specialist handoffs, capability verification, and authorization invariance enforcement.
 - **Boundaries**: Scoping and planning only; refuses incomplete live requests and does not execute network payloads.
 - **Playbook**: `plugins/offensive-security/offensive-engagement-workbench/docs/PLAYBOOK.md`
 

@@ -10,8 +10,19 @@
       "interactive_authorization_required": true,
       "description": "Authorized, scoped technical assessment specialist for validating vulnerabilities, inspecting network and application configurations, and designing actionable remediation roadmaps under strict Rules of Engagement.",
       "primary_plugin": "attack-surface-planner",
-      "skills": ["authorized-attack-surface-planning"],
-      "tools": ["python3 -m cops check attack-surface-planner", "scripts/plan.py"],
+      "skills": [
+        "authorized-attack-surface-planning",
+        "engagement-intake-and-planning",
+        "engagement-specialist-handoffs"
+      ],
+      "tools": [
+        "python3 -m cops check attack-surface-planner",
+        "python3 -m cops check offensive-engagement-workbench",
+        "python3 -m cops engagement create",
+        "python3 -m cops engagement plan",
+        "python3 -m cops engagement handoff",
+        "scripts/plan.py"
+      ],
       "contract_file": "agents/profiles/cops-pentest-specialist.agent.md",
       "intent_keywords": [
         "pentest",
@@ -23,7 +34,10 @@
         "rules of engagement",
         "attack simulation",
         "port check",
-        "tls audit"
+        "tls audit",
+        "reconnaissance",
+        "port scan",
+        "specialist handoff"
       ],
       "triad_defaults": {
         "skeptic_profile_id": "cops-detection-engineer",
