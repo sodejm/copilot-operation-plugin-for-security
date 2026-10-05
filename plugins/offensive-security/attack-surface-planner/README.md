@@ -196,6 +196,42 @@ python3 -m cops remote-services inspect remote_assessment.json
 
 ---
 
+## Database, Cache, and Search Services Assessment
+
+The package evaluates exposure, access control, and configuration security across relational databases, NoSQL stores, in-memory caches, and search/analytics engines (`cops data-services` or `cops discovery data`):
+
+1. **Protocol-Specific Coverage**:
+   - **Relational Databases**: Probes MySQL (3306), PostgreSQL (5432), Microsoft SQL Server (1433), and Oracle Database (1521) for blank/unauthenticated root accounts, `trust` authentication, blank `sa` accounts, default SIDs, and client certificate requirements.
+   - **NoSQL & Document Stores**: Evaluates MongoDB (27017) unauthenticated clusters (`--auth` disabled), CouchDB (5984) Admin Party mode, and Apache Cassandra (9042) default `cassandra`/`cassandra` superuser credentials.
+   - **In-Memory & Caches**: Audits Redis (6379) missing `requirepass` and dangerous `CONFIG` command availability, and Memcached (11211) unauthenticated slab dump access without SASL.
+   - **Search & Analytics Engines**: Assesses Elasticsearch (9200) open cluster REST endpoints, InfluxDB (8086) unauthenticated HTTP API, Kibana (5601) open analytics dashboards, and Splunk (8089) management port default credentials.
+2. **Bounded Query Budgets & Zero Bulk Extraction**:
+   - Technical probes strictly enforce a bounded query budget (default 5 rows/documents) to verify schema, table/collection presence, and access controls.
+   - Bulk table dumps, full collection scans, and unconstrained production record retrieval are strictly prohibited and architecturally blocked.
+3. **Crucial Truth Boundary: Inaccessible != Secure**:
+   - If a database, cache, or search service is timed out, connection-refused, filtered, or unreachable from the probe vantage, it is strictly recorded as `inaccessible` with `auth_prerequisite: unknown` and explicit uncertainty notes. It is **never** reported as secure or hardened.
+4. **Canary Validation and Verifiable Cleanup Receipts**:
+   - Non-destructive probes validate access boundaries using canary table/key identifiers (`canary_audit_table`, `canary_cache_key`).
+   - Assessments emit cryptographically hashed `CleanupReceipt` records confirming test artifacts were removed and the system state was restored (`verified_removed`).
+5. **Data Privilege Candidate Routing**:
+   - Discovered misconfigurations (e.g. `redis_no_auth`, `postgres_trust_auth`, `elasticsearch_open_cluster`, `mssql_blank_sa`, `mongodb_no_auth`, `couchdb_admin_party`, `cassandra_default_superuser`) are structured as `DataPrivilegeCandidate` records with cryptographic evidence hashes and privilege impact ratings (`database_takeover`, `remote_code_execution`, `data_exfiltration`, `cache_poisoning`, `analytics_tampering`) for handoff to offensive specialists (`cops-pentest-specialist`, `cops-redteam-operator`).
+
+```bash
+# Assess databases, caches, and search services
+python3 -m cops data-services assess --targets "198.51.100.30,db01.corp.internal" --vantage internal --canary-id "canary_audit_table" --output data_assessment.json
+
+# Extract data privilege candidates for lateral movement specialists
+python3 -m cops data-services candidates data_assessment.json --output data_candidates.json
+
+# Export verified cleanup receipts
+python3 -m cops data-services cleanup data_assessment.json --output cleanup_receipts.json
+
+# Inspect assessment summary, privilege candidates, and truth-in-advertising metrics
+python3 -m cops data-services inspect data_assessment.json
+```
+
+---
+
 ## Evidence & Ethical Boundaries
 
 The Attack Surface Planner is a **planning and compliance tool**, not an active exploitation framework:

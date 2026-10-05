@@ -111,6 +111,21 @@ Invoke this planner under the following concrete triggers:
 4. **Extract Host Privilege Candidates**:
    - Extract candidate attack paths (`smb_v1_enabled`, `smb_signing_disabled`, `smb_unauthenticated_share`, `telnet_plaintext_exposure`, `rdp_nla_disabled`, `vnc_no_auth`, `winrm_http_unencrypted`, `x11_open_display`, `nfs_no_root_squash`, `ftp_anonymous_login`, `rsync_open_module`, `unauthenticated_printer_queue`) for offensive and lateral movement specialist handoff: `python3 -m cops remote-services candidates ...`.
 
+### Phase 2f: Database, Cache, and Search Services Assessment
+**Skill**: [`network-data-services`](../skills/network-data-services/SKILL.md)
+
+1. **Protocol-Specific Database, Cache, and Search Probing**:
+   - Assess exposure of relational databases (MySQL, Postgres, MSSQL, Oracle), NoSQL/document stores (MongoDB, CouchDB, Cassandra), caches (Redis, Memcached), and search/analytics engines (Elasticsearch, InfluxDB, Kibana, Splunk) across approved targets: `python3 -m cops data-services assess ...`.
+2. **Bounded Query Budgets & Zero Bulk Extraction**:
+   - Enforce bounded query budgets (default 5 rows/documents) to verify schema and access controls; prohibit and block bulk data extraction.
+3. **Strict Inaccessible != Secure Grounding**:
+   - Filtered, closed, or timed out services are strictly classified as `inaccessible` (with `auth_prerequisite: unknown`). Never assume an inaccessible service is secure or hardened.
+4. **Canary Validation and Verifiable Cleanup Receipts**:
+   - Validate access controls using benign canary identifiers (`canary_audit_table`, `canary_cache_key`).
+   - Emit verified `CleanupReceipt` records confirming rollback and artifact removal: `python3 -m cops data-services cleanup ...`.
+5. **Extract Data Privilege Candidates**:
+   - Extract candidate findings (`redis_no_auth`, `redis_config_set`, `elasticsearch_open_cluster`, `mongodb_no_auth`, `memcached_no_auth`, `mysql_no_auth`, `postgres_trust_auth`, `mssql_blank_sa`, `couchdb_admin_party`, `cassandra_default_superuser`, `influxdb_no_auth`, `kibana_no_auth`, `splunk_default_creds`) for lateral movement and database takeover handoff: `python3 -m cops data-services candidates ...`.
+
 ### Phase 3: Scope Boundary Partitioning
 Systematically classify every discovered entity into one of three strict partitions:
 

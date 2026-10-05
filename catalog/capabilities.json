@@ -1,16 +1,16 @@
 {
   "schema_version": "cops.capabilities/v1",
-  "updated_at": "2026-10-05T14:27:06.929840Z",
+  "updated_at": "2026-10-05T14:42:39.203767Z",
   "summary": {
-    "total_capabilities": 68,
+    "total_capabilities": 69,
     "by_kind": {
       "plugin": 14,
       "specialist": 18,
-      "scenario": 36
+      "scenario": 37
     },
     "by_mode": {
       "planned": 36,
-      "import": 14,
+      "import": 15,
       "laboratory": 18,
       "live-validated": 0
     }
@@ -581,6 +581,21 @@
         "Pinned research source S01",
         "MITRE ATT&CK technique mapping",
         "Isolated worker configuration"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "COPS-E04.05-S01",
+      "name": "Databases, Caches, and Search Services Exposure Assessment",
+      "kind": "scenario",
+      "mode": "import",
+      "domain": "COPS-E04.05",
+      "validation_status": "validated",
+      "truth_boundaries": "Impact: read_only; Safe for production: True; Reversible: True. Assesses relational databases (MySQL, PostgreSQL, MSSQL, Oracle), NoSQL/document stores (MongoDB, CouchDB, Cassandra), caches (Redis, Memcached), and search/analytics engines (Elasticsearch, InfluxDB, Kibana, Splunk) for unauthorized exposure, default credentials, bounded query budgets, and canary access with verifiable cleanup.",
+      "evidence_requirements": [
+        "Pinned research source S01",
+        "MITRE ATT&CK technique mapping",
+        "Standard runner"
       ],
       "live_evidence_verified": false
     },

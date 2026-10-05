@@ -720,7 +720,13 @@ def build_parser() -> argparse.ArgumentParser:
     from .diagnostics.cli import build_diagnostics_parser
     build_diagnostics_parser(subparsers)
 
-    from .discovery.cli import build_active_parser, build_discovery_parser, build_infra_parser, build_remote_parser
+    from .discovery.cli import (
+        build_active_parser,
+        build_data_parser,
+        build_discovery_parser,
+        build_infra_parser,
+        build_remote_parser,
+    )
     build_discovery_parser(subparsers)
     active_parser = subparsers.add_parser(
         "active-discovery",
@@ -737,6 +743,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Assess remote administration, file sharing, and printing services.",
     )
     build_remote_parser(remote_parser)
+    data_parser = subparsers.add_parser(
+        "data-services",
+        help="Assess databases, caches, and search/analytics services.",
+    )
+    build_data_parser(data_parser)
 
     return parser
 
@@ -841,6 +852,9 @@ def main(argv: list[str] | None = None, *, root: Path = ROOT) -> int:
         if args.command == "remote-services":
             from .discovery.cli import command_remote_discovery
             return command_remote_discovery(args, root=root)
+        if args.command == "data-services":
+            from .discovery.cli import command_data_discovery
+            return command_data_discovery(args, root=root)
     except (CatalogError, ValidationError, CoverageError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2

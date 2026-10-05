@@ -245,6 +245,48 @@
       "title": "Remote Administration and SMB Share Security Audit"
     },
     {
+      "coverage_mode": "import",
+      "description": "Assesses relational databases (MySQL, PostgreSQL, MSSQL, Oracle), NoSQL/document stores (MongoDB, CouchDB, Cassandra), caches (Redis, Memcached), and search/analytics engines (Elasticsearch, InfluxDB, Kibana, Splunk) for unauthorized exposure, default credentials, bounded query budgets, and canary access with verifiable cleanup.",
+      "environment": {
+        "isolated_worker_required": false,
+        "os": [
+          "linux",
+          "darwin"
+        ],
+        "required_tools": []
+      },
+      "family_id": "COPS-E04.05",
+      "mitre_attack": {
+        "tactics": [
+          "initial-access",
+          "credential-access",
+          "collection"
+        ],
+        "techniques": [
+          "T1190",
+          "T1078",
+          "T1005"
+        ]
+      },
+      "owner_issue": 96,
+      "prerequisites": [
+        "Authorized database and data service assessment scope"
+      ],
+      "provenance": {
+        "license": "MIT",
+        "source_id": "S01",
+        "source_reference": "https://github.com/gunyakit/command-cheatsheet/tree/4c118399602212f205c91e8f01e418e226fa320c/databases/database-assessment.md",
+        "version_bound": "4c11839"
+      },
+      "safety_profile": {
+        "impact": "read_only",
+        "reversible": true,
+        "safe_for_production": true
+      },
+      "scenario_id": "COPS-E04.05-S01",
+      "title": "Databases, Caches, and Search Services Exposure Assessment"
+    },
+    {
       "coverage_mode": "laboratory",
       "description": "Verifies whether SMTP endpoints reject unauthorized open relay attempts and enforce TLS encryption.",
       "environment": {

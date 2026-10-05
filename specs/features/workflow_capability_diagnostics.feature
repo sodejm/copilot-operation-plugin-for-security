@@ -27,7 +27,7 @@ Feature: Workflow Capability and Package Diagnostics
     Given the reconciled capability registry
     When capability diagnostics are executed
     Then the capability truth audit passes
-    And exactly 68 total capabilities are verified
+    And exactly 69 total capabilities are verified
     And exactly 0 capabilities claim unverified "live-validated" execution
 
   Scenario: Evaluating strict diagnostic enforcement
