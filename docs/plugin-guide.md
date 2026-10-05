@@ -132,9 +132,9 @@ Use this guide to determine which plugin best matches your operational requireme
 
 #### Offensive Engagement Workbench
 - **Maturity**: <span class="badge badge-experimental">Experimental</span> | **Operational Mode**: `planned`
-- **When to use**: When intaking authorized adversary engagements, enforcing target scope and boundary exclusions, compiling immutable action plans, and orchestrating Triad specialist handoffs.
-- **Key Capabilities**: Scope intake validation, CIDR collision checks, immutable action plan generation, Triad specialist handoffs, capability verification, and authorization invariance enforcement.
-- **Boundaries**: Scoping and planning only; refuses incomplete live requests and does not execute network payloads.
+- **When to use**: When intaking authorized adversary engagements, enforcing target scope and boundary exclusions, compiling immutable action plans, orchestrating Triad specialist handoffs, and managing scenario laboratory environments.
+- **Key Capabilities**: Scope intake validation, CIDR collision checks, immutable action plan generation, Triad specialist handoffs, capability verification, scenario laboratory environment verification, reproducible reset, and controlled case execution.
+- **Boundaries**: Scoping, planning, and isolated laboratory execution only; refuses incomplete live requests and does not execute network payloads outside verified lab boundaries.
 - **Playbook**: `plugins/offensive-security/offensive-engagement-workbench/docs/PLAYBOOK.md`
 
 #### Foundry Agent Harness
@@ -166,7 +166,7 @@ To maintain absolute integrity and avoid capability over-claiming, COPS reconcil
 - **`laboratory`**: Controlled offline simulation, synthetic event replay, or sandbox rehearsal; zero external egress.
 - **`live-validated`**: Fully authorized, live-tested execution path against an authorized environment with cryptographic evidence receipt. Currently 0 capabilities claim live-validated, ensuring zero false claims.
 
-To audit all 65 capabilities across plugins, specialist profiles, and scenarios:
+To audit all 67 capabilities across plugins, specialist profiles, and scenarios:
 
 ```bash
 python3 -m cops capabilities audit --check

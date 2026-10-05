@@ -547,3 +547,62 @@ class SpecialistHandoff:
             evidence=data.get("evidence"),
             rejection_reason=data.get("rejection_reason"),
         )
+
+
+@dataclass
+class LaboratoryEnvironment:
+    """Operator-provided VM or container laboratory environment."""
+
+    schema_version: str
+    environment_id: str
+    environment_type: str
+    status: str
+    platform: dict[str, Any]
+    tool_matrix: dict[str, str]
+    isolation: dict[str, Any]
+    canary: dict[str, Any]
+    reset_configuration: dict[str, Any]
+    owner: str
+    created_at: str
+    updated_at: str
+
+    def transition_to(self, next_state: str) -> None:
+        """Transition laboratory environment to a new lifecycle state."""
+        validate_transition(self.status, next_state, "laboratory_environment")
+        from cops.evidence.canonical import utc_now
+        self.status = next_state
+        self.updated_at = utc_now()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "environment_id": self.environment_id,
+            "environment_type": self.environment_type,
+            "status": self.status,
+            "platform": self.platform,
+            "tool_matrix": self.tool_matrix,
+            "isolation": self.isolation,
+            "canary": self.canary,
+            "reset_configuration": self.reset_configuration,
+            "owner": self.owner,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> LaboratoryEnvironment:
+        validate_contract(data, "laboratory_environment")
+        return cls(
+            schema_version=data["schema_version"],
+            environment_id=data["environment_id"],
+            environment_type=data["environment_type"],
+            status=data["status"],
+            platform=data["platform"],
+            tool_matrix=data["tool_matrix"],
+            isolation=data["isolation"],
+            canary=data["canary"],
+            reset_configuration=data["reset_configuration"],
+            owner=data["owner"],
+            created_at=data["created_at"],
+            updated_at=data["updated_at"],
+        )

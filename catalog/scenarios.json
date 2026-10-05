@@ -1355,6 +1355,50 @@
       },
       "scenario_id": "COPS-E03.02-S01",
       "title": "Specialist Routing and Bounded Workflow Handoffs"
+    },
+    {
+      "coverage_mode": "planned",
+      "description": "Manages operator-provided VM and container laboratory environments with canary data verification, isolation checks, tool matrix matching, reproducible reset, and positive/negative/remediated case evaluation.",
+      "environment": {
+        "isolated_worker_required": true,
+        "os": [
+          "linux",
+          "darwin"
+        ],
+        "required_tools": [
+          "python3",
+          "cops"
+        ]
+      },
+      "family_id": "COPS-E03.03",
+      "mitre_attack": {
+        "tactics": [
+          "execution",
+          "privilege-escalation"
+        ],
+        "techniques": [
+          "T1059",
+          "T1611"
+        ]
+      },
+      "owner_issue": 90,
+      "prerequisites": [
+        "Operator-provided laboratory VM or container environment",
+        "Execution authorization envelope with atomic store consumption"
+      ],
+      "provenance": {
+        "license": "MIT",
+        "source_id": "S01",
+        "source_reference": "https://github.com/gunyakit/command-cheatsheet/tree/4c118399602212f205c91e8f01e418e226fa320c",
+        "version_bound": "4c11839"
+      },
+      "safety_profile": {
+        "impact": "read_only",
+        "reversible": true,
+        "safe_for_production": true
+      },
+      "scenario_id": "COPS-E03.03-S01",
+      "title": "Scenario Laboratory Environment and Harness Management"
     }
   ],
   "schema_version": "cops.scenario-registry/v1",

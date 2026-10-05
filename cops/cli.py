@@ -550,12 +550,12 @@ def build_parser() -> argparse.ArgumentParser:
     contract_sub = contract_p.add_subparsers(dest="contract_command", required=True)
     c_val = contract_sub.add_parser("validate", help="validate an operational contract file")
     c_val.add_argument("file", type=Path, help="path to contract JSON file")
-    c_val.add_argument("--type", choices=["engagement", "scenario", "action_plan", "run_result", "finding", "execution_authorization"], help="explicit contract type")
+    c_val.add_argument("--type", choices=["engagement", "scenario", "action_plan", "run_result", "finding", "execution_authorization", "specialist_handoff", "laboratory_environment"], help="explicit contract type")
 
     c_trans = contract_sub.add_parser("transition", help="validate a lifecycle transition")
     c_trans.add_argument("current", help="current lifecycle state")
     c_trans.add_argument("target", help="target lifecycle state")
-    c_trans.add_argument("--type", choices=["engagement", "action_plan", "execution_authorization"], default="engagement", help="contract type")
+    c_trans.add_argument("--type", choices=["engagement", "action_plan", "execution_authorization", "specialist_handoff", "laboratory_environment"], default="engagement", help="contract type")
 
     scen_p = subparsers.add_parser("scenario", help="inspect and validate scenario and provenance registries")
     scen_sub = scen_p.add_subparsers(dest="scenario_command", required=True)
@@ -687,6 +687,36 @@ def build_parser() -> argparse.ArgumentParser:
     h_workflow.add_argument("--output", help="output path for completed handoff JSON")
     h_workflow.add_argument("--json", action="store_true", help="output JSON")
 
+    lab_p = subparsers.add_parser("lab", help="manage scenario laboratory environments and harness execution")
+    lab_sub = lab_p.add_subparsers(dest="lab_command", required=True)
+
+    l_reg = lab_sub.add_parser("register", help="register a laboratory environment contract")
+    l_reg.add_argument("environment", help="path to laboratory environment JSON or inline JSON")
+    l_reg.add_argument("--output", help="output path for registered environment JSON")
+
+    l_ver = lab_sub.add_parser("verify", help="verify laboratory environment isolation, prerequisites, and canary")
+    l_ver.add_argument("environment", help="path to laboratory environment JSON")
+    l_ver.add_argument("--tools", help="comma-separated list of required tools")
+    l_ver.add_argument("--mock", action="store_true", default=True, help="use mock checks for offline testing")
+    l_ver.add_argument("--output", help="output path for verified environment JSON")
+
+    l_res = lab_sub.add_parser("reset", help="reproducible reset of laboratory environment")
+    l_res.add_argument("environment", help="path to laboratory environment JSON")
+    l_res.add_argument("--mock", action="store_true", default=True, help="use mock reset")
+    l_res.add_argument("--output", help="output path for reset environment JSON")
+
+    l_mat = lab_sub.add_parser("matrix", help="display tested platform and tool matrix")
+    l_mat.add_argument("--output", help="output path for matrix JSON")
+
+    l_run = lab_sub.add_parser("run", help="execute a laboratory test case")
+    l_run.add_argument("--environment", required=True, help="path to laboratory environment JSON")
+    l_run.add_argument("--plan", required=True, help="path to action plan JSON")
+    l_run.add_argument("--authorization", required=True, help="path to execution authorization JSON")
+    l_run.add_argument("--case-type", choices=["positive", "negative", "remediated"], default="positive", help="case type")
+    l_run.add_argument("--store", help="path to sqlite3 approval store")
+    l_run.add_argument("--allowed-cidr", help="allowed network CIDR for scope guard")
+    l_run.add_argument("--output", help="output path for case result JSON")
+
     return parser
 
 
@@ -772,6 +802,9 @@ def main(argv: list[str] | None = None, *, root: Path = ROOT) -> int:
                 return command_engagement_info(args)
             if args.engagement_command == "handoff":
                 return command_engagement_handoff(args)
+        if args.command == "lab":
+            from .laboratory.cli import command_laboratory
+            return command_laboratory(args, root=root)
     except (CatalogError, ValidationError, CoverageError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
