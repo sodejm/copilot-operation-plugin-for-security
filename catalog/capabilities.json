@@ -1,6 +1,6 @@
 {
   "schema_version": "cops.capabilities/v1",
-  "updated_at": "2026-10-05T14:04:25.351139Z",
+  "updated_at": "2026-10-05T14:13:34.449337Z",
   "summary": {
     "total_capabilities": 68,
     "by_kind": {
@@ -9,8 +9,8 @@
       "scenario": 36
     },
     "by_mode": {
-      "planned": 38,
-      "import": 12,
+      "planned": 37,
+      "import": 13,
       "laboratory": 18,
       "live-validated": 0
     }
@@ -558,10 +558,10 @@
       "id": "COPS-E04.03-S01",
       "name": "Infrastructure RPC and Management Endpoint Evaluation",
       "kind": "scenario",
-      "mode": "planned",
+      "mode": "import",
       "domain": "COPS-E04.03",
       "validation_status": "validated",
-      "truth_boundaries": "Impact: read_only; Safe for production: True; Reversible: True. Interrogates RPC endpoint mappers (TCP 135) and SNMP agents (UDP 161) for system context and installed components.",
+      "truth_boundaries": "Impact: read_only; Safe for production: True; Reversible: True. Assesses DNS/mDNS, SNMP, NTP, discovery, RPC, LDAP, and Kerberos infrastructure services, records applicable versions and authentication prerequisites, extracts identity attack-path candidates for AD inventory, and validates boundaries with canary records.",
       "evidence_requirements": [
         "Pinned research source S01",
         "MITRE ATT&CK technique mapping",

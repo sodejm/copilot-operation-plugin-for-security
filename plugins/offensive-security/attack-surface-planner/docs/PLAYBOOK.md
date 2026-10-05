@@ -28,6 +28,8 @@ Invoke this planner under the following concrete triggers:
 | **Assessment Scoping & Kickoff** | Formalize approved rules of engagement (ROE) and map assets before starting an authorized offensive assessment. | `authorized-attack-surface-planning` |
 | **Multi-Tenant Azure/Entra Boundary Review** | Reconcile complex tenant inventories, subscription IDs, and custom domains to prevent testing out-of-scope infrastructure. | `authorized-attack-surface-planning` |
 | **Passive Discovery Planning** | Plan non-intrusive observation and reconnaissance methods without making unreviewed network or tenant calls. | `authorized-attack-surface-planning` |
+| **Active Network & Service Identification** | Conduct rate-limited, resumable port and TLS identification across approved boundaries. | `network-active-discovery` |
+| **Infrastructure & Identity Services Assessment** | Assess protocol exposure (DNS, SNMP, NTP, RPC, LDAP, Kerberos), validate boundaries with canaries, and hand off identity attack paths. | `network-infrastructure-services` |
 | **Audit & Engagement Compliance** | Document explicit boundary justifications, excluded scopes, and remaining uncertainties for compliance review. | `authorized-attack-surface-planning` |
 
 ### Operational Boundaries & Safety Guarantees
@@ -83,6 +85,18 @@ Invoke this planner under the following concrete triggers:
    - Detect dynamic DNS changes or out-of-scope shifts; halt probes and quarantine immediately.
 5. **Verify Remediated Exposures**:
    - Evaluate remediation delta between baseline and re-test sessions: `python3 -m cops discovery active diff ...`.
+
+### Phase 2d: Infrastructure & Identity Services Assessment
+**Skill**: [`network-infrastructure-services`](../skills/network-infrastructure-services/SKILL.md)
+
+1. **Protocol-Specific Infrastructure Probing**:
+   - Assess exposure of DNS, mDNS, SNMP, NTP, RPC endpoint mapper, LDAP, and Kerberos across approved targets: `python3 -m cops discovery infrastructure assess ...`.
+2. **Strict Inaccessible != Secure Grounding**:
+   - Unreachable, timed out, or connection-refused services are strictly classified as `inaccessible` (with `auth_prerequisite: unknown`). Never assume an inaccessible service is secure or hardened.
+3. **Canary Records and Controlled Identities**:
+   - Use benign canary domain queries (`canary.corp.internal`) and synthetic account names (`canary-user@CORP.INTERNAL`) to validate access barriers non-destructively.
+4. **Extract Identity Attack-Path Candidates**:
+   - Extract candidate attack paths (`ldap_anonymous_reconnaissance`, `asrep_roasting`, `rpc_endpoint_enumeration`, `snmp_credential_leak`, `open_dns_recursion`, `ntp_mode6_amplification`) for Active Directory and lateral movement specialist handoff: `python3 -m cops discovery infrastructure candidates ...`.
 
 ### Phase 3: Scope Boundary Partitioning
 Systematically classify every discovered entity into one of three strict partitions:
