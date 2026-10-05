@@ -17,6 +17,14 @@ The Offensive Engagement Workbench guides security operators through the intake 
    - Bounded execution limits.
    - SHA-256 integrity digest.
 
+## Triad Specialist Handoffs
+
+Bounded execution handoffs operate under a four-party Triad coordination model:
+1. **Planner (`propose`)**: Emits `cops.specialist-handoff/v1` proposing task delegation to a routed specialist with required capabilities and initial material plan digest.
+2. **Specialist (`accept`)**: Verifies profile capability coverage from `agents/registry.json`. Refuses tasks when required tools or skills are absent (`MissingCapabilityError`).
+3. **Domain Skeptic (`review`)**: Scrutinizes candidate evidence envelopes and findings for contradictory observations (`ConflictingEvidenceError`) or unsubstantiated claims.
+4. **Evidence Auditor (`audit`)**: Enforces scope and plan invariance (`AuthorizationExpansionError`). Any modification to targets, operations, versions, effects, or material digests requires formal operator re-approval (`MaterialPlanModifiedError`).
+
 ## Emergency Procedures
 
 If live assessment causes operational disruption or exceeds budget limits:
