@@ -20,6 +20,7 @@ IDENTIFIER_PATTERNS: dict[str, re.Pattern[str]] = {
     "run_result": re.compile(r"^res-[a-z0-9_-]{4,64}$"),
     "finding": re.compile(r"^find-[a-z0-9_-]{4,64}$"),
     "execution_authorization": re.compile(r"^auth-[a-z0-9_-]{8,64}$"),
+    "cleanup_receipt": re.compile(r"^cln-[a-z0-9_-]{4,64}$"),
 }
 
 SCHEMA_MAP: dict[str, str] = {
@@ -29,6 +30,7 @@ SCHEMA_MAP: dict[str, str] = {
     "cops.run-result/v1": "run-result.schema.json",
     "cops.finding/v1": "finding-contract.schema.json",
     "cops.execution-authorization/v1": "execution-authorization.schema.json",
+    "cops.cleanup-receipt/v1": "cleanup-receipt.schema.json",
 }
 
 TYPE_MAP: dict[str, str] = {
@@ -38,6 +40,7 @@ TYPE_MAP: dict[str, str] = {
     "cops.run-result/v1": "run_result",
     "cops.finding/v1": "finding",
     "cops.execution-authorization/v1": "execution_authorization",
+    "cops.cleanup-receipt/v1": "cleanup_receipt",
 }
 
 
@@ -124,6 +127,7 @@ def validate_contract(
         "run_result": "result_id",
         "finding": "finding_id",
         "execution_authorization": "authorization_id",
+        "cleanup_receipt": "receipt_id",
     }
     primary_id_field = id_field_map.get(expected_type)
     if primary_id_field and primary_id_field in document:
@@ -244,5 +248,21 @@ def validate_contract(
                     "missing_evidence_reference",
                     "a verified finding must reference at least one evidence envelope record"
                 )
+
+    elif expected_type == "cleanup_receipt":
+        validate_identifier(document["receipt_id"], "cleanup_receipt")
+        validate_identifier(document["plan_id"], "action_plan")
+        validate_identifier(document["engagement_id"], "engagement")
+
+        t_start = timestamp(document["created_at"])
+        t_finish = timestamp(document["completed_at"])
+        if t_finish < t_start:
+            raise ContractError("invalid_timestamp", "completed_at cannot precede created_at")
+
+        if document["status"] == "failed" and not document.get("unresolved_effects"):
+            raise ContractError(
+                "missing_unresolved_effects",
+                "a cleanup_receipt with status 'failed' must report unresolved_effects"
+            )
 
     return document

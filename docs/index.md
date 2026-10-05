@@ -138,5 +138,6 @@ Learn more in the [Specialist Agents Guide](specialist-agents.md).
 - [Execution Scope & Egress Specification](../specs/execution-scope-enforcement.spec.md): Execution-time destination verification, cloud metadata defense, and DNS pinning.
 - [Tool Adapter Registry Specification](../specs/tool-adapter-registry.spec.md): Declarative typed parameters, command assembly, and parameter injection prevention.
 - [Credential and Evidence Handling Specification](../specs/credential-evidence-handling.spec.md): Real-time stream redaction, secret masking, and cryptographic run-result evidence binding.
+- [Execution Recovery and Cleanup Specification](../specs/execution-recovery-and-cleanup.spec.md): Ownership-aware side-effect ledgers, cancellation resilience, non-idempotent handling, and verifiable cleanup receipts.
 - [Pinned Scenario Registry](../specs/pinned-scenario-registry.spec.md): Pinned research sources and canonical scenario registry.
 - [Capability Reconciliation](../specs/capability-reconciliation.spec.md): Operational readiness taxonomy and truth-in-advertising invariants.

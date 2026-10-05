@@ -400,3 +400,52 @@ class Finding:
             uncertainty=data["uncertainty"],
             created_at=data["created_at"],
         )
+
+
+@dataclass(frozen=True)
+class CleanupReceipt:
+    """Receipt documenting cleanup and rollback actions for tracked side effects."""
+
+    schema_version: str
+    receipt_id: str
+    plan_id: str
+    engagement_id: str
+    worker_identity: str
+    status: str
+    created_at: str
+    completed_at: str
+    cleaned_effects: list[dict[str, Any]]
+    unresolved_effects: list[dict[str, Any]]
+    evidence_hash: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "receipt_id": self.receipt_id,
+            "plan_id": self.plan_id,
+            "engagement_id": self.engagement_id,
+            "worker_identity": self.worker_identity,
+            "status": self.status,
+            "created_at": self.created_at,
+            "completed_at": self.completed_at,
+            "cleaned_effects": self.cleaned_effects,
+            "unresolved_effects": self.unresolved_effects,
+            "evidence_hash": self.evidence_hash,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> CleanupReceipt:
+        validate_contract(data, "cleanup_receipt")
+        return cls(
+            schema_version=data["schema_version"],
+            receipt_id=data["receipt_id"],
+            plan_id=data["plan_id"],
+            engagement_id=data["engagement_id"],
+            worker_identity=data["worker_identity"],
+            status=data["status"],
+            created_at=data["created_at"],
+            completed_at=data["completed_at"],
+            cleaned_effects=data["cleaned_effects"],
+            unresolved_effects=data["unresolved_effects"],
+            evidence_hash=data["evidence_hash"],
+        )

@@ -66,6 +66,7 @@ class IsolatedWorker:
         self.config = config or WorkerConfig()
         self.store = store
         self.scope_guard = scope_guard
+        self.last_cleanup_receipt: Any | None = None
         self._verify_worker_environment()
 
     def _verify_worker_environment(self) -> None:
@@ -83,6 +84,8 @@ class IsolatedWorker:
         *,
         authorization: ExecutionAuthorization | dict[str, Any] | str,
         workspace_dir: Path | None = None,
+        cancel_requested: bool = False,
+        failure_injection: dict[str, Any] | None = None,
     ) -> RunResult:
         """Execute an ActionPlan under verified authorization envelope."""
         # 1. Resolve ActionPlan model
@@ -95,6 +98,10 @@ class IsolatedWorker:
             raise WorkerExecutionError(
                 f"cannot execute action plan '{plan_model.plan_id}' with terminal status '{plan_model.status}'"
             )
+
+        # Failure injection: before approval consumption
+        if failure_injection and failure_injection.get("inject_at") == "before_consume":
+            raise WorkerExecutionError("injected failure before approval consumption")
 
         # 2. Resolve Authorization envelope and ensure durable storage
         if self.store is None:
@@ -128,7 +135,11 @@ class IsolatedWorker:
             worker_identity=self.config.worker_id,
         )
 
-        # 5. Set up isolated ephemeral workspace
+        # Failure injection: after approval consumption
+        if failure_injection and failure_injection.get("inject_at") == "after_consume":
+            raise WorkerExecutionError("injected failure after approval consumption")
+
+        # 5. Set up isolated ephemeral workspace and side-effect ledger
         ephemeral = False
         if workspace_dir is None:
             temp_scratch = tempfile.mkdtemp(prefix=f"cops-worker-{plan_model.plan_id}-")
@@ -137,6 +148,25 @@ class IsolatedWorker:
         else:
             target_workspace = Path(workspace_dir).resolve()
             target_workspace.mkdir(parents=True, exist_ok=True)
+
+        from .cleanup import CleanupManager, SideEffectLedger
+        ledger = SideEffectLedger(
+            plan_id=plan_model.plan_id,
+            engagement_id=plan_model.engagement_id,
+            default_owner=self.config.worker_id,
+        )
+        cleanup_manager = CleanupManager(
+            ledger=ledger,
+            worker_identity=self.config.worker_id,
+            workspace_dir=target_workspace,
+        )
+        if ephemeral:
+            ledger.record_effect(
+                step_id="workspace-scratch",
+                resource_type="directory",
+                target=str(target_workspace),
+                cleanup_action="delete",
+            )
 
         started_at = utc_now()
         overall_exit_code = 0
@@ -170,12 +200,57 @@ class IsolatedWorker:
                     status_reason = f"scope violation: {err}"
                     overall_exit_code = 2
 
-            # 6. Execute operations in sequence (if scope check passed)
+            # Check pre-execution cancellation or injected failure
+            if status == "success":
+                if cancel_requested:
+                    status = "cancelled"
+                    status_reason = "execution cancelled by operator before start"
+                    overall_exit_code = 130
+                elif failure_injection and failure_injection.get("inject_at") == "before_process":
+                    status = "failed"
+                    status_reason = "injected failure before process start"
+                    overall_exit_code = 1
+
+            # 6. Execute operations in sequence (if checks passed)
             if status == "success":
                 for op in plan_model.operations:
                     step_id = op["step_id"]
                     tool = op["tool"]
                     action = op["action"]
+                    is_idempotent = bool(op.get("idempotent", False))
+                    # Track declared cleanup in side-effect ledger
+                    if "cleanup" in op and isinstance(op["cleanup"], dict):
+                        clean_spec = op["cleanup"]
+                        clean_target = clean_spec.get("target") or str(target_workspace / f"{step_id}.tmp")
+                        ledger.record_effect(
+                            step_id=step_id,
+                            resource_type=clean_spec.get("resource_type", "file"),
+                            target=clean_target,
+                            cleanup_action=clean_spec.get("action", "delete"),
+                            metadata=clean_spec,
+                        )
+
+                    if cancel_requested:
+                        if not is_idempotent:
+                            status = "uncertain"
+                            status_reason = f"interrupted during non-idempotent step '{step_id}'; automatic repeat disallowed"
+                        else:
+                            status = "cancelled"
+                            status_reason = f"execution cancelled by operator at step '{step_id}'"
+                        overall_exit_code = 130
+                        break
+
+                    if failure_injection and failure_injection.get("inject_at") == "during_execution":
+                        target_step = failure_injection.get("step_id")
+                        if target_step in (None, step_id):
+                            if not is_idempotent:
+                                status = "uncertain"
+                                status_reason = f"interrupted during non-idempotent step '{step_id}'; automatic repeat disallowed"
+                            else:
+                                status = "failed"
+                                status_reason = f"injected failure during execution at step '{step_id}'"
+                            overall_exit_code = 1
+                            break
 
                     # Check overall plan duration limit
                     elapsed_seconds = (datetime.now(timezone.utc) - start_dt).total_seconds()
@@ -217,42 +292,52 @@ class IsolatedWorker:
                     # Prepare isolated execution via adapter or simulated inert
                     stdout_bytes = b""
                     stderr_bytes = b""
-                    if tool == "inert":
-                        # Simulated execution for testing
-                        stdout_bytes = f"Inert step {step_id} executed successfully: {action}".encode("utf-8")
-                        exit_code = 0
-                    else:
-                        from cops.adapters import ToolAdapterRegistry, AdapterError
-                        registry = ToolAdapterRegistry()
-                        if tool in registry.list_tools():
-                            adapter = registry.get_adapter(tool)
-                            try:
-                                cmd = adapter.assemble_command(action, op.get("arguments"))
-                            except AdapterError as err:
-                                redacted_err = redactor.redact_string(str(err))
-                                status = "failed"
-                                status_reason = f"adapter validation error: {redacted_err}"
-                                overall_exit_code = 1
-                                break
-                            exec_cmd = [shutil.which(cmd[0]) or cmd[0]] + cmd[1:]
-                            proc = subprocess.run(
-                                exec_cmd,
-                                cwd=target_workspace,
-                                env=clean_env,
-                                start_new_session=(os.name == "posix"),
-                                capture_output=True,
-                                timeout=timeout,
-                                check=False,
-                            )
-                            stdout_bytes = proc.stdout
-                            stderr_bytes = proc.stderr
-                            exit_code = 128 + abs(proc.returncode) if proc.returncode < 0 else proc.returncode
+                    try:
+                        if tool == "inert":
+                            # Simulated execution for testing
+                            stdout_bytes = f"Inert step {step_id} executed successfully: {action}".encode("utf-8")
+                            exit_code = 0
                         else:
-                            # Tool has no registered adapter - fail closed
-                            status = "failed"
-                            status_reason = f"tool '{tool}' has no registered execution adapter"
-                            overall_exit_code = 127
-                            break
+                            from cops.adapters import ToolAdapterRegistry, AdapterError
+                            registry = ToolAdapterRegistry()
+                            if tool in registry.list_tools():
+                                adapter = registry.get_adapter(tool)
+                                try:
+                                    cmd = adapter.assemble_command(action, op.get("arguments"))
+                                except AdapterError as err:
+                                    redacted_err = redactor.redact_string(str(err))
+                                    status = "failed"
+                                    status_reason = f"adapter validation error: {redacted_err}"
+                                    overall_exit_code = 1
+                                    break
+                                exec_cmd = [shutil.which(cmd[0]) or cmd[0]] + cmd[1:]
+                                proc = subprocess.run(
+                                    exec_cmd,
+                                    cwd=target_workspace,
+                                    env=clean_env,
+                                    start_new_session=(os.name == "posix"),
+                                    capture_output=True,
+                                    timeout=timeout,
+                                    check=False,
+                                )
+                                stdout_bytes = proc.stdout
+                                stderr_bytes = proc.stderr
+                                exit_code = 128 + abs(proc.returncode) if proc.returncode < 0 else proc.returncode
+                            else:
+                                # Tool has no registered adapter - fail closed
+                                status = "failed"
+                                status_reason = f"tool '{tool}' has no registered execution adapter"
+                                overall_exit_code = 127
+                                break
+                    except KeyboardInterrupt:
+                        if not is_idempotent:
+                            status = "uncertain"
+                            status_reason = f"interrupted during non-idempotent step '{step_id}'; automatic repeat disallowed"
+                        else:
+                            status = "cancelled"
+                            status_reason = "execution cancelled by operator via interrupt"
+                        overall_exit_code = 130
+                        break
 
                     step_finished = utc_now()
                     # Record and redact evidence
@@ -290,8 +375,20 @@ class IsolatedWorker:
             overall_exit_code = 1
         finally:
             finished_at = utc_now()
-            # Verified workspace cleanup
-            cleanup_status = "completed"
+            # Perform ownership-verified rollback of tracked side effects
+            cleanup_receipt = cleanup_manager.rollback()
+            self.last_cleanup_receipt = cleanup_receipt
+            cleanup_status = cleanup_receipt.status
+
+            if cleanup_receipt.status in ("failed", "partial"):
+                unres_summary = [e["target"] for e in cleanup_receipt.unresolved_effects]
+                if status == "success":
+                    status = "partial"
+                    status_reason = f"cleanup {cleanup_receipt.status}: unresolved artifacts: {unres_summary}"
+                elif not status_reason:
+                    status_reason = f"cleanup {cleanup_receipt.status}: unresolved artifacts: {unres_summary}"
+
+            # Ensure ephemeral workspace removal if still present
             if ephemeral and target_workspace.exists():
                 try:
                     shutil.rmtree(target_workspace, ignore_errors=False)
@@ -299,8 +396,6 @@ class IsolatedWorker:
                     pass
                 if target_workspace.exists():
                     cleanup_status = "failed"
-            elif not ephemeral:
-                cleanup_status = "not_required"
 
         # 7. Build and return RunResult contract
         result_id = f"res-{uuid.uuid4().hex[:16]}"
@@ -309,11 +404,12 @@ class IsolatedWorker:
         if status != "success":
             status_details["reason"] = status_reason
 
-        # Combine authorization proof and recorded step evidence hashes
+        # Combine authorization proof, recorded step evidence hashes, and cleanup receipt hash
         evidence_hashes = [
             digest(consumed_auth.to_dict())
         ]
         evidence_hashes.extend(evidence_recorder.get_evidence_hashes())
+        evidence_hashes.append(cleanup_receipt.evidence_hash)
 
         result_doc = {
             "schema_version": "cops.run-result/v1",

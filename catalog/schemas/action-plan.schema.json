@@ -64,6 +64,9 @@
           },
           "cleanup": {
             "type": "object"
+          },
+          "idempotent": {
+            "type": "boolean"
           }
         }
       }

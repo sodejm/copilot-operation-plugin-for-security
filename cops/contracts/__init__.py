@@ -17,7 +17,7 @@ from .lifecycle import (
     RUN_RESULT_STATUSES,
     validate_transition,
 )
-from .models import ActionPlan, Engagement, ExecutionAuthorization, Finding, RunResult, Scenario
+from .models import ActionPlan, CleanupReceipt, Engagement, ExecutionAuthorization, Finding, RunResult, Scenario
 from .validation import (
     SCHEMAS,
     build_action_plan_digest,
@@ -30,6 +30,7 @@ __all__ = [
     "ACTION_PLAN_STATES",
     "ACTION_PLAN_TRANSITIONS",
     "ActionPlan",
+    "CleanupReceipt",
     "ContractError",
     "ENGAGEMENT_STATES",
     "ENGAGEMENT_TRANSITIONS",
