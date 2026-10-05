@@ -94,6 +94,44 @@ python3 -m cops discovery inspect reconciled.json
 
 ---
 
+## Bounded Active Discovery & Service Identification
+
+The package extends reconnaissance foundations with bounded, rate-limited active port and TLS service assessment (`cops discovery active` or `cops active-discovery`):
+
+1. **Approved Assessment Configuration**:
+   - Explicit scan vantage (`external`, `internal`, `egress_point`, `cloud_tenant`).
+   - Rate limiting (`--rate-limit <pps>`) with probe pacing to prevent perimeter disruption.
+   - Resource and execution budgets (`--timeout <sec>`, `--max-total-seconds <sec>`).
+2. **Resumable Execution**:
+   - Saves checkpoint after every probe or upon budget exhaustion.
+   - Resuming skips completed probes without repeating network side effects or exceeding approved targets.
+3. **Grounded Service Identification with Visible Uncertainty**:
+   - Distinguishes verbatim observed configurations (raw banners, HTTP status/headers, TLS ciphers/certs) from inferred fingerprints (product, version, OS).
+   - Calibrates confidence (`high`, `medium`, `low`, `uncertain`, `provisional`) and flags reverse proxies, CDNs, and certificate mismatches.
+4. **Scope Quarantine & DNS Rebind Defense**:
+   - Enforces scope CIDR and domain checks before each probe; halts probes and flags `dns_rebind_detected` if target resolution shifts.
+5. **Remediated Exposure Verification**:
+   - Compares baseline vs. re-test scans to compute remediated, new, and persistent exposures with exact remediation rate percentage.
+
+```bash
+# Plan active assessment
+python3 -m cops discovery active plan --targets "198.51.100.10,app.corp.internal" --ports 80,443,22 --output session.json
+
+# Execute bounded scan
+python3 -m cops discovery active scan session.json --scope scope.json --checkpoint checkpoint.json
+
+# Resume interrupted scan
+python3 -m cops discovery active resume checkpoint.json --output completed.json
+
+# Compare scans for remediation delta
+python3 -m cops discovery active diff baseline.json current.json --output delta.json
+
+# Import Masscan or Nmap output
+python3 -m cops discovery active import masscan.json --tool masscan --output masscan_session.json
+```
+
+---
+
 ## Evidence & Ethical Boundaries
 
 The Attack Surface Planner is a **planning and compliance tool**, not an active exploitation framework:

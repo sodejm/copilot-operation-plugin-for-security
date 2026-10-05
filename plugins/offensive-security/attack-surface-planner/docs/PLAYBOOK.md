@@ -69,6 +69,21 @@ Invoke this planner under the following concrete triggers:
    - Reconcile discoveries against engagement boundaries: `python3 -m cops discovery reconcile <inventory.json> --scope <scope.json>`.
    - Quarantine assets exhibiting conflicting ownership, stale records, or missing provenance so discovery cannot expand the engagement.
 
+### Phase 2c: Bounded Active Discovery & Service Identification
+**Skill**: [`network-active-discovery`](../skills/network-active-discovery/SKILL.md)
+
+1. **Plan Authorized Assessment**:
+   - Configure approved targets, ports, protocol, and TLS assessment with explicit vantage and rate limits: `python3 -m cops discovery active plan ...`.
+2. **Execute Resumable Probes**:
+   - Execute bounded probes with checkpointing: `python3 -m cops discovery active scan ...`.
+   - Resuming skips completed probes without repeating side effects: `python3 -m cops discovery active resume ...`.
+3. **Calibrate Fingerprint Uncertainty**:
+   - Distinguish observed configurations from inferred fingerprints with explicit confidence and visible uncertainty reasons.
+4. **Enforce Boundary & DNS Rebind Defense**:
+   - Detect dynamic DNS changes or out-of-scope shifts; halt probes and quarantine immediately.
+5. **Verify Remediated Exposures**:
+   - Evaluate remediation delta between baseline and re-test sessions: `python3 -m cops discovery active diff ...`.
+
 ### Phase 3: Scope Boundary Partitioning
 Systematically classify every discovered entity into one of three strict partitions:
 

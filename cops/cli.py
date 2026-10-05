@@ -720,8 +720,13 @@ def build_parser() -> argparse.ArgumentParser:
     from .diagnostics.cli import build_diagnostics_parser
     build_diagnostics_parser(subparsers)
 
-    from .discovery.cli import build_discovery_parser
+    from .discovery.cli import build_active_parser, build_discovery_parser
     build_discovery_parser(subparsers)
+    active_parser = subparsers.add_parser(
+        "active-discovery",
+        help="Bounded active network discovery and service identification.",
+    )
+    build_active_parser(active_parser)
 
     return parser
 
@@ -817,6 +822,9 @@ def main(argv: list[str] | None = None, *, root: Path = ROOT) -> int:
         if args.command == "discovery":
             from .discovery.cli import command_discovery
             return command_discovery(args, root=root)
+        if args.command == "active-discovery":
+            from .discovery.cli import command_active_discovery
+            return command_active_discovery(args, root=root)
     except (CatalogError, ValidationError, CoverageError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
