@@ -159,6 +159,24 @@ Invoke this planner under the following concrete triggers:
 6. **Extract Developer Privilege Candidates**:
    - Extract candidate findings (`docker_socket_rce`, `docker_registry_leak`, `rmi_code_execution`, `jdwp_code_execution`, `erlang_epmd_rce`, `adb_shell_rce`, `distcc_rce`, `svn_anonymous_checkout`, `ajp_ghostcat_rce`, `fastcgi_rce`) for code execution or breakout handoff: `python3 -m cops developer-services candidates ...`.
 
+### Phase 2i: Legacy Enterprise, Management, and Proxy Services Assessment
+**Skill**: [`network-legacy-and-proxy-services`](../skills/network-legacy-and-proxy-services/SKILL.md)
+
+1. **Protocol-Specific Legacy Enterprise & Proxy Probing**:
+   - Assess exposure of enterprise storage (NDMP, iSCSI), hardware out-of-band management (IPMI 2.0 / RMCP+), network appliance management (Cisco Smart Install, TACACS+), legacy VPN tunneling (IKEv1 Aggressive Mode, PPTP), and proxy egress services (SOCKS, Squid) across approved targets: `python3 -m cops legacy-services assess ...`.
+2. **Proxy Egress Restriction Testing**:
+   - For all proxy and egress services (SOCKS, Squid), test and record whether outbound destinations are restricted (`proxy_egress_tested`, `proxy_egress_restricted`) to evaluate unauthorized internal pivoting and SSRF risks.
+3. **Execution Effect Classification & Plan Binding**:
+   - Declare `ExecutionEffect`: `read_only`, `non_destructive`, `state_change`, `code_execution`.
+   - Operations that execute code or modify state require explicit authorization (`--allow-code-execution`, `--allow-state-change`) bound to the active plan.
+4. **Strict Inaccessible != Secure Grounding**:
+   - Filtered, closed, or timed-out endpoints are strictly classified as `inaccessible` (with `auth_prerequisite: unknown`). Never assume an inaccessible service is secure or hardened.
+5. **Canary Validation and Verifiable Cleanup Receipts**:
+   - Validate access controls using benign canary identifiers (`canary_legacy_artifact`, `canary_proxy_probe`).
+   - Emit verified `CleanupReceipt` records confirming rollback and artifact removal: `python3 -m cops legacy-services cleanup ...`.
+6. **Extract Legacy Privilege Candidates**:
+   - Extract candidate findings (`ndmp_unauthenticated_access`, `iscsi_unauthenticated_target`, `ipmi_cipher_zero_bypass`, `ipmi_rakp_hash_dump`, `cisco_smart_install_rce`, `tacacs_unauthenticated_daemon`, `ike_aggressive_mode_psk`, `pptp_mschapv2_exposure`, `socks_open_proxy`, `squid_open_proxy`) for takeover or proxy egress pivoting handoff: `python3 -m cops legacy-services candidates ...`.
+
 ### Phase 3: Scope Boundary Partitioning
 Systematically classify every discovered entity into one of three strict partitions:
 

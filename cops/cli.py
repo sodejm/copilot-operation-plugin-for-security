@@ -726,6 +726,7 @@ def build_parser() -> argparse.ArgumentParser:
         build_developer_parser,
         build_discovery_parser,
         build_infra_parser,
+        build_legacy_parser,
         build_messaging_parser,
         build_remote_parser,
     )
@@ -760,6 +761,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Assess developer and runtime interface services.",
     )
     build_developer_parser(developer_parser)
+    legacy_parser = subparsers.add_parser(
+        "legacy-services",
+        help="Assess legacy enterprise, management, and proxy services.",
+    )
+    build_legacy_parser(legacy_parser)
 
     return parser
 
@@ -873,6 +879,9 @@ def main(argv: list[str] | None = None, *, root: Path = ROOT) -> int:
         if args.command == "developer-services":
             from .discovery.cli import command_developer_discovery
             return command_developer_discovery(args, root=root)
+        if args.command == "legacy-services":
+            from .discovery.cli import command_legacy_discovery
+            return command_legacy_discovery(args, root=root)
     except (CatalogError, ValidationError, CoverageError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
