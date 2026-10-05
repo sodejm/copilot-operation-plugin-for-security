@@ -1269,6 +1269,49 @@
       },
       "scenario_id": "COPS-E15.03-S01",
       "title": "Reversible Persistence and Defense Evasion Simulation"
+    },
+    {
+      "coverage_mode": "planned",
+      "description": "Validates engagement intake contracts, enforces scope boundaries, and compiles reviewable immutable action plans for offensive security assessments.",
+      "environment": {
+        "isolated_worker_required": true,
+        "os": [
+          "linux"
+        ],
+        "required_tools": [
+          "python3",
+          "cops"
+        ]
+      },
+      "family_id": "COPS-E03.01",
+      "mitre_attack": {
+        "tactics": [
+          "reconnaissance",
+          "discovery"
+        ],
+        "techniques": [
+          "T1595",
+          "T1046"
+        ]
+      },
+      "owner_issue": 88,
+      "prerequisites": [
+        "Operator authorization and rules of engagement envelope",
+        "Unambiguous target specification and exclusion boundaries"
+      ],
+      "provenance": {
+        "license": "MIT",
+        "source_id": "S01",
+        "source_reference": "https://github.com/gunyakit/command-cheatsheet/tree/4c118399602212f205c91e8f01e418e226fa320c/recon/nmap.md",
+        "version_bound": "4c11839"
+      },
+      "safety_profile": {
+        "impact": "read_only",
+        "reversible": true,
+        "safe_for_production": true
+      },
+      "scenario_id": "COPS-E03.01-S01",
+      "title": "Authorized Adversary Engagement Intake and Action Planning"
     }
   ],
   "schema_version": "cops.scenario-registry/v1",

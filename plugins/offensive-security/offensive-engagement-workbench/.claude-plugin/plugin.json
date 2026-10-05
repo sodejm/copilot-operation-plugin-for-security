@@ -1,0 +1,7 @@
+{
+  "name": "offensive-engagement-workbench",
+  "version": "0.1.0",
+  "description": "Authorized adversary engagement intake, scope validation, and execution planning.",
+  "author": {"name": "Justin Soderberg"},
+  "license": "PolyForm-Noncommercial-1.0.0"
+}

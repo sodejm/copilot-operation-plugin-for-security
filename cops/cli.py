@@ -607,6 +607,44 @@ def build_parser() -> argparse.ArgumentParser:
     w_exec.add_argument("--db", type=Path, help="path to sqlite approval store")
     w_exec.add_argument("--json", action="store_true", help="output structured JSON")
 
+    eng_p = subparsers.add_parser("engagement", help="authorized engagement intake, scope validation, and action planning")
+    eng_sub = eng_p.add_subparsers(dest="engagement_command", required=True)
+
+    e_create = eng_sub.add_parser("create", help="create and validate a new engagement intake contract")
+    e_create.add_argument("--name", required=True, help="engagement name")
+    e_create.add_argument("--owner", "--operator", dest="owner", required=True, help="engagement operator or owner")
+    e_create.add_argument("--targets", required=True, help="comma-separated included targets")
+    e_create.add_argument("--exclusions", default="", help="comma-separated excluded targets")
+    e_create.add_argument("--start", required=True, help="window started_at (ISO-8601)")
+    e_create.add_argument("--until", required=True, help="window authorized_until_utc (ISO-8601)")
+    e_create.add_argument("--allowed-effects", "--allowed-actions", dest="allowed_effects", help="comma-separated allowed effects/actions")
+    e_create.add_argument("--max-intensity", choices=["low", "medium", "high"], default="low", help="maximum execution intensity")
+    e_create.add_argument("--emergency-contact", default="security-ops@internal.net", help="emergency contact")
+    e_create.add_argument("--no-safe-mode", action="store_true", help="disable safe mode (default is enabled)")
+    e_create.add_argument("--mode", choices=["planning", "import", "laboratory", "live"], default="planning", help="execution mode")
+    e_create.add_argument("--budget-duration", type=int, help="max duration in seconds")
+    e_create.add_argument("--budget-output-bytes", type=int, help="max output in bytes")
+    e_create.add_argument("--credentials", help="comma-separated credential references")
+    e_create.add_argument("--id", help="optional explicit engagement ID")
+    e_create.add_argument("--output", help="path to save engagement JSON file")
+
+    e_val = eng_sub.add_parser("validate", help="validate an engagement intake file")
+    e_val.add_argument("file", help="path to engagement JSON file")
+    e_val.add_argument("--json", action="store_true", help="output structured JSON")
+
+    e_plan = eng_sub.add_parser("plan", help="produce an immutable reviewable action plan from engagement and scenario")
+    e_plan.add_argument("--engagement", required=True, help="path to engagement contract JSON file")
+    e_plan.add_argument("--scenario", required=True, help="scenario ID (e.g. COPS-E03.01-S01) or path to scenario JSON")
+    e_plan.add_argument("--target", required=True, help="target from engagement included_targets")
+    e_plan.add_argument("--specialist", default="cops-pentest-specialist", help="specialist profile ID")
+    e_plan.add_argument("--mode", choices=["planning", "import", "laboratory", "live"], help="override execution mode")
+    e_plan.add_argument("--output", help="path to save ActionPlan JSON file")
+    e_plan.add_argument("--json", action="store_true", help="output JSON to stdout")
+
+    e_info = eng_sub.add_parser("info", help="display details of an engagement contract")
+    e_info.add_argument("file", help="path to engagement JSON file")
+    e_info.add_argument("--json", action="store_true", help="output structured JSON")
+
     return parser
 
 
@@ -674,6 +712,21 @@ def main(argv: list[str] | None = None, *, root: Path = ROOT) -> int:
                 return command_worker_store_list(args)
             if args.worker_command == "execute":
                 return command_worker_execute(args)
+        if args.command == "engagement":
+            from .engagement.cli import (
+                command_engagement_create,
+                command_engagement_info,
+                command_engagement_plan,
+                command_engagement_validate,
+            )
+            if args.engagement_command == "create":
+                return command_engagement_create(args)
+            if args.engagement_command == "validate":
+                return command_engagement_validate(args)
+            if args.engagement_command == "plan":
+                return command_engagement_plan(args)
+            if args.engagement_command == "info":
+                return command_engagement_info(args)
     except (CatalogError, ValidationError, CoverageError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2

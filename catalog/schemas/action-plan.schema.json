@@ -67,9 +67,21 @@
           },
           "idempotent": {
             "type": "boolean"
+          },
+          "expected_evidence": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1}
+          },
+          "side_effects": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1}
           }
         }
       }
+    },
+    "platform_prerequisites": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
     },
     "limits": {
       "type": "object",
