@@ -98,6 +98,19 @@ Invoke this planner under the following concrete triggers:
 4. **Extract Identity Attack-Path Candidates**:
    - Extract candidate attack paths (`ldap_anonymous_reconnaissance`, `asrep_roasting`, `rpc_endpoint_enumeration`, `snmp_credential_leak`, `open_dns_recursion`, `ntp_mode6_amplification`) for Active Directory and lateral movement specialist handoff: `python3 -m cops discovery infrastructure candidates ...`.
 
+### Phase 2e: Remote Administration, File Sharing, and Printing Services Assessment
+**Skill**: [`network-remote-and-file-services`](../skills/network-remote-and-file-services/SKILL.md)
+
+1. **Protocol-Specific Remote, File, and Printing Probing**:
+   - Assess exposure of remote administration (SSH, Telnet, RDP, VNC, WinRM, X11), file sharing (SMB, NFS, FTP/TFTP, rsync, AFP), and printing services (LPD, IPP, Raw/JetDirect) across approved targets: `python3 -m cops remote-services assess ...`.
+2. **Strict Inaccessible != Secure Grounding**:
+   - Filtered, closed, or timed out services are strictly classified as `inaccessible` (with `auth_prerequisite: unknown`). Never report an inaccessible service as secure or hardened.
+3. **Canary Validation and Verifiable Cleanup Receipts**:
+   - Validate access controls and write boundaries using benign canary files or synthetic print jobs.
+   - Emit verified `CleanupReceipt` records confirming rollback and artifact removal: `python3 -m cops remote-services cleanup ...`.
+4. **Extract Host Privilege Candidates**:
+   - Extract candidate attack paths (`smb_v1_enabled`, `smb_signing_disabled`, `smb_unauthenticated_share`, `telnet_plaintext_exposure`, `rdp_nla_disabled`, `vnc_no_auth`, `winrm_http_unencrypted`, `x11_open_display`, `nfs_no_root_squash`, `ftp_anonymous_login`, `rsync_open_module`, `unauthenticated_printer_queue`) for offensive and lateral movement specialist handoff: `python3 -m cops remote-services candidates ...`.
+
 ### Phase 3: Scope Boundary Partitioning
 Systematically classify every discovered entity into one of three strict partitions:
 
