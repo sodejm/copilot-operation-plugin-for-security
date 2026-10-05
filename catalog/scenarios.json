@@ -205,8 +205,8 @@
       "title": "Infrastructure RPC and Management Endpoint Evaluation"
     },
     {
-      "coverage_mode": "planned",
-      "description": "Enumerates accessible SMB shares, IPC$ null session bindings, and RDP NLA requirements on target hosts.",
+      "coverage_mode": "import",
+      "description": "Assess exposure, authentication prerequisites, and access controls across remote administration (SSH, Telnet, RDP, VNC, WinRM, X11), file sharing (SMB, NFS, FTP/TFTP, rsync, AFP), and printing services (LPD, IPP, JetDirect) with canary files/jobs, privilege routing, and cleanup receipts.",
       "environment": {
         "isolated_worker_required": true,
         "os": [

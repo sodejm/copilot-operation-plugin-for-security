@@ -62,6 +62,24 @@ from .normalizers import (
     normalize_ip_record,
 )
 from .reconciler import reconcile_asset, reconcile_inventory
+from .remote_collector import (
+    DEFAULT_REMOTE_PORTS,
+    OfflineSyntheticRemoteCollector,
+    RemoteServicesCollector,
+    StandardSocketRemoteCollector,
+    assess_remote_services,
+)
+from .remote_models import (
+    CleanupReceipt,
+    HostPrivilegeCandidate,
+    LateralMovementImpact,
+    RemoteAuthPrerequisite,
+    RemoteExposureStatus,
+    RemoteServiceAssessment,
+    RemoteServiceCategory,
+    RemoteServicesReport,
+    RemoteServiceType,
+)
 
 __all__ = [
     "ActiveScanError",
@@ -116,4 +134,18 @@ __all__ = [
     "normalize_ip_record",
     "reconcile_asset",
     "reconcile_inventory",
+    "DEFAULT_REMOTE_PORTS",
+    "CleanupReceipt",
+    "HostPrivilegeCandidate",
+    "LateralMovementImpact",
+    "OfflineSyntheticRemoteCollector",
+    "RemoteAuthPrerequisite",
+    "RemoteExposureStatus",
+    "RemoteServiceAssessment",
+    "RemoteServiceCategory",
+    "RemoteServicesCollector",
+    "RemoteServicesReport",
+    "RemoteServiceType",
+    "StandardSocketRemoteCollector",
+    "assess_remote_services",
 ]

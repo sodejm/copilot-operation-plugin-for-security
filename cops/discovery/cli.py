@@ -41,6 +41,17 @@ from .normalizers import (
     normalize_ip_record,
 )
 from .reconciler import reconcile_inventory
+from .remote_collector import (
+    DEFAULT_REMOTE_PORTS,
+    OfflineSyntheticRemoteCollector,
+    StandardSocketRemoteCollector,
+    assess_remote_services,
+)
+from .remote_models import (
+    RemoteServicesReport,
+    RemoteExposureStatus,
+    RemoteServiceCategory,
+)
 
 ROOT: Path = Path(__file__).resolve().parents[2]
 
@@ -119,6 +130,37 @@ def build_infra_parser(parser: argparse.ArgumentParser) -> None:
     insp_p.add_argument("--json", action="store_true", help="Emit JSON output.")
 
 
+def build_remote_parser(parser: argparse.ArgumentParser) -> None:
+    """Build sub-commands for remote admin, file sharing, and printing service assessment."""
+    remote_subs = parser.add_subparsers(dest="remote_command", required=True)
+
+    # 1. assess
+    ass_p = remote_subs.add_parser("assess", help="Assess remote administration, file sharing, and printing services.")
+    ass_p.add_argument("--targets", "-t", required=True, help="Comma-separated targets or path to JSON.")
+    ass_p.add_argument("--services", "-s", default=None, help="Comma-separated service types (ssh,telnet,rdp,vnc,winrm,x11,smb,nfs,ftp,tftp,rsync,afp,lpd,ipp,raw_print).")
+    ass_p.add_argument("--vantage", default="external", choices=["external", "internal", "egress_point", "cloud_tenant"], help="Probe vantage.")
+    ass_p.add_argument("--scope-ref", default="authorized-scope", help="Scope reference.")
+    ass_p.add_argument("--canary-id", default=None, help="Canary record / controlled identity / canary file / canary print job identifier.")
+    ass_p.add_argument("--mode", choices=["synthetic", "live"], default="synthetic", help="Collector mode.")
+    ass_p.add_argument("--offline-targets", default=None, help="Path to mock targets JSON.")
+    ass_p.add_argument("--output", "-o", default=None, help="Output JSON path.")
+
+    # 2. candidates
+    cand_p = remote_subs.add_parser("candidates", help="Export host privilege candidates for lateral movement specialists.")
+    cand_p.add_argument("report", help="Path to RemoteServicesReport JSON.")
+    cand_p.add_argument("--output", "-o", default=None, help="Output JSON path.")
+
+    # 3. cleanup
+    clean_p = remote_subs.add_parser("cleanup", help="Export verified cleanup receipts for canary artifacts.")
+    clean_p.add_argument("report", help="Path to RemoteServicesReport JSON.")
+    clean_p.add_argument("--output", "-o", default=None, help="Output JSON path.")
+
+    # 4. inspect
+    insp_p = remote_subs.add_parser("inspect", help="Inspect and summarize remote services assessment report.")
+    insp_p.add_argument("report", help="Path to RemoteServicesReport JSON.")
+    insp_p.add_argument("--json", action="store_true", help="Emit JSON output.")
+
+
 def build_discovery_parser(subparsers: argparse._SubParsersAction[Any]) -> argparse.ArgumentParser:
     """Build the discovery sub-parser for cops CLI."""
     parser = subparsers.add_parser(
@@ -164,6 +206,10 @@ def build_discovery_parser(subparsers: argparse._SubParsersAction[Any]) -> argpa
     # Infrastructure Subcommands under discovery
     infra_p = disc_subs.add_parser("infrastructure", help="Assess infrastructure and identity-facing services.")
     build_infra_parser(infra_p)
+
+    # Remote Administration, File Sharing, and Printing Subcommands under discovery
+    remote_p = disc_subs.add_parser("remote", help="Assess remote administration, file sharing, and printing services.")
+    build_remote_parser(remote_p)
 
     return parser
 
@@ -381,6 +427,107 @@ def command_infra_discovery(args: argparse.Namespace, root: Path | None = None) 
     return 0
 
 
+def command_remote_discovery(args: argparse.Namespace, root: Path | None = None) -> int:
+    """Handle remote admin, file sharing, and printing discovery CLI subcommands."""
+    remote_cmd = getattr(args, "remote_command", None)
+
+    if remote_cmd == "assess":
+        raw_targets = args.targets
+        if Path(raw_targets).is_file():
+            t_data = json.loads(Path(raw_targets).read_text(encoding="utf-8"))
+            targets = t_data if isinstance(t_data, list) else (t_data.get("targets") or list(t_data.keys()))
+        else:
+            targets = [t.strip() for t in raw_targets.split(",") if t.strip()]
+
+        services = [s.strip().lower() for s in args.services.split(",") if s.strip()] if args.services else None
+
+        if args.mode == "synthetic":
+            mock_targets = {}
+            if args.offline_targets and Path(args.offline_targets).is_file():
+                mock_targets = json.loads(Path(args.offline_targets).read_text(encoding="utf-8"))
+            collector = OfflineSyntheticRemoteCollector(targets=mock_targets)
+        else:
+            collector = StandardSocketRemoteCollector()
+
+        report = assess_remote_services(
+            targets=targets,
+            service_types=services,
+            collector=collector,
+            vantage=args.vantage,
+            scope_ref=args.scope_ref,
+            canary_id=args.canary_id,
+        )
+
+        out_json = json.dumps(report.to_dict(), indent=2)
+        if args.output:
+            Path(args.output).write_text(out_json, encoding="utf-8")
+            print(f"Assessed {len(report.services_assessed)} remote/file/print services ({len(report.host_privilege_candidates)} candidates, {len(report.cleanup_receipts)} cleanup receipts) saved to {args.output}")
+        else:
+            print(out_json)
+        return 0
+
+    if remote_cmd == "candidates":
+        report_path = Path(args.report)
+        report_data = json.loads(report_path.read_text(encoding="utf-8"))
+        candidates = report_data.get("host_privilege_candidates", [])
+
+        out_json = json.dumps(candidates, indent=2)
+        if args.output:
+            Path(args.output).write_text(out_json, encoding="utf-8")
+            print(f"Exported {len(candidates)} host privilege candidates to {args.output}")
+        else:
+            print(out_json)
+        return 0
+
+    if remote_cmd == "cleanup":
+        report_path = Path(args.report)
+        report_data = json.loads(report_path.read_text(encoding="utf-8"))
+        receipts = report_data.get("cleanup_receipts", [])
+
+        out_json = json.dumps(receipts, indent=2)
+        if args.output:
+            Path(args.output).write_text(out_json, encoding="utf-8")
+            print(f"Exported {len(receipts)} cleanup receipts to {args.output}")
+        else:
+            print(out_json)
+        return 0
+
+    if remote_cmd == "inspect":
+        report_path = Path(args.report)
+        report_data = json.loads(report_path.read_text(encoding="utf-8"))
+        report = RemoteServicesReport.from_dict(report_data)
+
+        if getattr(args, "json", False):
+            print(json.dumps(report.to_dict(), indent=2))
+            return 0
+
+        print(f"=== Remote Administration, File Sharing & Printing Report ({report.report_id}) ===")
+        print(f"Scope Reference:     {report.scope_reference}")
+        print(f"Probe Vantage:       {report.vantage}")
+        print(f"Total Assessed:      {report.summary.get('total_services', len(report.services_assessed))}")
+        print(f"Exposed:             {report.summary.get('exposed', 0)}")
+        print(f"Protected:           {report.summary.get('protected', 0)}")
+        print(f"Inaccessible:        {report.summary.get('inaccessible', 0)}")
+        print(f"Host Privilege Cand: {report.summary.get('host_privilege_candidates', len(report.host_privilege_candidates))}")
+        print(f"Cleanup Receipts:    {report.summary.get('cleanup_receipts', len(report.cleanup_receipts))}")
+        print()
+        for s in report.services_assessed:
+            status_icon = "!" if s.exposure_status in ("exposed", "misconfigured") else ("✓" if s.exposure_status in ("protected", "remediated") else "?")
+            cand_types = [c.finding_type for c in s.host_privilege_candidates]
+            cand_marker = f" -> CANDIDATES: {', '.join(cand_types)}" if cand_types else ""
+            cat_label = s.category.upper() if isinstance(s.category, str) else s.category.value.upper()
+            stype = s.service_type if isinstance(s.service_type, str) else s.service_type.value
+            auth_val = s.auth_prerequisite if isinstance(s.auth_prerequisite, str) else s.auth_prerequisite.value
+            exp_val = s.exposure_status if isinstance(s.exposure_status, str) else s.exposure_status.value
+            print(f"  [{status_icon}] [{cat_label:<12}] {stype.upper():<10} {s.target_host}:{s.port:<5} {exp_val:<14} (auth: {auth_val}){cand_marker}")
+        if report.summary.get("inaccessible", 0) > 0:
+            print()
+            print("Truth-in-Advertising Notice: Inaccessible services are NOT reported as secure or hardened.")
+        return 0
+
+    return 0
+
+
 def command_discovery(
     args: argparse.Namespace | None = None,
     root: Path | None = None,
@@ -401,6 +548,9 @@ def command_discovery(
 
         if cmd == "infrastructure":
             return command_infra_discovery(args, root=root)
+
+        if cmd == "remote":
+            return command_remote_discovery(args, root=root)
 
         if cmd == "normalize":
             src_file = Path(file_path or args.file)

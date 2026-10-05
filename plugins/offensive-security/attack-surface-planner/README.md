@@ -164,6 +164,38 @@ python3 -m cops discovery infrastructure inspect infra_assessment.json
 
 ---
 
+## Remote Administration, File Sharing, and Printing Services Assessment
+
+The package assesses protocol-specific exposure across remote administration (SSH, Telnet, RDP, VNC, WinRM, X11), file sharing (SMB, NFS, FTP/TFTP, rsync, AFP), and network printing services (LPD, IPP, Raw/JetDirect) (`cops remote-services` or `cops discovery remote`):
+
+1. **Protocol-Specific Coverage**:
+   - **Remote Admin**: Evaluates SSH authentication modes and versions, Telnet unencrypted credential leakage, RDP Network Level Authentication (NLA) enforcement, VNC RFB authentication barriers, WinRM HTTP unencrypted endpoints, and open X11 display servers.
+   - **File Sharing**: Audits SMBv1 enablement, mandatory SMB message signing, null/guest share enumeration, NFS exports with `no_root_squash` privilege escalation, anonymous FTP access, unauthenticated rsync daemon modules, and Apple Filing Protocol (AFP) guest access.
+   - **Printing**: Checks LPD, IPP, and Raw/JetDirect queues for unauthenticated job submissions.
+2. **Crucial Truth Boundary: Inaccessible != Secure**:
+   - If a service is filtered, connection-refused, or timed out, it is strictly recorded as `inaccessible` with `auth_prerequisite: unknown` and explicit uncertainty notes. It is **never** reported as secure or hardened.
+3. **Canary Validation and Verifiable Cleanup Receipts**:
+   - Non-destructive probes validate access boundaries using canary files or synthetic print jobs.
+   - Assessments emit cryptographically hashed `CleanupReceipt` records confirming test artifacts were removed and the system state was restored (`verified_removed`).
+4. **Host Privilege Candidate Routing**:
+   - Discovered misconfigurations (e.g. SMBv1, missing SMB signing, RDP without NLA, NFS `no_root_squash`, open VNC/X11) are structured as `HostPrivilegeCandidate` records with cryptographic evidence hashes and lateral movement impact ratings for handoff to offensive specialists (`cops-pentest-specialist`, `cops-redteam-operator`).
+
+```bash
+# Assess remote, file, and printing services
+python3 -m cops remote-services assess --targets "198.51.100.20,fileserver01.corp.internal" --vantage internal --canary-id "canary_share/audit.tmp" --output remote_assessment.json
+
+# Extract host privilege candidates for lateral movement specialists
+python3 -m cops remote-services candidates remote_assessment.json --output host_candidates.json
+
+# Export verified cleanup receipts
+python3 -m cops remote-services cleanup remote_assessment.json --output cleanup_receipts.json
+
+# Inspect remote assessment summary and truth-in-advertising metrics
+python3 -m cops remote-services inspect remote_assessment.json
+```
+
+---
+
 ## Evidence & Ethical Boundaries
 
 The Attack Surface Planner is a **planning and compliance tool**, not an active exploitation framework:
