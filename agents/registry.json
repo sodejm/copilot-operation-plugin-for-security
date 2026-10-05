@@ -16,7 +16,8 @@
         "engagement-specialist-handoffs",
         "network-active-discovery",
         "network-infrastructure-services",
-        "network-remote-and-file-services"
+        "network-remote-and-file-services",
+        "network-data-services"
       ],
       "tools": [
         "python3 -m cops check attack-surface-planner",
@@ -27,6 +28,7 @@
         "python3 -m cops active-discovery",
         "python3 -m cops infrastructure-services",
         "python3 -m cops remote-services",
+        "python3 -m cops data-services",
         "scripts/plan.py"
       ],
       "contract_file": "agents/profiles/cops-pentest-specialist.agent.md",
@@ -105,14 +107,16 @@
         "network-passive-discovery",
         "network-active-discovery",
         "network-infrastructure-services",
-        "network-remote-and-file-services"
+        "network-remote-and-file-services",
+        "network-data-services"
       ],
       "tools": [
         "attack_surface_planner",
         "python3 -m cops discovery",
         "python3 -m cops active-discovery",
         "python3 -m cops infrastructure-services",
-        "python3 -m cops remote-services"
+        "python3 -m cops remote-services",
+        "python3 -m cops data-services"
       ],
       "contract_file": "agents/profiles/cops-attack-surface-planner.agent.md",
       "intent_keywords": [

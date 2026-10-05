@@ -62,6 +62,23 @@ from .normalizers import (
     normalize_ip_record,
 )
 from .reconciler import reconcile_asset, reconcile_inventory
+from .data_collector import (
+    DEFAULT_DATA_PORTS,
+    DataServicesCollector,
+    OfflineSyntheticDataCollector,
+    StandardSocketDataCollector,
+    assess_data_services,
+)
+from .data_models import (
+    DataAuthPrerequisite,
+    DataExposureStatus,
+    DataPrivilegeCandidate,
+    DataPrivilegeImpact,
+    DataServiceAssessment,
+    DataServiceCategory,
+    DataServicesReport,
+    DataServiceType,
+)
 from .remote_collector import (
     DEFAULT_REMOTE_PORTS,
     OfflineSyntheticRemoteCollector,
@@ -148,4 +165,17 @@ __all__ = [
     "RemoteServiceType",
     "StandardSocketRemoteCollector",
     "assess_remote_services",
+    "DEFAULT_DATA_PORTS",
+    "DataAuthPrerequisite",
+    "DataExposureStatus",
+    "DataPrivilegeCandidate",
+    "DataPrivilegeImpact",
+    "DataServiceAssessment",
+    "DataServiceCategory",
+    "DataServicesCollector",
+    "DataServicesReport",
+    "DataServiceType",
+    "OfflineSyntheticDataCollector",
+    "StandardSocketDataCollector",
+    "assess_data_services",
 ]
