@@ -23,6 +23,7 @@ IDENTIFIER_PATTERNS: dict[str, re.Pattern[str]] = {
     "execution_authorization": re.compile(r"^auth-[a-z0-9_-]{8,64}$"),
     "cleanup_receipt": re.compile(r"^cln-[a-z0-9_-]{4,64}$"),
     "specialist_handoff": re.compile(r"^hnd-[a-z0-9_-]{4,64}$"),
+    "laboratory_environment": re.compile(r"^env-lab-[a-z0-9_-]{4,64}$"),
 }
 
 SCHEMA_MAP: dict[str, str] = {
@@ -34,6 +35,7 @@ SCHEMA_MAP: dict[str, str] = {
     "cops.execution-authorization/v1": "execution-authorization.schema.json",
     "cops.cleanup-receipt/v1": "cleanup-receipt.schema.json",
     "cops.specialist-handoff/v1": "specialist-handoff.schema.json",
+    "cops.laboratory-environment/v1": "laboratory-environment.schema.json",
 }
 
 TYPE_MAP: dict[str, str] = {
@@ -45,6 +47,7 @@ TYPE_MAP: dict[str, str] = {
     "cops.execution-authorization/v1": "execution_authorization",
     "cops.cleanup-receipt/v1": "cleanup_receipt",
     "cops.specialist-handoff/v1": "specialist_handoff",
+    "cops.laboratory-environment/v1": "laboratory_environment",
 }
 
 
@@ -133,6 +136,7 @@ def validate_contract(
         "execution_authorization": "authorization_id",
         "cleanup_receipt": "receipt_id",
         "specialist_handoff": "handoff_id",
+        "laboratory_environment": "environment_id",
     }
     primary_id_field = id_field_map.get(expected_type)
     if primary_id_field and primary_id_field in document:
@@ -277,5 +281,12 @@ def validate_contract(
         validate_identifier(document["handoff_id"], "specialist_handoff")
         validate_identifier(document["engagement_id"], "engagement")
         validate_identifier(document["action_plan_id"], "action_plan")
+
+    elif expected_type == "laboratory_environment":
+        validate_identifier(document["environment_id"], "laboratory_environment")
+        t_created = timestamp(document["created_at"])
+        t_updated = timestamp(document["updated_at"])
+        if t_updated < t_created:
+            raise ContractError("invalid_timestamp", "updated_at cannot precede created_at")
 
     return document

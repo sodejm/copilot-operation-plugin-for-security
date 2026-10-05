@@ -10,6 +10,7 @@
 - **Live Safety Guard**: Prohibits live execution without mandatory budgets, emergency contact channels, active windows, and tight subnet scopes.
 - **Action Plan Compilation**: Generates immutable `ActionPlan` (`cops.action-plan/v1`) contracts with platform prerequisites, expected evidence receipts, side effects, and verified cleanup obligations.
 - **Triad Specialist Handoffs**: Emits and validates `SpecialistHandoff` (`cops.specialist-handoff/v1`) contracts coordinating Planner, Specialist, Skeptic, and Auditor with capability matching and re-approval triggers.
+- **Scenario Laboratory Harness**: Registers and verifies operator container and VM environments with canary detection, isolation verification, reproducible resets, and controlled positive, negative, and remediated test execution.
 
 ## CLI Usage
 
@@ -43,6 +44,13 @@ python3 -m cops engagement handoff workflow \
   --task "Network perimeter assessment" \
   --planner "secops-operator" \
   --output handoff.json
+
+# Laboratory environment verification and case execution
+python3 -m cops lab matrix
+python3 -m cops lab register env.json
+python3 -m cops lab verify env.json
+python3 -m cops lab reset env.json
+python3 -m cops lab run env.json action_plan.json authorization.json --case-type positive
 ```
 
 ## Offline Verification Gate

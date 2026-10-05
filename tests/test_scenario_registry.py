@@ -35,7 +35,7 @@ def test_load_registries_success():
 
     scen = load_scenario_registry(ROOT)
     assert scen["schema_version"] == "cops.scenario-registry/v1"
-    assert len(scen["scenarios"]) == 34
+    assert len(scen["scenarios"]) == 35
 
 
 def test_validate_scenario_and_provenance_integrity():
@@ -44,7 +44,7 @@ def test_validate_scenario_and_provenance_integrity():
     assert res["status"] == "valid"
     assert res["sources_count"] == 13
     assert res["inventory_items_count"] == 238
-    assert res["scenarios_count"] == 34
+    assert res["scenarios_count"] == 35
 
 
 def test_list_scenarios_filtering():
@@ -100,7 +100,7 @@ def test_cli_scenario_commands(capsys):
 
     assert command_scenario_list(as_json=True, root=ROOT) == 0
     json_out = json.loads(capsys.readouterr().out)
-    assert len(json_out) == 34
+    assert len(json_out) == 35
 
     # Info text and json
     assert command_scenario_info("COPS-E01.01-S01", root=ROOT) == 0

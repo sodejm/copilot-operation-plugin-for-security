@@ -25,6 +25,19 @@ Bounded execution handoffs operate under a four-party Triad coordination model:
 3. **Domain Skeptic (`review`)**: Scrutinizes candidate evidence envelopes and findings for contradictory observations (`ConflictingEvidenceError`) or unsubstantiated claims.
 4. **Evidence Auditor (`audit`)**: Enforces scope and plan invariance (`AuthorizationExpansionError`). Any modification to targets, operations, versions, effects, or material digests requires formal operator re-approval (`MaterialPlanModifiedError`).
 
+## Scenario Laboratory Management & Testing
+
+When evaluating scenarios in isolated environments (`mode: "laboratory"`):
+1. **Environment Verification**: Validate operator-provided VM or container contracts against the tested platform matrix (Linux/macOS, x86_64/arm64, container/VM runtimes) and verify minimum tool prerequisites (`kubectl >= 1.24.0`, `nmap >= 7.80`, etc.).
+2. **Canary and Isolation Auditing**: Ensure non-empty canary token presence, active network isolation, and strict egress restrictions before advancing environment status to `verified`.
+3. **Reproducible Baseline Reset**: Trigger automated rollback or recreate mechanisms (`reproducible: true`) to restore verified baselines and confirm canary integrity prior to running tests.
+4. **Controlled Case Execution**:
+   - Enforce cryptographic `cops.execution-authorization/v1` envelope consumption and worker identity binding.
+   - Run **positive cases** to confirm attack paths and canary discovery within safe boundaries.
+   - Run **remediated cases** to verify that defensive controls effectively mitigate or block techniques.
+   - Run **negative cases** to ensure controlled rejection when prerequisites or scopes are invalid.
+   - Emit verified `CleanupReceipt` records on completion.
+
 ## Emergency Procedures
 
 If live assessment causes operational disruption or exceeds budget limits:
