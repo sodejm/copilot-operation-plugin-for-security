@@ -82,6 +82,12 @@
       "description": "Offline incident action planning and fixture-only sandbox execution.",
       "version": "0.1.0",
       "source": "./plugins/incident-response/incident-response-sandbox"
+    },
+    {
+      "name": "offensive-engagement-workbench",
+      "description": "Authorized adversary engagement intake, scope validation, and execution planning.",
+      "version": "0.1.0",
+      "source": "./plugins/offensive-security/offensive-engagement-workbench"
     }
   ]
 }

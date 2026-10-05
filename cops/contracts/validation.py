@@ -146,6 +146,9 @@ def validate_contract(
         t_end = timestamp(document["window"]["authorized_until_utc"])
         if t_end < t_start:
             raise ContractError("invalid_timestamp", "window.authorized_until_utc cannot precede window.started_at")
+        for ref in document.get("credential_references", []):
+            if any(secret_marker in ref.lower() for secret_marker in ("bearer ", "ghp_", "eyj", "pass")):
+                raise ContractError("credential_leak_detected", "raw credential detected in credential_references")
 
     elif expected_type == "scenario":
         validate_identifier(document["scenario_id"], "scenario")
