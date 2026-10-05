@@ -132,6 +132,38 @@ python3 -m cops discovery active import masscan.json --tool masscan --output mas
 
 ---
 
+## Infrastructure & Identity Services Assessment
+
+The package evaluates protocol-specific exposure across core network infrastructure and identity-facing services (`cops discovery infrastructure` or `cops infrastructure-services`):
+
+1. **Protocol-Specific Bounded Collectors**:
+   - **DNS**: Evaluates open recursion and zone exposure using benign query probing.
+   - **SNMP**: Detects default community strings (`public`, `private`) and system descriptor leakage.
+   - **NTP**: Evaluates monlist/Mode 6 query amplification exposure.
+   - **RPC Endpoint Mapper**: Enumerates registered RPC interfaces (e.g. MS-RPC port 135) to identify unauthenticated attack surface.
+   - **LDAP**: Tests anonymous or unauthenticated `rootDSE` queries to disclose domain naming contexts, forest topology, and supported SASL mechanisms without querying directory objects.
+   - **Kerberos**: Evaluates Kerberos realm visibility and AS-REP roasting vulnerability by checking pre-authentication requirements for designated accounts.
+2. **Crucial Truth Boundary: Inaccessible != Secure**:
+   - If an infrastructure service is timed out, connection-refused, filtered, or unreachable from the current assessment vantage, it is strictly recorded as `inaccessible` with `auth_prerequisite: unknown` and explicit uncertainty notes.
+   - A service is **NEVER** marked as `protected` or `hardened` merely because it failed to respond. Only positive verification of explicit authentication enforcement or authorization rejection warrants a `protected` status.
+3. **Canary Records and Controlled Identities**:
+   - Uses canary domain lookups (`canary.corp.internal`) and synthetic controlled identity accounts (`canary-user@CORP.INTERNAL`) to validate boundary conditions without interacting with real user credentials or directory records.
+4. **Identity Attack-Path Candidates & AD Inventory Handoff**:
+   - Extracts structured `IdentityAttackPathCandidate` records (with SHA-256 evidence hashes and remediation guidance) for lateral movement and Active Directory inventory handoffs (`cops-pentest-specialist`, `cops-redteam-operator`).
+
+```bash
+# Assess infrastructure and identity services
+python3 -m cops discovery infrastructure assess --targets "198.51.100.10,dc01.corp.internal" --vantage internal --output infra_assessment.json
+
+# Extract identity attack-path candidates for AD inventory
+python3 -m cops discovery infrastructure candidates infra_assessment.json --output identity_candidates.json
+
+# Inspect assessment summary and truth-in-advertising metrics
+python3 -m cops discovery infrastructure inspect infra_assessment.json
+```
+
+---
+
 ## Evidence & Ethical Boundaries
 
 The Attack Surface Planner is a **planning and compliance tool**, not an active exploitation framework:

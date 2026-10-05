@@ -1,4 +1,4 @@
-"""CLI interface for passive and active asset discovery, service identification, and scope reconciliation."""
+"""CLI interface for passive, active, and infrastructure asset discovery and assessment."""
 
 from __future__ import annotations
 
@@ -21,6 +21,16 @@ from .active_scanner import (
     compare_active_scans,
 )
 from .importer import import_masscan_json, import_nmap_xml
+from .infra_collector import (
+    DEFAULT_INFRA_PORTS,
+    OfflineSyntheticInfraCollector,
+    StandardSocketInfraCollector,
+    assess_infrastructure_services,
+)
+from .infra_models import (
+    InfraAssessmentReport,
+    ServiceExposureStatus,
+)
 from .merger import merge_inventories
 from .models import DiscoveredAsset, DiscoveryInventory, EvidenceProvenance
 from .normalizers import (
@@ -83,12 +93,38 @@ def build_active_parser(parser: argparse.ArgumentParser) -> None:
     imp_p.add_argument("--output", "-o", default=None, help="Output path for imported session JSON.")
 
 
+def build_infra_parser(parser: argparse.ArgumentParser) -> None:
+    """Build sub-commands for infrastructure and identity service assessment."""
+    infra_subs = parser.add_subparsers(dest="infra_command", required=True)
+
+    # 1. assess
+    ass_p = infra_subs.add_parser("assess", help="Assess infrastructure and identity-facing services.")
+    ass_p.add_argument("--targets", "-t", required=True, help="Comma-separated targets or path to JSON.")
+    ass_p.add_argument("--services", "-s", default=None, help="Comma-separated service types (dns,mdns,snmp,ntp,rpc,ldap,kerberos,discovery).")
+    ass_p.add_argument("--vantage", default="external", choices=["external", "internal", "egress_point", "cloud_tenant"], help="Probe vantage.")
+    ass_p.add_argument("--scope-ref", default="authorized-scope", help="Scope reference.")
+    ass_p.add_argument("--canary-id", default=None, help="Canary record / controlled identity identifier.")
+    ass_p.add_argument("--mode", choices=["synthetic", "live"], default="synthetic", help="Collector mode.")
+    ass_p.add_argument("--offline-targets", default=None, help="Path to mock targets JSON.")
+    ass_p.add_argument("--output", "-o", default=None, help="Output JSON path.")
+
+    # 2. candidates
+    cand_p = infra_subs.add_parser("candidates", help="Export identity attack-path candidates for AD inventory handoff.")
+    cand_p.add_argument("report", help="Path to InfraAssessmentReport JSON.")
+    cand_p.add_argument("--output", "-o", default=None, help="Output JSON path.")
+
+    # 3. inspect
+    insp_p = infra_subs.add_parser("inspect", help="Inspect and summarize infrastructure service assessment report.")
+    insp_p.add_argument("report", help="Path to InfraAssessmentReport JSON.")
+    insp_p.add_argument("--json", action="store_true", help="Emit JSON output.")
+
+
 def build_discovery_parser(subparsers: argparse._SubParsersAction[Any]) -> argparse.ArgumentParser:
     """Build the discovery sub-parser for cops CLI."""
     parser = subparsers.add_parser(
         "discovery",
-        help="Passive and active asset discovery, service identification, and scope reconciliation.",
-        description="Normalize asset telemetry, run bounded active service assessment, and reconcile scope quarantine.",
+        help="Passive, active, and infrastructure asset discovery, service identification, and scope reconciliation.",
+        description="Normalize asset telemetry, run bounded active assessment, and evaluate infrastructure service posture.",
     )
     disc_subs = parser.add_subparsers(dest="discovery_command", required=True)
 
@@ -124,6 +160,10 @@ def build_discovery_parser(subparsers: argparse._SubParsersAction[Any]) -> argpa
     # Active Subcommands under discovery
     active_p = disc_subs.add_parser("active", help="Bounded active discovery and service identification.")
     build_active_parser(active_p)
+
+    # Infrastructure Subcommands under discovery
+    infra_p = disc_subs.add_parser("infrastructure", help="Assess infrastructure and identity-facing services.")
+    build_infra_parser(infra_p)
 
     return parser
 
@@ -259,6 +299,88 @@ def command_active_discovery(args: argparse.Namespace, root: Path | None = None)
     return 0
 
 
+def command_infra_discovery(args: argparse.Namespace, root: Path | None = None) -> int:
+    """Handle infrastructure service discovery CLI subcommands."""
+    infra_cmd = getattr(args, "infra_command", None)
+
+    if infra_cmd == "assess":
+        raw_targets = args.targets
+        if Path(raw_targets).is_file():
+            t_data = json.loads(Path(raw_targets).read_text(encoding="utf-8"))
+            targets = t_data if isinstance(t_data, list) else t_data.get("targets", [])
+        else:
+            targets = [t.strip() for t in raw_targets.split(",") if t.strip()]
+
+        services = [s.strip().lower() for s in args.services.split(",") if s.strip()] if args.services else None
+
+        if args.mode == "synthetic":
+            mock_targets = {}
+            if args.offline_targets and Path(args.offline_targets).is_file():
+                mock_targets = json.loads(Path(args.offline_targets).read_text(encoding="utf-8"))
+            collector = OfflineSyntheticInfraCollector(targets=mock_targets)
+        else:
+            collector = StandardSocketInfraCollector()
+
+        report = assess_infrastructure_services(
+            targets=targets,
+            service_types=services,
+            collector=collector,
+            vantage=args.vantage,
+            scope_ref=args.scope_ref,
+            canary_id=args.canary_id,
+        )
+
+        out_json = json.dumps(report.to_dict(), indent=2)
+        if args.output:
+            Path(args.output).write_text(out_json, encoding="utf-8")
+            print(f"Assessed {len(report.services_assessed)} infrastructure services ({len(report.attack_path_candidates)} candidates) saved to {args.output}")
+        else:
+            print(out_json)
+        return 0
+
+    if infra_cmd == "candidates":
+        report_path = Path(args.report)
+        report_data = json.loads(report_path.read_text(encoding="utf-8"))
+        candidates = report_data.get("attack_path_candidates", [])
+
+        out_json = json.dumps(candidates, indent=2)
+        if args.output:
+            Path(args.output).write_text(out_json, encoding="utf-8")
+            print(f"Exported {len(candidates)} identity attack path candidates to {args.output}")
+        else:
+            print(out_json)
+        return 0
+
+    if infra_cmd == "inspect":
+        report_path = Path(args.report)
+        report_data = json.loads(report_path.read_text(encoding="utf-8"))
+        report = InfraAssessmentReport.from_dict(report_data)
+
+        if getattr(args, "json", False):
+            print(json.dumps(report.to_dict(), indent=2))
+            return 0
+
+        print(f"=== Infrastructure & Identity Services Report ({report.report_id}) ===")
+        print(f"Scope Reference:   {report.scope_reference}")
+        print(f"Probe Vantage:     {report.vantage}")
+        print(f"Total Assessed:    {report.summary.get('total_services', len(report.services_assessed))}")
+        print(f"Exposed:           {report.summary.get('exposed', 0)}")
+        print(f"Protected:         {report.summary.get('protected', 0)}")
+        print(f"Inaccessible:      {report.summary.get('inaccessible', 0)}")
+        print(f"Attack Path Cand:  {report.summary.get('attack_path_candidates', len(report.attack_path_candidates))}")
+        print()
+        for s in report.services_assessed:
+            status_icon = "!" if s.exposure_status in ("exposed", "misconfigured") else ("✓" if s.exposure_status == "protected" else "?")
+            cand_marker = f" -> CANDIDATE: {s.attack_path_candidate.attack_path_type}" if s.attack_path_candidate else ""
+            print(f"  [{status_icon}] {s.service_type.upper():<10} {s.target_host}:{s.port:<5} {s.exposure_status:<14} (auth: {s.auth_prerequisite}){cand_marker}")
+        if report.summary.get("inaccessible", 0) > 0:
+            print()
+            print("Truth-in-Advertising Notice: Inaccessible services are NOT reported as secure or hardened.")
+        return 0
+
+    return 0
+
+
 def command_discovery(
     args: argparse.Namespace | None = None,
     root: Path | None = None,
@@ -276,6 +398,9 @@ def command_discovery(
     try:
         if cmd == "active":
             return command_active_discovery(args, root=root)
+
+        if cmd == "infrastructure":
+            return command_infra_discovery(args, root=root)
 
         if cmd == "normalize":
             src_file = Path(file_path or args.file)

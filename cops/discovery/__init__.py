@@ -1,4 +1,4 @@
-"""COPS passive and active asset discovery, service identification, and scope reconciliation runtime."""
+"""COPS passive and active asset discovery, service identification, and infrastructure assessment runtime."""
 
 from __future__ import annotations
 
@@ -29,6 +29,22 @@ from .active_scanner import (
 from .cli import build_discovery_parser, command_discovery
 from .fingerprinter import infer_service_fingerprint
 from .importer import import_masscan_json, import_nmap_xml
+from .infra_collector import (
+    DEFAULT_INFRA_PORTS,
+    InfraCollector,
+    OfflineSyntheticInfraCollector,
+    StandardSocketInfraCollector,
+    assess_infrastructure_services,
+)
+from .infra_models import (
+    AuthPrerequisite,
+    IdentityAttackPathCandidate,
+    IdentityAttackPathType,
+    InfraAssessmentReport,
+    InfraServiceAssessment,
+    InfraServiceType,
+    ServiceExposureStatus,
+)
 from .merger import merge_inventories, merge_two_assets
 from .models import (
     AssetType,
@@ -53,14 +69,23 @@ __all__ = [
     "ActiveScanner",
     "ActiveServiceAssessment",
     "AssetType",
+    "AuthPrerequisite",
     "ConfidenceLevel",
+    "DEFAULT_INFRA_PORTS",
     "DiscoveredAsset",
     "DiscoveryInventory",
     "EvidenceProvenance",
+    "IdentityAttackPathCandidate",
+    "IdentityAttackPathType",
     "InferredFingerprint",
+    "InfraAssessmentReport",
+    "InfraCollector",
+    "InfraServiceAssessment",
+    "InfraServiceType",
     "ObservedConfiguration",
     "ObservedTLS",
     "OfflineSyntheticDispatcher",
+    "OfflineSyntheticInfraCollector",
     "PortState",
     "ProbeDispatcher",
     "Protocol",
@@ -70,9 +95,12 @@ __all__ = [
     "ScanDelta",
     "ScanVantage",
     "ScopeViolationError",
+    "ServiceExposureStatus",
     "ServiceReachability",
     "StandardSocketDispatcher",
+    "StandardSocketInfraCollector",
     "TargetShiftQuarantine",
+    "assess_infrastructure_services",
     "build_discovery_parser",
     "command_discovery",
     "compare_active_scans",

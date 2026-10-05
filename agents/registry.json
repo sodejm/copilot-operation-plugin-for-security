@@ -14,7 +14,8 @@
         "authorized-attack-surface-planning",
         "engagement-intake-and-planning",
         "engagement-specialist-handoffs",
-        "network-active-discovery"
+        "network-active-discovery",
+        "network-infrastructure-services"
       ],
       "tools": [
         "python3 -m cops check attack-surface-planner",
@@ -23,6 +24,7 @@
         "python3 -m cops engagement plan",
         "python3 -m cops engagement handoff",
         "python3 -m cops active-discovery",
+        "python3 -m cops infrastructure-services",
         "scripts/plan.py"
       ],
       "contract_file": "agents/profiles/cops-pentest-specialist.agent.md",
@@ -39,7 +41,14 @@
         "tls audit",
         "reconnaissance",
         "port scan",
-        "specialist handoff"
+        "specialist handoff",
+        "infrastructure services",
+        "dns recursion",
+        "snmp community",
+        "ntp monlist",
+        "rpc endpoint",
+        "ldap rootdse",
+        "kerberos preauth"
       ],
       "triad_defaults": {
         "skeptic_profile_id": "cops-detection-engineer",
@@ -92,12 +101,14 @@
       "skills": [
         "authorized-attack-surface-planning",
         "network-passive-discovery",
-        "network-active-discovery"
+        "network-active-discovery",
+        "network-infrastructure-services"
       ],
       "tools": [
         "attack_surface_planner",
         "python3 -m cops discovery",
-        "python3 -m cops active-discovery"
+        "python3 -m cops active-discovery",
+        "python3 -m cops infrastructure-services"
       ],
       "contract_file": "agents/profiles/cops-attack-surface-planner.agent.md",
       "intent_keywords": [

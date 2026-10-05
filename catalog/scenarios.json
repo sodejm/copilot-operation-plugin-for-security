@@ -164,8 +164,8 @@
       "title": "High-Speed Active Network Boundary Discovery"
     },
     {
-      "coverage_mode": "planned",
-      "description": "Interrogates RPC endpoint mappers (TCP 135) and SNMP agents (UDP 161) for system context and installed components.",
+      "coverage_mode": "import",
+      "description": "Assesses DNS/mDNS, SNMP, NTP, discovery, RPC, LDAP, and Kerberos infrastructure services, records applicable versions and authentication prerequisites, extracts identity attack-path candidates for AD inventory, and validates boundaries with canary records.",
       "environment": {
         "isolated_worker_required": true,
         "os": [
@@ -187,7 +187,8 @@
       },
       "owner_issue": 94,
       "prerequisites": [
-        "Target host IP address"
+        "Target host IP address",
+        "Approved scope reference"
       ],
       "provenance": {
         "license": "MIT",

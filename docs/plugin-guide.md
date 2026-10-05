@@ -125,9 +125,9 @@ Use this guide to determine which plugin best matches your operational requireme
 
 #### Attack Surface Planner
 - **Maturity**: <span class="badge badge-experimental">Experimental</span> | **Operational Mode**: `planned`
-- **When to use**: Prior to an authorized penetration test or red team engagement to reconcile rules of engagement, partition in-scope vs out-of-scope targets, normalize multi-source passive discovery telemetry, execute bounded active discovery and service identification, and generate bounded test plans.
-- **Key Capabilities**: Scope boundary enforcement, rule-of-engagement parsing, passive review plan generation, multi-source telemetry normalization (DNS, certificate, IP, endpoint, cloud exports), evidence provenance preservation, scope quarantine reconciliation, and bounded active service identification with resumable checkpoints and visible uncertainty.
-- **Boundaries**: Strictly a planning and scoping tool; makes zero network calls and executes zero exploits.
+- **When to use**: Prior to an authorized penetration test or red team engagement to reconcile rules of engagement, partition in-scope vs out-of-scope targets, normalize multi-source passive discovery telemetry, execute bounded active discovery and service identification, assess infrastructure and identity-facing services, and generate bounded test plans.
+- **Key Capabilities**: Scope boundary enforcement, rule-of-engagement parsing, passive review plan generation, multi-source telemetry normalization (DNS, certificate, IP, endpoint, cloud exports), evidence provenance preservation, scope quarantine reconciliation, bounded active service identification with resumable checkpoints and visible uncertainty, protocol-specific infrastructure assessment (DNS, SNMP, NTP, RPC, LDAP, Kerberos), canary validation, and Active Directory attack-path handoffs.
+- **Boundaries**: Strictly an authorized planning and scoping tool; operates offline or within bounded authorized parameters without executing uncoordinated exploits.
 - **Playbook**: `plugins/offensive-security/attack-surface-planner/docs/PLAYBOOK.md`
 
 #### Offensive Engagement Workbench
