@@ -717,6 +717,9 @@ def build_parser() -> argparse.ArgumentParser:
     l_run.add_argument("--allowed-cidr", help="allowed network CIDR for scope guard")
     l_run.add_argument("--output", help="output path for case result JSON")
 
+    from .diagnostics.cli import build_diagnostics_parser
+    build_diagnostics_parser(subparsers)
+
     return parser
 
 
@@ -805,6 +808,9 @@ def main(argv: list[str] | None = None, *, root: Path = ROOT) -> int:
         if args.command == "lab":
             from .laboratory.cli import command_laboratory
             return command_laboratory(args, root=root)
+        if args.command == "diagnostics":
+            from .diagnostics.cli import command_diagnostics
+            return command_diagnostics(args, root=root)
     except (CatalogError, ValidationError, CoverageError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2

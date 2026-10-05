@@ -261,10 +261,10 @@ def audit_capabilities(root: Path = ROOT, registry_data: dict[str, Any] | None =
             "catalog_descriptive_drift",
             f"Expected exactly 18 specialist profiles, found {summary['by_kind']['specialist']}."
         )
-    if summary["by_kind"]["scenario"] != 35:
+    if summary["by_kind"]["scenario"] != 36:
         raise CapabilityTruthError(
             "catalog_descriptive_drift",
-            f"Expected exactly 35 scenarios, found {summary['by_kind']['scenario']}."
+            f"Expected exactly 36 scenarios, found {summary['by_kind']['scenario']}."
         )
 
     return {

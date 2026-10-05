@@ -1399,8 +1399,51 @@
       },
       "scenario_id": "COPS-E03.03-S01",
       "title": "Scenario Laboratory Environment and Harness Management"
+    },
+    {
+      "coverage_mode": "laboratory",
+      "description": "Performs diagnostic health, environment, prerequisite, and truth-in-advertising checks across all registered packages and tools.",
+      "environment": {
+        "isolated_worker_required": false,
+        "os": [
+          "linux",
+          "darwin"
+        ],
+        "required_tools": [
+          "python3",
+          "cops"
+        ]
+      },
+      "family_id": "COPS-E03.04",
+      "mitre_attack": {
+        "tactics": [
+          "execution",
+          "discovery"
+        ],
+        "techniques": [
+          "T1059",
+          "T1082"
+        ]
+      },
+      "owner_issue": 91,
+      "prerequisites": [
+        "Registered COPS plugins and validated tool matrix"
+      ],
+      "provenance": {
+        "license": "MIT",
+        "source_id": "S01",
+        "source_reference": "https://github.com/gunyakit/command-cheatsheet/tree/4c118399602212f205c91e8f01e418e226fa320c",
+        "version_bound": "4c11839"
+      },
+      "safety_profile": {
+        "impact": "read_only",
+        "reversible": true,
+        "safe_for_production": true
+      },
+      "scenario_id": "COPS-E03.04-S01",
+      "title": "Package Workflow and Capability Diagnostics"
     }
   ],
   "schema_version": "cops.scenario-registry/v1",
-  "updated_at": "2026-10-02T23:00:00Z"
+  "updated_at": "2026-10-05T09:30:00Z"
 }
