@@ -13,7 +13,8 @@
       "skills": [
         "authorized-attack-surface-planning",
         "engagement-intake-and-planning",
-        "engagement-specialist-handoffs"
+        "engagement-specialist-handoffs",
+        "network-active-discovery"
       ],
       "tools": [
         "python3 -m cops check attack-surface-planner",
@@ -21,6 +22,7 @@
         "python3 -m cops engagement create",
         "python3 -m cops engagement plan",
         "python3 -m cops engagement handoff",
+        "python3 -m cops active-discovery",
         "scripts/plan.py"
       ],
       "contract_file": "agents/profiles/cops-pentest-specialist.agent.md",
@@ -89,11 +91,13 @@
       "primary_plugin": "attack-surface-planner",
       "skills": [
         "authorized-attack-surface-planning",
-        "network-passive-discovery"
+        "network-passive-discovery",
+        "network-active-discovery"
       ],
       "tools": [
         "attack_surface_planner",
-        "python3 -m cops discovery"
+        "python3 -m cops discovery",
+        "python3 -m cops active-discovery"
       ],
       "contract_file": "agents/profiles/cops-attack-surface-planner.agent.md",
       "intent_keywords": [
@@ -106,6 +110,9 @@
         "exposure mapping",
         "open ports export",
         "passive discovery",
+        "active discovery",
+        "service identification",
+        "port scan assessment",
         "asset discovery",
         "quarantine reconciliation"
       ]

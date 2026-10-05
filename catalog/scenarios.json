@@ -123,8 +123,8 @@
       "title": "Passive DNS, Certificate, and Asset Inventory Discovery"
     },
     {
-      "coverage_mode": "planned",
-      "description": "Performs rate-limited active port discovery across perimeter IP addresses with banner capture.",
+      "coverage_mode": "import",
+      "description": "Performs bounded, rate-limited active port and TLS assessment across perimeter endpoints with service identification and visible uncertainty.",
       "environment": {
         "isolated_worker_required": true,
         "os": [
@@ -146,7 +146,8 @@
       },
       "owner_issue": 93,
       "prerequisites": [
-        "Network authorization receipt"
+        "Network authorization receipt",
+        "Approved target scope"
       ],
       "provenance": {
         "license": "MIT",

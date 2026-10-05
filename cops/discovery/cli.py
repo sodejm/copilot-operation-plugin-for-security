@@ -1,4 +1,4 @@
-"""CLI interface for passive asset discovery, evidence provenance, and scope reconciliation."""
+"""CLI interface for passive and active asset discovery, service identification, and scope reconciliation."""
 
 from __future__ import annotations
 
@@ -9,6 +9,18 @@ from pathlib import Path
 import sys
 from typing import Any
 
+from .active_models import (
+    ActiveScanSession,
+    ScanBudget,
+    ScanVantage,
+)
+from .active_scanner import (
+    ActiveScanner,
+    OfflineSyntheticDispatcher,
+    StandardSocketDispatcher,
+    compare_active_scans,
+)
+from .importer import import_masscan_json, import_nmap_xml
 from .merger import merge_inventories
 from .models import DiscoveredAsset, DiscoveryInventory, EvidenceProvenance
 from .normalizers import (
@@ -23,16 +35,64 @@ from .reconciler import reconcile_inventory
 ROOT: Path = Path(__file__).resolve().parents[2]
 
 
+def build_active_parser(parser: argparse.ArgumentParser) -> None:
+    """Build sub-commands for active network discovery and assessment."""
+    active_subs = parser.add_subparsers(dest="active_command", required=True)
+
+    # 1. plan
+    plan_p = active_subs.add_parser("plan", help="Create an active scanning session plan with budgets and targets.")
+    plan_p.add_argument("--targets", "-t", required=True, help="Comma-separated target hosts/IPs or path to JSON.")
+    plan_p.add_argument("--ports", "-p", default="80,443,22", help="Comma-separated ports (default: 80,443,22).")
+    plan_p.add_argument("--vantage", default="external", choices=["external", "internal", "egress_point", "cloud_tenant"], help="Scan vantage point.")
+    plan_p.add_argument("--rate-limit", type=float, default=10.0, help="Max probes per second (default: 10.0).")
+    plan_p.add_argument("--timeout", type=float, default=2.0, help="Per-probe timeout in seconds (default: 2.0).")
+    plan_p.add_argument("--max-total-seconds", type=float, default=None, help="Maximum total execution budget in seconds.")
+    plan_p.add_argument("--scope-ref", default="authorized-scope", help="Reference identifier of authorized scope.")
+    plan_p.add_argument("--output", "-o", default=None, help="Output path for session JSON.")
+
+    # 2. scan
+    scan_p = active_subs.add_parser("scan", help="Run bounded active assessment against planned session.")
+    scan_p.add_argument("session", help="Path to ActiveScanSession plan JSON.")
+    scan_p.add_argument("--scope", "-s", default=None, help="Path to scope boundaries JSON (for DNS rebind/exclusion enforcement).")
+    scan_p.add_argument("--mode", choices=["synthetic", "live"], default="synthetic", help="Execution mode (default: synthetic offline).")
+    scan_p.add_argument("--offline-targets", default=None, help="Path to mock targets JSON for synthetic dispatcher.")
+    scan_p.add_argument("--checkpoint", "-c", default=None, help="Path to save execution checkpoint.")
+    scan_p.add_argument("--output", "-o", default=None, help="Output path for completed session JSON.")
+
+    # 3. resume
+    res_p = active_subs.add_parser("resume", help="Resume interrupted active scan session from checkpoint.")
+    res_p.add_argument("checkpoint", help="Path to session checkpoint JSON.")
+    res_p.add_argument("--scope", "-s", default=None, help="Path to scope boundaries JSON.")
+    res_p.add_argument("--mode", choices=["synthetic", "live"], default="synthetic", help="Execution mode.")
+    res_p.add_argument("--offline-targets", default=None, help="Path to mock targets JSON.")
+    res_p.add_argument("--checkpoint-out", default=None, help="Path to save updated checkpoint.")
+    res_p.add_argument("--output", "-o", default=None, help="Output path for completed session JSON.")
+
+    # 4. diff
+    diff_p = active_subs.add_parser("diff", help="Compare baseline and current active scan sessions for remediated exposures.")
+    diff_p.add_argument("baseline", help="Path to baseline session JSON.")
+    diff_p.add_argument("current", help="Path to current/re-test session JSON.")
+    diff_p.add_argument("--output", "-o", default=None, help="Output path for scan delta JSON.")
+
+    # 5. import
+    imp_p = active_subs.add_parser("import", help="Import Masscan or Nmap output into active discovery session.")
+    imp_p.add_argument("file", help="Path to Masscan JSON or Nmap XML output file.")
+    imp_p.add_argument("--tool", choices=["masscan", "nmap"], required=True, help="Tool that generated the output.")
+    imp_p.add_argument("--vantage", default="external", help="Scan vantage point (default: external).")
+    imp_p.add_argument("--scope-ref", default="imported-scan", help="Scope reference.")
+    imp_p.add_argument("--output", "-o", default=None, help="Output path for imported session JSON.")
+
+
 def build_discovery_parser(subparsers: argparse._SubParsersAction[Any]) -> argparse.ArgumentParser:
     """Build the discovery sub-parser for cops CLI."""
     parser = subparsers.add_parser(
         "discovery",
-        help="Passive asset discovery, evidence provenance, and scope reconciliation.",
-        description="Normalize asset telemetry, deduplicate multi-source evidence, and reconcile scope quarantine.",
+        help="Passive and active asset discovery, service identification, and scope reconciliation.",
+        description="Normalize asset telemetry, run bounded active service assessment, and reconcile scope quarantine.",
     )
     disc_subs = parser.add_subparsers(dest="discovery_command", required=True)
 
-    # Subcommand: normalize
+    # Passive Subcommand: normalize
     norm_p = disc_subs.add_parser("normalize", help="Normalize raw asset records into DiscoveredAsset schema.")
     norm_p.add_argument("file", help="Path to JSON file containing raw records or single record.")
     norm_p.add_argument(
@@ -45,23 +105,158 @@ def build_discovery_parser(subparsers: argparse._SubParsersAction[Any]) -> argpa
     norm_p.add_argument("--source-id", default="S01", help="Provenance source ID (default: S01).")
     norm_p.add_argument("--output", "-o", default=None, help="Output JSON path (prints to stdout if omitted).")
 
-    # Subcommand: reconcile
+    # Passive Subcommand: reconcile
     rec_p = disc_subs.add_parser("reconcile", help="Reconcile inventory against approved scope and quarantine uncertain assets.")
     rec_p.add_argument("inventory", help="Path to discovery inventory JSON.")
     rec_p.add_argument("--scope", "-s", required=True, help="Path to engagement scope or action plan JSON.")
     rec_p.add_argument("--output", "-o", default=None, help="Output JSON path (prints to stdout if omitted).")
 
-    # Subcommand: merge
+    # Passive Subcommand: merge
     merge_p = disc_subs.add_parser("merge", help="Merge and deduplicate multiple discovery inventory files.")
     merge_p.add_argument("files", nargs="+", help="Paths to discovery inventory JSON files to merge.")
     merge_p.add_argument("--output", "-o", default=None, help="Output JSON path (prints to stdout if omitted).")
 
-    # Subcommand: inspect
+    # Passive Subcommand: inspect
     insp_p = disc_subs.add_parser("inspect", help="Inspect and summarize discovery inventory.")
     insp_p.add_argument("inventory", help="Path to discovery inventory JSON.")
     insp_p.add_argument("--json", action="store_true", help="Emit JSON output.")
 
+    # Active Subcommands under discovery
+    active_p = disc_subs.add_parser("active", help="Bounded active discovery and service identification.")
+    build_active_parser(active_p)
+
     return parser
+
+
+def command_active_discovery(args: argparse.Namespace, root: Path | None = None) -> int:
+    """Handle active discovery CLI subcommands."""
+    active_cmd = getattr(args, "active_command", None)
+
+    if active_cmd == "plan":
+        # Resolve targets
+        raw_targets = args.targets
+        if Path(raw_targets).is_file():
+            t_data = json.loads(Path(raw_targets).read_text(encoding="utf-8"))
+            targets = t_data if isinstance(t_data, list) else t_data.get("targets", [])
+        else:
+            targets = [t.strip() for t in raw_targets.split(",") if t.strip()]
+
+        ports = [int(p.strip()) for p in args.ports.split(",") if p.strip()]
+        budget = ScanBudget(
+            timeout_seconds=args.timeout,
+            max_total_seconds=args.max_total_seconds,
+            rate_limit_pps=args.rate_limit,
+        )
+        h = hashlib.sha256(f"{args.scope_ref}:{sorted(targets)}:{sorted(ports)}".encode("utf-8")).hexdigest()[:16]
+        session = ActiveScanSession(
+            session_id=f"active-{h}",
+            scope_reference=args.scope_ref,
+            approved_targets=targets,
+            approved_ports=ports,
+            vantage=args.vantage,
+            budget=budget,
+        )
+        out_json = json.dumps(session.to_dict(), indent=2)
+        if args.output:
+            Path(args.output).write_text(out_json, encoding="utf-8")
+            print(f"Created active scan session plan at {args.output}")
+        else:
+            print(out_json)
+        return 0
+
+    if active_cmd == "scan":
+        session_path = Path(args.session)
+        session = ActiveScanSession.load_checkpoint(session_path)
+
+        scope_dict = None
+        if args.scope and Path(args.scope).is_file():
+            sc_raw = json.loads(Path(args.scope).read_text(encoding="utf-8"))
+            scope_dict = sc_raw.get("scope", sc_raw)
+
+        if args.mode == "synthetic":
+            mock_targets = {}
+            if args.offline_targets and Path(args.offline_targets).is_file():
+                mock_targets = json.loads(Path(args.offline_targets).read_text(encoding="utf-8"))
+            dispatcher = OfflineSyntheticDispatcher(targets=mock_targets)
+        else:
+            dispatcher = StandardSocketDispatcher()
+
+        scanner = ActiveScanner(session=session, dispatcher=dispatcher, scope=scope_dict)
+        completed_session = scanner.run()
+
+        if args.checkpoint:
+            completed_session.save_checkpoint(args.checkpoint)
+
+        out_json = json.dumps(completed_session.to_dict(), indent=2)
+        if args.output:
+            Path(args.output).write_text(out_json, encoding="utf-8")
+            print(f"Active scan complete (status: {completed_session.status}, probes: {completed_session.total_probes_dispatched}) saved to {args.output}")
+        else:
+            print(out_json)
+        return 0
+
+    if active_cmd == "resume":
+        checkpoint_path = Path(args.checkpoint)
+        session = ActiveScanSession.load_checkpoint(checkpoint_path)
+
+        scope_dict = None
+        if args.scope and Path(args.scope).is_file():
+            sc_raw = json.loads(Path(args.scope).read_text(encoding="utf-8"))
+            scope_dict = sc_raw.get("scope", sc_raw)
+
+        if args.mode == "synthetic":
+            mock_targets = {}
+            if args.offline_targets and Path(args.offline_targets).is_file():
+                mock_targets = json.loads(Path(args.offline_targets).read_text(encoding="utf-8"))
+            dispatcher = OfflineSyntheticDispatcher(targets=mock_targets)
+        else:
+            dispatcher = StandardSocketDispatcher()
+
+        scanner = ActiveScanner(session=session, dispatcher=dispatcher, scope=scope_dict)
+        resumed_session = scanner.run()
+
+        save_chk = args.checkpoint_out or args.checkpoint
+        resumed_session.save_checkpoint(save_chk)
+
+        out_json = json.dumps(resumed_session.to_dict(), indent=2)
+        if args.output:
+            Path(args.output).write_text(out_json, encoding="utf-8")
+            print(f"Resumed active scan complete (status: {resumed_session.status}) saved to {args.output}")
+        else:
+            print(out_json)
+        return 0
+
+    if active_cmd == "diff":
+        base_session = ActiveScanSession.load_checkpoint(args.baseline)
+        curr_session = ActiveScanSession.load_checkpoint(args.current)
+        delta = compare_active_scans(base_session, curr_session)
+        out_json = json.dumps(delta.to_dict(), indent=2)
+        if args.output:
+            Path(args.output).write_text(out_json, encoding="utf-8")
+            print(f"Scan delta ({len(delta.remediated_exposures)} remediated, {delta.remediation_rate}% rate) saved to {args.output}")
+        else:
+            print(out_json)
+        return 0
+
+    if active_cmd == "import":
+        file_path = Path(args.file)
+        if args.tool == "masscan":
+            imported = import_masscan_json(file_path, vantage=args.vantage, scope_ref=args.scope_ref)
+        elif args.tool == "nmap":
+            imported = import_nmap_xml(file_path, vantage=args.vantage, scope_ref=args.scope_ref)
+        else:
+            print(f"Unsupported tool: {args.tool}", file=sys.stderr)
+            return 1
+
+        out_json = json.dumps(imported.to_dict(), indent=2)
+        if args.output:
+            Path(args.output).write_text(out_json, encoding="utf-8")
+            print(f"Imported {len(imported.assessments)} assessments from {args.tool} saved to {args.output}")
+        else:
+            print(out_json)
+        return 0
+
+    return 0
 
 
 def command_discovery(
@@ -79,6 +274,9 @@ def command_discovery(
     cmd = subcommand or (getattr(args, "discovery_command", None) if args else None)
 
     try:
+        if cmd == "active":
+            return command_active_discovery(args, root=root)
+
         if cmd == "normalize":
             src_file = Path(file_path or args.file)
             typ = (asset_type or args.type).lower()
@@ -136,7 +334,6 @@ def command_discovery(
             inv_data = json.loads(inv_file.read_text(encoding="utf-8"))
             scope_data = json.loads(sc_file.read_text(encoding="utf-8"))
 
-            # If scope_data is ActionPlan or Engagement, extract target scope
             scope_dict = scope_data.get("scope", scope_data)
 
             inventory = DiscoveryInventory.from_dict(inv_data)
