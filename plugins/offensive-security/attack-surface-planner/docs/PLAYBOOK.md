@@ -126,6 +126,21 @@ Invoke this planner under the following concrete triggers:
 5. **Extract Data Privilege Candidates**:
    - Extract candidate findings (`redis_no_auth`, `redis_config_set`, `elasticsearch_open_cluster`, `mongodb_no_auth`, `memcached_no_auth`, `mysql_no_auth`, `postgres_trust_auth`, `mssql_blank_sa`, `couchdb_admin_party`, `cassandra_default_superuser`, `influxdb_no_auth`, `kibana_no_auth`, `splunk_default_creds`) for lateral movement and database takeover handoff: `python3 -m cops data-services candidates ...`.
 
+### Phase 2g: Mail, Messaging, and Message Broker Services Assessment
+**Skill**: [`network-messaging-services`](../skills/network-messaging-services/SKILL.md)
+
+1. **Protocol-Specific Mail, Chat, and Broker Probing**:
+   - Assess exposure of mail services (SMTP, POP3, IMAP), real-time chat (IRC), and message brokers/queues (RabbitMQ/AMQP, NATS, IBM MQ, Kafka, MQTT) across approved targets: `python3 -m cops messaging-services assess ...`.
+2. **Bounded Message Budgets & Zero Mass Outbound Relaying**:
+   - Enforce bounded message budgets (default 5 messages) to verify delivery, queue interaction, and boundary enforcement; prohibit and block bulk mail delivery, external domain spamming, and unconstrained queue flooding.
+3. **Strict Inaccessible != Secure Grounding**:
+   - Filtered, closed, or timed out services are strictly classified as `inaccessible` (with `auth_prerequisite: unknown`). Never assume an inaccessible service is secure or hardened.
+4. **Canary Validation and Verifiable Cleanup Receipts**:
+   - Validate access controls using benign canary identifiers (`canary_mail_probe`, `canary_queue_probe`).
+   - Emit verified `CleanupReceipt` records confirming rollback and artifact removal: `python3 -m cops messaging-services cleanup ...`.
+5. **Extract Messaging Privilege Candidates**:
+   - Extract candidate findings (`smtp_open_relay`, `smtp_user_enumeration`, `pop3_plaintext_auth`, `imap_anonymous_login`, `irc_unauthenticated_operator`, `rabbitmq_guest_default_creds`, `rabbitmq_open_management`, `nats_unauthenticated_cluster`, `ibmmq_blank_channel`, `kafka_unauthenticated_broker`, `mqtt_anonymous_read_write`) for unauthorized relay or broker takeover handoff: `python3 -m cops messaging-services candidates ...`.
+
 ### Phase 3: Scope Boundary Partitioning
 Systematically classify every discovered entity into one of three strict partitions:
 
