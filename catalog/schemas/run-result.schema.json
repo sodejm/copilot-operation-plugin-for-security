@@ -70,7 +70,7 @@
       }
     },
     "cleanup_status": {
-      "enum": ["not_required", "pending", "completed", "failed"]
+      "enum": ["not_required", "pending", "completed", "partial", "failed"]
     },
     "worker_identity": {
       "type": "string",

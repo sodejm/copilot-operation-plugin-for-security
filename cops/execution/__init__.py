@@ -9,6 +9,14 @@ from .authorization import (
     request_interactive_plan_authorization,
     verify_execution_authorization,
 )
+from .cleanup import (
+    CleanupError,
+    CleanupManager,
+    CleanupOwnershipError,
+    CleanupPreconditionError,
+    SideEffect,
+    SideEffectLedger,
+)
 from .evidence import (
     CapturedArtifact,
     EvidenceRecorder,
@@ -47,12 +55,18 @@ __all__ = [
     "AuthorizationError",
     "AuthorizationRequiredError",
     "CapturedArtifact",
+    "CleanupError",
+    "CleanupManager",
+    "CleanupOwnershipError",
+    "CleanupPreconditionError",
     "EvidenceRecorder",
     "IsolatedWorker",
     "LegacyReceiptDeprecationWarning",
     "ScopeDefinition",
     "ScopeGuard",
     "ScopeViolationError",
+    "SideEffect",
+    "SideEffectLedger",
     "StepTelemetry",
     "StreamRedactor",
     "WorkerConfig",
