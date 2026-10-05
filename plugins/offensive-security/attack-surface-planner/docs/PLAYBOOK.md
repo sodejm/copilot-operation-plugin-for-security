@@ -58,6 +58,17 @@ Invoke this planner under the following concrete triggers:
    python3 plugins/offensive-security/attack-surface-planner/scripts/plan.py <path-to-scope.json>
    ```
 
+### Phase 2b: Multi-Source Telemetry Normalization & Scope Quarantine
+**Skill**: [`network-passive-discovery`](../skills/network-passive-discovery/SKILL.md)
+
+1. **Normalize Telemetry**:
+   - Ingest raw DNS, certificate, IP allocation, endpoint, and cloud export records using `python3 -m cops discovery normalize <file> --type <type>`.
+2. **Deduplicate Multi-Source Observations**:
+   - Merge overlapping observations while retaining full cryptographic provenance chains: `python3 -m cops discovery merge <inv1> <inv2> ...`.
+3. **Reconcile Scope Quarantine**:
+   - Reconcile discoveries against engagement boundaries: `python3 -m cops discovery reconcile <inventory.json> --scope <scope.json>`.
+   - Quarantine assets exhibiting conflicting ownership, stale records, or missing provenance so discovery cannot expand the engagement.
+
 ### Phase 3: Scope Boundary Partitioning
 Systematically classify every discovered entity into one of three strict partitions:
 

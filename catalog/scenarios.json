@@ -80,7 +80,7 @@
     },
     {
       "coverage_mode": "import",
-      "description": "Queries public DNS records and certificate transparency logs to identify exposed subdomains without connecting to target infrastructure.",
+      "description": "Normalizes multi-source DNS records, certificate transparency logs, IP allocations, endpoints, and cloud exports with provenance preservation, deduplication, and scope quarantine reconciliation.",
       "environment": {
         "isolated_worker_required": false,
         "os": [
@@ -88,8 +88,9 @@
           "darwin"
         ],
         "required_tools": [
-          "dig",
-          "subfinder"
+          "python3",
+          "cops",
+          "dig"
         ]
       },
       "family_id": "COPS-E04.01",
@@ -98,12 +99,14 @@
           "reconnaissance"
         ],
         "techniques": [
-          "T1596"
+          "T1596",
+          "T1590"
         ]
       },
       "owner_issue": 92,
       "prerequisites": [
-        "Approved target domain names"
+        "Raw DNS, certificate, IP allocation, or cloud export telemetry fixtures",
+        "Approved engagement scope or action plan definition"
       ],
       "provenance": {
         "license": "MIT",
@@ -117,7 +120,7 @@
         "safe_for_production": true
       },
       "scenario_id": "COPS-E04.01-S01",
-      "title": "Passive DNS and Certificate Transparency Enumeration"
+      "title": "Passive DNS, Certificate, and Asset Inventory Discovery"
     },
     {
       "coverage_mode": "planned",
@@ -1445,5 +1448,5 @@
     }
   ],
   "schema_version": "cops.scenario-registry/v1",
-  "updated_at": "2026-10-05T09:30:00Z"
+  "updated_at": "2026-10-05T09:45:00Z"
 }
