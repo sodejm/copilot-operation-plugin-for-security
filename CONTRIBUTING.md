@@ -5,9 +5,10 @@ Thank you for improving this project.
 1. Read `AGENTS.md`, whether contributing manually or with an AI assistant.
 2. Open or reference a focused issue when the project uses issue tracking.
 3. Work on a short-lived branch; do not mix unrelated changes.
-4. Add behavior-first tests for behavioral changes when practical.
-5. Run `make check` and any project-specific checks.
-6. Open a pull request using the supplied template and include exact evidence.
+4. Set up local push protections with `make setup-hooks`.
+5. Add behavior-first tests and update relevant documentation for the issue being worked.
+6. Run `make check` and `make check-issue-coverage`.
+7. Open a pull request using the supplied template and include exact evidence.
 
 Never include secrets, personal data, proprietary prompts, or confidential logs.
 AI assistance does not change contributor responsibility: review all generated
@@ -34,7 +35,16 @@ source .venv/bin/activate
 python -m pip install -r requirements.txt
 make check-prerequisites
 make check
+make setup-hooks
 ```
+
+`make setup-hooks` installs a local Git pre-push hook (`.git/hooks/pre-push`) that
+blocks accidental direct pushes to `main`, prevents secret exposure, and ensures
+that documentation and test cases have been updated for the issue being worked.
+You can run the issue coverage check on demand with `make check-issue-coverage`.
+If an administrative or typo change requires an exemption, include
+`[skip-docs: <rationale>]` or `[skip-tests: <rationale>]` in the commit message.
+
 
 On Windows, activate `.venv\Scripts\Activate.ps1` in PowerShell. If Make is not
 available, run `python scripts/agent/check_prerequisites.py` for verification alone

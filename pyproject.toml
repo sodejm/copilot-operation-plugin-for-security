@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cops"
+version = "0.1.0"
+description = "Copilot Operations Plugins for Security"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = "-q"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+exclude = [
+    ".git",
+    ".venv",
+    ".pytest_cache",
+    "__pycache__",
+    "dist",
+    "build",
+    "node_modules",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "UP",   # pyupgrade
+    "S",    # flake8-bandit (security checks)
+]
+ignore = [
+    "S101", # Use of assert (standard in tests and internal checks)
+    "S603", # subprocess call - check for execution of untrusted input
+    "S607", # start process with partial executable path
+    "E501", # line too long (handled by formatter or intentional)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S", "B"]
+"specs/**" = ["S", "B"]
+"scripts/**" = ["S108"]

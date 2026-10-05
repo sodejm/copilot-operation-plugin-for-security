@@ -1,7 +1,8 @@
 PYTHON ?= python3
 
 .PHONY: doctor list-plugins validate-packages check-packages generate-marketplaces \
-	check-marketplaces validate-contract check-docs sync-agent-adapters check-agent-adapters check-prerequisites check
+	check-marketplaces validate-contract check-docs sync-agent-adapters check-agent-adapters \
+	check-prerequisites check-issue-coverage setup-hooks check
 
 check-docs:
 	"$(PYTHON)" scripts/agent/validate_docs.py
@@ -35,6 +36,12 @@ check-agent-adapters:
 
 check-prerequisites:
 	"$(PYTHON)" scripts/agent/check_prerequisites.py
+
+check-issue-coverage:
+	"$(PYTHON)" scripts/agent/check_issue_coverage.py
+
+setup-hooks:
+	"$(PYTHON)" scripts/agent/install_hooks.py
 
 check: check-prerequisites
 	"$(PYTHON)" scripts/agent/check.py

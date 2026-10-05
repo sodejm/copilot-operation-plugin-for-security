@@ -1,0 +1,103 @@
+name: Security, Quality, and Issue Coverage Gate
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  issue-coverage:
+    name: Verify Docs & Tests for Issue
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run Issue Documentation and Test Coverage Gate
+        run: |
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            echo "Push to main branch; skipping branch issue gate."
+            exit 0
+          fi
+          BASE_REF="origin/${{ github.base_ref || 'main' }}"
+          echo "Comparing HEAD against $BASE_REF..."
+          python3 scripts/agent/check_issue_coverage.py --base "$BASE_REF" --head HEAD
+
+  secret-scan:
+    name: Secret Inclusion Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks Secret Scanner
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: false
+
+      - name: In-repo Standard-Library Secret Scan Fallback
+        run: |
+          python3 plugins/logging-telemetry/security-logging-advisor/skills/repository-context/scripts/collect-repository-context.py . > /dev/null
+
+  lint-and-validate:
+    name: Linting & Static Sanity Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install Lint Tools
+        run: python3 -m pip install ruff yamllint
+
+      - name: Run Ruff Linting
+        run: ruff check .
+
+      - name: Run YAML Linting
+        run: yamllint -s .
+
+      - name: Run actionlint (Workflow Linting)
+        uses: reviewdog/action-actionlint@v1
+
+  security-sast-sca:
+    name: Vulnerability & Dependency Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install pip-audit
+        run: python3 -m pip install pip-audit
+
+      - name: Audit Dependencies (SCA)
+        run: pip-audit -r requirements.txt

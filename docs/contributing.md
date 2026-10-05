@@ -54,15 +54,37 @@ Verify that all test prerequisites are satisfied:
 make check-prerequisites
 ```
 
+### 3. Install Local Push Protections
+
+Install local Git hooks to protect against accidental direct pushes to `main`, credential leakage, and missing issue coverage:
+
+```bash
+make setup-hooks
+```
+
 ---
 
 ## Running Tests and Checks
 
-Before submitting a pull request, run the complete repository validation gate:
+Before pushing or opening a pull request, run the complete validation gate and verify that your changes satisfy documentation and test coverage for the active issue:
 
 ```bash
+# Run full repository checks
 make check PYTHON=.venv/bin/python
+
+# Verify issue documentation & test coverage
+make check-issue-coverage
 ```
+
+### Issue Documentation & Test Coverage Requirements
+Every branch addressing an issue or feature must include:
+1. **Documentation**: Updated or newly created markdown files in `docs/`, `specs/`, or root guides.
+2. **Behavioral Test Cases**: Automated tests in `tests/` or Gherkin BDD scenarios in `specs/features/`.
+
+If an administrative change, refactor, or typo fix requires an exemption, provide a rationale in the commit message using:
+- `[skip-docs: <rationale>]`
+- `[skip-tests: <rationale>]`
+
 
 ### What `make check` executes:
 1. **Python Source AST Parsing**: Validates that all Python files parse cleanly without syntax errors.
