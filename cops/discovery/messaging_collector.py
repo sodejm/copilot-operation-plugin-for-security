@@ -632,7 +632,8 @@ def assess_messaging_services(
     svcs = service_types or list(DEFAULT_MESSAGING_PORTS.keys())
     canary = canary_artifact or canary_id
 
-    report_id = f"msg-rep-{hashlib.sha256(f'{scope_ref}:{vantage}:{','.join(targets)}'.encode('utf-8')).hexdigest()[:16]}"
+    targets_str = ",".join(targets)
+    report_id = f"msg-rep-{hashlib.sha256(f'{scope_ref}:{vantage}:{targets_str}'.encode('utf-8')).hexdigest()[:16]}"
     assessments: list[MessagingServiceAssessment] = []
 
     total_exposed = 0
