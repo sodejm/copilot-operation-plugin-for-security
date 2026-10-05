@@ -135,6 +135,24 @@ from .developer_models import (
     ExecutionEffect,
 )
 
+from .legacy_collector import (
+    DEFAULT_LEGACY_PORTS,
+    LegacyServicesCollector,
+    OfflineSyntheticLegacyCollector,
+    StandardSocketLegacyCollector,
+    assess_legacy_services,
+)
+from .legacy_models import (
+    LegacyAuthPrerequisite,
+    LegacyCategory,
+    LegacyExposureStatus,
+    LegacyPrivilegeCandidate,
+    LegacyPrivilegeImpact,
+    LegacyServiceAssessment,
+    LegacyServicesReport,
+    LegacyServiceType,
+)
+
 
 __all__ = [
     "ActiveScanError",
@@ -243,4 +261,17 @@ __all__ = [
     "OfflineSyntheticDeveloperCollector",
     "StandardSocketDeveloperCollector",
     "assess_developer_services",
+    "DEFAULT_LEGACY_PORTS",
+    "LegacyAuthPrerequisite",
+    "LegacyCategory",
+    "LegacyExposureStatus",
+    "LegacyPrivilegeCandidate",
+    "LegacyPrivilegeImpact",
+    "LegacyServiceAssessment",
+    "LegacyServicesReport",
+    "LegacyServiceType",
+    "LegacyServicesCollector",
+    "OfflineSyntheticLegacyCollector",
+    "StandardSocketLegacyCollector",
+    "assess_legacy_services",
 ]

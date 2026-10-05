@@ -310,6 +310,48 @@ python3 -m cops developer-services inspect developer_assessment.json
 
 ---
 
+## Legacy Enterprise, Management, and Proxy Services Assessment
+
+The package evaluates exposure, access control, and proxy egress risk across legacy enterprise storage protocols, hardware out-of-band management interfaces, network device appliance management, legacy VPN tunneling protocols, and forward proxy egress services (`cops legacy-services` or `cops discovery legacy`):
+
+1. **Protocol-Specific Coverage**:
+   - **Enterprise Storage & Data Management**: Probes NDMP (10000) for unauthenticated backup stream traversal, directory browsing, and tape/disk storage takeover; evaluates iSCSI (3260) for unauthenticated SendTargets discovery and LUN volume attachment without mutual CHAP.
+   - **Out-of-Band & Hardware Management**: Assesses IPMI 2.0 / RMCP+ (623/udp) Baseboard Management Controller (BMC) interfaces for Cipher Suite 0 authentication bypass and unauthenticated RAKP HMAC-SHA1 password hash dumping for offline dictionary cracking.
+   - **Network Device & Appliance Management**: Detects active Cisco Smart Install client daemons (`vstack`, 4786) allowing unauthenticated configuration download/replacement and arbitrary code execution; and evaluates TACACS+ AAA (49) daemons exposed with weak/default shared secret keys and missing TLS encapsulation (RFC 8907).
+   - **VPN & Tunneling Services**: Evaluates IPsec / IKEv1 (500/udp) Aggressive Mode responses exposing pre-shared key (PSK) negotiation hashes to offline cracking; and assesses legacy PPTP VPN endpoints (1723) utilizing vulnerable MS-CHAPv2 challenge-response authentication.
+   - **Proxy & Egress Services**: Assesses SOCKS4/SOCKS5 proxies (1080) for open network relaying without RFC 1929 authentication; and evaluates Squid HTTP proxies (3128) for unrestricted client ACLs allowing internal/cloud metadata SSRF pivoting.
+2. **Proxy Egress Restriction Testing**:
+   - For all proxy and egress services (SOCKS, Squid), explicitly tests and records destination egress restriction policy (`proxy_egress_tested`, `proxy_egress_restricted`) to evaluate whether outbound access to internal loopback, cloud metadata (`169.254.169.254`), or arbitrary external subnets is denied.
+3. **Explicit Execution Effect Classification & Plan Binding**:
+   - Explicitly classifies every assessment effect via `ExecutionEffect`: `read_only`, `non_destructive`, `state_change`, `code_execution`.
+   - Operations that execute code (`can_execute_code`) or modify state (`can_change_state`) MUST be explicitly authorized via `--allow-code-execution` or `--allow-state-change` and bound to the active action plan.
+4. **Crucial Truth Boundary: Inaccessible != Secure**:
+   - If a legacy interface is timed out, connection-refused, filtered, or unreachable from the probe vantage, it is strictly recorded as `inaccessible` with `auth_prerequisite: unknown` and explicit uncertainty notes. It is **never** reported as secure or hardened.
+5. **Canary Validation and Verifiable Cleanup Receipts**:
+   - Non-destructive probes validate access boundaries using canary identifiers (`canary_legacy_artifact`, `canary_proxy_probe`).
+   - Assessments emit cryptographically hashed `CleanupReceipt` records confirming test artifacts were removed and the system state was restored (`action_taken="verified_removed"`).
+6. **Legacy Privilege Candidate Routing**:
+   - Discovered misconfigurations (e.g. `ndmp_unauthenticated_access`, `iscsi_unauthenticated_target`, `ipmi_cipher_zero_bypass`, `ipmi_rakp_hash_dump`, `cisco_smart_install_rce`, `tacacs_unauthenticated_daemon`, `ike_aggressive_mode_psk`, `pptp_mschapv2_exposure`, `socks_open_proxy`, `squid_open_proxy`) are structured as `LegacyPrivilegeCandidate` records with cryptographic evidence hashes, auth prerequisites, and privilege impact ratings for handoff to offensive specialists (`cops-pentest-specialist`, `cops-redteam-operator`).
+
+```bash
+# Assess legacy enterprise, management, and proxy services
+python3 -m cops legacy-services assess --targets "198.51.100.60,storage01.corp.internal" --vantage internal --canary-id "canary_legacy_probe" --output legacy_assessment.json
+
+# Assess with authorized code execution verification
+python3 -m cops legacy-services assess --targets "198.51.100.60" --services "ipmi,cisco_smart_install" --allow-code-execution --output legacy_assessment.json
+
+# Extract legacy privilege candidates for takeover or proxy egress pivoting
+python3 -m cops legacy-services candidates legacy_assessment.json --output legacy_candidates.json
+
+# Export verified cleanup receipts
+python3 -m cops legacy-services cleanup legacy_assessment.json --output cleanup_receipts.json
+
+# Inspect assessment summary, privilege candidates, and truth-in-advertising metrics
+python3 -m cops legacy-services inspect legacy_assessment.json
+```
+
+---
+
 ## Evidence & Ethical Boundaries
 
 The Attack Surface Planner is a **planning and compliance tool**, not an active exploitation framework:

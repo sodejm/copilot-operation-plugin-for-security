@@ -19,7 +19,8 @@
         "network-remote-and-file-services",
         "network-data-services",
         "network-messaging-services",
-        "network-developer-interfaces"
+        "network-developer-interfaces",
+        "network-legacy-and-proxy-services"
       ],
       "tools": [
         "python3 -m cops check attack-surface-planner",
@@ -33,6 +34,7 @@
         "python3 -m cops data-services",
         "python3 -m cops messaging-services",
         "python3 -m cops developer-services",
+        "python3 -m cops legacy-services",
         "scripts/plan.py"
       ],
       "contract_file": "agents/profiles/cops-pentest-specialist.agent.md",
@@ -72,7 +74,19 @@
         "distcc compiler",
         "svn repository",
         "ajp ghostcat",
-        "fastcgi exposure"
+        "fastcgi exposure",
+        "legacy enterprise services",
+        "legacy management services",
+        "proxy services",
+        "ndmp backup",
+        "iscsi target",
+        "ipmi bmc",
+        "cisco smart install",
+        "tacacs aaa",
+        "ike psk",
+        "pptp vpn",
+        "socks proxy",
+        "squid proxy"
       ],
       "triad_defaults": {
         "skeptic_profile_id": "cops-detection-engineer",
@@ -130,7 +144,8 @@
         "network-remote-and-file-services",
         "network-data-services",
         "network-messaging-services",
-        "network-developer-interfaces"
+        "network-developer-interfaces",
+        "network-legacy-and-proxy-services"
       ],
       "tools": [
         "attack_surface_planner",
@@ -140,7 +155,8 @@
         "python3 -m cops remote-services",
         "python3 -m cops data-services",
         "python3 -m cops messaging-services",
-        "python3 -m cops developer-services"
+        "python3 -m cops developer-services",
+        "python3 -m cops legacy-services"
       ],
       "contract_file": "agents/profiles/cops-attack-surface-planner.agent.md",
       "intent_keywords": [
@@ -173,7 +189,19 @@
         "distcc compiler",
         "svn repository",
         "ajp ghostcat",
-        "fastcgi exposure"
+        "fastcgi exposure",
+        "legacy enterprise services",
+        "legacy management services",
+        "proxy services",
+        "ndmp backup",
+        "iscsi target",
+        "ipmi bmc",
+        "cisco smart install",
+        "tacacs aaa",
+        "ike psk",
+        "pptp vpn",
+        "socks proxy",
+        "squid proxy"
       ]
     },
     {
