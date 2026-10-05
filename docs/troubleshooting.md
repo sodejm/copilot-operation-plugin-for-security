@@ -191,6 +191,70 @@ In an air-gapped or offline environment, pip cannot contact PyPI.
 
 ---
 
+### 8. Push Blocked: Direct Push to `main` Prohibited
+
+**Symptom**:
+```text
+❌ [PUSH BLOCKED] Direct push to 'main' is prohibited per AGENTS.md.
+   Please create a dedicated branch (e.g. codex/<description>) and open a Pull Request.
+```
+
+**Cause**:
+The local pre-push hook (`.git/hooks/pre-push`) prevents accidental direct pushes to `main`.
+
+**Resolution**:
+1. Create a dedicated task branch:
+   ```bash
+   git checkout -b codex/my-task
+   ```
+2. Push your dedicated branch and open a pull request:
+   ```bash
+   git push -u origin codex/my-task
+   ```
+
+---
+
+### 9. Push Blocked / CI Failed: Issue Documentation or Test Coverage Missing
+
+**Symptom**:
+```text
+[FAILED] Issue coverage requirements not met:
+  - Missing documentation changes for issue 42
+  - Missing test case changes for issue 42
+```
+
+**Cause**:
+Per repository governance (`AGENTS.md` and Constitution), every change addressing an issue or feature must include updated documentation (in `docs/` or `specs/`) and executable tests (in `tests/` or `specs/features/`).
+
+**Resolution**:
+1. Check changed files with `make check-issue-coverage`.
+2. Add or update documentation in `docs/` or `specs/`.
+3. Add or update behavioral test cases in `tests/` or Gherkin features in `specs/features/`.
+4. If the commit is purely administrative (e.g. minor typo or internal refactor with no behavioral changes), include an explicit exemption in the commit message:
+   ```text
+   git commit -m "chore: fix typo in comment [skip-docs: comment typo only] [skip-tests: no logic change]"
+   ```
+
+---
+
+### 10. Secret Scanner Detection
+
+**Symptom**:
+Gitleaks or repository scanner identifies a possible secret or token pattern.
+
+**Cause**:
+A committed or staged file contains an API key, private key header, password, or connection string.
+
+**Resolution**:
+1. Never commit real credentials or private endpoints.
+2. Replace real secrets with synthetic, mock placeholders (e.g. `mock-api-key-fixture`).
+3. If an existing commit contains a secret, amend or rebase to remove the secret before pushing:
+   ```bash
+   git commit --amend
+   ```
+
+---
+
 ## Still Need Help?
 
 - Check the [Getting Started Guide](getting-started.md) for basic setup steps.
