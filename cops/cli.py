@@ -720,6 +720,9 @@ def build_parser() -> argparse.ArgumentParser:
     from .diagnostics.cli import build_diagnostics_parser
     build_diagnostics_parser(subparsers)
 
+    from .discovery.cli import build_discovery_parser
+    build_discovery_parser(subparsers)
+
     return parser
 
 
@@ -811,6 +814,9 @@ def main(argv: list[str] | None = None, *, root: Path = ROOT) -> int:
         if args.command == "diagnostics":
             from .diagnostics.cli import command_diagnostics
             return command_diagnostics(args, root=root)
+        if args.command == "discovery":
+            from .discovery.cli import command_discovery
+            return command_discovery(args, root=root)
     except (CatalogError, ValidationError, CoverageError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2

@@ -125,8 +125,8 @@ Use this guide to determine which plugin best matches your operational requireme
 
 #### Attack Surface Planner
 - **Maturity**: <span class="badge badge-experimental">Experimental</span> | **Operational Mode**: `planned`
-- **When to use**: Prior to an authorized penetration test or red team engagement to reconcile rules of engagement, partition in-scope vs out-of-scope targets, and generate bounded test plans.
-- **Key Capabilities**: Scope boundary enforcement, rule-of-engagement parsing, passive review plan generation.
+- **When to use**: Prior to an authorized penetration test or red team engagement to reconcile rules of engagement, partition in-scope vs out-of-scope targets, normalize multi-source passive discovery telemetry, and generate bounded test plans.
+- **Key Capabilities**: Scope boundary enforcement, rule-of-engagement parsing, passive review plan generation, multi-source telemetry normalization (DNS, certificate, IP, endpoint, cloud exports), evidence provenance preservation, and scope quarantine reconciliation.
 - **Boundaries**: Strictly a planning and scoping tool; makes zero network calls and executes zero exploits.
 - **Playbook**: `plugins/offensive-security/attack-surface-planner/docs/PLAYBOOK.md`
 

@@ -87,8 +87,14 @@
       "interactive_authorization_required": false,
       "description": "Perimeter exposure specialist analyzing external attack surfaces, cloud public IP allocations, certificate transparency, and DNS posture from pinned local exports without intrusive active scanning.",
       "primary_plugin": "attack-surface-planner",
-      "skills": ["authorized-attack-surface-planning"],
-      "tools": ["attack_surface_planner"],
+      "skills": [
+        "authorized-attack-surface-planning",
+        "network-passive-discovery"
+      ],
+      "tools": [
+        "attack_surface_planner",
+        "python3 -m cops discovery"
+      ],
       "contract_file": "agents/profiles/cops-attack-surface-planner.agent.md",
       "intent_keywords": [
         "attack surface",
@@ -98,7 +104,10 @@
         "dns posture",
         "shadow it",
         "exposure mapping",
-        "open ports export"
+        "open ports export",
+        "passive discovery",
+        "asset discovery",
+        "quarantine reconciliation"
       ]
     },
     {

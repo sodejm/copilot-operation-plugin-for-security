@@ -67,6 +67,33 @@ To protect your system from malformed inputs or runaway memory consumption, the 
 
 ---
 
+## Extended Passive Discovery & Scope Quarantine Reconciliation
+
+The package extends its passive planning capabilities with multi-source telemetry normalization and scope quarantine reconciliation (`cops discovery`):
+
+1. **Multi-Source Normalization**: Ingests raw DNS, TLS/CT certificates, IP allocations, endpoints, and cloud exports into canonical `DiscoveredAsset` records with cryptographic SHA-256 evidence provenance.
+2. **Provenance Deduplication**: Consolidates multi-source observations of identical entities while retaining all source proofs.
+3. **Scope Quarantine Reconciliation**:
+   - `verified_in_scope`: Matches approved targets, subnets, and domains with verified ownership.
+   - `quarantined`: Flags assets with conflicting ownership, stale/dangling DNS records, or missing provenance so discovery cannot expand the engagement.
+   - `excluded`: Explicitly prohibited domains, IP ranges, or partner tenants.
+
+```bash
+# Normalize raw telemetry
+python3 -m cops discovery normalize fixtures/recon/dns.json --type dns --output inventory.json
+
+# Reconcile against approved engagement scope
+python3 -m cops discovery reconcile inventory.json --scope scope.json --output reconciled.json
+
+# Merge and deduplicate multiple inventories
+python3 -m cops discovery merge inv1.json inv2.json --output merged.json
+
+# Inspect inventory summary
+python3 -m cops discovery inspect reconciled.json
+```
+
+---
+
 ## Evidence & Ethical Boundaries
 
 The Attack Surface Planner is a **planning and compliance tool**, not an active exploitation framework:
