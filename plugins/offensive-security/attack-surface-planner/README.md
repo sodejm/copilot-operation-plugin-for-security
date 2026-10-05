@@ -267,6 +267,49 @@ python3 -m cops messaging-services inspect messaging_assessment.json
 
 ---
 
+## Developer and Runtime Interfaces Assessment
+
+The package evaluates exposure, access control, and code execution risk across developer tooling, language debugging endpoints, distributed build systems, and application gateway interfaces (`cops developer-services` or `cops discovery developer`):
+
+1. **Protocol-Specific Coverage**:
+   - **Container & Orchestration Runtimes**: Probes Docker Engine API (2375, 2376) for unauthenticated TCP socket access permitting container breakouts and root host takeover; evaluates Docker Registry v2 (5000) for anonymous image catalog enumeration and private repository leakage.
+   - **Language & Debugging Runtimes**: Probes Java RMI Registry (1099) for unauthenticated object bindings and remote codebase deserialization; detects Java Debug Wire Protocol (JDWP, 8000/5005) raw handshake responses allowing arbitrary bytecode execution; evaluates Erlang Port Mapper Daemon (EPMD, 4369) node discovery and cookie enforcement; and detects wireless Android Debug Bridge (ADB, 5555) unauthenticated root shells.
+   - **Distributed Build & SCM**: Assesses distcc (3632) compilation daemons missing `--allow` CIDR IP restrictions enabling arbitrary shell execution; and probes Subversion (svnserve, 3690) anonymous repository checkout leaking source code.
+   - **Application Server & Gateway Interfaces**: Probes Apache JServ Protocol (AJP13, 8009) for missing `secretRequired` configuration vulnerable to Ghostcat (CVE-2020-1938); and assesses FastCGI / PHP-FPM (9000) external socket exposure allowing arbitrary PHP code execution.
+2. **Explicit Execution Effect Classification & Plan Binding**:
+   - Explicitly classifies every assessment effect via `ExecutionEffect`: `read_only`, `non_destructive`, `state_change`, `code_execution`.
+   - Operations that execute code (`can_execute_code`) or modify state (`can_change_state`) MUST be explicitly authorized via `--allow-code-execution` or `--allow-state-change` and bound to the active action plan.
+3. **Application vs Infrastructure Specialist Routing**:
+   - Application-layer findings route to web and application specialists (`cops-web-specialist`, `cops-appsec-engineer`).
+   - Container cluster management and orchestrator interfaces route to cloud infrastructure specialists (`cops-cloud-specialist`).
+   - Host breakout and remote code execution findings route to penetration testing specialists (`cops-pentest-specialist`, `cops-redteam-operator`).
+4. **Crucial Truth Boundary: Inaccessible != Secure**:
+   - If a developer interface is timed out, connection-refused, filtered, or unreachable from the probe vantage, it is strictly recorded as `inaccessible` with `auth_prerequisite: unknown` and explicit uncertainty notes. It is **never** reported as secure or hardened.
+5. **Canary Validation and Verifiable Cleanup Receipts**:
+   - Non-destructive probes validate access boundaries using canary identifiers (`canary_docker_probe`, `canary_debug_probe`).
+   - Assessments emit cryptographically hashed `CleanupReceipt` records confirming test containers or temporary artifacts were purged (`verified_removed`).
+6. **Developer Privilege Candidate Routing**:
+   - Discovered misconfigurations (e.g. `docker_socket_rce`, `docker_registry_leak`, `rmi_code_execution`, `jdwp_code_execution`, `erlang_epmd_rce`, `adb_shell_rce`, `distcc_rce`, `svn_anonymous_checkout`, `ajp_ghostcat_rce`, `fastcgi_rce`) are structured as `DeveloperPrivilegeCandidate` records with cryptographic evidence hashes, auth prerequisites, and privilege impact ratings for handoff to offensive specialists (`cops-pentest-specialist`, `cops-redteam-operator`).
+
+```bash
+# Assess developer and runtime interface services
+python3 -m cops developer-services assess --targets "198.51.100.50,dev01.corp.internal" --vantage internal --canary-id "canary_docker_probe" --output developer_assessment.json
+
+# Assess with authorized code execution verification
+python3 -m cops developer-services assess --targets "198.51.100.50" --services "docker,jdwp,distcc" --allow-code-execution --output developer_assessment.json
+
+# Extract developer privilege candidates for code execution or breakout workflows
+python3 -m cops developer-services candidates developer_assessment.json --output developer_candidates.json
+
+# Export verified cleanup receipts
+python3 -m cops developer-services cleanup developer_assessment.json --output cleanup_receipts.json
+
+# Inspect assessment summary, privilege candidates, and truth-in-advertising metrics
+python3 -m cops developer-services inspect developer_assessment.json
+```
+
+---
+
 ## Evidence & Ethical Boundaries
 
 The Attack Surface Planner is a **planning and compliance tool**, not an active exploitation framework:

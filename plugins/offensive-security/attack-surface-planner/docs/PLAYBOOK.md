@@ -141,6 +141,24 @@ Invoke this planner under the following concrete triggers:
 5. **Extract Messaging Privilege Candidates**:
    - Extract candidate findings (`smtp_open_relay`, `smtp_user_enumeration`, `pop3_plaintext_auth`, `imap_anonymous_login`, `irc_unauthenticated_operator`, `rabbitmq_guest_default_creds`, `rabbitmq_open_management`, `nats_unauthenticated_cluster`, `ibmmq_blank_channel`, `kafka_unauthenticated_broker`, `mqtt_anonymous_read_write`) for unauthorized relay or broker takeover handoff: `python3 -m cops messaging-services candidates ...`.
 
+### Phase 2h: Developer and Runtime Interfaces Assessment
+**Skill**: [`network-developer-interfaces`](../skills/network-developer-interfaces/SKILL.md)
+
+1. **Protocol-Specific Developer & Debugging Interface Probing**:
+   - Assess exposure of container runtimes (Docker API, Docker Registry), debugging ports (Java RMI, JDWP, Erlang EPMD, ADB), distributed build tools (distcc, SVN), and gateway interfaces (AJP, FastCGI) across approved targets: `python3 -m cops developer-services assess ...`.
+2. **Execution Effect Classification & Plan Binding**:
+   - Declare `ExecutionEffect`: `read_only`, `non_destructive`, `state_change`, `code_execution`.
+   - Operations that execute code or modify state require explicit authorization (`--allow-code-execution`, `--allow-state-change`) bound to the active plan.
+3. **Application vs Infrastructure Specialist Routing**:
+   - Route application-layer findings to web specialists (`cops-web-specialist`), orchestrator paths to cloud specialists (`cops-cloud-specialist`), and code execution / breakout findings to pentest specialists (`cops-pentest-specialist`).
+4. **Strict Inaccessible != Secure Grounding**:
+   - Filtered, closed, or timed-out endpoints are strictly classified as `inaccessible` (with `auth_prerequisite: unknown`). Never assume an inaccessible service is secure or hardened.
+5. **Canary Validation and Verifiable Cleanup Receipts**:
+   - Validate access controls using benign canary identifiers (`canary_docker_probe`, `canary_debug_probe`).
+   - Emit verified `CleanupReceipt` records confirming rollback and artifact removal: `python3 -m cops developer-services cleanup ...`.
+6. **Extract Developer Privilege Candidates**:
+   - Extract candidate findings (`docker_socket_rce`, `docker_registry_leak`, `rmi_code_execution`, `jdwp_code_execution`, `erlang_epmd_rce`, `adb_shell_rce`, `distcc_rce`, `svn_anonymous_checkout`, `ajp_ghostcat_rce`, `fastcgi_rce`) for code execution or breakout handoff: `python3 -m cops developer-services candidates ...`.
+
 ### Phase 3: Scope Boundary Partitioning
 Systematically classify every discovered entity into one of three strict partitions:
 
