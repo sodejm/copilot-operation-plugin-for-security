@@ -725,6 +725,7 @@ def build_parser() -> argparse.ArgumentParser:
         build_data_parser,
         build_discovery_parser,
         build_infra_parser,
+        build_messaging_parser,
         build_remote_parser,
     )
     build_discovery_parser(subparsers)
@@ -748,6 +749,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Assess databases, caches, and search/analytics services.",
     )
     build_data_parser(data_parser)
+    messaging_parser = subparsers.add_parser(
+        "messaging-services",
+        help="Assess mail, messaging, and message broker services.",
+    )
+    build_messaging_parser(messaging_parser)
 
     return parser
 
@@ -855,6 +861,9 @@ def main(argv: list[str] | None = None, *, root: Path = ROOT) -> int:
         if args.command == "data-services":
             from .discovery.cli import command_data_discovery
             return command_data_discovery(args, root=root)
+        if args.command == "messaging-services":
+            from .discovery.cli import command_messaging_discovery
+            return command_messaging_discovery(args, root=root)
     except (CatalogError, ValidationError, CoverageError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2

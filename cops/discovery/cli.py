@@ -63,6 +63,17 @@ from .data_models import (
     DataExposureStatus,
     DataServiceCategory,
 )
+from .messaging_collector import (
+    DEFAULT_MESSAGING_PORTS,
+    OfflineSyntheticMessagingCollector,
+    StandardSocketMessagingCollector,
+    assess_messaging_services,
+)
+from .messaging_models import (
+    MessagingServicesReport,
+    MessagingExposureStatus,
+    MessagingCategory,
+)
 
 ROOT: Path = Path(__file__).resolve().parents[2]
 
@@ -204,6 +215,38 @@ def build_data_parser(parser: argparse.ArgumentParser) -> None:
     insp_p.add_argument("--json", action="store_true", help="Emit JSON output.")
 
 
+def build_messaging_parser(parser: argparse.ArgumentParser) -> None:
+    """Build sub-commands for mail, chat, and message broker service assessment."""
+    msg_subs = parser.add_subparsers(dest="messaging_command", required=True)
+
+    # 1. assess
+    ass_p = msg_subs.add_parser("assess", help="Assess mail, chat, and message broker services.")
+    ass_p.add_argument("--targets", "-t", required=True, help="Comma-separated targets or path to JSON.")
+    ass_p.add_argument("--services", "-s", default=None, help="Comma-separated service types (smtp,pop3,imap,irc,rabbitmq,nats,ibmmq,kafka,mqtt).")
+    ass_p.add_argument("--vantage", default="external", choices=["external", "internal", "egress_point", "cloud_tenant"], help="Probe vantage.")
+    ass_p.add_argument("--scope-ref", default="authorized-scope", help="Scope reference.")
+    ass_p.add_argument("--canary-id", default=None, help="Canary message / queue / mailbox / topic identifier.")
+    ass_p.add_argument("--message-budget", type=int, default=5, help="Maximum sample messages to transmit or inspect (default: 5).")
+    ass_p.add_argument("--mode", choices=["synthetic", "live"], default="synthetic", help="Collector mode.")
+    ass_p.add_argument("--offline-targets", default=None, help="Path to mock targets JSON.")
+    ass_p.add_argument("--output", "-o", default=None, help="Output JSON path.")
+
+    # 2. candidates
+    cand_p = msg_subs.add_parser("candidates", help="Export messaging privilege candidates for unauthorized relay or broker takeover.")
+    cand_p.add_argument("report", help="Path to MessagingServicesReport JSON.")
+    cand_p.add_argument("--output", "-o", default=None, help="Output JSON path.")
+
+    # 3. cleanup
+    clean_p = msg_subs.add_parser("cleanup", help="Export verified cleanup receipts for canary messages and queues.")
+    clean_p.add_argument("report", help="Path to MessagingServicesReport JSON.")
+    clean_p.add_argument("--output", "-o", default=None, help="Output JSON path.")
+
+    # 4. inspect
+    insp_p = msg_subs.add_parser("inspect", help="Inspect and summarize mail, chat, and message broker assessment report.")
+    insp_p.add_argument("report", help="Path to MessagingServicesReport JSON.")
+    insp_p.add_argument("--json", action="store_true", help="Emit JSON output.")
+
+
 def build_discovery_parser(subparsers: argparse._SubParsersAction[Any]) -> argparse.ArgumentParser:
     """Build the discovery sub-parser for cops CLI."""
     parser = subparsers.add_parser(
@@ -257,6 +300,10 @@ def build_discovery_parser(subparsers: argparse._SubParsersAction[Any]) -> argpa
     # Database, Cache, and Search Subcommands under discovery
     data_p = disc_subs.add_parser("data", help="Assess databases, caches, and search/analytics services.")
     build_data_parser(data_p)
+
+    # Mail, Chat, and Message Broker Subcommands under discovery
+    msg_p = disc_subs.add_parser("messaging", help="Assess mail, chat, and message broker services.")
+    build_messaging_parser(msg_p)
 
     return parser
 
@@ -677,6 +724,114 @@ def command_data_discovery(args: argparse.Namespace, root: Path | None = None) -
     return 0
 
 
+def command_messaging_discovery(args: argparse.Namespace, root: Path | None = None) -> int:
+    """Handle mail, chat, and message broker service discovery CLI subcommands."""
+    msg_cmd = getattr(args, "messaging_command", None)
+
+    if msg_cmd == "assess":
+        raw_targets = args.targets
+        if Path(raw_targets).is_file():
+            t_data = json.loads(Path(raw_targets).read_text(encoding="utf-8"))
+            targets = t_data if isinstance(t_data, list) else t_data.get("targets", [])
+        else:
+            targets = [t.strip() for t in raw_targets.split(",") if t.strip()]
+
+        services = None
+        if args.services:
+            services = [s.strip().lower() for s in args.services.split(",") if s.strip()]
+
+        if args.mode == "synthetic":
+            mock_targets = {}
+            if args.offline_targets and Path(args.offline_targets).is_file():
+                mock_targets = json.loads(Path(args.offline_targets).read_text(encoding="utf-8"))
+            collector = OfflineSyntheticMessagingCollector(targets=mock_targets)
+        else:
+            collector = StandardSocketMessagingCollector()
+
+        report = assess_messaging_services(
+            targets=targets,
+            service_types=services,
+            collector=collector,
+            vantage=args.vantage,
+            scope_ref=args.scope_ref,
+            canary_id=args.canary_id,
+            message_budget=getattr(args, "message_budget", 5),
+        )
+
+        out_json = json.dumps(report.to_dict(), indent=2)
+        if args.output:
+            Path(args.output).write_text(out_json, encoding="utf-8")
+            print(f"Assessed {len(report.assessments)} messaging services ({report.candidates_count} candidates, {report.cleanup_receipts_count} cleanup receipts) saved to {args.output}")
+        else:
+            print(out_json)
+        return 0
+
+    if msg_cmd == "candidates":
+        report_path = Path(args.report)
+        report_data = json.loads(report_path.read_text(encoding="utf-8"))
+        candidates = []
+        for ass in report_data.get("assessments", []):
+            candidates.extend(ass.get("privilege_candidates", []))
+
+        out_json = json.dumps(candidates, indent=2)
+        if args.output:
+            Path(args.output).write_text(out_json, encoding="utf-8")
+            print(f"Exported {len(candidates)} messaging privilege candidates to {args.output}")
+        else:
+            print(out_json)
+        return 0
+
+    if msg_cmd == "cleanup":
+        report_path = Path(args.report)
+        report_data = json.loads(report_path.read_text(encoding="utf-8"))
+        receipts = []
+        for ass in report_data.get("assessments", []):
+            receipts.extend(ass.get("cleanup_receipts", []))
+
+        out_json = json.dumps(receipts, indent=2)
+        if args.output:
+            Path(args.output).write_text(out_json, encoding="utf-8")
+            print(f"Exported {len(receipts)} cleanup receipts to {args.output}")
+        else:
+            print(out_json)
+        return 0
+
+    if msg_cmd == "inspect":
+        report_path = Path(args.report)
+        report_data = json.loads(report_path.read_text(encoding="utf-8"))
+        report = MessagingServicesReport.from_dict(report_data)
+
+        if getattr(args, "json", False):
+            print(json.dumps(report.to_dict(), indent=2))
+            return 0
+
+        print(f"=== Mail, Messaging & Message Brokers Report ({report.report_id}) ===")
+        print(f"Target Scope:         {', '.join(report.target_scope)}")
+        print(f"Probe Vantage:        {report.vantage}")
+        print(f"Total Assessed:       {report.total_probed}")
+        print(f"Exposed:              {report.total_exposed}")
+        print(f"Protected:            {report.total_protected}")
+        print(f"Inaccessible:         {report.total_inaccessible}")
+        print(f"Privilege Candidates: {report.candidates_count}")
+        print(f"Cleanup Receipts:     {report.cleanup_receipts_count}")
+        print()
+        for s in report.assessments:
+            status_icon = "!" if s.exposure_status in ("exposed", "misconfigured") else ("✓" if s.exposure_status in ("protected", "remediated") else "?")
+            cand_types = [c.finding_type for c in s.privilege_candidates]
+            cand_marker = f" -> CANDIDATES: {', '.join(cand_types)}" if cand_types else ""
+            cat_label = s.category.upper() if isinstance(s.category, str) else s.category.value.upper()
+            stype = s.service_type if isinstance(s.service_type, str) else s.service_type.value
+            auth_val = s.auth_prerequisite if isinstance(s.auth_prerequisite, str) else s.auth_prerequisite.value
+            exp_val = s.exposure_status if isinstance(s.exposure_status, str) else s.exposure_status.value
+            print(f"  [{status_icon}] [{cat_label:<25}] {stype.upper():<10} {s.target_host}:{s.port:<5} {exp_val:<14} (auth: {auth_val}, role: {s.assigned_role}){cand_marker}")
+        if report.total_inaccessible > 0:
+            print()
+            print("Truth-in-Advertising Notice: Inaccessible services are NOT reported as secure or hardened.")
+        return 0
+
+    return 0
+
+
 def command_discovery(
     args: argparse.Namespace | None = None,
     root: Path | None = None,
@@ -703,6 +858,9 @@ def command_discovery(
 
         if cmd == "data":
             return command_data_discovery(args, root=root)
+
+        if cmd == "messaging":
+            return command_messaging_discovery(args, root=root)
 
         if cmd == "normalize":
             src_file = Path(file_path or args.file)

@@ -98,6 +98,25 @@ from .remote_models import (
     RemoteServiceType,
 )
 
+from .messaging_collector import (
+    DEFAULT_MESSAGING_PORTS,
+    MessagingServicesCollector,
+    OfflineSyntheticMessagingCollector,
+    StandardSocketMessagingCollector,
+    assess_messaging_services,
+)
+from .messaging_models import (
+    MessagingAuthPrerequisite,
+    MessagingCategory,
+    MessagingExposureStatus,
+    MessagingPrivilegeCandidate,
+    MessagingPrivilegeImpact,
+    MessagingServiceAssessment,
+    MessagingServicesReport,
+    MessagingServiceType,
+)
+
+
 __all__ = [
     "ActiveScanError",
     "ActiveScanSession",
@@ -178,4 +197,17 @@ __all__ = [
     "OfflineSyntheticDataCollector",
     "StandardSocketDataCollector",
     "assess_data_services",
+    "DEFAULT_MESSAGING_PORTS",
+    "MessagingAuthPrerequisite",
+    "MessagingCategory",
+    "MessagingExposureStatus",
+    "MessagingPrivilegeCandidate",
+    "MessagingPrivilegeImpact",
+    "MessagingServiceAssessment",
+    "MessagingServiceType",
+    "MessagingServicesCollector",
+    "MessagingServicesReport",
+    "OfflineSyntheticMessagingCollector",
+    "StandardSocketMessagingCollector",
+    "assess_messaging_services",
 ]

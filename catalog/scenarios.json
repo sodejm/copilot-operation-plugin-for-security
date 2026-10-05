@@ -288,7 +288,7 @@
     },
     {
       "coverage_mode": "laboratory",
-      "description": "Verifies whether SMTP endpoints reject unauthorized open relay attempts and enforce TLS encryption.",
+      "description": "Assesses email services (SMTP, POP3, IMAP), chat (IRC), and message brokers/queues (AMQP/RabbitMQ, NATS, IBM MQ, Kafka, MQTT) for unauthorized exposure, open relays, anonymous/guest access, synthetic canaries, and bounded message budgets with verifiable cleanup.",
       "environment": {
         "isolated_worker_required": true,
         "os": [
@@ -302,15 +302,22 @@
       "family_id": "COPS-E04.06",
       "mitre_attack": {
         "tactics": [
-          "initial-access"
+          "initial-access",
+          "credential-access",
+          "collection",
+          "lateral-movement"
         ],
         "techniques": [
+          "T1078",
+          "T1114",
+          "T1071.003",
+          "T1021",
           "T1566"
         ]
       },
       "owner_issue": 97,
       "prerequisites": [
-        "Authorized mail gateway test scope"
+        "Authorized mail and message broker assessment scope"
       ],
       "provenance": {
         "license": "MIT",
@@ -324,7 +331,7 @@
         "safe_for_production": false
       },
       "scenario_id": "COPS-E04.06-S01",
-      "title": "Mail Relay and Messaging Boundary Verification"
+      "title": "Mail, Messaging, and Message Broker Services Exposure Assessment"
     },
     {
       "coverage_mode": "planned",

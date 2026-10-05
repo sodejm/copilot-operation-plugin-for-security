@@ -17,7 +17,8 @@
         "network-active-discovery",
         "network-infrastructure-services",
         "network-remote-and-file-services",
-        "network-data-services"
+        "network-data-services",
+        "network-messaging-services"
       ],
       "tools": [
         "python3 -m cops check attack-surface-planner",
@@ -29,6 +30,7 @@
         "python3 -m cops infrastructure-services",
         "python3 -m cops remote-services",
         "python3 -m cops data-services",
+        "python3 -m cops messaging-services",
         "scripts/plan.py"
       ],
       "contract_file": "agents/profiles/cops-pentest-specialist.agent.md",
@@ -52,7 +54,12 @@
         "ntp monlist",
         "rpc endpoint",
         "ldap rootdse",
-        "kerberos preauth"
+        "kerberos preauth",
+        "mail services",
+        "messaging broker",
+        "smtp relay",
+        "rabbitmq exposure",
+        "kafka broker"
       ],
       "triad_defaults": {
         "skeptic_profile_id": "cops-detection-engineer",
@@ -108,7 +115,8 @@
         "network-active-discovery",
         "network-infrastructure-services",
         "network-remote-and-file-services",
-        "network-data-services"
+        "network-data-services",
+        "network-messaging-services"
       ],
       "tools": [
         "attack_surface_planner",
@@ -116,7 +124,8 @@
         "python3 -m cops active-discovery",
         "python3 -m cops infrastructure-services",
         "python3 -m cops remote-services",
-        "python3 -m cops data-services"
+        "python3 -m cops data-services",
+        "python3 -m cops messaging-services"
       ],
       "contract_file": "agents/profiles/cops-attack-surface-planner.agent.md",
       "intent_keywords": [
@@ -133,7 +142,12 @@
         "service identification",
         "port scan assessment",
         "asset discovery",
-        "quarantine reconciliation"
+        "quarantine reconciliation",
+        "mail services",
+        "messaging brokers",
+        "smtp relay",
+        "rabbitmq exposure",
+        "kafka broker"
       ]
     },
     {
