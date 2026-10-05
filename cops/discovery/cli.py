@@ -74,6 +74,17 @@ from .messaging_models import (
     MessagingExposureStatus,
     MessagingCategory,
 )
+from .developer_collector import (
+    DEFAULT_DEVELOPER_PORTS,
+    OfflineSyntheticDeveloperCollector,
+    StandardSocketDeveloperCollector,
+    assess_developer_services,
+)
+from .developer_models import (
+    DeveloperServicesReport,
+    DeveloperExposureStatus,
+    DeveloperCategory,
+)
 
 ROOT: Path = Path(__file__).resolve().parents[2]
 
@@ -247,6 +258,39 @@ def build_messaging_parser(parser: argparse.ArgumentParser) -> None:
     insp_p.add_argument("--json", action="store_true", help="Emit JSON output.")
 
 
+def build_developer_parser(parser: argparse.ArgumentParser) -> None:
+    """Build sub-commands for developer and runtime interface service assessment."""
+    dev_subs = parser.add_subparsers(dest="developer_command", required=True)
+
+    # 1. assess
+    ass_p = dev_subs.add_parser("assess", help="Assess developer and runtime interface services.")
+    ass_p.add_argument("--targets", "-t", required=True, help="Comma-separated targets or path to JSON.")
+    ass_p.add_argument("--services", "-s", default=None, help="Comma-separated service types (docker,docker_registry,rmi,jdwp,erlang_epmd,adb,distcc,svn,ajp,fastcgi).")
+    ass_p.add_argument("--vantage", default="external", choices=["external", "internal", "egress_point", "cloud_tenant"], help="Probe vantage.")
+    ass_p.add_argument("--scope-ref", default="authorized-scope", help="Scope reference.")
+    ass_p.add_argument("--canary-id", default=None, help="Canary record / container / debug session / code artifact identifier.")
+    ass_p.add_argument("--allow-code-execution", action="store_true", default=False, help="Explicitly authorize code execution probes bound to the approved plan.")
+    ass_p.add_argument("--allow-state-change", action="store_true", default=False, help="Explicitly authorize state change probes bound to the approved plan.")
+    ass_p.add_argument("--mode", choices=["synthetic", "live"], default="synthetic", help="Collector mode.")
+    ass_p.add_argument("--offline-targets", default=None, help="Path to mock targets JSON.")
+    ass_p.add_argument("--output", "-o", default=None, help="Output JSON path.")
+
+    # 2. candidates
+    cand_p = dev_subs.add_parser("candidates", help="Export developer privilege candidates for code execution or breakout workflows.")
+    cand_p.add_argument("report", help="Path to DeveloperServicesReport JSON.")
+    cand_p.add_argument("--output", "-o", default=None, help="Output JSON path.")
+
+    # 3. cleanup
+    clean_p = dev_subs.add_parser("cleanup", help="Export verified cleanup receipts for canary artifacts.")
+    clean_p.add_argument("report", help="Path to DeveloperServicesReport JSON.")
+    clean_p.add_argument("--output", "-o", default=None, help="Output JSON path.")
+
+    # 4. inspect
+    insp_p = dev_subs.add_parser("inspect", help="Inspect and summarize developer and runtime interfaces assessment report.")
+    insp_p.add_argument("report", help="Path to DeveloperServicesReport JSON.")
+    insp_p.add_argument("--json", action="store_true", help="Emit JSON output.")
+
+
 def build_discovery_parser(subparsers: argparse._SubParsersAction[Any]) -> argparse.ArgumentParser:
     """Build the discovery sub-parser for cops CLI."""
     parser = subparsers.add_parser(
@@ -304,6 +348,10 @@ def build_discovery_parser(subparsers: argparse._SubParsersAction[Any]) -> argpa
     # Mail, Chat, and Message Broker Subcommands under discovery
     msg_p = disc_subs.add_parser("messaging", help="Assess mail, chat, and message broker services.")
     build_messaging_parser(msg_p)
+
+    # Developer and Runtime Interfaces Subcommands under discovery
+    dev_p = disc_subs.add_parser("developer", help="Assess developer and runtime interface services.")
+    build_developer_parser(dev_p)
 
     return parser
 
@@ -805,8 +853,9 @@ def command_messaging_discovery(args: argparse.Namespace, root: Path | None = No
             print(json.dumps(report.to_dict(), indent=2))
             return 0
 
+        target_scope_str = ", ".join(report.target_scope)
         print(f"=== Mail, Messaging & Message Brokers Report ({report.report_id}) ===")
-        print(f"Target Scope:         {', '.join(report.target_scope)}")
+        print(f"Target Scope:         {target_scope_str}")
         print(f"Probe Vantage:        {report.vantage}")
         print(f"Total Assessed:       {report.total_probed}")
         print(f"Exposed:              {report.total_exposed}")
@@ -818,12 +867,133 @@ def command_messaging_discovery(args: argparse.Namespace, root: Path | None = No
         for s in report.assessments:
             status_icon = "!" if s.exposure_status in ("exposed", "misconfigured") else ("✓" if s.exposure_status in ("protected", "remediated") else "?")
             cand_types = [c.finding_type for c in s.privilege_candidates]
-            cand_marker = f" -> CANDIDATES: {', '.join(cand_types)}" if cand_types else ""
+            cand_types_str = ", ".join(cand_types)
+            cand_marker = f" -> CANDIDATES: {cand_types_str}" if cand_types else ""
             cat_label = s.category.upper() if isinstance(s.category, str) else s.category.value.upper()
             stype = s.service_type if isinstance(s.service_type, str) else s.service_type.value
             auth_val = s.auth_prerequisite if isinstance(s.auth_prerequisite, str) else s.auth_prerequisite.value
             exp_val = s.exposure_status if isinstance(s.exposure_status, str) else s.exposure_status.value
             print(f"  [{status_icon}] [{cat_label:<25}] {stype.upper():<10} {s.target_host}:{s.port:<5} {exp_val:<14} (auth: {auth_val}, role: {s.assigned_role}){cand_marker}")
+        if report.total_inaccessible > 0:
+            print()
+            print("Truth-in-Advertising Notice: Inaccessible services are NOT reported as secure or hardened.")
+        return 0
+
+    return 0
+
+
+def command_developer_discovery(args: argparse.Namespace, root: Path | None = None) -> int:
+    """Handle developer and runtime interface discovery CLI subcommands."""
+    dev_cmd = getattr(args, "developer_command", None)
+
+    if dev_cmd == "assess":
+        raw_targets = args.targets
+        if Path(raw_targets).is_file():
+            t_data = json.loads(Path(raw_targets).read_text(encoding="utf-8"))
+            targets = t_data if isinstance(t_data, list) else (t_data.get("targets") or list(t_data.keys()))
+        else:
+            targets = [t.strip() for t in raw_targets.split(",") if t.strip()]
+
+        services = [s.strip().lower() for s in args.services.split(",") if s.strip()] if args.services else None
+
+        allow_exec = getattr(args, "allow_code_execution", False)
+        allow_state = getattr(args, "allow_state_change", False)
+
+        if args.mode == "synthetic":
+            mock_targets = {}
+            if args.offline_targets and Path(args.offline_targets).is_file():
+                mock_targets = json.loads(Path(args.offline_targets).read_text(encoding="utf-8"))
+            collector = OfflineSyntheticDeveloperCollector(
+                targets=mock_targets,
+                allow_code_execution=allow_exec,
+                allow_state_change=allow_state,
+            )
+        else:
+            collector = StandardSocketDeveloperCollector(
+                allow_code_execution=allow_exec,
+                allow_state_change=allow_state,
+            )
+
+        report = assess_developer_services(
+            targets=targets,
+            service_types=services,
+            collector=collector,
+            vantage=args.vantage,
+            scope_ref=args.scope_ref,
+            canary_id=args.canary_id,
+            allow_code_execution=allow_exec,
+            allow_state_change=allow_state,
+        )
+
+        out_json = json.dumps(report.to_dict(), indent=2)
+        if args.output:
+            Path(args.output).write_text(out_json, encoding="utf-8")
+            print(f"Assessed {len(report.assessments)} developer interface services ({report.candidates_count} candidates, {report.cleanup_receipts_count} receipts) saved to {args.output}")
+        else:
+            print(out_json)
+        return 0
+
+    if dev_cmd == "candidates":
+        report_path = Path(args.report)
+        report_data = json.loads(report_path.read_text(encoding="utf-8"))
+        candidates: list[dict[str, Any]] = []
+        for assessment in report_data.get("assessments", []):
+            candidates.extend(assessment.get("privilege_candidates", []))
+
+        out_json = json.dumps(candidates, indent=2)
+        if args.output:
+            Path(args.output).write_text(out_json, encoding="utf-8")
+            print(f"Exported {len(candidates)} developer privilege candidates to {args.output}")
+        else:
+            print(out_json)
+        return 0
+
+    if dev_cmd == "cleanup":
+        report_path = Path(args.report)
+        report_data = json.loads(report_path.read_text(encoding="utf-8"))
+        receipts: list[dict[str, Any]] = []
+        for assessment in report_data.get("assessments", []):
+            receipts.extend(assessment.get("cleanup_receipts", []))
+
+        out_json = json.dumps(receipts, indent=2)
+        if args.output:
+            Path(args.output).write_text(out_json, encoding="utf-8")
+            print(f"Exported {len(receipts)} cleanup receipts to {args.output}")
+        else:
+            print(out_json)
+        return 0
+
+    if dev_cmd == "inspect":
+        report_path = Path(args.report)
+        report_data = json.loads(report_path.read_text(encoding="utf-8"))
+        report = DeveloperServicesReport.from_dict(report_data)
+
+        if getattr(args, "json", False):
+            print(json.dumps(report.to_dict(), indent=2))
+            return 0
+
+        target_scope_str = ", ".join(report.target_scope)
+        print(f"=== Developer & Runtime Interfaces Report ({report.report_id}) ===")
+        print(f"Target Scope:         {target_scope_str}")
+        print(f"Probe Vantage:        {report.vantage}")
+        print(f"Total Assessed:       {report.total_probed}")
+        print(f"Exposed:              {report.total_exposed}")
+        print(f"Protected:            {report.total_protected}")
+        print(f"Inaccessible:         {report.total_inaccessible}")
+        print(f"Privilege Candidates: {report.candidates_count}")
+        print(f"Cleanup Receipts:     {report.cleanup_receipts_count}")
+        print()
+        for s in report.assessments:
+            status_icon = "!" if s.exposure_status in ("exposed", "misconfigured") else ("✓" if s.exposure_status in ("protected", "remediated") else "?")
+            cand_types = [c.finding_type for c in s.privilege_candidates]
+            cand_types_str = ", ".join(cand_types)
+            cand_marker = f" -> CANDIDATES: {cand_types_str}" if cand_types else ""
+            cat_label = s.category.upper() if isinstance(s.category, str) else s.category.value.upper()
+            stype = s.service_type if isinstance(s.service_type, str) else s.service_type.value
+            auth_val = s.auth_prerequisite if isinstance(s.auth_prerequisite, str) else s.auth_prerequisite.value
+            exp_val = s.exposure_status if isinstance(s.exposure_status, str) else s.exposure_status.value
+            exec_note = " [CODE-EXEC]" if s.can_execute_code else (" [STATE-CHANGE]" if s.can_change_state else "")
+            print(f"  [{status_icon}] [{cat_label:<32}] {stype.upper():<15} {s.target_host}:{s.port:<5} {exp_val:<14} (auth: {auth_val}, role: {s.assigned_role}){exec_note}{cand_marker}")
         if report.total_inaccessible > 0:
             print()
             print("Truth-in-Advertising Notice: Inaccessible services are NOT reported as secure or hardened.")
@@ -861,6 +1031,9 @@ def command_discovery(
 
         if cmd == "messaging":
             return command_messaging_discovery(args, root=root)
+
+        if cmd == "developer":
+            return command_developer_discovery(args, root=root)
 
         if cmd == "normalize":
             src_file = Path(file_path or args.file)

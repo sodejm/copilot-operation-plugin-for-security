@@ -18,7 +18,8 @@
         "network-infrastructure-services",
         "network-remote-and-file-services",
         "network-data-services",
-        "network-messaging-services"
+        "network-messaging-services",
+        "network-developer-interfaces"
       ],
       "tools": [
         "python3 -m cops check attack-surface-planner",
@@ -31,6 +32,7 @@
         "python3 -m cops remote-services",
         "python3 -m cops data-services",
         "python3 -m cops messaging-services",
+        "python3 -m cops developer-services",
         "scripts/plan.py"
       ],
       "contract_file": "agents/profiles/cops-pentest-specialist.agent.md",
@@ -59,7 +61,18 @@
         "messaging broker",
         "smtp relay",
         "rabbitmq exposure",
-        "kafka broker"
+        "kafka broker",
+        "developer interfaces",
+        "docker api",
+        "docker registry",
+        "rmi registry",
+        "jdwp debugging",
+        "erlang epmd",
+        "adb debugging",
+        "distcc compiler",
+        "svn repository",
+        "ajp ghostcat",
+        "fastcgi exposure"
       ],
       "triad_defaults": {
         "skeptic_profile_id": "cops-detection-engineer",
@@ -116,7 +129,8 @@
         "network-infrastructure-services",
         "network-remote-and-file-services",
         "network-data-services",
-        "network-messaging-services"
+        "network-messaging-services",
+        "network-developer-interfaces"
       ],
       "tools": [
         "attack_surface_planner",
@@ -125,7 +139,8 @@
         "python3 -m cops infrastructure-services",
         "python3 -m cops remote-services",
         "python3 -m cops data-services",
-        "python3 -m cops messaging-services"
+        "python3 -m cops messaging-services",
+        "python3 -m cops developer-services"
       ],
       "contract_file": "agents/profiles/cops-attack-surface-planner.agent.md",
       "intent_keywords": [
@@ -147,7 +162,18 @@
         "messaging brokers",
         "smtp relay",
         "rabbitmq exposure",
-        "kafka broker"
+        "kafka broker",
+        "developer interfaces",
+        "docker api",
+        "docker registry",
+        "rmi registry",
+        "jdwp debugging",
+        "erlang epmd",
+        "adb debugging",
+        "distcc compiler",
+        "svn repository",
+        "ajp ghostcat",
+        "fastcgi exposure"
       ]
     },
     {
