@@ -38,6 +38,13 @@ When evaluating scenarios in isolated environments (`mode: "laboratory"`):
    - Run **negative cases** to ensure controlled rejection when prerequisites or scopes are invalid.
    - Emit verified `CleanupReceipt` records on completion.
 
+## Capability & Package Workflow Diagnostics
+
+Prior to orchestrating engagements or evaluating scenarios:
+1. **Platform and Tooling Inspection**: Run `python3 -m cops diagnostics --tools` to inspect host platform compatibility and determine whether optional security tool prerequisites (`nmap`, `kubectl`, `kube-bench`, etc.) are installed or missing. Missing tools in offline planning do not cause false execution passes.
+2. **Package Structure & Readiness**: Validate that each registered package maintains compliant manifests (`package.json`, `plugin.json`), documented playbooks, offline test scripts, and skills directories.
+3. **Truth-in-Advertising Enforcement**: Ensure capability claims strictly adhere to demonstrated evidence and operational readiness modes (`planned`, `import`, `laboratory`, `live-validated`).
+
 ## Emergency Procedures
 
 If live assessment causes operational disruption or exceeds budget limits:
