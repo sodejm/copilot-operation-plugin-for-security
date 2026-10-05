@@ -23,6 +23,9 @@ class Engagement:
     rules_of_engagement: dict[str, Any]
     created_at: str
     metadata: dict[str, Any] | None = None
+    mode: str | None = None
+    budget: dict[str, Any] | None = None
+    credential_references: list[str] | None = None
 
     def transition_to(self, next_state: str) -> None:
         """Attempt to transition engagement to a new lifecycle state."""
@@ -30,7 +33,7 @@ class Engagement:
         self.status = next_state
 
     def to_dict(self) -> dict[str, Any]:
-        result = {
+        result: dict[str, Any] = {
             "schema_version": self.schema_version,
             "engagement_id": self.engagement_id,
             "name": self.name,
@@ -41,6 +44,12 @@ class Engagement:
             "rules_of_engagement": self.rules_of_engagement,
             "created_at": self.created_at,
         }
+        if self.mode is not None:
+            result["mode"] = self.mode
+        if self.budget is not None:
+            result["budget"] = self.budget
+        if self.credential_references is not None:
+            result["credential_references"] = self.credential_references
         if self.metadata is not None:
             result["metadata"] = self.metadata
         return result
@@ -59,6 +68,9 @@ class Engagement:
             rules_of_engagement=data["rules_of_engagement"],
             created_at=data["created_at"],
             metadata=data.get("metadata"),
+            mode=data.get("mode"),
+            budget=data.get("budget"),
+            credential_references=data.get("credential_references"),
         )
 
 
@@ -121,6 +133,7 @@ class ActionPlan:
     credential_references: list[str]
     plan_digest: str
     created_at: str
+    platform_prerequisites: list[str] | None = None
 
     def transition_to(self, next_state: str) -> None:
         """Attempt to transition action plan to a new lifecycle state."""
@@ -128,7 +141,7 @@ class ActionPlan:
         self.status = next_state
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        result: dict[str, Any] = {
             "schema_version": self.schema_version,
             "plan_id": self.plan_id,
             "engagement_id": self.engagement_id,
@@ -142,6 +155,9 @@ class ActionPlan:
             "plan_digest": self.plan_digest,
             "created_at": self.created_at,
         }
+        if self.platform_prerequisites is not None:
+            result["platform_prerequisites"] = self.platform_prerequisites
+        return result
 
     @classmethod
     def create(
@@ -157,6 +173,7 @@ class ActionPlan:
         credential_references: list[str],
         created_at: str,
         status: str = "draft",
+        platform_prerequisites: list[str] | None = None,
     ) -> ActionPlan:
         computed_digest = build_action_plan_digest(
             target=target,
@@ -177,6 +194,7 @@ class ActionPlan:
             credential_references=credential_references,
             plan_digest=computed_digest,
             created_at=created_at,
+            platform_prerequisites=platform_prerequisites,
         )
         validate_contract(plan.to_dict(), "action_plan")
         return plan
@@ -197,6 +215,7 @@ class ActionPlan:
             credential_references=data["credential_references"],
             plan_digest=data["plan_digest"],
             created_at=data["created_at"],
+            platform_prerequisites=data.get("platform_prerequisites"),
         )
 
 

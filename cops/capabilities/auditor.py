@@ -29,6 +29,7 @@ LABORATORY_PLUGIN_IDS: set[str] = {
 # Plugins categorized as 'planned' are scoping and planning only
 PLANNED_PLUGIN_IDS: set[str] = {
     "attack-surface-planner",
+    "offensive-engagement-workbench",
 }
 
 
@@ -250,20 +251,20 @@ def audit_capabilities(root: Path = ROOT, registry_data: dict[str, Any] | None =
                         )
 
     # Rule 3: Catalog descriptive drift check
-    if summary["by_kind"]["plugin"] != 13:
+    if summary["by_kind"]["plugin"] != 14:
         raise CapabilityTruthError(
             "catalog_descriptive_drift",
-            f"Expected exactly 13 plugins, found {summary['by_kind']['plugin']}."
+            f"Expected exactly 14 plugins, found {summary['by_kind']['plugin']}."
         )
     if summary["by_kind"]["specialist"] != 18:
         raise CapabilityTruthError(
             "catalog_descriptive_drift",
             f"Expected exactly 18 specialist profiles, found {summary['by_kind']['specialist']}."
         )
-    if summary["by_kind"]["scenario"] != 32:
+    if summary["by_kind"]["scenario"] != 33:
         raise CapabilityTruthError(
             "catalog_descriptive_drift",
-            f"Expected exactly 32 scenarios, found {summary['by_kind']['scenario']}."
+            f"Expected exactly 33 scenarios, found {summary['by_kind']['scenario']}."
         )
 
     return {
