@@ -7,7 +7,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-
 PACKAGE_ROOT = Path(__file__).resolve().parent.parent
 REPOSITORY_ROOT = PACKAGE_ROOT.parent
 HUNTS_DIR = PACKAGE_ROOT / "hunts"

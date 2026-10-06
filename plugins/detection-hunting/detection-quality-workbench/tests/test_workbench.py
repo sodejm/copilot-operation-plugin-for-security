@@ -1,3 +1,5 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 """Comprehensive unit tests for Detection Quality Workbench."""
 
 import json
@@ -12,11 +14,26 @@ REPO_ROOT = PLUGIN_ROOT.parent.parent
 if str(PLUGIN_ROOT) not in sys.path:
     sys.path.insert(0, str(PLUGIN_ROOT))
 
-from detectionquality.cli import main as cli_main
-from detectionquality.evaluator import evaluate_fixture_case, evaluate_rule_suite
-from detectionquality.models import FixtureCase, FixtureSuite, QualityError, Rule
-from detectionquality.reporting import render_json_report, render_markdown_report
-from detectionquality.static_analysis import analyze_rule_dependencies
+from detectionquality.cli import (
+    main as cli_main,
+)
+from detectionquality.evaluator import (
+    evaluate_fixture_case,
+    evaluate_rule_suite,
+)
+from detectionquality.models import (
+    FixtureCase,
+    FixtureSuite,
+    QualityError,
+    Rule,
+)
+from detectionquality.reporting import (
+    render_json_report,
+    render_markdown_report,
+)
+from detectionquality.static_analysis import (
+    analyze_rule_dependencies,
+)
 
 
 @pytest.fixture

@@ -13,10 +13,11 @@ import math
 import re
 import stat
 import zipfile
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 from statistics import median
-from typing import Any, Callable
+from typing import Any
 
 from .adapters import verify_adapters
 from .contracts import validate_library
@@ -33,7 +34,6 @@ from .paths import (
     sha256_file,
     sha256_text,
 )
-
 
 REPORT_SCHEMA = "huntwb.release-report/v2"
 EXTERNAL_EVIDENCE_SCHEMA = "huntwb.external-evidence/v2"
@@ -780,7 +780,7 @@ def _validate_release_archive(
             expected_names = [f"sentinel-hunt-workbench/{name}" for name in sorted(subject["artifacts"])]
             if [entry.filename for entry in entries] != expected_names:
                 raise ValueError("archive inventory or order differs from the release subject")
-            for entry, digest in zip(entries, (subject["artifacts"][name] for name in sorted(subject["artifacts"]))):
+            for entry, digest in zip(entries, (subject["artifacts"][name] for name in sorted(subject["artifacts"])), strict=False):
                 if (
                     entry.date_time != (1980, 1, 1, 0, 0, 0)
                     or entry.compress_type != zipfile.ZIP_STORED

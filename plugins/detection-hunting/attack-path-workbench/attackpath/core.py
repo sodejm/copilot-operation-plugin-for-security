@@ -2,17 +2,18 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
-import copy
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
 from . import VERSION
-from .ingestion import IngestError, Limits, RunBudget, parse_json as bounded_json, read_regular
+from .ingestion import IngestError, Limits, RunBudget, read_regular
+from .ingestion import parse_json as bounded_json
 from .search import SearchLimits, bounded_json_bytes
 
 
@@ -67,7 +68,7 @@ def utc(value: Any, where: str) -> str:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError as exc:
         raise GateError(f"{where}: invalid UTC timestamp") from exc
-    if parsed.tzinfo != timezone.utc:
+    if parsed.tzinfo != UTC:
         raise GateError(f"{where}: expected UTC timestamp")
     return value
 
@@ -377,7 +378,7 @@ def trace_paths(nodes: dict[str, dict[str, Any]], findings: list[dict[str, Any]]
                                       "deduplication_key": digest(signature), "scope": finding["scope"]}
                 else:
                     prior["evidence_refs"] = sorted(set(prior["evidence_refs"] + evidence))
-                    for existing_step, new_step in zip(prior["steps"], steps):
+                    for existing_step, new_step in zip(prior["steps"], steps, strict=False):
                         existing_step["supporting_evidence_refs"] = sorted(set(
                             existing_step["supporting_evidence_refs"] + new_step["supporting_evidence_refs"]))
                 continue
@@ -654,7 +655,7 @@ def analyze(input_path: Path, limits: dict[str, int] | None = None,
     if any(ref not in evidence_ids for kind in ("nodes", "findings", "edges") for item in graph[kind] for ref in [item["evidence_ref"]]):
         raise GateError("G8: graph item lacks cited evidence")
     audit_report(report, sources)
-    for src, path, _ in sources:
+    for src, _path, _ in sources:
         try:
             current_hash = hashlib.sha256(read_regular(input_path.parent, src["path"], policy.file_bytes,
                                                         budget, count_file=False).data).hexdigest()

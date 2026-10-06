@@ -12,7 +12,6 @@ from .errors import ContentError
 from .paths import PACKAGE_ROOT, SKILLS_DIR, load_json
 from .reports import release_subject
 
-
 _REQUIRED_DOCS = (
     "LICENSE",
     "README.md",

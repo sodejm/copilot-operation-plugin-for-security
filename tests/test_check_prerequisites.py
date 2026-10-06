@@ -1,3 +1,5 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 """Offline regression tests for the contributor prerequisite preflight."""
 
 import importlib.metadata

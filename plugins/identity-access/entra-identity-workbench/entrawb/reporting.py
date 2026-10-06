@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from .models import IdentityGraph, ReviewHypothesis
@@ -27,7 +27,7 @@ def build_report_summary(graph: IdentityGraph, hypotheses: list[ReviewHypothesis
 def render_json_report(graph: IdentityGraph, hypotheses: list[ReviewHypothesis]) -> dict[str, Any]:
     """Construct typed dictionary matching report.schema.json."""
     summary = build_report_summary(graph, hypotheses)
-    now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    now_iso = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     return {
       "schema_version": "entra.identity-report/v1",
       "tenant_id": graph.tenant_id,

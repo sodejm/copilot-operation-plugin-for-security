@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import asdict, dataclass, field
 from enum import Enum
-import hashlib
-import json
 from pathlib import Path
 from typing import Any
 
 from cops.evidence.canonical import canonical, utc_now
+
 from .models import EvidenceProvenance
 
 

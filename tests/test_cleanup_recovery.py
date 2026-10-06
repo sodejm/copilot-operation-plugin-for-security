@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import json
-import os
 import shutil
 import tempfile
 from pathlib import Path
+
 import pytest
 
 from cops.contracts.models import ActionPlan, CleanupReceipt
@@ -15,7 +15,6 @@ from cops.execution import (
     ApprovalStore,
     ApprovalStoreConflictError,
     CleanupManager,
-    CleanupOwnershipError,
     IsolatedWorker,
     SideEffectLedger,
     WorkerConfig,

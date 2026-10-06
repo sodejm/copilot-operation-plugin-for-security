@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import json
-import shutil
-import tempfile
 import threading
 from pathlib import Path
+
 import pytest
 
 from cops.contracts.models import ActionPlan
@@ -14,10 +13,8 @@ from cops.execution import (
     ApprovalStore,
     ApprovalStoreConflictError,
     ApprovalStoreNotFoundError,
-    AuthorizationError,
     IsolatedWorker,
     WorkerConfig,
-    WorkerIsolationError,
     create_execution_authorization,
 )
 
@@ -191,3 +188,17 @@ def test_isolated_worker_rejects_unauthorized_tool(temp_store, sample_plan):
     assert not result.is_successful()
     assert result.status == "failed"
     assert "not in worker allowed tools" in result.status_details["reason"]
+
+
+@pytest.mark.parametrize("as_dict", [False, True])
+def test_authorization_storage_failure_stops_execution(temp_store, sample_plan, monkeypatch, as_dict):
+    auth = create_execution_authorization(sample_plan, operator="test-operator", valid_hours=1)
+    worker = IsolatedWorker(WorkerConfig(worker_id="storage-test"), store=temp_store)
+
+    def fail_storage(_authorization):
+        raise OSError("approval storage unavailable")
+
+    monkeypatch.setattr(temp_store, "store_authorization", fail_storage)
+    with pytest.raises(OSError, match="approval storage unavailable"):
+        worker.execute_plan(sample_plan, authorization=auth.to_dict() if as_dict else auth)
+    assert temp_store.list_approvals() == []

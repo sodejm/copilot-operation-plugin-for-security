@@ -1,3 +1,5 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 """Unit, contract, and CLI tests for legacy enterprise, management, and proxy services assessment."""
 
 from __future__ import annotations
@@ -5,20 +7,19 @@ from __future__ import annotations
 import argparse
 import io
 import json
-from pathlib import Path
-import socket
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch, MagicMock
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from cops.discovery import (
-    CleanupReceipt,
     DEFAULT_LEGACY_PORTS,
+    CleanupReceipt,
     ExecutionEffect,
     LegacyAuthPrerequisite,
     LegacyCategory,
@@ -26,14 +27,15 @@ from cops.discovery import (
     LegacyPrivilegeCandidate,
     LegacyPrivilegeImpact,
     LegacyServiceAssessment,
-    LegacyServicesCollector,
     LegacyServicesReport,
     LegacyServiceType,
     OfflineSyntheticLegacyCollector,
     StandardSocketLegacyCollector,
     assess_legacy_services,
 )
-from cops.discovery.cli import command_legacy_discovery
+from cops.discovery.cli import (
+    command_legacy_discovery,
+)
 
 
 class TestLegacyModelsAndSerialization(unittest.TestCase):
@@ -436,7 +438,7 @@ class TestStandardSocketLegacyCollector(unittest.TestCase):
     @patch("socket.create_connection")
     def test_tcp_socket_timeout_inaccessible(self, mock_connect, mock_resolve):
         mock_resolve.return_value = "198.51.100.99"
-        mock_connect.side_effect = socket.timeout("timed out")
+        mock_connect.side_effect = TimeoutError("timed out")
 
         collector = StandardSocketLegacyCollector()
         ass = collector.probe_service(

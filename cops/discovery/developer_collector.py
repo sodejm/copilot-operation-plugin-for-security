@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 import hashlib
 import ipaddress
-import json
-from pathlib import Path
 import socket
+from abc import ABC, abstractmethod
 from typing import Any
 
-from cops.evidence.canonical import canonical, utc_now
 from .developer_models import (
     CleanupReceipt,
     DeveloperAuthPrerequisite,
@@ -23,7 +20,6 @@ from .developer_models import (
     DeveloperServiceType,
     ExecutionEffect,
 )
-
 
 DEFAULT_DEVELOPER_PORTS: dict[str, tuple[int, str, str]] = {
     # Container & Orchestration Runtimes
@@ -256,7 +252,7 @@ class OfflineSyntheticDeveloperCollector(DeveloperServicesCollector):
 
         receipts: list[CleanupReceipt] = []
         if canary_active and canary_artifact:
-            receipt_id = hashlib.sha256(f"clean:{target_host}:{service_type}:{canary_artifact}".encode("utf-8")).hexdigest()[:16]
+            receipt_id = hashlib.sha256(f"clean:{target_host}:{service_type}:{canary_artifact}".encode()).hexdigest()[:16]
             receipts.append(
                 CleanupReceipt(
                     receipt_id=f"rec-{receipt_id}",
@@ -313,7 +309,7 @@ class OfflineSyntheticDeveloperCollector(DeveloperServicesCollector):
         if service_type == DeveloperServiceType.DOCKER.value:
             if not auth_req or details.get("tls_verify") is False:
                 vulns.append("Docker daemon TCP socket exposed without mutual TLS; root container breakout / RCE permitted")
-                c_id = hashlib.sha256(f"docker:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"docker:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DeveloperPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -337,7 +333,7 @@ class OfflineSyntheticDeveloperCollector(DeveloperServicesCollector):
         elif service_type == DeveloperServiceType.DOCKER_REGISTRY.value:
             if not auth_req or details.get("auth_required") is False:
                 vulns.append("Docker Registry HTTP API exposed without authentication; container image and secret leakage permitted")
-                c_id = hashlib.sha256(f"registry:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"registry:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DeveloperPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -360,7 +356,7 @@ class OfflineSyntheticDeveloperCollector(DeveloperServicesCollector):
         elif service_type == DeveloperServiceType.RMI.value:
             if not auth_req or details.get("ssl_enabled") is False:
                 vulns.append("Java Remote Method Invocation (RMI) registry exposed without authentication; remote class loading / RCE possible")
-                c_id = hashlib.sha256(f"rmi:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"rmi:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DeveloperPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -384,7 +380,7 @@ class OfflineSyntheticDeveloperCollector(DeveloperServicesCollector):
         elif service_type == DeveloperServiceType.JDWP.value:
             if details.get("bind_localhost") is False or not auth_req:
                 vulns.append("Java Debug Wire Protocol (JDWP) port exposed to network; arbitrary JVM bytecode execution permitted")
-                c_id = hashlib.sha256(f"jdwp:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"jdwp:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DeveloperPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -408,7 +404,7 @@ class OfflineSyntheticDeveloperCollector(DeveloperServicesCollector):
         elif service_type == DeveloperServiceType.ERLANG_EPMD.value:
             if not auth_req or details.get("cookie_required") is False:
                 vulns.append("Erlang Port Mapper Daemon (EPMD) exposed; unauthenticated node discovery and arbitrary command execution")
-                c_id = hashlib.sha256(f"epmd:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"epmd:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DeveloperPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -432,7 +428,7 @@ class OfflineSyntheticDeveloperCollector(DeveloperServicesCollector):
         elif service_type == DeveloperServiceType.ADB.value:
             if not auth_req or details.get("rsa_key_enforced") is False:
                 vulns.append("Android Debug Bridge (ADB) daemon exposed without RSA authorization; arbitrary shell access and app installation permitted")
-                c_id = hashlib.sha256(f"adb:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"adb:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DeveloperPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -456,7 +452,7 @@ class OfflineSyntheticDeveloperCollector(DeveloperServicesCollector):
         elif service_type == DeveloperServiceType.DISTCC.value:
             if not auth_req or details.get("allow_cidr_enforced") is False:
                 vulns.append("distcc distributed compiler daemon exposed without host filtering; arbitrary command execution (CVE-2004-2687)")
-                c_id = hashlib.sha256(f"distcc:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"distcc:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DeveloperPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -480,7 +476,7 @@ class OfflineSyntheticDeveloperCollector(DeveloperServicesCollector):
         elif service_type == DeveloperServiceType.SVN.value:
             if details.get("anon_access_none") is False or not auth_req:
                 vulns.append("Subversion repository daemon (svnserve) allows anonymous read access; source code repository exposure")
-                c_id = hashlib.sha256(f"svn:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"svn:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DeveloperPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -503,7 +499,7 @@ class OfflineSyntheticDeveloperCollector(DeveloperServicesCollector):
         elif service_type == DeveloperServiceType.AJP.value:
             if details.get("secret_required") is False or not details.get("secret_configured"):
                 vulns.append("Apache JServ Protocol (AJP13) exposed without secret; Ghostcat arbitrary file read / RCE (CVE-2020-1938)")
-                c_id = hashlib.sha256(f"ajp:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"ajp:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DeveloperPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -526,7 +522,7 @@ class OfflineSyntheticDeveloperCollector(DeveloperServicesCollector):
         elif service_type == DeveloperServiceType.FASTCGI.value:
             if details.get("bind_localhost") is False or not auth_req:
                 vulns.append("FastCGI (php-fpm) port exposed to external network; arbitrary PHP code execution / file inclusion")
-                c_id = hashlib.sha256(f"fastcgi:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"fastcgi:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DeveloperPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -629,7 +625,7 @@ class StandardSocketDeveloperCollector(DeveloperServicesCollector):
                     configuration_details={"socket_connected": True},
                     uncertainty_notes=["TCP connect succeeded; protocol-level handshake required to verify authentication"],
                 )
-        except (socket.timeout, ConnectionRefusedError, OSError) as err:
+        except (TimeoutError, ConnectionRefusedError, OSError) as err:
             return DeveloperServiceAssessment(
                 target_host=target_host,
                 resolved_ip=resolved_ip,
@@ -673,7 +669,7 @@ def assess_developer_services(
     canary = canary_artifact or canary_id
 
     targets_str = ",".join(targets)
-    report_id = f"dev-rep-{hashlib.sha256(f'{scope_ref}:{vantage}:{targets_str}'.encode('utf-8')).hexdigest()[:16]}"
+    report_id = f"dev-rep-{hashlib.sha256(f'{scope_ref}:{vantage}:{targets_str}'.encode()).hexdigest()[:16]}"
     assessments: list[DeveloperServiceAssessment] = []
 
     total_exposed = 0

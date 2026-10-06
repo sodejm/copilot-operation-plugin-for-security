@@ -4,14 +4,13 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+
 import pytest
 
 from cops.discovery import (
     DiscoveredAsset,
-    DiscoveryInventory,
     EvidenceProvenance,
     command_discovery,
-    merge_inventories,
     merge_two_assets,
     normalize_certificate_record,
     normalize_cloud_export,

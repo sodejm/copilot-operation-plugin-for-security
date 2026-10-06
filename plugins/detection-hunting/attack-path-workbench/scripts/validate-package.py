@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import subprocess
 import sys
 import tempfile
-
+from pathlib import Path
 
 PACKAGE = Path(__file__).resolve().parents[1]
 CLI = PACKAGE / "scripts/attackpath.py"

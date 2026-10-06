@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-from cops.contracts.lifecycle import ContractError
 from cops.contracts.validation import validate_identifier
 from cops.evidence.canonical import EvidenceError, canonical
 from cops.evidence.validation import _check

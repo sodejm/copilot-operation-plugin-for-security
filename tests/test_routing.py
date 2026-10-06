@@ -5,8 +5,9 @@ from __future__ import annotations
 import io
 import json
 from pathlib import Path
-import pytest
+
 import jsonschema
+import pytest
 
 from cops.authorization import (
     AuthorizationDeniedError,

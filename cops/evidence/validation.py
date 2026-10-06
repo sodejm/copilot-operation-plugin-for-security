@@ -1,7 +1,7 @@
 """Validate the published, deliberately small JSON Schema vocabulary without deps."""
 import json
-from pathlib import Path
 import re
+from pathlib import Path
 
 from .canonical import EvidenceError, canonical, digest, timestamp
 

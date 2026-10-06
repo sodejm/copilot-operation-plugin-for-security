@@ -5,10 +5,9 @@ from __future__ import annotations
 import hashlib
 import json
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
-from .models import PipelineProof, ProofError, RunManifest, StageObservation
+from .models import RunManifest, StageObservation
 from .redaction import redact_dict
 
 

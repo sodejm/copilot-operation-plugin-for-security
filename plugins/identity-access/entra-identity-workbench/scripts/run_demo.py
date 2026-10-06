@@ -1,3 +1,5 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 #!/usr/bin/env python3
 """Deterministic demo runner for Entra Identity Workbench."""
 
@@ -13,10 +15,18 @@ REPO_ROOT = PLUGIN_ROOT.parent.parent
 if str(PLUGIN_ROOT) not in sys.path:
     sys.path.insert(0, str(PLUGIN_ROOT))
 
-from entrawb.analysis import analyze_identity_graph
-from entrawb.graph import build_identity_graph
-from entrawb.ingestion import ingest_tenant_export
-from entrawb.reporting import render_markdown_report
+from entrawb.analysis import (
+    analyze_identity_graph,
+)
+from entrawb.graph import (
+    build_identity_graph,
+)
+from entrawb.ingestion import (
+    ingest_tenant_export,
+)
+from entrawb.reporting import (
+    render_markdown_report,
+)
 
 
 def main() -> int:
@@ -25,7 +35,7 @@ def main() -> int:
         print(f"Error: Fixture manifest not found at {manifest_path}", file=sys.stderr)
         return 1
 
-    print(f"=== Entra Identity Workbench Demo ===")
+    print("=== Entra Identity Workbench Demo ===")
     print(f"Loading tenant export from: {manifest_path.relative_to(REPO_ROOT)}")
 
     manifest, sources = ingest_tenant_export(manifest_path)

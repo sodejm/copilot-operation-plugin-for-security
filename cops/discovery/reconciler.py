@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import ipaddress
+from datetime import UTC, datetime
 from typing import Any
 
 from .models import DiscoveredAsset, DiscoveryInventory
@@ -63,7 +63,7 @@ def reconcile_asset(asset: DiscoveredAsset, scope: dict[str, Any]) -> Discovered
     if attrs.get("not_after"):
         try:
             not_after_dt = datetime.fromisoformat(str(attrs["not_after"]).replace("Z", "+00:00"))
-            if not_after_dt < datetime.now(timezone.utc):
+            if not_after_dt < datetime.now(UTC):
                 quarantine_reasons.append("stale_record")
         except (ValueError, TypeError):
             pass
@@ -163,7 +163,7 @@ def reconcile_inventory(
         },
     }
 
-    now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    now_iso = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     return DiscoveryInventory(
         timestamp=now_iso,
         assets=reconciled_assets,
