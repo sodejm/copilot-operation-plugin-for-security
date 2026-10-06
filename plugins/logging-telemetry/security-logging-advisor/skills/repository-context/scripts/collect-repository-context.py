@@ -42,6 +42,19 @@ CONTENT_EXTENSIONS = {".json", ".yaml", ".yml", ".tf", ".tfvars", ".conf", ".pro
 SECRET_EXTENSIONS = CONTENT_EXTENSIONS - {".tfvars"}
 CONTENT_MANIFESTS = {"package.json", "requirements.txt", "Pipfile", "pyproject.toml", "pom.xml", "build.gradle"}
 
+
+def _is_arm_template(content):
+    try:
+        document = json.loads(content)
+        schema = document.get("$schema") if isinstance(document, dict) else None
+        if not isinstance(schema, str):
+            return False
+        parsed = urlsplit(schema)
+        return parsed.scheme == "https" and parsed.hostname == "schema.management.azure.com"
+    except (json.JSONDecodeError, ValueError):
+        return False
+
+
 def open_windows_regular_file(path):
     """Inspect a Windows handle before adopting it as a Python descriptor."""
     import ctypes
@@ -291,14 +304,8 @@ def scan_repository(root_dir, max_dirs=None, max_files=None):
             elif ext == ".scala":
                 results["languages"]["Scala"] = results["languages"].get("Scala", 0) + 1
             elif ext == ".json":
-                if content is not None:
-                    try:
-                        document = json.loads(content)
-                        schema_url = document.get("$schema") if isinstance(document, dict) else None
-                        is_arm = isinstance(schema_url, str) and urlsplit(schema_url).hostname == "schema.management.azure.com"
-                    except (ValueError, TypeError):
-                        is_arm = False
-                    if is_arm and "Azure ARM Template" not in results["iac_and_cloud"]:
+                if content is not None and _is_arm_template(content):
+                    if "Azure ARM Template" not in results["iac_and_cloud"]:
                         results["iac_and_cloud"].append("Azure ARM Template")
 
             # Project manifests & dependencies detection
