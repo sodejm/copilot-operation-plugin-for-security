@@ -8,7 +8,7 @@ import json
 import re
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from urllib.parse import quote, urlsplit
 
 from cops.connectors.interfaces import Request
@@ -125,7 +125,7 @@ class Cache:
 
 
 def _stamp(seconds):
-    return datetime.fromtimestamp(seconds, timezone.utc).isoformat().replace('+00:00', 'Z')
+    return datetime.fromtimestamp(seconds, UTC).isoformat().replace('+00:00', 'Z')
 
 
 def _time(value):
@@ -139,7 +139,7 @@ def _time(value):
             parsed = datetime.fromisoformat(value.replace('Z', '+00:00'))
             if parsed.tzinfo is None:
                 return None
-            return parsed.astimezone(timezone.utc).isoformat().replace('+00:00', 'Z')
+            return parsed.astimezone(UTC).isoformat().replace('+00:00', 'Z')
         except ValueError:
             pass
     return None

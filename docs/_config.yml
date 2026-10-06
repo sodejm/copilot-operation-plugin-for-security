@@ -1,6 +1,9 @@
 # Configures the published Jekyll documentation site for COPS.
 title: COPS Documentation
-description: Copilot Operations Plugins for Security — Universal catalog of offline-first defensive cybersecurity plugins, 18 specialist AI agent profiles, and deterministic verification tools for GitHub Copilot, Claude Code, and Codex.
+description: >-
+  Copilot Operations Plugins for Security — Universal catalog of offline-first defensive cybersecurity
+  plugins, 18 specialist AI agent profiles, and deterministic verification tools for GitHub Copilot,
+  Claude Code, and Codex.
 url: "https://sodejm.github.io"
 baseurl: "/copilot-operation-plugin-for-security"
 theme: jekyll-theme-cayman

@@ -1,11 +1,13 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 #!/usr/bin/env python3
 """Repository packaging checks; default gate requires a real vendor snapshot."""
 
 import argparse
 import json
-from pathlib import Path
 import re
 import sys
+from pathlib import Path
 
 PACKAGE = Path(__file__).resolve().parents[1]
 
@@ -22,7 +24,11 @@ ROOT = find_repository_root(PACKAGE)
 sys.path.insert(0, str(PACKAGE))
 
 from investigationwb.cli import read_json
-from investigationwb.engine import ContractError, require, validate
+from investigationwb.engine import (
+    ContractError,
+    require,
+    validate,
+)
 from investigationwb.vendor import verify
 
 

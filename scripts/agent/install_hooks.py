@@ -66,7 +66,7 @@ def install_hooks() -> int:
 
     pre_push_path.write_text(PRE_PUSH_HOOK, encoding="utf-8")
     current_mode = os.stat(pre_push_path).st_mode
-    os.chmod(pre_push_path, current_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+    os.chmod(pre_push_path, current_mode | stat.S_IXUSR)
 
     print(f"✅ Successfully installed COPS pre-push hook: {pre_push_path}")
     return 0

@@ -199,6 +199,23 @@
         "incident-response",
         "offline-sandbox"
       ]
+    },
+    {
+      "id": "offensive-engagement-workbench",
+      "name": "COPS Offensive Engagement Workbench",
+      "version": "0.1.0",
+      "primary_category": "offensive-security",
+      "path": "plugins/offensive-security/offensive-engagement-workbench",
+      "tags": [
+        "claude",
+        "codex",
+        "engagement",
+        "github-copilot",
+        "intake",
+        "offline-planning",
+        "offensive-security",
+        "rules-of-engagement"
+      ]
     }
   ]
 }

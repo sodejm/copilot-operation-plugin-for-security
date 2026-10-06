@@ -1,17 +1,17 @@
 {
   "schema_version": "cops.capabilities/v1",
-  "updated_at": "2026-10-03T03:23:31.475685Z",
+  "updated_at": "2026-10-05T14:42:39.203767Z",
   "summary": {
-    "total_capabilities": 63,
+    "total_capabilities": 69,
     "by_kind": {
-      "plugin": 13,
+      "plugin": 14,
       "specialist": 18,
-      "scenario": 32
+      "scenario": 37
     },
     "by_mode": {
-      "planned": 35,
-      "import": 11,
-      "laboratory": 17,
+      "planned": 36,
+      "import": 15,
+      "laboratory": 18,
       "live-validated": 0
     }
   },
@@ -207,6 +207,20 @@
         "Deterministic offline test execution",
         "Synthetic fixture validation",
         "Zero network egress"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "offensive-engagement-workbench",
+      "name": "COPS Offensive Engagement Workbench",
+      "kind": "plugin",
+      "mode": "planned",
+      "domain": "offensive-security",
+      "validation_status": "validated",
+      "truth_boundaries": "Operator authorization and rules of engagement envelope are required before executing plans.; Only non-destructive, bounded assessment actions are modeled.; Active live execution is refused when assessment window, emergency contact, or budget limits are incomplete.; Network egress is prohibited outside explicitly approved live execution scopes.",
+      "evidence_requirements": [
+        "Scoping specification",
+        "Human-approved rules of engagement"
       ],
       "live_evidence_verified": false
     },
@@ -512,12 +526,12 @@
     },
     {
       "id": "COPS-E04.01-S01",
-      "name": "Passive DNS and Certificate Transparency Enumeration",
+      "name": "Passive DNS, Certificate, and Asset Inventory Discovery",
       "kind": "scenario",
       "mode": "import",
       "domain": "COPS-E04.01",
       "validation_status": "validated",
-      "truth_boundaries": "Impact: read_only; Safe for production: True; Reversible: True. Queries public DNS records and certificate transparency logs to identify exposed subdomains without connecting to target infrastructure.",
+      "truth_boundaries": "Impact: read_only; Safe for production: True; Reversible: True. Normalizes multi-source DNS records, certificate transparency logs, IP allocations, endpoints, and cloud exports with provenance preservation, deduplication, and scope quarantine reconciliation.",
       "evidence_requirements": [
         "Pinned research source S01",
         "MITRE ATT&CK technique mapping",
@@ -529,10 +543,10 @@
       "id": "COPS-E04.02-S01",
       "name": "High-Speed Active Network Boundary Discovery",
       "kind": "scenario",
-      "mode": "planned",
+      "mode": "import",
       "domain": "COPS-E04.02",
       "validation_status": "validated",
-      "truth_boundaries": "Impact: read_only; Safe for production: True; Reversible: True. Performs rate-limited active port discovery across perimeter IP addresses with banner capture.",
+      "truth_boundaries": "Impact: read_only; Safe for production: True; Reversible: True. Performs bounded, rate-limited active port and TLS assessment across perimeter endpoints with service identification and visible uncertainty.",
       "evidence_requirements": [
         "Pinned research source S01",
         "MITRE ATT&CK technique mapping",
@@ -544,10 +558,10 @@
       "id": "COPS-E04.03-S01",
       "name": "Infrastructure RPC and Management Endpoint Evaluation",
       "kind": "scenario",
-      "mode": "planned",
+      "mode": "import",
       "domain": "COPS-E04.03",
       "validation_status": "validated",
-      "truth_boundaries": "Impact: read_only; Safe for production: True; Reversible: True. Interrogates RPC endpoint mappers (TCP 135) and SNMP agents (UDP 161) for system context and installed components.",
+      "truth_boundaries": "Impact: read_only; Safe for production: True; Reversible: True. Assesses DNS/mDNS, SNMP, NTP, discovery, RPC, LDAP, and Kerberos infrastructure services, records applicable versions and authentication prerequisites, extracts identity attack-path candidates for AD inventory, and validates boundaries with canary records.",
       "evidence_requirements": [
         "Pinned research source S01",
         "MITRE ATT&CK technique mapping",
@@ -559,14 +573,29 @@
       "id": "COPS-E04.04-S01",
       "name": "Remote Administration and SMB Share Security Audit",
       "kind": "scenario",
-      "mode": "planned",
+      "mode": "import",
       "domain": "COPS-E04.04",
       "validation_status": "validated",
-      "truth_boundaries": "Impact: read_only; Safe for production: True; Reversible: True. Enumerates accessible SMB shares, IPC$ null session bindings, and RDP NLA requirements on target hosts.",
+      "truth_boundaries": "Impact: read_only; Safe for production: True; Reversible: True. Assess exposure, authentication prerequisites, and access controls across remote administration (SSH, Telnet, RDP, VNC, WinRM, X11), file sharing (SMB, NFS, FTP/TFTP, rsync, AFP), and printing services (LPD, IPP, JetDirect) with canary files/jobs, privilege routing, and cleanup receipts.",
       "evidence_requirements": [
         "Pinned research source S01",
         "MITRE ATT&CK technique mapping",
         "Isolated worker configuration"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "COPS-E04.05-S01",
+      "name": "Databases, Caches, and Search Services Exposure Assessment",
+      "kind": "scenario",
+      "mode": "import",
+      "domain": "COPS-E04.05",
+      "validation_status": "validated",
+      "truth_boundaries": "Impact: read_only; Safe for production: True; Reversible: True. Assesses relational databases (MySQL, PostgreSQL, MSSQL, Oracle), NoSQL/document stores (MongoDB, CouchDB, Cassandra), caches (Redis, Memcached), and search/analytics engines (Elasticsearch, InfluxDB, Kibana, Splunk) for unauthorized exposure, default credentials, bounded query budgets, and canary access with verifiable cleanup.",
+      "evidence_requirements": [
+        "Pinned research source S01",
+        "MITRE ATT&CK technique mapping",
+        "Standard runner"
       ],
       "live_evidence_verified": false
     },
@@ -957,6 +986,66 @@
         "Pinned research source S02",
         "MITRE ATT&CK technique mapping",
         "Isolated worker configuration"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "COPS-E03.01-S01",
+      "name": "Authorized Adversary Engagement Intake and Action Planning",
+      "kind": "scenario",
+      "mode": "planned",
+      "domain": "COPS-E03.01",
+      "validation_status": "validated",
+      "truth_boundaries": "Impact: read_only; Safe for production: True; Reversible: True. Validates engagement intake contracts, enforces scope boundaries, and compiles reviewable immutable action plans for offensive security assessments.",
+      "evidence_requirements": [
+        "Pinned research source S01",
+        "MITRE ATT&CK technique mapping",
+        "Isolated worker configuration"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "COPS-E03.02-S01",
+      "name": "Specialist Routing and Bounded Workflow Handoffs",
+      "kind": "scenario",
+      "mode": "planned",
+      "domain": "COPS-E03.02",
+      "validation_status": "validated",
+      "truth_boundaries": "Impact: read_only; Safe for production: True; Reversible: True. Structured Triad task and evidence handoffs between Planner, Specialist, Skeptic, and Auditor with capability verification and authorization invariance.",
+      "evidence_requirements": [
+        "Pinned research source S01",
+        "MITRE ATT&CK technique mapping",
+        "Isolated worker configuration"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "COPS-E03.03-S01",
+      "name": "Scenario Laboratory Environment and Harness Management",
+      "kind": "scenario",
+      "mode": "planned",
+      "domain": "COPS-E03.03",
+      "validation_status": "validated",
+      "truth_boundaries": "Impact: read_only; Safe for production: True; Reversible: True. Manages operator-provided VM and container laboratory environments with canary data verification, isolation checks, tool matrix matching, reproducible reset, and positive/negative/remediated case evaluation.",
+      "evidence_requirements": [
+        "Pinned research source S01",
+        "MITRE ATT&CK technique mapping",
+        "Isolated worker configuration"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "COPS-E03.04-S01",
+      "name": "Package Workflow and Capability Diagnostics",
+      "kind": "scenario",
+      "mode": "laboratory",
+      "domain": "COPS-E03.04",
+      "validation_status": "validated",
+      "truth_boundaries": "Impact: read_only; Safe for production: True; Reversible: True. Performs diagnostic health, environment, prerequisite, and truth-in-advertising checks across all registered packages and tools.",
+      "evidence_requirements": [
+        "Pinned research source S01",
+        "MITRE ATT&CK technique mapping",
+        "Standard runner"
       ],
       "live_evidence_verified": false
     }

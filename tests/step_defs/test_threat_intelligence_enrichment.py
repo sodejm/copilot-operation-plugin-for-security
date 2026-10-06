@@ -10,7 +10,8 @@ from pytest_bdd import given, scenarios, then, when
 
 PACKAGE = Path(__file__).resolve().parents[2] / "plugins/detection-hunting/threat-intelligence-enrichment"
 sys.path.insert(0, str(PACKAGE))
-from threat_intel import Approval, Cache, Indicator, Source, enrich, normalize, conflicts  # noqa: E402
+from threat_intel import Approval, Cache, Indicator, Source, conflicts, enrich, normalize  # noqa: E402
+
 from cops.connectors.interfaces import Response  # noqa: E402
 
 scenarios("../../specs/features/threat_intelligence_enrichment.feature")

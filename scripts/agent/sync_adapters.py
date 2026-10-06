@@ -13,7 +13,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _template_common import DISTRIBUTION_IGNORE, TemplateError, synchronize_claude_skills  # noqa: E402
 
-
 ROOT = Path(__file__).resolve().parents[2]
 
 

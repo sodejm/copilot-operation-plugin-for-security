@@ -11,7 +11,6 @@ from pathlib import Path
 from check_prerequisites import check_prerequisites
 from repository_files import repository_files
 
-
 ROOT = Path(__file__).resolve().parents[2]
 
 

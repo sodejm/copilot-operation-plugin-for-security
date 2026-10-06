@@ -1,13 +1,12 @@
 """Boundary tests for local, untrusted evidence files."""
 import json
 import os
-from pathlib import Path
 import tempfile
 import unittest
+from pathlib import Path
 
 from attackpath.core import GateError, analyze
 from attackpath.ingestion import IngestError, Limits, RunBudget, parse_json, read_regular
-
 
 FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "illustrative"
 
