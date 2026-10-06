@@ -2,7 +2,6 @@
 
 import tempfile
 from pathlib import Path
-import pytest
 
 from cops.execution.evidence import EvidenceRecorder
 from cops.execution.redaction import StreamRedactor

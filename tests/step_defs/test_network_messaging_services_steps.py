@@ -1,9 +1,12 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 """Step definitions for Mail, Messaging, and Message Broker Services BDD scenarios."""
 
 from __future__ import annotations
 
-from pathlib import Path
 import sys
+from pathlib import Path
+
 import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
 
@@ -12,15 +15,9 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from cops.discovery import (
-    CleanupReceipt,
     MessagingAuthPrerequisite,
     MessagingCategory,
     MessagingExposureStatus,
-    MessagingPrivilegeCandidate,
-    MessagingPrivilegeImpact,
-    MessagingServiceAssessment,
-    MessagingServicesReport,
-    MessagingServiceType,
     OfflineSyntheticMessagingCollector,
     assess_messaging_services,
 )

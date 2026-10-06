@@ -1,3 +1,5 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 from __future__ import annotations
 
 import copy
@@ -10,18 +12,36 @@ from types import SimpleNamespace
 import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
 
-
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts" / "agent"))
 
-from validate_marketplace import ValidationError, validate_finding_document, validate_marketplace
 import export_portable
 import install_prerequisites
-from cops.prerequisites import PrerequisiteError, process_tools, validate_prerequisites
-from cops.validation import ValidationError as PackageValidationError, validate_agent_plugin_manifest
-from cops.portable import export_portable_package
-from cops.mcp_validation import MCPValidationError, MCP_SCHEMA, validate_mcp_configuration
+from validate_marketplace import (
+    ValidationError,
+    validate_finding_document,
+    validate_marketplace,
+)
 
+from cops.mcp_validation import (
+    MCP_SCHEMA,
+    MCPValidationError,
+    validate_mcp_configuration,
+)
+from cops.portable import (
+    export_portable_package,
+)
+from cops.prerequisites import (
+    PrerequisiteError,
+    process_tools,
+    validate_prerequisites,
+)
+from cops.validation import (
+    ValidationError as PackageValidationError,
+)
+from cops.validation import (
+    validate_agent_plugin_manifest,
+)
 
 scenarios("../../specs/features/marketplace_portability.feature")
 

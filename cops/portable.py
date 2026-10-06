@@ -14,7 +14,6 @@ from .mcp_validation import MCPValidationError, validate_mcp_configuration
 from .prerequisites import validate_prerequisites
 from .validation import ValidationError, _skill_frontmatter, validate_agent_plugin_manifest
 
-
 # Every new root entry must be deliberately classified before packaging.
 PORTABLE_ENTRIES = {
     "plugin.json", "mcp.json", "skills", "scripts", "docs", "examples", "LICENSE", "README.md",

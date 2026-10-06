@@ -13,7 +13,8 @@ from typing import Any
 from unittest import mock
 
 from huntwb import reports
-from huntwb.cli import main, _load_external_evidence
+from huntwb.catalog import _reference_record
+from huntwb.cli import _load_external_evidence, main
 from huntwb.errors import ContentError
 from huntwb.package_validation import validate_package
 from huntwb.parameters import load_parameter_file
@@ -182,6 +183,18 @@ class WorkbenchTests(unittest.TestCase):
         parameters = load_json(PACKAGE_ROOT / "examples" / "h01-parameters.json")
         with self.assertRaises(ContentError):
             render_hunt("H01", "unknown_surface", parameters)
+
+    def test_reference_classification_uses_parsed_https_host(self) -> None:
+        trusted = _reference_record("https://learn.microsoft.com/en-us/azure/sentinel/hunting")
+        self.assertEqual(trusted["kind"], "authoritative")
+        for url in (
+            "https://untrusted.example/path?next=learn.microsoft.com",
+            "https://learn.microsoft.com.attacker.example/path",
+            "https://learn.microsoft.com@untrusted.example/path",
+            "http://learn.microsoft.com/path",
+        ):
+            with self.subTest(url=url):
+                self.assertEqual(_reference_record(url)["kind"], "vendor_framework")
 
     def test_archive_is_reproducible_and_contains_subject(self) -> None:
         subject = release_subject()

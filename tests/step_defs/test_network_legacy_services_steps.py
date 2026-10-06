@@ -1,9 +1,12 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 """Step definitions for Legacy Enterprise, Management, and Proxy Services BDD scenarios."""
 
 from __future__ import annotations
 
-from pathlib import Path
 import sys
+from pathlib import Path
+
 import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
 
@@ -12,16 +15,11 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from cops.discovery import (
-    CleanupReceipt,
     ExecutionEffect,
     LegacyAuthPrerequisite,
     LegacyCategory,
     LegacyExposureStatus,
-    LegacyPrivilegeCandidate,
     LegacyPrivilegeImpact,
-    LegacyServiceAssessment,
-    LegacyServicesReport,
-    LegacyServiceType,
     OfflineSyntheticLegacyCollector,
     assess_legacy_services,
 )

@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import copy
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -30,7 +29,7 @@ def setup(context):
                               "host-2": {"action": "isolate-host", "state": "active"}},
                           "executions": []}
     context["plan"] = build_plan(action="isolate-host", tenant="example", target="host-1",
-                                 expires_at=(datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
+                                 expires_at=(datetime.now(UTC) + timedelta(hours=1)).isoformat(),
                                  nonce="acceptance-1", approver_assertion="analyst")
 
 

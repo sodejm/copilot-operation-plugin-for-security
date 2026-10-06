@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import re
-from typing import Any
+from datetime import UTC, datetime
 
 from .active_models import (
     ConfidenceLevel,
     InferredFingerprint,
     ObservedConfiguration,
-    ObservedTLS,
 )
 
 
@@ -123,11 +121,12 @@ def infer_service_fingerprint(
                 try:
                     # Check certificate expiry if ISO or standard format
                     exp_dt = datetime.fromisoformat(tls.valid_until.replace("Z", "+00:00"))
-                    if exp_dt < datetime.now(timezone.utc):
+                    if exp_dt < datetime.now(UTC):
                         uncertainty_reasons.append("TLS certificate is expired; target service configuration may be unmaintained")
                         confidence = ConfidenceLevel.UNCERTAIN.value
-                except Exception:
-                    pass
+                except (TypeError, ValueError):
+                    uncertainty_reasons.append("TLS certificate expiry date could not be parsed")
+                    confidence = ConfidenceLevel.UNCERTAIN.value
 
             # Domain mismatch check (if target is a named hostname, not an IP)
             if not re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", target_host):

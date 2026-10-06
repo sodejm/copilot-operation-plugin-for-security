@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import sys
 import unittest
+from pathlib import Path
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -14,8 +14,8 @@ sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(PACKAGE_ROOT))
 
 from offensive_engagement_workbench.core import run_engagement_plan_workflow  # noqa: E402
+
 from cops.engagement import (  # noqa: E402
-    EngagementIntakeError,
     IncompatibleWindowError,
     IncompleteBudgetError,
     IncompleteLiveRequestError,

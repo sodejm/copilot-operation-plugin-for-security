@@ -1,14 +1,15 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 """Unit, contract, and CLI tests for mail, chat, and message broker services assessment."""
 
 from __future__ import annotations
 
 import argparse
-import io
 import json
-from pathlib import Path
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
@@ -16,21 +17,20 @@ if str(ROOT) not in sys.path:
 
 from cops.discovery import (
     CleanupReceipt,
-    DEFAULT_MESSAGING_PORTS,
     MessagingAuthPrerequisite,
     MessagingCategory,
     MessagingExposureStatus,
     MessagingPrivilegeCandidate,
     MessagingPrivilegeImpact,
     MessagingServiceAssessment,
-    MessagingServicesCollector,
     MessagingServicesReport,
     MessagingServiceType,
     OfflineSyntheticMessagingCollector,
-    StandardSocketMessagingCollector,
     assess_messaging_services,
 )
-from cops.discovery.cli import command_messaging_discovery
+from cops.discovery.cli import (
+    command_messaging_discovery,
+)
 
 
 class TestMessagingModelsAndSerialization(unittest.TestCase):

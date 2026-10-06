@@ -1,16 +1,16 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 """Unit, contract, and CLI tests for developer and runtime interfaces assessment."""
 
 from __future__ import annotations
 
 import argparse
-import io
 import json
-from pathlib import Path
-import socket
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch, MagicMock
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
@@ -18,22 +18,20 @@ if str(ROOT) not in sys.path:
 
 from cops.discovery import (
     CleanupReceipt,
-    DEFAULT_DEVELOPER_PORTS,
     DeveloperAuthPrerequisite,
-    DeveloperCategory,
     DeveloperExposureStatus,
     DeveloperPrivilegeCandidate,
     DeveloperPrivilegeImpact,
     DeveloperServiceAssessment,
-    DeveloperServicesCollector,
     DeveloperServicesReport,
-    DeveloperServiceType,
     ExecutionEffect,
     OfflineSyntheticDeveloperCollector,
     StandardSocketDeveloperCollector,
     assess_developer_services,
 )
-from cops.discovery.cli import command_developer_discovery
+from cops.discovery.cli import (
+    command_developer_discovery,
+)
 
 
 class TestDeveloperModelsAndSerialization(unittest.TestCase):

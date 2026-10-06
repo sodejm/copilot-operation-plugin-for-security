@@ -8,7 +8,6 @@ import re
 import shutil
 from pathlib import Path
 
-
 TEMPLATE_MARKER = ".portable-agent-template"
 SKIP_NAMES = {".git", "LICENSE", "__pycache__", ".DS_Store"}
 DISTRIBUTION_IGNORE = shutil.ignore_patterns(

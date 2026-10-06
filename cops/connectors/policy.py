@@ -1,6 +1,7 @@
 """Finite, validated acquisition limits; resumes may only tighten them."""
-from dataclasses import asdict, dataclass
 import math
+from dataclasses import asdict, dataclass
+
 from cops.evidence import EvidenceError
 
 

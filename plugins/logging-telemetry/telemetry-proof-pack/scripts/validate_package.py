@@ -1,3 +1,5 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 #!/usr/bin/env python3
 """Offline package gate validator for Telemetry Proof Pack."""
 
@@ -14,7 +16,9 @@ if str(PLUGIN_ROOT) not in sys.path:
     sys.path.insert(0, str(PLUGIN_ROOT))
 
 from proofpack.cli import load_evidence_files
-from proofpack.correlator import correlate_pipeline_evidence
+from proofpack.correlator import (
+    correlate_pipeline_evidence,
+)
 from proofpack.models import RunManifest
 
 

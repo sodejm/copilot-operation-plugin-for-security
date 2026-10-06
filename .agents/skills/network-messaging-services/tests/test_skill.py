@@ -1,32 +1,30 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 """Tests for network-messaging-services contributor skill."""
 
 from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from cops.discovery import (
-    CleanupReceipt,
     MessagingAuthPrerequisite,
-    MessagingCategory,
     MessagingExposureStatus,
-    MessagingPrivilegeCandidate,
-    MessagingPrivilegeImpact,
-    MessagingServiceAssessment,
     MessagingServicesReport,
-    MessagingServiceType,
     OfflineSyntheticMessagingCollector,
     assess_messaging_services,
 )
-from cops.discovery.cli import command_messaging_discovery
+from cops.discovery.cli import (
+    command_messaging_discovery,
+)
 
 
 class TestNetworkMessagingServicesSkill(unittest.TestCase):

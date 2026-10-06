@@ -1,3 +1,5 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 #!/usr/bin/env python3
 """Deterministic demo runner for Telemetry Proof Pack."""
 
@@ -14,16 +16,20 @@ if str(PLUGIN_ROOT) not in sys.path:
     sys.path.insert(0, str(PLUGIN_ROOT))
 
 from proofpack.cli import load_evidence_files
-from proofpack.correlator import correlate_pipeline_evidence
+from proofpack.correlator import (
+    correlate_pipeline_evidence,
+)
 from proofpack.models import RunManifest
-from proofpack.reporting import render_markdown_report
+from proofpack.reporting import (
+    render_markdown_report,
+)
 
 
 def run_scenario(name: str, directory: Path) -> None:
-    print(f"\n================================================================================")
+    print("\n================================================================================")
     print(f"  SCENARIO: {name}")
     print(f"  Location: {directory.relative_to(REPO_ROOT)}")
-    print(f"================================================================================\n")
+    print("================================================================================\n")
 
     manifest_file = directory / "manifest.json"
     if not manifest_file.is_file():

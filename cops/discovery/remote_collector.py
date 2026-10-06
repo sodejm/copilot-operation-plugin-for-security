@@ -2,26 +2,20 @@
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 import hashlib
-import ipaddress
-import json
-from pathlib import Path
 import re
 import socket
-import time
+from abc import ABC, abstractmethod
 from typing import Any
 
-from cops.evidence.canonical import utc_now
-from .models import EvidenceProvenance
 from .remote_models import (
     CleanupReceipt,
     HostPrivilegeCandidate,
     LateralMovementImpact,
     RemoteAuthPrerequisite,
     RemoteExposureStatus,
-    RemoteServiceCategory,
     RemoteServiceAssessment,
+    RemoteServiceCategory,
     RemoteServicesReport,
     RemoteServiceType,
 )
@@ -266,7 +260,7 @@ class OfflineSyntheticRemoteCollector(RemoteServicesCollector):
 
         receipts: list[CleanupReceipt] = []
         if canary_active and canary_artifact:
-            receipt_id = hashlib.sha256(f"clean:{target_host}:{service_type}:{canary_artifact}".encode("utf-8")).hexdigest()[:16]
+            receipt_id = hashlib.sha256(f"clean:{target_host}:{service_type}:{canary_artifact}".encode()).hexdigest()[:16]
             receipts.append(
                 CleanupReceipt(
                     receipt_id=f"rec-{receipt_id}",
@@ -330,7 +324,7 @@ class OfflineSyntheticRemoteCollector(RemoteServicesCollector):
             if has_smbv1:
                 is_legacy = True
                 vulns.append("Obsolete SMBv1/CIFS protocol enabled")
-                c_id = hashlib.sha256(f"smbv1:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"smbv1:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     HostPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -349,7 +343,7 @@ class OfflineSyntheticRemoteCollector(RemoteServicesCollector):
 
             if signing_disabled:
                 vulns.append("SMB packet signing not required; vulnerable to NTLM relay attacks")
-                c_id = hashlib.sha256(f"smbsign:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"smbsign:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     HostPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -368,7 +362,7 @@ class OfflineSyntheticRemoteCollector(RemoteServicesCollector):
 
             if shares or not auth_req:
                 vulns.append(f"Unauthenticated null/guest session permitted with {len(shares)} accessible shares")
-                c_id = hashlib.sha256(f"smbshare:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"smbshare:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     HostPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -388,7 +382,7 @@ class OfflineSyntheticRemoteCollector(RemoteServicesCollector):
         elif service_type == RemoteServiceType.TELNET.value:
             is_legacy = True
             vulns.append("Unencrypted plaintext Telnet service accessible")
-            c_id = hashlib.sha256(f"telnet:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+            c_id = hashlib.sha256(f"telnet:{target_host}:{port}".encode()).hexdigest()[:16]
             candidates.append(
                 HostPrivilegeCandidate(
                     candidate_id=f"priv-{c_id}",
@@ -409,7 +403,7 @@ class OfflineSyntheticRemoteCollector(RemoteServicesCollector):
             nla_disabled = details.get("nla_enabled") is False or details.get("nla_disabled") is True
             if nla_disabled:
                 vulns.append("Remote Desktop exposes pre-authentication login screen without NLA enforcement")
-                c_id = hashlib.sha256(f"rdpnla:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"rdpnla:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     HostPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -429,7 +423,7 @@ class OfflineSyntheticRemoteCollector(RemoteServicesCollector):
         elif service_type == RemoteServiceType.VNC.value:
             if not auth_req or details.get("auth_type") in ("none", "None", 1):
                 vulns.append("VNC RFB service accessible without authentication")
-                c_id = hashlib.sha256(f"vnc:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"vnc:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     HostPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -449,7 +443,7 @@ class OfflineSyntheticRemoteCollector(RemoteServicesCollector):
         elif service_type == RemoteServiceType.WINRM.value:
             if port == 5985 or details.get("https_enforced") is False:
                 vulns.append("WinRM management endpoint exposed over unencrypted HTTP (5985)")
-                c_id = hashlib.sha256(f"winrm:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"winrm:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     HostPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -469,7 +463,7 @@ class OfflineSyntheticRemoteCollector(RemoteServicesCollector):
         elif service_type == RemoteServiceType.X11.value:
             if not auth_req or details.get("auth_required") is False:
                 vulns.append("X11 display server open to unauthenticated remote client connections")
-                c_id = hashlib.sha256(f"x11:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"x11:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     HostPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -492,7 +486,7 @@ class OfflineSyntheticRemoteCollector(RemoteServicesCollector):
             if has_no_root_squash or exports:
                 if has_no_root_squash:
                     vulns.append("NFS export configured with 'no_root_squash' permitting root privilege escalation")
-                c_id = hashlib.sha256(f"nfs:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"nfs:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     HostPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -513,7 +507,7 @@ class OfflineSyntheticRemoteCollector(RemoteServicesCollector):
             if details.get("anonymous_login") or not auth_req:
                 is_legacy = True
                 vulns.append("Unauthenticated anonymous FTP access permitted")
-                c_id = hashlib.sha256(f"ftp:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"ftp:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     HostPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -534,7 +528,7 @@ class OfflineSyntheticRemoteCollector(RemoteServicesCollector):
             modules = details.get("modules", [])
             if not auth_req or modules:
                 vulns.append(f"Rsync daemon exposes {len(modules)} modules without mandatory authentication")
-                c_id = hashlib.sha256(f"rsync:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"rsync:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     HostPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -554,7 +548,7 @@ class OfflineSyntheticRemoteCollector(RemoteServicesCollector):
         elif service_type in (RemoteServiceType.LPD.value, RemoteServiceType.IPP.value, RemoteServiceType.RAW_PRINT.value):
             if not auth_req:
                 vulns.append(f"Print service ({service_type.upper()}) accepts unauthenticated print job submissions")
-                c_id = hashlib.sha256(f"print:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"print:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     HostPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -629,7 +623,7 @@ class StandardSocketRemoteCollector(RemoteServicesCollector):
                     configuration_details={"socket_connected": True},
                     uncertainty_notes=["TCP connect succeeded; protocol credentials required to verify authentication"],
                 )
-        except (socket.timeout, ConnectionRefusedError, OSError) as err:
+        except (TimeoutError, ConnectionRefusedError, OSError) as err:
             return RemoteServiceAssessment(
                 target_host=target_host,
                 resolved_ip=resolved_ip,
@@ -680,7 +674,7 @@ def assess_remote_services(
     }
 
     report_id = hashlib.sha256(
-        f"{scope_ref}:{sorted(targets)}:{sorted(selected_services)}:{vantage}".encode("utf-8")
+        f"{scope_ref}:{sorted(targets)}:{sorted(selected_services)}:{vantage}".encode()
     ).hexdigest()[:16]
 
     for target in targets:

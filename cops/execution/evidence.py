@@ -6,14 +6,15 @@ redacted outputs, artifact checksums, and authorization context.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import hashlib
 import os
-from pathlib import Path
 import re
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from cops.evidence.canonical import digest, utc_now
+
 from .redaction import StreamRedactor
 
 

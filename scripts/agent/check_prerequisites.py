@@ -50,7 +50,7 @@ def check_prerequisites(root: Path = ROOT) -> bool:
     print(f"Python {'.'.join(map(str, sys.version_info[:3]))}: {sys.executable} ({environment})", flush=True)
     errors = []
     requirements = []
-    if sys.version_info < (3, 11):
+    if sys.version_info < (3, 11):  # noqa: UP036 - diagnose unsupported Python runtimes
         errors.append("Python 3.11 or newer is required for contributor checks")
     else:
         try:
