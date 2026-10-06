@@ -9,12 +9,12 @@ from __future__ import annotations
 
 import re
 from collections import Counter
+from collections.abc import Iterable
 from datetime import date
-from typing import Any, Iterable
+from typing import Any
 
 from .errors import ContentError
 from .paths import FIXTURES_DIR, HUNTS_DIR, PROFILES_DIR, load_json
-
 
 EXPECTED_HUNT_IDS = tuple(f"H{number:02d}" for number in range(1, 13))
 SURFACES = (

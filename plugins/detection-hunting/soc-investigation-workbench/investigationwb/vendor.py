@@ -2,18 +2,18 @@
 
 from __future__ import annotations
 
-from hashlib import sha256
 import json
 import os
-from pathlib import Path, PurePosixPath
 import re
 import shutil
 import stat
 import subprocess
 import tempfile
+from hashlib import sha256
+from pathlib import Path, PurePosixPath
 from typing import Any
 
-from .engine import ContractError, Document, HASH, digest, fields, next_steps, require, validate
+from .engine import HASH, ContractError, Document, digest, fields, next_steps, require, validate
 from .files import open_regular, read_regular
 
 PACKAGE = Path(__file__).resolve().parent.parent

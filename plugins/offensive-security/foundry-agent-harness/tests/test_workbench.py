@@ -1,3 +1,5 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 """Comprehensive unit test suite for Foundry Agent Harness."""
 
 import json
@@ -12,13 +14,27 @@ REPO_ROOT = PLUGIN_ROOT.parent.parent
 if str(PLUGIN_ROOT) not in sys.path:
     sys.path.insert(0, str(PLUGIN_ROOT))
 
-from foundryharness.cli import load_scenarios, main as cli_main
-from foundryharness.gate import IndependentAuthorizationGate
-from foundryharness.mock_sandbox import MockSandbox
-from foundryharness.models import HarnessError, Scenario
-from foundryharness.redaction import redact_dict, redact_text
-from foundryharness.reporting import render_json_report, render_markdown_report
-from foundryharness.simulator import evaluate_scenario
+from foundryharness.cli import load_scenarios
+from foundryharness.cli import (
+    main as cli_main,
+)
+from foundryharness.gate import (
+    IndependentAuthorizationGate,
+)
+from foundryharness.mock_sandbox import (
+    MockSandbox,
+)
+from foundryharness.models import (
+    HarnessError,
+    Scenario,
+)
+from foundryharness.redaction import (
+    redact_dict,
+    redact_text,
+)
+from foundryharness.simulator import (
+    evaluate_scenario,
+)
 
 
 @pytest.fixture
@@ -206,7 +222,7 @@ def test_redaction_masks_sensitive_tokens():
     d = {"api_key": "secret_key_123", "token": "ey12345.token.signature", "normal": "hello"}
     redacted_dict = redact_dict(d)
     assert redacted_dict["api_key"] == "[REDACTED]"
-    assert redacted_dict["token"] == "[REDACTED]"
+    assert redacted_dict["token"] == "[REDACTED]"  # noqa: S105 - schema label or operation identifier, not a credential
     assert redacted_dict["normal"] == "hello"
 
 

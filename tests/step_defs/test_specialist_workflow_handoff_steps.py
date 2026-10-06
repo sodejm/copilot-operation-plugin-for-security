@@ -2,22 +2,11 @@
 
 from __future__ import annotations
 
-import copy
-import json
-from pathlib import Path
 import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
 
-from cops.catalog import ROOT
-from cops.contracts.models import ActionPlan, Engagement, SpecialistHandoff
 from cops.contracts.validation import validate_contract
 from cops.routing import (
-    AuthorizationExpansionError,
-    ConflictingEvidenceError,
-    HandoffError,
-    InvalidHandoffResultError,
-    MaterialPlanModifiedError,
-    MissingCapabilityError,
     accept_specialist_handoff,
     audit_and_approve_handoff,
     execute_triad_handoff_workflow,

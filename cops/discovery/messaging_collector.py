@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 import hashlib
 import ipaddress
-import json
-from pathlib import Path
 import socket
+from abc import ABC, abstractmethod
 from typing import Any
 
-from cops.evidence.canonical import canonical, utc_now
 from .messaging_models import (
     CleanupReceipt,
     MessagingAuthPrerequisite,
@@ -22,7 +19,6 @@ from .messaging_models import (
     MessagingServicesReport,
     MessagingServiceType,
 )
-
 
 DEFAULT_MESSAGING_PORTS: dict[str, tuple[int, str, str]] = {
     # Mail Services
@@ -243,7 +239,7 @@ class OfflineSyntheticMessagingCollector(MessagingServicesCollector):
 
         receipts: list[CleanupReceipt] = []
         if canary_active and canary_artifact:
-            receipt_id = hashlib.sha256(f"clean:{target_host}:{service_type}:{canary_artifact}".encode("utf-8")).hexdigest()[:16]
+            receipt_id = hashlib.sha256(f"clean:{target_host}:{service_type}:{canary_artifact}".encode()).hexdigest()[:16]
             receipts.append(
                 CleanupReceipt(
                     receipt_id=f"rec-{receipt_id}",
@@ -303,7 +299,7 @@ class OfflineSyntheticMessagingCollector(MessagingServicesCollector):
         if service_type == MessagingServiceType.SMTP.value:
             if relay_permitted or details.get("relay_allowed") is True:
                 vulns.append("SMTP open mail relay permitted; external recipients accepted without authentication")
-                c_id = hashlib.sha256(f"smtp_relay:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"smtp_relay:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     MessagingPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -322,7 +318,7 @@ class OfflineSyntheticMessagingCollector(MessagingServicesCollector):
                 )
             if details.get("user_enumeration_enabled") is True or details.get("vrfy_supported") is True:
                 vulns.append("SMTP VRFY/EXPN user enumeration supported; unauthenticated recipient verification enabled")
-                c_id = hashlib.sha256(f"smtp_enum:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"smtp_enum:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     MessagingPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -343,7 +339,7 @@ class OfflineSyntheticMessagingCollector(MessagingServicesCollector):
         elif service_type == MessagingServiceType.POP3.value:
             if details.get("plaintext_auth_allowed") is True or not details.get("tls_enforced"):
                 vulns.append("POP3 server permits plaintext USER/PASS authentication without transport layer security")
-                c_id = hashlib.sha256(f"pop3_plain:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"pop3_plain:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     MessagingPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -364,7 +360,7 @@ class OfflineSyntheticMessagingCollector(MessagingServicesCollector):
         elif service_type == MessagingServiceType.IMAP.value:
             if details.get("anonymous_allowed") is True or not auth_req:
                 vulns.append("IMAP service accepts anonymous login; unauthenticated mailbox traversal permitted")
-                c_id = hashlib.sha256(f"imap_anon:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"imap_anon:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     MessagingPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -385,7 +381,7 @@ class OfflineSyntheticMessagingCollector(MessagingServicesCollector):
         elif service_type == MessagingServiceType.IRC.value:
             if details.get("unauthenticated_oper") is True or details.get("oper_password_required") is False:
                 vulns.append("IRC server grants operator status without authentication or uses hardcoded oper credentials")
-                c_id = hashlib.sha256(f"irc_oper:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"irc_oper:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     MessagingPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -406,7 +402,7 @@ class OfflineSyntheticMessagingCollector(MessagingServicesCollector):
         elif service_type == MessagingServiceType.RABBITMQ.value:
             if details.get("guest_enabled") is True:
                 vulns.append("RabbitMQ broker retains default guest:guest credentials with administrative privileges")
-                c_id = hashlib.sha256(f"rabbit_guest:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"rabbit_guest:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     MessagingPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -425,7 +421,7 @@ class OfflineSyntheticMessagingCollector(MessagingServicesCollector):
                 )
             if details.get("open_management") is True:
                 vulns.append("RabbitMQ management HTTP API exposed without authentication")
-                c_id = hashlib.sha256(f"rabbit_mgmt:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"rabbit_mgmt:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     MessagingPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -446,7 +442,7 @@ class OfflineSyntheticMessagingCollector(MessagingServicesCollector):
         elif service_type == MessagingServiceType.NATS.value:
             if details.get("auth_required") is False or not auth_req:
                 vulns.append("NATS streaming broker accepts unauthenticated pub/sub client connections")
-                c_id = hashlib.sha256(f"nats_anon:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"nats_anon:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     MessagingPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -467,7 +463,7 @@ class OfflineSyntheticMessagingCollector(MessagingServicesCollector):
         elif service_type == MessagingServiceType.IBMMQ.value:
             if details.get("blank_channel_enabled") is True or details.get("mcauser_enforced") is False:
                 vulns.append("IBM MQ SVRCONN channel operates with blank MCAUSER; unauthenticated mqadmin privilege granted")
-                c_id = hashlib.sha256(f"ibmmq_mcauser:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"ibmmq_mcauser:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     MessagingPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -488,7 +484,7 @@ class OfflineSyntheticMessagingCollector(MessagingServicesCollector):
         elif service_type == MessagingServiceType.KAFKA.value:
             if details.get("sasl_enabled") is False or not auth_req:
                 vulns.append("Apache Kafka cluster accepts unauthenticated PLAINTEXT consumer and producer requests")
-                c_id = hashlib.sha256(f"kafka_anon:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"kafka_anon:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     MessagingPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -509,7 +505,7 @@ class OfflineSyntheticMessagingCollector(MessagingServicesCollector):
         elif service_type == MessagingServiceType.MQTT.value:
             if details.get("allow_anonymous") is True or not auth_req:
                 vulns.append("MQTT broker accepts anonymous pub/sub connections with wildcards on topic hierarchy")
-                c_id = hashlib.sha256(f"mqtt_anon:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"mqtt_anon:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     MessagingPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -594,7 +590,7 @@ class StandardSocketMessagingCollector(MessagingServicesCollector):
                     configuration_details={"socket_connected": True},
                     uncertainty_notes=["TCP connect succeeded; protocol-level handshake required to verify authentication"],
                 )
-        except (socket.timeout, ConnectionRefusedError, OSError) as err:
+        except (TimeoutError, ConnectionRefusedError, OSError) as err:
             return MessagingServiceAssessment(
                 target_host=target_host,
                 resolved_ip=resolved_ip,
@@ -633,7 +629,7 @@ def assess_messaging_services(
     canary = canary_artifact or canary_id
 
     targets_str = ",".join(targets)
-    report_id = f"msg-rep-{hashlib.sha256(f'{scope_ref}:{vantage}:{targets_str}'.encode('utf-8')).hexdigest()[:16]}"
+    report_id = f"msg-rep-{hashlib.sha256(f'{scope_ref}:{vantage}:{targets_str}'.encode()).hexdigest()[:16]}"
     assessments: list[MessagingServiceAssessment] = []
 
     total_exposed = 0

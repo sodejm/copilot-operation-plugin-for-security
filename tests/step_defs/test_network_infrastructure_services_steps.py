@@ -1,9 +1,12 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 """Step definitions for Network Infrastructure and Identity-Facing Services BDD scenarios."""
 
 from __future__ import annotations
 
-from pathlib import Path
 import sys
+from pathlib import Path
+
 import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
 
@@ -13,11 +16,7 @@ if str(ROOT) not in sys.path:
 
 from cops.discovery import (
     AuthPrerequisite,
-    IdentityAttackPathCandidate,
     IdentityAttackPathType,
-    InfraAssessmentReport,
-    InfraServiceAssessment,
-    InfraServiceType,
     OfflineSyntheticInfraCollector,
     ServiceExposureStatus,
     assess_infrastructure_services,

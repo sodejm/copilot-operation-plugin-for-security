@@ -1,10 +1,12 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 """Tests for workflow-capability-diagnostics contributor skill."""
 
 from __future__ import annotations
 
-from pathlib import Path
 import sys
 import unittest
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
 if str(ROOT) not in sys.path:
@@ -13,7 +15,6 @@ if str(ROOT) not in sys.path:
 from cops.diagnostics import (
     detect_system_platform,
     diagnose_host_tools,
-    diagnose_packages,
     diagnose_plugin_package,
     run_diagnostics,
 )

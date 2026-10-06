@@ -7,15 +7,25 @@ import socket
 import subprocess
 import sys
 import tempfile
-
-import pytest
 from pathlib import Path
 
+import pytest
 
 SCRIPT = Path(__file__).resolve().parents[1] / "plugins/logging-telemetry/security-logging-advisor/skills/repository-context/scripts/collect-repository-context.py"
 spec = importlib.util.spec_from_file_location("repository_context_scanner", SCRIPT)
 scanner = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(scanner)
+
+
+@pytest.mark.parametrize("schema_url,expected", [
+    ("https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#", True),
+    ("https://schema.management.azure.com.evil.example/template.json", False),
+    ("https://evil.example/schema.management.azure.com/template.json", False),
+])
+def test_arm_classification_requires_schema_hostname(tmp_path, schema_url, expected):
+    (tmp_path / "template.json").write_text(json.dumps({"$schema": schema_url}))
+    result = scanner.scan_repository(tmp_path)
+    assert ("Azure ARM Template" in result["iac_and_cloud"]) is expected
 
 
 def test_replaced_file_is_not_read_after_discovery(tmp_path, monkeypatch):

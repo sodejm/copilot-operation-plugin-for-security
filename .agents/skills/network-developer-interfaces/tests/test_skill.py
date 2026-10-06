@@ -1,33 +1,31 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 """Tests for network-developer-interfaces contributor skill."""
 
 from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from cops.discovery import (
-    CleanupReceipt,
     DeveloperAuthPrerequisite,
-    DeveloperCategory,
     DeveloperExposureStatus,
-    DeveloperPrivilegeCandidate,
-    DeveloperPrivilegeImpact,
-    DeveloperServiceAssessment,
     DeveloperServicesReport,
-    DeveloperServiceType,
     ExecutionEffect,
     OfflineSyntheticDeveloperCollector,
     assess_developer_services,
 )
-from cops.discovery.cli import command_developer_discovery
+from cops.discovery.cli import (
+    command_developer_discovery,
+)
 
 
 class TestNetworkDeveloperInterfacesSkill(unittest.TestCase):

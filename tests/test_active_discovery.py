@@ -2,24 +2,21 @@
 
 from __future__ import annotations
 
+import argparse
 import json
-from pathlib import Path
 import tempfile
-import time
 import unittest
+from pathlib import Path
 
 from cops.discovery import (
-    ActiveScanSession,
     ActiveScanner,
-    ActiveServiceAssessment,
+    ActiveScanSession,
     ConfidenceLevel,
     ObservedConfiguration,
     ObservedTLS,
     OfflineSyntheticDispatcher,
     PortState,
-    Protocol,
     ScanBudget,
-    ScanDelta,
     ScanVantage,
     ServiceReachability,
     compare_active_scans,
@@ -28,7 +25,6 @@ from cops.discovery import (
     infer_service_fingerprint,
 )
 from cops.discovery.cli import command_active_discovery
-import argparse
 
 
 class TestActiveDiscoveryModelsAndFingerprinting(unittest.TestCase):
@@ -89,6 +85,14 @@ class TestActiveDiscoveryModelsAndFingerprinting(unittest.TestCase):
         obs = ObservedConfiguration(tls=tls, http_status=200)
         fp = infer_service_fingerprint("target.corp.internal", 443, "tcp", obs)
         self.assertTrue(any("TLS certificate is expired" in r for r in fp.uncertainty_reasons))
+
+    def test_invalid_or_naive_tls_expiry_records_uncertainty(self):
+        for expiry in ("invalid", "2028-01-01T00:00:00"):
+            with self.subTest(expiry=expiry):
+                tls = ObservedTLS(subject_cn="target.example.com", sans=["target.example.com"], valid_until=expiry)
+                fp = infer_service_fingerprint("target.example.com", 443, "tcp", ObservedConfiguration(tls=tls))
+                self.assertEqual(fp.confidence, ConfidenceLevel.UNCERTAIN.value)
+                self.assertTrue(any("expiry date could not be parsed" in reason for reason in fp.uncertainty_reasons))
 
     def test_generic_open_port_without_banner_is_uncertain(self):
         obs = ObservedConfiguration()
@@ -447,3 +451,12 @@ class TestActiveDiscoveryCLI(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_nmap_import_rejects_declared_entities(tmp_path):
+    from cops.discovery.importer import import_nmap_xml
+
+    scan = tmp_path / "entities.xml"
+    scan.write_text('<!DOCTYPE nmaprun [<!ENTITY expanded "payload">]><nmaprun>&expanded;</nmaprun>')
+    with unittest.TestCase().assertRaisesRegex(ValueError, "entity declarations"):
+        import_nmap_xml(scan)

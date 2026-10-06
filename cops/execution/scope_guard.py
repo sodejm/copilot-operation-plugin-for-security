@@ -8,10 +8,10 @@ cloud metadata access, and unauthorized egress pivots.
 from __future__ import annotations
 
 import ipaddress
-import re
 import socket
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Sequence
+from typing import Any
 from urllib.parse import urlparse
 
 

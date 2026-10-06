@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
-
 
 ROOT = Path(__file__).resolve().parents[2]
 PLUGIN = ROOT / "plugins/detection-hunting/sentinel-hunt-workbench"

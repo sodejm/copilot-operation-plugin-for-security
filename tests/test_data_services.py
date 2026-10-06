@@ -1,14 +1,15 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 """Unit, contract, and CLI tests for database, cache, and search/analytics services assessment."""
 
 from __future__ import annotations
 
 import argparse
-import io
 import json
-from pathlib import Path
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
@@ -16,21 +17,21 @@ if str(ROOT) not in sys.path:
 
 from cops.discovery import (
     CleanupReceipt,
-    DEFAULT_DATA_PORTS,
     DataAuthPrerequisite,
     DataExposureStatus,
     DataPrivilegeCandidate,
     DataPrivilegeImpact,
     DataServiceAssessment,
     DataServiceCategory,
-    DataServicesCollector,
     DataServicesReport,
     DataServiceType,
     OfflineSyntheticDataCollector,
     StandardSocketDataCollector,
     assess_data_services,
 )
-from cops.discovery.cli import command_data_discovery
+from cops.discovery.cli import (
+    command_data_discovery,
+)
 
 
 class TestDataModelsAndSerialization(unittest.TestCase):

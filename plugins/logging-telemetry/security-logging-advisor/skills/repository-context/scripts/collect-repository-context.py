@@ -8,17 +8,18 @@ authentication mechanisms, CI/CD configurations, and potential secrets patterns.
 Outputs findings as a structured JSON object.
 """
 
-import os
-import sys
-import json
-import re
 import errno
-import stat
 import io
+import json
+import os
+import re
+import stat
+import sys
+from urllib.parse import urlsplit
 
 # Directory and file ignore patterns
 IGNORE_DIRS = {
-    ".git", "node_modules", "venv", ".venv", "dist", "build", "target", 
+    ".git", "node_modules", "venv", ".venv", "dist", "build", "target",
     ".gemini", "__pycache__", ".pytest_cache", ".mypy_cache", ".idea"
 }
 
@@ -44,8 +45,8 @@ CONTENT_MANIFESTS = {"package.json", "requirements.txt", "Pipfile", "pyproject.t
 def open_windows_regular_file(path):
     """Inspect a Windows handle before adopting it as a Python descriptor."""
     import ctypes
-    from ctypes import wintypes
     import msvcrt
+    from ctypes import wintypes
 
     class AttributeTagInfo(ctypes.Structure):
         _fields_ = [("attributes", wintypes.DWORD), ("tag", wintypes.DWORD)]
@@ -209,10 +210,10 @@ def scan_repository(root_dir, max_dirs=None, max_files=None):
                 results["partial_scan_notice"] = f"File budget of {effective_max_files} reached; scan is partial."
                 break
             files_seen += 1
-                
+
             file_path = os.path.join(root, file)
             rel_path = os.path.relpath(file_path, root_dir)
-            
+
             try:
                 discovered = os.lstat(file_path)
             except OSError:
@@ -290,8 +291,14 @@ def scan_repository(root_dir, max_dirs=None, max_files=None):
             elif ext == ".scala":
                 results["languages"]["Scala"] = results["languages"].get("Scala", 0) + 1
             elif ext == ".json":
-                if content is not None and "schema.management.azure.com" in content[:1024]:
-                    if "Azure ARM Template" not in results["iac_and_cloud"]:
+                if content is not None:
+                    try:
+                        document = json.loads(content)
+                        schema_url = document.get("$schema") if isinstance(document, dict) else None
+                        is_arm = isinstance(schema_url, str) and urlsplit(schema_url).hostname == "schema.management.azure.com"
+                    except (ValueError, TypeError):
+                        is_arm = False
+                    if is_arm and "Azure ARM Template" not in results["iac_and_cloud"]:
                         results["iac_and_cloud"].append("Azure ARM Template")
 
             # Project manifests & dependencies detection
@@ -321,34 +328,35 @@ def scan_repository(root_dir, max_dirs=None, max_files=None):
                             if "oci" in dep:
                                 if "Oracle Cloud" not in results["iac_and_cloud"]:
                                     results["iac_and_cloud"].append("Oracle Cloud")
-                    except Exception:
-                        pass
+                    except (ValueError, TypeError):
+                        # Malformed manifests provide no dependable dependency evidence.
+                        continue
 
                 elif file == "requirements.txt" or file == "Pipfile" or file == "pyproject.toml":
                     for line in io.StringIO(content, newline=None):
-                        l = line.lower()
-                        if "django" in l:
+                        normalized_line = line.lower()
+                        if "django" in normalized_line:
                             results["frameworks_and_libraries"].append("Python Framework: Django")
-                        if "flask" in l:
+                        if "flask" in normalized_line:
                             results["frameworks_and_libraries"].append("Python Framework: Flask")
-                        if "fastapi" in l:
+                        if "fastapi" in normalized_line:
                             results["frameworks_and_libraries"].append("Python Framework: FastAPI")
-                        if "sqlalchemy" in l or "psycopg2" in l or "pymongo" in l or "redis" in l:
+                        if "sqlalchemy" in normalized_line or "psycopg2" in normalized_line or "pymongo" in normalized_line or "redis" in normalized_line:
                             results["databases"].append("Python DB Client")
-                        if "jwt" in l or "oauth" in l or "auth0" in l:
+                        if "jwt" in normalized_line or "oauth" in normalized_line or "auth0" in normalized_line:
                             results["identity_and_auth"].append("Python Auth Library")
-                        if "structlog" in l:
+                        if "structlog" in normalized_line:
                             results["frameworks_and_libraries"].append("Logging Library: structlog")
-                        if "boto3" in l or "aws" in l:
+                        if "boto3" in normalized_line or "aws" in normalized_line:
                             if "AWS" not in results["iac_and_cloud"]:
                                 results["iac_and_cloud"].append("AWS")
-                        if "google-cloud" in l:
+                        if "google-cloud" in normalized_line:
                             if "GCP" not in results["iac_and_cloud"]:
                                 results["iac_and_cloud"].append("GCP")
-                        if "azure" in l:
+                        if "azure" in normalized_line:
                             if "Azure" not in results["iac_and_cloud"]:
                                 results["iac_and_cloud"].append("Azure")
-                        if "oci" in l:
+                        if "oci" in normalized_line:
                             if "Oracle Cloud" not in results["iac_and_cloud"]:
                                 results["iac_and_cloud"].append("Oracle Cloud")
 
@@ -412,7 +420,7 @@ def main():
     args = parser.parse_args()
 
     if not os.path.isdir(args.target_dir):
-        print(json.dumps({"error": f"Path '{args.target_dir}' is not a valid directory."}, indent=2))
+        print(json.dumps({"error": "Target is not a valid directory."}, indent=2))
         sys.exit(1)
 
     scan_data = scan_repository(args.target_dir, max_dirs=args.max_dirs, max_files=args.max_files)

@@ -2,28 +2,26 @@
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
 import hashlib
 import ipaddress
 import re
 import socket
 import ssl
 import time
-from typing import Any, Callable
+from abc import ABC, abstractmethod
+from collections.abc import Callable
+from typing import Any
 
 from cops.evidence.canonical import utc_now
+
 from .active_models import (
     ActiveScanSession,
     ActiveServiceAssessment,
-    ConfidenceLevel,
     ObservedConfiguration,
     ObservedTLS,
     PortState,
     Protocol,
-    ScanBudget,
     ScanDelta,
-    ScanVantage,
     ServiceReachability,
     TargetShiftQuarantine,
 )
@@ -102,7 +100,7 @@ class OfflineSyntheticDispatcher(ProbeDispatcher):
         self.side_effect_count += 1
         probe_key = ActiveScanSession.make_probe_key(vantage, protocol, target_host, port)
         timestamp = utc_now()
-        probe_id = hashlib.sha256(f"{probe_key}:{timestamp}".encode("utf-8")).hexdigest()[:24]
+        probe_id = hashlib.sha256(f"{probe_key}:{timestamp}".encode()).hexdigest()[:24]
 
         self.dispatched_probes.append({
             "probe_key": probe_key,
@@ -223,7 +221,7 @@ class StandardSocketDispatcher(ProbeDispatcher):
     ) -> ActiveServiceAssessment:
         probe_key = ActiveScanSession.make_probe_key(vantage, protocol, target_host, port)
         timestamp = utc_now()
-        probe_id = hashlib.sha256(f"{probe_key}:{timestamp}".encode("utf-8")).hexdigest()[:24]
+        probe_id = hashlib.sha256(f"{probe_key}:{timestamp}".encode()).hexdigest()[:24]
 
         start_time = time.monotonic()
         sock = None
@@ -246,13 +244,14 @@ class StandardSocketDispatcher(ProbeDispatcher):
                     with ctx.wrap_socket(sock, server_hostname=target_host) as ssock:
                         cipher = ssock.cipher()
                         proto_ver = ssock.version()
-                        cert = ssock.getpeercert(binary_form=True)
+                        ssock.getpeercert(binary_form=True)
 
                         observed_tls = ObservedTLS(
                             version=proto_ver,
                             cipher_suite=cipher[0] if cipher else None,
                         )
-                except Exception:
+                except (OSError, ssl.SSLError):
+                    # Failed TLS negotiation leaves observed_tls unset.
                     pass
 
             observed_config = ObservedConfiguration(
@@ -279,7 +278,7 @@ class StandardSocketDispatcher(ProbeDispatcher):
                 latency_ms=latency_ms,
                 timestamp_utc=timestamp,
             )
-        except socket.timeout:
+        except TimeoutError:
             return ActiveServiceAssessment(
                 probe_id=probe_id,
                 target_host=target_host,
@@ -313,7 +312,8 @@ class StandardSocketDispatcher(ProbeDispatcher):
             if sock:
                 try:
                     sock.close()
-                except Exception:
+                except OSError:
+                    # Closing a failed probe must not replace its result.
                     pass
 
 

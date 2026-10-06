@@ -1,7 +1,7 @@
 """Deterministic bounded path traversal with explicit hypothetical steps."""
-from .model import Budget, stable, object_id
+from .model import Budget, object_id, stable
 from .permissions import evaluate
-from .rules import combine, transitions, step
+from .rules import combine, step, transitions
 
 
 def classification(decision):

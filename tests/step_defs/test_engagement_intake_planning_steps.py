@@ -2,23 +2,15 @@
 
 from __future__ import annotations
 
-import copy
-from pathlib import Path
 import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
 
 from cops.catalog import ROOT
-from cops.contracts.models import ActionPlan, Engagement
+from cops.contracts.models import Engagement
 from cops.contracts.validation import validate_contract
 from cops.engagement import (
     EngagementIntakeError,
-    IncompatibleWindowError,
-    IncompleteBudgetError,
-    IncompleteLiveRequestError,
-    MissingOwnerError,
-    ScopeAmbiguityError,
     build_action_plan,
-    create_engagement_contract,
     validate_engagement_intake,
 )
 

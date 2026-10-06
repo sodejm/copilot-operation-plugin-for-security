@@ -1,10 +1,10 @@
-import os
-import sys
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 import json
+import os
 import subprocess
-import shutil
-import tempfile
-from pytest_bdd import scenarios, given, when, then, parsers
+
+from pytest_bdd import given, parsers, scenarios, then, when
 
 # Load all scenarios from the feature files
 scenarios('../../specs/features/repository_scanning.feature')
@@ -12,6 +12,8 @@ scenarios('../../specs/features/edge_cases_scanning.feature')
 
 # Fixture to hold context across steps
 import pytest
+
+
 @pytest.fixture
 def context():
     state = {}
@@ -126,14 +128,14 @@ def execute_scanner(context, target):
     # But this script runs from the pytest root, so we can pass the absolute path
     # Actually, we can just pass the path relative to the root dir which we know.
     # We will assume pytest runs from the root of the project.
-    
+
     script_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../plugins/logging-telemetry/security-logging-advisor/skills/repository-context/scripts/collect-repository-context.py'))
-    
+
     try:
         result = subprocess.run(['python3', script_path, target], capture_output=True, text=True, check=True, timeout=5)
         context['output'] = result.stdout
         context['error'] = False
-        
+
         try:
             context['json'] = json.loads(result.stdout)
         except json.JSONDecodeError:
