@@ -10,6 +10,8 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
+import tracemalloc
 import unittest
 
 from attackpath.core import (GateError, analyze, audit_report, canonical,
@@ -166,6 +168,95 @@ class WorkbenchTests(unittest.TestCase):
                 self.assertEqual(reason, receipt["stop_reason"])
                 self.assertFalse(receipt["complete"])
                 self.assertEqual("best_discovered", receipt["ranking_scope"])
+
+    def test_high_branch_search_is_bounded_repeatable_and_visibly_incomplete(self) -> None:
+        width = 12
+        depth = 5
+        nodes = {
+            "START": {"record": {"node_type": "asset"}, "class": "observed",
+                      "evidence_id": "N-START", "confidence": "high"}
+        }
+        for layer in range(1, depth + 1):
+            for index in range(width):
+                name = f"L{layer}-{index:02d}"
+                nodes[name] = {"record": {"node_type": "asset"}, "class": "observed",
+                               "evidence_id": f"N-{name}", "confidence": "high"}
+        findings = [{"record": {"id": "F-START", "asset_ref": "START"},
+                     "class": "observed", "evidence_id": "E-F-START",
+                     "confidence": "high", "scope": "SCOPE"}]
+        edges = []
+        prior = ["START"]
+        for layer in range(1, depth + 1):
+            current = [f"L{layer}-{index:02d}" for index in range(width)]
+            for source in prior:
+                for target in current:
+                    edge_id = f"E-{source}-{target}"
+                    edges.append({
+                        "record": {"id": edge_id, "from": source, "to": target,
+                                   "relation": "reachable_from",
+                                   "preconditions": (["finding_on_asset"] if source == "START"
+                                                     else ["network_reachability"]),
+                                   "postcondition": "network_reachability", "support": "observed"},
+                        "evidence_id": edge_id, "class": "observed", "confidence": "high",
+                    })
+            prior = current
+        crowns = [{"asset_ref": f"L{depth}-{index:02d}", "priority": index + 1}
+                  for index in range(width)]
+        limits = SearchLimits.from_values({"expansions": 600, "frontier": 1_000,
+                                           "complete_paths": 1_000,
+                                           "partial_paths": 1_000,
+                                           "emitted_paths": 8})
+
+        # Fixture construction is intentionally outside both measurements. The peak cap
+        # allows one 4 KiB page for every fixed graph item and permitted expansion. That
+        # leaves headroom for Python object overhead while still catching retained queued
+        # or discovered state that grows materially beyond the bounded search workload.
+        memory_ceiling = 4 * 1024 * (len(nodes) + len(edges) + limits.expansions)
+        tracemalloc.start()
+        try:
+            started = time.perf_counter()
+            first = trace_paths(nodes, findings, edges, crowns, limits, max_depth=depth)
+            search_seconds = time.perf_counter() - started
+            _, peak_bytes = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
+        second = trace_paths(nodes, findings, edges, crowns, limits, max_depth=depth)
+
+        paths, partial, receipt = first
+        self.assertEqual(first, second)
+        self.assertEqual(
+            {"expansions": 600, "max_frontier": 56, "complete_paths": 547,
+             "partial_paths": 0, "emitted_paths": 8},
+            receipt["consumed"],
+        )
+        self.assertEqual("expansion_limit", receipt["stop_reason"])
+        self.assertFalse(receipt["complete"])
+        self.assertEqual("best_discovered", receipt["ranking_scope"])
+        self.assertEqual([], partial)
+        self.assertEqual(8, len(paths))
+        self.assertLessEqual(search_seconds, 5.0)
+        self.assertLessEqual(peak_bytes, memory_ceiling)
+        self.assertTrue(all(path["target"] == f"L{depth}-00" for path in paths))
+        self.assertEqual(
+            [
+                ("P-02847eeae0883daf", ["E-START-L1-00", "E-L1-00-L2-00",
+                                        "E-L2-00-L3-00", "E-L3-00-L4-09",
+                                        "E-L4-09-L5-00"]),
+                ("P-1a31062c62b8f6a5", ["E-START-L1-00", "E-L1-00-L2-00",
+                                        "E-L2-00-L3-03", "E-L3-03-L4-01",
+                                        "E-L4-01-L5-00"]),
+                ("P-1e9ad07a7a67ca9b", ["E-START-L1-00", "E-L1-00-L2-00",
+                                        "E-L2-00-L3-00", "E-L3-00-L4-05",
+                                        "E-L4-05-L5-00"]),
+            ],
+            [(path["path_id"], [step["edge_id"] for step in path["steps"]])
+             for path in paths[:3]],
+        )
+        self.assertEqual(
+            [{"crown_priority": 1, "business_rating": "unrated",
+              "supported_step_count": depth, "total_step_count": depth}] * 3,
+            [path["rank_inputs"] for path in paths[:3]],
+        )
 
     def test_v1_report_audits_without_claiming_search_completeness(self) -> None:
         manifest = FIXTURE / "input.json"
