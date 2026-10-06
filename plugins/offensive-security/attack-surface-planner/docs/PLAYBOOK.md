@@ -79,6 +79,7 @@ Invoke this planner under the following concrete triggers:
 2. **Execute Resumable Probes**:
    - Execute bounded probes with checkpointing: `python3 -m cops discovery active scan ...`.
    - Resuming skips completed probes without repeating side effects: `python3 -m cops discovery active resume ...`.
+   - Live TLS handshakes require TLS 1.2 or newer; this dispatcher does not negotiate TLS 1.0 or 1.1.
 3. **Calibrate Fingerprint Uncertainty**:
    - Distinguish observed configurations from inferred fingerprints with explicit confidence and visible uncertainty reasons.
 4. **Enforce Boundary & DNS Rebind Defense**:

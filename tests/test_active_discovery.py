@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import argparse
 import json
-from pathlib import Path
+import ssl
 import tempfile
 import time
 import unittest
+from pathlib import Path
 
 from cops.discovery import (
     ActiveScanSession,
@@ -27,11 +29,15 @@ from cops.discovery import (
     import_nmap_xml,
     infer_service_fingerprint,
 )
+from cops.discovery.active_scanner import _create_tls_context
 from cops.discovery.cli import command_active_discovery
-import argparse
 
 
 class TestActiveDiscoveryModelsAndFingerprinting(unittest.TestCase):
+    def test_live_tls_probe_requires_tls_12_or_newer(self):
+        context = _create_tls_context()
+        self.assertEqual(context.minimum_version, ssl.TLSVersion.TLSv1_2)
+
     def test_ssh_fingerprint_high_confidence(self):
         obs = ObservedConfiguration(raw_banner="SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.6\r\n")
         fp = infer_service_fingerprint("ssh.corp.internal", 22, "tcp", obs)

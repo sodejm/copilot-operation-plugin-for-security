@@ -47,6 +47,16 @@ def append_line(filename, line):
     with open(filename, 'a') as f:
         f.write(f'{line}\n')
 
+@given(parsers.parse('"{filename}" declares the schema URL "{url}"'))
+def declare_schema_url(filename, url):
+    with open(filename, 'w') as f:
+        json.dump({"$schema": url}, f)
+
+@given(parsers.parse('"{filename}" mentions "{hostname}" only in its description'))
+def mention_schema_host_in_description(filename, hostname):
+    with open(filename, 'w') as f:
+        json.dump({"description": f"Reference text: {hostname}"}, f)
+
 @given(parsers.parse('a workspace containing a Bicep file "{filename}"'))
 def create_bicep_file(filename):
     with open(filename, 'w') as f:
@@ -155,6 +165,11 @@ def json_output_must_list(context, key, value):
         assert value in context['json'][key]
     else:
         assert value in context['json'][key]
+
+@then(parsers.parse('the JSON output "{key}" must NOT list "{value}"'))
+def json_output_must_not_list(context, key, value):
+    assert context['json'] is not None
+    assert value not in context['json'][key]
 
 @then(parsers.parse('the JSON output "{key}" must list a finding for "{filename}"'))
 def json_output_must_list_finding(context, key, filename):

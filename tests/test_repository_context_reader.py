@@ -190,6 +190,30 @@ def test_ordinary_findings_and_universal_newlines_are_preserved(tmp_path):
     assert value not in json.dumps(result)
 
 
+def test_arm_template_detection_uses_the_declared_schema_host(tmp_path):
+    template = tmp_path / "template.json"
+    template.write_text(json.dumps({
+        "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+        "description": "A synthetic ARM template",
+    }))
+
+    result = scanner.scan_repository(tmp_path)
+
+    assert "Azure ARM Template" in result["iac_and_cloud"]
+
+
+def test_arm_template_detection_rejects_schema_host_substrings(tmp_path):
+    template = tmp_path / "template.json"
+    template.write_text(json.dumps({
+        "$schema": "https://schema.management.azure.com.attacker.example/schemas/template.json",
+        "description": "schema.management.azure.com",
+    }))
+
+    result = scanner.scan_repository(tmp_path)
+
+    assert "Azure ARM Template" not in result["iac_and_cloud"]
+
+
 @pytest.mark.skipif(os.name == "nt", reason="POSIX sockets")
 def test_socket_is_skipped():
     # Keep the pathname within the smaller AF_UNIX limit, even with long temp roots.

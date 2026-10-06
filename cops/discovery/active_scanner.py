@@ -34,6 +34,15 @@ class ActiveScanError(Exception):
     """Base error for active discovery operations."""
 
 
+def _create_tls_context() -> ssl.SSLContext:
+    """Create a client TLS context that cannot negotiate deprecated protocol versions."""
+    context = ssl.create_default_context()
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
+    return context
+
+
 class ScopeViolationError(ActiveScanError):
     """Raised when active probe target is not permitted within approved boundaries."""
 
@@ -239,9 +248,7 @@ class StandardSocketDispatcher(ProbeDispatcher):
 
             # If TLS port (443, 8443) or requested
             if port in (443, 8443):
-                ctx = ssl.create_default_context()
-                ctx.check_hostname = False
-                ctx.verify_mode = ssl.CERT_NONE
+                ctx = _create_tls_context()
                 try:
                     with ctx.wrap_socket(sock, server_hostname=target_host) as ssock:
                         cipher = ssock.cipher()

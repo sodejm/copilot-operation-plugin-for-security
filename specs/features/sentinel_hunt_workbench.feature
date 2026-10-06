@@ -31,3 +31,8 @@ Feature: Offline-qualified Sentinel Hunt Workbench
     When I create a release qualification report
     Then the report is not offline qualified without two human approvals
     And the report marks cross-platform model evaluation as pending
+
+  Scenario: Classify reference authority from its parsed HTTPS host
+    Given the Sentinel Hunt Workbench package
+    When I classify a reference URL that embeds an authoritative hostname
+    Then the reference is classified as a vendor framework

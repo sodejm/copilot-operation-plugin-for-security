@@ -10,6 +10,7 @@ from __future__ import annotations
 import copy
 import datetime as dt
 from typing import Any
+from urllib.parse import urlsplit
 
 from .paths import EVALUATIONS_DIR, FIXTURES_DIR, HUNTS_DIR, PROFILES_DIR, write_json
 
@@ -440,10 +441,18 @@ REFERENCE_TITLES = {
 
 
 def _reference_record(url: str) -> dict[str, str]:
-    if "learn.microsoft.com" in url or "csrc.nist.gov" in url or "attack.mitre.org" in url:
-        kind = "authoritative"
-    else:
-        kind = "vendor_framework"
+    try:
+        parsed = urlsplit(url)
+        hostname = parsed.hostname
+    except ValueError:
+        hostname = None
+        parsed = None
+    authoritative_hosts = {"learn.microsoft.com", "csrc.nist.gov", "attack.mitre.org"}
+    kind = (
+        "authoritative"
+        if parsed is not None and parsed.scheme == "https" and hostname in authoritative_hosts
+        else "vendor_framework"
+    )
     return {
         "title": REFERENCE_TITLES.get(url, f"Microsoft schema reference: {url.rsplit('/', 1)[-1]}"),
         "url": url,

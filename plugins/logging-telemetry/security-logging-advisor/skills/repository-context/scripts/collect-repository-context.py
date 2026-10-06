@@ -15,6 +15,7 @@ import re
 import errno
 import stat
 import io
+from urllib.parse import urlsplit
 
 # Directory and file ignore patterns
 IGNORE_DIRS = {
@@ -40,6 +41,19 @@ MAX_FILE_SIZE_BYTES = 1 * 1024 * 1024 # 1 MB
 CONTENT_EXTENSIONS = {".json", ".yaml", ".yml", ".tf", ".tfvars", ".conf", ".properties", ".ini", ".env", ".py", ".ts", ".js", ".go", ".java", ".md", ".bicep", ".ps1", ".psm1", ".sh", ".pl", ".pm", ".cs", ".csproj", ".sln", ".rs", ".c", ".cpp", ".rb", ".php", ".swift", ".kt", ".scala"}
 SECRET_EXTENSIONS = CONTENT_EXTENSIONS - {".tfvars"}
 CONTENT_MANIFESTS = {"package.json", "requirements.txt", "Pipfile", "pyproject.toml", "pom.xml", "build.gradle"}
+
+
+def _is_arm_template(content):
+    try:
+        document = json.loads(content)
+        schema = document.get("$schema") if isinstance(document, dict) else None
+        if not isinstance(schema, str):
+            return False
+        parsed = urlsplit(schema)
+        return parsed.scheme == "https" and parsed.hostname == "schema.management.azure.com"
+    except (json.JSONDecodeError, ValueError):
+        return False
+
 
 def open_windows_regular_file(path):
     """Inspect a Windows handle before adopting it as a Python descriptor."""
@@ -290,7 +304,7 @@ def scan_repository(root_dir, max_dirs=None, max_files=None):
             elif ext == ".scala":
                 results["languages"]["Scala"] = results["languages"].get("Scala", 0) + 1
             elif ext == ".json":
-                if content is not None and "schema.management.azure.com" in content[:1024]:
+                if content is not None and _is_arm_template(content):
                     if "Azure ARM Template" not in results["iac_and_cloud"]:
                         results["iac_and_cloud"].append("Azure ARM Template")
 
