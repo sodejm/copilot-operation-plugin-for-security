@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sodejm/copilot-operation-plugin-for-security/catalog/schemas/specialist-handoff.schema.json",
+  "title": "COPS Specialist Workflow Handoff Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "handoff_id",
+    "engagement_id",
+    "action_plan_id",
+    "status",
+    "sender",
+    "recipient",
+    "task",
+    "material_plan_digest",
+    "approval_status",
+    "created_at",
+    "transition_log"
+  ],
+  "properties": {
+    "schema_version": {"const": "cops.specialist-handoff/v1"},
+    "handoff_id": {
+      "type": "string",
+      "pattern": "^hnd-[a-z0-9_-]{4,64}$"
+    },
+    "engagement_id": {
+      "type": "string",
+      "pattern": "^eng-[a-z0-9_-]{4,64}$"
+    },
+    "action_plan_id": {
+      "type": "string",
+      "pattern": "^plan-[a-z0-9_-]{4,64}$"
+    },
+    "status": {
+      "enum": ["proposed", "accepted", "in_review", "completed", "rejected"]
+    },
+    "sender": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "identifier"],
+      "properties": {
+        "role": {"enum": ["planner", "specialist", "skeptic", "auditor"]},
+        "identifier": {"type": "string", "minLength": 1}
+      }
+    },
+    "recipient": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "specialist_id"],
+      "properties": {
+        "role": {"enum": ["planner", "specialist", "skeptic", "auditor"]},
+        "specialist_id": {"type": "string", "minLength": 1}
+      }
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["task_description", "target", "required_capabilities"],
+      "properties": {
+        "task_description": {"type": "string", "minLength": 1},
+        "target": {"type": "string", "minLength": 1},
+        "required_capabilities": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "operations": {
+          "type": "array",
+          "items": {"type": "object"}
+        },
+        "deliverable": {"type": "string"}
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "evidence_envelopes": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "findings": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "notes": {"type": "string"}
+      }
+    },
+    "material_plan_digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "approval_status": {
+      "enum": ["pending", "approved", "reapproval_required", "rejected"]
+    },
+    "rejection_reason": {
+      "type": "string"
+    },
+    "created_at": {"type": "string", "format": "date-time"},
+    "transition_log": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["from_status", "to_status", "actor", "timestamp"],
+        "properties": {
+          "from_status": {"type": "string"},
+          "to_status": {"type": "string"},
+          "actor": {"type": "string"},
+          "timestamp": {"type": "string", "format": "date-time"},
+          "notes": {"type": "string"}
+        }
+      }
+    }
+  }
+}

@@ -51,6 +51,31 @@ EXECUTION_AUTHORIZATION_TRANSITIONS: Final[dict[str, frozenset[str]]] = {
     "expired": frozenset(),
 }
 
+SPECIALIST_HANDOFF_STATES: Final[frozenset[str]] = frozenset(
+    {"proposed", "accepted", "in_review", "completed", "rejected"}
+)
+
+SPECIALIST_HANDOFF_TRANSITIONS: Final[dict[str, frozenset[str]]] = {
+    "proposed": frozenset({"accepted", "rejected"}),
+    "accepted": frozenset({"in_review", "rejected"}),
+    "in_review": frozenset({"completed", "rejected"}),
+    "completed": frozenset(),
+    "rejected": frozenset(),
+}
+
+LABORATORY_ENVIRONMENT_STATES: Final[frozenset[str]] = frozenset(
+    {"registered", "verified", "active", "resetting", "torn_down", "failed"}
+)
+
+LABORATORY_ENVIRONMENT_TRANSITIONS: Final[dict[str, frozenset[str]]] = {
+    "registered": frozenset({"verified", "failed", "torn_down"}),
+    "verified": frozenset({"active", "resetting", "failed", "torn_down"}),
+    "active": frozenset({"verified", "resetting", "failed", "torn_down"}),
+    "resetting": frozenset({"verified", "failed", "torn_down"}),
+    "failed": frozenset({"resetting", "torn_down"}),
+    "torn_down": frozenset(),
+}
+
 RUN_RESULT_STATUSES: Final[frozenset[str]] = frozenset(
     {"success", "partial", "cancelled", "failed", "uncertain", "not_assessed"}
 )
@@ -90,6 +115,28 @@ def validate_transition(current_state: str, next_state: str, contract_type: str)
             raise ContractError(
                 "illegal_transition",
                 f"illegal execution authorization transition from '{current_state}' to '{next_state}'"
+            )
+    elif contract_type in ("specialist_handoff", "specialist-handoff"):
+        if current_state not in SPECIALIST_HANDOFF_STATES:
+            raise ContractError("invalid_contract", f"unknown specialist handoff state: {current_state}")
+        if next_state not in SPECIALIST_HANDOFF_STATES:
+            raise ContractError("invalid_contract", f"unknown target specialist handoff state: {next_state}")
+        allowed = SPECIALIST_HANDOFF_TRANSITIONS.get(current_state, frozenset())
+        if next_state not in allowed:
+            raise ContractError(
+                "illegal_transition",
+                f"illegal specialist handoff transition from '{current_state}' to '{next_state}'"
+            )
+    elif contract_type in ("laboratory_environment", "laboratory-environment"):
+        if current_state not in LABORATORY_ENVIRONMENT_STATES:
+            raise ContractError("invalid_contract", f"unknown laboratory environment state: {current_state}")
+        if next_state not in LABORATORY_ENVIRONMENT_STATES:
+            raise ContractError("invalid_contract", f"unknown target laboratory environment state: {next_state}")
+        allowed = LABORATORY_ENVIRONMENT_TRANSITIONS.get(current_state, frozenset())
+        if next_state not in allowed:
+            raise ContractError(
+                "illegal_transition",
+                f"illegal laboratory environment transition from '{current_state}' to '{next_state}'"
             )
     else:
         raise ContractError("invalid_contract", f"contract type '{contract_type}' does not define lifecycle transitions")

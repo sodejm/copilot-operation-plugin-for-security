@@ -1,0 +1,334 @@
+"""Data models and taxonomy for mail, messaging, and message broker services."""
+
+from __future__ import annotations
+
+from dataclasses import asdict, dataclass, field
+from enum import Enum
+import hashlib
+import json
+from pathlib import Path
+from typing import Any
+
+from cops.evidence.canonical import canonical, utc_now
+from .models import EvidenceProvenance
+
+
+class MessagingCategory(str, Enum):
+    """Broad category taxonomy for mail, chat, and message broker services."""
+
+    MAIL_TRANSFER_RETRIEVAL = "mail_transfer_retrieval"
+    REALTIME_CHAT = "realtime_chat"
+    MESSAGE_BROKER_STREAMING = "message_broker_streaming"
+
+
+class MessagingServiceType(str, Enum):
+    """Specific protocol and broker taxonomy for mail, chat, and streaming engines."""
+
+    # Mail Services
+    SMTP = "smtp"
+    POP3 = "pop3"
+    IMAP = "imap"
+
+    # Real-Time Chat
+    IRC = "irc"
+
+    # Message Brokers & Queues
+    RABBITMQ = "rabbitmq"
+    NATS = "nats"
+    IBMMQ = "ibmmq"
+    KAFKA = "kafka"
+    MQTT = "mqtt"
+
+
+class MessagingExposureStatus(str, Enum):
+    """Reachability and exposure posture for mail, chat, and message broker services."""
+
+    EXPOSED = "exposed"
+    PROTECTED = "protected"
+    INACCESSIBLE = "inaccessible"
+    MISCONFIGURED = "misconfigured"
+    REMEDIATED = "remediated"
+
+
+class MessagingAuthPrerequisite(str, Enum):
+    """Authentication and boundary prerequisite required to interact with messaging service."""
+
+    NONE = "none"
+    ANONYMOUS = "anonymous"
+    DEFAULT_CREDENTIALS = "default_credentials"
+    USER_PASSWORD = "user_password"
+    CLIENT_CERT = "client_cert"
+    TOKEN_OR_API_KEY = "token_or_api_key"
+    SASL = "sasl"
+    UNKNOWN = "unknown"
+
+
+class MessagingPrivilegeImpact(str, Enum):
+    """Security and operational impact of an exposed or misconfigured messaging service."""
+
+    REMOTE_CODE_EXECUTION = "remote_code_execution"
+    BROKER_TAKEOVER = "broker_takeover"
+    CREDENTIAL_HARVESTING = "credential_harvesting"
+    DATA_EXFILTRATION = "data_exfiltration"
+    MESSAGE_TAMPERING = "message_tampering"
+    UNAUTHORIZED_RELAY = "unauthorized_relay"
+    NONE = "none"
+
+
+@dataclass
+class MessagingPrivilegeCandidate:
+    """Actionable finding for unauthorized relay, broker takeover, or message interception."""
+
+    candidate_id: str
+    service_type: str
+    category: str
+    target_host: str
+    port: int
+    vantage: str = "external"
+    finding_type: str = "unauthenticated_messaging"
+    auth_prerequisites: str = MessagingAuthPrerequisite.NONE.value
+    privilege_impact: str = MessagingPrivilegeImpact.MESSAGE_TAMPERING.value
+    affected_role: str = "anonymous"
+    applicable_versions: list[str] = field(default_factory=list)
+    supporting_evidence: dict[str, Any] = field(default_factory=dict)
+    evidence_hash: str = ""
+    remediation_guidance: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.evidence_hash:
+            canonical_blob = f"{self.service_type}:{self.target_host}:{self.port}:{self.finding_type}:{self.auth_prerequisites}:{self.privilege_impact}".encode("utf-8")
+            self.evidence_hash = hashlib.sha256(canonical_blob).hexdigest()
+        if not self.remediation_guidance:
+            self.remediation_guidance = self._default_remediation()
+
+    def _default_remediation(self) -> str:
+        guidance_map = {
+            "smtp_open_relay": "Disable open relaying in mail transport agent; restrict relay access strictly to authenticated users or trusted internal networks.",
+            "smtp_user_enumeration": "Disable VRFY and EXPN commands; configure generic responses to RCPT TO for invalid recipient addresses.",
+            "pop3_plaintext_auth": "Enforce TLS (STLS or POP3S on port 995) and disable plaintext USER/PASS authentication over unencrypted channels.",
+            "imap_anonymous_login": "Require SASL/PLAIN authentication over TLS (STARTTLS or IMAPS on port 993) and disable anonymous IMAP access.",
+            "irc_unauthenticated_operator": "Require oper passwords with strong hashing and restrict OPER command access by IP and TLS client certs.",
+            "rabbitmq_guest_default_creds": "Delete or disable default 'guest'/'guest' account and enforce strong per-application vhost credentials.",
+            "rabbitmq_open_management": "Restrict RabbitMQ Management UI (port 15672) to internal management subnets and disable default guest web login.",
+            "nats_unauthenticated_cluster": "Enable token, user/password, or NKey authentication in nats-server configuration and isolate port 4222.",
+            "ibmmq_blank_channel": "Set MCAUSER on SVRCONN channels to a low-privilege user; block blank or SYSTEM channels from administrative access.",
+            "kafka_unauthenticated_broker": "Enable SASL/SCRAM or mTLS authentication in server.properties (listeners=SASL_PLAINTEXT or SSL) and enforce ACLs.",
+            "mqtt_anonymous_read_write": "Set allow_anonymous false in mosquitto.conf and require client authentication/TLS for MQTT pub/sub.",
+        }
+        return guidance_map.get(
+            self.finding_type,
+            f"Harden authentication and access boundaries for {self.service_type.upper()} messaging service."
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> MessagingPrivilegeCandidate:
+        return cls(
+            candidate_id=data["candidate_id"],
+            service_type=data["service_type"],
+            category=data["category"],
+            target_host=data["target_host"],
+            port=data["port"],
+            vantage=data.get("vantage", "external"),
+            finding_type=data.get("finding_type", "unauthenticated_messaging"),
+            auth_prerequisites=data.get("auth_prerequisites", MessagingAuthPrerequisite.NONE.value),
+            privilege_impact=data.get("privilege_impact", MessagingPrivilegeImpact.MESSAGE_TAMPERING.value),
+            affected_role=data.get("affected_role", "anonymous"),
+            applicable_versions=list(data.get("applicable_versions", [])),
+            supporting_evidence=dict(data.get("supporting_evidence", {})),
+            evidence_hash=data.get("evidence_hash", ""),
+            remediation_guidance=data.get("remediation_guidance", ""),
+        )
+
+
+@dataclass
+class CleanupReceipt:
+    """Verifiable proof of non-destructive canary test message or queue cleanup."""
+
+    receipt_id: str
+    target_host: str
+    service_type: str
+    artifact_type: str
+    artifact_identifier: str
+    action_taken: str = "verified_removed"
+    verified_clean: bool = True
+    receipt_hash: str = ""
+    timestamp_utc: str = field(default_factory=utc_now)
+
+    def __post_init__(self) -> None:
+        if not self.receipt_hash:
+            canonical_blob = f"{self.receipt_id}:{self.target_host}:{self.service_type}:{self.artifact_identifier}:{self.action_taken}".encode("utf-8")
+            self.receipt_hash = hashlib.sha256(canonical_blob).hexdigest()
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> CleanupReceipt:
+        return cls(
+            receipt_id=data["receipt_id"],
+            target_host=data["target_host"],
+            service_type=data["service_type"],
+            artifact_type=data["artifact_type"],
+            artifact_identifier=data["artifact_identifier"],
+            action_taken=data.get("action_taken", "verified_removed"),
+            verified_clean=bool(data.get("verified_clean", True)),
+            receipt_hash=data.get("receipt_hash", ""),
+            timestamp_utc=data.get("timestamp_utc", utc_now()),
+        )
+
+
+@dataclass
+class MessagingServiceAssessment:
+    """Discrete security assessment for one mail, chat, or message broker service endpoint."""
+
+    target_host: str
+    resolved_ip: str
+    service_type: str
+    category: str
+    port: int
+    protocol: str = "tcp"
+    vantage: str = "external"
+    exposure_status: str = MessagingExposureStatus.INACCESSIBLE.value
+    canary_validated: bool = False
+    canary_identifier: str | None = None
+    authentication_required: bool | None = None
+    auth_prerequisite: str = MessagingAuthPrerequisite.UNKNOWN.value
+    assigned_role: str = "unknown"
+    message_budget_limit: int = 5
+    messages_sent_or_observed: int = 0
+    tls_enforced: bool | None = None
+    relay_tested: bool = False
+    relay_permitted: bool = False
+    applicable_versions: list[str] = field(default_factory=list)
+    configuration_details: dict[str, Any] = field(default_factory=dict)
+    observed_vulnerabilities: list[str] = field(default_factory=list)
+    uncertainty_notes: list[str] = field(default_factory=list)
+    privilege_candidates: list[MessagingPrivilegeCandidate] = field(default_factory=list)
+    cleanup_receipts: list[CleanupReceipt] = field(default_factory=list)
+    error_message: str | None = None
+    timestamp_utc: str = field(default_factory=utc_now)
+    provenance: EvidenceProvenance | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        res = asdict(self)
+        if self.provenance:
+            res["provenance"] = self.provenance.to_dict()
+        res["privilege_candidates"] = [c.to_dict() for c in self.privilege_candidates]
+        res["cleanup_receipts"] = [r.to_dict() for r in self.cleanup_receipts]
+        return res
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> MessagingServiceAssessment:
+        prov = EvidenceProvenance.from_dict(data["provenance"]) if data.get("provenance") else None
+        candidates = [MessagingPrivilegeCandidate.from_dict(c) for c in data.get("privilege_candidates", [])]
+        receipts = [CleanupReceipt.from_dict(r) for r in data.get("cleanup_receipts", [])]
+        return cls(
+            target_host=data["target_host"],
+            resolved_ip=data.get("resolved_ip", data["target_host"]),
+            service_type=data["service_type"],
+            category=data["category"],
+            port=data["port"],
+            protocol=data.get("protocol", "tcp"),
+            vantage=data.get("vantage", "external"),
+            exposure_status=data.get("exposure_status", MessagingExposureStatus.INACCESSIBLE.value),
+            canary_validated=bool(data.get("canary_validated", False)),
+            canary_identifier=data.get("canary_identifier"),
+            authentication_required=data.get("authentication_required"),
+            auth_prerequisite=data.get("auth_prerequisite", MessagingAuthPrerequisite.UNKNOWN.value),
+            assigned_role=data.get("assigned_role", "unknown"),
+            message_budget_limit=int(data.get("message_budget_limit", 5)),
+            messages_sent_or_observed=int(data.get("messages_sent_or_observed", 0)),
+            tls_enforced=data.get("tls_enforced"),
+            relay_tested=bool(data.get("relay_tested", False)),
+            relay_permitted=bool(data.get("relay_permitted", False)),
+            applicable_versions=list(data.get("applicable_versions", [])),
+            configuration_details=dict(data.get("configuration_details", {})),
+            observed_vulnerabilities=list(data.get("observed_vulnerabilities", [])),
+            uncertainty_notes=list(data.get("uncertainty_notes", [])),
+            privilege_candidates=candidates,
+            cleanup_receipts=receipts,
+            error_message=data.get("error_message"),
+            timestamp_utc=data.get("timestamp_utc", utc_now()),
+            provenance=prov,
+        )
+
+
+@dataclass
+class MessagingServicesReport:
+    """Comprehensive discovery and assessment report across mail, chat, and broker services."""
+
+    report_id: str
+    target_scope: list[str]
+    vantage: str = "external"
+    assessments: list[MessagingServiceAssessment] = field(default_factory=list)
+    total_probed: int = 0
+    total_exposed: int = 0
+    total_protected: int = 0
+    total_inaccessible: int = 0
+    total_misconfigured: int = 0
+    candidates_count: int = 0
+    cleanup_receipts_count: int = 0
+    timestamp_utc: str = field(default_factory=utc_now)
+
+    def summary(self) -> dict[str, Any]:
+        return {
+            "report_id": self.report_id,
+            "target_scope": self.target_scope,
+            "vantage": self.vantage,
+            "total_probed": self.total_probed,
+            "total_exposed": self.total_exposed,
+            "total_protected": self.total_protected,
+            "total_inaccessible": self.total_inaccessible,
+            "total_misconfigured": self.total_misconfigured,
+            "candidates_count": self.candidates_count,
+            "cleanup_receipts_count": self.cleanup_receipts_count,
+            "timestamp_utc": self.timestamp_utc,
+        }
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "report_id": self.report_id,
+            "target_scope": self.target_scope,
+            "vantage": self.vantage,
+            "total_probed": self.total_probed,
+            "total_exposed": self.total_exposed,
+            "total_protected": self.total_protected,
+            "total_inaccessible": self.total_inaccessible,
+            "total_misconfigured": self.total_misconfigured,
+            "candidates_count": self.candidates_count,
+            "cleanup_receipts_count": self.cleanup_receipts_count,
+            "timestamp_utc": self.timestamp_utc,
+            "assessments": [a.to_dict() for a in self.assessments],
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> MessagingServicesReport:
+        assessments = [MessagingServiceAssessment.from_dict(a) for a in data.get("assessments", [])]
+        return cls(
+            report_id=data["report_id"],
+            target_scope=list(data.get("target_scope", [])),
+            vantage=data.get("vantage", "external"),
+            assessments=assessments,
+            total_probed=data.get("total_probed", len(assessments)),
+            total_exposed=data.get("total_exposed", 0),
+            total_protected=data.get("total_protected", 0),
+            total_inaccessible=data.get("total_inaccessible", 0),
+            total_misconfigured=data.get("total_misconfigured", 0),
+            candidates_count=data.get("candidates_count", 0),
+            cleanup_receipts_count=data.get("cleanup_receipts_count", 0),
+            timestamp_utc=data.get("timestamp_utc", utc_now()),
+        )
+
+    def save(self, path: Path | str) -> None:
+        p = Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(self.to_dict(), indent=2, sort_keys=True), encoding="utf-8")
+
+    @classmethod
+    def load(cls, path: Path | str) -> MessagingServicesReport:
+        p = Path(path)
+        data = json.loads(p.read_text(encoding="utf-8"))
+        return cls.from_dict(data)

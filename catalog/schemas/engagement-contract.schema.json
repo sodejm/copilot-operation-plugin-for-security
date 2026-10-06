@@ -75,6 +75,26 @@
       }
     },
     "created_at": {"type": "string", "format": "date-time"},
+    "mode": {
+      "enum": ["planning", "import", "laboratory", "live"]
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_duration_seconds", "max_output_bytes"],
+      "properties": {
+        "max_duration_seconds": {"type": "integer", "minimum": 1, "maximum": 604800},
+        "max_output_bytes": {"type": "integer", "minimum": 1, "maximum": 104857600}
+      }
+    },
+    "credential_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9_.-]+$"
+      }
+    },
     "metadata": {
       "type": "object"
     }

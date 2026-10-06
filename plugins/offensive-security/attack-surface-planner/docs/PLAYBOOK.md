@@ -28,6 +28,8 @@ Invoke this planner under the following concrete triggers:
 | **Assessment Scoping & Kickoff** | Formalize approved rules of engagement (ROE) and map assets before starting an authorized offensive assessment. | `authorized-attack-surface-planning` |
 | **Multi-Tenant Azure/Entra Boundary Review** | Reconcile complex tenant inventories, subscription IDs, and custom domains to prevent testing out-of-scope infrastructure. | `authorized-attack-surface-planning` |
 | **Passive Discovery Planning** | Plan non-intrusive observation and reconnaissance methods without making unreviewed network or tenant calls. | `authorized-attack-surface-planning` |
+| **Active Network & Service Identification** | Conduct rate-limited, resumable port and TLS identification across approved boundaries. | `network-active-discovery` |
+| **Infrastructure & Identity Services Assessment** | Assess protocol exposure (DNS, SNMP, NTP, RPC, LDAP, Kerberos), validate boundaries with canaries, and hand off identity attack paths. | `network-infrastructure-services` |
 | **Audit & Engagement Compliance** | Document explicit boundary justifications, excluded scopes, and remaining uncertainties for compliance review. | `authorized-attack-surface-planning` |
 
 ### Operational Boundaries & Safety Guarantees
@@ -57,6 +59,123 @@ Invoke this planner under the following concrete triggers:
    ```bash
    python3 plugins/offensive-security/attack-surface-planner/scripts/plan.py <path-to-scope.json>
    ```
+
+### Phase 2b: Multi-Source Telemetry Normalization & Scope Quarantine
+**Skill**: [`network-passive-discovery`](../skills/network-passive-discovery/SKILL.md)
+
+1. **Normalize Telemetry**:
+   - Ingest raw DNS, certificate, IP allocation, endpoint, and cloud export records using `python3 -m cops discovery normalize <file> --type <type>`.
+2. **Deduplicate Multi-Source Observations**:
+   - Merge overlapping observations while retaining full cryptographic provenance chains: `python3 -m cops discovery merge <inv1> <inv2> ...`.
+3. **Reconcile Scope Quarantine**:
+   - Reconcile discoveries against engagement boundaries: `python3 -m cops discovery reconcile <inventory.json> --scope <scope.json>`.
+   - Quarantine assets exhibiting conflicting ownership, stale records, or missing provenance so discovery cannot expand the engagement.
+
+### Phase 2c: Bounded Active Discovery & Service Identification
+**Skill**: [`network-active-discovery`](../skills/network-active-discovery/SKILL.md)
+
+1. **Plan Authorized Assessment**:
+   - Configure approved targets, ports, protocol, and TLS assessment with explicit vantage and rate limits: `python3 -m cops discovery active plan ...`.
+2. **Execute Resumable Probes**:
+   - Execute bounded probes with checkpointing: `python3 -m cops discovery active scan ...`.
+   - Resuming skips completed probes without repeating side effects: `python3 -m cops discovery active resume ...`.
+3. **Calibrate Fingerprint Uncertainty**:
+   - Distinguish observed configurations from inferred fingerprints with explicit confidence and visible uncertainty reasons.
+4. **Enforce Boundary & DNS Rebind Defense**:
+   - Detect dynamic DNS changes or out-of-scope shifts; halt probes and quarantine immediately.
+5. **Verify Remediated Exposures**:
+   - Evaluate remediation delta between baseline and re-test sessions: `python3 -m cops discovery active diff ...`.
+
+### Phase 2d: Infrastructure & Identity Services Assessment
+**Skill**: [`network-infrastructure-services`](../skills/network-infrastructure-services/SKILL.md)
+
+1. **Protocol-Specific Infrastructure Probing**:
+   - Assess exposure of DNS, mDNS, SNMP, NTP, RPC endpoint mapper, LDAP, and Kerberos across approved targets: `python3 -m cops discovery infrastructure assess ...`.
+2. **Strict Inaccessible != Secure Grounding**:
+   - Unreachable, timed out, or connection-refused services are strictly classified as `inaccessible` (with `auth_prerequisite: unknown`). Never assume an inaccessible service is secure or hardened.
+3. **Canary Records and Controlled Identities**:
+   - Use benign canary domain queries (`canary.corp.internal`) and synthetic account names (`canary-user@CORP.INTERNAL`) to validate access barriers non-destructively.
+4. **Extract Identity Attack-Path Candidates**:
+   - Extract candidate attack paths (`ldap_anonymous_reconnaissance`, `asrep_roasting`, `rpc_endpoint_enumeration`, `snmp_credential_leak`, `open_dns_recursion`, `ntp_mode6_amplification`) for Active Directory and lateral movement specialist handoff: `python3 -m cops discovery infrastructure candidates ...`.
+
+### Phase 2e: Remote Administration, File Sharing, and Printing Services Assessment
+**Skill**: [`network-remote-and-file-services`](../skills/network-remote-and-file-services/SKILL.md)
+
+1. **Protocol-Specific Remote, File, and Printing Probing**:
+   - Assess exposure of remote administration (SSH, Telnet, RDP, VNC, WinRM, X11), file sharing (SMB, NFS, FTP/TFTP, rsync, AFP), and printing services (LPD, IPP, Raw/JetDirect) across approved targets: `python3 -m cops remote-services assess ...`.
+2. **Strict Inaccessible != Secure Grounding**:
+   - Filtered, closed, or timed out services are strictly classified as `inaccessible` (with `auth_prerequisite: unknown`). Never report an inaccessible service as secure or hardened.
+3. **Canary Validation and Verifiable Cleanup Receipts**:
+   - Validate access controls and write boundaries using benign canary files or synthetic print jobs.
+   - Emit verified `CleanupReceipt` records confirming rollback and artifact removal: `python3 -m cops remote-services cleanup ...`.
+4. **Extract Host Privilege Candidates**:
+   - Extract candidate attack paths (`smb_v1_enabled`, `smb_signing_disabled`, `smb_unauthenticated_share`, `telnet_plaintext_exposure`, `rdp_nla_disabled`, `vnc_no_auth`, `winrm_http_unencrypted`, `x11_open_display`, `nfs_no_root_squash`, `ftp_anonymous_login`, `rsync_open_module`, `unauthenticated_printer_queue`) for offensive and lateral movement specialist handoff: `python3 -m cops remote-services candidates ...`.
+
+### Phase 2f: Database, Cache, and Search Services Assessment
+**Skill**: [`network-data-services`](../skills/network-data-services/SKILL.md)
+
+1. **Protocol-Specific Database, Cache, and Search Probing**:
+   - Assess exposure of relational databases (MySQL, Postgres, MSSQL, Oracle), NoSQL/document stores (MongoDB, CouchDB, Cassandra), caches (Redis, Memcached), and search/analytics engines (Elasticsearch, InfluxDB, Kibana, Splunk) across approved targets: `python3 -m cops data-services assess ...`.
+2. **Bounded Query Budgets & Zero Bulk Extraction**:
+   - Enforce bounded query budgets (default 5 rows/documents) to verify schema and access controls; prohibit and block bulk data extraction.
+3. **Strict Inaccessible != Secure Grounding**:
+   - Filtered, closed, or timed out services are strictly classified as `inaccessible` (with `auth_prerequisite: unknown`). Never assume an inaccessible service is secure or hardened.
+4. **Canary Validation and Verifiable Cleanup Receipts**:
+   - Validate access controls using benign canary identifiers (`canary_audit_table`, `canary_cache_key`).
+   - Emit verified `CleanupReceipt` records confirming rollback and artifact removal: `python3 -m cops data-services cleanup ...`.
+5. **Extract Data Privilege Candidates**:
+   - Extract candidate findings (`redis_no_auth`, `redis_config_set`, `elasticsearch_open_cluster`, `mongodb_no_auth`, `memcached_no_auth`, `mysql_no_auth`, `postgres_trust_auth`, `mssql_blank_sa`, `couchdb_admin_party`, `cassandra_default_superuser`, `influxdb_no_auth`, `kibana_no_auth`, `splunk_default_creds`) for lateral movement and database takeover handoff: `python3 -m cops data-services candidates ...`.
+
+### Phase 2g: Mail, Messaging, and Message Broker Services Assessment
+**Skill**: [`network-messaging-services`](../skills/network-messaging-services/SKILL.md)
+
+1. **Protocol-Specific Mail, Chat, and Broker Probing**:
+   - Assess exposure of mail services (SMTP, POP3, IMAP), real-time chat (IRC), and message brokers/queues (RabbitMQ/AMQP, NATS, IBM MQ, Kafka, MQTT) across approved targets: `python3 -m cops messaging-services assess ...`.
+2. **Bounded Message Budgets & Zero Mass Outbound Relaying**:
+   - Enforce bounded message budgets (default 5 messages) to verify delivery, queue interaction, and boundary enforcement; prohibit and block bulk mail delivery, external domain spamming, and unconstrained queue flooding.
+3. **Strict Inaccessible != Secure Grounding**:
+   - Filtered, closed, or timed out services are strictly classified as `inaccessible` (with `auth_prerequisite: unknown`). Never assume an inaccessible service is secure or hardened.
+4. **Canary Validation and Verifiable Cleanup Receipts**:
+   - Validate access controls using benign canary identifiers (`canary_mail_probe`, `canary_queue_probe`).
+   - Emit verified `CleanupReceipt` records confirming rollback and artifact removal: `python3 -m cops messaging-services cleanup ...`.
+5. **Extract Messaging Privilege Candidates**:
+   - Extract candidate findings (`smtp_open_relay`, `smtp_user_enumeration`, `pop3_plaintext_auth`, `imap_anonymous_login`, `irc_unauthenticated_operator`, `rabbitmq_guest_default_creds`, `rabbitmq_open_management`, `nats_unauthenticated_cluster`, `ibmmq_blank_channel`, `kafka_unauthenticated_broker`, `mqtt_anonymous_read_write`) for unauthorized relay or broker takeover handoff: `python3 -m cops messaging-services candidates ...`.
+
+### Phase 2h: Developer and Runtime Interfaces Assessment
+**Skill**: [`network-developer-interfaces`](../skills/network-developer-interfaces/SKILL.md)
+
+1. **Protocol-Specific Developer & Debugging Interface Probing**:
+   - Assess exposure of container runtimes (Docker API, Docker Registry), debugging ports (Java RMI, JDWP, Erlang EPMD, ADB), distributed build tools (distcc, SVN), and gateway interfaces (AJP, FastCGI) across approved targets: `python3 -m cops developer-services assess ...`.
+2. **Execution Effect Classification & Plan Binding**:
+   - Declare `ExecutionEffect`: `read_only`, `non_destructive`, `state_change`, `code_execution`.
+   - Operations that execute code or modify state require explicit authorization (`--allow-code-execution`, `--allow-state-change`) bound to the active plan.
+3. **Application vs Infrastructure Specialist Routing**:
+   - Route application-layer findings to web specialists (`cops-web-specialist`), orchestrator paths to cloud specialists (`cops-cloud-specialist`), and code execution / breakout findings to pentest specialists (`cops-pentest-specialist`).
+4. **Strict Inaccessible != Secure Grounding**:
+   - Filtered, closed, or timed-out endpoints are strictly classified as `inaccessible` (with `auth_prerequisite: unknown`). Never assume an inaccessible service is secure or hardened.
+5. **Canary Validation and Verifiable Cleanup Receipts**:
+   - Validate access controls using benign canary identifiers (`canary_docker_probe`, `canary_debug_probe`).
+   - Emit verified `CleanupReceipt` records confirming rollback and artifact removal: `python3 -m cops developer-services cleanup ...`.
+6. **Extract Developer Privilege Candidates**:
+   - Extract candidate findings (`docker_socket_rce`, `docker_registry_leak`, `rmi_code_execution`, `jdwp_code_execution`, `erlang_epmd_rce`, `adb_shell_rce`, `distcc_rce`, `svn_anonymous_checkout`, `ajp_ghostcat_rce`, `fastcgi_rce`) for code execution or breakout handoff: `python3 -m cops developer-services candidates ...`.
+
+### Phase 2i: Legacy Enterprise, Management, and Proxy Services Assessment
+**Skill**: [`network-legacy-and-proxy-services`](../skills/network-legacy-and-proxy-services/SKILL.md)
+
+1. **Protocol-Specific Legacy Enterprise & Proxy Probing**:
+   - Assess exposure of enterprise storage (NDMP, iSCSI), hardware out-of-band management (IPMI 2.0 / RMCP+), network appliance management (Cisco Smart Install, TACACS+), legacy VPN tunneling (IKEv1 Aggressive Mode, PPTP), and proxy egress services (SOCKS, Squid) across approved targets: `python3 -m cops legacy-services assess ...`.
+2. **Proxy Egress Restriction Testing**:
+   - For all proxy and egress services (SOCKS, Squid), test and record whether outbound destinations are restricted (`proxy_egress_tested`, `proxy_egress_restricted`) to evaluate unauthorized internal pivoting and SSRF risks.
+3. **Execution Effect Classification & Plan Binding**:
+   - Declare `ExecutionEffect`: `read_only`, `non_destructive`, `state_change`, `code_execution`.
+   - Operations that execute code or modify state require explicit authorization (`--allow-code-execution`, `--allow-state-change`) bound to the active plan.
+4. **Strict Inaccessible != Secure Grounding**:
+   - Filtered, closed, or timed-out endpoints are strictly classified as `inaccessible` (with `auth_prerequisite: unknown`). Never assume an inaccessible service is secure or hardened.
+5. **Canary Validation and Verifiable Cleanup Receipts**:
+   - Validate access controls using benign canary identifiers (`canary_legacy_artifact`, `canary_proxy_probe`).
+   - Emit verified `CleanupReceipt` records confirming rollback and artifact removal: `python3 -m cops legacy-services cleanup ...`.
+6. **Extract Legacy Privilege Candidates**:
+   - Extract candidate findings (`ndmp_unauthenticated_access`, `iscsi_unauthenticated_target`, `ipmi_cipher_zero_bypass`, `ipmi_rakp_hash_dump`, `cisco_smart_install_rce`, `tacacs_unauthenticated_daemon`, `ike_aggressive_mode_psk`, `pptp_mschapv2_exposure`, `socks_open_proxy`, `squid_open_proxy`) for takeover or proxy egress pivoting handoff: `python3 -m cops legacy-services candidates ...`.
 
 ### Phase 3: Scope Boundary Partitioning
 Systematically classify every discovered entity into one of three strict partitions:
