@@ -1,11 +1,11 @@
 """Shared fail-closed limits and descriptor-anchored reads for local evidence."""
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
 import os
-from pathlib import Path
 import stat
+from dataclasses import dataclass
+from pathlib import Path
 
 from ._runtime.cops.evidence.canonical import EvidenceError, decode_json
 
@@ -127,8 +127,9 @@ def read_regular(root, relative, limit, budget: RunBudget | None = None, *, coun
                 raise IngestError("file_limit" if limit <= remaining else "total_byte_limit")
             chunks.append(chunk)
         after = os.fstat(fd)
-        identity = lambda item: (item.st_dev, item.st_ino, item.st_nlink, item.st_size,
-                                 item.st_mtime_ns, item.st_ctime_ns)
+        def identity(item):
+            return (item.st_dev, item.st_ino, item.st_nlink, item.st_size,
+                                         item.st_mtime_ns, item.st_ctime_ns)
         if identity(before) != identity(after) or size != after.st_size:
             raise IngestError("file_changed")
         if budget:

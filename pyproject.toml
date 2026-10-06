@@ -40,6 +40,7 @@ select = [
     "S",    # flake8-bandit (security checks)
 ]
 ignore = [
+    "UP042", # Preserve public str/Enum formatting semantics.
     "S101", # Use of assert (standard in tests and internal checks)
     "S603", # subprocess call - check for execution of untrusted input
     "S607", # start process with partial executable path
@@ -50,3 +51,8 @@ ignore = [
 "tests/**" = ["S", "B"]
 "specs/**" = ["S", "B"]
 "scripts/**" = ["S108"]
+
+".agents/skills/*/tests/**" = ["S", "B"]
+".claude/skills/*/tests/**" = ["S", "B"]
+"plugins/**/tests/**" = ["S", "B"]
+"**/test_plugin.py" = ["S", "B"]

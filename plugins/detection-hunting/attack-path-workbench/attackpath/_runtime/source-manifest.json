@@ -7,11 +7,11 @@
   "sources": [
     {
       "path": "cops/evidence/__init__.py",
-      "sha256": "f104b285bb1202f9b9447b2cde2b8ba8e1ea289a83213f28b21c5e658fd2e480"
+      "sha256": "a270427396430d20d22751e74c11cc4fa84e081a59eb3f4c68022f8d19be944f"
     },
     {
       "path": "cops/evidence/canonical.py",
-      "sha256": "4f8a90a6738995313a2a0fc4723d15d062c18df3842d559d1a329594b68d2bae"
+      "sha256": "2aee3b4213ddf4668e76228ecacfc91bd8e0a7aac868414a4d308f62179f0753"
     },
     {
       "path": "cops/evidence/contract.py",
@@ -19,11 +19,11 @@
     },
     {
       "path": "cops/evidence/validation.py",
-      "sha256": "0fc330b7c7bef14153791fb0c0d2ba6d61da9c86848a6824314bf784ce80122a"
+      "sha256": "30b9369cca4872d014c48fe885e75578f1d995f3331243f304b790abd9641e44"
     },
     {
       "path": "cops/evidence/assessment.py",
-      "sha256": "a4c70a6465d2bbaaafc4d1fdff71da7cd3739880e465916c36a03ff45eff7448"
+      "sha256": "643db0ceab7701993ee6084e48a7a4f13f9173fcb51a59708156894f0717b5c5"
     },
     {
       "path": "catalog/schemas/evidence-envelope.schema.json",

@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 """Synthetic Microsoft 365 collection and correlation without credentials."""
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 from tempfile import TemporaryDirectory
 
 ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from investigationwb.m365 import correlate  # noqa: E402
+
 from cops.connectors import Checkpoint, GraphCollection, Response, collect, preview  # noqa: E402
 from cops.evidence import canonical  # noqa: E402
-from investigationwb.m365 import correlate  # noqa: E402
 
 TENANT = '00000000-0000-0000-0000-000000000001'
 USER = '00000000-0000-0000-0000-000000000002'

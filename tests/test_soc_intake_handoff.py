@@ -1,14 +1,14 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 """Unit and integration tests for SOC evidence intake and case handoff workflow (Issue #15)."""
 
 from __future__ import annotations
 
-import json
 import os
-from pathlib import Path
+import sys
 import tempfile
 import unittest
-
-import sys
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN_DIR = ROOT / "plugins/detection-hunting/soc-investigation-workbench"

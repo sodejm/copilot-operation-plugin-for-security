@@ -80,7 +80,7 @@
     },
     {
       "coverage_mode": "import",
-      "description": "Queries public DNS records and certificate transparency logs to identify exposed subdomains without connecting to target infrastructure.",
+      "description": "Normalizes multi-source DNS records, certificate transparency logs, IP allocations, endpoints, and cloud exports with provenance preservation, deduplication, and scope quarantine reconciliation.",
       "environment": {
         "isolated_worker_required": false,
         "os": [
@@ -88,8 +88,9 @@
           "darwin"
         ],
         "required_tools": [
-          "dig",
-          "subfinder"
+          "python3",
+          "cops",
+          "dig"
         ]
       },
       "family_id": "COPS-E04.01",
@@ -98,12 +99,14 @@
           "reconnaissance"
         ],
         "techniques": [
-          "T1596"
+          "T1596",
+          "T1590"
         ]
       },
       "owner_issue": 92,
       "prerequisites": [
-        "Approved target domain names"
+        "Raw DNS, certificate, IP allocation, or cloud export telemetry fixtures",
+        "Approved engagement scope or action plan definition"
       ],
       "provenance": {
         "license": "MIT",
@@ -117,11 +120,11 @@
         "safe_for_production": true
       },
       "scenario_id": "COPS-E04.01-S01",
-      "title": "Passive DNS and Certificate Transparency Enumeration"
+      "title": "Passive DNS, Certificate, and Asset Inventory Discovery"
     },
     {
-      "coverage_mode": "planned",
-      "description": "Performs rate-limited active port discovery across perimeter IP addresses with banner capture.",
+      "coverage_mode": "import",
+      "description": "Performs bounded, rate-limited active port and TLS assessment across perimeter endpoints with service identification and visible uncertainty.",
       "environment": {
         "isolated_worker_required": true,
         "os": [
@@ -143,7 +146,8 @@
       },
       "owner_issue": 93,
       "prerequisites": [
-        "Network authorization receipt"
+        "Network authorization receipt",
+        "Approved target scope"
       ],
       "provenance": {
         "license": "MIT",
@@ -160,8 +164,8 @@
       "title": "High-Speed Active Network Boundary Discovery"
     },
     {
-      "coverage_mode": "planned",
-      "description": "Interrogates RPC endpoint mappers (TCP 135) and SNMP agents (UDP 161) for system context and installed components.",
+      "coverage_mode": "import",
+      "description": "Assesses DNS/mDNS, SNMP, NTP, discovery, RPC, LDAP, and Kerberos infrastructure services, records applicable versions and authentication prerequisites, extracts identity attack-path candidates for AD inventory, and validates boundaries with canary records.",
       "environment": {
         "isolated_worker_required": true,
         "os": [
@@ -183,7 +187,8 @@
       },
       "owner_issue": 94,
       "prerequisites": [
-        "Target host IP address"
+        "Target host IP address",
+        "Approved scope reference"
       ],
       "provenance": {
         "license": "MIT",
@@ -200,8 +205,8 @@
       "title": "Infrastructure RPC and Management Endpoint Evaluation"
     },
     {
-      "coverage_mode": "planned",
-      "description": "Enumerates accessible SMB shares, IPC$ null session bindings, and RDP NLA requirements on target hosts.",
+      "coverage_mode": "import",
+      "description": "Assess exposure, authentication prerequisites, and access controls across remote administration (SSH, Telnet, RDP, VNC, WinRM, X11), file sharing (SMB, NFS, FTP/TFTP, rsync, AFP), and printing services (LPD, IPP, JetDirect) with canary files/jobs, privilege routing, and cleanup receipts.",
       "environment": {
         "isolated_worker_required": true,
         "os": [
@@ -240,8 +245,50 @@
       "title": "Remote Administration and SMB Share Security Audit"
     },
     {
+      "coverage_mode": "import",
+      "description": "Assesses relational databases (MySQL, PostgreSQL, MSSQL, Oracle), NoSQL/document stores (MongoDB, CouchDB, Cassandra), caches (Redis, Memcached), and search/analytics engines (Elasticsearch, InfluxDB, Kibana, Splunk) for unauthorized exposure, default credentials, bounded query budgets, and canary access with verifiable cleanup.",
+      "environment": {
+        "isolated_worker_required": false,
+        "os": [
+          "linux",
+          "darwin"
+        ],
+        "required_tools": []
+      },
+      "family_id": "COPS-E04.05",
+      "mitre_attack": {
+        "tactics": [
+          "initial-access",
+          "credential-access",
+          "collection"
+        ],
+        "techniques": [
+          "T1190",
+          "T1078",
+          "T1005"
+        ]
+      },
+      "owner_issue": 96,
+      "prerequisites": [
+        "Authorized database and data service assessment scope"
+      ],
+      "provenance": {
+        "license": "MIT",
+        "source_id": "S01",
+        "source_reference": "https://github.com/gunyakit/command-cheatsheet/tree/4c118399602212f205c91e8f01e418e226fa320c/databases/database-assessment.md",
+        "version_bound": "4c11839"
+      },
+      "safety_profile": {
+        "impact": "read_only",
+        "reversible": true,
+        "safe_for_production": true
+      },
+      "scenario_id": "COPS-E04.05-S01",
+      "title": "Databases, Caches, and Search Services Exposure Assessment"
+    },
+    {
       "coverage_mode": "laboratory",
-      "description": "Verifies whether SMTP endpoints reject unauthorized open relay attempts and enforce TLS encryption.",
+      "description": "Assesses email services (SMTP, POP3, IMAP), chat (IRC), and message brokers/queues (AMQP/RabbitMQ, NATS, IBM MQ, Kafka, MQTT) for unauthorized exposure, open relays, anonymous/guest access, synthetic canaries, and bounded message budgets with verifiable cleanup.",
       "environment": {
         "isolated_worker_required": true,
         "os": [
@@ -255,15 +302,22 @@
       "family_id": "COPS-E04.06",
       "mitre_attack": {
         "tactics": [
-          "initial-access"
+          "initial-access",
+          "credential-access",
+          "collection",
+          "lateral-movement"
         ],
         "techniques": [
+          "T1078",
+          "T1114",
+          "T1071.003",
+          "T1021",
           "T1566"
         ]
       },
       "owner_issue": 97,
       "prerequisites": [
-        "Authorized mail gateway test scope"
+        "Authorized mail and message broker assessment scope"
       ],
       "provenance": {
         "license": "MIT",
@@ -277,7 +331,7 @@
         "safe_for_production": false
       },
       "scenario_id": "COPS-E04.06-S01",
-      "title": "Mail Relay and Messaging Boundary Verification"
+      "title": "Mail, Messaging, and Message Broker Services Exposure Assessment"
     },
     {
       "coverage_mode": "planned",
@@ -1269,8 +1323,181 @@
       },
       "scenario_id": "COPS-E15.03-S01",
       "title": "Reversible Persistence and Defense Evasion Simulation"
+    },
+    {
+      "coverage_mode": "planned",
+      "description": "Validates engagement intake contracts, enforces scope boundaries, and compiles reviewable immutable action plans for offensive security assessments.",
+      "environment": {
+        "isolated_worker_required": true,
+        "os": [
+          "linux"
+        ],
+        "required_tools": [
+          "python3",
+          "cops"
+        ]
+      },
+      "family_id": "COPS-E03.01",
+      "mitre_attack": {
+        "tactics": [
+          "reconnaissance",
+          "discovery"
+        ],
+        "techniques": [
+          "T1595",
+          "T1046"
+        ]
+      },
+      "owner_issue": 88,
+      "prerequisites": [
+        "Operator authorization and rules of engagement envelope",
+        "Unambiguous target specification and exclusion boundaries"
+      ],
+      "provenance": {
+        "license": "MIT",
+        "source_id": "S01",
+        "source_reference": "https://github.com/gunyakit/command-cheatsheet/tree/4c118399602212f205c91e8f01e418e226fa320c/recon/nmap.md",
+        "version_bound": "4c11839"
+      },
+      "safety_profile": {
+        "impact": "read_only",
+        "reversible": true,
+        "safe_for_production": true
+      },
+      "scenario_id": "COPS-E03.01-S01",
+      "title": "Authorized Adversary Engagement Intake and Action Planning"
+    },
+    {
+      "coverage_mode": "planned",
+      "description": "Structured Triad task and evidence handoffs between Planner, Specialist, Skeptic, and Auditor with capability verification and authorization invariance.",
+      "environment": {
+        "isolated_worker_required": true,
+        "os": [
+          "linux"
+        ],
+        "required_tools": [
+          "python3",
+          "cops"
+        ]
+      },
+      "family_id": "COPS-E03.02",
+      "mitre_attack": {
+        "tactics": [
+          "execution",
+          "persistence"
+        ],
+        "techniques": [
+          "T1059",
+          "T1543"
+        ]
+      },
+      "owner_issue": 89,
+      "prerequisites": [
+        "Authorized ActionPlan contract",
+        "Registered specialist profile in catalog"
+      ],
+      "provenance": {
+        "license": "MIT",
+        "source_id": "S01",
+        "source_reference": "https://github.com/gunyakit/command-cheatsheet/tree/4c118399602212f205c91e8f01e418e226fa320c",
+        "version_bound": "4c11839"
+      },
+      "safety_profile": {
+        "impact": "read_only",
+        "reversible": true,
+        "safe_for_production": true
+      },
+      "scenario_id": "COPS-E03.02-S01",
+      "title": "Specialist Routing and Bounded Workflow Handoffs"
+    },
+    {
+      "coverage_mode": "planned",
+      "description": "Manages operator-provided VM and container laboratory environments with canary data verification, isolation checks, tool matrix matching, reproducible reset, and positive/negative/remediated case evaluation.",
+      "environment": {
+        "isolated_worker_required": true,
+        "os": [
+          "linux",
+          "darwin"
+        ],
+        "required_tools": [
+          "python3",
+          "cops"
+        ]
+      },
+      "family_id": "COPS-E03.03",
+      "mitre_attack": {
+        "tactics": [
+          "execution",
+          "privilege-escalation"
+        ],
+        "techniques": [
+          "T1059",
+          "T1611"
+        ]
+      },
+      "owner_issue": 90,
+      "prerequisites": [
+        "Operator-provided laboratory VM or container environment",
+        "Execution authorization envelope with atomic store consumption"
+      ],
+      "provenance": {
+        "license": "MIT",
+        "source_id": "S01",
+        "source_reference": "https://github.com/gunyakit/command-cheatsheet/tree/4c118399602212f205c91e8f01e418e226fa320c",
+        "version_bound": "4c11839"
+      },
+      "safety_profile": {
+        "impact": "read_only",
+        "reversible": true,
+        "safe_for_production": true
+      },
+      "scenario_id": "COPS-E03.03-S01",
+      "title": "Scenario Laboratory Environment and Harness Management"
+    },
+    {
+      "coverage_mode": "laboratory",
+      "description": "Performs diagnostic health, environment, prerequisite, and truth-in-advertising checks across all registered packages and tools.",
+      "environment": {
+        "isolated_worker_required": false,
+        "os": [
+          "linux",
+          "darwin"
+        ],
+        "required_tools": [
+          "python3",
+          "cops"
+        ]
+      },
+      "family_id": "COPS-E03.04",
+      "mitre_attack": {
+        "tactics": [
+          "execution",
+          "discovery"
+        ],
+        "techniques": [
+          "T1059",
+          "T1082"
+        ]
+      },
+      "owner_issue": 91,
+      "prerequisites": [
+        "Registered COPS plugins and validated tool matrix"
+      ],
+      "provenance": {
+        "license": "MIT",
+        "source_id": "S01",
+        "source_reference": "https://github.com/gunyakit/command-cheatsheet/tree/4c118399602212f205c91e8f01e418e226fa320c",
+        "version_bound": "4c11839"
+      },
+      "safety_profile": {
+        "impact": "read_only",
+        "reversible": true,
+        "safe_for_production": true
+      },
+      "scenario_id": "COPS-E03.04-S01",
+      "title": "Package Workflow and Capability Diagnostics"
     }
   ],
   "schema_version": "cops.scenario-registry/v1",
-  "updated_at": "2026-10-02T23:00:00Z"
+  "updated_at": "2026-10-05T09:45:00Z"
 }

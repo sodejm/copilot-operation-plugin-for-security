@@ -1,6 +1,7 @@
 """Unit tests for declarative tool adapter registry."""
 
 import pytest
+
 from cops.adapters import (
     AdapterError,
     AdapterInjectionError,

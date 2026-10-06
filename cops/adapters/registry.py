@@ -6,14 +6,13 @@ assembly without arbitrary shell interpolation.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import ipaddress
 import json
-from pathlib import Path
 import re
-import shutil
 import sys
-from typing import Any, Sequence
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
 
 
 class AdapterError(ValueError):
@@ -83,13 +82,13 @@ class ToolParameter:
                 ipaddress.ip_address(str_val)
                 val_token = str_val
             except ValueError:
-                raise AdapterParameterError(f"Parameter '{self.name}' must be a valid IP address, got {str_val!r}")
+                raise AdapterParameterError(f"Parameter '{self.name}' must be a valid IP address, got {str_val!r}") from None
         elif self.param_type == "cidr":
             try:
                 ipaddress.ip_network(str_val, strict=False)
                 val_token = str_val
             except ValueError:
-                raise AdapterParameterError(f"Parameter '{self.name}' must be a valid CIDR network, got {str_val!r}")
+                raise AdapterParameterError(f"Parameter '{self.name}' must be a valid CIDR network, got {str_val!r}") from None
         else:
             val_token = str_val
 

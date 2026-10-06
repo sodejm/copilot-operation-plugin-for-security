@@ -5,15 +5,14 @@ from __future__ import annotations
 import io
 import json
 from pathlib import Path
+
 import pytest
 
-from cops.contracts.lifecycle import ContractError
 from cops.contracts.models import ActionPlan, ExecutionAuthorization
 from cops.contracts.validation import validate_contract
 from cops.execution import (
     AuthorizationDeniedError,
     AuthorizationError,
-    AuthorizationRequiredError,
     LegacyReceiptDeprecationWarning,
     compute_authorization_signature,
     consume_execution_authorization,

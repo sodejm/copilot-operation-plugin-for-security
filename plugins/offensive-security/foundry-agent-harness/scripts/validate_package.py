@@ -1,3 +1,5 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 #!/usr/bin/env python3
 """Offline package gate validator for Foundry Agent Harness."""
 
@@ -14,11 +16,20 @@ if str(PLUGIN_ROOT) not in sys.path:
     sys.path.insert(0, str(PLUGIN_ROOT))
 
 from foundryharness.cli import load_scenarios
-from foundryharness.gate import IndependentAuthorizationGate
-from foundryharness.mock_sandbox import MockSandbox
+from foundryharness.gate import (
+    IndependentAuthorizationGate,
+)
+from foundryharness.mock_sandbox import (
+    MockSandbox,
+)
 from foundryharness.models import Scenario
-from foundryharness.reporting import render_json_report, render_markdown_report
-from foundryharness.simulator import evaluate_scenario
+from foundryharness.reporting import (
+    render_json_report,
+    render_markdown_report,
+)
+from foundryharness.simulator import (
+    evaluate_scenario,
+)
 
 
 def validate() -> int:
