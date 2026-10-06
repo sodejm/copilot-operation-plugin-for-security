@@ -1,3 +1,5 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 """Regression coverage for the adapted PARK validation gate."""
 
 import subprocess

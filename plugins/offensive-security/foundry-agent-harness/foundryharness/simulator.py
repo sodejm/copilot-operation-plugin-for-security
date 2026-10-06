@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import time
 from typing import Any
 
@@ -21,7 +20,6 @@ def evaluate_scenario(
     trace_id = f"trace-{scenario.scenario_id.lower()}-{int(time.time())}"
     surface = scenario.attacker_controlled_surface
     injected = scenario.injected_artifact.lower()
-    legit = scenario.legitimate_task
 
     # Determine simulated agent behavior based on scenario surface & injection
     attempted_tool: dict[str, Any] | None = None

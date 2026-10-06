@@ -76,6 +76,10 @@ make check PYTHON=.venv/bin/python
 make check-issue-coverage
 ```
 
+Python changes must also pass `ruff check .`; YAML changes must pass `yamllint -s .`, matching the hosted quality gate. Install these tools in the development environment before running them. After changing canonical skills or portable evidence sources, regenerate adapters with `make sync-agent-adapters` and the evidence bundle with `python scripts/agent/bundle_evidence.py`, then rerun validation.
+
+Security lint exceptions must describe the concrete reason at the narrowest applicable scope. Offline tests use synthetic credentials and noncryptographic seeded fuzzing; standalone scripts may set up the repository import path before imports. Public string-enum behavior is preserved rather than migrated solely to satisfy a style rule. Production authorization storage errors must propagate, and XML imports must reject entity declarations before parsing imported data.
+
 ### Issue Documentation & Test Coverage Requirements
 Every branch addressing an issue or feature must include:
 1. **Documentation**: Updated or newly created markdown files in `docs/`, `specs/`, or root guides.
@@ -161,3 +165,5 @@ For air-gapped or restricted network development environments:
    make check-prerequisites
    make check PYTHON=.venv/bin/python
    ```
+
+Workflow maintenance keeps checkout actions aligned with the current hosted runner runtime. The dependency pull requests update the remaining Python, CodeQL, and Pages actions; shell values used by issue summaries are quoted before passing them to the GitHub CLI.

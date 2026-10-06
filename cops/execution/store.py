@@ -8,16 +8,11 @@ from __future__ import annotations
 
 import os
 import sqlite3
-import sys
-from dataclasses import dataclass
-from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Sequence
 
 from cops.contracts.models import ExecutionAuthorization
 from cops.contracts.validation import validate_contract
-from cops.evidence.canonical import canonical, digest, timestamp, utc_now
-from .authorization import AuthorizationError, compute_authorization_signature
+from cops.evidence.canonical import canonical, timestamp, utc_now
 
 
 class ApprovalStoreError(ValueError):
@@ -304,7 +299,8 @@ class ApprovalStore:
                 if not committed:
                     try:
                         conn.execute("ROLLBACK")
-                    except Exception:
+                    except sqlite3.Error:
+                        # Preserve the original transaction failure if rollback also fails.
                         pass
                 raise
 

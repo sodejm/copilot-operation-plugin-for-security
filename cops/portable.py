@@ -14,7 +14,6 @@ from .mcp_validation import MCPValidationError, validate_mcp_configuration
 from .prerequisites import validate_prerequisites
 from .validation import ValidationError, _skill_frontmatter, validate_agent_plugin_manifest
 
-
 # Every new root entry must be deliberately classified before packaging.
 PORTABLE_ENTRIES = {
     "plugin.json", "mcp.json", "skills", "scripts", "docs", "examples", "LICENSE", "README.md",
@@ -22,7 +21,7 @@ PORTABLE_ENTRIES = {
     "hunts", "profiles", "schemas", "fixtures", "evaluations", "huntwb",
     "investigationwb", "attackpath", "attack_surface_planner", "entrawb", "exposuretriage",
     "foundryharness", "scenarios", "detectionquality", "rules", "proofpack", "routes",
-    "patchreview", "incident_response", "threat_intel",
+    "patchreview", "incident_response", "threat_intel", "offensive_engagement_workbench",
     "agents", "com.github.copilot", "org.cops",
 }
 SOURCE_ONLY_ENTRIES = {

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run directly from any current directory without installation."""
-from pathlib import Path
 import sys
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 

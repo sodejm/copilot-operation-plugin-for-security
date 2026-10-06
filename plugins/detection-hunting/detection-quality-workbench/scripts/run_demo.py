@@ -1,3 +1,5 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 #!/usr/bin/env python3
 """Deterministic demo runner for Detection Quality Workbench."""
 
@@ -13,9 +15,16 @@ REPO_ROOT = PLUGIN_ROOT.parent.parent
 if str(PLUGIN_ROOT) not in sys.path:
     sys.path.insert(0, str(PLUGIN_ROOT))
 
-from detectionquality.evaluator import evaluate_rule_suite
-from detectionquality.models import FixtureSuite, Rule
-from detectionquality.reporting import render_markdown_report
+from detectionquality.evaluator import (
+    evaluate_rule_suite,
+)
+from detectionquality.models import (
+    FixtureSuite,
+    Rule,
+)
+from detectionquality.reporting import (
+    render_markdown_report,
+)
 
 
 def main() -> int:

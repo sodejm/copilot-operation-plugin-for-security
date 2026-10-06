@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import argparse
-from collections import Counter, defaultdict
-from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 import math
 import os
-from pathlib import Path
 import sys
+from collections import Counter, defaultdict
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import codex_token_usage as tokens
 from churn_git import CATEGORIES, Classifier, contract_evidence, git, history, inventory
@@ -121,7 +121,7 @@ def classify_edits(tasks, repos, config):
             rid = edit["repo_id"]
             ref = task["git_metadata"].get("commit_hash")
             if rid:
-                repo = next(r for r in repos if r["id"] == rid)
+                next(r for r in repos if r["id"] == rid)
                 ref = ref if isinstance(ref, str) and len(ref) in (40, 64) and all(c in "0123456789abcdef" for c in ref.lower()) else "HEAD"
                 groups[(rid, ref)].append(edit)
             else:
@@ -151,7 +151,7 @@ def opportunities(tasks, repos, config):
     candidates.sort(key=lambda c: (c[0], c[1], (c[3] or {}).get("associated_usage", {}).get("observed_tokens", {}).get("uncached_input_tokens") or 0,
                                    c[2]["id"], (c[4] or c[5])["path"]), reverse=True)
     result, seen = [], set()
-    for strength, _, repo, task, hotspot, reversal in candidates:
+    for _strength, _, repo, task, hotspot, reversal in candidates:
         path = (hotspot or reversal)["path"]
         key = (repo["id"], path)
         if key in seen:
@@ -451,7 +451,7 @@ def save_reports(report, output_dir):
                 handle.write(body)
         except FileExistsError:
             if path.read_text() != body:
-                raise ValueError("existing report differs; refusing overwrite")
+                raise ValueError("existing report differs; refusing overwrite") from None
         result[suffix] = str(path)
     return result
 
@@ -478,7 +478,7 @@ def main(argv=None):
             raise ValueError("--days must be positive and finite")
         if bool(args.start) != bool(args.end) or (args.start and args.days is not None):
             raise ValueError("use --start and --end together, or --days")
-        end = tokens.parse_timestamp(args.end) if args.end else datetime.now(timezone.utc)
+        end = tokens.parse_timestamp(args.end) if args.end else datetime.now(UTC)
         start = tokens.parse_timestamp(args.start) if args.start else end - timedelta(days=args.days or 7)
         if end <= start:
             raise ValueError("end must be after start")

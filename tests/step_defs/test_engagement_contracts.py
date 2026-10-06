@@ -4,15 +4,12 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+
 import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
 
 from cops.contracts import (
-    ActionPlan,
     ContractError,
-    Engagement,
-    Finding,
-    RunResult,
     evaluate_run_result,
     validate_contract,
     validate_transition,

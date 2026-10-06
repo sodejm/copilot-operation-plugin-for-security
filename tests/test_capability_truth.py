@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import json
 from pathlib import Path
+
 import pytest
 
 from cops.capabilities import (
@@ -26,12 +27,12 @@ def test_build_and_audit_clean_pass():
     """Verify clean pass of capability building and auditing."""
     reg = build_capability_registry(ROOT)
     assert reg["schema_version"] == "cops.capabilities/v1"
-    assert len(reg["capabilities"]) == 63
+    assert len(reg["capabilities"]) == 69
 
     summary = audit_capabilities(ROOT, registry_data=reg)
     assert summary["status"] == "valid"
-    assert summary["total_capabilities"] == 63
-    assert summary["by_kind"] == {"plugin": 13, "specialist": 18, "scenario": 32}
+    assert summary["total_capabilities"] == 69
+    assert summary["by_kind"] == {"plugin": 14, "specialist": 18, "scenario": 37}
     assert summary["by_mode"]["live-validated"] == 0
 
 
@@ -73,7 +74,7 @@ def test_capability_cli_commands(capsys):
     """Verify CLI capabilities commands."""
     assert command_capabilities_list(root=ROOT) == 0
     captured = capsys.readouterr().out
-    assert "Reconciled Capabilities (63)" in captured
+    assert "Reconciled Capabilities (69)" in captured
     assert "security-logging-advisor" in captured
 
     assert command_capabilities_list(mode="laboratory", as_json=True, root=ROOT) == 0

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "offensive-engagement-workbench",
+  "version": "0.1.0",
+  "description": "Authorized adversary engagement intake, scope validation, and execution planning.",
+  "author": {"name": "Justin Soderberg", "url": "https://github.com/sodejm"},
+  "repository": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "keywords": ["cybersecurity", "offensive-security", "engagement", "scope-validation", "action-planning", "rules-of-engagement"],
+  "extensions": {
+    "com.openai": {"displayName": "COPS Offensive Engagement Workbench", "category": "Developer Tools"},
+    "org.cops": {}
+  }
+}

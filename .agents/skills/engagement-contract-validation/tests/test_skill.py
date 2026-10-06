@@ -1,11 +1,10 @@
 """Tests for engagement-contract-validation skill."""
 
-from pathlib import Path
 import unittest
+from pathlib import Path
 
 from cops.contracts import (
     ContractError,
-    validate_contract,
     validate_transition,
 )
 

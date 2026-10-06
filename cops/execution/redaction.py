@@ -7,8 +7,7 @@ and known engagement credentials are redacted from outputs and logs.
 from __future__ import annotations
 
 import re
-from typing import Sequence
-
+from collections.abc import Sequence
 
 # Common credential and token regex patterns
 DEFAULT_SENSITIVE_PATTERNS: list[tuple[str, re.Pattern[str]]] = [

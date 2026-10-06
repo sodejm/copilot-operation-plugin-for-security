@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+
 import pytest
 
 from cops.contracts import (
@@ -12,12 +13,10 @@ from cops.contracts import (
     Engagement,
     Finding,
     RunResult,
-    Scenario,
     build_action_plan_digest,
     evaluate_run_result,
     validate_contract,
     validate_identifier,
-    validate_transition,
 )
 
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "cops" / "contracts" / "fixtures"

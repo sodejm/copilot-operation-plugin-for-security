@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0",
+  "id": "offensive-engagement-workbench",
+  "display_name": "COPS Offensive Engagement Workbench",
+  "maturity": "experimental",
+  "summary": "Authorized adversary engagement intake, scope boundary validation, and immutable execution planning.",
+  "support": {
+    "structural_validation": "validated",
+    "offline_workflow": "validated",
+    "host_installation": "unverified",
+    "live_integration": "unverified"
+  },
+  "limitations": [
+    "Operator authorization and rules of engagement envelope are required before executing plans.",
+    "Only non-destructive, bounded assessment actions are modeled.",
+    "Active live execution is refused when assessment window, emergency contact, or budget limits are incomplete.",
+    "Network egress is prohibited outside explicitly approved live execution scopes."
+  ],
+  "demo": {
+    "description": "Demonstrate bounded engagement validation and reviewable action plan compilation without network requests.",
+    "command": ["$PYTHON", "plugins/offensive-security/offensive-engagement-workbench/scripts/demo.py"],
+    "timeout_seconds": 30
+  },
+  "validation": [{
+    "name": "offline package gate",
+    "command": ["$PYTHON", "plugins/offensive-security/offensive-engagement-workbench/scripts/validate-package.py"],
+    "timeout_seconds": 120
+  }]
+}

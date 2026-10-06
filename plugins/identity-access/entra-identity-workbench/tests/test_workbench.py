@@ -1,7 +1,8 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 """Comprehensive unit tests for the Entra Identity Workbench."""
 
 import json
-import subprocess
 import sys
 from pathlib import Path
 
@@ -13,11 +14,21 @@ REPO_ROOT = PLUGIN_ROOT.parent.parent
 if str(PLUGIN_ROOT) not in sys.path:
     sys.path.insert(0, str(PLUGIN_ROOT))
 
-from entrawb.analysis import analyze_identity_graph
-from entrawb.graph import build_identity_graph
-from entrawb.ingestion import ingest_tenant_export
-from entrawb.models import EntraError, IdentityGraph, IdentityNode, IdentityEdge
-from entrawb.reporting import render_json_report, render_markdown_report
+from entrawb.analysis import (
+    analyze_identity_graph,
+)
+from entrawb.graph import (
+    build_identity_graph,
+)
+from entrawb.ingestion import (
+    ingest_tenant_export,
+)
+from entrawb.models import (
+    EntraError,
+    IdentityEdge,
+    IdentityGraph,
+    IdentityNode,
+)
 
 
 @pytest.fixture

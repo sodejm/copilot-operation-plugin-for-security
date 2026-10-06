@@ -1,6 +1,7 @@
 """Ephemeral transport values are deliberately excluded from representations."""
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Iterable, Protocol
+from typing import Protocol
 
 
 @dataclass(frozen=True)

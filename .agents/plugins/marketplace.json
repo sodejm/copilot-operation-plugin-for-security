@@ -156,6 +156,18 @@
         "authentication": "ON_INSTALL"
       },
       "category": "Developer Tools"
+    },
+    {
+      "name": "offensive-engagement-workbench",
+      "source": {
+        "source": "local",
+        "path": "./plugins/offensive-security/offensive-engagement-workbench"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
     }
   ]
 }

@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+
 import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
 
-from cops.contracts.models import ActionPlan, ExecutionAuthorization
+from cops.contracts.models import ActionPlan
 from cops.execution import (
     AuthorizationError,
     LegacyReceiptDeprecationWarning,
