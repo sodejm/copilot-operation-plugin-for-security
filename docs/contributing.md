@@ -165,3 +165,5 @@ For air-gapped or restricted network development environments:
    make check-prerequisites
    make check PYTHON=.venv/bin/python
    ```
+
+Workflow maintenance keeps checkout actions aligned with the current hosted runner runtime. The dependency pull requests update the remaining Python, CodeQL, and Pages actions; shell values used by issue summaries are quoted before passing them to the GitHub CLI.
