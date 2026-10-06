@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import unittest
+from pathlib import Path
 
 from cops.contracts.models import ActionPlan
 from cops.execution import (
+    consume_execution_authorization,
     create_execution_authorization,
     verify_execution_authorization,
-    consume_execution_authorization,
 )
 
 

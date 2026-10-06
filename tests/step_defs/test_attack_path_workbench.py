@@ -5,22 +5,26 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import pytest
 from pytest_bdd import given, scenarios, then, when
-
 
 ROOT = Path(__file__).resolve().parents[2]
 PLUGIN = ROOT / "plugins/detection-hunting/attack-path-workbench"
 FIXTURE = PLUGIN / "fixtures/illustrative"
 sys.path.insert(0, str(PLUGIN))
 from attackpath.core import (  # noqa: E402
-    GateError, analyze, audit_report, canonical, collect_reviews, file_hash,
-    query_intent, validate_input,
+    GateError,
+    analyze,
+    audit_report,
+    canonical,
+    collect_reviews,
+    file_hash,
+    query_intent,
+    validate_input,
 )
-
 
 scenarios("../../specs/features/attack_path_workbench.feature")
 

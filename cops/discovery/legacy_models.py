@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
-from enum import Enum
 import hashlib
 import json
+from dataclasses import asdict, dataclass, field
+from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from cops.evidence.canonical import canonical, utc_now
+from cops.evidence.canonical import utc_now
+
 from .models import EvidenceProvenance
 
 
@@ -67,7 +68,7 @@ class LegacyAuthPrerequisite(str, Enum):
     SHARED_KEY = "shared_key"
     PSK = "psk"
     MSCHAPV2 = "mschapv2"
-    USER_PASSWORD = "user_password"
+    USER_PASSWORD = "user_password"  # noqa: S105 - schema label or operation identifier, not a credential
     ACL_RESTRICTED = "acl_restricted"
     UNKNOWN = "unknown"
 
@@ -116,7 +117,7 @@ class LegacyPrivilegeCandidate:
 
     def __post_init__(self) -> None:
         if not self.evidence_hash:
-            canonical_blob = f"{self.service_type}:{self.target_host}:{self.port}:{self.finding_type}:{self.auth_prerequisites}:{self.privilege_impact}:{self.execution_effect}".encode("utf-8")
+            canonical_blob = f"{self.service_type}:{self.target_host}:{self.port}:{self.finding_type}:{self.auth_prerequisites}:{self.privilege_impact}:{self.execution_effect}".encode()
             self.evidence_hash = hashlib.sha256(canonical_blob).hexdigest()
         if not self.remediation_guidance:
             self.remediation_guidance = self._default_remediation()
@@ -179,7 +180,7 @@ class CleanupReceipt:
 
     def __post_init__(self) -> None:
         if not self.receipt_hash:
-            canonical_blob = f"{self.receipt_id}:{self.target_host}:{self.service_type}:{self.artifact_identifier}:{self.action_taken}".encode("utf-8")
+            canonical_blob = f"{self.receipt_id}:{self.target_host}:{self.service_type}:{self.artifact_identifier}:{self.action_taken}".encode()
             self.receipt_hash = hashlib.sha256(canonical_blob).hexdigest()
 
     def to_dict(self) -> dict[str, Any]:

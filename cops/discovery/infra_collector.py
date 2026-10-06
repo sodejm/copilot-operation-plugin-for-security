@@ -2,17 +2,12 @@
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 import hashlib
-import ipaddress
-import json
-from pathlib import Path
 import re
 import socket
-import time
+from abc import ABC, abstractmethod
 from typing import Any
 
-from cops.evidence.canonical import utc_now
 from .infra_models import (
     AuthPrerequisite,
     IdentityAttackPathCandidate,
@@ -22,7 +17,6 @@ from .infra_models import (
     InfraServiceType,
     ServiceExposureStatus,
 )
-from .models import EvidenceProvenance
 
 
 class InfraCollector(ABC):
@@ -250,7 +244,7 @@ class OfflineSyntheticInfraCollector(InfraCollector):
                 domain = details.get("defaultNamingContext") or (
                     details.get("naming_contexts", ["DC=corp,DC=internal"])[0]
                 )
-                candidate_id = hashlib.sha256(f"ldap:{target_host}:{port}:{domain}".encode("utf-8")).hexdigest()[:16]
+                candidate_id = hashlib.sha256(f"ldap:{target_host}:{port}:{domain}".encode()).hexdigest()[:16]
                 candidates.append(
                     IdentityAttackPathCandidate(
                         candidate_id=f"cand-{candidate_id}",
@@ -278,7 +272,7 @@ class OfflineSyntheticInfraCollector(InfraCollector):
                 vulns.append("Kerberos pre-authentication disabled for one or more accounts")
                 for acc in (preauth_disabled or ["vulnerable_account"]):
                     principal = f"{acc}@{realm}" if "@" not in acc else acc
-                    candidate_id = hashlib.sha256(f"krb:{target_host}:{port}:{principal}".encode("utf-8")).hexdigest()[:16]
+                    candidate_id = hashlib.sha256(f"krb:{target_host}:{port}:{principal}".encode()).hexdigest()[:16]
                     candidates.append(
                         IdentityAttackPathCandidate(
                             candidate_id=f"cand-{candidate_id}",
@@ -305,7 +299,7 @@ class OfflineSyntheticInfraCollector(InfraCollector):
                 status = ServiceExposureStatus.EXPOSED.value
                 auth_prereq = AuthPrerequisite.NONE.value
                 vulns.append(f"RPC Endpoint Mapper discloses {len(interfaces)} registered interfaces without authentication")
-                candidate_id = hashlib.sha256(f"rpc:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                candidate_id = hashlib.sha256(f"rpc:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     IdentityAttackPathCandidate(
                         candidate_id=f"cand-{candidate_id}",
@@ -329,7 +323,7 @@ class OfflineSyntheticInfraCollector(InfraCollector):
                 status = ServiceExposureStatus.EXPOSED.value
                 auth_prereq = AuthPrerequisite.DEFAULT_CREDENTIALS.value
                 vulns.append(f"SNMP agent accessible via default community strings: {', '.join(default_comm)}")
-                candidate_id = hashlib.sha256(f"snmp:{target_host}:{port}:{default_comm[0]}".encode("utf-8")).hexdigest()[:16]
+                candidate_id = hashlib.sha256(f"snmp:{target_host}:{port}:{default_comm[0]}".encode()).hexdigest()[:16]
                 candidates.append(
                     IdentityAttackPathCandidate(
                         candidate_id=f"cand-{candidate_id}",
@@ -352,7 +346,7 @@ class OfflineSyntheticInfraCollector(InfraCollector):
                 status = ServiceExposureStatus.MISCONFIGURED.value
                 auth_prereq = AuthPrerequisite.NONE.value
                 vulns.append("DNS resolver permits open recursion from external vantage")
-                candidate_id = hashlib.sha256(f"dns:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                candidate_id = hashlib.sha256(f"dns:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     IdentityAttackPathCandidate(
                         candidate_id=f"cand-{candidate_id}",
@@ -371,7 +365,7 @@ class OfflineSyntheticInfraCollector(InfraCollector):
                 status = ServiceExposureStatus.MISCONFIGURED.value
                 auth_prereq = AuthPrerequisite.NONE.value
                 vulns.append("NTP daemon responds to Mode 6 / monlist enumeration queries")
-                candidate_id = hashlib.sha256(f"ntp:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                candidate_id = hashlib.sha256(f"ntp:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     IdentityAttackPathCandidate(
                         candidate_id=f"cand-{candidate_id}",
@@ -441,7 +435,7 @@ class StandardSocketInfraCollector(InfraCollector):
                     configuration_details={"socket_connected": True},
                     uncertainty_notes=["Service reachable via TCP; protocol-specific authentication check requires credentials"],
                 )
-        except (socket.timeout, ConnectionRefusedError, OSError) as err:
+        except (TimeoutError, ConnectionRefusedError, OSError) as err:
             return InfraServiceAssessment(
                 target_host=target_host,
                 resolved_ip=resolved_ip,
@@ -497,7 +491,7 @@ def assess_infrastructure_services(
         "attack_path_candidates": 0,
     }
 
-    report_id = hashlib.sha256(f"{scope_ref}:{sorted(targets)}:{sorted(selected_services)}:{vantage}".encode("utf-8")).hexdigest()[:16]
+    report_id = hashlib.sha256(f"{scope_ref}:{sorted(targets)}:{sorted(selected_services)}:{vantage}".encode()).hexdigest()[:16]
 
     for target in targets:
         try:

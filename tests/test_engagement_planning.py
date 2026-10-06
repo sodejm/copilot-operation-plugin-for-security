@@ -6,12 +6,11 @@ import argparse
 import copy
 import io
 import json
-from pathlib import Path
 import sys
 import unittest
 
 from cops.catalog import ROOT
-from cops.contracts.models import ActionPlan, Engagement
+from cops.contracts.models import Engagement
 from cops.contracts.validation import validate_contract
 from cops.engagement import (
     EngagementIntakeError,

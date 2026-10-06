@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import json
 from pathlib import Path
 from typing import Any
@@ -11,7 +10,6 @@ from cops.evidence.canonical import EvidenceError, canonical, utc_now
 from cops.evidence.validation import _check
 
 from .models import CapabilityEntry, CapabilityTruthError
-
 
 ROOT: Path = Path(__file__).resolve().parents[2]
 

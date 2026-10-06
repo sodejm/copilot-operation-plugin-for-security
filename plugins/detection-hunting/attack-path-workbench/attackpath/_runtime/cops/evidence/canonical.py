@@ -1,9 +1,9 @@
 """Bounded canonical JSON; error messages never include untrusted values."""
-from datetime import datetime, timezone
 import hashlib
 import json
 import math
 import re
+from datetime import UTC, datetime
 
 
 class EvidenceError(ValueError):
@@ -24,7 +24,7 @@ def timestamp(value):
 
 
 def utc_now():
-    return datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
 def canonical(value, *, max_bytes=1024 * 1024, max_depth=32):

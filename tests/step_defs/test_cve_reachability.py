@@ -2,14 +2,14 @@
 import copy
 import importlib.util
 import json
-from pathlib import Path
 import re
 import stat
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
-from pytest_bdd import given, when, then, scenarios, parsers
+from pytest_bdd import given, parsers, scenarios, then, when
 
 ROOT = Path(__file__).resolve().parents[2]
 PACKAGE = ROOT / 'plugins/logging-telemetry/security-logging-advisor'

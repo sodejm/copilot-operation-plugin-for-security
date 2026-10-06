@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import unittest
 
 from cops.catalog import ROOT
 from cops.engagement import (
     build_action_plan,
     create_engagement_contract,
-    validate_engagement_intake,
 )
 
 

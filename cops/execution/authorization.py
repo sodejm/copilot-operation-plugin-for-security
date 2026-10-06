@@ -7,20 +7,19 @@ approval envelopes bound to immutable cops.action-plan/v1 action plans.
 from __future__ import annotations
 
 import getpass
-import hashlib
 import json
 import os
 import sys
 import uuid
 import warnings
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
-from typing import Any, Callable, Sequence
+from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from cops.contracts.lifecycle import ContractError
 from cops.contracts.models import ActionPlan, ExecutionAuthorization
 from cops.contracts.validation import validate_contract
-from cops.evidence.canonical import canonical, digest, timestamp, utc_now
+from cops.evidence.canonical import digest, timestamp, utc_now
 
 
 class AuthorizationError(ValueError):
@@ -85,7 +84,7 @@ def create_execution_authorization(
             f"cannot authorize action plan '{action_plan_model.plan_id}' with terminal status '{action_plan_model.status}'"
         )
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     issued_at = now.isoformat(timespec="seconds").replace("+00:00", "Z")
     authorized_until_utc = (now + timedelta(hours=valid_hours)).isoformat(timespec="seconds").replace("+00:00", "Z")
 
@@ -241,7 +240,7 @@ def verify_execution_authorization(
         )
 
     # Verify expiration
-    now_dt = timestamp(current_time_iso) if current_time_iso else datetime.now(timezone.utc)
+    now_dt = timestamp(current_time_iso) if current_time_iso else datetime.now(UTC)
     auth_expiry = timestamp(auth_model.authorized_until_utc)
     if now_dt > auth_expiry:
         raise AuthorizationError(

@@ -5,14 +5,13 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import Any
 
 from .active_models import (
     ActiveScanSession,
     ScanBudget,
-    ScanVantage,
 )
 from .active_scanner import (
     ActiveScanner,
@@ -20,18 +19,48 @@ from .active_scanner import (
     StandardSocketDispatcher,
     compare_active_scans,
 )
+from .data_collector import (
+    OfflineSyntheticDataCollector,
+    StandardSocketDataCollector,
+    assess_data_services,
+)
+from .data_models import (
+    DataServicesReport,
+)
+from .developer_collector import (
+    OfflineSyntheticDeveloperCollector,
+    StandardSocketDeveloperCollector,
+    assess_developer_services,
+)
+from .developer_models import (
+    DeveloperServicesReport,
+)
 from .importer import import_masscan_json, import_nmap_xml
 from .infra_collector import (
-    DEFAULT_INFRA_PORTS,
     OfflineSyntheticInfraCollector,
     StandardSocketInfraCollector,
     assess_infrastructure_services,
 )
 from .infra_models import (
     InfraAssessmentReport,
-    ServiceExposureStatus,
+)
+from .legacy_collector import (
+    OfflineSyntheticLegacyCollector,
+    StandardSocketLegacyCollector,
+    assess_legacy_services,
+)
+from .legacy_models import (
+    LegacyServicesReport,
 )
 from .merger import merge_inventories
+from .messaging_collector import (
+    OfflineSyntheticMessagingCollector,
+    StandardSocketMessagingCollector,
+    assess_messaging_services,
+)
+from .messaging_models import (
+    MessagingServicesReport,
+)
 from .models import DiscoveredAsset, DiscoveryInventory, EvidenceProvenance
 from .normalizers import (
     normalize_certificate_record,
@@ -42,59 +71,12 @@ from .normalizers import (
 )
 from .reconciler import reconcile_inventory
 from .remote_collector import (
-    DEFAULT_REMOTE_PORTS,
     OfflineSyntheticRemoteCollector,
     StandardSocketRemoteCollector,
     assess_remote_services,
 )
 from .remote_models import (
     RemoteServicesReport,
-    RemoteExposureStatus,
-    RemoteServiceCategory,
-)
-from .data_collector import (
-    DEFAULT_DATA_PORTS,
-    OfflineSyntheticDataCollector,
-    StandardSocketDataCollector,
-    assess_data_services,
-)
-from .data_models import (
-    DataServicesReport,
-    DataExposureStatus,
-    DataServiceCategory,
-)
-from .messaging_collector import (
-    DEFAULT_MESSAGING_PORTS,
-    OfflineSyntheticMessagingCollector,
-    StandardSocketMessagingCollector,
-    assess_messaging_services,
-)
-from .messaging_models import (
-    MessagingServicesReport,
-    MessagingExposureStatus,
-    MessagingCategory,
-)
-from .developer_collector import (
-    DEFAULT_DEVELOPER_PORTS,
-    OfflineSyntheticDeveloperCollector,
-    StandardSocketDeveloperCollector,
-    assess_developer_services,
-)
-from .developer_models import (
-    DeveloperServicesReport,
-    DeveloperExposureStatus,
-    DeveloperCategory,
-)
-from .legacy_collector import (
-    DEFAULT_LEGACY_PORTS,
-    OfflineSyntheticLegacyCollector,
-    StandardSocketLegacyCollector,
-    assess_legacy_services,
-)
-from .legacy_models import (
-    LegacyServicesReport,
-    LegacyExposureStatus,
-    LegacyCategory,
 )
 
 ROOT: Path = Path(__file__).resolve().parents[2]
@@ -423,7 +405,7 @@ def command_active_discovery(args: argparse.Namespace, root: Path | None = None)
             max_total_seconds=args.max_total_seconds,
             rate_limit_pps=args.rate_limit,
         )
-        h = hashlib.sha256(f"{args.scope_ref}:{sorted(targets)}:{sorted(ports)}".encode("utf-8")).hexdigest()[:16]
+        h = hashlib.sha256(f"{args.scope_ref}:{sorted(targets)}:{sorted(ports)}".encode()).hexdigest()[:16]
         session = ActiveScanSession(
             session_id=f"active-{h}",
             scope_reference=args.scope_ref,

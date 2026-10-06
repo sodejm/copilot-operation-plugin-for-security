@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import tempfile
-from pathlib import Path
 import unittest
+from pathlib import Path
 
 from cops.execution.store import ApprovalStore
 from cops.laboratory import (

@@ -1,3 +1,5 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 """Unit, contract, and CLI tests for remote administration, file sharing, and printing services assessment."""
 
 from __future__ import annotations
@@ -5,18 +7,18 @@ from __future__ import annotations
 import argparse
 import io
 import json
-from pathlib import Path
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from cops.discovery import (
-    CleanupReceipt,
     DEFAULT_REMOTE_PORTS,
+    CleanupReceipt,
     HostPrivilegeCandidate,
     LateralMovementImpact,
     OfflineSyntheticRemoteCollector,
@@ -24,13 +26,14 @@ from cops.discovery import (
     RemoteExposureStatus,
     RemoteServiceAssessment,
     RemoteServiceCategory,
-    RemoteServicesCollector,
     RemoteServicesReport,
     RemoteServiceType,
     StandardSocketRemoteCollector,
     assess_remote_services,
 )
-from cops.discovery.cli import command_remote_discovery
+from cops.discovery.cli import (
+    command_remote_discovery,
+)
 
 
 class TestRemoteModelsAndSerialization(unittest.TestCase):

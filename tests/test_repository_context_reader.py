@@ -7,15 +7,25 @@ import socket
 import subprocess
 import sys
 import tempfile
-
-import pytest
 from pathlib import Path
 
+import pytest
 
 SCRIPT = Path(__file__).resolve().parents[1] / "plugins/logging-telemetry/security-logging-advisor/skills/repository-context/scripts/collect-repository-context.py"
 spec = importlib.util.spec_from_file_location("repository_context_scanner", SCRIPT)
 scanner = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(scanner)
+
+
+@pytest.mark.parametrize("schema_url,expected", [
+    ("https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#", True),
+    ("https://schema.management.azure.com.evil.example/template.json", False),
+    ("https://evil.example/schema.management.azure.com/template.json", False),
+])
+def test_arm_classification_requires_schema_hostname(tmp_path, schema_url, expected):
+    (tmp_path / "template.json").write_text(json.dumps({"$schema": schema_url}))
+    result = scanner.scan_repository(tmp_path)
+    assert ("Azure ARM Template" in result["iac_and_cloud"]) is expected
 
 
 def test_replaced_file_is_not_read_after_discovery(tmp_path, monkeypatch):
@@ -188,6 +198,30 @@ def test_ordinary_findings_and_universal_newlines_are_preserved(tmp_path):
     assert "Node.js Auth: passport" in result["identity_and_auth"]
     assert result["secrets_findings"][0]["line"] == 4
     assert value not in json.dumps(result)
+
+
+def test_arm_template_detection_uses_the_declared_schema_host(tmp_path):
+    template = tmp_path / "template.json"
+    template.write_text(json.dumps({
+        "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+        "description": "A synthetic ARM template",
+    }))
+
+    result = scanner.scan_repository(tmp_path)
+
+    assert "Azure ARM Template" in result["iac_and_cloud"]
+
+
+def test_arm_template_detection_rejects_schema_host_substrings(tmp_path):
+    template = tmp_path / "template.json"
+    template.write_text(json.dumps({
+        "$schema": "https://schema.management.azure.com.attacker.example/schemas/template.json",
+        "description": "schema.management.azure.com",
+    }))
+
+    result = scanner.scan_repository(tmp_path)
+
+    assert "Azure ARM Template" not in result["iac_and_cloud"]
 
 
 @pytest.mark.skipif(os.name == "nt", reason="POSIX sockets")

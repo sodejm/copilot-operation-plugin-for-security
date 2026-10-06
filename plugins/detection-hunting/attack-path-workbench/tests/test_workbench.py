@@ -5,7 +5,6 @@ from __future__ import annotations
 import copy
 import json
 import os
-from pathlib import Path
 import stat
 import subprocess
 import sys
@@ -13,12 +12,21 @@ import tempfile
 import time
 import tracemalloc
 import unittest
+from pathlib import Path
 
-from attackpath.core import (GateError, analyze, audit_report, canonical,
-                             file_hash, load_json, query_intent, rank_paths,
-                             trace_paths, validate_input)
+from attackpath.core import (
+    GateError,
+    analyze,
+    audit_report,
+    canonical,
+    file_hash,
+    load_json,
+    query_intent,
+    rank_paths,
+    trace_paths,
+    validate_input,
+)
 from attackpath.search import SearchLimits
-
 
 FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "illustrative"
 

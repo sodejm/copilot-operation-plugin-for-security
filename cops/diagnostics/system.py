@@ -9,7 +9,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from cops.laboratory.matrix import TestedMatrix, parse_version_tuple, version_ge
+from cops.laboratory.matrix import TestedMatrix, version_ge
 
 from .models import DiagnosticCheck, SystemDiagnostic, ToolDiagnostic
 
@@ -74,7 +74,7 @@ def detect_system_platform(matrix: TestedMatrix | None = None) -> SystemDiagnost
         is_supported = False
 
     # Python version check (>= 3.11)
-    if sys.version_info >= (3, 11):
+    if sys.version_info >= (3, 11):  # noqa: UP036 - diagnose unsupported Python runtimes
         checks.append(DiagnosticCheck("python_runtime", "passed", f"Python {py_ver} meets >= 3.11 requirement"))
     else:
         checks.append(DiagnosticCheck("python_runtime", "failed", f"Python {py_ver} is older than required 3.11"))

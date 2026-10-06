@@ -1,22 +1,29 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 """Executable acceptance scenarios for the catalog-driven operator workflow."""
 
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 from pytest_bdd import given, scenarios, then, when
 
-
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from cops.catalog import CatalogError, plugin_records, validate_declared_command
-from cops.validation import ValidationError, generate_marketplaces
-
+from cops.catalog import (
+    CatalogError,
+    plugin_records,
+    validate_declared_command,
+)
+from cops.validation import (
+    ValidationError,
+    generate_marketplaces,
+)
 
 scenarios("../../specs/features/portable_operator_workflow.feature")
 

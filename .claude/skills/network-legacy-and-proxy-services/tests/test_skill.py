@@ -1,13 +1,15 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 """Tests for network-legacy-and-proxy-services contributor skill."""
 
 from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
 if str(ROOT) not in sys.path:
@@ -21,13 +23,14 @@ from cops.discovery import (
     LegacyExposureStatus,
     LegacyPrivilegeCandidate,
     LegacyPrivilegeImpact,
-    LegacyServiceAssessment,
     LegacyServicesReport,
     LegacyServiceType,
     OfflineSyntheticLegacyCollector,
     assess_legacy_services,
 )
-from cops.discovery.cli import command_legacy_discovery
+from cops.discovery.cli import (
+    command_legacy_discovery,
+)
 
 
 class TestNetworkLegacyAndProxyServicesSkill(unittest.TestCase):

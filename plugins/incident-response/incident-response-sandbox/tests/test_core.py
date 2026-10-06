@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 import unittest
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -21,7 +21,7 @@ def fixture() -> dict:
 
 def plan() -> dict:
     return build_plan(action="isolate-host", tenant="example-tenant", target="host-1",
-                      expires_at=(datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
+                      expires_at=(datetime.now(UTC) + timedelta(hours=1)).isoformat(),
                       nonce="unique-1", approver_assertion="analyst-1")
 
 

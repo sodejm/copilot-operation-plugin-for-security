@@ -1,16 +1,29 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 """Executable acceptance scenarios for the offline Azure profile."""
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
+
 import pytest
-from pytest_bdd import given, when, then, scenarios
+from pytest_bdd import given, scenarios, then, when
 
 ROOT = Path(__file__).resolve().parents[2]
 PLUGIN = ROOT / "plugins/detection-hunting/attack-path-workbench"
 sys.path.insert(0, str(PLUGIN))
 sys.path.insert(0, str(PLUGIN / "tests"))
 from azure_fixtures import write_bundle
-from test_azure_paths import base, role, execution, deployment, T, S, NOW, SECRET, VAULT
+from test_azure_paths import (
+    NOW,
+    SECRET,
+    VAULT,
+    S,
+    T,
+    base,
+    deployment,
+    execution,
+    role,
+)
 from test_azure_sdk_cli import run_cli
 
 scenarios("../../specs/features/azure_entitlements.feature")
