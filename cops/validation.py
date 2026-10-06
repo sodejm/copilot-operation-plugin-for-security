@@ -10,7 +10,6 @@ from typing import Any
 from .catalog import CatalogError, PluginRecord, load_json, plugin_records, validate_declared_command
 from .prerequisites import validate_prerequisites
 
-
 ROOT = Path(__file__).resolve().parents[1]
 AGENT_PLUGIN_SCHEMA = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
 AGENT_PLUGIN_KEYS = {

@@ -1,0 +1,43 @@
+{
+  "schema_version": "cops.engagement/v1",
+  "engagement_id": "eng-synthetic-e03",
+  "name": "Synthetic Kubernetes and Network Assessment",
+  "status": "planned",
+  "mode": "planning",
+  "scope": {
+    "included_targets": [
+      "10.100.0.10",
+      "k8s-api.internal"
+    ],
+    "excluded_targets": [
+      "10.100.0.1",
+      "prod-db.internal"
+    ]
+  },
+  "window": {
+    "started_at": "2026-10-05T00:00:00Z",
+    "authorized_until_utc": "2026-10-05T23:59:59Z"
+  },
+  "operator": "cops-secops-lead",
+  "rules_of_engagement": {
+    "max_intensity": "low",
+    "allowed_actions": [
+      "reconnaissance",
+      "discovery",
+      "configuration_audit"
+    ],
+    "emergency_contact": "soc-emergency@internal.corp",
+    "safe_mode": true
+  },
+  "budget": {
+    "max_duration_seconds": 1800,
+    "max_output_bytes": 5242880
+  },
+  "credential_references": [
+    "k8s-ro-serviceaccount-token"
+  ],
+  "created_at": "2026-10-05T00:00:00Z",
+  "metadata": {
+    "purpose": "E03.01 intake and planning verification"
+  }
+}

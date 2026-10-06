@@ -1,7 +1,8 @@
 """Conservative Azure RBAC decisions; exclusions apply within each role."""
 import re
-from .model import Decision, arm
+
 from .identity import find, membership, temporal
+from .model import Decision, arm
 
 # Resource Manager deployment clients require the complete deployment operation bundle.
 DEPLOYMENT_OPERATIONS = tuple("Microsoft.Resources/deployments/" + action for action in (
@@ -118,7 +119,7 @@ def evaluate(graph, tenant, principal, action, scope, *, plane="control", contex
         valid = temporal(graph, row, scenario)
         if valid.state == "denied":
             continue
-        definition = find(graph, "role_definitions", tenant, lambda r: arm(r.data["id"]) == arm(p["roleDefinitionId"]))
+        definition = find(graph, "role_definitions", tenant, lambda r, p=p: arm(r.data["id"]) == arm(p["roleDefinitionId"]))
         refs, cuts = principals[p["principalId"].lower()]
         if definition is None:
             unknown += row.evidence

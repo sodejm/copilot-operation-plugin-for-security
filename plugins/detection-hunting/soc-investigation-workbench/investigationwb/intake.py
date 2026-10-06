@@ -8,15 +8,15 @@ and emits a validated case snapshot.
 from __future__ import annotations
 
 import csv
-from datetime import datetime, timedelta, timezone
-from hashlib import sha256
 import io
 import json
-from pathlib import Path
 import re
+from datetime import UTC, datetime, timedelta, timezone
+from hashlib import sha256
+from pathlib import Path
 from typing import Any
 
-from .engine import ContractError, Document, alias, digest, fields, prose, require, utc, validate
+from .engine import ContractError, Document, alias, require, utc, validate
 from .files import read_regular
 
 ID_PATTERN = re.compile(r"[a-z][a-z0-9_-]{0,63}\Z")
@@ -60,7 +60,7 @@ def parse_timestamp(value: Any) -> str:
         # Try unix epoch in seconds
         try:
             epoch = float(cleaned)
-            dt = datetime.fromtimestamp(epoch, tz=timezone.utc)
+            dt = datetime.fromtimestamp(epoch, tz=UTC)
             return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
         except (ValueError, OverflowError, OSError) as exc:
             raise ContractError(f"Unrecognized timestamp format: {value}") from exc
@@ -68,7 +68,7 @@ def parse_timestamp(value: Any) -> str:
     base_time, offset = match.groups()
     dt = datetime.fromisoformat(base_time)
     if not offset or offset == "Z":
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
     else:
         # Normalize offset format (e.g. +0500 -> +05:00)
         norm_offset = offset
@@ -78,7 +78,7 @@ def parse_timestamp(value: Any) -> str:
         minutes = int(norm_offset[4:6])
         sign = 1 if norm_offset[0] == "+" else -1
         delta_tz = timezone(sign * timedelta(hours=hours, minutes=minutes))
-        dt = dt.replace(tzinfo=delta_tz).astimezone(timezone.utc)
+        dt = dt.replace(tzinfo=delta_tz).astimezone(UTC)
 
     return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -482,7 +482,7 @@ def ingest_sources(
 
     def get_or_create_entity(kind: str, raw_value: str) -> str:
         clean_val = raw_value.strip().lower()
-        key = sha256(f"{case_id}:{kind}:{clean_val}".encode("utf-8")).hexdigest()
+        key = sha256(f"{case_id}:{kind}:{clean_val}".encode()).hexdigest()
         if key in entity_key_to_alias:
             return entity_key_to_alias[key]
 
@@ -555,7 +555,7 @@ def ingest_sources(
             assessments.append({
                 "hypothesis_id": "benign-explanation",
                 "stance": "refutes",
-                "reason": f"Alert severity or failure code contradicts expected benign workflow.",
+                "reason": "Alert severity or failure code contradicts expected benign workflow.",
             })
         else:
             assessments.append({
@@ -566,7 +566,7 @@ def ingest_sources(
             assessments.append({
                 "hypothesis_id": "malicious-activity",
                 "stance": "refutes",
-                "reason": f"Clean completion or normal telemetry weakens compromise hypothesis.",
+                "reason": "Clean completion or normal telemetry weakens compromise hypothesis.",
             })
 
         evidence_list.append({

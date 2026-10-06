@@ -1,8 +1,9 @@
 """Pinned, read-only collection intentions. This module performs no HTTP requests."""
 import json
 from urllib.parse import quote
+
 from .input import fields, json_value, read_regular
-from .model import AzureError, arm, stable, object_id
+from .model import AzureError, arm, object_id, stable
 
 GRAPH = "MicrosoftGraph"
 ARM = "AzureResourceManager"

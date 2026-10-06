@@ -1,5 +1,6 @@
 """Provider-independent receipt and observation assessment; reports omit payloads."""
 import math
+
 from .canonical import EvidenceError, timestamp
 from .validation import validate_envelope, validate_receipt
 

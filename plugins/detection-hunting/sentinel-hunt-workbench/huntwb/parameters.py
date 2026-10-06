@@ -12,8 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from .errors import ContentError
-from .paths import load_bounded_json, load_json
-
+from .paths import load_bounded_json
 
 _UUID = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$")
 _HOST = re.compile(r"^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?$")
@@ -50,7 +49,7 @@ def _utc(value: Any, label: str) -> str:
         raise ContentError(f"parameter {label} must be an ISO-8601 timestamp") from error
     if parsed.tzinfo is None or parsed.utcoffset() != dt.timedelta(0):
         raise ContentError(f"parameter {label} must include a UTC offset")
-    canonical = parsed.astimezone(dt.timezone.utc).isoformat().replace("+00:00", "Z")
+    canonical = parsed.astimezone(dt.UTC).isoformat().replace("+00:00", "Z")
     return f"datetime({canonical})"
 
 
@@ -91,7 +90,7 @@ def _normalize_scalar(type_name: str, value: Any, definition: dict[str, Any]) ->
         if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password:
             raise ContentError(f"parameter {name} must be an HTTP(S) URL without user information")
         try:
-            parsed.port
+            _ = parsed.port
         except ValueError as error:
             raise ContentError(f"parameter {name} has an invalid port") from error
         hostname = parsed.hostname.rstrip(".")
@@ -101,7 +100,7 @@ def _normalize_scalar(type_name: str, value: Any, definition: dict[str, Any]) ->
             ipaddress.ip_address(hostname)
         except ValueError:
             if not _HOST.fullmatch(hostname):
-                raise ContentError(f"parameter {name} must use a valid DNS name or IP address")
+                raise ContentError(f"parameter {name} must use a valid DNS name or IP address") from None
         return text
     if type_name == "file_hash":
         text = _string(value, name, 64)
