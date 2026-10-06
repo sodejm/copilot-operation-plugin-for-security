@@ -10,8 +10,9 @@ import shlex
 import shutil
 import subprocess
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from .catalog import ROOT, CatalogError, PluginRecord, find_plugin, plugin_records, validate_declared_command
 from .coverage import (
@@ -98,7 +99,7 @@ def command_doctor(*, contributor: bool, root: Path = ROOT) -> int:
     missing: list[str] = []
     print(f"COPS root: {root}")
     print(f"Python: {platform.python_version()} ({sys.executable})")
-    if sys.version_info < (3, 11):
+    if sys.version_info < (3, 11):  # noqa: UP036 - diagnose unsupported Python runtimes
         missing.append("Python 3.11 or newer")
     try:
         records = validate_repository(root)
@@ -460,8 +461,8 @@ def command_worker_store_list(args: argparse.Namespace) -> int:
 
 
 def command_worker_execute(args: argparse.Namespace) -> int:
-    from .contracts.models import ActionPlan, ExecutionAuthorization
-    from .execution import ApprovalStore, IsolatedWorker, WorkerConfig, ScopeGuard
+    from .contracts.models import ExecutionAuthorization
+    from .execution import ApprovalStore, IsolatedWorker, ScopeGuard, WorkerConfig
     plan_path = Path(args.plan)
     if not plan_path.is_file():
         print(f"error: plan file not found: {plan_path}", file=sys.stderr)
@@ -550,12 +551,12 @@ def build_parser() -> argparse.ArgumentParser:
     contract_sub = contract_p.add_subparsers(dest="contract_command", required=True)
     c_val = contract_sub.add_parser("validate", help="validate an operational contract file")
     c_val.add_argument("file", type=Path, help="path to contract JSON file")
-    c_val.add_argument("--type", choices=["engagement", "scenario", "action_plan", "run_result", "finding", "execution_authorization"], help="explicit contract type")
+    c_val.add_argument("--type", choices=["engagement", "scenario", "action_plan", "run_result", "finding", "execution_authorization", "specialist_handoff", "laboratory_environment"], help="explicit contract type")
 
     c_trans = contract_sub.add_parser("transition", help="validate a lifecycle transition")
     c_trans.add_argument("current", help="current lifecycle state")
     c_trans.add_argument("target", help="target lifecycle state")
-    c_trans.add_argument("--type", choices=["engagement", "action_plan", "execution_authorization"], default="engagement", help="contract type")
+    c_trans.add_argument("--type", choices=["engagement", "action_plan", "execution_authorization", "specialist_handoff", "laboratory_environment"], default="engagement", help="contract type")
 
     scen_p = subparsers.add_parser("scenario", help="inspect and validate scenario and provenance registries")
     scen_sub = scen_p.add_subparsers(dest="scenario_command", required=True)
@@ -645,6 +646,128 @@ def build_parser() -> argparse.ArgumentParser:
     e_info.add_argument("file", help="path to engagement JSON file")
     e_info.add_argument("--json", action="store_true", help="output structured JSON")
 
+    e_handoff = eng_sub.add_parser("handoff", help="specialist routing and bounded workflow handoffs")
+    e_h_sub = e_handoff.add_subparsers(dest="handoff_command", required=True)
+
+    h_propose = e_h_sub.add_parser("propose", help="propose specialist handoff from planner")
+    h_propose.add_argument("--engagement", required=True, type=Path, help="path to engagement contract")
+    h_propose.add_argument("--plan", required=True, type=Path, help="path to action plan contract")
+    h_propose.add_argument("--task", required=True, help="task description")
+    h_propose.add_argument("--planner", default="secops-lead", help="planner identifier")
+    h_propose.add_argument("--specialist", help="target specialist profile ID (default: auto-route)")
+    h_propose.add_argument("--output", help="output path for handoff JSON")
+    h_propose.add_argument("--json", action="store_true", help="output JSON")
+
+    h_accept = e_h_sub.add_parser("accept", help="specialist accepts handoff with capability validation")
+    h_accept.add_argument("--handoff", required=True, type=Path, help="path to proposed handoff JSON")
+    h_accept.add_argument("--specialist", required=True, help="specialist profile ID")
+    h_accept.add_argument("--output", help="output path for updated handoff JSON")
+    h_accept.add_argument("--json", action="store_true", help="output JSON")
+
+    h_review = e_h_sub.add_parser("review", help="skeptic reviews evidence envelopes")
+    h_review.add_argument("--handoff", required=True, type=Path, help="path to accepted handoff JSON")
+    h_review.add_argument("--skeptic", default="cops-threat-hunter", help="skeptic specialist ID")
+    h_review.add_argument("--evidence", nargs="*", help="evidence envelope references")
+    h_review.add_argument("--findings", nargs="*", help="finding IDs")
+    h_review.add_argument("--output", help="output path for updated handoff JSON")
+    h_review.add_argument("--json", action="store_true", help="output JSON")
+
+    h_audit = e_h_sub.add_parser("audit", help="auditor verifies plan bounds and approves handoff")
+    h_audit.add_argument("--handoff", required=True, type=Path, help="path to reviewed handoff JSON")
+    h_audit.add_argument("--plan", required=True, type=Path, help="path to approved action plan contract")
+    h_audit.add_argument("--auditor", default="cops-compliance-auditor", help="auditor specialist ID")
+    h_audit.add_argument("--output", help="output path for approved handoff JSON")
+    h_audit.add_argument("--json", action="store_true", help="output JSON")
+
+    h_workflow = e_h_sub.add_parser("workflow", help="orchestrate complete Triad handoff workflow")
+    h_workflow.add_argument("--engagement", required=True, type=Path, help="path to engagement contract")
+    h_workflow.add_argument("--plan", required=True, type=Path, help="path to action plan contract")
+    h_workflow.add_argument("--task", required=True, help="task description")
+    h_workflow.add_argument("--planner", default="secops-lead", help="planner identifier")
+    h_workflow.add_argument("--specialist", help="target specialist profile ID (default: auto-route)")
+    h_workflow.add_argument("--output", help="output path for completed handoff JSON")
+    h_workflow.add_argument("--json", action="store_true", help="output JSON")
+
+    lab_p = subparsers.add_parser("lab", help="manage scenario laboratory environments and harness execution")
+    lab_sub = lab_p.add_subparsers(dest="lab_command", required=True)
+
+    l_reg = lab_sub.add_parser("register", help="register a laboratory environment contract")
+    l_reg.add_argument("environment", help="path to laboratory environment JSON or inline JSON")
+    l_reg.add_argument("--output", help="output path for registered environment JSON")
+
+    l_ver = lab_sub.add_parser("verify", help="verify laboratory environment isolation, prerequisites, and canary")
+    l_ver.add_argument("environment", help="path to laboratory environment JSON")
+    l_ver.add_argument("--tools", help="comma-separated list of required tools")
+    l_ver.add_argument("--mock", action="store_true", default=True, help="use mock checks for offline testing")
+    l_ver.add_argument("--output", help="output path for verified environment JSON")
+
+    l_res = lab_sub.add_parser("reset", help="reproducible reset of laboratory environment")
+    l_res.add_argument("environment", help="path to laboratory environment JSON")
+    l_res.add_argument("--mock", action="store_true", default=True, help="use mock reset")
+    l_res.add_argument("--output", help="output path for reset environment JSON")
+
+    l_mat = lab_sub.add_parser("matrix", help="display tested platform and tool matrix")
+    l_mat.add_argument("--output", help="output path for matrix JSON")
+
+    l_run = lab_sub.add_parser("run", help="execute a laboratory test case")
+    l_run.add_argument("--environment", required=True, help="path to laboratory environment JSON")
+    l_run.add_argument("--plan", required=True, help="path to action plan JSON")
+    l_run.add_argument("--authorization", required=True, help="path to execution authorization JSON")
+    l_run.add_argument("--case-type", choices=["positive", "negative", "remediated"], default="positive", help="case type")
+    l_run.add_argument("--store", help="path to sqlite3 approval store")
+    l_run.add_argument("--allowed-cidr", help="allowed network CIDR for scope guard")
+    l_run.add_argument("--output", help="output path for case result JSON")
+
+    from .diagnostics.cli import build_diagnostics_parser
+    build_diagnostics_parser(subparsers)
+
+    from .discovery.cli import (
+        build_active_parser,
+        build_data_parser,
+        build_developer_parser,
+        build_discovery_parser,
+        build_infra_parser,
+        build_legacy_parser,
+        build_messaging_parser,
+        build_remote_parser,
+    )
+    build_discovery_parser(subparsers)
+    active_parser = subparsers.add_parser(
+        "active-discovery",
+        help="Bounded active network discovery and service identification.",
+    )
+    build_active_parser(active_parser)
+    infra_parser = subparsers.add_parser(
+        "infrastructure-services",
+        help="Assess infrastructure and identity-facing services.",
+    )
+    build_infra_parser(infra_parser)
+    remote_parser = subparsers.add_parser(
+        "remote-services",
+        help="Assess remote administration, file sharing, and printing services.",
+    )
+    build_remote_parser(remote_parser)
+    data_parser = subparsers.add_parser(
+        "data-services",
+        help="Assess databases, caches, and search/analytics services.",
+    )
+    build_data_parser(data_parser)
+    messaging_parser = subparsers.add_parser(
+        "messaging-services",
+        help="Assess mail, messaging, and message broker services.",
+    )
+    build_messaging_parser(messaging_parser)
+    developer_parser = subparsers.add_parser(
+        "developer-services",
+        help="Assess developer and runtime interface services.",
+    )
+    build_developer_parser(developer_parser)
+    legacy_parser = subparsers.add_parser(
+        "legacy-services",
+        help="Assess legacy enterprise, management, and proxy services.",
+    )
+    build_legacy_parser(legacy_parser)
+
     return parser
 
 
@@ -715,6 +838,7 @@ def main(argv: list[str] | None = None, *, root: Path = ROOT) -> int:
         if args.command == "engagement":
             from .engagement.cli import (
                 command_engagement_create,
+                command_engagement_handoff,
                 command_engagement_info,
                 command_engagement_plan,
                 command_engagement_validate,
@@ -727,6 +851,38 @@ def main(argv: list[str] | None = None, *, root: Path = ROOT) -> int:
                 return command_engagement_plan(args)
             if args.engagement_command == "info":
                 return command_engagement_info(args)
+            if args.engagement_command == "handoff":
+                return command_engagement_handoff(args)
+        if args.command == "lab":
+            from .laboratory.cli import command_laboratory
+            return command_laboratory(args, root=root)
+        if args.command == "diagnostics":
+            from .diagnostics.cli import command_diagnostics
+            return command_diagnostics(args, root=root)
+        if args.command == "discovery":
+            from .discovery.cli import command_discovery
+            return command_discovery(args, root=root)
+        if args.command == "active-discovery":
+            from .discovery.cli import command_active_discovery
+            return command_active_discovery(args, root=root)
+        if args.command == "infrastructure-services":
+            from .discovery.cli import command_infra_discovery
+            return command_infra_discovery(args, root=root)
+        if args.command == "remote-services":
+            from .discovery.cli import command_remote_discovery
+            return command_remote_discovery(args, root=root)
+        if args.command == "data-services":
+            from .discovery.cli import command_data_discovery
+            return command_data_discovery(args, root=root)
+        if args.command == "messaging-services":
+            from .discovery.cli import command_messaging_discovery
+            return command_messaging_discovery(args, root=root)
+        if args.command == "developer-services":
+            from .discovery.cli import command_developer_discovery
+            return command_developer_discovery(args, root=root)
+        if args.command == "legacy-services":
+            from .discovery.cli import command_legacy_discovery
+            return command_legacy_discovery(args, root=root)
     except (CatalogError, ValidationError, CoverageError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass
+from datetime import UTC
 from typing import Any
 
 from .lifecycle import validate_transition
@@ -245,7 +246,8 @@ class ExecutionAuthorization:
 
     def is_valid_at(self, current_time_iso: str | None = None) -> bool:
         """Check if authorization is in approved state and within the authorized time window."""
-        from datetime import datetime, timezone
+        from datetime import datetime
+
         from cops.evidence.canonical import timestamp
 
         if self.status != "approved":
@@ -253,7 +255,7 @@ class ExecutionAuthorization:
         if current_time_iso is not None:
             now_dt = timestamp(current_time_iso)
         else:
-            now_dt = datetime.now(timezone.utc)
+            now_dt = datetime.now(UTC)
         return now_dt <= timestamp(self.authorized_until_utc)
 
     def to_dict(self) -> dict[str, Any]:
@@ -467,4 +469,140 @@ class CleanupReceipt:
             cleaned_effects=data["cleaned_effects"],
             unresolved_effects=data["unresolved_effects"],
             evidence_hash=data["evidence_hash"],
+        )
+
+
+@dataclass
+class SpecialistHandoff:
+    """Structured task and evidence handoff contract between planner, specialist, skeptic, and auditor."""
+
+    schema_version: str
+    handoff_id: str
+    engagement_id: str
+    action_plan_id: str
+    status: str
+    sender: dict[str, str]
+    recipient: dict[str, str]
+    task: dict[str, Any]
+    material_plan_digest: str
+    approval_status: str
+    created_at: str
+    transition_log: list[dict[str, Any]]
+    evidence: dict[str, Any] | None = None
+    rejection_reason: str | None = None
+
+    def transition_to(self, next_state: str, actor: str, notes: str | None = None) -> None:
+        """Transition handoff to next state and record in transition_log."""
+        validate_transition(self.status, next_state, "specialist_handoff")
+        from cops.evidence.canonical import utc_now
+        now_iso = utc_now()
+        log_entry: dict[str, Any] = {
+            "from_status": self.status,
+            "to_status": next_state,
+            "actor": actor,
+            "timestamp": now_iso,
+        }
+        if notes:
+            log_entry["notes"] = notes
+        self.transition_log.append(log_entry)
+        self.status = next_state
+
+    def to_dict(self) -> dict[str, Any]:
+        data: dict[str, Any] = {
+            "schema_version": self.schema_version,
+            "handoff_id": self.handoff_id,
+            "engagement_id": self.engagement_id,
+            "action_plan_id": self.action_plan_id,
+            "status": self.status,
+            "sender": self.sender,
+            "recipient": self.recipient,
+            "task": self.task,
+            "material_plan_digest": self.material_plan_digest,
+            "approval_status": self.approval_status,
+            "created_at": self.created_at,
+            "transition_log": self.transition_log,
+        }
+        if self.evidence is not None:
+            data["evidence"] = self.evidence
+        if self.rejection_reason is not None:
+            data["rejection_reason"] = self.rejection_reason
+        return data
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> SpecialistHandoff:
+        validate_contract(data, "specialist_handoff")
+        return cls(
+            schema_version=data["schema_version"],
+            handoff_id=data["handoff_id"],
+            engagement_id=data["engagement_id"],
+            action_plan_id=data["action_plan_id"],
+            status=data["status"],
+            sender=data["sender"],
+            recipient=data["recipient"],
+            task=data["task"],
+            material_plan_digest=data["material_plan_digest"],
+            approval_status=data["approval_status"],
+            created_at=data["created_at"],
+            transition_log=data["transition_log"],
+            evidence=data.get("evidence"),
+            rejection_reason=data.get("rejection_reason"),
+        )
+
+
+@dataclass
+class LaboratoryEnvironment:
+    """Operator-provided VM or container laboratory environment."""
+
+    schema_version: str
+    environment_id: str
+    environment_type: str
+    status: str
+    platform: dict[str, Any]
+    tool_matrix: dict[str, str]
+    isolation: dict[str, Any]
+    canary: dict[str, Any]
+    reset_configuration: dict[str, Any]
+    owner: str
+    created_at: str
+    updated_at: str
+
+    def transition_to(self, next_state: str) -> None:
+        """Transition laboratory environment to a new lifecycle state."""
+        validate_transition(self.status, next_state, "laboratory_environment")
+        from cops.evidence.canonical import utc_now
+        self.status = next_state
+        self.updated_at = utc_now()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "environment_id": self.environment_id,
+            "environment_type": self.environment_type,
+            "status": self.status,
+            "platform": self.platform,
+            "tool_matrix": self.tool_matrix,
+            "isolation": self.isolation,
+            "canary": self.canary,
+            "reset_configuration": self.reset_configuration,
+            "owner": self.owner,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> LaboratoryEnvironment:
+        validate_contract(data, "laboratory_environment")
+        return cls(
+            schema_version=data["schema_version"],
+            environment_id=data["environment_id"],
+            environment_type=data["environment_type"],
+            status=data["status"],
+            platform=data["platform"],
+            tool_matrix=data["tool_matrix"],
+            isolation=data["isolation"],
+            canary=data["canary"],
+            reset_configuration=data["reset_configuration"],
+            owner=data["owner"],
+            created_at=data["created_at"],
+            updated_at=data["updated_at"],
         )

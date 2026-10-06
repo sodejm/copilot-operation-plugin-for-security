@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import unittest
-from cops.adapters import ToolAdapterRegistry, AdapterInjectionError
+
+from cops.adapters import AdapterInjectionError, ToolAdapterRegistry
 
 
 class TestAdapterRegistrationSkill(unittest.TestCase):

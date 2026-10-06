@@ -63,12 +63,12 @@ def assemble_triad_plan(
 
     handoff_steps = (
         f"1. Task received: Router assigns Primary Specialist ({primary_profile.id}).",
-        f"2. Primary executes deterministic offline tooling and drafts initial findings/plan.",
+        "2. Primary executes deterministic offline tooling and drafts initial findings/plan.",
         f"3. Primary hands candidate artifact to Domain Skeptic ({skeptic_profile.id}) to critique assumptions.",
-        f"4. Skeptic reviews transitions; disputed claims are labeled 'candidate' or 'invalid'.",
+        "4. Skeptic reviews transitions; disputed claims are labeled 'candidate' or 'invalid'.",
         f"5. Primary and Skeptic submit reconciled package to Evidence Auditor ({auditor_profile.id}).",
-        f"6. Auditor verifies SHA-256 evidence envelopes and operator authorization receipt.",
-        f"7. Auditor seals and issues the final, tamper-evident deliverable.",
+        "6. Auditor verifies SHA-256 evidence envelopes and operator authorization receipt.",
+        "7. Auditor seals and issues the final, tamper-evident deliverable.",
     )
 
     return TriadExecutionPlan(

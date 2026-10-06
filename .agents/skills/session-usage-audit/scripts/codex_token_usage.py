@@ -7,13 +7,13 @@ See ../references/accounting.md for definitions and limits.
 from __future__ import annotations
 
 import argparse
-from collections import Counter, defaultdict
-from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 import os
-from pathlib import Path
 import sys
+from collections import Counter, defaultdict
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 FIELDS = ("input_tokens", "cached_input_tokens", "cache_write_input_tokens",
           "output_tokens", "reasoning_output_tokens", "total_tokens")
@@ -24,8 +24,8 @@ def parse_timestamp(value):
         raise ValueError("timestamp must be a string")
     parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
 
 
 def signature(value):
@@ -382,7 +382,7 @@ def main(argv=None):
             raise ValueError("--top and --days must be positive and finite")
         if bool(args.start) != bool(args.end) or (args.start and args.days is not None):
             raise ValueError("use --start with --end, or --days, not both")
-        end = parse_timestamp(args.end) if args.end else datetime.now(timezone.utc)
+        end = parse_timestamp(args.end) if args.end else datetime.now(UTC)
         start = parse_timestamp(args.start) if args.start else end - timedelta(days=args.days or 7)
         if end <= start:
             raise ValueError("end must be after start")

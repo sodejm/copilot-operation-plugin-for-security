@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import Any
 
 from cops.catalog import ROOT
-from cops.contracts.models import Engagement
+
 from .errors import EngagementIntakeError
 from .intake import create_engagement_contract, validate_engagement_intake
 from .planning import build_action_plan
@@ -169,5 +169,137 @@ def command_engagement_info(args: argparse.Namespace) -> int:
         print(f"  Targets: {summary['targets_count']} in scope, {summary['exclusions_count']} excluded")
         if summary['budget']:
             print(f"  Budget: {summary['budget']['max_duration_seconds']}s, {summary['budget']['max_output_bytes']} bytes")
+
+    return 0
+
+
+def _load_json_or_file(source: Any) -> dict[str, Any]:
+    if source is None:
+        return {}
+    if isinstance(source, dict):
+        return source
+    if isinstance(source, Path):
+        return json.loads(source.read_text(encoding="utf-8"))
+    if isinstance(source, str):
+        trimmed = source.strip()
+        if (trimmed.startswith("{") and trimmed.endswith("}")) or (trimmed.startswith("[") and trimmed.endswith("]")):
+            try:
+                return json.loads(source)
+            except json.JSONDecodeError:
+                pass
+        try:
+            p = Path(source)
+            if p.is_file():
+                return json.loads(p.read_text(encoding="utf-8"))
+        except OSError:
+            pass
+        return json.loads(source)
+    raise ValueError(f"Unsupported source type: {type(source)}")
+
+
+def command_engagement_handoff(args: argparse.Namespace, root: Path = ROOT) -> int:
+    """Handle `cops engagement handoff <propose|accept|review|audit|workflow>`."""
+    from cops.contracts.models import SpecialistHandoff
+    from cops.routing.handoff import (
+        HandoffError,
+        accept_specialist_handoff,
+        audit_and_approve_handoff,
+        execute_triad_handoff_workflow,
+        propose_specialist_handoff,
+        review_with_skeptic,
+    )
+
+    cmd = getattr(args, "handoff_command", None)
+    agents_reg_path = root / "agents" / "registry.json"
+
+    try:
+        if cmd == "propose":
+            eng_doc = _load_json_or_file(args.engagement)
+            plan_doc = _load_json_or_file(args.plan)
+            req_caps = None
+            if getattr(args, "capabilities", None):
+                if isinstance(args.capabilities, str):
+                    req_caps = [c.strip() for c in args.capabilities.split(",") if c.strip()]
+                elif isinstance(args.capabilities, list):
+                    req_caps = args.capabilities
+            handoff = propose_specialist_handoff(
+                engagement=eng_doc,
+                action_plan=plan_doc,
+                task_description=args.task,
+                sender_id=getattr(args, "planner", None) or getattr(args, "sender", "secops-lead"),
+                specialist_id=args.specialist,
+                required_capabilities=req_caps,
+                registry_path=agents_reg_path,
+            )
+            result_doc = handoff.to_dict()
+
+        elif cmd == "accept":
+            handoff_doc = _load_json_or_file(args.handoff)
+            handoff = SpecialistHandoff.from_dict(handoff_doc)
+            accept_specialist_handoff(handoff, specialist_id=args.specialist, registry_path=agents_reg_path)
+            result_doc = handoff.to_dict()
+
+        elif cmd == "review":
+            handoff_doc = _load_json_or_file(args.handoff)
+            handoff = SpecialistHandoff.from_dict(handoff_doc)
+            review_with_skeptic(
+                handoff,
+                skeptic_id=args.skeptic,
+                evidence_envelopes=getattr(args, "evidence", None),
+                findings=getattr(args, "findings", None),
+                registry_path=agents_reg_path,
+            )
+            result_doc = handoff.to_dict()
+
+        elif cmd == "audit":
+            handoff_doc = _load_json_or_file(args.handoff)
+            plan_doc = _load_json_or_file(args.plan)
+            handoff = SpecialistHandoff.from_dict(handoff_doc)
+            audit_and_approve_handoff(
+                handoff,
+                auditor_id=args.auditor,
+                approved_action_plan=plan_doc,
+                registry_path=agents_reg_path,
+            )
+            result_doc = handoff.to_dict()
+
+        elif cmd == "workflow":
+            eng_doc = _load_json_or_file(args.engagement)
+            plan_doc = _load_json_or_file(args.plan)
+            handoff = execute_triad_handoff_workflow(
+                engagement=eng_doc,
+                action_plan=plan_doc,
+                task_description=args.task,
+                planner_id=getattr(args, "planner", None) or getattr(args, "sender", "secops-lead"),
+                specialist_id=args.specialist,
+                registry_path=agents_reg_path,
+            )
+            result_doc = handoff.to_dict()
+        else:
+            print(f"error: unknown handoff command: {cmd}", file=sys.stderr)
+            return 2
+
+    except HandoffError as err:
+        print(f"error: handoff failed: {err}", file=sys.stderr)
+        return 2
+    except Exception as err:
+        print(f"error: {err}", file=sys.stderr)
+        return 2
+
+    rendered = json.dumps(result_doc, indent=2, sort_keys=True)
+    if getattr(args, "output", None):
+        out_p = Path(args.output)
+        out_p.parent.mkdir(parents=True, exist_ok=True)
+        out_p.write_text(rendered + "\n", encoding="utf-8")
+        print(f"Handoff written to {out_p}")
+    elif getattr(args, "json", False):
+        print(rendered)
+    else:
+        print(f"Handoff {result_doc['handoff_id']} status: {result_doc['status']} (Approval: {result_doc['approval_status']})")
+        print(f"  Sender:    {result_doc['sender']['role']} [{result_doc['sender']['identifier']}]")
+        print(f"  Recipient: {result_doc['recipient']['role']} [{result_doc['recipient']['specialist_id']}]")
+        print(f"  Task:      {result_doc['task']['task_description']}")
+        print(f"  Target:    {result_doc['task']['target']}")
+        print(f"  Digest:    {result_doc['material_plan_digest']}")
 
     return 0

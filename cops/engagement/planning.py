@@ -2,17 +2,16 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-import uuid
 
 from cops.catalog import ROOT
 from cops.contracts.models import ActionPlan, Engagement, Scenario
 from cops.scenarios import get_scenario
+
 from .errors import (
     EngagementIntakeError,
-    IncompleteLiveRequestError,
     ScopeAmbiguityError,
 )
 from .intake import validate_engagement_intake
@@ -155,7 +154,7 @@ def build_action_plan(
         plan_id = f"plan-cops-{digest_hex}"
 
     if created_at is None:
-        created_at = validated_eng.get("created_at") or datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        created_at = validated_eng.get("created_at") or datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
     return ActionPlan.create(
         plan_id=plan_id,

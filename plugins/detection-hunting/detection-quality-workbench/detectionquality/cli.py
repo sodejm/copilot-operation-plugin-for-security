@@ -98,7 +98,7 @@ def main(argv: list[str] | None = None) -> int:
             rule_files = {p.stem: p for p in args.rules_dir.glob("*.json")}
             fixture_files = {p.stem: p for p in args.fixtures_dir.glob("*.json")}
 
-            print(f"Running Detection Quality Test Suite...")
+            print("Running Detection Quality Test Suite...")
             print(f"{'Rule ID':<35} {'Platform':<15} {'Precision':<12} {'Recall':<10} {'Status'}")
             print("-" * 85)
 

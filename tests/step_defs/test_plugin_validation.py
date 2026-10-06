@@ -3,12 +3,12 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import shutil
 import subprocess
+from pathlib import Path
 
-from pytest_bdd import given, parsers, scenarios, then, when
 import pytest
+from pytest_bdd import given, parsers, scenarios, then, when
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE_PACKAGE = ROOT / "plugins/logging-telemetry/security-logging-advisor"

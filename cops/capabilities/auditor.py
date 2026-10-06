@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import json
 from pathlib import Path
 from typing import Any
@@ -11,7 +10,6 @@ from cops.evidence.canonical import EvidenceError, canonical, utc_now
 from cops.evidence.validation import _check
 
 from .models import CapabilityEntry, CapabilityTruthError
-
 
 ROOT: Path = Path(__file__).resolve().parents[2]
 
@@ -261,10 +259,10 @@ def audit_capabilities(root: Path = ROOT, registry_data: dict[str, Any] | None =
             "catalog_descriptive_drift",
             f"Expected exactly 18 specialist profiles, found {summary['by_kind']['specialist']}."
         )
-    if summary["by_kind"]["scenario"] != 33:
+    if summary["by_kind"]["scenario"] != 37:
         raise CapabilityTruthError(
             "catalog_descriptive_drift",
-            f"Expected exactly 33 scenarios, found {summary['by_kind']['scenario']}."
+            f"Expected exactly 37 scenarios, found {summary['by_kind']['scenario']}."
         )
 
     return {

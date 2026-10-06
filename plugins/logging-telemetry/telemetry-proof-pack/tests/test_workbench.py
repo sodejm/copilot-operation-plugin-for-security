@@ -1,3 +1,5 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 """Comprehensive unit tests for Telemetry Proof Pack."""
 
 import json
@@ -11,11 +13,20 @@ PLUGIN_ROOT = Path(__file__).resolve().parent.parent
 if str(PLUGIN_ROOT) not in sys.path:
     sys.path.insert(0, str(PLUGIN_ROOT))
 
-from proofpack.cli import load_evidence_files, main as cli_main
-from proofpack.correlator import correlate_pipeline_evidence
-from proofpack.models import PipelineProof, ProofError, RunManifest, StageObservation
-from proofpack.redaction import redact_dict, redact_text
-from proofpack.reporting import render_json_report, render_markdown_report
+from proofpack.cli import load_evidence_files
+from proofpack.cli import main as cli_main
+from proofpack.correlator import (
+    correlate_pipeline_evidence,
+)
+from proofpack.models import (
+    ProofError,
+    RunManifest,
+)
+from proofpack.redaction import redact_dict
+from proofpack.reporting import (
+    render_json_report,
+    render_markdown_report,
+)
 
 
 @pytest.fixture
@@ -135,7 +146,7 @@ def test_redaction_utility():
     redacted = redact_dict(data)
     assert redacted["api_key"] == "[REDACTED]"
     assert "[REDACTED_TOKEN]" in redacted["auth_header"]
-    assert redacted["nested"]["password"] == "[REDACTED]"
+    assert redacted["nested"]["password"] == "[REDACTED]"  # noqa: S105 - schema label or operation identifier, not a credential
     assert redacted["nested"]["marker"] == "SYN-TEST-MARKER-99"
 
 

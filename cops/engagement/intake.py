@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import ipaddress
 import re
-from typing import Any
 import uuid
+from datetime import UTC, datetime
+from typing import Any
 
 from cops.contracts.models import Engagement
 from cops.contracts.validation import validate_contract
+
 from .errors import (
     EngagementIntakeError,
     IncompatibleWindowError,
@@ -43,7 +44,7 @@ def _parse_timestamp(val: str, label: str) -> datetime:
     try:
         dt = datetime.fromisoformat(val.replace("Z", "+00:00"))
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
+            dt = dt.replace(tzinfo=UTC)
         return dt
     except (ValueError, TypeError) as err:
         raise IncompatibleWindowError(f"{label} has invalid ISO-8601 timestamp '{val}'") from err
@@ -248,7 +249,7 @@ def create_engagement_contract(
             "emergency_contact": emergency_contact,
             "safe_mode": safe_mode,
         },
-        "created_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "created_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         "mode": mode,
     }
     if budget is not None:

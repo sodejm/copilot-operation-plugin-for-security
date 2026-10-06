@@ -125,16 +125,16 @@ Use this guide to determine which plugin best matches your operational requireme
 
 #### Attack Surface Planner
 - **Maturity**: <span class="badge badge-experimental">Experimental</span> | **Operational Mode**: `planned`
-- **When to use**: Prior to an authorized penetration test or red team engagement to reconcile rules of engagement, partition in-scope vs out-of-scope targets, and generate bounded test plans.
-- **Key Capabilities**: Scope boundary enforcement, rule-of-engagement parsing, passive review plan generation.
-- **Boundaries**: Strictly a planning and scoping tool; makes zero network calls and executes zero exploits.
+- **When to use**: Prior to an authorized penetration test or red team engagement to reconcile rules of engagement, partition in-scope vs out-of-scope targets, normalize multi-source passive discovery telemetry, execute bounded active discovery and service identification, assess infrastructure and identity-facing services, evaluate remote administration, file sharing, and printing services, assess databases, caches, and search engines, evaluate mail, chat, and message brokers, assess developer and runtime interfaces, evaluate legacy enterprise, management, and proxy services, and generate bounded test plans.
+- **Key Capabilities**: Scope boundary enforcement, rule-of-engagement parsing, passive review plan generation, multi-source telemetry normalization (DNS, certificate, IP, endpoint, cloud exports), evidence provenance preservation, scope quarantine reconciliation, bounded active service identification with resumable checkpoints and visible uncertainty, protocol-specific infrastructure assessment (DNS, SNMP, NTP, RPC, LDAP, Kerberos), remote administration, file sharing, and printing assessment (SSH, Telnet, RDP, VNC, WinRM, X11, SMB, NFS, FTP/TFTP, rsync, AFP, LPD, IPP, Raw/JetDirect), database, cache, and search assessment (MySQL, Postgres, MSSQL, Oracle, MongoDB, CouchDB, Cassandra, Redis, Memcached, Elasticsearch, InfluxDB, Kibana, Splunk) with bounded query budgets and zero bulk extraction, mail, messaging, and broker assessment (SMTP, POP3, IMAP, IRC, RabbitMQ, NATS, IBM MQ, Kafka, MQTT) with bounded message budgets and zero mass outbound relaying, developer and runtime interfaces assessment (Docker API, Docker Registry, Java RMI, JDWP, Erlang EPMD, ADB, distcc, SVN, AJP, FastCGI), legacy enterprise, management, and proxy services assessment (NDMP, iSCSI, IPMI 2.0, Cisco Smart Install, TACACS+, IKEv1, PPTP, SOCKS, Squid) with proxy egress restriction testing, execution effect classification, canary validation, cleanup receipts, and privilege candidate routing.
+- **Boundaries**: Strictly an authorized planning and scoping tool; operates offline or within bounded authorized parameters without executing uncoordinated exploits.
 - **Playbook**: `plugins/offensive-security/attack-surface-planner/docs/PLAYBOOK.md`
 
 #### Offensive Engagement Workbench
 - **Maturity**: <span class="badge badge-experimental">Experimental</span> | **Operational Mode**: `planned`
-- **When to use**: When intaking authorized adversary engagements, enforcing target scope and boundary exclusions, and compiling immutable execution action plans.
-- **Key Capabilities**: Scope intake validation, CIDR collision checks, immutable action plan generation.
-- **Boundaries**: Scoping and planning only; refuses incomplete live requests and does not execute network payloads.
+- **When to use**: When intaking authorized adversary engagements, enforcing target scope and boundary exclusions, compiling immutable action plans, orchestrating Triad specialist handoffs, and managing scenario laboratory environments.
+- **Key Capabilities**: Scope intake validation, CIDR collision checks, immutable action plan generation, Triad specialist handoffs, capability verification, scenario laboratory environment verification, reproducible reset, and controlled case execution.
+- **Boundaries**: Scoping, planning, and isolated laboratory execution only; refuses incomplete live requests and does not execute network payloads outside verified lab boundaries.
 - **Playbook**: `plugins/offensive-security/offensive-engagement-workbench/docs/PLAYBOOK.md`
 
 #### Foundry Agent Harness
@@ -166,7 +166,7 @@ To maintain absolute integrity and avoid capability over-claiming, COPS reconcil
 - **`laboratory`**: Controlled offline simulation, synthetic event replay, or sandbox rehearsal; zero external egress.
 - **`live-validated`**: Fully authorized, live-tested execution path against an authorized environment with cryptographic evidence receipt. Currently 0 capabilities claim live-validated, ensuring zero false claims.
 
-To audit all 65 capabilities across plugins, specialist profiles, and scenarios:
+To audit all 69 capabilities across plugins, specialist profiles, and scenarios:
 
 ```bash
 python3 -m cops capabilities audit --check

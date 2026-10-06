@@ -25,3 +25,15 @@ Feature: Repository Security Scanning
     Then the JSON output "languages" must list "Bicep"
     And the JSON output "iac_and_cloud" must list "Azure Bicep"
     And the JSON output "iac_and_cloud" must list "AWS"
+
+  Scenario: Detect ARM templates using the declared schema host
+    Given a workspace containing a file "template.json"
+    And "template.json" declares the schema URL "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#"
+    When the scanner script executes with target "."
+    Then the JSON output "iac_and_cloud" must list "Azure ARM Template"
+
+  Scenario: Do not detect an ARM template from a schema-host substring
+    Given a workspace containing a file "template.json"
+    And "template.json" mentions "schema.management.azure.com" only in its description
+    When the scanner script executes with target "."
+    Then the JSON output "iac_and_cloud" must NOT list "Azure ARM Template"

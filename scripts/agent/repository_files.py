@@ -6,7 +6,6 @@ import os
 import subprocess
 from pathlib import Path
 
-
 ARCHIVE_EXCLUDES = {
     ".git", ".venv", "venv", "env", "ENV", "node_modules", "__pycache__",
     ".pytest_cache", ".mypy_cache", ".ruff_cache", "build", "dist", ".tmp", "tmp",

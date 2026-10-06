@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from .models import ExecutionEvent, Scenario
@@ -22,8 +22,8 @@ def render_json_report(
 
     return {
         "schema_version": "foundry.review-report/v1",
-        "report_id": f"REPORT-FOUNDRY-{int(datetime.now(timezone.utc).timestamp())}",
-        "evaluated_at": datetime.now(timezone.utc).isoformat(),
+        "report_id": f"REPORT-FOUNDRY-{int(datetime.now(UTC).timestamp())}",
+        "evaluated_at": datetime.now(UTC).isoformat(),
         "target_agent": target_agent,
         "environment": environment,
         "summary": {

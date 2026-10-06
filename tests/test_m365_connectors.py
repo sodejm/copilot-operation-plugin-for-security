@@ -7,10 +7,11 @@ from tempfile import TemporaryDirectory
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'plugins/detection-hunting/soc-investigation-workbench'))
 
+from investigationwb.m365 import correlate
+
 from cops.connectors import Checkpoint, GraphCollection, Response, collect
 from cops.connectors.adapters.m365 import SOURCES
 from cops.evidence import EvidenceError, canonical
-from investigationwb.m365 import correlate
 
 TENANT = '00000000-0000-0000-0000-000000000001'
 USER = '00000000-0000-0000-0000-000000000002'

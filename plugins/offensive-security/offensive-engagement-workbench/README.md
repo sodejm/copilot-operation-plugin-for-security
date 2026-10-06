@@ -9,6 +9,9 @@
 - **Execution Mode Distinction**: Strictly differentiates between `planning`, `import`, `laboratory`, and `live` modes.
 - **Live Safety Guard**: Prohibits live execution without mandatory budgets, emergency contact channels, active windows, and tight subnet scopes.
 - **Action Plan Compilation**: Generates immutable `ActionPlan` (`cops.action-plan/v1`) contracts with platform prerequisites, expected evidence receipts, side effects, and verified cleanup obligations.
+- **Triad Specialist Handoffs**: Emits and validates `SpecialistHandoff` (`cops.specialist-handoff/v1`) contracts coordinating Planner, Specialist, Skeptic, and Auditor with capability matching and re-approval triggers.
+- **Scenario Laboratory Harness**: Registers and verifies operator container and VM environments with canary detection, isolation verification, reproducible resets, and controlled positive, negative, and remediated test execution.
+- **Package Workflow and Capability Diagnostics**: Validates package manifests, skills, playbooks, host tool prerequisites, and capability truth-in-advertising diagnostics across all registered plugins and execution environments.
 
 ## CLI Usage
 
@@ -34,6 +37,26 @@ python3 -m cops engagement plan \
   --scenario COPS-E03.01-S01 \
   --target 10.100.0.10 \
   --output action_plan.json
+
+# Run Triad specialist handoff workflow
+python3 -m cops engagement handoff workflow \
+  --engagement engagement.json \
+  --plan action_plan.json \
+  --task "Network perimeter assessment" \
+  --planner "secops-operator" \
+  --output handoff.json
+
+# Laboratory environment verification and case execution
+python3 -m cops lab matrix
+python3 -m cops lab register env.json
+python3 -m cops lab verify env.json
+python3 -m cops lab reset env.json
+python3 -m cops lab run env.json action_plan.json authorization.json --case-type positive
+
+# Capability and package workflow diagnostics
+python3 -m cops diagnostics
+python3 -m cops diagnostics --package offensive-engagement-workbench
+python3 -m cops diagnostics --tools
 ```
 
 ## Offline Verification Gate
