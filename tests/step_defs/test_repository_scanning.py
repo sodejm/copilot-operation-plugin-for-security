@@ -1,10 +1,10 @@
-import os
-import sys
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 import json
+import os
 import subprocess
-import shutil
-import tempfile
-from pytest_bdd import scenarios, given, when, then, parsers
+
+from pytest_bdd import given, parsers, scenarios, then, when
 
 # Load all scenarios from the feature files
 scenarios('../../specs/features/repository_scanning.feature')
@@ -12,6 +12,8 @@ scenarios('../../specs/features/edge_cases_scanning.feature')
 
 # Fixture to hold context across steps
 import pytest
+
+
 @pytest.fixture
 def context():
     state = {}
@@ -46,6 +48,16 @@ def create_file(filename):
 def append_line(filename, line):
     with open(filename, 'a') as f:
         f.write(f'{line}\n')
+
+@given(parsers.parse('"{filename}" declares the schema URL "{url}"'))
+def declare_schema_url(filename, url):
+    with open(filename, 'w') as f:
+        json.dump({"$schema": url}, f)
+
+@given(parsers.parse('"{filename}" mentions "{hostname}" only in its description'))
+def mention_schema_host_in_description(filename, hostname):
+    with open(filename, 'w') as f:
+        json.dump({"description": f"Reference text: {hostname}"}, f)
 
 @given(parsers.parse('a workspace containing a Bicep file "{filename}"'))
 def create_bicep_file(filename):
@@ -126,14 +138,14 @@ def execute_scanner(context, target):
     # But this script runs from the pytest root, so we can pass the absolute path
     # Actually, we can just pass the path relative to the root dir which we know.
     # We will assume pytest runs from the root of the project.
-    
+
     script_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../plugins/logging-telemetry/security-logging-advisor/skills/repository-context/scripts/collect-repository-context.py'))
-    
+
     try:
         result = subprocess.run(['python3', script_path, target], capture_output=True, text=True, check=True, timeout=5)
         context['output'] = result.stdout
         context['error'] = False
-        
+
         try:
             context['json'] = json.loads(result.stdout)
         except json.JSONDecodeError:
@@ -155,6 +167,11 @@ def json_output_must_list(context, key, value):
         assert value in context['json'][key]
     else:
         assert value in context['json'][key]
+
+@then(parsers.parse('the JSON output "{key}" must NOT list "{value}"'))
+def json_output_must_not_list(context, key, value):
+    assert context['json'] is not None
+    assert value not in context['json'][key]
 
 @then(parsers.parse('the JSON output "{key}" must list a finding for "{filename}"'))
 def json_output_must_list_finding(context, key, filename):

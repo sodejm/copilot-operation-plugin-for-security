@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import json
-from pathlib import Path
 import shutil
 import socket
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 PACKAGE = Path(__file__).resolve().parents[1]

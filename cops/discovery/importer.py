@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import json
-from pathlib import Path
-from typing import Any
 import xml.etree.ElementTree as ET
+from pathlib import Path
+from xml.parsers import expat
 
 from cops.evidence.canonical import utc_now
+
 from .active_models import (
     ActiveScanSession,
     ActiveServiceAssessment,
@@ -17,7 +18,6 @@ from .active_models import (
     ObservedConfiguration,
     ObservedTLS,
     PortState,
-    Protocol,
     ScanBudget,
     ScanVantage,
     ServiceReachability,
@@ -64,7 +64,7 @@ def import_masscan_json(
 
             probe_key = ActiveScanSession.make_probe_key(vantage, proto, ip, port)
             completed_keys.add(probe_key)
-            probe_id = hashlib.sha256(f"{probe_key}:{file_hash}".encode("utf-8")).hexdigest()[:24]
+            probe_id = hashlib.sha256(f"{probe_key}:{file_hash}".encode()).hexdigest()[:24]
 
             port_state = PortState.OPEN.value if status == "open" else PortState.CLOSED.value
             reachability = ServiceReachability.REACHABLE.value if status == "open" else ServiceReachability.UNREACHABLE.value
@@ -94,7 +94,7 @@ def import_masscan_json(
                 )
             )
 
-    session_id = hashlib.sha256(f"{scope_ref}:{file_hash}".encode("utf-8")).hexdigest()[:16]
+    session_id = hashlib.sha256(f"{scope_ref}:{file_hash}".encode()).hexdigest()[:16]
     session = ActiveScanSession(
         session_id=session_id,
         scope_reference=scope_ref,
@@ -121,7 +121,17 @@ def import_nmap_xml(
     """Import Nmap XML output (-oX) into an ActiveScanSession."""
     path = Path(filepath)
     raw_content = path.read_text(encoding="utf-8")
-    root = ET.fromstring(raw_content)
+    # Nmap emits an ordinary DOCTYPE; entity declarations and external entities
+    # are never needed for scan data and must be rejected before tree expansion.
+    parser = expat.ParserCreate()
+
+    def reject_entity(*_args):
+        raise ValueError("Nmap XML entity declarations and external entities are forbidden")
+
+    parser.EntityDeclHandler = reject_entity
+    parser.ExternalEntityRefHandler = reject_entity
+    parser.Parse(raw_content, True)
+    root = ET.fromstring(raw_content)  # noqa: S314 - entities rejected by Expat preflight above
 
     file_hash = hashlib.sha256(raw_content.encode("utf-8")).hexdigest()
     prov = EvidenceProvenance(
@@ -232,7 +242,7 @@ def import_nmap_xml(
 
             probe_key = ActiveScanSession.make_probe_key(vantage, proto, target_host, port_id)
             completed_keys.add(probe_key)
-            probe_id = hashlib.sha256(f"{probe_key}:{file_hash}".encode("utf-8")).hexdigest()[:24]
+            probe_id = hashlib.sha256(f"{probe_key}:{file_hash}".encode()).hexdigest()[:24]
 
             assessments.append(
                 ActiveServiceAssessment(
@@ -251,7 +261,7 @@ def import_nmap_xml(
                 )
             )
 
-    session_id = hashlib.sha256(f"{scope_ref}:{file_hash}".encode("utf-8")).hexdigest()[:16]
+    session_id = hashlib.sha256(f"{scope_ref}:{file_hash}".encode()).hexdigest()[:16]
     session = ActiveScanSession(
         session_id=session_id,
         scope_reference=scope_ref,

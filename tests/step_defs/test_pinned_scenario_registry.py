@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+
 import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
 
@@ -11,7 +12,6 @@ from cops.scenarios import (
     RegistryError,
     get_provenance_source,
     get_scenario,
-    list_provenance_sources,
     list_scenarios,
     load_provenance_registry,
     load_scenario_registry,

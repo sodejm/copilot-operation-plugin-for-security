@@ -17,7 +17,7 @@ DOMAIN_RE = re.compile(
 
 def _compute_asset_id(asset_type: str, identifier: str) -> str:
     """Deterministic 24-character asset hash."""
-    seed = f"{asset_type}:{identifier.strip().lower()}".encode("utf-8")
+    seed = f"{asset_type}:{identifier.strip().lower()}".encode()
     return hashlib.sha256(seed).hexdigest()[:24]
 
 

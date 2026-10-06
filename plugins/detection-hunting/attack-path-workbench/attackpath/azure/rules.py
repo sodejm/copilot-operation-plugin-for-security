@@ -1,7 +1,7 @@
 """Pinned, bounded hypothetical transitions; no operations are executed."""
-from .model import Decision, arm, object_id, stable
-from .permissions import DEPLOYMENT_OPERATIONS, evaluate, role_grant
 from .identity import directory, find, membership
+from .model import Decision, arm, stable
+from .permissions import DEPLOYMENT_OPERATIONS, evaluate, role_grant
 
 VERSION = 'azure-rules/v1'
 EXECUTION = {
@@ -19,7 +19,7 @@ EXECUTION = {
         ['Microsoft.Logic/workflows/write', 'Microsoft.Logic/workflows/triggers/run/action'],
         ['logic_consumption', 'identity_action', 'invocation', 'network', 'token_endpoint']),
 }
-SECRET = 'microsoft.keyvault/vaults/secrets/getsecret/action'
+SECRET = 'microsoft.keyvault/vaults/secrets/getsecret/action'  # noqa: S105 - schema label or operation identifier, not a credential
 OWNER = '8e3af657-a8ff-443c-a75c-2fe8c4bcb635'
 UAA = '18d7d88d-d35e-4fb5-a5c3-7773c20a72d9'
 
@@ -59,7 +59,7 @@ def identity_targets(graph, row):
         targets.append((identity['principalId'], [observation(row)]))
     for rid in identity.get('userAssignedIdentities', {}):
         graph.tick()
-        uami = find(graph, 'resources', row.tenant, lambda r: arm(r.data['id']) == arm(rid))
+        uami = find(graph, 'resources', row.tenant, lambda r, rid=rid: arm(r.data['id']) == arm(rid))
         if uami and uami.properties.get('principalId'):
             targets.append((uami.properties['principalId'], [observation(row), observation(uami)]))
     return targets
@@ -218,7 +218,7 @@ def transitions(graph, tenant, principal, target):
     for fic in graph.rows('federated_credentials', tenant):
         graph.tick()
         oid = fic.data.get('objectId', '')
-        obj = find(graph, 'resources', tenant, lambda r: r.data['id'].lower() == oid.lower()) or find(graph, 'applications', tenant, lambda r: r.data['id'].lower() == oid.lower())
+        obj = find(graph, 'resources', tenant, lambda r, oid=oid: r.data['id'].lower() == oid.lower()) or find(graph, 'applications', tenant, lambda r, oid=oid: r.data['id'].lower() == oid.lower())
         if not obj:
             continue
         if obj.family == 'resources' and obj.data.get('type', '').lower() != 'microsoft.managedidentity/userassignedidentities':
@@ -273,7 +273,7 @@ def delegated(graph, tenant, principal, target):
                 if aid not in principals:
                     continue
                 role_id = authorization.get('roleDefinitionId', '').split('/')[-1].lower()
-                role = find(graph, 'role_definitions', definition.tenant, lambda r: r.data['id'].split('/')[-1].lower() == role_id)
+                role = find(graph, 'role_definitions', definition.tenant, lambda r, role_id=role_id: r.data['id'].split('/')[-1].lower() == role_id)
                 if not role:
                     continue
                 restricted = role.properties.get('roleType') != 'BuiltInRole' or role_id == OWNER or any(
@@ -327,7 +327,7 @@ def delegated(graph, tenant, principal, target):
                         for authorization, grant_ds in grants:
                             for rid in authorization.get('delegatedRoleDefinitionIds', []):
                                 clone.tick()
-                                role = find(clone, 'role_definitions', definition.tenant, lambda r: r.data['id'].split('/')[-1].lower() == rid.split('/')[-1].lower())
+                                role = find(clone, 'role_definitions', definition.tenant, lambda r, rid=rid: r.data['id'].split('/')[-1].lower() == rid.split('/')[-1].lower())
                                 if not role or role.properties.get('roleType') != 'BuiltInRole' or role.data['id'].split('/')[-1].lower() in (OWNER, UAA):
                                     continue
                                 check = hypothetical_grant(clone, definition.tenant, mi, role, scope, target)

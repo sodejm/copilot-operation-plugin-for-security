@@ -32,7 +32,7 @@ def render_markdown_report(report_data: dict[str, Any]) -> str:
         "",
         "> [!IMPORTANT]",
         f"> Traces synthetic test marker **`{marker}`** through every pipeline stage from source emission to alert creation.",
-        f"> Proves whether the event survived collection, Cribl stream routing, SIEM indexing, and scheduled detection.",
+        "> Proves whether the event survived collection, Cribl stream routing, SIEM indexing, and scheduled detection.",
         "",
         "## Pipeline Verification Summary",
         "",

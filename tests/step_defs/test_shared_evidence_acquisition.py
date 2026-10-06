@@ -1,10 +1,17 @@
 """Executable shared-consumer scenarios using synthetic adapters only."""
 import pytest
-from pytest_bdd import given, when, then, scenarios, parsers
+from pytest_bdd import given, parsers, scenarios, then, when
 
 from cops.connectors import Checkpoint, Limits, collect, preview
-from cops.connectors.demo import (AS_OF, FixtureCredentials, FixtureInterruption,
-    FixtureTransport, interrupt_after_commit, offline_fixture, stale_example)
+from cops.connectors.demo import (
+    AS_OF,
+    FixtureCredentials,
+    FixtureInterruption,
+    FixtureTransport,
+    interrupt_after_commit,
+    offline_fixture,
+    stale_example,
+)
 from cops.evidence import report
 
 scenarios('../../specs/features/shared_evidence_acquisition.feature')

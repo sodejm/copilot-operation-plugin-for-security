@@ -4,14 +4,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-import pytest
 
 from cops.diagnostics import (
-    DiagnosticCheck,
     DiagnosticReport,
-    PackageDiagnostic,
-    SystemDiagnostic,
-    ToolDiagnostic,
     detect_system_platform,
     diagnose_host_tools,
     diagnose_packages,

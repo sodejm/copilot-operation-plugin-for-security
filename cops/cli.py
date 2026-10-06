@@ -10,8 +10,9 @@ import shlex
 import shutil
 import subprocess
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from .catalog import ROOT, CatalogError, PluginRecord, find_plugin, plugin_records, validate_declared_command
 from .coverage import (
@@ -98,7 +99,7 @@ def command_doctor(*, contributor: bool, root: Path = ROOT) -> int:
     missing: list[str] = []
     print(f"COPS root: {root}")
     print(f"Python: {platform.python_version()} ({sys.executable})")
-    if sys.version_info < (3, 11):
+    if sys.version_info < (3, 11):  # noqa: UP036 - diagnose unsupported Python runtimes
         missing.append("Python 3.11 or newer")
     try:
         records = validate_repository(root)
@@ -460,8 +461,8 @@ def command_worker_store_list(args: argparse.Namespace) -> int:
 
 
 def command_worker_execute(args: argparse.Namespace) -> int:
-    from .contracts.models import ActionPlan, ExecutionAuthorization
-    from .execution import ApprovalStore, IsolatedWorker, WorkerConfig, ScopeGuard
+    from .contracts.models import ExecutionAuthorization
+    from .execution import ApprovalStore, IsolatedWorker, ScopeGuard, WorkerConfig
     plan_path = Path(args.plan)
     if not plan_path.is_file():
         print(f"error: plan file not found: {plan_path}", file=sys.stderr)

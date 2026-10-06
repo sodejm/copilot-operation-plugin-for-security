@@ -1,3 +1,5 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 #!/usr/bin/env python3
 """Validate marketplace organization, host indexes, and evidence-backed findings."""
 
@@ -9,12 +11,13 @@ import sys
 from pathlib import Path
 from typing import Any
 
-
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from cops.validation import ValidationError, validate_repository
-
+from cops.validation import (
+    ValidationError,
+    validate_repository,
+)
 
 CLASSIFICATIONS = {"observation", "assessment", "unresolved"}
 VERIFICATIONS = {"verified", "partially-verified", "unverified", "contradicted"}

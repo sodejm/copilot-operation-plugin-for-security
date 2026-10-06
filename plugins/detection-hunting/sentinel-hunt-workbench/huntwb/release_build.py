@@ -6,7 +6,7 @@ import io
 import re
 import stat
 import zipfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -17,7 +17,6 @@ from .package_validation import validate_package
 from .paths import EVIDENCE_DIR, PACKAGE_ROOT, RELEASE_DIR, load_hunts, load_json, sha256_bytes, write_json
 from .rendering import compatibility_report
 from .reports import EXTERNAL_EVIDENCE_SCHEMA, INTEGRITY_EVIDENCE_SCHEMA, release_report, release_subject
-
 
 ARCHIVE_NAME = "sentinel-hunt-workbench.zip"
 _SECRET_PATTERNS = {
@@ -164,7 +163,7 @@ def build_release_artifacts(seed: int = 20260916) -> dict[str, Any]:
         },
     }
     index: dict[str, dict[str, str]] = {}
-    completed_at = datetime.now(timezone.utc).isoformat()
+    completed_at = datetime.now(UTC).isoformat()
     for kind, payload in payloads.items():
         payload_path, payload_hash = _evidence_file(f"{kind}.payload.json", payload)
         wrapper = {

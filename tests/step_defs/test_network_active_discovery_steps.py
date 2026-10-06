@@ -1,19 +1,23 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 """Step definitions for Network Active Discovery BDD scenarios."""
 
 from __future__ import annotations
 
-from pathlib import Path
+import ssl
 import sys
+from pathlib import Path
+
 import pytest
-from pytest_bdd import given, parsers, scenarios, then, when
+from pytest_bdd import given, scenarios, then, when
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from cops.discovery import (
-    ActiveScanSession,
     ActiveScanner,
+    ActiveScanSession,
     ConfidenceLevel,
     ObservedConfiguration,
     ObservedTLS,
@@ -25,6 +29,7 @@ from cops.discovery import (
     compare_active_scans,
     infer_service_fingerprint,
 )
+from cops.discovery.active_scanner import StandardSocketDispatcher, _create_tls_context
 
 scenarios("../../specs/features/network_active_discovery.feature")
 
@@ -41,6 +46,7 @@ def bdd_ctx():
         "scanner": None,
         "completed": None,
         "delta": None,
+        "tls_context": None,
         "scope": {
             "domains": ["corp.internal"],
             "ip_ranges": ["198.51.100.0/24"],
@@ -381,3 +387,19 @@ def then_remediated_ports_identified(bdd_ctx):
 def then_exact_remediation_rate(bdd_ctx):
     delta = bdd_ctx["delta"]
     assert delta.remediation_rate == 50.0
+
+
+@given("the standard socket TLS probe")
+def given_standard_socket_tls_probe(bdd_ctx):
+    bdd_ctx["dispatcher"] = StandardSocketDispatcher()
+
+
+@when("it creates a TLS client context")
+def when_tls_context_created(bdd_ctx):
+    assert isinstance(bdd_ctx["dispatcher"], StandardSocketDispatcher)
+    bdd_ctx["tls_context"] = _create_tls_context()
+
+
+@then("the minimum TLS version is TLS 1.2")
+def then_minimum_tls_version(bdd_ctx):
+    assert bdd_ctx["tls_context"].minimum_version == ssl.TLSVersion.TLSv1_2

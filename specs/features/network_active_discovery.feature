@@ -47,3 +47,8 @@ Feature: Network Active Discovery and Service Identification
     When the active scan delta comparison is evaluated
     Then closed or filtered ports are identified as remediated exposures
     And an exact remediation rate percentage is calculated
+
+  Scenario: Excluding deprecated TLS versions from live probes
+    Given the standard socket TLS probe
+    When it creates a TLS client context
+    Then the minimum TLS version is TLS 1.2

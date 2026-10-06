@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 import hashlib
 import ipaddress
-from pathlib import Path
 import socket
+from abc import ABC, abstractmethod
 from typing import Any
 
-from cops.evidence.canonical import utc_now
 from .legacy_models import (
     CleanupReceipt,
     ExecutionEffect,
@@ -22,7 +20,6 @@ from .legacy_models import (
     LegacyServicesReport,
     LegacyServiceType,
 )
-
 
 DEFAULT_LEGACY_PORTS: dict[str, tuple[int, str, str]] = {
     # Enterprise Storage & Data Management
@@ -254,7 +251,7 @@ class OfflineSyntheticLegacyCollector(LegacyServicesCollector):
 
         receipts: list[CleanupReceipt] = []
         if canary_active and canary_artifact:
-            receipt_id = hashlib.sha256(f"clean:{target_host}:{service_type}:{canary_artifact}".encode("utf-8")).hexdigest()[:16]
+            receipt_id = hashlib.sha256(f"clean:{target_host}:{service_type}:{canary_artifact}".encode()).hexdigest()[:16]
             receipts.append(
                 CleanupReceipt(
                     receipt_id=f"rec-{receipt_id}",
@@ -315,7 +312,7 @@ class OfflineSyntheticLegacyCollector(LegacyServicesCollector):
         if service_type == LegacyServiceType.NDMP.value:
             if not auth_req or details.get("auth_required") is False:
                 vulns.append("NDMP storage management interface exposed without authentication; tape/disk backup traversal permitted")
-                c_id = hashlib.sha256(f"ndmp:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"ndmp:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     LegacyPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -338,7 +335,7 @@ class OfflineSyntheticLegacyCollector(LegacyServicesCollector):
         elif service_type == LegacyServiceType.ISCSI.value:
             if not auth_req or details.get("chap_enforced") is False:
                 vulns.append("iSCSI storage target discovery permits unauthenticated SendTargets discovery and session attachment")
-                c_id = hashlib.sha256(f"iscsi:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"iscsi:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     LegacyPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -361,7 +358,7 @@ class OfflineSyntheticLegacyCollector(LegacyServicesCollector):
         elif service_type == LegacyServiceType.IPMI.value:
             if details.get("cipher_zero") is True or details.get("cipher_zero_enabled") is True:
                 vulns.append("IPMI 2.0 RMCP+ cipher suite 0 authentication bypass enabled; unrestricted BMC lights-out control")
-                c_id = hashlib.sha256(f"ipmi-c0:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"ipmi-c0:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     LegacyPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -383,7 +380,7 @@ class OfflineSyntheticLegacyCollector(LegacyServicesCollector):
                 can_change_state = True
             elif details.get("rakp_dumpable") is True or not auth_req:
                 vulns.append("IPMI 2.0 RAKP HMAC-SHA1 password hashes retrievable via unauthenticated handshake request")
-                c_id = hashlib.sha256(f"ipmi-rakp:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"ipmi-rakp:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     LegacyPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -405,7 +402,7 @@ class OfflineSyntheticLegacyCollector(LegacyServicesCollector):
         elif service_type == LegacyServiceType.CISCO_SMART_INSTALL.value:
             if not auth_req or details.get("smi_active") is True:
                 vulns.append("Cisco Smart Install (SMI) active on TCP 4786 without authentication; arbitrary config download and RCE")
-                c_id = hashlib.sha256(f"smi:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"smi:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     LegacyPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -429,7 +426,7 @@ class OfflineSyntheticLegacyCollector(LegacyServicesCollector):
         elif service_type == LegacyServiceType.TACACS.value:
             if not auth_req or details.get("single_connect") is True:
                 vulns.append("TACACS+ AAA daemon exposed to network; unauthenticated handshake reveals legacy obfuscation key usage")
-                c_id = hashlib.sha256(f"tacacs:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"tacacs:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     LegacyPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -451,7 +448,7 @@ class OfflineSyntheticLegacyCollector(LegacyServicesCollector):
         elif service_type == LegacyServiceType.IKE.value:
             if details.get("aggressive_mode") is True or not auth_req:
                 vulns.append("IKEv1 Aggressive Mode enabled; responder returns pre-shared key (PSK) hash subject to offline cracking")
-                c_id = hashlib.sha256(f"ike:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"ike:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     LegacyPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -473,7 +470,7 @@ class OfflineSyntheticLegacyCollector(LegacyServicesCollector):
         elif service_type == LegacyServiceType.PPTP.value:
             if details.get("mschapv2") is True or not auth_req:
                 vulns.append("PPTP VPN service exposed using vulnerable MS-CHAPv2 authentication; credential hash cracking permitted")
-                c_id = hashlib.sha256(f"pptp:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"pptp:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     LegacyPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -498,7 +495,7 @@ class OfflineSyntheticLegacyCollector(LegacyServicesCollector):
             proxy_egress_restricted = is_restricted
             if not auth_req or details.get("auth_required") is False or not is_restricted:
                 vulns.append("SOCKS proxy exposed without authentication or egress restrictions; open network relaying permitted")
-                c_id = hashlib.sha256(f"socks:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"socks:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     LegacyPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -524,7 +521,7 @@ class OfflineSyntheticLegacyCollector(LegacyServicesCollector):
             proxy_egress_restricted = is_restricted
             if details.get("open_proxy") is True or not is_restricted:
                 vulns.append("Squid HTTP proxy allows open forward proxying without client subnet restriction; internal SSRF / pivoting permitted")
-                c_id = hashlib.sha256(f"squid:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"squid:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     LegacyPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -662,7 +659,7 @@ class StandardSocketLegacyCollector(LegacyServicesCollector):
                         configuration_details={"socket_connected": True},
                         uncertainty_notes=["TCP connect succeeded; protocol-level handshake required to verify authentication"],
                     )
-        except (socket.timeout, ConnectionRefusedError, OSError) as err:
+        except (TimeoutError, ConnectionRefusedError, OSError) as err:
             return LegacyServiceAssessment(
                 target_host=target_host,
                 resolved_ip=resolved_ip,
@@ -708,7 +705,7 @@ def assess_legacy_services(
     canary = canary_artifact or canary_id
 
     targets_str = ",".join(targets)
-    report_id = f"leg-rep-{hashlib.sha256(f'{scope_ref}:{vantage}:{targets_str}'.encode('utf-8')).hexdigest()[:16]}"
+    report_id = f"leg-rep-{hashlib.sha256(f'{scope_ref}:{vantage}:{targets_str}'.encode()).hexdigest()[:16]}"
     assessments: list[LegacyServiceAssessment] = []
 
     total_exposed = 0

@@ -6,10 +6,9 @@ import hashlib
 import json
 import os
 import tempfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal, TypedDict
-
 
 Action = Literal["isolate-host", "revoke-session"]
 PLAN_FIELDS = {"schema", "action", "tenant", "target", "parameters", "expected_state",
@@ -60,7 +59,7 @@ def _expiry(value: object) -> datetime:
         raise ActionError("invalid expiry") from error
     if parsed.tzinfo is None:
         raise ActionError("expiry must include a timezone")
-    return parsed.astimezone(timezone.utc)
+    return parsed.astimezone(UTC)
 
 
 def validate_plan(plan: object, *, now: datetime | None = None) -> Plan:
@@ -76,7 +75,7 @@ def validate_plan(plan: object, *, now: datetime | None = None) -> Plan:
     if not isinstance(plan["parameters"], dict) or plan["parameters"]:
         raise ActionError("parameters must be an empty object for fixture actions")
     expiry = _expiry(plan["expires_at"])
-    if expiry <= (now or datetime.now(timezone.utc)):
+    if expiry <= (now or datetime.now(UTC)):
         raise ActionError("plan expired")
     supplied = plan["plan_hash"]
     if not isinstance(supplied, str) or supplied != _digest({k: v for k, v in plan.items() if k != "plan_hash"}):

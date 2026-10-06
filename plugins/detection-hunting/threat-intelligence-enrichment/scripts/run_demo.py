@@ -1,3 +1,5 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 """Synthetic, no-network package demo."""
 import sys
 from pathlib import Path

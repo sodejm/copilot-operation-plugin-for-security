@@ -54,7 +54,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.command in ("analyze-azure", "plan-azure-collection"):
         from .azure.model import AzureError
-        from .azure.report import analyze as analyze_azure, write_files
+        from .azure.report import analyze as analyze_azure
+        from .azure.report import write_files
         try:
             if args.command == "analyze-azure":
                 result = analyze_azure(args.input, args.as_of, args.output, ingestion_overrides(args))

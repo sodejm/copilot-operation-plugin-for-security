@@ -10,7 +10,6 @@ from urllib.parse import unquote, urlsplit
 
 from repository_files import repository_files
 
-
 ROOT = Path(__file__).resolve().parents[2]
 REQUIRED = (
     "AGENTS.md",

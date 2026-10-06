@@ -1,13 +1,14 @@
 """Validate actual CLI artifacts against the shipped Azure JSON Schemas."""
 import copy
 import json
-from pathlib import Path
 import tempfile
 import unittest
-from jsonschema import Draft202012Validator, ValidationError
+from pathlib import Path
+
 from azure_fixtures import write_bundle
-from test_azure_paths import base, role, NOW, SECRET, VAULT, T, S
-from test_azure_sdk_cli import run_cli, PLUGIN
+from jsonschema import Draft202012Validator, ValidationError
+from test_azure_paths import NOW, SECRET, VAULT, S, T, base, role
+from test_azure_sdk_cli import PLUGIN, run_cli
 
 
 def validate(document, name):

@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 import hashlib
 import ipaddress
-import json
-from pathlib import Path
 import socket
+from abc import ABC, abstractmethod
 from typing import Any
 
-from cops.evidence.canonical import canonical, utc_now
 from .data_models import (
     CleanupReceipt,
     DataAuthPrerequisite,
@@ -22,7 +19,6 @@ from .data_models import (
     DataServicesReport,
     DataServiceType,
 )
-
 
 DEFAULT_DATA_PORTS: dict[str, tuple[int, str, str]] = {
     # Relational Databases
@@ -266,7 +262,7 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
 
         receipts: list[CleanupReceipt] = []
         if canary_active and canary_artifact:
-            receipt_id = hashlib.sha256(f"clean:{target_host}:{service_type}:{canary_artifact}".encode("utf-8")).hexdigest()[:16]
+            receipt_id = hashlib.sha256(f"clean:{target_host}:{service_type}:{canary_artifact}".encode()).hexdigest()[:16]
             receipts.append(
                 CleanupReceipt(
                     receipt_id=f"rec-{receipt_id}",
@@ -318,7 +314,7 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
         if service_type == DataServiceType.REDIS.value:
             if not auth_req or details.get("requirepass") is False:
                 vulns.append("Redis instance accepts unauthenticated TCP commands")
-                c_id = hashlib.sha256(f"redis:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"redis:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DataPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -337,7 +333,7 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
                 )
             if details.get("config_set_enabled", True) and not auth_req:
                 vulns.append("Redis CONFIG command accessible; potential arbitrary file write / code execution")
-                c_id = hashlib.sha256(f"redis_config:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"redis_config:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DataPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -358,7 +354,7 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
         elif service_type == DataServiceType.ELASTICSEARCH.value:
             if not auth_req or details.get("security_enabled") is False:
                 vulns.append("Elasticsearch REST endpoint open without authentication")
-                c_id = hashlib.sha256(f"es:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"es:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DataPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -379,7 +375,7 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
         elif service_type == DataServiceType.MONGODB.value:
             if not auth_req or details.get("auth_enabled") is False:
                 vulns.append("MongoDB instance running without authentication (--auth)")
-                c_id = hashlib.sha256(f"mongo:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"mongo:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DataPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -400,7 +396,7 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
         elif service_type == DataServiceType.MEMCACHED.value:
             if not auth_req or details.get("sasl_enabled") is False:
                 vulns.append("Memcached daemon accepts unauthenticated slab dump requests")
-                c_id = hashlib.sha256(f"memcached:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"memcached:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DataPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -421,7 +417,7 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
         elif service_type == DataServiceType.MYSQL.value:
             if details.get("password_required") is False or not auth_req:
                 vulns.append("MySQL server accessible with blank/unauthenticated root credentials")
-                c_id = hashlib.sha256(f"mysql:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"mysql:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DataPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -442,7 +438,7 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
         elif service_type == DataServiceType.POSTGRES.value:
             if details.get("auth_method") == "trust" or not auth_req:
                 vulns.append("PostgreSQL pg_hba.conf configured with 'trust' authentication")
-                c_id = hashlib.sha256(f"postgres:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"postgres:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DataPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -463,7 +459,7 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
         elif service_type == DataServiceType.MSSQL.value:
             if details.get("blank_sa") is True or details.get("blank_sa_password") is True or not auth_req:
                 vulns.append("Microsoft SQL Server configured with blank sa password or xp_cmdshell enabled")
-                c_id = hashlib.sha256(f"mssql:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"mssql:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DataPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -484,7 +480,7 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
         elif service_type == DataServiceType.ORACLE.value:
             if details.get("default_credentials") is True or not auth_req:
                 vulns.append("Oracle database accessible with default administrative credentials (SYS/SYSTEM)")
-                c_id = hashlib.sha256(f"oracle:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"oracle:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DataPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -505,7 +501,7 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
         elif service_type == DataServiceType.COUCHDB.value:
             if details.get("admin_party") is True or not auth_req:
                 vulns.append("CouchDB running in unauthenticated Admin Party mode")
-                c_id = hashlib.sha256(f"couchdb:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"couchdb:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DataPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -526,7 +522,7 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
         elif service_type == DataServiceType.CASSANDRA.value:
             if details.get("default_creds") is True or not auth_req:
                 vulns.append("Cassandra cluster accessible using default superuser credentials (cassandra/cassandra)")
-                c_id = hashlib.sha256(f"cassandra:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"cassandra:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DataPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -547,7 +543,7 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
         elif service_type == DataServiceType.INFLUXDB.value:
             if not auth_req or details.get("auth_enabled") is False:
                 vulns.append("InfluxDB HTTP API open without mandatory authentication")
-                c_id = hashlib.sha256(f"influx:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"influx:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DataPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -568,7 +564,7 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
         elif service_type == DataServiceType.KIBANA.value:
             if not auth_req or details.get("auth_enabled") is False:
                 vulns.append("Kibana analytics dashboard exposed without user authentication")
-                c_id = hashlib.sha256(f"kibana:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"kibana:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DataPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -589,7 +585,7 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
         elif service_type == DataServiceType.SPLUNK.value:
             if details.get("default_creds") is True:
                 vulns.append("Splunk management daemon accessible with default credentials (admin/changeme)")
-                c_id = hashlib.sha256(f"splunk:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"splunk:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DataPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -669,7 +665,7 @@ class StandardSocketDataCollector(DataServicesCollector):
                     configuration_details={"socket_connected": True},
                     uncertainty_notes=["TCP connect succeeded; protocol credentials required to verify authentication"],
                 )
-        except (socket.timeout, ConnectionRefusedError, OSError) as err:
+        except (TimeoutError, ConnectionRefusedError, OSError) as err:
             return DataServiceAssessment(
                 target_host=target_host,
                 resolved_ip=resolved_ip,
@@ -723,7 +719,7 @@ def assess_data_services(
     }
 
     report_id = hashlib.sha256(
-        f"{scope_ref}:{sorted(targets)}:{sorted(selected_services)}:{vantage}".encode("utf-8")
+        f"{scope_ref}:{sorted(targets)}:{sorted(selected_services)}:{vantage}".encode()
     ).hexdigest()[:16]
 
     for target in targets:
