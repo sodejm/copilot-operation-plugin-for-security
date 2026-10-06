@@ -1,6 +1,8 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 """Executable Microsoft 365 offline acquisition scenarios."""
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import pytest
 from pytest_bdd import given, scenarios, then, when
@@ -9,9 +11,15 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / 'plugins/detection-hunting/soc-investigation-workbench'))
 
-from cops.connectors import Checkpoint, GraphCollection, Response, collect
-from cops.evidence import canonical
 from investigationwb.m365 import correlate
+
+from cops.connectors import (
+    Checkpoint,
+    GraphCollection,
+    Response,
+    collect,
+)
+from cops.evidence import canonical
 
 scenarios('../../specs/features/m365_investigation.feature')
 

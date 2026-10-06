@@ -1,8 +1,9 @@
 """Private SQLite page transactions and an exclusive acquisition lock."""
 import os
-from pathlib import Path
 import sqlite3
 import stat
+from pathlib import Path
+
 from cops.evidence import EvidenceError, decode_json
 from cops.evidence.canonical import canonical
 

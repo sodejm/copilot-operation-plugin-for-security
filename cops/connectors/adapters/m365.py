@@ -2,9 +2,9 @@
 from urllib.parse import parse_qsl, urlencode
 
 from cops.evidence import EvidenceError
+
 from ..interfaces import Page, Request
 from .microsoft import destination, guid, opaque
-
 
 # Fields are intentionally narrower than the provider responses. The caller
 # cannot supply an arbitrary Graph path, projection, or OData expression.

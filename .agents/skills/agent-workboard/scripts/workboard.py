@@ -13,9 +13,9 @@ import sqlite3
 import subprocess
 import sys
 import uuid
+from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
-
+from typing import Any
 
 SCHEMA_VERSION = 1
 LEASE_MINUTES = 30
@@ -37,14 +37,14 @@ class WorkboardError(RuntimeError):
 
 
 def utc_now() -> str:
-    return dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+    return dt.datetime.now(dt.UTC).isoformat(timespec="seconds")
 
 
 def parse_time(value: str) -> dt.datetime:
     parsed = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=dt.timezone.utc)
-    return parsed.astimezone(dt.timezone.utc)
+        parsed = parsed.replace(tzinfo=dt.UTC)
+    return parsed.astimezone(dt.UTC)
 
 
 def json_text(value: Any) -> str:
@@ -52,14 +52,14 @@ def json_text(value: Any) -> str:
 
 
 def new_id(prefix: str) -> str:
-    return "{}_{}".format(prefix, uuid.uuid4().hex)
+    return f"{prefix}_{uuid.uuid4().hex}"
 
 
 def canonical_path(path: str) -> Path:
     return Path(path).expanduser().resolve()
 
 
-def run_git(cwd: Path, args: Sequence[str]) -> Optional[str]:
+def run_git(cwd: Path, args: Sequence[str]) -> str | None:
     try:
         result = subprocess.run(
             ["git", "-C", str(cwd)] + list(args),
@@ -73,7 +73,7 @@ def run_git(cwd: Path, args: Sequence[str]) -> Optional[str]:
     return result.stdout.strip()
 
 
-def resolve_storage(cwd: str) -> Dict[str, str]:
+def resolve_storage(cwd: str) -> dict[str, str]:
     project = canonical_path(cwd)
     common = run_git(
         project, ["rev-parse", "--path-format=absolute", "--git-common-dir"]
@@ -103,7 +103,7 @@ def resolve_storage(cwd: str) -> Dict[str, str]:
     }
 
 
-def resolve_database(cwd: str, explicit: Optional[str]) -> Tuple[Path, Dict[str, str]]:
+def resolve_database(cwd: str, explicit: str | None) -> tuple[Path, dict[str, str]]:
     storage = resolve_storage(cwd)
     database = canonical_path(explicit) if explicit else Path(storage["database"])
     storage["database"] = str(database)
@@ -149,9 +149,7 @@ def migrate(connection: sqlite3.Connection) -> None:
     version = int(connection.execute("PRAGMA user_version").fetchone()[0])
     if version > SCHEMA_VERSION:
         raise WorkboardError(
-            "database schema {} is newer than supported schema {}".format(
-                version, SCHEMA_VERSION
-            )
+            f"database schema {version} is newer than supported schema {SCHEMA_VERSION}"
         )
     if version < 1:
         connection.executescript(
@@ -259,11 +257,11 @@ def record_event(
     connection: sqlite3.Connection,
     event_type: str,
     *,
-    run_id: Optional[str] = None,
-    task_id: Optional[str] = None,
-    session_id: Optional[str] = None,
-    agent_id: Optional[str] = None,
-    payload: Optional[Dict[str, Any]] = None,
+    run_id: str | None = None,
+    task_id: str | None = None,
+    session_id: str | None = None,
+    agent_id: str | None = None,
+    payload: dict[str, Any] | None = None,
 ) -> None:
     connection.execute(
         """
@@ -288,13 +286,13 @@ def fetch_task(connection: sqlite3.Connection, task_id: str) -> sqlite3.Row:
         "SELECT * FROM tasks WHERE task_id = ?", (task_id,)
     ).fetchone()
     if row is None:
-        raise WorkboardError("unknown task: {}".format(task_id))
+        raise WorkboardError(f"unknown task: {task_id}")
     return row
 
 
 def incomplete_dependencies(
     connection: sqlite3.Connection, task_id: str
-) -> List[sqlite3.Row]:
+) -> list[sqlite3.Row]:
     return list(
         connection.execute(
             """
@@ -311,7 +309,7 @@ def incomplete_dependencies(
     )
 
 
-def refresh_ready_tasks(connection: sqlite3.Connection) -> List[str]:
+def refresh_ready_tasks(connection: sqlite3.Connection) -> list[str]:
     rows = list(
         connection.execute(
             """
@@ -356,7 +354,7 @@ def write_handoff(
     task = fetch_task(connection, task_id)
     handoff_dir = database.parent / "handoffs"
     secure_directory(handoff_dir)
-    path = handoff_dir / "{}.md".format(task_id)
+    path = handoff_dir / f"{task_id}.md"
     inputs = json.loads(task["inputs_json"])
     acceptance = json.loads(task["acceptance_json"])
     validation = json.loads(task["validation_json"])
@@ -381,7 +379,7 @@ def write_handoff(
     ]
 
     def bullets(values: Iterable[Any], empty: str = "- None recorded") -> str:
-        lines = ["- {}".format(value) for value in values]
+        lines = [f"- {value}" for value in values]
         return "\n".join(lines) if lines else empty
 
     body = """# Task handoff: {title}
@@ -505,9 +503,9 @@ def record_artifact_references(
 def command_init(
     connection: sqlite3.Connection,
     database: Path,
-    storage: Dict[str, str],
+    storage: dict[str, str],
     _args: argparse.Namespace,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     return {
         "database": str(database),
         "project_root": storage["project_root"],
@@ -521,9 +519,9 @@ def command_init(
 def command_run_start(
     connection: sqlite3.Connection,
     database: Path,
-    storage: Dict[str, str],
+    storage: dict[str, str],
     args: argparse.Namespace,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     run_id = args.run_id or new_id("run")
     now = utc_now()
     try:
@@ -543,7 +541,7 @@ def command_run_start(
             ),
         )
     except sqlite3.IntegrityError as exc:
-        raise WorkboardError("cannot start run {}: {}".format(run_id, exc))
+        raise WorkboardError(f"cannot start run {run_id}: {exc}") from exc
     record_event(
         connection,
         "run_started",
@@ -555,8 +553,8 @@ def command_run_start(
     return {"database": str(database), "run_id": run_id, "status": "active"}
 
 
-def load_contract(args: argparse.Namespace) -> Dict[str, Any]:
-    contract: Dict[str, Any] = {}
+def load_contract(args: argparse.Namespace) -> dict[str, Any]:
+    contract: dict[str, Any] = {}
     if args.contract_file:
         contract = json.loads(
             Path(args.contract_file).expanduser().read_text(encoding="utf-8")
@@ -613,15 +611,15 @@ def load_contract(args: argparse.Namespace) -> Dict[str, Any]:
 def command_task_add(
     connection: sqlite3.Connection,
     database: Path,
-    _storage: Dict[str, str],
+    _storage: dict[str, str],
     args: argparse.Namespace,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     contract = load_contract(args)
     run = connection.execute(
         "SELECT run_id FROM runs WHERE run_id = ?", (args.run_id,)
     ).fetchone()
     if run is None:
-        raise WorkboardError("unknown run: {}".format(args.run_id))
+        raise WorkboardError(f"unknown run: {args.run_id}")
     task_id = args.task_id or new_id("task")
     dependencies = list(dict.fromkeys(contract["dependencies"]))
     now = utc_now()
@@ -694,9 +692,9 @@ def command_task_add(
 def command_task_bind(
     connection: sqlite3.Connection,
     _database: Path,
-    _storage: Dict[str, str],
+    _storage: dict[str, str],
     args: argparse.Namespace,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     try:
         connection.execute("BEGIN IMMEDIATE")
         task = fetch_task(connection, args.task_id)
@@ -735,16 +733,16 @@ def command_task_bind(
 
 def lease_deadline(minutes: int = LEASE_MINUTES) -> str:
     return (
-        dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=minutes)
+        dt.datetime.now(dt.UTC) + dt.timedelta(minutes=minutes)
     ).isoformat(timespec="seconds")
 
 
 def command_task_claim(
     connection: sqlite3.Connection,
     _database: Path,
-    _storage: Dict[str, str],
+    _storage: dict[str, str],
     args: argparse.Namespace,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     if args.lease_minutes <= 0:
         raise WorkboardError("--lease-minutes must be positive")
     try:
@@ -819,9 +817,9 @@ def require_assignee(task: sqlite3.Row, agent_id: str) -> None:
 def command_task_heartbeat(
     connection: sqlite3.Connection,
     _database: Path,
-    _storage: Dict[str, str],
+    _storage: dict[str, str],
     args: argparse.Namespace,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     if args.lease_minutes <= 0:
         raise WorkboardError("--lease-minutes must be positive")
     try:
@@ -862,9 +860,9 @@ def command_task_heartbeat(
 def command_task_block(
     connection: sqlite3.Connection,
     database: Path,
-    _storage: Dict[str, str],
+    _storage: dict[str, str],
     args: argparse.Namespace,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     try:
         connection.execute("BEGIN IMMEDIATE")
         task = fetch_task(connection, args.task_id)
@@ -915,7 +913,7 @@ def command_task_block(
     }
 
 
-def list_argument(values: Sequence[str], encoded: Optional[str]) -> List[str]:
+def list_argument(values: Sequence[str], encoded: str | None) -> list[str]:
     if encoded is not None:
         parsed = json.loads(encoded)
         if not isinstance(parsed, list):
@@ -927,9 +925,9 @@ def list_argument(values: Sequence[str], encoded: Optional[str]) -> List[str]:
 def command_task_complete(
     connection: sqlite3.Connection,
     database: Path,
-    _storage: Dict[str, str],
+    _storage: dict[str, str],
     args: argparse.Namespace,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     validation = list_argument(args.validation, args.validation_json)
     try:
         connection.execute("BEGIN IMMEDIATE")
@@ -979,9 +977,9 @@ def command_task_complete(
 def command_task_cancel(
     connection: sqlite3.Connection,
     database: Path,
-    _storage: Dict[str, str],
+    _storage: dict[str, str],
     args: argparse.Namespace,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     try:
         connection.execute("BEGIN IMMEDIATE")
         task = fetch_task(connection, args.task_id)
@@ -1019,7 +1017,7 @@ def command_task_cancel(
     }
 
 
-def task_to_dict(row: sqlite3.Row) -> Dict[str, Any]:
+def task_to_dict(row: sqlite3.Row) -> dict[str, Any]:
     result = dict(row)
     for field in ("inputs_json", "acceptance_json", "validation_json"):
         result[field[:-5]] = json.loads(result.pop(field))
@@ -1029,11 +1027,11 @@ def task_to_dict(row: sqlite3.Row) -> Dict[str, Any]:
 def command_status(
     connection: sqlite3.Connection,
     database: Path,
-    _storage: Dict[str, str],
+    _storage: dict[str, str],
     args: argparse.Namespace,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     clauses = []
-    values: List[Any] = []
+    values: list[Any] = []
     if args.run_id:
         clauses.append("task.run_id = ?")
         values.append(args.run_id)
@@ -1047,14 +1045,12 @@ def command_status(
     where = " WHERE " + " AND ".join(clauses) if clauses else ""
     rows = list(
         connection.execute(
-            """
+            f"""
             SELECT task.*
             FROM tasks task
-            {}
+            {where}
             ORDER BY task.created_at, task.task_id
-            """.format(
-                where
-            ),
+            """,  # noqa: S608 - fixed SQL clauses; values are bound parameters
             values,
         )
     )
@@ -1078,9 +1074,9 @@ def command_status(
 def command_reconcile(
     connection: sqlite3.Connection,
     _database: Path,
-    _storage: Dict[str, str],
+    _storage: dict[str, str],
     _args: argparse.Namespace,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     try:
         connection.execute("BEGIN IMMEDIATE")
         now = utc_now()
@@ -1125,9 +1121,9 @@ def command_reconcile(
 def command_export(
     connection: sqlite3.Connection,
     _database: Path,
-    _storage: Dict[str, str],
+    _storage: dict[str, str],
     args: argparse.Namespace,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     artifact = connection.execute(
         """
         SELECT path FROM artifacts
@@ -1140,13 +1136,13 @@ def command_export(
         raise WorkboardError("task has no generated handoff")
     source = Path(artifact["path"])
     if not source.is_file():
-        raise WorkboardError("handoff is missing: {}".format(source))
+        raise WorkboardError(f"handoff is missing: {source}")
     target = Path(args.to).expanduser()
     if target.exists() and target.is_dir():
         target = target / source.name
     if target.exists() and not args.force:
         raise WorkboardError(
-            "export target exists; pass --force to replace it: {}".format(target)
+            f"export target exists; pass --force to replace it: {target}"
         )
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(str(source), str(target))
@@ -1156,13 +1152,13 @@ def command_export(
 def command_gc(
     connection: sqlite3.Connection,
     database: Path,
-    _storage: Dict[str, str],
+    _storage: dict[str, str],
     args: argparse.Namespace,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     if args.older_than < 0:
         raise WorkboardError("--older-than must be non-negative")
     cutoff = (
-        dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=args.older_than)
+        dt.datetime.now(dt.UTC) - dt.timedelta(days=args.older_than)
     ).isoformat(timespec="seconds")
     try:
         connection.execute("BEGIN IMMEDIATE")
@@ -1252,7 +1248,7 @@ def compact_summary(connection: sqlite3.Connection, database: Path) -> str:
             """
         )
     )
-    lines = ["Agent workboard: {}".format(database)]
+    lines = [f"Agent workboard: {database}"]
     if not rows:
         lines.append("No active tasks.")
     else:
@@ -1286,7 +1282,7 @@ def hook_output(event: str, context: str) -> None:
 
 
 def session_upsert(
-    connection: sqlite3.Connection, payload: Dict[str, Any], status: str
+    connection: sqlite3.Connection, payload: dict[str, Any], status: str
 ) -> None:
     session_id = payload.get("session_id")
     if not session_id:
@@ -1325,7 +1321,7 @@ def session_upsert(
 
 def task_for_agent(
     connection: sqlite3.Connection, agent_id: str
-) -> Optional[sqlite3.Row]:
+) -> sqlite3.Row | None:
     return connection.execute(
         """
         SELECT * FROM tasks
@@ -1451,12 +1447,12 @@ def hook_main(args: argparse.Namespace) -> int:
                 )
                 connection.commit()
             else:
-                raise WorkboardError("unsupported hook event: {}".format(event))
+                raise WorkboardError(f"unsupported hook event: {event}")
         finally:
             connection.close()
         return 0
     except Exception as exc:
-        print("agent-workboard hook: {}".format(exc), file=sys.stderr)
+        print(f"agent-workboard hook: {exc}", file=sys.stderr)
         if "payload" in locals() and payload.get("hook_event_name") == "SubagentStop":
             print("{}")
         return 0
@@ -1577,7 +1573,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def print_result(result: Dict[str, Any], as_json: bool) -> None:
+def print_result(result: dict[str, Any], as_json: bool) -> None:
     if as_json:
         print(json.dumps(result, indent=2, sort_keys=True))
         return
@@ -1592,12 +1588,12 @@ def print_result(result: Dict[str, Any], as_json: bool) -> None:
         return
     for key, value in result.items():
         if isinstance(value, (dict, list)):
-            print("{}={}".format(key, json_text(value)))
+            print(f"{key}={json_text(value)}")
         else:
-            print("{}={}".format(key, value))
+            print(f"{key}={value}")
 
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     os.umask(0o077)
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -1614,7 +1610,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         print_result(result, args.json)
         return 0
     except (WorkboardError, json.JSONDecodeError, OSError, sqlite3.Error) as exc:
-        print("agent-workboard: {}".format(exc), file=sys.stderr)
+        print(f"agent-workboard: {exc}", file=sys.stderr)
         return 2
 
 

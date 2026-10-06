@@ -11,24 +11,23 @@ Executes authorized ActionPlans within strict process boundaries, enforcing:
 
 from __future__ import annotations
 
-import json
 import os
 import platform
 import shutil
 import subprocess
-import sys
 import tempfile
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from cops.contracts.models import ActionPlan, ExecutionAuthorization, RunResult
 from cops.contracts.validation import validate_contract
 from cops.evidence.canonical import digest, utc_now
-from .authorization import AuthorizationError, verify_execution_authorization
-from .store import ApprovalStore, ApprovalStoreError
+
+from .authorization import verify_execution_authorization
+from .store import ApprovalStore, ApprovalStoreConflictError
 
 
 class WorkerError(RuntimeError):
@@ -113,13 +112,15 @@ class IsolatedWorker:
             auth_model = ExecutionAuthorization.from_dict(authorization)
             try:
                 self.store.store_authorization(auth_model)
-            except Exception:
+            except ApprovalStoreConflictError:
+                # Existing approvals are consumed atomically below, preserving replay checks.
                 pass
         else:
             auth_model = authorization
             try:
                 self.store.store_authorization(auth_model)
-            except Exception:
+            except ApprovalStoreConflictError:
+                # Existing approvals are consumed atomically below, preserving replay checks.
                 pass
 
         # 3. Cryptographically verify authorization against plan and worker identity
@@ -181,7 +182,7 @@ class IsolatedWorker:
 
         max_duration_seconds = plan_model.limits.get("max_duration_seconds", self.config.max_wall_time_seconds)
         max_output_bytes = plan_model.limits.get("max_output_bytes", self.config.max_output_bytes)
-        start_dt = datetime.now(timezone.utc)
+        start_dt = datetime.now(UTC)
 
         clean_env = {
             "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
@@ -253,7 +254,7 @@ class IsolatedWorker:
                             break
 
                     # Check overall plan duration limit
-                    elapsed_seconds = (datetime.now(timezone.utc) - start_dt).total_seconds()
+                    elapsed_seconds = (datetime.now(UTC) - start_dt).total_seconds()
                     if elapsed_seconds >= max_duration_seconds:
                         status = "partial"
                         status_reason = f"operation exceeded action plan max_duration_seconds limit ({max_duration_seconds}s)"
@@ -295,10 +296,10 @@ class IsolatedWorker:
                     try:
                         if tool == "inert":
                             # Simulated execution for testing
-                            stdout_bytes = f"Inert step {step_id} executed successfully: {action}".encode("utf-8")
+                            stdout_bytes = f"Inert step {step_id} executed successfully: {action}".encode()
                             exit_code = 0
                         else:
-                            from cops.adapters import ToolAdapterRegistry, AdapterError
+                            from cops.adapters import AdapterError, ToolAdapterRegistry
                             registry = ToolAdapterRegistry()
                             if tool in registry.list_tools():
                                 adapter = registry.get_adapter(tool)
@@ -392,7 +393,8 @@ class IsolatedWorker:
             if ephemeral and target_workspace.exists():
                 try:
                     shutil.rmtree(target_workspace, ignore_errors=False)
-                except Exception:
+                except OSError:
+                    # The existence check below records an unsuccessful cleanup.
                     pass
                 if target_workspace.exists():
                     cleanup_status = "failed"

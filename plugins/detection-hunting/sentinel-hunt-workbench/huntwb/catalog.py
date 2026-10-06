@@ -10,9 +10,9 @@ from __future__ import annotations
 import copy
 import datetime as dt
 from typing import Any
+from urllib.parse import urlsplit
 
 from .paths import EVALUATIONS_DIR, FIXTURES_DIR, HUNTS_DIR, PROFILES_DIR, write_json
-
 
 AS_OF = "2026-09-17"
 ATTACK_VERSION = "18"
@@ -440,10 +440,18 @@ REFERENCE_TITLES = {
 
 
 def _reference_record(url: str) -> dict[str, str]:
-    if "learn.microsoft.com" in url or "csrc.nist.gov" in url or "attack.mitre.org" in url:
-        kind = "authoritative"
-    else:
-        kind = "vendor_framework"
+    try:
+        parsed = urlsplit(url)
+        hostname = parsed.hostname
+    except ValueError:
+        hostname = None
+        parsed = None
+    authoritative_hosts = {"learn.microsoft.com", "csrc.nist.gov", "attack.mitre.org"}
+    kind = (
+        "authoritative"
+        if parsed is not None and parsed.scheme == "https" and hostname in authoritative_hosts
+        else "vendor_framework"
+    )
     return {
         "title": REFERENCE_TITLES.get(url, f"Microsoft schema reference: {url.rsplit('/', 1)[-1]}"),
         "url": url,
@@ -937,7 +945,7 @@ RESERVED_WORKSPACE = "00000000-0000-4000-8000-000000000002"
 
 
 def _fixture_events(hunt_id: str, ordinal: int, stage_count: int) -> list[dict[str, Any]]:
-    start = dt.datetime(2026, 1, 1, tzinfo=dt.timezone.utc) + dt.timedelta(days=int(hunt_id[1:]), minutes=ordinal)
+    start = dt.datetime(2026, 1, 1, tzinfo=dt.UTC) + dt.timedelta(days=int(hunt_id[1:]), minutes=ordinal)
     events: list[dict[str, Any]] = []
     for stage in range(1, stage_count + 1):
         event = {
@@ -1090,7 +1098,7 @@ def _curated_variant(
 def build_curated_fixtures(hunt: dict[str, Any]) -> dict[str, Any]:
     scenarios: list[dict[str, Any]] = []
     ordinal = 0
-    for category, count, purpose, outcome in CURATED_CATEGORIES:
+    for category, count, purpose, _outcome in CURATED_CATEGORIES:
         for variant in range(1, count + 1):
             ordinal += 1
             events, expected_matches, expected_outcome, controls = _curated_variant(

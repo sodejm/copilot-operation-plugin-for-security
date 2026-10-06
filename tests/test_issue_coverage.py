@@ -4,8 +4,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
-
 from scripts.agent.check_issue_coverage import (
     check_exemptions,
     evaluate_coverage,

@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-import unittest
-from cops.execution import StreamRedactor, EvidenceRecorder
 import tempfile
+import unittest
 from pathlib import Path
+
+from cops.execution import EvidenceRecorder, StreamRedactor
 
 
 class TestCredentialEvidenceSkill(unittest.TestCase):

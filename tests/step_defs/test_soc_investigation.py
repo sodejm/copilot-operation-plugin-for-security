@@ -1,16 +1,18 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 """Executable acceptance scenarios for the case planner, not hunt qualification."""
 
-from copy import deepcopy
-from hashlib import sha256
 import json
 import os
-from pathlib import Path
 import runpy
 import shlex
 import shutil
 import stat
 import subprocess
 import sys
+from copy import deepcopy
+from hashlib import sha256
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -20,10 +22,28 @@ ROOT = Path(__file__).resolve().parents[2]
 PLUGIN = ROOT / "plugins/detection-hunting/soc-investigation-workbench"
 sys.path.insert(0, str(PLUGIN))
 
-from investigationwb.engine import ContractError, digest, import_result, next_steps, report, revise, validate
 from investigationwb.cli import read_json
-from investigationwb.files import MAX_BYTES, read_regular
-from investigationwb.vendor import UPSTREAM, handoff, inventory, sync, validate_lock, verify
+from investigationwb.engine import (
+    ContractError,
+    digest,
+    import_result,
+    next_steps,
+    report,
+    revise,
+    validate,
+)
+from investigationwb.files import (
+    MAX_BYTES,
+    read_regular,
+)
+from investigationwb.vendor import (
+    UPSTREAM,
+    handoff,
+    inventory,
+    sync,
+    validate_lock,
+    verify,
+)
 
 scenarios("../../specs/features/soc_investigation.feature")
 
@@ -164,7 +184,8 @@ def ranking(state):
 
 @then("only ready independent steps within budget are proposed")
 def eligible(state):
-    ids = lambda value: [c["step_id"] for c in value["candidates"]]
+    def ids(value):
+        return [c["step_id"] for c in value["candidates"]]
     assert ids(state["before"]) == ["signin", "spray"]
     assert ids(state["after"]) == ["consent", "spray"]
     assert ids(state["limited"]) == ["signin"]

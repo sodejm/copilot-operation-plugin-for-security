@@ -9,12 +9,11 @@ import hashlib
 import ipaddress
 import json
 import os
-from pathlib import Path
 import re
 import stat
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from pathlib import Path
 from urllib.parse import urlsplit
-
 
 KINDS = ("azure_resource_graph", "entra", "dns_ct", "public_endpoint")
 MAX_MANIFEST_BYTES = 128 * 1024
@@ -51,9 +50,9 @@ def _utc(value: object, label: str) -> str:
         parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
     except ValueError:
         _fail(f"{label} must be an ISO-8601 UTC timestamp")
-    if parsed.tzinfo is None or parsed.utcoffset() != timezone.utc.utcoffset(parsed):
+    if parsed.tzinfo is None or parsed.utcoffset() != UTC.utcoffset(parsed):
         _fail(f"{label} must be an ISO-8601 UTC timestamp")
-    return parsed.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    return parsed.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
 def _list(value: object, label: str, *, maximum: int = 100) -> list:

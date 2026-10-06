@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .models import EntraError, IdentityEdge, IdentityGraph, IdentityNode
+from .models import IdentityEdge, IdentityGraph, IdentityNode
 
 
 def build_identity_graph(manifest: dict[str, Any], sources: dict[str, Any]) -> IdentityGraph:

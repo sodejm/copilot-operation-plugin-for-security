@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-import copy
-import hashlib
 import json
 import re
 import uuid
-from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from collections.abc import Sequence
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 TECHNIQUE_ID_PATTERN = re.compile(r"^T\d{4}(\.\d{3})?$")
@@ -396,7 +395,7 @@ def load_attack_coverage(
                 validation_fixture=str(item["validation_fixture"]) if item.get("validation_fixture") else None,
                 time_window=str(item["time_window"]) if item.get("time_window") else None,
                 assumptions=tuple(str(a) for a in item.get("assumptions", [])),
-                known_limitations=tuple(str(l) for l in item["known_limitations"]),
+                known_limitations=tuple(str(limitation) for limitation in item["known_limitations"]),
                 last_reviewed=str(item["last_reviewed"]),
                 attck_version=str(item["attck_version"]),
             )
@@ -740,7 +739,7 @@ def generate_attack_flow(
       - 'azure-identity': Azure/Entra ID Identity Compromise to Role Assignment & Storage Exfiltration
       - 'm365-compromise': Microsoft 365 Phishing to Mailbox Forwarding & SharePoint Harvesting
     """
-    now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    now_iso = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     if scenario_name == "azure-identity":
         flow_id = deterministic_uuid("attack-flow-azure-identity")

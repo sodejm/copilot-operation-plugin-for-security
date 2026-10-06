@@ -1,6 +1,7 @@
 import unittest
 
-from threat_intel import Approval, Cache, Indicator, Source, enrich, normalize, conflicts
+from threat_intel import Approval, Cache, Indicator, Source, conflicts, enrich, normalize
+
 from cops.connectors.interfaces import Response
 
 

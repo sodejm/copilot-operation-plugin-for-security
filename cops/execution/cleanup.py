@@ -12,9 +12,8 @@ import os
 import shutil
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from cops.contracts.models import CleanupReceipt
 from cops.evidence.canonical import digest, utc_now

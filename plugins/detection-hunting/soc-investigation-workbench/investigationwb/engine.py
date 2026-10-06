@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
+import json
+import re
 from copy import deepcopy
 from datetime import datetime
 from fractions import Fraction
 from hashlib import sha256
-import json
-import re
 from typing import Any
 
 Document = dict[str, Any]
