@@ -1,0 +1,20 @@
+{
+  "name": "offensive-engagement-workbench",
+  "version": "0.1.0",
+  "description": "Authorized adversary engagement intake, scope validation, and execution planning.",
+  "author": {"name": "Justin Soderberg", "url": "https://github.com/sodejm"},
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "COPS Offensive Engagement Workbench",
+    "shortDescription": "Authorized engagement intake and planning",
+    "longDescription": "Ingest and validate assessment targets, exclusions, operator ownership, assessment windows, allowed effects, and budgets, compiling reviewable ActionPlan contracts.",
+    "developerName": "Justin Soderberg",
+    "category": "Developer Tools",
+    "capabilities": ["Read"],
+    "defaultPrompt": ["Compile an authorized reviewable action plan for engagement targets."]
+  },
+  "repository": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "homepage": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "keywords": ["cybersecurity", "offensive-security", "engagement", "scope-validation", "action-planning", "rules-of-engagement"]
+}
