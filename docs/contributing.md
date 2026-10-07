@@ -22,6 +22,24 @@ All contributions adhere to the canonical [Repository Contract (AGENTS.md)](../A
 
 ---
 
+## Authenticated Execution Changes
+
+Changes to Action Plans, execution authorizations, trust stores, approval storage, or worker dispatch must preserve these invariants:
+
+- secret bytes enter only through the environment variable named by verifier-owned trust configuration;
+- signatures cover the full approved Action Plan snapshot and expected worker identity;
+- key, authorization, and Engagement identities and validity windows agree;
+- worker capability inventories are owner-provisioned measurements, loaded only from
+  current-user-owned non-symlink files without group or other permission bits, and
+  never described as runtime executable discovery;
+- compatibility failures happen before authority is consumed;
+- consumption is atomic and replay fails closed; and
+- migrated unsigned or digest-only rows remain `legacy-untrusted`.
+
+Add focused acceptance tests for tampering, unknown/revoked/expired keys, operator and worker mismatches, replay, migration, inventory ownership and permissions, and exact tool/platform compatibility. Update the [Authenticated Execution Guide](AUTHENTICATED_EXECUTION.md), Security Model, compatibility/migration guidance, and affected plugin operator docs when an interface or trust assumption changes. Never add live secrets, private paths, or realistic credential material to fixtures or evidence.
+
+---
+
 ## Environment Setup
 
 ### 1. Create a Dedicated Virtual Environment

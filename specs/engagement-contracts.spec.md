@@ -38,7 +38,8 @@ Represents an immutable, planned sequence of operations bound to a scenario and 
 - **Security Invariants:**
   - Cannot transition directly from `draft` to `executing` (requires approval).
   - Cannot transition from `rejected` to `executing`.
-  - `plan_digest` must match SHA-256 canonical digest of `{"target", "specialist_id", "operations", "limits"}`.
+  - Each operation records the exact version of its scenario-selected tool from a caller-supplied, independently measured `tool_versions` mapping. Planning does not discover executable versions; a missing or blank selected version is rejected, and the CLI rejects malformed or conflicting repeated `TOOL=VERSION` inputs.
+  - `plan_digest` must match the SHA-256 canonical digest of the complete immutable approved snapshot: schema version, plan and engagement identifiers, scenario, target, specialist, operations and exact tool versions, limits, credential references, creation time, platform prerequisites, and batch semantics. Mutable lifecycle state is excluded from the digest.
   - `credential_references` must never contain raw tokens, keys, or passwords.
 
 ### 4. RunResult Contract (`cops.run-result/v1`)

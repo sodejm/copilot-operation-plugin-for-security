@@ -9,9 +9,9 @@ from pathlib import Path
 from cops.contracts.models import ActionPlan
 from cops.execution import (
     consume_execution_authorization,
-    create_execution_authorization,
     verify_execution_authorization,
 )
+from tests.auth_testkit import authorize_test_plan
 
 
 class TestExecutionAuthorizationReviewSkill(unittest.TestCase):
@@ -22,9 +22,8 @@ class TestExecutionAuthorizationReviewSkill(unittest.TestCase):
 
     def test_end_to_end_skill_flow(self):
         # 1. Create authorization envelope
-        auth = create_execution_authorization(
+        auth, trust_store, engagement = authorize_test_plan(
             self.plan,
-            operator="lead-operator@corp.internal",
             valid_hours=2,
             worker_identity="worker-node-1",
         )
@@ -35,6 +34,8 @@ class TestExecutionAuthorizationReviewSkill(unittest.TestCase):
         verified = verify_execution_authorization(
             auth,
             self.plan,
+            trust_store=trust_store,
+            engagement=engagement,
             worker_identity="worker-node-1",
         )
         self.assertEqual(verified.authorization_id, auth.authorization_id)

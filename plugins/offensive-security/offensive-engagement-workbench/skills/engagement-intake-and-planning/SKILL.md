@@ -24,13 +24,16 @@ description: Ingest authorized engagement scope, validate targets and windows, a
 4. **Action Plan Compilation**:
    - Produce an immutable `ActionPlan` (`cops.action-plan/v1`) with:
      - Declared platform prerequisites (OS, container boundaries, required CLI tools).
-     - Bounded operations with expected evidence receipts, anticipated side effects, and cleanup obligations.
+     - Bounded operations with an exact, independently measured caller-supplied tool version, expected evidence receipts, anticipated side effects, and cleanup obligations.
      - Execution budget limits and credential references.
      - Canonical SHA-256 `plan_digest`.
+   - Do not infer or discover executable versions at runtime. Reject a missing or blank version for the scenario operation tool.
 
 5. **CLI Invocation**:
    ```bash
    python3 -m cops engagement create --name "Scope Review" --owner "operator" --targets "10.0.0.5" --start "2026-10-05T00:00:00Z" --until "2026-10-05T23:59:59Z"
    python3 -m cops engagement validate <path-to-engagement.json>
-   python3 -m cops engagement plan --engagement <path-to-engagement.json> --scenario COPS-E03.01-S01 --target 10.0.0.5
+   python3 -m cops engagement plan --engagement <path-to-engagement.json> --scenario COPS-E03.01-S01 --target 10.0.0.5 --tool-version python3=3.11.9
    ```
+
+   Repeat `--tool-version TOOL=VERSION` when supplying more than one independently measured value. The CLI rejects malformed or blank entries and conflicting repeated values for the same tool. API callers must pass the required `tool_versions` mapping explicitly.

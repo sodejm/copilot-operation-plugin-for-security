@@ -1,7 +1,7 @@
 Feature: Scenario Laboratory Harness
   As a security operations specialist
-  I want an operator-controlled laboratory harness with isolation, canary verification, and reproducible reset
-  So that offensive and defensive scenarios execute reproducibly in tested environments without escaping boundaries
+  I want a harness that uses verifier trust, active engagement, measured worker capabilities, canary verification, and reproducible reset
+  So that authorized scenarios execute reproducibly with explicit evidence and residual boundaries
 
   Scenario: Registering and verifying an operator laboratory environment
     Given an inert operator laboratory environment contract

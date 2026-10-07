@@ -99,14 +99,18 @@ flowchart TD
 ### Threat 6: Unauthorized High-Consequence or Offensive Actions
 - **The Risk**: An autonomous agent or automated script executes unauthorized vulnerability scanning, adversary emulation, or disruptive containment actions without explicit human approval.
 - **Our Defense**:
-  - **Interactive Authorization Gate (`cops.authorization` & `cops.execution`)**: High-consequence profiles enforce an interactive approval prompt displaying target scope, action type, and required `'APPROVE'` confirmation.
-  - **Descriptor-Bound Execution Envelopes (`cops.execution-authorization/v1`)**: Execution authority replaces legacy unkeyed checksum receipts with cryptographically signed envelopes strictly bound to immutable Action Plans (`cops.action-plan/v1`). Any change to targets, operations, arguments, limits, or credentials invalidates the envelope.
-  - **Legacy Receipt Deprecation**: Obsolete unkeyed receipts (`1.0`) are retained as historical evidence only and fail closed when presented as authority for new execution.
-  - **Atomic Consumption & Anti-Replay**: Authorization envelopes transition to `consumed` on dispatch, preventing reuse or replay across workers.
-  - **Operational Contracts & Immutable Action Plans (`cops.contracts`)**: Operational security actions require explicit binding across Engagement (`cops.engagement/v1`), Scenario (`cops.scenario/v1`), and ActionPlan (`cops.action-plan/v1`) contracts with cryptographic plan digests and lifecycle state machines (e.g., unapproved or rejected plans cannot transition to executing).
+  - **Independent Verifier Trust (`cops.authorization-trust-store/v1`)**: The worker receives an explicit trust store and obtains HMAC secret bytes only from the environment variable named by an active key. Plans, authorizations, requests, and defaults never supply verifier secrets.
+  - **Immutable Plan and Worker Binding (`cops.execution-authorization/v1`)**: The signature covers the complete approved Action Plan snapshot and expected worker identity. Changes to targets, specialist/action details, operations, tools, versions, arguments, effects, cleanup, credentials, limits, batch semantics, prerequisites, timestamps, identifiers, or worker invalidate the authorization.
+  - **Bounded Validity**: The authorization, active key, and Engagement must agree on operator and identifier bindings; the authorization window must fit within both the key and Engagement windows.
+  - **Independent Worker Capability Attestation (`cops.worker-capability-inventory/v1`)**: The worker owner supplies a current-user-owned, non-symlink measurement artifact recording worker identity, exact tool versions, platform capabilities, measurement time, and measurement source. COPS compares signed requirements with this artifact before consuming authority; it does not discover installed executables at runtime, so deployments must trust and protect the provisioning process.
+  - **Compatibility Before Dispatch**: The isolated worker verifies exact tool versions, platform prerequisites, sequential batch semantics, and operation limits against the owner-provisioned inventory before consuming authority.
+  - **Legacy Fail-Closed Migration**: Existing unsigned or digest-only approvals migrate to `legacy-untrusted` audit records and cannot execute.
+  - **Atomic Consumption & Anti-Replay**: The approval store consumes a valid authorization in an immediate SQLite transaction before dispatch, preventing reuse across workers or retries.
   - **Execution Truthfulness (`cops.run-result/v1`)**: Non-success outcomes (`partial`, `cancelled`, `failed`, `uncertain`, `not_assessed`) require explicit reasons and are never silently converted into success claims. Findings marked `verified` must reference affirmative `cops.evidence/v1` records.
-  - **Fail-Closed Non-Interactive Mode**: In automated CI/CD runners or headless environments, operations strictly abort unless a valid, pre-signed cryptographic envelope is provided.
-  - **Triad Orchestration Defense**: Critical tasks mandate a three-agent team (Primary Specialist + Domain Skeptic + Evidence Auditor) to stress-test assumptions and prevent unverified actions.
+  - **Shared-Key Limitation**: HMAC authenticates membership in a shared-key channel. Any verifier that holds the key can mint an authorization, so it does not provide non-repudiation.
+  - **Residual Boundaries**: Authorization does not establish operating-system/process transport isolation (issue #185) or mediate live network egress (issue #186). Those controls must be supplied independently.
+
+See the [Authenticated Execution Guide](AUTHENTICATED_EXECUTION.md) for operator setup, migration, failure handling, and key rotation.
 
 ---
 

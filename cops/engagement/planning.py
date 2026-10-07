@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,7 @@ def build_action_plan(
     engagement: Engagement | dict[str, Any],
     scenario: Scenario | dict[str, Any] | str,
     target: str,
+    tool_versions: Mapping[str, str],
     specialist_id: str = "cops-pentest-specialist",
     mode: str | None = None,
     plan_id: str | None = None,
@@ -105,6 +107,12 @@ def build_action_plan(
     max_output = budget.get("max_output_bytes", 10485760)
 
     operation_tool = tools[0] if tools else "cops"
+    operation_tool_version = tool_versions.get(operation_tool)
+    if not isinstance(operation_tool_version, str) or not operation_tool_version.strip():
+        raise EngagementIntakeError(
+            f"Exact tool version required for scenario tool '{operation_tool}'"
+        )
+    operation_tool_version = operation_tool_version.strip()
     tactics = mitre.get("tactics", ["discovery"])
     action_name = tactics[0] if tactics else "discovery"
 
@@ -112,6 +120,7 @@ def build_action_plan(
         {
             "step_id": "step-01-execute",
             "tool": operation_tool,
+            "tool_version": operation_tool_version,
             "action": action_name,
             "arguments": {
                 "target": target_clean,

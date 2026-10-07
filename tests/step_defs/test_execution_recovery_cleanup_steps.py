@@ -16,9 +16,8 @@ from cops.execution import (
     CleanupManager,
     IsolatedWorker,
     SideEffectLedger,
-    WorkerConfig,
-    create_execution_authorization,
 )
+from tests.auth_testkit import authorize_test_plan, worker_config_for_plan
 
 scenarios("../../specs/features/execution_recovery_cleanup.feature")
 
@@ -106,9 +105,7 @@ def given_worker_with_store(recovery_ctx):
     workspace = recovery_ctx["workspace"]
     db_path = workspace / "approvals.sqlite3"
     store = ApprovalStore(db_path)
-    worker = IsolatedWorker(WorkerConfig(worker_id="worker-bdd-02"), store=store)
     recovery_ctx["store"] = store
-    recovery_ctx["worker"] = worker
 
 
 @given("an action plan containing a non-idempotent mutating step")
@@ -124,6 +121,7 @@ def given_plan_with_non_idempotent_step(recovery_ctx):
         {
             "step_id": "step-mutate",
             "tool": "inert",
+            "tool_version": "0.7.0",
             "action": "mutate",
             "arguments": {},
             "timeout_seconds": 10,
@@ -146,10 +144,16 @@ def given_plan_with_non_idempotent_step(recovery_ctx):
         credential_references=sample_plan["credential_references"],
         created_at=sample_plan["created_at"],
     )
-    auth = create_execution_authorization(plan, operator="operator@corp", valid_hours=1)
+    auth, trust_store, engagement = authorize_test_plan(plan, worker_identity="worker-bdd-02")
     recovery_ctx["store"].store_authorization(auth)
     recovery_ctx["plan"] = plan
     recovery_ctx["auth"] = auth
+    recovery_ctx["worker"] = IsolatedWorker(
+        worker_config_for_plan(plan, worker_id="worker-bdd-02"),
+        store=recovery_ctx["store"],
+        trust_store=trust_store,
+        engagement=engagement,
+    )
 
 
 @when("execution is interrupted during the non-idempotent step")

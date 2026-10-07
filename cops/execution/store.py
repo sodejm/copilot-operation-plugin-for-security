@@ -43,6 +43,8 @@ CREATE TABLE IF NOT EXISTS approvals (
     authorized_until_utc TEXT NOT NULL,
     bound_parameters_json TEXT NOT NULL,
     approval_mode TEXT NOT NULL,
+    signature_algorithm TEXT NOT NULL,
+    signing_key_id TEXT NOT NULL,
     signature_digest TEXT NOT NULL,
     consumed_at TEXT,
     consumed_by_worker TEXT,
@@ -116,6 +118,15 @@ class ApprovalStore:
     def _init_db(self) -> None:
         with self._get_connection() as conn:
             conn.executescript(SCHEMA_SQL)
+            columns = {row[1] for row in conn.execute("PRAGMA table_info(approvals)")}
+            if "signature_algorithm" not in columns:
+                conn.execute(
+                    "ALTER TABLE approvals ADD COLUMN signature_algorithm TEXT NOT NULL DEFAULT 'legacy-untrusted'"
+                )
+            if "signing_key_id" not in columns:
+                conn.execute(
+                    "ALTER TABLE approvals ADD COLUMN signing_key_id TEXT NOT NULL DEFAULT ''"
+                )
         if os.name == "posix" and self.require_secure_perms and self.db_path.exists():
             try:
                 self.db_path.chmod(0o600)
@@ -140,9 +151,10 @@ class ApprovalStore:
                     INSERT INTO approvals (
                         authorization_id, action_plan_id, plan_digest, engagement_id,
                         operator, status, issued_at, authorized_until_utc,
-                        bound_parameters_json, approval_mode, signature_digest,
+                        bound_parameters_json, approval_mode, signature_algorithm,
+                        signing_key_id, signature_digest,
                         consumed_at, consumed_by_worker, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         auth.authorization_id,
@@ -153,8 +165,10 @@ class ApprovalStore:
                         auth.status,
                         auth.issued_at,
                         auth.authorized_until_utc,
-                        canonical(auth.bound_parameters),
+                        canonical(doc["bound_parameters"]),
                         auth.approval_mode,
+                        auth.signature_algorithm,
+                        auth.signing_key_id,
                         auth.signature_digest,
                         auth.consumed_at,
                         auth.consumed_by_worker,
@@ -180,7 +194,8 @@ class ApprovalStore:
                 """
                 SELECT authorization_id, action_plan_id, plan_digest, engagement_id,
                        operator, status, issued_at, authorized_until_utc,
-                       bound_parameters_json, approval_mode, signature_digest,
+                       bound_parameters_json, approval_mode, signature_algorithm,
+                       signing_key_id, signature_digest,
                        consumed_at, consumed_by_worker
                 FROM approvals WHERE authorization_id = ?
                 """,
@@ -202,6 +217,8 @@ class ApprovalStore:
                 "authorized_until_utc": row["authorized_until_utc"],
                 "bound_parameters": json.loads(row["bound_parameters_json"]),
                 "approval_mode": row["approval_mode"],
+                "signature_algorithm": row["signature_algorithm"],
+                "signing_key_id": row["signing_key_id"],
                 "signature_digest": row["signature_digest"],
             }
             if row["consumed_at"]:
@@ -215,12 +232,14 @@ class ApprovalStore:
         self,
         authorization_id: str,
         *,
+        expected_authorization: ExecutionAuthorization,
         worker_identity: str,
         current_time_iso: str | None = None,
     ) -> ExecutionAuthorization:
         """Atomically claim and consume an approved authorization envelope within a write lock.
 
-        Guarantees that concurrent workers cannot double-spend or race to consume the same approval.
+        The caller must independently verify ``expected_authorization`` before calling.
+        The write lock binds consumption to that complete receipt and prevents replay.
         """
         import json
 
@@ -235,7 +254,8 @@ class ApprovalStore:
                     """
                     SELECT authorization_id, action_plan_id, plan_digest, engagement_id,
                            operator, status, issued_at, authorized_until_utc,
-                           bound_parameters_json, approval_mode, signature_digest,
+                           bound_parameters_json, approval_mode, signature_algorithm,
+                           signing_key_id, signature_digest,
                            consumed_at, consumed_by_worker
                     FROM approvals WHERE authorization_id = ?
                     """,
@@ -252,9 +272,42 @@ class ApprovalStore:
                         f"(already consumed or revoked)"
                     )
 
+                doc = {
+                    "schema_version": "cops.execution-authorization/v1",
+                    "authorization_id": row["authorization_id"],
+                    "action_plan_id": row["action_plan_id"],
+                    "plan_digest": row["plan_digest"],
+                    "engagement_id": row["engagement_id"],
+                    "operator": row["operator"],
+                    "status": row["status"],
+                    "issued_at": row["issued_at"],
+                    "authorized_until_utc": row["authorized_until_utc"],
+                    "bound_parameters": json.loads(row["bound_parameters_json"]),
+                    "approval_mode": row["approval_mode"],
+                    "signature_algorithm": row["signature_algorithm"],
+                    "signing_key_id": row["signing_key_id"],
+                    "signature_digest": row["signature_digest"],
+                }
+                if row["consumed_at"]:
+                    doc["consumed_at"] = row["consumed_at"]
+                if row["consumed_by_worker"]:
+                    doc["consumed_by_worker"] = row["consumed_by_worker"]
+                if canonical(doc) != canonical(expected_authorization.to_dict()):
+                    raise ApprovalStoreConflictError(
+                        f"authorization '{authorization_id}' differs from the verified receipt"
+                    )
+                if doc["bound_parameters"].get("worker_identity") != worker_identity:
+                    raise ApprovalStoreConflictError(
+                        f"authorization '{authorization_id}' is bound to a different worker"
+                    )
+                if now_dt < timestamp(row["issued_at"]):
+                    raise ApprovalStoreConflictError(
+                        f"authorization '{authorization_id}' is not yet valid"
+                    )
+
                 # Check expiration
                 expiry_dt = timestamp(row["authorized_until_utc"])
-                if now_dt > expiry_dt:
+                if now_dt >= expiry_dt:
                     conn.execute(
                         "UPDATE approvals SET status = 'expired' WHERE authorization_id = ?",
                         (authorization_id,),
@@ -278,22 +331,11 @@ class ApprovalStore:
                 conn.execute("COMMIT")
                 committed = True
 
-                doc = {
-                    "schema_version": "cops.execution-authorization/v1",
-                    "authorization_id": row["authorization_id"],
-                    "action_plan_id": row["action_plan_id"],
-                    "plan_digest": row["plan_digest"],
-                    "engagement_id": row["engagement_id"],
-                    "operator": row["operator"],
-                    "status": "consumed",
-                    "issued_at": row["issued_at"],
-                    "authorized_until_utc": row["authorized_until_utc"],
-                    "bound_parameters": json.loads(row["bound_parameters_json"]),
-                    "approval_mode": row["approval_mode"],
-                    "signature_digest": row["signature_digest"],
-                    "consumed_at": now_str,
-                    "consumed_by_worker": worker_identity,
-                }
+                doc.update(
+                    status="consumed",
+                    consumed_at=now_str,
+                    consumed_by_worker=worker_identity,
+                )
                 return ExecutionAuthorization.from_dict(doc)
             except Exception:
                 if not committed:
@@ -314,7 +356,8 @@ class ApprovalStore:
                     """
                     SELECT authorization_id, action_plan_id, plan_digest, engagement_id,
                            operator, status, issued_at, authorized_until_utc,
-                           bound_parameters_json, approval_mode, signature_digest,
+                           bound_parameters_json, approval_mode, signature_algorithm,
+                           signing_key_id, signature_digest,
                            consumed_at, consumed_by_worker
                     FROM approvals WHERE status = ? ORDER BY issued_at DESC
                     """,
@@ -325,7 +368,8 @@ class ApprovalStore:
                     """
                     SELECT authorization_id, action_plan_id, plan_digest, engagement_id,
                            operator, status, issued_at, authorized_until_utc,
-                           bound_parameters_json, approval_mode, signature_digest,
+                           bound_parameters_json, approval_mode, signature_algorithm,
+                           signing_key_id, signature_digest,
                            consumed_at, consumed_by_worker
                     FROM approvals ORDER BY issued_at DESC
                     """
@@ -345,6 +389,8 @@ class ApprovalStore:
                     "authorized_until_utc": row["authorized_until_utc"],
                     "bound_parameters": json.loads(row["bound_parameters_json"]),
                     "approval_mode": row["approval_mode"],
+                    "signature_algorithm": row["signature_algorithm"],
+                    "signing_key_id": row["signing_key_id"],
                     "signature_digest": row["signature_digest"],
                 }
                 if row["consumed_at"]:

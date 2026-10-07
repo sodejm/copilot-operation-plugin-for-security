@@ -11,8 +11,8 @@ from cops.laboratory import (
     LaboratoryHarness,
     make_inert_action_plan,
     make_inert_container_environment,
-    make_inert_execution_authorization,
 )
+from tests.auth_testkit import authorize_test_plan, worker_inventory_for_plan
 
 
 class TestScenarioLaboratoryManagementSkill(unittest.TestCase):
@@ -38,12 +38,21 @@ class TestScenarioLaboratoryManagementSkill(unittest.TestCase):
 
         # 3. Controlled case execution with authorization
         plan = make_inert_action_plan()
-        auth = make_inert_execution_authorization(plan)
+        auth, trust_store, engagement = authorize_test_plan(
+            plan,
+            worker_identity=reset_env.owner,
+        )
         result = self.harness.execute_case(
             environment=reset_env,
             action_plan=plan,
             authorization=auth,
             case_type="positive",
+            trust_store=trust_store,
+            engagement=engagement,
+            worker_inventory=worker_inventory_for_plan(
+                plan,
+                worker_identity=reset_env.owner,
+            ),
         )
         self.assertEqual(result.status, "success")
         self.assertTrue(result.canary_verified)

@@ -30,7 +30,7 @@ def main() -> int:
 
     for _ in range(2):
         res = subprocess.run(
-            [sys.executable, str(DEMO)],
+            [sys.executable, str(DEMO), "--tool-version", "python3=3.11.9"],
             cwd=PACKAGE,
             capture_output=True,
             text=True,

@@ -104,6 +104,7 @@ def when_plan_compiled(bdd_ctx, target):
         scenario=bdd_ctx["scenario_id"],
         target=target,
         specialist_id="cops-pentest-specialist",
+        tool_versions={"python3": "3.11.9"},
         root=ROOT,
     )
 

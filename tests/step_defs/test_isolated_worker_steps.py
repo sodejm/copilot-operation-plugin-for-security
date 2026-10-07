@@ -15,9 +15,9 @@ from cops.execution import (
     ApprovalStore,
     ApprovalStoreConflictError,
     IsolatedWorker,
-    WorkerConfig,
-    create_execution_authorization,
+    WorkerExecutionError,
 )
+from tests.auth_testkit import authorize_test_plan, worker_config_for_plan
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = ROOT / "cops" / "contracts" / "fixtures"
@@ -52,6 +52,7 @@ def load_plan_and_auth(worker_context):
         {
             "step_id": "step-echo",
             "tool": "echo",
+            "tool_version": "0.7.0",
             "action": "run_echo",
             "arguments": {"message": "hello world"},
             "timeout_seconds": 15,
@@ -68,13 +69,13 @@ def load_plan_and_auth(worker_context):
         credential_references=plan_dict["credential_references"],
         created_at=plan_dict["created_at"],
     )
-    auth = create_execution_authorization(
-        plan,
-        operator="secops@corp.internal",
-        valid_hours=2,
+    auth, trust_store, engagement = authorize_test_plan(
+        plan, worker_identity="test-worker-01", valid_hours=2
     )
     worker_context["plan"] = plan
     worker_context["auth"] = auth
+    worker_context["trust_store"] = trust_store
+    worker_context["engagement"] = engagement
 
 
 @when("the authorization envelope is registered in the approval store")
@@ -84,7 +85,12 @@ def register_auth(worker_context):
 
 @when("the isolated worker executes the authorized plan")
 def execute_plan(worker_context):
-    worker = IsolatedWorker(WorkerConfig(worker_id="test-worker-01"), store=worker_context["store"])
+    worker = IsolatedWorker(
+        worker_config_for_plan(worker_context["plan"], worker_id="test-worker-01"),
+        store=worker_context["store"],
+        trust_store=worker_context["trust_store"],
+        engagement=worker_context["engagement"],
+    )
     result = worker.execute_plan(
         worker_context["plan"],
         authorization=worker_context["auth"].authorization_id,
@@ -117,21 +123,27 @@ def approved_in_store(worker_context):
 @when("multiple worker threads attempt to atomically consume the approval simultaneously")
 def race_consume(worker_context):
     store = worker_context["store"]
-    auth_id = worker_context["auth"].authorization_id
+    auth = worker_context["auth"]
+    auth_id = auth.authorization_id
     successes = []
     conflicts = []
     lock = threading.Lock()
 
     def worker_task(w_id):
         try:
-            store.atomically_consume(auth_id, worker_identity=w_id)
+            store.atomically_consume(
+                auth_id,
+                expected_authorization=auth,
+                worker_identity=w_id,
+            )
             with lock:
                 successes.append(w_id)
         except ApprovalStoreConflictError:
             with lock:
                 conflicts.append(w_id)
 
-    threads = [threading.Thread(target=worker_task, args=(f"worker-node-{i}",)) for i in range(8)]
+    worker_ids = ["test-worker-01", *(f"worker-node-{i}" for i in range(7))]
+    threads = [threading.Thread(target=worker_task, args=(worker_id,)) for worker_id in worker_ids]
     for t in threads:
         t.start()
     for t in threads:
@@ -153,10 +165,7 @@ def verify_conflicts(worker_context):
 
 @given(parsers.parse('an isolated worker configured with allowed tools "{allowed_tool}"'))
 def worker_with_tool(worker_context, allowed_tool):
-    worker_context["worker"] = IsolatedWorker(
-        WorkerConfig(worker_id="worker-strict", allowed_tools=(allowed_tool,)),
-        store=worker_context["store"],
-    )
+    worker_context["allowed_tool"] = allowed_tool
 
 
 @given(parsers.parse('an authorized action plan requesting an unapproved tool "{unapproved_tool}"'))
@@ -167,6 +176,7 @@ def plan_unapproved_tool(worker_context, unapproved_tool):
         {
             "step_id": "step-bad",
             "tool": unapproved_tool,
+            "tool_version": "0.7.0",
             "action": "run_bad",
             "arguments": {},
             "timeout_seconds": 10,
@@ -183,26 +193,43 @@ def plan_unapproved_tool(worker_context, unapproved_tool):
         credential_references=plan_dict["credential_references"],
         created_at=plan_dict["created_at"],
     )
-    auth = create_execution_authorization(plan, operator="op", valid_hours=1)
+    auth, trust_store, engagement = authorize_test_plan(plan, worker_identity="worker-strict")
     worker_context["store"].store_authorization(auth)
     worker_context["bad_plan"] = plan
     worker_context["bad_auth"] = auth
+    worker_context["worker"] = IsolatedWorker(
+        worker_config_for_plan(
+            plan,
+            worker_id="worker-strict",
+            allowed_tools=(worker_context["allowed_tool"],),
+        ),
+        store=worker_context["store"],
+        trust_store=trust_store,
+        engagement=engagement,
+    )
 
 
 @when("the worker executes the plan")
 def execute_bad_plan(worker_context):
-    res = worker_context["worker"].execute_plan(
-        worker_context["bad_plan"],
-        authorization=worker_context["bad_auth"].authorization_id,
-    )
-    worker_context["bad_result"] = res
+    try:
+        worker_context["worker"].execute_plan(
+            worker_context["bad_plan"],
+            authorization=worker_context["bad_auth"].authorization_id,
+        )
+    except WorkerExecutionError as exc:
+        worker_context["bad_error"] = exc
 
 
 @then(parsers.parse('execution fails with status "{expected_status}"'))
 def verify_bad_status(worker_context, expected_status):
-    assert worker_context["bad_result"].status == expected_status
+    assert expected_status == "failed"
+    assert isinstance(worker_context.get("bad_error"), WorkerExecutionError)
+    stored = worker_context["store"].get_authorization(
+        worker_context["bad_auth"].authorization_id
+    )
+    assert stored.status == "approved"
 
 
 @then("the status details state that the tool is not allowed")
 def verify_bad_details(worker_context):
-    assert "not in worker allowed tools" in worker_context["bad_result"].status_details["reason"]
+    assert "not allowed by this worker" in str(worker_context["bad_error"])

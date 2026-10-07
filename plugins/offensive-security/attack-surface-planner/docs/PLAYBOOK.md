@@ -203,7 +203,10 @@ For each in-scope asset, author a passive, bounded evaluation step:
 2. **Present Plan to Client / Engagement Lead**:
    - Walk through proposed passive observation steps. Confirm written sign-off before initiating any separate execution phase.
 3. **Export Engagement Record**:
-   - Archive plan JSON alongside the signed ROE.
+   - Archive the immutable approved plan JSON alongside the signed ROE and active Engagement record.
+4. **Prepare a Separate Execution Handoff**:
+   - If an authorized execution phase follows, issue an authenticated authorization for the full approved plan snapshot and expected worker. Supply verifier trust, Engagement, and an owner-only worker capability inventory produced independently from a trusted host measurement or deployment process; never copy signing secret bytes into handoff artifacts or imply that COPS discovers installed executables at runtime.
+   - Follow the repository [Authenticated Execution Guide](AUTHENTICATED_EXECUTION.md). The planner itself remains offline and does not mint or consume execution authority.
 
 ---
 

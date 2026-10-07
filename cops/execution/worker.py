@@ -11,22 +11,26 @@ Executes authorized ActionPlans within strict process boundaries, enforcing:
 
 from __future__ import annotations
 
+import json
 import os
 import platform
 import shutil
+import stat
 import subprocess
 import tempfile
 import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
 from cops.contracts.models import ActionPlan, ExecutionAuthorization, RunResult
 from cops.contracts.validation import validate_contract
 from cops.evidence.canonical import digest, utc_now
 
-from .authorization import verify_execution_authorization
+from .authorization import AuthorizationTrustStore, verify_execution_authorization
 from .store import ApprovalStore, ApprovalStoreConflictError
 
 
@@ -42,15 +46,150 @@ class WorkerExecutionError(WorkerError):
     """An operation within the action plan failed or exceeded allowed limits."""
 
 
+@dataclass(frozen=True)
+class WorkerCapabilityInventory:
+    """Owner-provisioned measurement of a worker's execution capabilities."""
+
+    schema_version: str
+    worker_identity: str
+    measured_at: str
+    measurement_source: str
+    tool_versions: Mapping[str, str]
+    platform_capabilities: tuple[str, ...]
+
+    SCHEMA_VERSION = "cops.worker-capability-inventory/v1"
+
+    @classmethod
+    def from_file(
+        cls,
+        path: Path | str,
+        *,
+        expected_worker_identity: str | None = None,
+    ) -> WorkerCapabilityInventory:
+        """Load an owner-only inventory artifact and validate its provenance fields."""
+        source = Path(path)
+        if source.is_symlink():
+            raise WorkerIsolationError("worker inventory must not be a symbolic link")
+
+        flags = os.O_RDONLY
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        try:
+            fd = os.open(source, flags)
+        except OSError as err:
+            raise WorkerIsolationError(f"cannot open worker inventory: {err}") from err
+
+        try:
+            file_stat = os.fstat(fd)
+            if not stat.S_ISREG(file_stat.st_mode):
+                raise WorkerIsolationError("worker inventory must be a regular file")
+            if hasattr(os, "geteuid") and file_stat.st_uid != os.geteuid():
+                raise WorkerIsolationError("worker inventory must be owned by the current worker account")
+            if stat.S_IMODE(file_stat.st_mode) & 0o077:
+                raise WorkerIsolationError("worker inventory permissions must not allow group or other access")
+            with os.fdopen(fd, encoding="utf-8") as handle:
+                fd = -1
+                document = json.load(handle)
+        except (OSError, json.JSONDecodeError) as err:
+            raise WorkerIsolationError(f"invalid worker inventory: {err}") from err
+        finally:
+            if fd >= 0:
+                os.close(fd)
+
+        required = {
+            "schema_version",
+            "worker_identity",
+            "measured_at",
+            "measurement_source",
+            "tool_versions",
+            "platform_capabilities",
+        }
+        if not isinstance(document, dict) or set(document) != required:
+            raise WorkerIsolationError("worker inventory fields do not match the required schema")
+        if document["schema_version"] != cls.SCHEMA_VERSION:
+            raise WorkerIsolationError("unsupported worker inventory schema version")
+
+        worker_identity = document["worker_identity"]
+        measured_at = document["measured_at"]
+        measurement_source = document["measurement_source"]
+        tool_versions = document["tool_versions"]
+        platform_capabilities = document["platform_capabilities"]
+        if not isinstance(worker_identity, str) or not worker_identity.strip():
+            raise WorkerIsolationError("worker inventory identity must be a non-empty string")
+        if expected_worker_identity is not None and worker_identity != expected_worker_identity:
+            raise WorkerIsolationError("worker inventory identity does not match the expected worker")
+        if not isinstance(measured_at, str):
+            raise WorkerIsolationError("worker inventory measurement time must be a canonical timestamp")
+        try:
+            measured = datetime.fromisoformat(measured_at.replace("Z", "+00:00"))
+        except ValueError as err:
+            raise WorkerIsolationError("worker inventory measurement time is invalid") from err
+        if measured.tzinfo is None or measured_at != measured.astimezone(UTC).isoformat().replace("+00:00", "Z"):
+            raise WorkerIsolationError("worker inventory measurement time must be canonical UTC")
+        if measured > datetime.now(UTC):
+            raise WorkerIsolationError("worker inventory measurement time cannot be in the future")
+        if not isinstance(measurement_source, str) or not measurement_source.strip():
+            raise WorkerIsolationError("worker inventory measurement source must be a non-empty string")
+        if (
+            not isinstance(tool_versions, dict)
+            or not tool_versions
+            or any(
+                not isinstance(tool, str)
+                or not tool.strip()
+                or not isinstance(version, str)
+                or not version.strip()
+                for tool, version in tool_versions.items()
+            )
+        ):
+            raise WorkerIsolationError("worker inventory tool versions must be a non-empty string mapping")
+        if (
+            not isinstance(platform_capabilities, list)
+            or any(not isinstance(item, str) or not item.strip() for item in platform_capabilities)
+        ):
+            raise WorkerIsolationError("worker inventory platform capabilities must be a string list")
+
+        return cls(
+            schema_version=cls.SCHEMA_VERSION,
+            worker_identity=worker_identity,
+            measured_at=measured_at,
+            measurement_source=measurement_source,
+            tool_versions=MappingProxyType(dict(tool_versions)),
+            platform_capabilities=tuple(platform_capabilities),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the stable JSON representation of this inventory."""
+        return {
+            "schema_version": self.schema_version,
+            "worker_identity": self.worker_identity,
+            "measured_at": self.measured_at,
+            "measurement_source": self.measurement_source,
+            "tool_versions": dict(self.tool_versions),
+            "platform_capabilities": list(self.platform_capabilities),
+        }
+
+
 @dataclass
 class WorkerConfig:
     """Configuration for an isolated execution worker node."""
 
     worker_id: str = field(default_factory=lambda: f"worker-{platform.system().lower()}-{uuid.uuid4().hex[:8]}")
     allowed_tools: tuple[str, ...] = ("echo", "python3", "pytest", "nmap", "cat", "git")
+    tool_versions: Mapping[str, str] = field(default_factory=dict)
+    platform_capabilities: tuple[str, ...] = ()
     max_wall_time_seconds: int = 300
     max_output_bytes: int = 1048576  # 1MB
     enforce_unprivileged: bool = True
+
+    @classmethod
+    def from_inventory(cls, inventory: WorkerCapabilityInventory) -> WorkerConfig:
+        """Build worker configuration exclusively from a trusted inventory artifact."""
+        return cls(
+            worker_id=inventory.worker_identity,
+            allowed_tools=tuple(inventory.tool_versions),
+            tool_versions=inventory.tool_versions,
+            platform_capabilities=inventory.platform_capabilities,
+        )
 
 
 class IsolatedWorker:
@@ -61,12 +200,39 @@ class IsolatedWorker:
         config: WorkerConfig | None = None,
         store: ApprovalStore | None = None,
         scope_guard: Any | None = None,
+        *,
+        trust_store: AuthorizationTrustStore,
+        engagement: Any,
     ) -> None:
         self.config = config or WorkerConfig()
         self.store = store
         self.scope_guard = scope_guard
+        self.trust_store = trust_store
+        self.engagement = engagement
         self.last_cleanup_receipt: Any | None = None
         self._verify_worker_environment()
+
+    def _verify_plan_compatibility(self, plan: ActionPlan) -> None:
+        batch = plan.batch
+        if batch.get("mode") != "sequential":
+            raise WorkerExecutionError("worker supports only sequential approved batches")
+        if batch.get("max_operations", 0) < len(plan.operations):
+            raise WorkerExecutionError("approved batch operation limit is smaller than the plan")
+        missing_capabilities = set(plan.platform_prerequisites) - set(self.config.platform_capabilities)
+        if missing_capabilities:
+            raise WorkerExecutionError(
+                f"worker lacks approved platform prerequisites: {sorted(missing_capabilities)}"
+            )
+        for operation in plan.operations:
+            tool = operation["tool"]
+            if tool not in self.config.allowed_tools and tool != "inert":
+                raise WorkerExecutionError(f"tool {tool!r} is not allowed by this worker")
+            configured = self.config.tool_versions.get(tool)
+            if configured is None or configured != operation["tool_version"]:
+                raise WorkerExecutionError(
+                    f"worker tool version for {tool!r} does not match approved version "
+                    f"{operation['tool_version']!r}"
+                )
 
     def _verify_worker_environment(self) -> None:
         """Verify process execution boundaries and environment safety."""
@@ -102,6 +268,9 @@ class IsolatedWorker:
         if failure_injection and failure_injection.get("inject_at") == "before_consume":
             raise WorkerExecutionError("injected failure before approval consumption")
 
+        # Compatibility is part of the pre-consumption gate.
+        self._verify_plan_compatibility(plan_model)
+
         # 2. Resolve Authorization envelope and ensure durable storage
         if self.store is None:
             self.store = ApprovalStore(Path.home() / ".cops" / "approvals.sqlite3")
@@ -127,13 +296,16 @@ class IsolatedWorker:
         verify_execution_authorization(
             auth_model,
             plan_model,
-            worker_identity=self.config.worker_id if auth_model.bound_parameters.get("worker_identity") else None,
+            trust_store=self.trust_store,
+            engagement=self.engagement,
+            worker_identity=self.config.worker_id,
         )
 
         # 4. Atomically consume authorization envelope to prevent replay
         consumed_auth = self.store.atomically_consume(
             auth_model.authorization_id,
             worker_identity=self.config.worker_id,
+            expected_authorization=auth_model,
         )
 
         # Failure injection: after approval consumption
@@ -220,7 +392,7 @@ class IsolatedWorker:
                     action = op["action"]
                     is_idempotent = bool(op.get("idempotent", False))
                     # Track declared cleanup in side-effect ledger
-                    if "cleanup" in op and isinstance(op["cleanup"], dict):
+                    if "cleanup" in op and isinstance(op["cleanup"], Mapping):
                         clean_spec = op["cleanup"]
                         clean_target = clean_spec.get("target") or str(target_workspace / f"{step_id}.tmp")
                         ledger.record_effect(
@@ -276,7 +448,7 @@ class IsolatedWorker:
                     if hasattr(self, "scope_guard") and self.scope_guard is not None:
                         from .scope_guard import ScopeViolationError
                         op_args = op.get("arguments", {})
-                        if isinstance(op_args, dict):
+                        if isinstance(op_args, Mapping):
                             for dest_key in ("target", "host", "destination", "ip"):
                                 dest_val = op_args.get(dest_key)
                                 if dest_val and isinstance(dest_val, str):

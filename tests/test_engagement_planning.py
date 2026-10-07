@@ -222,6 +222,7 @@ class TestEngagementIntakeAndPlanning(unittest.TestCase):
             scenario="COPS-E03.01-S01",
             target="10.200.0.5",
             specialist_id="cops-pentest-specialist",
+            tool_versions={"python3": "3.11.9"},
             root=ROOT,
         )
 
@@ -242,6 +243,7 @@ class TestEngagementIntakeAndPlanning(unittest.TestCase):
         self.assertIn("expected_evidence", op)
         self.assertIn("side_effects", op)
         self.assertIn("cleanup", op)
+        self.assertEqual(op["tool_version"], "3.11.9")
         self.assertEqual(op["cleanup"]["action"], "cleanup_temporary_artifacts")
         self.assertTrue(op["idempotent"])
 
@@ -297,6 +299,7 @@ class TestEngagementIntakeAndPlanning(unittest.TestCase):
                 scenario="COPS-E03.01-S01",
                 target="10.50.0.2",
                 specialist="cops-pentest-specialist",
+                tool_versions=["python3=3.11.9"],
                 mode="planning",
                 output=None,
                 json=True,

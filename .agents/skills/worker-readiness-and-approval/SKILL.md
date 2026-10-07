@@ -23,8 +23,8 @@ Verify the isolated execution worker runtime, process boundaries, unprivileged i
 ### Check Worker Readiness and Configuration
 
 ```bash
-python3 -m cops worker status
-python3 -m cops worker status --json
+python3 -m cops worker status --worker-inventory path/to/worker-inventory.json
+python3 -m cops worker status --worker-inventory path/to/worker-inventory.json --json
 ```
 
 ### Inspect the Approval Store
@@ -37,13 +37,23 @@ python3 -m cops worker store --status approved --json
 ### Execute an Authorized Action Plan
 
 ```bash
-python3 -m cops worker execute path/to/action-plan.json --authorization auth-12345678
+python3 -m cops worker execute path/to/action-plan.json \
+  --authorization path/to/authorization.json \
+  --worker-inventory path/to/worker-inventory.json \
+  --authorization-trust-store path/to/authorization-trust.json \
+  --engagement path/to/engagement.json
 ```
 
 ## Python API
 
 ```python
-from cops.execution import ApprovalStore, IsolatedWorker, WorkerConfig
+from cops.execution import (
+    ApprovalStore,
+    AuthorizationTrustStore,
+    IsolatedWorker,
+    WorkerCapabilityInventory,
+    WorkerConfig,
+)
 
 # 1. Initialize approval store
 store = ApprovalStore("~/.cops/approvals.sqlite3")
@@ -51,10 +61,22 @@ store = ApprovalStore("~/.cops/approvals.sqlite3")
 # 2. Store pre-signed authorization envelope
 store.store_authorization(auth_envelope)
 
-# 3. Initialize worker
-worker = IsolatedWorker(WorkerConfig(worker_id="worker-linux-01"), store=store)
+# 3. Load independently provisioned verifier trust and measured worker
+# capabilities from owner-only files.
+trust_store = AuthorizationTrustStore.from_file("path/to/authorization-trust.json")
+inventory = WorkerCapabilityInventory.from_file("path/to/worker-inventory.json")
+config = WorkerConfig.from_inventory(inventory)
 
-# 4. Execute action plan
-run_result = worker.execute_plan(action_plan, authorization="auth-12345678")
+# 4. Initialize the worker with the approved engagement boundary.
+worker = IsolatedWorker(
+    config,
+    store=store,
+    trust_store=trust_store,
+    engagement=engagement,
+)
+
+# 5. Execute the exact signed plan. The store atomically binds consumption to
+# the verified receipt payload before marking it consumed.
+run_result = worker.execute_plan(action_plan, authorization=auth_envelope)
 assert run_result.is_successful()
 ```

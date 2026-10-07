@@ -70,3 +70,15 @@ Before certifying that a COPS plugin runs smoothly in your organization's specif
 3. **Verify Discovery**: Ask the assistant to list its available skills or tools. Confirm that the plugin's skills appear in the list.
 4. **Execute Safe Offline Demo**: Prompt the assistant to run the plugin's safe offline demo or explain a packaged hunt. Ensure it requests only documented, expected permissions.
 5. **Document the Evidence**: Record the date, assistant version, reviewer name, and observed output. Keep live-service claims separate unless real cloud telemetry was queried.
+
+---
+
+## 5. Authenticated Execution Compatibility and Migration
+
+Authenticated execution adds an explicit compatibility check between the approved Action Plan and the selected worker. Operators provide the active Engagement, authorization trust store, and an independently provisioned, owner-only `cops.worker-capability-inventory/v1` artifact. That artifact identifies the worker and records exact tool versions, platform capabilities, measurement time, and measurement source. COPS does not discover installed executables at runtime; the worker owner is responsible for generating the measurement through a trusted host-baseline or deployment process and refreshing it when the host changes.
+
+The loader requires the inventory to be a non-symlink regular file owned by the current user with no group or other permission bits. Before dispatch, the worker compares the signed snapshot with that inventory and rejects a tool-version or platform-capability mismatch, non-sequential batch semantics, an operation count above the signed maximum, or an optional expected-worker assertion that does not match the inventory.
+
+Opening an older SQLite approval store preserves existing records but marks unsigned and digest-only approvals `legacy-untrusted`. These rows remain available for audit and cannot authorize a new execution. Revalidate the current Engagement and plan, then issue a new authorization through an active trusted key; there is no automatic conversion or in-place trust upgrade.
+
+Repository tests can prove deterministic contract validation, full-snapshot and worker binding, key/engagement window checks, compatibility rejection, atomic one-time consumption, and legacy migration against local fixtures. Each deployment must still verify secret injection, file and database permissions, the provenance and accuracy of the owner-provisioned capability measurement, operating-system process isolation, and live network controls on the actual worker host. See [Authenticated Execution](AUTHENTICATED_EXECUTION.md) for the operating procedure.

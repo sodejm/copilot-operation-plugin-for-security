@@ -59,6 +59,23 @@ Portable plugins must explicitly declare and distribute a compatible SDK before
 adoption. See the [SDK specification](../specs/shared-evidence-sdk.spec.md) and
 [guide](../docs/EVIDENCE_SDK.md) for raw/normalized evidence, security and migration.
 
+## Authenticated execution boundary
+
+High-consequence execution requires an authorization signed over the complete
+immutable Action Plan snapshot and the expected worker identity. The worker verifies
+that authorization through an independently supplied trust store and active
+Engagement, checks the plan against an owner-provisioned
+`cops.worker-capability-inventory/v1` measurement artifact, and atomically consumes
+the authorization before dispatch. The inventory records worker identity, exact tool
+versions, platform capabilities, measurement time, and measurement source. It is a
+trusted provisioning input; COPS does not discover installed executables at runtime.
+
+HMAC authenticates membership in the shared-key verifier channel and does not provide
+non-repudiation because every key holder can mint an authorization. Existing unsigned
+or digest-only approval rows migrate to `legacy-untrusted` and cannot execute.
+Operating-system and process transport isolation (issue #185) and live network egress
+mediation (issue #186) remain deployment controls outside this authorization proof.
+
 ## Evidence policy
 
 Static structure, offline behavior, host installation, and live service behavior

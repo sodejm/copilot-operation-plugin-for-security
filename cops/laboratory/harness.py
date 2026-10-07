@@ -19,10 +19,15 @@ from cops.contracts.models import (
 )
 from cops.contracts.validation import validate_contract
 from cops.evidence.canonical import digest, utc_now
-from cops.execution.authorization import AuthorizationError, verify_execution_authorization
+from cops.execution.authorization import (
+    AuthorizationError,
+    AuthorizationTrustStore,
+    verify_execution_authorization,
+)
 from cops.execution.cleanup import CleanupManager, SideEffectLedger
 from cops.execution.scope_guard import ScopeGuard, ScopeViolationError
 from cops.execution.store import ApprovalStore, ApprovalStoreConflictError
+from cops.execution.worker import WorkerCapabilityInventory
 
 from .matrix import verify_platform_matrix, verify_tool_prerequisites
 from .models import (
@@ -159,6 +164,9 @@ class LaboratoryHarness:
         authorization: ExecutionAuthorization | dict[str, Any] | str,
         case_type: Literal["positive", "negative", "remediated"] = "positive",
         *,
+        trust_store: AuthorizationTrustStore,
+        engagement: Any,
+        worker_inventory: WorkerCapabilityInventory,
         store: ApprovalStore | None = None,
         scope_guard: ScopeGuard | None = None,
         fake_adapter: Callable[[ActionPlan, Path], dict[str, Any]] | None = None,
@@ -178,6 +186,35 @@ class LaboratoryHarness:
                 "must be 'verified' or 'active' before execution."
             )
 
+        if worker_inventory.worker_identity != environment.owner:
+            raise LaboratoryGateError(
+                "worker capability inventory identity does not match the laboratory owner"
+            )
+
+        required_tools = {operation["tool"] for operation in plan_model.operations}
+        try:
+            verify_tool_prerequisites(
+                environment.tool_matrix,
+                required_tools=sorted(required_tools),
+                matrix=self.matrix,
+            )
+        except Exception as err:
+            raise LaboratoryGateError(f"approved tool prerequisite gate failed: {err}") from err
+        for operation in plan_model.operations:
+            if worker_inventory.tool_versions.get(operation["tool"]) != operation["tool_version"]:
+                raise LaboratoryGateError(
+                    f"laboratory tool version for {operation['tool']!r} does not match "
+                    f"approved version {operation['tool_version']!r}"
+                )
+        missing_capabilities = set(plan_model.platform_prerequisites) - set(
+            worker_inventory.platform_capabilities
+        )
+        if missing_capabilities:
+            raise LaboratoryGateError(
+                "worker inventory lacks approved platform prerequisites: "
+                f"{sorted(missing_capabilities)}"
+            )
+
         # GATE 2: Authorization envelope review & atomic consumption gate
         if isinstance(authorization, str):
             auth_model = active_store.get_authorization(authorization)
@@ -186,16 +223,22 @@ class LaboratoryHarness:
             try:
                 active_store.store_authorization(auth_model)
             except ApprovalStoreConflictError:
-                auth_model = active_store.get_authorization(auth_model.authorization_id)
+                pass
         else:
             auth_model = authorization
             try:
                 active_store.store_authorization(auth_model)
             except ApprovalStoreConflictError:
-                auth_model = active_store.get_authorization(auth_model.authorization_id)
+                pass
 
         try:
-            verify_execution_authorization(auth_model, plan_model, worker_identity=environment.owner)
+            verify_execution_authorization(
+                auth_model,
+                plan_model,
+                trust_store=trust_store,
+                engagement=engagement,
+                worker_identity=environment.owner,
+            )
         except AuthorizationError as err:
             if case_type == "negative":
                 # Controlled negative test: authorization rejection expected
@@ -208,7 +251,11 @@ class LaboratoryHarness:
 
         # Atomically consume authorization to prevent replay
         try:
-            active_store.atomically_consume(auth_model.authorization_id, worker_identity=environment.owner)
+            active_store.atomically_consume(
+                auth_model.authorization_id,
+                worker_identity=environment.owner,
+                expected_authorization=auth_model,
+            )
         except Exception as err:
             if case_type == "negative":
                 return self._build_negative_rejection_result(

@@ -16,6 +16,7 @@ from cops.laboratory import (
     make_inert_container_environment,
     make_inert_execution_authorization,
 )
+from tests.auth_testkit import make_test_authorization_context, worker_inventory_for_plan
 
 scenarios("../../specs/features/scenario_laboratory_harness.feature")
 
@@ -33,6 +34,7 @@ def lab_ctx():
         "environment": None,
         "plan": None,
         "authorization": None,
+        "worker_inventory": None,
         "case_result": None,
         "error": None,
     }
@@ -117,9 +119,16 @@ def given_verified_env_and_auth(lab_ctx):
     env = make_inert_container_environment()
     lab_ctx["environment"] = lab_ctx["harness"].verify_environment(env)
     plan = make_inert_action_plan()
-    auth = make_inert_execution_authorization(plan)
+    signer, trust_store, engagement = make_test_authorization_context(plan)
+    auth = make_inert_execution_authorization(plan, signer=signer, engagement=engagement)
     lab_ctx["plan"] = plan
     lab_ctx["authorization"] = auth
+    lab_ctx["trust_store"] = trust_store
+    lab_ctx["engagement"] = engagement
+    lab_ctx["worker_inventory"] = worker_inventory_for_plan(
+        plan,
+        worker_identity=lab_ctx["environment"].owner,
+    )
 
 
 @when("the laboratory harness executes a positive case")
@@ -129,6 +138,9 @@ def when_execute_positive(lab_ctx):
         action_plan=lab_ctx["plan"],
         authorization=lab_ctx["authorization"],
         case_type="positive",
+        trust_store=lab_ctx["trust_store"],
+        engagement=lab_ctx["engagement"],
+        worker_inventory=lab_ctx["worker_inventory"],
     )
 
 
@@ -156,6 +168,9 @@ def when_execute_remediated(lab_ctx):
         action_plan=lab_ctx["plan"],
         authorization=lab_ctx["authorization"],
         case_type="remediated",
+        trust_store=lab_ctx["trust_store"],
+        engagement=lab_ctx["engagement"],
+        worker_inventory=lab_ctx["worker_inventory"],
     )
 
 
@@ -172,6 +187,9 @@ def when_execute_negative(lab_ctx):
         action_plan=lab_ctx["plan"],
         authorization=lab_ctx["authorization"],
         case_type="negative",
+        trust_store=lab_ctx["trust_store"],
+        engagement=lab_ctx["engagement"],
+        worker_inventory=lab_ctx["worker_inventory"],
     )
 
 
