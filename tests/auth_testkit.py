@@ -18,7 +18,7 @@ from cops.execution.worker import WorkerCapabilityInventory, WorkerConfig
 _TEST_KEY_ID = "cops-tests-hmac-v1"
 _TEST_SECRET_TEXT = "cops-test-only-authorization-secret-v1"
 _TEST_SECRET = _TEST_SECRET_TEXT.encode("utf-8")
-_TEST_SECRET_ENV = "COPS_TEST_AUTHORIZATION_SECRET"
+_TRUST_ENVIRONMENT_NAME = "COPS_TEST_AUTHORIZATION_SECRET"
 
 
 def make_test_authorization_context(
@@ -102,7 +102,7 @@ def write_test_authorization_trust_store(path: str | Path) -> Path:
                         "key_id": _TEST_KEY_ID,
                         "operator_identity": "secops-lead",
                         "algorithm": "hmac-sha256",
-                        "secret_env": _TEST_SECRET_ENV,
+                        "secret_env": _TRUST_ENVIRONMENT_NAME,
                         "status": "active",
                     }
                 ],
@@ -116,7 +116,7 @@ def write_test_authorization_trust_store(path: str | Path) -> Path:
 def authorization_secret_environment() -> dict[str, str]:
     """Return the explicit environment input used by trust-store loading tests."""
 
-    return {_TEST_SECRET_ENV: _TEST_SECRET_TEXT}
+    return {_TRUST_ENVIRONMENT_NAME: _TEST_SECRET_TEXT}
 
 
 def worker_config_for_plan(
