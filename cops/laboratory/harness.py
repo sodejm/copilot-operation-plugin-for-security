@@ -220,19 +220,11 @@ class LaboratoryHarness:
             auth_model = active_store.get_authorization(authorization)
         elif isinstance(authorization, dict):
             auth_model = ExecutionAuthorization.from_dict(authorization)
-            try:
-                active_store.store_authorization(auth_model)
-            except ApprovalStoreConflictError:
-                pass
         else:
             auth_model = authorization
-            try:
-                active_store.store_authorization(auth_model)
-            except ApprovalStoreConflictError:
-                pass
 
         try:
-            verify_execution_authorization(
+            auth_model = verify_execution_authorization(
                 auth_model,
                 plan_model,
                 trust_store=trust_store,
@@ -248,6 +240,12 @@ class LaboratoryHarness:
                     reason=f"authorization rejected: {err}",
                 )
             raise LaboratoryGateError(f"Execution authorization gate failed: {err}") from err
+
+        if not isinstance(authorization, str):
+            try:
+                active_store.store_authorization(auth_model)
+            except ApprovalStoreConflictError:
+                pass
 
         # Atomically consume authorization to prevent replay
         try:

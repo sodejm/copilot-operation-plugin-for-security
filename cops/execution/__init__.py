@@ -39,6 +39,7 @@ from .store import (
     ApprovalStoreConflictError,
     ApprovalStoreError,
     ApprovalStoreNotFoundError,
+    LegacyApprovalRecord,
 )
 from .worker import (
     IsolatedWorker,
@@ -68,6 +69,7 @@ __all__ = [
     "EvidenceRecorder",
     "IsolatedWorker",
     "LegacyReceiptDeprecationWarning",
+    "LegacyApprovalRecord",
     "ScopeDefinition",
     "ScopeGuard",
     "ScopeViolationError",

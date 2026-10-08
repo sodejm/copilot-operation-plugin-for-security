@@ -17,7 +17,7 @@ from cops.execution import (
     IsolatedWorker,
     SideEffectLedger,
 )
-from tests.auth_testkit import authorize_test_plan, worker_config_for_plan
+from tests.auth_testkit import authorize_test_plan, worker_inventory_for_plan
 
 scenarios("../../specs/features/execution_recovery_cleanup.feature")
 
@@ -149,7 +149,7 @@ def given_plan_with_non_idempotent_step(recovery_ctx):
     recovery_ctx["plan"] = plan
     recovery_ctx["auth"] = auth
     recovery_ctx["worker"] = IsolatedWorker(
-        worker_config_for_plan(plan, worker_id="worker-bdd-02"),
+        worker_inventory_for_plan(plan, worker_identity="worker-bdd-02"),
         store=recovery_ctx["store"],
         trust_store=trust_store,
         engagement=engagement,

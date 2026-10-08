@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import json
 import os
+import stat
 import sys
 import uuid
 import warnings
@@ -64,9 +65,11 @@ class TrustedAuthorizationKey:
     status: str = "active"
 
     def __post_init__(self) -> None:
-        _validate_secret(self.secret)
         if self.status not in {"active", "revoked"}:
             raise AuthorizationError(f"unsupported trusted key status: {self.status}")
+        if self.status == "active":
+            _validate_secret(self.secret)
+            _validate_key_window(self.valid_from, self.valid_until)
 
 
 class AuthorizationTrustStore:
@@ -86,29 +89,66 @@ class AuthorizationTrustStore:
         *,
         environ: Mapping[str, str] | None = None,
     ) -> AuthorizationTrustStore:
-        doc = json.loads(Path(path).read_text(encoding="utf-8"))
+        source = Path(path)
+        if source.is_symlink():
+            raise AuthorizationError("authorization trust store must not be a symbolic link")
+        flags = os.O_RDONLY
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        try:
+            fd = os.open(source, flags)
+        except OSError as err:
+            raise AuthorizationError(f"cannot open authorization trust store: {err}") from err
+        try:
+            file_stat = os.fstat(fd)
+            if not stat.S_ISREG(file_stat.st_mode):
+                raise AuthorizationError("authorization trust store must be a regular file")
+            if hasattr(os, "geteuid") and file_stat.st_uid != os.geteuid():
+                raise AuthorizationError("authorization trust store must be owned by the current verifier account")
+            if stat.S_IMODE(file_stat.st_mode) & 0o077:
+                raise AuthorizationError(
+                    "authorization trust store permissions must not allow group or other access"
+                )
+            with os.fdopen(fd, encoding="utf-8") as handle:
+                fd = -1
+                doc = json.load(handle)
+        except (OSError, json.JSONDecodeError) as err:
+            raise AuthorizationError(f"invalid authorization trust store: {err}") from err
+        finally:
+            if fd >= 0:
+                os.close(fd)
+        if not isinstance(doc, dict):
+            raise AuthorizationError("authorization trust store must be a JSON object")
         if doc.get("schema_version") != "cops.authorization-trust-store/v1":
             raise AuthorizationError("unsupported authorization trust-store schema")
+        if not isinstance(doc.get("keys"), list):
+            raise AuthorizationError("authorization trust-store keys must be a list")
         environment = environ if environ is not None else os.environ
         keys = []
         for item in doc.get("keys", []):
+            if not isinstance(item, dict):
+                raise AuthorizationError("authorization trust-store key entries must be objects")
             if item.get("algorithm") != "hmac-sha256":
                 raise AuthorizationError(
                     f"trusted key {item.get('key_id')!r} uses an unsupported algorithm"
                 )
-            secret_env = item.get("secret_env")
-            if not secret_env or secret_env not in environment:
-                raise AuthorizationError(
-                    f"trusted key {item.get('key_id')!r} secret environment variable is unavailable"
-                )
+            status = item.get("status", "active")
+            secret = b""
+            if status == "active":
+                secret_env = item.get("secret_env")
+                if not secret_env or secret_env not in environment:
+                    raise AuthorizationError(
+                        f"trusted key {item.get('key_id')!r} secret environment variable is unavailable"
+                    )
+                secret = environment[secret_env].encode("utf-8")
             keys.append(
                 TrustedAuthorizationKey(
                     key_id=item["key_id"],
                     operator=item["operator_identity"],
-                    secret=environment[secret_env].encode("utf-8"),
+                    secret=secret,
                     valid_from=item.get("valid_from_utc"),
                     valid_until=item.get("valid_until_utc"),
-                    status=item.get("status", "active"),
+                    status=status,
                 )
             )
         return cls(keys)
@@ -117,8 +157,22 @@ class AuthorizationTrustStore:
         key = self._keys.get(key_id)
         if key is None or key.status != "active" or key.operator != operator:
             raise AuthorizationError("authorization signing key is unknown, revoked, or not trusted for the operator")
+        _validate_key_window(key.valid_from, key.valid_until)
         _validate_window(key.valid_from, key.valid_until, issued_at, expires_at, "trusted key")
         return key
+
+
+def _validate_key_window(valid_from: str | None, valid_until: str | None) -> None:
+    if not isinstance(valid_from, str) or not isinstance(valid_until, str):
+        raise AuthorizationError("active trusted keys require bounded validity windows")
+    try:
+        start, end = timestamp(valid_from), timestamp(valid_until)
+    except (TypeError, ValueError) as err:
+        raise AuthorizationError("trusted key validity windows must be canonical UTC timestamps") from err
+    canonical_start = start.isoformat(timespec="seconds").replace("+00:00", "Z")
+    canonical_end = end.isoformat(timespec="seconds").replace("+00:00", "Z")
+    if valid_from != canonical_start or valid_until != canonical_end or end <= start:
+        raise AuthorizationError("trusted key validity windows must be canonical, bounded UTC timestamps")
 
 
 def _validate_window(valid_from: str | None, valid_until: str | None,
@@ -207,6 +261,8 @@ def verify_execution_authorization(
         except (ContractError, ValueError, KeyError) as err:
             raise AuthorizationError(f"invalid or tampered execution authorization envelope: {err}") from err
     else:
+        if not isinstance(authorization, ExecutionAuthorization):
+            raise AuthorizationError("unsupported historical authorization record cannot authorize execution")
         auth = authorization
         validate_contract(auth.to_dict(), "execution_authorization")
     plan = ActionPlan.from_dict(action_plan) if isinstance(action_plan, dict) else action_plan

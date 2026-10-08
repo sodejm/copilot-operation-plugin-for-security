@@ -17,7 +17,7 @@ from cops.execution import (
     IsolatedWorker,
     WorkerExecutionError,
 )
-from tests.auth_testkit import authorize_test_plan, worker_config_for_plan
+from tests.auth_testkit import authorize_test_plan, worker_inventory_for_plan
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = ROOT / "cops" / "contracts" / "fixtures"
@@ -86,7 +86,7 @@ def register_auth(worker_context):
 @when("the isolated worker executes the authorized plan")
 def execute_plan(worker_context):
     worker = IsolatedWorker(
-        worker_config_for_plan(worker_context["plan"], worker_id="test-worker-01"),
+        worker_inventory_for_plan(worker_context["plan"], worker_identity="test-worker-01"),
         store=worker_context["store"],
         trust_store=worker_context["trust_store"],
         engagement=worker_context["engagement"],
@@ -198,9 +198,9 @@ def plan_unapproved_tool(worker_context, unapproved_tool):
     worker_context["bad_plan"] = plan
     worker_context["bad_auth"] = auth
     worker_context["worker"] = IsolatedWorker(
-        worker_config_for_plan(
+        worker_inventory_for_plan(
             plan,
-            worker_id="worker-strict",
+            worker_identity="worker-strict",
             allowed_tools=(worker_context["allowed_tool"],),
         ),
         store=worker_context["store"],

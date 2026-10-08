@@ -31,6 +31,9 @@ is a separate deployment boundary tracked in issue #185.
    - The loader requires a non-symlink regular file owned by the current user with no
      group or other permission bits. An optional expected worker assertion must match
      `worker_identity`.
+   - `IsolatedWorker` accepts the inventory and derives an immutable runtime
+     configuration from it; caller-supplied mutable capability configurations are
+     not accepted.
    - Before consuming authority, the worker compares the signed tool versions and
      platform prerequisites with the inventory and enforces signed sequential batch
      semantics and operation limits.
@@ -40,8 +43,9 @@ is a separate deployment boundary tracked in issue #185.
      concurrent double-spending.
    - Filesystem permissions restrict the state directory and database to the owner on
      POSIX systems.
-   - Existing unsigned or digest-only rows migrate to `legacy-untrusted` and remain
-     non-executable audit records.
+   - Existing unsigned or digest-only rows migrate to `legacy-untrusted`, retain their
+     historical status, and are returned through a separate read-only audit record
+     representation; they remain non-executable.
 
 4. **Bounded Dispatch Behavior**:
    - Commands use explicit argument arrays without shell interpolation.

@@ -52,7 +52,6 @@ from cops.execution import (
     AuthorizationTrustStore,
     IsolatedWorker,
     WorkerCapabilityInventory,
-    WorkerConfig,
 )
 
 # 1. Initialize approval store
@@ -65,11 +64,10 @@ store.store_authorization(auth_envelope)
 # capabilities from owner-only files.
 trust_store = AuthorizationTrustStore.from_file("path/to/authorization-trust.json")
 inventory = WorkerCapabilityInventory.from_file("path/to/worker-inventory.json")
-config = WorkerConfig.from_inventory(inventory)
 
 # 4. Initialize the worker with the approved engagement boundary.
 worker = IsolatedWorker(
-    config,
+    inventory,
     store=store,
     trust_store=trust_store,
     engagement=engagement,

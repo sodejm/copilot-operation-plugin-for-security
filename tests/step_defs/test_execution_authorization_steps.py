@@ -48,7 +48,13 @@ def create_auth_envelope(auth_context, operator):
         signer=signer,
         engagement=Engagement.from_dict(engagement_doc),
         trust_store=AuthorizationTrustStore([
-            TrustedAuthorizationKey(key_id=signer.key_id, operator=operator, secret=signer.secret)
+            TrustedAuthorizationKey(
+                key_id=signer.key_id,
+                operator=operator,
+                secret=signer.secret,
+                valid_from="2026-01-01T00:00:00Z",
+                valid_until="2030-01-01T00:00:00Z",
+            )
         ]),
     )
     auth = create_execution_authorization(

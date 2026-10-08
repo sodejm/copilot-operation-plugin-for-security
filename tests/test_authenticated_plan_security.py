@@ -294,6 +294,33 @@ def test_worker_inventory_provisions_exact_trusted_capabilities(tmp_path):
     assert config.platform_capabilities == ("linux",)
 
 
+def test_worker_accepts_inventory_not_caller_supplied_config(tmp_path, trust_store, engagement):
+    inventory = WorkerCapabilityInventory.from_file(_write_inventory(tmp_path))
+    config = WorkerConfig.from_inventory(inventory)
+    with pytest.raises(TypeError):
+        config.tool_versions["nmap"] = "7.95"
+    with pytest.raises(WorkerIsolationError, match="inventory"):
+        IsolatedWorker(
+            config,
+            trust_store=trust_store,
+            engagement=engagement,
+        )
+    unverified = WorkerCapabilityInventory(
+        schema_version=WorkerCapabilityInventory.SCHEMA_VERSION,
+        worker_identity="worker-01",
+        measured_at="2026-10-02T09:30:00Z",
+        measurement_source="caller-supplied",
+        tool_versions={"nmap": "7.94"},
+        platform_capabilities=("linux",),
+    )
+    with pytest.raises(WorkerIsolationError, match="verified"):
+        IsolatedWorker(
+            unverified,
+            trust_store=trust_store,
+            engagement=engagement,
+        )
+
+
 def test_worker_inventory_rejects_insecure_permissions(tmp_path):
     path = _write_inventory(tmp_path)
     path.chmod(0o644)
@@ -341,7 +368,11 @@ def test_unknown_revoked_and_operator_mismatched_keys_fail_closed(
 ):
     cases = [
         TrustedAuthorizationKey(
-            key_id="another-key", operator="operator@example.test", secret=SECRET
+            key_id="another-key",
+            operator="operator@example.test",
+            secret=SECRET,
+            valid_from="2026-10-02T09:00:00Z",
+            valid_until="2026-10-02T13:00:00Z",
         ),
         TrustedAuthorizationKey(
             key_id="operator-key-2026q4",
@@ -350,7 +381,11 @@ def test_unknown_revoked_and_operator_mismatched_keys_fail_closed(
             status="revoked",
         ),
         TrustedAuthorizationKey(
-            key_id="operator-key-2026q4", operator="other@example.test", secret=SECRET
+            key_id="operator-key-2026q4",
+            operator="other@example.test",
+            secret=SECRET,
+            valid_from="2026-10-02T09:00:00Z",
+            valid_until="2026-10-02T13:00:00Z",
         ),
     ]
     for key in cases:

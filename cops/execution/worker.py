@@ -56,8 +56,13 @@ class WorkerCapabilityInventory:
     measurement_source: str
     tool_versions: Mapping[str, str]
     platform_capabilities: tuple[str, ...]
+    _file_verified: bool = field(default=False, init=False, repr=False, compare=False)
 
     SCHEMA_VERSION = "cops.worker-capability-inventory/v1"
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "tool_versions", MappingProxyType(dict(self.tool_versions)))
+        object.__setattr__(self, "platform_capabilities", tuple(self.platform_capabilities))
 
     @classmethod
     def from_file(
@@ -148,7 +153,7 @@ class WorkerCapabilityInventory:
         ):
             raise WorkerIsolationError("worker inventory platform capabilities must be a string list")
 
-        return cls(
+        inventory = cls(
             schema_version=cls.SCHEMA_VERSION,
             worker_identity=worker_identity,
             measured_at=measured_at,
@@ -156,6 +161,13 @@ class WorkerCapabilityInventory:
             tool_versions=MappingProxyType(dict(tool_versions)),
             platform_capabilities=tuple(platform_capabilities),
         )
+        object.__setattr__(inventory, "_file_verified", True)
+        return inventory
+
+    @property
+    def is_verified(self) -> bool:
+        """Whether this inventory passed the protected file loader."""
+        return self._file_verified
 
     def to_dict(self) -> dict[str, Any]:
         """Return the stable JSON representation of this inventory."""
@@ -169,7 +181,7 @@ class WorkerCapabilityInventory:
         }
 
 
-@dataclass
+@dataclass(frozen=True)
 class WorkerConfig:
     """Configuration for an isolated execution worker node."""
 
@@ -180,6 +192,11 @@ class WorkerConfig:
     max_wall_time_seconds: int = 300
     max_output_bytes: int = 1048576  # 1MB
     enforce_unprivileged: bool = True
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "allowed_tools", tuple(self.allowed_tools))
+        object.__setattr__(self, "tool_versions", MappingProxyType(dict(self.tool_versions)))
+        object.__setattr__(self, "platform_capabilities", tuple(self.platform_capabilities))
 
     @classmethod
     def from_inventory(cls, inventory: WorkerCapabilityInventory) -> WorkerConfig:
@@ -197,14 +214,17 @@ class IsolatedWorker:
 
     def __init__(
         self,
-        config: WorkerConfig | None = None,
+        worker_inventory: WorkerCapabilityInventory,
         store: ApprovalStore | None = None,
         scope_guard: Any | None = None,
         *,
         trust_store: AuthorizationTrustStore,
         engagement: Any,
     ) -> None:
-        self.config = config or WorkerConfig()
+        if not isinstance(worker_inventory, WorkerCapabilityInventory) or not worker_inventory.is_verified:
+            raise WorkerIsolationError("a verified owner-provisioned worker capability inventory is required")
+        self.worker_inventory = worker_inventory
+        self.config = WorkerConfig.from_inventory(worker_inventory)
         self.store = store
         self.scope_guard = scope_guard
         self.trust_store = trust_store
@@ -279,27 +299,23 @@ class IsolatedWorker:
             auth_model = self.store.get_authorization(authorization)
         elif isinstance(authorization, dict):
             auth_model = ExecutionAuthorization.from_dict(authorization)
-            try:
-                self.store.store_authorization(auth_model)
-            except ApprovalStoreConflictError:
-                # Existing approvals are consumed atomically below, preserving replay checks.
-                pass
         else:
             auth_model = authorization
-            try:
-                self.store.store_authorization(auth_model)
-            except ApprovalStoreConflictError:
-                # Existing approvals are consumed atomically below, preserving replay checks.
-                pass
 
-        # 3. Cryptographically verify authorization against plan and worker identity
-        verify_execution_authorization(
+        # Verify caller-controlled input before registering it in durable state.
+        auth_model = verify_execution_authorization(
             auth_model,
             plan_model,
             trust_store=self.trust_store,
             engagement=self.engagement,
             worker_identity=self.config.worker_id,
         )
+        if not isinstance(authorization, str):
+            try:
+                self.store.store_authorization(auth_model)
+            except ApprovalStoreConflictError:
+                # Existing approvals are consumed atomically below, preserving replay checks.
+                pass
 
         # 4. Atomically consume authorization envelope to prevent replay
         consumed_auth = self.store.atomically_consume(

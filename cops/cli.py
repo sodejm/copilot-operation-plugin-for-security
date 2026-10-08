@@ -477,7 +477,6 @@ def command_worker_execute(args: argparse.Namespace) -> int:
         ScopeDefinition,
         ScopeGuard,
         WorkerCapabilityInventory,
-        WorkerConfig,
     )
     plan_path = Path(args.plan)
     if not plan_path.is_file():
@@ -495,7 +494,7 @@ def command_worker_execute(args: argparse.Namespace) -> int:
         scope_guard = ScopeGuard(ScopeDefinition.from_engagement_scope(engagement.scope))
         store = ApprovalStore(db_path)
         worker = IsolatedWorker(
-            WorkerConfig.from_inventory(inventory),
+            inventory,
             store=store,
             scope_guard=scope_guard,
             trust_store=trust_store,

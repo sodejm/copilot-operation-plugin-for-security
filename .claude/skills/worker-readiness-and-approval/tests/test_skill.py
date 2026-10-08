@@ -9,7 +9,7 @@ from pathlib import Path
 
 from cops.contracts.models import ActionPlan
 from cops.execution import ApprovalStore, IsolatedWorker
-from tests.auth_testkit import authorize_test_plan, worker_config_for_plan
+from tests.auth_testkit import authorize_test_plan, worker_inventory_for_plan
 
 
 class TestWorkerReadinessAndApprovalSkill(unittest.TestCase):
@@ -36,7 +36,7 @@ class TestWorkerReadinessAndApprovalSkill(unittest.TestCase):
 
         # 2. Worker readiness check
         worker = IsolatedWorker(
-            worker_config_for_plan(self.plan, worker_id="worker-test-01"),
+            worker_inventory_for_plan(self.plan, worker_identity="worker-test-01"),
             store=self.store,
             trust_store=trust_store,
             engagement=engagement,

@@ -43,6 +43,12 @@ Create a local JSON trust store for the verifier:
 }
 ```
 
+Keep the trust-store as a regular, non-symlink file owned by the verifier with no
+group or other permissions (for example, mode `0600`) on POSIX systems. Active
+entries require canonical `valid_from_utc` and `valid_until_utc` bounds. A revoked
+entry remains loadable after its `secret_env` and environment secret have been
+removed; revoked keys are never usable for verification.
+
 Supply at least 32 bytes of signing material through the named environment variable. Inject it from the operating system, process supervisor, or approved secret manager. Never put secret bytes in the Action Plan, Execution Authorization, Engagement, worker request, command defaults, logs, fixtures, or committed trust-store file.
 
 HMAC provides shared-key channel authentication. Every verifier with the secret can also mint a valid authorization, so this design does not provide non-repudiation or independent signer identity proof. Limit secret access to the verifier boundary, record who can read it, and rotate the key when that membership changes.
@@ -129,6 +135,11 @@ python3 -m cops worker execute action-plan.json \
 
 `--worker-id` is optional; when omitted, the command uses the inventory identity. The worker rejects inventory identity mismatches, missing tools, version mismatches, missing platform capabilities, unsupported batch semantics, and operation counts above the signed batch maximum before execution.
 
+Library callers must pass the `WorkerCapabilityInventory` loaded by
+`WorkerCapabilityInventory.from_file` directly to `IsolatedWorker`; caller-built
+inventories and mutable `WorkerConfig` values are not accepted at the worker
+boundary.
+
 The approval store consumes the authorization in a SQLite transaction immediately before dispatch. A second attempt with the same authorization fails as replay. Keep the approval database on durable local storage and protect it with the same access controls as other execution records.
 
 ## Validate in the scenario laboratory
@@ -168,7 +179,7 @@ Fail closed on every trust or binding error. Do not bypass verification by chang
 
 ## Migrate existing approval stores
 
-When an older approval database is opened, existing unsigned or digest-only rows are retained as `legacy-untrusted` audit records. They cannot authorize execution. Migration preserves history but does not create trust.
+When an older approval database is opened, existing unsigned or digest-only rows are marked `legacy-untrusted`. They are returned as separate read-only audit records with their previous status retained in `historical_status`; they cannot authorize execution. Migration preserves history but does not create trust.
 
 For an execution that still needs approval:
 

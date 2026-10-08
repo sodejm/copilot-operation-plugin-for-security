@@ -13,7 +13,9 @@ from cops.contracts.validation import validate_contract
 from cops.execution.authorization import (
     AuthorizationDeniedError,
     AuthorizationError,
+    AuthorizationTrustStore,
     LegacyReceiptDeprecationWarning,
+    TrustedAuthorizationKey,
     compute_authorization_signature,
     consume_execution_authorization,
     create_execution_authorization,
@@ -85,6 +87,96 @@ def test_create_execution_authorization_success(valid_action_plan, valid_executi
     assert auth.bound_parameters["worker_identity"] == WORKER
     validated = validate_contract(auth.to_dict(), "execution_authorization")
     assert validated["authorization_id"] == auth.authorization_id
+
+
+def test_trust_store_rejects_unprotected_files_and_active_keys_without_windows(tmp_path):
+    trust_path = tmp_path / "trust.json"
+    trust_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "cops.authorization-trust-store/v1",
+                "keys": [
+                    {
+                        "key_id": "test-key",
+                        "operator_identity": "secops-lead",
+                        "algorithm": "hmac-sha256",
+                        "secret_env": "COPS_TEST_SECRET",
+                        "valid_from_utc": "2026-01-01T00:00:00Z",
+                        "valid_until_utc": "2030-01-01T00:00:00Z",
+                        "status": "active",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    trust_path.chmod(0o644)
+    with pytest.raises(AuthorizationError, match="permissions"):
+        AuthorizationTrustStore.from_file(trust_path, environ={"COPS_TEST_SECRET": "x" * 32})
+
+    trust_path.chmod(0o600)
+    link = tmp_path / "trust-link.json"
+    link.symlink_to(trust_path)
+    with pytest.raises(AuthorizationError, match="symbolic link"):
+        AuthorizationTrustStore.from_file(link, environ={"COPS_TEST_SECRET": "x" * 32})
+
+    document = json.loads(trust_path.read_text(encoding="utf-8"))
+    document["keys"][0].pop("valid_from_utc")
+    trust_path.write_text(json.dumps(document), encoding="utf-8")
+    trust_path.chmod(0o600)
+    with pytest.raises(AuthorizationError, match="validity windows"):
+        AuthorizationTrustStore.from_file(trust_path, environ={"COPS_TEST_SECRET": "x" * 32})
+
+    with pytest.raises(AuthorizationError, match="validity windows"):
+        TrustedAuthorizationKey(
+            key_id="unbounded",
+            operator="secops-lead",
+            secret=b"x" * 32,
+        )
+
+
+def test_revoked_trust_key_loads_without_secret_material(tmp_path):
+    trust_path = tmp_path / "trust.json"
+    trust_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "cops.authorization-trust-store/v1",
+                "keys": [
+                    {
+                        "key_id": "retired-key",
+                        "operator_identity": "secops-lead",
+                        "algorithm": "hmac-sha256",
+                        "valid_from_utc": "2026-01-01T00:00:00Z",
+                        "valid_until_utc": "2030-01-01T00:00:00Z",
+                        "status": "revoked",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    trust_path.chmod(0o600)
+    trust_store = AuthorizationTrustStore.from_file(trust_path, environ={})
+    with pytest.raises(AuthorizationError, match="revoked"):
+        trust_store.resolve(
+            "retired-key",
+            "secops-lead",
+            ISSUED_AT,
+            EXPIRES_AT,
+        )
+
+
+def test_execution_authorization_fixtures_use_authenticated_envelope_shape(valid_action_plan, auth_context):
+    valid = json.loads((FIXTURES / "valid_execution_authorization.json").read_text(encoding="utf-8"))
+    tampered = json.loads(
+        (FIXTURES / "invalid_execution_authorization_tampered.json").read_text(encoding="utf-8")
+    )
+    validate_contract(valid, "execution_authorization")
+    validate_contract(tampered, "execution_authorization")
+    assert set(valid["bound_parameters"]) == {"action_plan", "worker_identity"}
+    assert {"signature_algorithm", "signing_key_id"} <= valid.keys()
+    with pytest.raises(AuthorizationError):
+        verify(tampered, valid_action_plan, auth_context)
 
 
 def test_verify_execution_authorization_success(valid_action_plan, valid_execution_auth, auth_context):

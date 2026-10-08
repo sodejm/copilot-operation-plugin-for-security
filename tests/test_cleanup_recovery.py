@@ -19,7 +19,7 @@ from cops.execution import (
     SideEffectLedger,
     WorkerExecutionError,
 )
-from tests.auth_testkit import authorize_test_plan, worker_config_for_plan
+from tests.auth_testkit import authorize_test_plan, worker_inventory_for_plan
 
 
 @pytest.fixture
@@ -131,7 +131,7 @@ def test_failure_injection_after_consume_prevents_replay(temp_store, sample_plan
     temp_store.store_authorization(auth)
 
     worker = IsolatedWorker(
-        worker_config_for_plan(plan, worker_id="worker-fail-test"),
+        worker_inventory_for_plan(plan, worker_identity="worker-fail-test"),
         store=temp_store,
         trust_store=trust_store,
         engagement=engagement,
@@ -196,7 +196,7 @@ def test_interruption_uncertain_outcome_non_idempotent(temp_store, sample_plan, 
     temp_store.store_authorization(auth)
 
     worker = IsolatedWorker(
-        worker_config_for_plan(plan, worker_id="worker-interrupt-test"),
+        worker_inventory_for_plan(plan, worker_identity="worker-interrupt-test"),
         store=temp_store,
         trust_store=trust_store,
         engagement=engagement,
@@ -253,7 +253,7 @@ def test_operator_cancellation_idempotent_step(temp_store, sample_plan, temp_wor
     temp_store.store_authorization(auth)
 
     worker = IsolatedWorker(
-        worker_config_for_plan(plan, worker_id="worker-cancel-test"),
+        worker_inventory_for_plan(plan, worker_identity="worker-cancel-test"),
         store=temp_store,
         trust_store=trust_store,
         engagement=engagement,

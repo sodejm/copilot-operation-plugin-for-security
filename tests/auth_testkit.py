@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import tempfile
 from collections.abc import Iterable
 from pathlib import Path
 
@@ -13,7 +14,7 @@ from cops.execution.authorization import (
     TrustedAuthorizationKey,
     create_execution_authorization,
 )
-from cops.execution.worker import WorkerCapabilityInventory, WorkerConfig
+from cops.execution.worker import WorkerCapabilityInventory
 
 _TEST_KEY_ID = "cops-tests-hmac-v1"
 _TEST_SECRET_TEXT = "cops-test-only-authorization-secret-v1"
@@ -64,6 +65,8 @@ def make_test_authorization_context(
                 key_id=_TEST_KEY_ID,
                 operator=engagement.operator,
                 secret=_TEST_SECRET,
+                valid_from="2026-01-01T00:00:00Z",
+                valid_until="2030-01-01T00:00:00Z",
             )
         ]
     )
@@ -103,6 +106,8 @@ def write_test_authorization_trust_store(path: str | Path) -> Path:
                         "operator_identity": "secops-lead",
                         "algorithm": "hmac-sha256",
                         "secret_env": _TRUST_ENVIRONMENT_NAME,
+                        "valid_from_utc": "2026-01-01T00:00:00Z",
+                        "valid_until_utc": "2030-01-01T00:00:00Z",
                         "status": "active",
                     }
                 ],
@@ -110,6 +115,7 @@ def write_test_authorization_trust_store(path: str | Path) -> Path:
         ),
         encoding="utf-8",
     )
+    output_path.chmod(0o600)
     return output_path
 
 
@@ -119,40 +125,33 @@ def authorization_secret_environment() -> dict[str, str]:
     return {_TRUST_ENVIRONMENT_NAME: _TEST_SECRET_TEXT}
 
 
-def worker_config_for_plan(
-    plan: ActionPlan,
-    *,
-    worker_id: str,
-    allowed_tools: Iterable[str] | None = None,
-) -> WorkerConfig:
-    """Build a worker configuration that exactly satisfies the plan contract."""
-
-    versions, plan_tools = _worker_requirements_for_plan(plan)
-
-    return WorkerConfig(
-        worker_id=worker_id,
-        allowed_tools=tuple(plan_tools if allowed_tools is None else allowed_tools),
-        tool_versions=versions,
-        platform_capabilities=tuple(plan.platform_prerequisites),
-    )
-
-
 def worker_inventory_for_plan(
     plan: ActionPlan,
     *,
     worker_identity: str,
+    allowed_tools: Iterable[str] | None = None,
 ) -> WorkerCapabilityInventory:
     """Build deterministic owner-provisioned capability evidence for ``plan``."""
 
     versions, _ = _worker_requirements_for_plan(plan)
-    return WorkerCapabilityInventory(
-        schema_version=WorkerCapabilityInventory.SCHEMA_VERSION,
-        worker_identity=worker_identity,
-        measured_at="2026-01-01T00:00:00Z",
-        measurement_source="test-provisioner",
-        tool_versions=versions,
-        platform_capabilities=tuple(plan.platform_prerequisites),
-    )
+    if allowed_tools is not None:
+        versions = {tool: versions.get(tool, "1.0.0") for tool in allowed_tools}
+    document = {
+        "schema_version": WorkerCapabilityInventory.SCHEMA_VERSION,
+        "worker_identity": worker_identity,
+        "measured_at": "2026-01-01T00:00:00Z",
+        "measurement_source": "test-provisioner",
+        "tool_versions": versions,
+        "platform_capabilities": list(plan.platform_prerequisites),
+    }
+    with tempfile.TemporaryDirectory(prefix="cops-test-inventory-") as temporary_directory:
+        path = Path(temporary_directory) / "inventory.json"
+        path.write_text(json.dumps(document), encoding="utf-8")
+        path.chmod(0o600)
+        return WorkerCapabilityInventory.from_file(
+            path,
+            expected_worker_identity=worker_identity,
+        )
 
 
 def write_test_worker_inventory(

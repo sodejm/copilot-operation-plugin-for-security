@@ -13,9 +13,13 @@ authorization envelopes bound to complete immutable Action Plan snapshots
 1. **Independent Verifier Trust**:
    - Verification requires a `cops.authorization-trust-store/v1` document supplied
      independently from the Action Plan, authorization, and worker request.
+   - The trust-store file is a regular, non-symlink file owned by the verifier with
+     no group or other permissions on POSIX systems.
    - Each trusted key declares `key_id`, `algorithm: hmac-sha256`,
      `operator_identity`, `valid_from_utc`, `valid_until_utc`, `status`, and
      `secret_env`.
+   - Active keys require canonical UTC validity bounds and a secret. Revoked keys
+     remain loadable without secret material and cannot verify authorizations.
    - Secret bytes are loaded only from the environment variable named by
      `secret_env`; plans, authorizations, Engagements, requests, and defaults cannot
      supply them.

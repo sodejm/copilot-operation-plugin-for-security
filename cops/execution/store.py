@@ -8,11 +8,58 @@ from __future__ import annotations
 
 import os
 import sqlite3
+from dataclasses import dataclass
 from pathlib import Path
 
 from cops.contracts.models import ExecutionAuthorization
 from cops.contracts.validation import validate_contract
 from cops.evidence.canonical import canonical, timestamp, utc_now
+
+
+@dataclass(frozen=True)
+class LegacyApprovalRecord:
+    """Read-only historical approval row that cannot authorize execution."""
+
+    authorization_id: str
+    action_plan_id: str
+    plan_digest: str
+    engagement_id: str
+    operator: str
+    historical_status: str
+    issued_at: str
+    authorized_until_utc: str
+    bound_parameters: dict
+    approval_mode: str
+    signature_algorithm: str
+    signing_key_id: str
+    signature_digest: str
+    consumed_at: str | None = None
+    consumed_by_worker: str | None = None
+
+    @property
+    def status(self) -> str:
+        return "legacy-untrusted"
+
+    def to_dict(self) -> dict:
+        return {
+            "record_type": "legacy-untrusted",
+            "authorization_id": self.authorization_id,
+            "action_plan_id": self.action_plan_id,
+            "plan_digest": self.plan_digest,
+            "engagement_id": self.engagement_id,
+            "operator": self.operator,
+            "status": self.status,
+            "historical_status": self.historical_status,
+            "issued_at": self.issued_at,
+            "authorized_until_utc": self.authorized_until_utc,
+            "bound_parameters": self.bound_parameters,
+            "approval_mode": self.approval_mode,
+            "signature_algorithm": self.signature_algorithm,
+            "signing_key_id": self.signing_key_id,
+            "signature_digest": self.signature_digest,
+            "consumed_at": self.consumed_at,
+            "consumed_by_worker": self.consumed_by_worker,
+        }
 
 
 class ApprovalStoreError(ValueError):
@@ -46,6 +93,7 @@ CREATE TABLE IF NOT EXISTS approvals (
     signature_algorithm TEXT NOT NULL,
     signing_key_id TEXT NOT NULL,
     signature_digest TEXT NOT NULL,
+    legacy_status TEXT,
     consumed_at TEXT,
     consumed_by_worker TEXT,
     created_at TEXT NOT NULL
@@ -118,15 +166,28 @@ class ApprovalStore:
     def _init_db(self) -> None:
         with self._get_connection() as conn:
             conn.executescript(SCHEMA_SQL)
-            columns = {row[1] for row in conn.execute("PRAGMA table_info(approvals)")}
-            if "signature_algorithm" not in columns:
-                conn.execute(
-                    "ALTER TABLE approvals ADD COLUMN signature_algorithm TEXT NOT NULL DEFAULT 'legacy-untrusted'"
-                )
-            if "signing_key_id" not in columns:
-                conn.execute(
-                    "ALTER TABLE approvals ADD COLUMN signing_key_id TEXT NOT NULL DEFAULT ''"
-                )
+            conn.execute("BEGIN IMMEDIATE")
+            try:
+                columns = {row[1] for row in conn.execute("PRAGMA table_info(approvals)")}
+                legacy_database = "signature_algorithm" not in columns or "signing_key_id" not in columns
+                if "signature_algorithm" not in columns:
+                    conn.execute(
+                        "ALTER TABLE approvals ADD COLUMN signature_algorithm TEXT NOT NULL DEFAULT 'legacy-untrusted'"
+                    )
+                if "signing_key_id" not in columns:
+                    conn.execute(
+                        "ALTER TABLE approvals ADD COLUMN signing_key_id TEXT NOT NULL DEFAULT ''"
+                    )
+                if "legacy_status" not in columns:
+                    conn.execute("ALTER TABLE approvals ADD COLUMN legacy_status TEXT")
+                if legacy_database:
+                    conn.execute(
+                        "UPDATE approvals SET legacy_status = status, status = 'legacy-untrusted'"
+                    )
+                conn.execute("COMMIT")
+            except Exception:
+                conn.execute("ROLLBACK")
+                raise
         if os.name == "posix" and self.require_secure_perms and self.db_path.exists():
             try:
                 self.db_path.chmod(0o600)
@@ -185,7 +246,9 @@ class ApprovalStore:
                 conn.execute("ROLLBACK")
                 raise
 
-    def get_authorization(self, authorization_id: str) -> ExecutionAuthorization:
+    def get_authorization(
+        self, authorization_id: str
+    ) -> ExecutionAuthorization | LegacyApprovalRecord:
         """Retrieve an authorization envelope by ID."""
         import json
 
@@ -195,7 +258,7 @@ class ApprovalStore:
                 SELECT authorization_id, action_plan_id, plan_digest, engagement_id,
                        operator, status, issued_at, authorized_until_utc,
                        bound_parameters_json, approval_mode, signature_algorithm,
-                       signing_key_id, signature_digest,
+                       signing_key_id, signature_digest, legacy_status,
                        consumed_at, consumed_by_worker
                 FROM approvals WHERE authorization_id = ?
                 """,
@@ -226,6 +289,24 @@ class ApprovalStore:
             if row["consumed_by_worker"]:
                 doc["consumed_by_worker"] = row["consumed_by_worker"]
 
+            if row["status"] == "legacy-untrusted":
+                return LegacyApprovalRecord(
+                    authorization_id=row["authorization_id"],
+                    action_plan_id=row["action_plan_id"],
+                    plan_digest=row["plan_digest"],
+                    engagement_id=row["engagement_id"],
+                    operator=row["operator"],
+                    historical_status=row["legacy_status"] or "unknown",
+                    issued_at=row["issued_at"],
+                    authorized_until_utc=row["authorized_until_utc"],
+                    bound_parameters=json.loads(row["bound_parameters_json"]),
+                    approval_mode=row["approval_mode"],
+                    signature_algorithm=row["signature_algorithm"],
+                    signing_key_id=row["signing_key_id"],
+                    signature_digest=row["signature_digest"],
+                    consumed_at=row["consumed_at"],
+                    consumed_by_worker=row["consumed_by_worker"],
+                )
             return ExecutionAuthorization.from_dict(doc)
 
     def atomically_consume(
@@ -255,7 +336,7 @@ class ApprovalStore:
                     SELECT authorization_id, action_plan_id, plan_digest, engagement_id,
                            operator, status, issued_at, authorized_until_utc,
                            bound_parameters_json, approval_mode, signature_algorithm,
-                           signing_key_id, signature_digest,
+                           signing_key_id, signature_digest, legacy_status,
                            consumed_at, consumed_by_worker
                     FROM approvals WHERE authorization_id = ?
                     """,
@@ -346,7 +427,9 @@ class ApprovalStore:
                         pass
                 raise
 
-    def list_approvals(self, status: str | None = None) -> list[ExecutionAuthorization]:
+    def list_approvals(
+        self, status: str | None = None
+    ) -> list[ExecutionAuthorization | LegacyApprovalRecord]:
         """List authorizations optionally filtered by status."""
         import json
 
@@ -357,7 +440,7 @@ class ApprovalStore:
                     SELECT authorization_id, action_plan_id, plan_digest, engagement_id,
                            operator, status, issued_at, authorized_until_utc,
                            bound_parameters_json, approval_mode, signature_algorithm,
-                           signing_key_id, signature_digest,
+                           signing_key_id, signature_digest, legacy_status,
                            consumed_at, consumed_by_worker
                     FROM approvals WHERE status = ? ORDER BY issued_at DESC
                     """,
@@ -369,13 +452,13 @@ class ApprovalStore:
                     SELECT authorization_id, action_plan_id, plan_digest, engagement_id,
                            operator, status, issued_at, authorized_until_utc,
                            bound_parameters_json, approval_mode, signature_algorithm,
-                           signing_key_id, signature_digest,
+                           signing_key_id, signature_digest, legacy_status,
                            consumed_at, consumed_by_worker
                     FROM approvals ORDER BY issued_at DESC
                     """
                 )
 
-            results: list[ExecutionAuthorization] = []
+            results: list[ExecutionAuthorization | LegacyApprovalRecord] = []
             for row in cur.fetchall():
                 doc = {
                     "schema_version": "cops.execution-authorization/v1",
@@ -397,5 +480,26 @@ class ApprovalStore:
                     doc["consumed_at"] = row["consumed_at"]
                 if row["consumed_by_worker"]:
                     doc["consumed_by_worker"] = row["consumed_by_worker"]
-                results.append(ExecutionAuthorization.from_dict(doc))
+                if row["status"] == "legacy-untrusted":
+                    results.append(
+                        LegacyApprovalRecord(
+                            authorization_id=row["authorization_id"],
+                            action_plan_id=row["action_plan_id"],
+                            plan_digest=row["plan_digest"],
+                            engagement_id=row["engagement_id"],
+                            operator=row["operator"],
+                            historical_status=row["legacy_status"] or "unknown",
+                            issued_at=row["issued_at"],
+                            authorized_until_utc=row["authorized_until_utc"],
+                            bound_parameters=json.loads(row["bound_parameters_json"]),
+                            approval_mode=row["approval_mode"],
+                            signature_algorithm=row["signature_algorithm"],
+                            signing_key_id=row["signing_key_id"],
+                            signature_digest=row["signature_digest"],
+                            consumed_at=row["consumed_at"],
+                            consumed_by_worker=row["consumed_by_worker"],
+                        )
+                    )
+                else:
+                    results.append(ExecutionAuthorization.from_dict(doc))
             return results

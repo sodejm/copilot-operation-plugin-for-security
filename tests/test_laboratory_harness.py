@@ -253,6 +253,28 @@ class TestLaboratoryHarness(unittest.TestCase):
         self.assertEqual(result.status, "rejected")
         self.assertEqual(result.run_result.status, "failed")
 
+    def test_negative_case_does_not_persist_forged_authorization(self) -> None:
+        c_env = make_inert_container_environment()
+        self.harness.verify_environment(c_env)
+        plan = make_inert_action_plan()
+        auth, trust_store, engagement = self._authorization_context(plan)
+        forged = auth.to_dict()
+        forged["signature_digest"] = "0" * 64
+        worker_inventory = worker_inventory_for_plan(plan, worker_identity=c_env.owner)
+
+        result = self.harness.execute_case(
+            environment=c_env,
+            action_plan=plan,
+            authorization=forged,
+            case_type="negative",
+            trust_store=trust_store,
+            engagement=engagement,
+            worker_inventory=worker_inventory,
+            store=self.store,
+        )
+        self.assertEqual(result.status, "rejected")
+        self.assertEqual(self.store.list_approvals(), [])
+
     def test_egress_and_scope_guard_enforcement(self) -> None:
         """Verify scope guard prevents execution against unauthorized targets or metadata IMDS."""
         c_env = make_inert_container_environment()

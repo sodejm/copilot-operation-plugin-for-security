@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 import threading
 from pathlib import Path
 
@@ -10,13 +11,15 @@ import pytest
 
 from cops.contracts.models import ActionPlan
 from cops.execution import (
+    AuthorizationError,
     ApprovalStore,
     ApprovalStoreConflictError,
     ApprovalStoreNotFoundError,
+    LegacyApprovalRecord,
     IsolatedWorker,
     WorkerExecutionError,
 )
-from tests.auth_testkit import authorize_test_plan, worker_config_for_plan
+from tests.auth_testkit import authorize_test_plan, worker_inventory_for_plan
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "cops" / "contracts" / "fixtures"
@@ -53,6 +56,70 @@ def test_approval_store_not_found(temp_store):
     """Test retrieving non-existent authorization raises ApprovalStoreNotFoundError."""
     with pytest.raises(ApprovalStoreNotFoundError, match="not found in store"):
         temp_store.get_authorization("auth-nonexistent-1234")
+
+
+def test_legacy_approval_rows_migrate_to_readable_non_executable_records(tmp_path, sample_plan):
+    auth, _, _ = authorize_test_plan(sample_plan, worker_identity="legacy-worker")
+    db_path = tmp_path / "legacy" / "approvals.sqlite3"
+    db_path.parent.mkdir(mode=0o700)
+    with sqlite3.connect(db_path) as connection:
+        connection.execute(
+            """
+            CREATE TABLE approvals (
+                authorization_id TEXT PRIMARY KEY,
+                action_plan_id TEXT NOT NULL,
+                plan_digest TEXT NOT NULL,
+                engagement_id TEXT NOT NULL,
+                operator TEXT NOT NULL,
+                status TEXT NOT NULL,
+                issued_at TEXT NOT NULL,
+                authorized_until_utc TEXT NOT NULL,
+                bound_parameters_json TEXT NOT NULL,
+                approval_mode TEXT NOT NULL,
+                signature_digest TEXT NOT NULL,
+                consumed_at TEXT,
+                consumed_by_worker TEXT,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO approvals VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                auth.authorization_id,
+                auth.action_plan_id,
+                auth.plan_digest,
+                auth.engagement_id,
+                auth.operator,
+                "approved",
+                auth.issued_at,
+                auth.authorized_until_utc,
+                json.dumps(auth.to_dict()["bound_parameters"]),
+                auth.approval_mode,
+                auth.signature_digest,
+                None,
+                None,
+                "2026-10-02T10:00:00Z",
+            ),
+        )
+
+    store = ApprovalStore(db_path)
+    historical = store.get_authorization(auth.authorization_id)
+    assert isinstance(historical, LegacyApprovalRecord)
+    assert historical.status == "legacy-untrusted"
+    assert historical.historical_status == "approved"
+    listed = store.list_approvals(status="legacy-untrusted")
+    assert len(listed) == 1
+    assert isinstance(listed[0], LegacyApprovalRecord)
+    assert listed[0].to_dict()["historical_status"] == "approved"
+    with pytest.raises(ApprovalStoreConflictError, match="legacy-untrusted"):
+        store.atomically_consume(
+            auth.authorization_id,
+            expected_authorization=auth,
+            worker_identity="legacy-worker",
+        )
 
 
 def test_atomic_consume_and_double_spend_prevention(temp_store, sample_plan):
@@ -143,7 +210,7 @@ def test_isolated_worker_execute_plan_success(temp_store, sample_plan):
     temp_store.store_authorization(auth)
 
     worker = IsolatedWorker(
-        worker_config_for_plan(plan, worker_id="test-worker-alpha"),
+        worker_inventory_for_plan(plan, worker_identity="test-worker-alpha"),
         store=temp_store,
         trust_store=trust_store,
         engagement=engagement,
@@ -159,6 +226,24 @@ def test_isolated_worker_execute_plan_success(temp_store, sample_plan):
     # Verify authorization is marked consumed in store
     retrieved_auth = temp_store.get_authorization(auth.authorization_id)
     assert retrieved_auth.status == "consumed"
+
+
+def test_worker_rejects_forged_authorization_before_persisting(temp_store, sample_plan):
+    auth, trust_store, engagement = authorize_test_plan(
+        sample_plan, worker_identity="worker-unverified"
+    )
+    worker = IsolatedWorker(
+        worker_inventory_for_plan(sample_plan, worker_identity="worker-unverified"),
+        store=temp_store,
+        trust_store=trust_store,
+        engagement=engagement,
+    )
+    forged = auth.to_dict()
+    forged["signature_digest"] = "0" * 64
+
+    with pytest.raises(AuthorizationError, match="signature verification failed"):
+        worker.execute_plan(sample_plan, authorization=forged)
+    assert temp_store.list_approvals() == []
 
 
 def test_isolated_worker_rejects_unauthorized_tool(temp_store, sample_plan):
@@ -191,7 +276,7 @@ def test_isolated_worker_rejects_unauthorized_tool(temp_store, sample_plan):
     temp_store.store_authorization(auth)
 
     worker = IsolatedWorker(
-        worker_config_for_plan(plan, worker_id="worker-beta", allowed_tools=("echo",)),
+        worker_inventory_for_plan(plan, worker_identity="worker-beta", allowed_tools=("echo",)),
         store=temp_store,
         trust_store=trust_store,
         engagement=engagement,
@@ -206,7 +291,7 @@ def test_isolated_worker_rejects_unauthorized_tool(temp_store, sample_plan):
 def test_authorization_storage_failure_stops_execution(temp_store, sample_plan, monkeypatch, as_dict):
     auth, trust_store, engagement = authorize_test_plan(sample_plan, worker_identity="storage-test")
     worker = IsolatedWorker(
-        worker_config_for_plan(sample_plan, worker_id="storage-test"),
+        worker_inventory_for_plan(sample_plan, worker_identity="storage-test"),
         store=temp_store,
         trust_store=trust_store,
         engagement=engagement,
