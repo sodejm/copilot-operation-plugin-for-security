@@ -147,17 +147,13 @@ class WorkerCapabilityInventory:
             not isinstance(tool_versions, dict)
             or not tool_versions
             or any(
-                not isinstance(tool, str)
-                or not tool.strip()
-                or not isinstance(version, str)
-                or not version.strip()
+                not isinstance(tool, str) or not tool.strip() or not isinstance(version, str) or not version.strip()
                 for tool, version in tool_versions.items()
             )
         ):
             raise WorkerIsolationError("worker inventory tool versions must be a non-empty string mapping")
-        if (
-            not isinstance(platform_capabilities, list)
-            or any(not isinstance(item, str) or not item.strip() for item in platform_capabilities)
+        if not isinstance(platform_capabilities, list) or any(
+            not isinstance(item, str) or not item.strip() for item in platform_capabilities
         ):
             raise WorkerIsolationError("worker inventory platform capabilities must be a string list")
 
@@ -250,9 +246,7 @@ class IsolatedWorker:
             raise WorkerExecutionError("approved batch operation limit is smaller than the plan")
         missing_capabilities = set(plan.platform_prerequisites) - set(self.config.platform_capabilities)
         if missing_capabilities:
-            raise WorkerExecutionError(
-                f"worker lacks approved platform prerequisites: {sorted(missing_capabilities)}"
-            )
+            raise WorkerExecutionError(f"worker lacks approved platform prerequisites: {sorted(missing_capabilities)}")
         for operation in plan.operations:
             tool = operation["tool"]
             if tool not in self.config.allowed_tools and tool != "inert":
@@ -260,8 +254,7 @@ class IsolatedWorker:
             configured = self.config.tool_versions.get(tool)
             if configured is None or configured != operation["tool_version"]:
                 raise WorkerExecutionError(
-                    f"worker tool version for {tool!r} does not match approved version "
-                    f"{operation['tool_version']!r}"
+                    f"worker tool version for {tool!r} does not match approved version {operation['tool_version']!r}"
                 )
 
     def _verify_worker_environment(self) -> None:
@@ -350,15 +343,14 @@ class IsolatedWorker:
             try:
                 workspace_fd = open_directory_no_symlinks(requested_workspace, create=True)
             except SecureDirectoryError as err:
-                raise WorkerIsolationError(
-                    "worker workspace path must not contain symbolic-link components"
-                ) from err
+                raise WorkerIsolationError("worker workspace path must not contain symbolic-link components") from err
             finally:
                 if workspace_fd >= 0:
                     os.close(workspace_fd)
             target_workspace = Path(os.path.abspath(os.fspath(requested_workspace)))
 
         from .cleanup import CleanupManager, SideEffectLedger
+
         ledger = SideEffectLedger(
             plan_id=plan_model.plan_id,
             engagement_id=plan_model.engagement_id,
@@ -384,6 +376,7 @@ class IsolatedWorker:
 
         from .evidence import EvidenceRecorder
         from .redaction import StreamRedactor
+
         # Initialize evidence recorder with redactor
         redactor = StreamRedactor()
         evidence_recorder = EvidenceRecorder(workspace_dir=target_workspace, redactor=redactor)
@@ -404,6 +397,7 @@ class IsolatedWorker:
             # 5.5. Enforce execution-time scope boundary on plan target
             if hasattr(self, "scope_guard") and self.scope_guard is not None:
                 from .scope_guard import ScopeViolationError
+
                 try:
                     self.scope_guard.check_destination(plan_model.target)
                 except ScopeViolationError as err:
@@ -444,7 +438,9 @@ class IsolatedWorker:
                     if cancel_requested:
                         if not is_idempotent:
                             status = "uncertain"
-                            status_reason = f"interrupted during non-idempotent step '{step_id}'; automatic repeat disallowed"
+                            status_reason = (
+                                f"interrupted during non-idempotent step '{step_id}'; automatic repeat disallowed"
+                            )
                         else:
                             status = "cancelled"
                             status_reason = f"execution cancelled by operator at step '{step_id}'"
@@ -456,7 +452,9 @@ class IsolatedWorker:
                         if target_step in (None, step_id):
                             if not is_idempotent:
                                 status = "uncertain"
-                                status_reason = f"interrupted during non-idempotent step '{step_id}'; automatic repeat disallowed"
+                                status_reason = (
+                                    f"interrupted during non-idempotent step '{step_id}'; automatic repeat disallowed"
+                                )
                             else:
                                 status = "failed"
                                 status_reason = f"injected failure during execution at step '{step_id}'"
@@ -467,7 +465,9 @@ class IsolatedWorker:
                     elapsed_seconds = (datetime.now(UTC) - start_dt).total_seconds()
                     if elapsed_seconds >= max_duration_seconds:
                         status = "partial"
-                        status_reason = f"operation exceeded action plan max_duration_seconds limit ({max_duration_seconds}s)"
+                        status_reason = (
+                            f"operation exceeded action plan max_duration_seconds limit ({max_duration_seconds}s)"
+                        )
                         overall_exit_code = 124
                         break
 
@@ -479,13 +479,16 @@ class IsolatedWorker:
                     # Tool whitelist boundary
                     if tool not in self.config.allowed_tools and tool != "inert":
                         status = "failed"
-                        status_reason = f"tool '{tool}' is not in worker allowed tools: {sorted(self.config.allowed_tools)}"
+                        status_reason = (
+                            f"tool '{tool}' is not in worker allowed tools: {sorted(self.config.allowed_tools)}"
+                        )
                         overall_exit_code = 127
                         break
 
                     # Enforce scope on any destination-bearing arguments
                     if hasattr(self, "scope_guard") and self.scope_guard is not None:
                         from .scope_guard import ScopeViolationError
+
                         op_args = op.get("arguments", {})
                         if isinstance(op_args, Mapping):
                             for dest_key in ("target", "host", "destination", "ip"):
@@ -506,8 +509,13 @@ class IsolatedWorker:
                     stderr_bytes = b""
                     timed_out = False
                     output_limit_exceeded = False
+                    artifact_reservation = None
                     try:
                         remaining_capture = max(0, max_output_bytes - captured_output_bytes)
+                        # Evidence storage is reserved before any operation can have
+                        # side effects. A reservation failure therefore fails closed
+                        # without probing or invoking the adapter executable.
+                        artifact_reservation = evidence_recorder.reserve_step_output(step_id)
                         if tool == "inert":
                             # Simulated execution for testing
                             raw_output = f"Inert step {step_id} executed successfully: {action}".encode()
@@ -565,8 +573,7 @@ class IsolatedWorker:
                         redacted_err = redactor.redact_string(str(err))
                         status = "partial"
                         status_reason = (
-                            f"step '{step_id}' timed out during adapter executable preparation: "
-                            f"{redacted_err}"
+                            f"step '{step_id}' timed out during adapter executable preparation: {redacted_err}"
                         )
                         overall_exit_code = 124
                         break
@@ -579,13 +586,21 @@ class IsolatedWorker:
                     except KeyboardInterrupt:
                         if not is_idempotent:
                             status = "uncertain"
-                            status_reason = f"interrupted during non-idempotent step '{step_id}'; automatic repeat disallowed"
+                            status_reason = (
+                                f"interrupted during non-idempotent step '{step_id}'; automatic repeat disallowed"
+                            )
                         else:
                             status = "cancelled"
                             status_reason = "execution cancelled by operator via interrupt"
                         overall_exit_code = 130
                         break
 
+                    # A bounded prefix can end inside an arbitrarily long secret.
+                    # Suppress all raw output on timeout or overflow before any
+                    # redaction, digest, telemetry, or artifact persistence.
+                    if timed_out or output_limit_exceeded:
+                        stdout_bytes = b""
+                        stderr_bytes = b""
                     captured_output_bytes += len(stdout_bytes) + len(stderr_bytes)
                     step_finished = utc_now()
                     # Record and redact evidence
@@ -600,12 +615,16 @@ class IsolatedWorker:
                         started_at=step_started,
                         finished_at=step_finished,
                         max_output_bytes=remaining_artifact,
+                        reservation=artifact_reservation,
                     )
                     persisted_output_bytes += artifact.size_bytes
 
                     if timed_out:
                         status = "partial"
-                        status_reason = f"step '{step_id}' timed out after {timeout} seconds"
+                        status_reason = (
+                            f"step '{step_id}' timed out after {timeout} seconds; "
+                            "retained raw output was suppressed before redaction"
+                        )
                         overall_exit_code = 124
                         break
 
@@ -613,7 +632,8 @@ class IsolatedWorker:
                         status = "partial"
                         status_reason = (
                             f"step '{step_id}' exceeded the raw max_output_bytes limit "
-                            f"({max_output_bytes} bytes for the action plan)"
+                            f"({max_output_bytes} bytes for the action plan); retained raw "
+                            "output was suppressed before redaction"
                         )
                         overall_exit_code = 125
                         break
@@ -624,12 +644,23 @@ class IsolatedWorker:
                         overall_exit_code = exit_code
                         break
 
-        except Exception as err:
+                    if artifact.truncated_bytes:
+                        status = "partial"
+                        status_reason = (
+                            f"step '{step_id}' post-redaction evidence exceeded the remaining "
+                            f"max_output_bytes limit and was truncated by "
+                            f"{artifact.truncated_bytes} bytes"
+                        )
+                        overall_exit_code = 125
+                        break
+
+        except Exception:
             status = "failed"
-            status_reason = f"unexpected worker execution failure: {err}"
+            status_reason = "unexpected worker execution failure"
             overall_exit_code = 1
         finally:
             finished_at = utc_now()
+            evidence_recorder.discard_pending_reservations()
             # Perform ownership-verified rollback of tracked side effects
             cleanup_receipt = cleanup_manager.rollback()
             self.last_cleanup_receipt = cleanup_receipt
@@ -655,15 +686,17 @@ class IsolatedWorker:
 
         # 7. Build and return RunResult contract
         result_id = f"res-{uuid.uuid4().hex[:16]}"
-        summary_text = "All action plan operations completed successfully" if status == "success" else f"Execution finished with status '{status}'"
+        summary_text = (
+            "All action plan operations completed successfully"
+            if status == "success"
+            else f"Execution finished with status '{status}'"
+        )
         status_details: dict[str, Any] = {"summary": summary_text}
         if status != "success":
             status_details["reason"] = status_reason
 
         # Combine authorization proof, recorded step evidence hashes, and cleanup receipt hash
-        evidence_hashes = [
-            digest(consumed_auth.to_dict())
-        ]
+        evidence_hashes = [digest(consumed_auth.to_dict())]
         evidence_hashes.extend(evidence_recorder.get_evidence_hashes())
         evidence_hashes.append(cleanup_receipt.evidence_hash)
 

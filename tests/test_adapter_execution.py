@@ -7,6 +7,7 @@ import json
 import os
 import platform
 import shutil
+import stat
 import sys
 import time
 from pathlib import Path
@@ -101,14 +102,14 @@ def _fake_adapter() -> ToolAdapter:
     )
 
 
-def _fake_action_plan(tmp_path: Path, *, timeout_seconds: float = 5) -> ActionPlan:
+def _fake_action_plan(tmp_path: Path, *, timeout_seconds: float = 5, max_output_bytes: int = 4096) -> ActionPlan:
     fixture = json.loads(
         (Path(__file__).resolve().parents[1] / "cops/contracts/fixtures/valid_action_plan.json").read_text(
             encoding="utf-8"
         )
     )
     limits = dict(fixture["limits"])
-    limits["max_output_bytes"] = 4096
+    limits["max_output_bytes"] = max_output_bytes
     limits["max_duration_seconds"] = 30
     return ActionPlan.create(
         plan_id=f"plan-fake-{tmp_path.name}",
@@ -133,9 +134,7 @@ def _fake_action_plan(tmp_path: Path, *, timeout_seconds: float = 5) -> ActionPl
 
 
 def _fake_worker(tmp_path: Path, plan: ActionPlan) -> tuple[IsolatedWorker, str]:
-    auth, trust_store, engagement = authorize_test_plan(
-        plan, worker_identity="test-worker-01", valid_hours=2
-    )
+    auth, trust_store, engagement = authorize_test_plan(plan, worker_identity="test-worker-01", valid_hours=2)
     store = ApprovalStore(tmp_path / "approval.sqlite3")
     store.store_authorization(auth)
     registry = ToolAdapterRegistry(definitions_path=tmp_path / "no-definitions")
@@ -180,6 +179,44 @@ def test_fake_tool_process_matrix(
     assert result.timed_out is timed_out
     assert result.output_limit_exceeded is overflow
     assert result.captured_bytes <= (64 if overflow else 4096)
+    if timed_out or overflow:
+        assert result.stdout == b""
+        assert result.stderr == b""
+        assert result.captured_bytes == 0
+
+
+@pytest.mark.parametrize(
+    ("program", "timeout_seconds", "max_output_bytes", "flag"),
+    [
+        (
+            "import sys; sys.stdout.write('password=super'); sys.stdout.flush(); import time; time.sleep(30)",
+            0.2,
+            4096,
+            "timed_out",
+        ),
+        ("print('password=supersecret')", 5, 12, "output_limit_exceeded"),
+    ],
+    ids=("timeout-mid-secret", "overflow-mid-secret"),
+)
+def test_bounded_process_suppresses_unsafe_partial_output(
+    tmp_path: Path,
+    program: str,
+    timeout_seconds: float,
+    max_output_bytes: int,
+    flag: str,
+) -> None:
+    result = run_bounded_process(
+        [sys.executable, "-c", program],
+        cwd=tmp_path,
+        env=os.environ,
+        timeout_seconds=timeout_seconds,
+        max_output_bytes=max_output_bytes,
+    )
+
+    assert getattr(result, flag)
+    assert result.stdout == b""
+    assert result.stderr == b""
+    assert result.captured_bytes == 0
 
 
 @pytest.mark.parametrize(
@@ -201,13 +238,9 @@ def test_worker_normalizes_fake_tool_results(
 ) -> None:
     plan = _fake_action_plan(tmp_path)
     worker, authorization_id = _fake_worker(tmp_path, plan)
-    prepared = SimpleNamespace(
-        invocation_path="/proc/self/fd/7", pass_fds=(), remove=lambda: None
-    )
+    prepared = SimpleNamespace(invocation_path="/proc/self/fd/7", pass_fds=(), remove=lambda: None)
     monkeypatch.setattr(worker_module, "prepare_executable", lambda *args, **kwargs: prepared)
-    monkeypatch.setattr(
-        worker_module, "run_bounded_process", lambda *args, **kwargs: process_result
-    )
+    monkeypatch.setattr(worker_module, "run_bounded_process", lambda *args, **kwargs: process_result)
 
     result = worker.execute_plan(
         plan,
@@ -219,14 +252,108 @@ def test_worker_normalizes_fake_tool_results(
     assert result.exit_code == expected_exit_code
 
 
+def test_worker_reuses_workspace_with_unique_reserved_artifacts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace = tmp_path / "workspace"
+    first_plan = _fake_action_plan(tmp_path / "first")
+    second_plan = _fake_action_plan(tmp_path / "second")
+    first_worker, first_authorization = _fake_worker(tmp_path / "first", first_plan)
+    second_worker, second_authorization = _fake_worker(tmp_path / "second", second_plan)
+    prepared = SimpleNamespace(invocation_path="/proc/self/fd/7", pass_fds=(), remove=lambda: None)
+    process_results = iter(
+        (
+            BoundedProcessResult(b"first\n", b"", 0, False, False),
+            BoundedProcessResult(b"second\n", b"", 0, False, False),
+        )
+    )
+    launch_count = 0
+
+    monkeypatch.setattr(worker_module, "prepare_executable", lambda *args, **kwargs: prepared)
+
+    def launch(*args, **kwargs):
+        nonlocal launch_count
+        launch_count += 1
+        return next(process_results)
+
+    monkeypatch.setattr(worker_module, "run_bounded_process", launch)
+
+    first = first_worker.execute_plan(first_plan, authorization=first_authorization, workspace_dir=workspace)
+    first_path = workspace / first.artifacts[0]["path"]
+    first_bytes = first_path.read_bytes()
+    second = second_worker.execute_plan(second_plan, authorization=second_authorization, workspace_dir=workspace)
+    second_path = workspace / second.artifacts[0]["path"]
+
+    assert first.status == second.status == "success"
+    assert launch_count == 2
+    assert first_path != second_path
+    assert first_path.read_bytes() == first_bytes == b"first\n"
+    assert second_path.read_bytes() == b"second\n"
+
+
+def test_worker_fails_before_launch_when_evidence_reservation_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plan = _fake_action_plan(tmp_path)
+    worker, authorization_id = _fake_worker(tmp_path, plan)
+
+    def fail_reservation(*args, **kwargs):
+        raise EvidenceCaptureError("cannot reserve /private/host/path")
+
+    def unexpected(*args, **kwargs):
+        raise AssertionError("failed evidence reservation must prevent executable work")
+
+    monkeypatch.setattr(EvidenceRecorder, "reserve_step_output", fail_reservation)
+    monkeypatch.setattr(worker_module, "prepare_executable", unexpected)
+    monkeypatch.setattr(worker_module, "run_bounded_process", unexpected)
+
+    result = worker.execute_plan(plan, authorization=authorization_id, workspace_dir=tmp_path / "workspace")
+
+    assert result.status == "failed"
+    assert result.exit_code == 1
+    assert result.status_details["reason"] == "unexpected worker execution failure"
+    assert "/private/host/path" not in json.dumps(result.to_dict())
+
+
+def test_worker_reports_post_redaction_artifact_truncation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    plan = _fake_action_plan(tmp_path, max_output_bytes=3)
+    worker, authorization_id = _fake_worker(tmp_path, plan)
+    prepared = SimpleNamespace(invocation_path="/proc/self/fd/7", pass_fds=(), remove=lambda: None)
+
+    class ExpandingRedactor:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def redact_bytes(self, value: bytes) -> bytes:
+            return b"expanded-output" if value else b""
+
+        def redact_string(self, value: str) -> str:
+            return value
+
+    monkeypatch.setattr(worker_module, "prepare_executable", lambda *args, **kwargs: prepared)
+    monkeypatch.setattr(
+        worker_module,
+        "run_bounded_process",
+        lambda *args, **kwargs: BoundedProcessResult(b"x", b"", 0, False, False),
+    )
+    monkeypatch.setattr("cops.execution.redaction.StreamRedactor", ExpandingRedactor)
+
+    result = worker.execute_plan(plan, authorization=authorization_id, workspace_dir=tmp_path / "workspace")
+
+    assert result.status == "partial"
+    assert result.exit_code == 125
+    assert "post-redaction evidence" in result.status_details["reason"]
+    assert result.artifacts[0]["size_bytes"] == 3
+    assert result.artifacts[0]["truncated_bytes"] == len(b"expanded-output") - 3
+    assert (tmp_path / "workspace" / result.artifacts[0]["path"]).read_bytes() == b"exp"
+
+
 def test_worker_counts_executable_preparation_against_step_timeout(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     plan = _fake_action_plan(tmp_path, timeout_seconds=1)
     worker, authorization_id = _fake_worker(tmp_path, plan)
-    prepared = SimpleNamespace(
-        invocation_path="/proc/self/fd/7", pass_fds=(), remove=lambda: None
-    )
+    prepared = SimpleNamespace(invocation_path="/proc/self/fd/7", pass_fds=(), remove=lambda: None)
     monkeypatch.setattr(worker_module, "prepare_executable", lambda *args, **kwargs: prepared)
     monotonic_values = iter((100.0, 102.0))
     monkeypatch.setattr(worker_module, "monotonic", lambda: next(monotonic_values))
@@ -246,16 +373,12 @@ def test_worker_counts_executable_preparation_against_step_timeout(
     assert result.exit_code == 124
 
 
-def test_worker_normalizes_executable_preparation_timeout(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_worker_normalizes_executable_preparation_timeout(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     plan = _fake_action_plan(tmp_path, timeout_seconds=1)
     worker, authorization_id = _fake_worker(tmp_path, plan)
 
     def expired_preparation(*args, **kwargs):
-        raise ExecutablePreparationTimeoutError(
-            "adapter executable preparation exceeded the step timeout"
-        )
+        raise ExecutablePreparationTimeoutError("adapter executable preparation exceeded the step timeout")
 
     monkeypatch.setattr(worker_module, "prepare_executable", expired_preparation)
 
@@ -271,10 +394,7 @@ def test_worker_normalizes_executable_preparation_timeout(
 
 
 def test_bounded_collector_closes_pipe_held_by_descendant(tmp_path: Path) -> None:
-    program = (
-        "import subprocess, sys; "
-        "subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])"
-    )
+    program = "import subprocess, sys; subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])"
     started = time.monotonic()
 
     result = run_bounded_process(
@@ -314,9 +434,7 @@ def test_prepare_executable_rejects_version_mismatch(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(not HAS_PROC_FD, reason="stable executable launch requires Linux /proc")
-def test_prepare_executable_rejects_expired_shared_deadline(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_prepare_executable_rejects_expired_shared_deadline(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(executable_module, "monotonic", lambda: 2.0)
 
     def unexpected_probe(*args, **kwargs):
@@ -362,6 +480,22 @@ def test_executable_copy_enforces_shared_deadline_while_staging(
 
 
 @pytest.mark.skipif(not HAS_PROC_FD, reason="stable executable launch requires Linux /proc")
+def test_prepare_executable_removes_partial_stage_after_interrupt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def interrupt_copy(source_fd, destination_fd, max_size_bytes, *, deadline=None):
+        os.write(destination_fd, b"partial executable")
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(executable_module, "_copy_from_open_descriptor", interrupt_copy)
+
+    with pytest.raises(KeyboardInterrupt):
+        prepare_executable(_python_adapter(), workspace=tmp_path, env=os.environ, timeout_seconds=5)
+
+    assert list((tmp_path / ".executables").iterdir()) == []
+
+
+@pytest.mark.skipif(not HAS_PROC_FD, reason="stable executable launch requires Linux /proc")
 def test_prepared_executable_is_bound_to_verified_inode_after_path_swap(tmp_path: Path) -> None:
     prepared = prepare_executable(
         _python_adapter(),
@@ -398,8 +532,10 @@ def test_prepare_executable_rejects_symlink_source(tmp_path: Path) -> None:
     link.symlink_to(sys.executable)
     adapter.binary = str(link)
 
-    with pytest.raises(ExecutableVerificationError, match="without following symlinks"):
+    with pytest.raises(ExecutableVerificationError, match="without following symbolic links") as caught:
         prepare_executable(adapter, workspace=tmp_path, env=os.environ, timeout_seconds=5)
+
+    assert str(link) not in str(caught.value)
 
 
 @pytest.mark.skipif(HAS_PROC_FD, reason="only exercises the unsupported-platform boundary")
@@ -419,7 +555,7 @@ def test_evidence_rejects_symlinked_artifact_directory(tmp_path: Path) -> None:
     (tmp_path / "artifacts").symlink_to(outside, target_is_directory=True)
     recorder = EvidenceRecorder(tmp_path)
 
-    with pytest.raises(EvidenceCaptureError, match="secure evidence artifact write failed"):
+    with pytest.raises(EvidenceCaptureError, match="secure evidence artifact reservation failed"):
         recorder.record_step_output(
             step_id="step-1",
             tool="fake",
@@ -442,7 +578,7 @@ def test_evidence_rejects_symlinked_workspace_parent_before_creation(tmp_path: P
     link.symlink_to(outside, target_is_directory=True)
     recorder = EvidenceRecorder(link / "new-workspace")
 
-    with pytest.raises(EvidenceCaptureError, match="secure evidence artifact write failed"):
+    with pytest.raises(EvidenceCaptureError, match="secure evidence artifact reservation failed"):
         recorder.record_step_output(
             step_id="step-1",
             tool="fake",
@@ -496,9 +632,7 @@ def test_worker_rejects_workspace_parent_traversal_before_creation(tmp_path: Pat
 
 
 @pytest.mark.parametrize("invalid_execution", ([], {"sha256": 42}, {"sha256": ["0" * 64]}))
-def test_registry_rejects_malformed_execution_metadata(
-    tmp_path: Path, invalid_execution: object
-) -> None:
+def test_registry_rejects_malformed_execution_metadata(tmp_path: Path, invalid_execution: object) -> None:
     definitions = tmp_path / "definitions"
     definitions.mkdir()
     source = Path(__file__).resolve().parents[1] / "cops/adapters/definitions/echo.json"
@@ -534,3 +668,54 @@ def test_evidence_reports_redaction_before_truncation(tmp_path: Path) -> None:
     assert telemetry.truncated_bytes == 7
     assert telemetry.output_length == 3
     assert artifact.size_bytes == 3
+    assert artifact.truncated_bytes == 7
+
+
+def test_evidence_rejects_reserved_artifact_replacement(tmp_path: Path) -> None:
+    recorder = EvidenceRecorder(tmp_path)
+    reservation = recorder.reserve_step_output("step-1")
+    artifact_path = tmp_path / reservation.path
+    artifact_path.unlink()
+    artifact_path.write_bytes(b"replacement must remain intact")
+    artifact_path.chmod(0o600)
+
+    with pytest.raises(EvidenceCaptureError, match="reservation identity changed"):
+        recorder.record_step_output(
+            step_id="step-1",
+            tool="fake",
+            action="run",
+            exit_code=0,
+            stdout=b"new evidence",
+            stderr=b"",
+            started_at="2026-01-01T00:00:00Z",
+            finished_at="2026-01-01T00:00:01Z",
+            max_output_bytes=100,
+            reservation=reservation,
+        )
+
+    assert artifact_path.read_bytes() == b"replacement must remain intact"
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="FIFO replacement requires POSIX")
+def test_evidence_rejects_fifo_replacement_without_blocking(tmp_path: Path) -> None:
+    recorder = EvidenceRecorder(tmp_path)
+    reservation = recorder.reserve_step_output("step-1")
+    artifact_path = tmp_path / reservation.path
+    artifact_path.unlink()
+    os.mkfifo(artifact_path, 0o600)
+
+    with pytest.raises(EvidenceCaptureError, match="secure evidence artifact write failed"):
+        recorder.record_step_output(
+            step_id="step-1",
+            tool="fake",
+            action="run",
+            exit_code=0,
+            stdout=b"new evidence",
+            stderr=b"",
+            started_at="2026-01-01T00:00:00Z",
+            finished_at="2026-01-01T00:00:01Z",
+            max_output_bytes=100,
+            reservation=reservation,
+        )
+
+    assert stat.S_ISFIFO(artifact_path.stat().st_mode)

@@ -54,7 +54,9 @@ def run_bounded_process(
 
     The aggregate limit is applied to raw bytes as pipes are drained.  Timeout
     and overflow terminate the whole process group, then drain/discard any
-    remaining bytes so retained memory never exceeds the approved budget.
+    remaining bytes so retained memory never exceeds the approved budget.  A
+    timeout or overflow suppresses every retained byte: an arbitrary prefix may
+    end in the middle of a credential and therefore cannot be redacted safely.
     """
     if os.name != "posix":
         raise RuntimeError("bounded executable collection requires POSIX process-group support")
@@ -145,9 +147,11 @@ def run_bounded_process(
             _terminate_process_group(process, process_group_id)
             process.wait(timeout=2)
 
+    stdout = b"" if timed_out or overflow else bytes(captured["stdout"])
+    stderr = b"" if timed_out or overflow else bytes(captured["stderr"])
     return BoundedProcessResult(
-        stdout=bytes(captured["stdout"]),
-        stderr=bytes(captured["stderr"]),
+        stdout=stdout,
+        stderr=stderr,
         returncode=returncode,
         timed_out=timed_out,
         output_limit_exceeded=overflow,

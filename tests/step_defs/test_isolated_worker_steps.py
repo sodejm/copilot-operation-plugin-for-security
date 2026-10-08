@@ -45,6 +45,7 @@ def worker_context():
     }
     yield ctx
     import shutil
+
     shutil.rmtree(temp_dir, ignore_errors=True)
 
 
@@ -78,9 +79,7 @@ def load_plan_and_auth(worker_context):
         credential_references=plan_dict["credential_references"],
         created_at=plan_dict["created_at"],
     )
-    auth, trust_store, engagement = authorize_test_plan(
-        plan, worker_identity="test-worker-01", valid_hours=2
-    )
+    auth, trust_store, engagement = authorize_test_plan(plan, worker_identity="test-worker-01", valid_hours=2)
     worker_context["plan"] = plan
     worker_context["auth"] = auth
     worker_context["trust_store"] = trust_store
@@ -233,9 +232,7 @@ def execute_bad_plan(worker_context):
 def verify_bad_status(worker_context, expected_status):
     assert expected_status == "failed"
     assert isinstance(worker_context.get("bad_error"), WorkerExecutionError)
-    stored = worker_context["store"].get_authorization(
-        worker_context["bad_auth"].authorization_id
-    )
+    stored = worker_context["store"].get_authorization(worker_context["bad_auth"].authorization_id)
     assert stored.status == "approved"
 
 
@@ -269,13 +266,9 @@ def authorized_fake_adapter_plan(worker_context):
         credential_references=[],
         created_at=fixture["created_at"],
     )
-    authorization, trust_store, engagement = authorize_test_plan(
-        plan, worker_identity="test-worker-01", valid_hours=2
-    )
+    authorization, trust_store, engagement = authorize_test_plan(plan, worker_identity="test-worker-01", valid_hours=2)
     worker_context["store"].store_authorization(authorization)
-    registry = ToolAdapterRegistry(
-        definitions_path=Path(worker_context["temp_dir"]) / "no-definitions"
-    )
+    registry = ToolAdapterRegistry(definitions_path=Path(worker_context["temp_dir"]) / "no-definitions")
     registry.register_adapter(
         ToolAdapter(
             tool="fake-tool",
@@ -342,3 +335,10 @@ def fake_adapter_reports(worker_context, monkeypatch, outcome):
 @then(parsers.parse("the execution exit code is {expected_exit_code:d}"))
 def verify_result_exit_code(worker_context, expected_exit_code):
     assert worker_context["result"].exit_code == expected_exit_code
+
+
+@then("the persisted adapter output is empty")
+def verify_persisted_output_empty(worker_context):
+    result = worker_context["result"]
+    artifact_path = Path(worker_context["temp_dir"]).resolve() / "fake-workspace" / result.artifacts[0]["path"]
+    assert artifact_path.read_bytes() == b""

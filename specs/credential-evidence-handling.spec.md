@@ -11,9 +11,19 @@ Enforces zero-credential leakage across execution streams and provides determini
 - `cops.execution.EvidenceRecorder`:
   - Captures step execution metrics: `tool`, `action`, `exit_code`, timestamps, and output lengths.
   - Automatically pipes stdout and stderr through `StreamRedactor`.
-  - Persists redacted output artifacts in `<workspace>/artifacts/<step_id>_output.txt`.
+  - Reserves a unique, collision-safe artifact inode under `<workspace>/artifacts/`
+    before dispatch and revalidates its identity before writing redacted output.
+  - Reports persisted artifact size and bytes truncated after redaction.
   - Produces canonical SHA256 digests for output artifacts and binds them into `evidence_records` on `cops.run-result/v1`.
 
 ## Security Boundaries
 1. **No Cleartext Secret Persistence**: No raw credentials or tokens are saved to disk in ephemeral or persistent workspaces.
 2. **Immutable Run-Result Evidence**: Run-result envelopes cryptographically link authorization signatures with individual step telemetry digests.
+3. **Incomplete Output Suppression**: Timeout and raw-output overflow discard all
+   retained raw bytes before redaction, hashing, or persistence because collection
+   can stop inside a secret. Post-redaction artifact truncation is explicit in
+   evidence metadata and changes an otherwise successful run to `partial` with exit
+   code `125`.
+4. **Path-Safe Failure Reporting**: Evidence reservation and write failures expose
+   stable path-free reasons while preserving the underlying exception only for
+   local debugging.

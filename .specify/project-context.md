@@ -73,8 +73,10 @@ For each external adapter launch, the worker separately verifies an
 operator-provisioned platform SHA-256 and the adapter's pinned upstream executable
 revision. Linux launches bind the version probe and operation to the same held staged
 inode through `/proc/self/fd`; unsupported platforms fail closed. Raw stdout and
-stderr are bounded during collection, and evidence uses bounded, directory-relative
-non-following writes.
+stderr are bounded during collection. A timeout or raw-output overflow suppresses
+all retained bytes before redaction and persistence. The worker reserves a unique
+evidence inode before dispatch, revalidates it before a directory-relative
+non-following write, and reports post-redaction truncation as a partial result.
 
 HMAC authenticates membership in the shared-key verifier channel and does not provide
 non-repudiation because every key holder can mint an authorization. Existing unsigned

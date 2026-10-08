@@ -61,10 +61,18 @@ is a separate deployment boundary tracked in issue #185.
    - Tool allowlists, wall-clock timeouts, aggregate raw output byte limits,
      operation-count limits, and ephemeral workspace cleanup remain enforced.
      Collection terminates the process group on timeout or overflow, normalizes both
-     to `partial`, and preserves non-zero tool exits as `failed`.
-   - Evidence remains within the aggregate artifact bound, reports truncation
-     separately from redaction, and creates directories and files relative to
-     verified directory descriptors without following symbolic links.
+     to `partial`, suppresses every retained raw prefix before redaction or
+     persistence, and preserves non-zero tool exits as `failed`. Suppression is
+     required because a timeout or byte boundary can split an arbitrarily long
+     credential or configured secret.
+   - Before invoking a non-inert adapter, the worker reserves a unique evidence
+     inode relative to verified directory descriptors without following symbolic
+     links. It refuses dispatch when reservation fails and revalidates the inode
+     before writing so a repeated run cannot overwrite prior evidence or execute
+     without a writable evidence destination.
+   - Evidence remains within the aggregate artifact bound and reports both persisted
+     size and post-redaction truncation separately from redaction. Truncation changes
+     an otherwise successful result to `partial` with exit code `125`.
    - Deterministic `cops.run-result/v1` records include exit status and output hashes.
    - These application controls do not establish operating-system or process
      transport isolation (#185) or mediate live network egress (#186); deployments

@@ -51,9 +51,7 @@ def _validate_private_directory(fd: int, label: str) -> None:
 
 def _check_preparation_deadline(deadline: float) -> None:
     if monotonic() >= deadline:
-        raise ExecutablePreparationTimeoutError(
-            "adapter executable preparation exceeded the step timeout"
-        )
+        raise ExecutablePreparationTimeoutError("adapter executable preparation exceeded the step timeout")
 
 
 def _copy_from_open_descriptor(
@@ -153,9 +151,7 @@ def prepare_executable(
         )
     verification = adapter.executable_verification
     if verification is None or verification.sha256 is None:
-        raise ExecutableVerificationError(
-            f"adapter '{adapter.tool}' has no platform-specific pinned executable sha256"
-        )
+        raise ExecutableVerificationError(f"adapter '{adapter.tool}' has no platform-specific pinned executable sha256")
     missing_provenance = [
         key for key in ("source", "license", "pinned_revision") if not adapter.provenance.get(key, "").strip()
     ]
@@ -166,14 +162,14 @@ def prepare_executable(
 
     located = shutil.which(adapter.binary, path=env.get("PATH"))
     if located is None:
-        raise ExecutableVerificationError(f"adapter executable '{adapter.binary}' was not found")
+        raise ExecutableVerificationError("adapter executable was not found")
     source_path = Path(located).absolute()
 
     try:
         source_fd = os.open(source_path, os.O_RDONLY | nofollow | getattr(os, "O_CLOEXEC", 0))
     except OSError as err:
         raise ExecutableVerificationError(
-            f"adapter executable '{source_path}' could not be opened without following symlinks: {err}"
+            "adapter executable could not be opened without following symbolic links"
         ) from err
 
     workspace_fd = -1
@@ -233,10 +229,13 @@ def prepare_executable(
             staged_after.st_size,
         ):
             raise ExecutableVerificationError("staged executable was substituted before launch binding")
-    except Exception:
+    except BaseException:
         if executable_fd >= 0:
             os.close(executable_fd)
             executable_fd = -1
+        if destination_fd >= 0:
+            os.close(destination_fd)
+            destination_fd = -1
         if stage_fd >= 0:
             try:
                 os.unlink(filename, dir_fd=stage_fd)
@@ -253,17 +252,18 @@ def prepare_executable(
     try:
         remaining_time = preparation_deadline - monotonic()
         if remaining_time <= 0:
-            raise ExecutablePreparationTimeoutError(
-                "adapter executable preparation exceeded the step timeout"
+            raise ExecutablePreparationTimeoutError("adapter executable preparation exceeded the step timeout")
+        try:
+            version_result = run_bounded_process(
+                [f"/proc/self/fd/{executable_fd}", *verification.version_args],
+                cwd=workspace,
+                env=env,
+                timeout_seconds=min(remaining_time, 5),
+                max_output_bytes=65_536,
+                pass_fds=(executable_fd,),
             )
-        version_result = run_bounded_process(
-            [f"/proc/self/fd/{executable_fd}", *verification.version_args],
-            cwd=workspace,
-            env=env,
-            timeout_seconds=min(remaining_time, 5),
-            max_output_bytes=65_536,
-            pass_fds=(executable_fd,),
-        )
+        except OSError as err:
+            raise ExecutableVerificationError("adapter executable version probe could not be launched") from err
         if version_result.timed_out:
             raise ExecutablePreparationTimeoutError("adapter executable version probe timed out")
         if version_result.output_limit_exceeded:
@@ -272,9 +272,7 @@ def prepare_executable(
             raise ExecutableVerificationError(
                 f"adapter executable version probe exited with code {version_result.returncode}"
             )
-        version_text = (version_result.stdout + b"\n" + version_result.stderr).decode(
-            "utf-8", errors="replace"
-        )
+        version_text = (version_result.stdout + b"\n" + version_result.stderr).decode("utf-8", errors="replace")
         match = re.search(verification.version_pattern, version_text)
         if match is None:
             raise ExecutableVerificationError("adapter executable version output did not match its contract")

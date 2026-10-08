@@ -37,3 +37,15 @@ Feature: Isolated Execution Worker and Approval State Store
       | timeout         | partial | 124       |
       | output overflow | partial | 125       |
       | failure         | failed  | 9         |
+
+  Scenario Outline: Suppressing incomplete adapter output before persistence
+    Given an authorized fake adapter action plan
+    When the fake adapter reports "<outcome>"
+    Then the execution result is "partial"
+    And the execution exit code is <exit_code>
+    And the persisted adapter output is empty
+
+    Examples:
+      | outcome         | exit_code |
+      | timeout         | 124       |
+      | output overflow | 125       |

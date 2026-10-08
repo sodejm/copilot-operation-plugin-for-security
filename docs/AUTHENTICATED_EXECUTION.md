@@ -81,7 +81,7 @@ The worker owner must measure and provision an inventory through a trusted deplo
   "measured_at": "2026-10-06T12:00:00Z",
   "measurement_source": "approved-host-baseline",
   "tool_versions": {
-    "nmap": "7.95"
+    "nmap": "7.94"
   },
   "platform_capabilities": [
     "raw-sockets"
