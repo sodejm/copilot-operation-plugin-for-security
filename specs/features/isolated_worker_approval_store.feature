@@ -32,16 +32,16 @@ Feature: Isolated Execution Worker and Approval State Store
     And the execution exit code is <exit_code>
 
     Examples:
-      | outcome         | status  | exit_code |
-      | success         | success | 0         |
-      | timeout         | partial | 124       |
-      | output overflow | partial | 125       |
-      | failure         | failed  | 9         |
+      | outcome         | status    | exit_code |
+      | success         | success   | 0         |
+      | timeout         | uncertain | 124       |
+      | output overflow | uncertain | 125       |
+      | failure         | failed    | 9         |
 
   Scenario Outline: Suppressing incomplete adapter output before persistence
     Given an authorized fake adapter action plan
     When the fake adapter reports "<outcome>"
-    Then the execution result is "partial"
+    Then the execution result is "uncertain"
     And the execution exit code is <exit_code>
     And the persisted adapter output is empty
 

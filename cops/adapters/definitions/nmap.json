@@ -9,7 +9,7 @@
   },
   "execution": {
     "version_args": ["--version"],
-    "version_pattern": "Nmap version (?P<version>[0-9.]+)"
+    "version_pattern": "Nmap version (?P<version>[0-9]+(?:\\.[0-9]+)*)(?=\\s|$)"
   },
   "supported_environments": ["linux"],
   "actions": {

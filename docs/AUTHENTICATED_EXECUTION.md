@@ -173,7 +173,12 @@ version, and launches the same held staged inode through `/proc/self/fd`. This b
 the probe and operation to one file identity even if the original pathname is
 replaced. macOS `/dev/fd` does not provide the required executable-descriptor
 behavior, so external launches fail closed there. The `inert` test operation remains
-available without an executable pin.
+available without an executable pin. On non-POSIX hosts, plans containing only
+`inert` operations use a fresh private temporary workspace and a portable evidence
+reservation path. Each artifact is created exclusively, kept open through capture,
+and checked against its reserved file identity where the operating system exposes
+one; collisions never overwrite existing evidence, and symbolic links or Windows
+reparse points are rejected where the platform exposes them.
 
 Run the worker under a dedicated isolated account. Descriptor binding prevents
 pathname substitution, but it does not defend against another process with the same
@@ -193,8 +198,10 @@ boundary.
 The approval store consumes the authorization in a SQLite transaction immediately before dispatch. A second attempt with the same authorization fails as replay. Keep the approval database on durable local storage and protect it with the same access controls as other execution records.
 
 Stdout and stderr share the Action Plan's raw byte limit. The worker enforces that
-limit while reading the pipes, terminates the process group on timeout or overflow,
-and records a `partial` result with exit code `124` or `125` respectively. A normal
+limit while reading the pipes and terminates the process group on timeout or overflow.
+After dispatch, a non-idempotent step has an `uncertain` outcome with exit code `124`
+or `125` respectively and cannot be repeated automatically; an idempotent step is
+`partial`. A normal
 non-zero tool exit is `failed`. Evidence persistence applies the same remaining
 aggregate bound after redaction; truncation is reported separately from redaction.
 Artifact directories and files are created relative to verified directory file

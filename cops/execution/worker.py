@@ -54,6 +54,10 @@ class WorkerExecutionError(WorkerError):
     """An operation within the action plan failed or exceeded allowed limits."""
 
 
+def _supports_secure_evidence_dirs() -> bool:
+    return os.name == "posix"
+
+
 @dataclass(frozen=True)
 class WorkerCapabilityInventory:
     """Owner-provisioned measurement of a worker's execution capabilities."""
@@ -256,6 +260,16 @@ class IsolatedWorker:
                 raise WorkerExecutionError(
                     f"worker tool version for {tool!r} does not match approved version {operation['tool_version']!r}"
                 )
+            if tool != "inert":
+                try:
+                    adapter = self.adapter_registry.get_adapter(tool)
+                except AdapterError as err:
+                    raise WorkerExecutionError(f"tool {tool!r} has no registered execution adapter") from err
+                if adapter.version != operation["tool_version"]:
+                    raise WorkerExecutionError(
+                        f"adapter logical version for {tool!r} does not match approved version "
+                        f"{operation['tool_version']!r}"
+                    )
 
     def _verify_worker_environment(self) -> None:
         """Verify process execution boundaries and environment safety."""
@@ -291,9 +305,6 @@ class IsolatedWorker:
         if failure_injection and failure_injection.get("inject_at") == "before_consume":
             raise WorkerExecutionError("injected failure before approval consumption")
 
-        # Compatibility is part of the pre-consumption gate.
-        self._verify_plan_compatibility(plan_model)
-
         # 2. Resolve Authorization envelope and ensure durable storage
         if self.store is None:
             self.store = ApprovalStore(Path.home() / ".cops" / "approvals.sqlite3")
@@ -319,6 +330,24 @@ class IsolatedWorker:
             except ApprovalStoreConflictError:
                 # Existing approvals are consumed atomically below, preserving replay checks.
                 pass
+
+        # Compatibility and workspace safety are part of the pre-consumption gate.
+        self._verify_plan_compatibility(plan_model)
+        secure_evidence_dirs = _supports_secure_evidence_dirs()
+        portable_inert = not secure_evidence_dirs and all(op["tool"] == "inert" for op in plan_model.operations)
+        if not secure_evidence_dirs and not portable_inert:
+            raise WorkerIsolationError("adapter execution requires POSIX secure directory descriptors")
+        if portable_inert and workspace_dir is not None:
+            raise WorkerIsolationError("portable inert execution requires an isolated ephemeral workspace")
+        if workspace_dir is not None:
+            workspace_fd = -1
+            try:
+                workspace_fd = open_directory_no_symlinks(Path(workspace_dir), create=True)
+            except SecureDirectoryError as err:
+                raise WorkerIsolationError("worker workspace path must not contain symbolic-link components") from err
+            finally:
+                if workspace_fd >= 0:
+                    os.close(workspace_fd)
 
         # 4. Atomically consume authorization envelope to prevent replay
         consumed_auth = self.store.atomically_consume(
@@ -379,7 +408,9 @@ class IsolatedWorker:
 
         # Initialize evidence recorder with redactor
         redactor = StreamRedactor()
-        evidence_recorder = EvidenceRecorder(workspace_dir=target_workspace, redactor=redactor)
+        evidence_recorder = EvidenceRecorder(
+            workspace_dir=target_workspace, redactor=redactor, portable_inert=portable_inert
+        )
 
         max_duration_seconds = plan_model.limits.get("max_duration_seconds", self.config.max_wall_time_seconds)
         max_output_bytes = plan_model.limits.get("max_output_bytes", self.config.max_output_bytes)
@@ -510,6 +541,8 @@ class IsolatedWorker:
                     timed_out = False
                     output_limit_exceeded = False
                     artifact_reservation = None
+                    prepared_cleanup_failed = False
+                    adapter_dispatched = False
                     try:
                         remaining_capture = max(0, max_output_bytes - captured_output_bytes)
                         # Evidence storage is reserved before any operation can have
@@ -554,6 +587,7 @@ class IsolatedWorker:
                                     timed_out = True
                                     exit_code = 124
                                 else:
+                                    adapter_dispatched = True
                                     proc = run_bounded_process(
                                         [prepared.invocation_path, *cmd[1:]],
                                         cwd=target_workspace,
@@ -568,7 +602,12 @@ class IsolatedWorker:
                                     output_limit_exceeded = proc.output_limit_exceeded
                                     exit_code = proc.returncode
                             finally:
-                                prepared.remove()
+                                try:
+                                    prepared.remove()
+                                except Exception:
+                                    # Cleanup must not erase the observed process
+                                    # result or the non-idempotent dispatch state.
+                                    prepared_cleanup_failed = True
                     except ExecutablePreparationTimeoutError as err:
                         redacted_err = redactor.redact_string(str(err))
                         status = "partial"
@@ -601,6 +640,12 @@ class IsolatedWorker:
                     if timed_out or output_limit_exceeded:
                         stdout_bytes = b""
                         stderr_bytes = b""
+                    if timed_out:
+                        exit_code = 124
+                    elif output_limit_exceeded:
+                        exit_code = 125
+                    elif exit_code < 0:
+                        exit_code = 128 - exit_code
                     captured_output_bytes += len(stdout_bytes) + len(stderr_bytes)
                     step_finished = utc_now()
                     # Record and redact evidence
@@ -619,22 +664,39 @@ class IsolatedWorker:
                     )
                     persisted_output_bytes += artifact.size_bytes
 
+                    if prepared_cleanup_failed:
+                        if adapter_dispatched and not is_idempotent:
+                            status = "uncertain"
+                            status_reason = (
+                                f"verified executable cleanup failed after non-idempotent step '{step_id}'; "
+                                "automatic repeat disallowed"
+                            )
+                        else:
+                            status = "partial"
+                            status_reason = f"verified executable cleanup failed at step '{step_id}'"
+                        overall_exit_code = 1
+                        break
+
                     if timed_out:
-                        status = "partial"
+                        status = "uncertain" if adapter_dispatched and not is_idempotent else "partial"
                         status_reason = (
                             f"step '{step_id}' timed out after {timeout} seconds; "
                             "retained raw output was suppressed before redaction"
                         )
+                        if status == "uncertain":
+                            status_reason += "; automatic repeat disallowed"
                         overall_exit_code = 124
                         break
 
                     if output_limit_exceeded:
-                        status = "partial"
+                        status = "uncertain" if adapter_dispatched and not is_idempotent else "partial"
                         status_reason = (
                             f"step '{step_id}' exceeded the raw max_output_bytes limit "
                             f"({max_output_bytes} bytes for the action plan); retained raw "
                             "output was suppressed before redaction"
                         )
+                        if status == "uncertain":
+                            status_reason += "; automatic repeat disallowed"
                         overall_exit_code = 125
                         break
 

@@ -36,17 +36,25 @@ python3 -m cops worker store --status approved --json
 
 ### Execute an Authorized Action Plan
 
+Set `COPS_NMAP_SHA256` to the trusted, independently measured SHA-256 digest of
+the approved Nmap executable. Repeat `--executable-sha256 TOOL=SHA256` for every
+external adapter in the plan; `inert` needs no executable pin.
+
 ```bash
 python3 -m cops worker execute path/to/action-plan.json \
   --authorization path/to/authorization.json \
   --worker-inventory path/to/worker-inventory.json \
   --authorization-trust-store path/to/authorization-trust.json \
-  --engagement path/to/engagement.json
+  --engagement path/to/engagement.json \
+  --executable-sha256 "nmap=$COPS_NMAP_SHA256"
 ```
 
 ## Python API
 
 ```python
+import os
+
+from cops.adapters import ToolAdapterRegistry
 from cops.execution import (
     ApprovalStore,
     AuthorizationTrustStore,
@@ -66,11 +74,15 @@ trust_store = AuthorizationTrustStore.from_file("path/to/authorization-trust.jso
 inventory = WorkerCapabilityInventory.from_file("path/to/worker-inventory.json")
 
 # 4. Initialize the worker with the approved engagement boundary.
+registry = ToolAdapterRegistry(
+    executable_sha256_pins={"nmap": os.environ["COPS_NMAP_SHA256"]},
+)
 worker = IsolatedWorker(
     inventory,
     store=store,
     trust_store=trust_store,
     engagement=engagement,
+    adapter_registry=registry,
 )
 
 # 5. Execute the exact signed plan. The store atomically binds consumption to

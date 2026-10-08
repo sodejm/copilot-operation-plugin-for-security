@@ -84,7 +84,11 @@ External adapter execution is supported on Linux workers with an executable
 held staged inode; unsupported hosts, including macOS, fail closed. Built-in adapter
 definitions require an operator-provisioned `--executable-sha256 TOOL=SHA256` value
 for each installed platform binary. The general CLI, planning, inventory inspection,
-and `inert` execution paths remain portable. Deploy the worker under a dedicated UID:
+and `inert` execution paths remain portable. On non-POSIX hosts, a plan containing
+only `inert` operations uses a fresh private temporary workspace and a portable,
+exclusive-create evidence path that retains each artifact handle through capture,
+rejects collisions without overwriting them, and rejects symbolic links and Windows
+reparse points where the platform exposes them. Deploy the worker under a dedicated UID:
 descriptor-bound launch prevents pathname replacement but does not protect a staged
 inode from a hostile process with the same UID.
 

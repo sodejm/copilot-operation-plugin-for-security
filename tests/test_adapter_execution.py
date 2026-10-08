@@ -102,7 +102,13 @@ def _fake_adapter() -> ToolAdapter:
     )
 
 
-def _fake_action_plan(tmp_path: Path, *, timeout_seconds: float = 5, max_output_bytes: int = 4096) -> ActionPlan:
+def _fake_action_plan(
+    tmp_path: Path,
+    *,
+    timeout_seconds: float = 5,
+    max_output_bytes: int = 4096,
+    idempotent: bool = False,
+) -> ActionPlan:
     fixture = json.loads(
         (Path(__file__).resolve().parents[1] / "cops/contracts/fixtures/valid_action_plan.json").read_text(
             encoding="utf-8"
@@ -125,6 +131,7 @@ def _fake_action_plan(tmp_path: Path, *, timeout_seconds: float = 5, max_output_
                 "action": "run",
                 "arguments": {},
                 "timeout_seconds": timeout_seconds,
+                "idempotent": idempotent,
             }
         ],
         limits=limits,
@@ -223,11 +230,12 @@ def test_bounded_process_suppresses_unsafe_partial_output(
     ("process_result", "expected_status", "expected_exit_code"),
     [
         (BoundedProcessResult(b"ok\n", b"", 0, False, False), "success", 0),
-        (BoundedProcessResult(b"", b"", -9, True, False), "partial", 124),
-        (BoundedProcessResult(b"x" * 64, b"", -9, False, True), "partial", 125),
+        (BoundedProcessResult(b"", b"", -9, True, False), "uncertain", 124),
+        (BoundedProcessResult(b"x" * 64, b"", -9, False, True), "uncertain", 125),
+        (BoundedProcessResult(b"", b"terminated\n", -15, False, False), "failed", 143),
         (BoundedProcessResult(b"", b"failed\n", 9, False, False), "failed", 9),
     ],
-    ids=("success", "timeout", "output-overflow", "failure"),
+    ids=("success", "timeout", "output-overflow", "signal", "failure"),
 )
 def test_worker_normalizes_fake_tool_results(
     tmp_path: Path,
@@ -241,6 +249,14 @@ def test_worker_normalizes_fake_tool_results(
     prepared = SimpleNamespace(invocation_path="/proc/self/fd/7", pass_fds=(), remove=lambda: None)
     monkeypatch.setattr(worker_module, "prepare_executable", lambda *args, **kwargs: prepared)
     monkeypatch.setattr(worker_module, "run_bounded_process", lambda *args, **kwargs: process_result)
+    recorded_exit_codes: list[int] = []
+    original_record = EvidenceRecorder.record_step_output
+
+    def record_with_exit_code(self, **kwargs):
+        recorded_exit_codes.append(kwargs["exit_code"])
+        return original_record(self, **kwargs)
+
+    monkeypatch.setattr(EvidenceRecorder, "record_step_output", record_with_exit_code)
 
     result = worker.execute_plan(
         plan,
@@ -250,6 +266,151 @@ def test_worker_normalizes_fake_tool_results(
 
     assert result.status == expected_status
     assert result.exit_code == expected_exit_code
+    assert recorded_exit_codes == [expected_exit_code]
+    if expected_status == "uncertain":
+        assert "automatic repeat disallowed" in result.status_details["reason"]
+
+
+@pytest.mark.parametrize(
+    ("timed_out", "overflow", "expected_exit_code"),
+    [(True, False, 124), (False, True, 125)],
+)
+def test_idempotent_step_timeout_or_overflow_is_partial(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    timed_out: bool,
+    overflow: bool,
+    expected_exit_code: int,
+) -> None:
+    plan = _fake_action_plan(tmp_path, idempotent=True)
+    worker, authorization_id = _fake_worker(tmp_path, plan)
+    prepared = SimpleNamespace(invocation_path="/proc/self/fd/7", pass_fds=(), remove=lambda: None)
+    monkeypatch.setattr(worker_module, "prepare_executable", lambda *args, **kwargs: prepared)
+    monkeypatch.setattr(
+        worker_module,
+        "run_bounded_process",
+        lambda *args, **kwargs: BoundedProcessResult(b"", b"", -9, timed_out, overflow),
+    )
+
+    result = worker.execute_plan(plan, authorization=authorization_id, workspace_dir=tmp_path / "workspace")
+
+    assert result.status == "partial"
+    assert result.exit_code == expected_exit_code
+
+
+@pytest.mark.parametrize("registered_version", (None, "2.0.0"), ids=("missing", "version-mismatch"))
+def test_worker_rejects_adapter_mismatch_before_consuming_approval(
+    tmp_path: Path, registered_version: str | None
+) -> None:
+    plan = _fake_action_plan(tmp_path)
+    worker, authorization_id = _fake_worker(tmp_path, plan)
+    registry = ToolAdapterRegistry(definitions_path=tmp_path / "no-definitions")
+    if registered_version is not None:
+        adapter = _fake_adapter()
+        adapter.version = registered_version
+        registry.register_adapter(adapter)
+    worker.adapter_registry = registry
+
+    with pytest.raises(worker_module.WorkerExecutionError, match="registered execution adapter|logical version"):
+        worker.execute_plan(plan, authorization=authorization_id)
+
+    assert worker.store is not None
+    assert worker.store.get_authorization(authorization_id).status == "approved"
+
+
+@pytest.mark.parametrize(
+    ("idempotent", "expected_status"),
+    ((False, "uncertain"), (True, "partial")),
+    ids=("non-idempotent", "idempotent"),
+)
+def test_worker_preserves_dispatch_evidence_when_executable_cleanup_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, idempotent: bool, expected_status: str
+) -> None:
+    plan = _fake_action_plan(tmp_path, idempotent=idempotent)
+    worker, authorization_id = _fake_worker(tmp_path, plan)
+    workspace = tmp_path / "workspace"
+    launched = 0
+
+    def fail_remove() -> None:
+        raise OSError("private executable cleanup path")
+
+    def launch(*args, **kwargs):
+        nonlocal launched
+        launched += 1
+        return BoundedProcessResult(b"observed result\n", b"", 0, False, False)
+
+    prepared = SimpleNamespace(invocation_path="/proc/self/fd/7", pass_fds=(), remove=fail_remove)
+    monkeypatch.setattr(worker_module, "prepare_executable", lambda *args, **kwargs: prepared)
+    monkeypatch.setattr(worker_module, "run_bounded_process", launch)
+
+    result = worker.execute_plan(plan, authorization=authorization_id, workspace_dir=workspace)
+
+    assert launched == 1
+    assert result.status == expected_status
+    assert result.exit_code == 1
+    assert len(result.artifacts) == 1
+    assert (workspace / result.artifacts[0]["path"]).read_bytes() == b"observed result\n"
+    assert len(result.evidence_records) >= 3
+    assert "private executable cleanup path" not in json.dumps(result.to_dict())
+    if not idempotent:
+        assert "automatic repeat disallowed" in result.status_details["reason"]
+
+
+def _inert_action_plan(tmp_path: Path) -> ActionPlan:
+    fake = _fake_action_plan(tmp_path)
+    fake_data = fake.to_dict()
+    return ActionPlan.create(
+        plan_id=fake.plan_id,
+        engagement_id=fake.engagement_id,
+        scenario_id=fake.scenario_id,
+        target=fake.target,
+        specialist_id=fake.specialist_id,
+        operations=[
+            {
+                "step_id": "step-inert",
+                "tool": "inert",
+                "tool_version": "0.7.0",
+                "action": "print_status",
+                "arguments": {"message": "portable result"},
+                "timeout_seconds": 5,
+            }
+        ],
+        limits=fake_data["limits"],
+        credential_references=fake_data["credential_references"],
+        platform_prerequisites=fake_data["platform_prerequisites"],
+        batch=fake_data["batch"],
+        created_at=fake.created_at,
+    )
+
+
+def test_worker_portable_inert_execution_uses_ephemeral_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plan = _inert_action_plan(tmp_path)
+    worker, authorization_id = _fake_worker(tmp_path, plan)
+    monkeypatch.setattr(worker_module, "_supports_secure_evidence_dirs", lambda: False)
+
+    result = worker.execute_plan(plan, authorization=authorization_id)
+
+    assert result.status == "success"
+    assert result.cleanup_status == "completed"
+    assert len(result.artifacts) == 1
+    assert len(result.evidence_records) >= 3
+
+
+@pytest.mark.parametrize("inert", (False, True), ids=("external-adapter", "caller-workspace"))
+def test_worker_rejects_unsafe_nonposix_execution_before_consuming_approval(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, inert: bool
+) -> None:
+    plan = _inert_action_plan(tmp_path) if inert else _fake_action_plan(tmp_path)
+    worker, authorization_id = _fake_worker(tmp_path, plan)
+    monkeypatch.setattr(worker_module, "_supports_secure_evidence_dirs", lambda: False)
+
+    with pytest.raises(WorkerIsolationError, match="secure directory descriptors|ephemeral workspace"):
+        worker.execute_plan(plan, authorization=authorization_id, workspace_dir=tmp_path / "workspace")
+
+    assert worker.store is not None
+    assert worker.store.get_authorization(authorization_id).status == "approved"
 
 
 def test_worker_reuses_workspace_with_unique_reserved_artifacts(
@@ -418,6 +579,18 @@ def test_echo_adapter_compares_probe_to_provenance_revision() -> None:
     assert match is not None
     assert adapter.version == "coreutils-9.4"
     assert match.group("version") == adapter.provenance["pinned_revision"] == "9.4"
+
+
+def test_nmap_adapter_rejects_development_version_suffix() -> None:
+    adapter = ToolAdapterRegistry().get_adapter("nmap")
+    contract = adapter.executable_verification
+    assert contract is not None
+    import re
+
+    match = re.search(contract.version_pattern, "Nmap version 7.94 ( https://nmap.org )")
+    assert match is not None
+    assert match.group("version") == "7.94"
+    assert re.search(contract.version_pattern, "Nmap version 7.94SVN ( https://nmap.org )") is None
 
 
 @pytest.mark.skipif(not HAS_PROC_FD, reason="stable executable launch requires Linux /proc")
@@ -610,6 +783,8 @@ def test_worker_rejects_symlinked_workspace_parent_before_creation(tmp_path: Pat
         )
 
     assert not (outside / "new-workspace").exists()
+    assert worker.store is not None
+    assert worker.store.get_authorization(authorization_id).status == "approved"
 
 
 def test_worker_rejects_workspace_parent_traversal_before_creation(tmp_path: Path) -> None:
@@ -629,6 +804,8 @@ def test_worker_rejects_workspace_parent_traversal_before_creation(tmp_path: Pat
 
     assert not (tmp_path / "escaped").exists()
     assert not (outside / "escaped").exists()
+    assert worker.store is not None
+    assert worker.store.get_authorization(authorization_id).status == "approved"
 
 
 @pytest.mark.parametrize("invalid_execution", ([], {"sha256": 42}, {"sha256": ["0" * 64]}))
