@@ -160,6 +160,15 @@ class WorkbenchTests(unittest.TestCase):
             wrappers[kind] = wrapper_pointer
             index[kind] = wrapper_pointer
         return self._write_json(evidence_dir / "release-integrity.index.json", index), wrappers
+    def test_authoritative_reference_requires_exact_hostname(self) -> None:
+        self.assertEqual(_reference_record("https://learn.microsoft.com/docs")['kind'], "authoritative")
+        for url in (
+            "https://learn.microsoft.com.evil.example/docs",
+            "https://evil.example/learn.microsoft.com/docs",
+            "https://learn.microsoft.com@evil.example/docs",
+        ):
+            with self.subTest(url=url):
+                self.assertEqual(_reference_record(url)['kind'], "vendor_framework")
 
     def test_package_inventory_and_adapters(self) -> None:
         report = validate_package()
