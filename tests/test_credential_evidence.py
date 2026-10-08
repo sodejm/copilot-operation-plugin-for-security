@@ -49,7 +49,8 @@ def test_redactor_masks_known_engagement_secret():
 
 def test_evidence_recorder_creates_redacted_artifacts():
     with tempfile.TemporaryDirectory() as tmpdir:
-        recorder = EvidenceRecorder(workspace_dir=Path(tmpdir))
+        workspace = Path(tmpdir).resolve(strict=True)
+        recorder = EvidenceRecorder(workspace_dir=workspace)
         raw_output = b"Connecting with Bearer super_secret_long_token_12345678"
         redacted, artifact = recorder.record_step_output(
             step_id="step-001",
@@ -64,5 +65,5 @@ def test_evidence_recorder_creates_redacted_artifacts():
         assert b"super_secret_long_token_12345678" not in redacted
         assert b"Bearer [REDACTED:TOKEN]" in redacted
         assert artifact.name == "step-001_output.txt"
-        assert (Path(tmpdir) / "artifacts" / "step-001_output.txt").exists()
+        assert (workspace / "artifacts" / "step-001_output.txt").exists()
         assert len(recorder.get_evidence_hashes()) == 1

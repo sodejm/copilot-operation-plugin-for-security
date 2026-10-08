@@ -24,3 +24,28 @@ Feature: Isolated Execution Worker and Approval State Store
     When the worker executes the plan
     Then execution fails with status "failed"
     And the status details state that the tool is not allowed
+
+  Scenario Outline: Normalizing adapter process outcomes
+    Given an authorized fake adapter action plan
+    When the fake adapter reports "<outcome>"
+    Then the execution result is "<status>"
+    And the execution exit code is <exit_code>
+
+    Examples:
+      | outcome         | status    | exit_code |
+      | success         | success   | 0         |
+      | timeout         | uncertain | 124       |
+      | output overflow | uncertain | 125       |
+      | failure         | failed    | 9         |
+
+  Scenario Outline: Suppressing incomplete adapter output before persistence
+    Given an authorized fake adapter action plan
+    When the fake adapter reports "<outcome>"
+    Then the execution result is "uncertain"
+    And the execution exit code is <exit_code>
+    And the persisted adapter output is empty
+
+    Examples:
+      | outcome         | exit_code |
+      | timeout         | 124       |
+      | output overflow | 125       |

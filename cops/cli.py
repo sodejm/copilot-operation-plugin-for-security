@@ -469,6 +469,7 @@ def command_worker_store_list(args: argparse.Namespace) -> int:
 
 
 def command_worker_execute(args: argparse.Namespace) -> int:
+    from .adapters import AdapterError, ToolAdapterRegistry
     from .contracts.models import Engagement, ExecutionAuthorization
     from .execution import (
         ApprovalStore,
@@ -485,6 +486,15 @@ def command_worker_execute(args: argparse.Namespace) -> int:
 
     db_path = getattr(args, "db", None) or (Path.home() / ".cops" / "approvals.sqlite3")
     try:
+        executable_pins: dict[str, str] = {}
+        for value in getattr(args, "executable_sha256", ()):
+            tool, separator, sha256 = value.partition("=")
+            if not separator or not tool or tool in executable_pins:
+                raise AdapterError(
+                    "--executable-sha256 must use one unique TOOL=SHA256 value per adapter"
+                )
+            executable_pins[tool] = sha256
+        adapter_registry = ToolAdapterRegistry(executable_sha256_pins=executable_pins)
         inventory = WorkerCapabilityInventory.from_file(
             args.worker_inventory,
             expected_worker_identity=getattr(args, "worker_id", None),
@@ -499,6 +509,7 @@ def command_worker_execute(args: argparse.Namespace) -> int:
             scope_guard=scope_guard,
             trust_store=trust_store,
             engagement=engagement,
+            adapter_registry=adapter_registry,
         )
         plan_doc = json.loads(plan_path.read_text(encoding="utf-8"))
 
@@ -625,6 +636,13 @@ def build_parser() -> argparse.ArgumentParser:
     w_exec.add_argument("--worker-id", help="assert the expected inventory worker identity")
     w_exec.add_argument("--authorization-trust-store", type=Path, required=True, help="verifier-owned authorization key configuration")
     w_exec.add_argument("--engagement", type=Path, required=True, help="path to active engagement JSON for authorization and scope enforcement")
+    w_exec.add_argument(
+        "--executable-sha256",
+        action="append",
+        default=[],
+        metavar="TOOL=SHA256",
+        help="pin the platform executable digest for one adapter (repeatable)",
+    )
     w_exec.add_argument("--db", type=Path, help="path to sqlite approval store")
     w_exec.add_argument("--json", action="store_true", help="output structured JSON")
 

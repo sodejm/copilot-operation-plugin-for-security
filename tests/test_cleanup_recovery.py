@@ -25,7 +25,7 @@ from tests.auth_testkit import authorize_test_plan, worker_inventory_for_plan
 @pytest.fixture
 def temp_workspace():
     path = tempfile.mkdtemp(prefix="cops-cleanup-test-")
-    yield Path(path)
+    yield Path(path).resolve(strict=True)
     shutil.rmtree(path, ignore_errors=True)
 
 
@@ -126,7 +126,31 @@ def test_cleanup_ownership_and_boundary_enforcement(temp_workspace):
 
 def test_failure_injection_after_consume_prevents_replay(temp_store, sample_plan):
     """Test that failure injected after approval consumption marks authorization consumed and prevents replay."""
-    plan = sample_plan
+    plan_data = sample_plan.to_dict()
+    plan_data["operations"] = [
+        {
+            "step_id": "step-inert",
+            "tool": "inert",
+            "tool_version": "0.7.0",
+            "action": "query_status",
+            "arguments": {},
+            "timeout_seconds": 10,
+            "idempotent": True,
+        }
+    ]
+    plan = ActionPlan.create(
+        plan_id=sample_plan.plan_id,
+        engagement_id=sample_plan.engagement_id,
+        scenario_id=sample_plan.scenario_id,
+        target=sample_plan.target,
+        specialist_id=sample_plan.specialist_id,
+        operations=plan_data["operations"],
+        limits=plan_data["limits"],
+        credential_references=plan_data["credential_references"],
+        platform_prerequisites=plan_data["platform_prerequisites"],
+        batch=plan_data["batch"],
+        created_at=sample_plan.created_at,
+    )
     auth, trust_store, engagement = authorize_test_plan(plan, worker_identity="worker-fail-test")
     temp_store.store_authorization(auth)
 

@@ -27,7 +27,8 @@ is a separate deployment boundary tracked in issue #185.
      `platform_capabilities`.
    - The artifact is created independently by the worker owner from a trusted
      measurement or deployment process. COPS loads and compares it; COPS does not
-     discover installed executables at runtime.
+     populate it through runtime host capability discovery. Per-launch executable
+     verification is a separate dispatch control.
    - The loader requires a non-symlink regular file owned by the current user with no
      group or other permission bits. An optional expected worker assertion must match
      `worker_identity`.
@@ -53,9 +54,28 @@ is a separate deployment boundary tracked in issue #185.
 
 4. **Bounded Dispatch Behavior**:
    - Commands use explicit argument arrays without shell interpolation.
-   - Tool allowlists, wall-clock timeouts, output byte limits, operation-count limits,
-     and ephemeral workspace cleanup remain enforced.
+   - External adapters require an operator-provisioned platform SHA-256 and verify
+     their pinned upstream revision before operation dispatch. On Linux, the probe
+     and operation use the same held staged inode through `/proc/self/fd`; other
+     platforms fail closed when a substitution-resistant launch cannot be established.
+   - Tool allowlists, wall-clock timeouts, aggregate raw output byte limits,
+     operation-count limits, and ephemeral workspace cleanup remain enforced.
+     Collection terminates the process group on timeout or overflow, normalizes both
+     to `partial`, suppresses every retained raw prefix before redaction or
+     persistence, and preserves non-zero tool exits as `failed`. Suppression is
+     required because a timeout or byte boundary can split an arbitrarily long
+     credential or configured secret.
+   - Before invoking a non-inert adapter, the worker reserves a unique evidence
+     inode relative to verified directory descriptors without following symbolic
+     links. It refuses dispatch when reservation fails and revalidates the inode
+     before writing so a repeated run cannot overwrite prior evidence or execute
+     without a writable evidence destination.
+   - Evidence remains within the aggregate artifact bound and reports both persisted
+     size and post-redaction truncation separately from redaction. Truncation changes
+     an otherwise successful result to `partial` with exit code `125`.
    - Deterministic `cops.run-result/v1` records include exit status and output hashes.
    - These application controls do not establish operating-system or process
      transport isolation (#185) or mediate live network egress (#186); deployments
-     must provide those controls independently.
+     must provide those controls independently. The deployment must also isolate the
+     worker UID because a hostile same-UID process can modify the staged executable
+     inode or manipulate held descriptors.

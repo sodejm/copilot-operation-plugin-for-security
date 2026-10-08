@@ -16,21 +16,30 @@ import os
 import platform
 import shutil
 import stat
-import subprocess
 import tempfile
 import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from time import monotonic
 from types import MappingProxyType
 from typing import Any
 
+from cops.adapters import AdapterError, ToolAdapterRegistry
 from cops.contracts.models import ActionPlan, ExecutionAuthorization, RunResult
 from cops.contracts.validation import validate_contract
 from cops.evidence.canonical import digest, utc_now
 
 from .authorization import AuthorizationTrustStore, verify_execution_authorization
+from .executable import (
+    ExecutablePreparationTimeoutError,
+    ExecutableVerificationError,
+    prepare_executable,
+    verify_executable_launch_support,
+)
+from .filesystem import SecureDirectoryError, open_directory_no_symlinks
+from .process import run_bounded_process
 from .store import ApprovalStore, ApprovalStoreConflictError
 
 
@@ -44,6 +53,10 @@ class WorkerIsolationError(WorkerError):
 
 class WorkerExecutionError(WorkerError):
     """An operation within the action plan failed or exceeded allowed limits."""
+
+
+def _supports_secure_evidence_dirs() -> bool:
+    return os.name == "posix"
 
 
 @dataclass(frozen=True)
@@ -139,17 +152,13 @@ class WorkerCapabilityInventory:
             not isinstance(tool_versions, dict)
             or not tool_versions
             or any(
-                not isinstance(tool, str)
-                or not tool.strip()
-                or not isinstance(version, str)
-                or not version.strip()
+                not isinstance(tool, str) or not tool.strip() or not isinstance(version, str) or not version.strip()
                 for tool, version in tool_versions.items()
             )
         ):
             raise WorkerIsolationError("worker inventory tool versions must be a non-empty string mapping")
-        if (
-            not isinstance(platform_capabilities, list)
-            or any(not isinstance(item, str) or not item.strip() for item in platform_capabilities)
+        if not isinstance(platform_capabilities, list) or any(
+            not isinstance(item, str) or not item.strip() for item in platform_capabilities
         ):
             raise WorkerIsolationError("worker inventory platform capabilities must be a string list")
 
@@ -220,6 +229,7 @@ class IsolatedWorker:
         *,
         trust_store: AuthorizationTrustStore,
         engagement: Any,
+        adapter_registry: ToolAdapterRegistry | None = None,
     ) -> None:
         if not isinstance(worker_inventory, WorkerCapabilityInventory) or not worker_inventory.is_verified:
             raise WorkerIsolationError("a verified owner-provisioned worker capability inventory is required")
@@ -229,6 +239,7 @@ class IsolatedWorker:
         self.scope_guard = scope_guard
         self.trust_store = trust_store
         self.engagement = engagement
+        self.adapter_registry = adapter_registry or ToolAdapterRegistry()
         self.last_cleanup_receipt: Any | None = None
         self._verify_worker_environment()
 
@@ -240,9 +251,7 @@ class IsolatedWorker:
             raise WorkerExecutionError("approved batch operation limit is smaller than the plan")
         missing_capabilities = set(plan.platform_prerequisites) - set(self.config.platform_capabilities)
         if missing_capabilities:
-            raise WorkerExecutionError(
-                f"worker lacks approved platform prerequisites: {sorted(missing_capabilities)}"
-            )
+            raise WorkerExecutionError(f"worker lacks approved platform prerequisites: {sorted(missing_capabilities)}")
         for operation in plan.operations:
             tool = operation["tool"]
             if tool not in self.config.allowed_tools and tool != "inert":
@@ -250,9 +259,29 @@ class IsolatedWorker:
             configured = self.config.tool_versions.get(tool)
             if configured is None or configured != operation["tool_version"]:
                 raise WorkerExecutionError(
-                    f"worker tool version for {tool!r} does not match approved version "
-                    f"{operation['tool_version']!r}"
+                    f"worker tool version for {tool!r} does not match approved version {operation['tool_version']!r}"
                 )
+            if tool != "inert":
+                try:
+                    adapter = self.adapter_registry.get_adapter(tool)
+                except AdapterError as err:
+                    raise WorkerExecutionError(f"tool {tool!r} has no registered execution adapter") from err
+                if adapter.version != operation["tool_version"]:
+                    raise WorkerExecutionError(
+                        f"adapter logical version for {tool!r} does not match approved version "
+                        f"{operation['tool_version']!r}"
+                    )
+                try:
+                    adapter.assemble_command(operation["action"], operation.get("arguments"))
+                except AdapterError as err:
+                    raise WorkerExecutionError(
+                        f"adapter operation for {tool!r} is incompatible with this worker environment"
+                    ) from err
+        if any(operation["tool"] != "inert" for operation in plan.operations):
+            try:
+                verify_executable_launch_support()
+            except ExecutableVerificationError as err:
+                raise WorkerIsolationError("verified adapter launch is unavailable on this worker") from err
 
     def _verify_worker_environment(self) -> None:
         """Verify process execution boundaries and environment safety."""
@@ -288,9 +317,6 @@ class IsolatedWorker:
         if failure_injection and failure_injection.get("inject_at") == "before_consume":
             raise WorkerExecutionError("injected failure before approval consumption")
 
-        # Compatibility is part of the pre-consumption gate.
-        self._verify_plan_compatibility(plan_model)
-
         # 2. Resolve Authorization envelope and ensure durable storage
         if self.store is None:
             self.store = ApprovalStore(Path.home() / ".cops" / "approvals.sqlite3")
@@ -317,6 +343,24 @@ class IsolatedWorker:
                 # Existing approvals are consumed atomically below, preserving replay checks.
                 pass
 
+        # Compatibility and workspace safety are part of the pre-consumption gate.
+        self._verify_plan_compatibility(plan_model)
+        secure_evidence_dirs = _supports_secure_evidence_dirs()
+        portable_inert = not secure_evidence_dirs and all(op["tool"] == "inert" for op in plan_model.operations)
+        if not secure_evidence_dirs and not portable_inert:
+            raise WorkerIsolationError("adapter execution requires POSIX secure directory descriptors")
+        if portable_inert and workspace_dir is not None:
+            raise WorkerIsolationError("portable inert execution requires an isolated ephemeral workspace")
+        if workspace_dir is not None:
+            workspace_fd = -1
+            try:
+                workspace_fd = open_directory_no_symlinks(Path(workspace_dir), create=True)
+            except SecureDirectoryError as err:
+                raise WorkerIsolationError("worker workspace path must not contain symbolic-link components") from err
+            finally:
+                if workspace_fd >= 0:
+                    os.close(workspace_fd)
+
         # 4. Atomically consume authorization envelope to prevent replay
         consumed_auth = self.store.atomically_consume(
             auth_model.authorization_id,
@@ -332,13 +376,22 @@ class IsolatedWorker:
         ephemeral = False
         if workspace_dir is None:
             temp_scratch = tempfile.mkdtemp(prefix=f"cops-worker-{plan_model.plan_id}-")
-            target_workspace = Path(temp_scratch)
+            target_workspace = Path(temp_scratch).resolve(strict=True)
             ephemeral = True
         else:
-            target_workspace = Path(workspace_dir).resolve()
-            target_workspace.mkdir(parents=True, exist_ok=True)
+            requested_workspace = Path(workspace_dir)
+            workspace_fd = -1
+            try:
+                workspace_fd = open_directory_no_symlinks(requested_workspace, create=True)
+            except SecureDirectoryError as err:
+                raise WorkerIsolationError("worker workspace path must not contain symbolic-link components") from err
+            finally:
+                if workspace_fd >= 0:
+                    os.close(workspace_fd)
+            target_workspace = Path(os.path.abspath(os.fspath(requested_workspace)))
 
         from .cleanup import CleanupManager, SideEffectLedger
+
         ledger = SideEffectLedger(
             plan_id=plan_model.plan_id,
             engagement_id=plan_model.engagement_id,
@@ -364,12 +417,17 @@ class IsolatedWorker:
 
         from .evidence import EvidenceRecorder
         from .redaction import StreamRedactor
+
         # Initialize evidence recorder with redactor
         redactor = StreamRedactor()
-        evidence_recorder = EvidenceRecorder(workspace_dir=target_workspace, redactor=redactor)
+        evidence_recorder = EvidenceRecorder(
+            workspace_dir=target_workspace, redactor=redactor, portable_inert=portable_inert
+        )
 
         max_duration_seconds = plan_model.limits.get("max_duration_seconds", self.config.max_wall_time_seconds)
         max_output_bytes = plan_model.limits.get("max_output_bytes", self.config.max_output_bytes)
+        captured_output_bytes = 0
+        persisted_output_bytes = 0
         start_dt = datetime.now(UTC)
 
         clean_env = {
@@ -382,6 +440,7 @@ class IsolatedWorker:
             # 5.5. Enforce execution-time scope boundary on plan target
             if hasattr(self, "scope_guard") and self.scope_guard is not None:
                 from .scope_guard import ScopeViolationError
+
                 try:
                     self.scope_guard.check_destination(plan_model.target)
                 except ScopeViolationError as err:
@@ -422,7 +481,9 @@ class IsolatedWorker:
                     if cancel_requested:
                         if not is_idempotent:
                             status = "uncertain"
-                            status_reason = f"interrupted during non-idempotent step '{step_id}'; automatic repeat disallowed"
+                            status_reason = (
+                                f"interrupted during non-idempotent step '{step_id}'; automatic repeat disallowed"
+                            )
                         else:
                             status = "cancelled"
                             status_reason = f"execution cancelled by operator at step '{step_id}'"
@@ -434,7 +495,9 @@ class IsolatedWorker:
                         if target_step in (None, step_id):
                             if not is_idempotent:
                                 status = "uncertain"
-                                status_reason = f"interrupted during non-idempotent step '{step_id}'; automatic repeat disallowed"
+                                status_reason = (
+                                    f"interrupted during non-idempotent step '{step_id}'; automatic repeat disallowed"
+                                )
                             else:
                                 status = "failed"
                                 status_reason = f"injected failure during execution at step '{step_id}'"
@@ -445,24 +508,30 @@ class IsolatedWorker:
                     elapsed_seconds = (datetime.now(UTC) - start_dt).total_seconds()
                     if elapsed_seconds >= max_duration_seconds:
                         status = "partial"
-                        status_reason = f"operation exceeded action plan max_duration_seconds limit ({max_duration_seconds}s)"
+                        status_reason = (
+                            f"operation exceeded action plan max_duration_seconds limit ({max_duration_seconds}s)"
+                        )
                         overall_exit_code = 124
                         break
 
-                    remaining_time = max(1, int(max_duration_seconds - elapsed_seconds))
-                    timeout = min(op.get("timeout_seconds", 60), remaining_time)
+                    remaining_time = max_duration_seconds - elapsed_seconds
+                    timeout = min(float(op.get("timeout_seconds", 60)), remaining_time)
                     step_started = utc_now()
+                    step_deadline = monotonic() + timeout
 
                     # Tool whitelist boundary
                     if tool not in self.config.allowed_tools and tool != "inert":
                         status = "failed"
-                        status_reason = f"tool '{tool}' is not in worker allowed tools: {sorted(self.config.allowed_tools)}"
+                        status_reason = (
+                            f"tool '{tool}' is not in worker allowed tools: {sorted(self.config.allowed_tools)}"
+                        )
                         overall_exit_code = 127
                         break
 
                     # Enforce scope on any destination-bearing arguments
                     if hasattr(self, "scope_guard") and self.scope_guard is not None:
                         from .scope_guard import ScopeViolationError
+
                         op_args = op.get("arguments", {})
                         if isinstance(op_args, Mapping):
                             for dest_key in ("target", "host", "destination", "ip"):
@@ -481,71 +550,181 @@ class IsolatedWorker:
                     # Prepare isolated execution via adapter or simulated inert
                     stdout_bytes = b""
                     stderr_bytes = b""
+                    timed_out = False
+                    output_limit_exceeded = False
+                    artifact_reservation = None
+                    prepared_cleanup_failed = False
+                    adapter_dispatched = False
                     try:
+                        remaining_capture = max(0, max_output_bytes - captured_output_bytes)
+                        # Evidence storage is reserved before any operation can have
+                        # side effects. A reservation failure therefore fails closed
+                        # without probing or invoking the adapter executable.
+                        artifact_reservation = evidence_recorder.reserve_step_output(step_id)
                         if tool == "inert":
                             # Simulated execution for testing
-                            stdout_bytes = f"Inert step {step_id} executed successfully: {action}".encode()
+                            raw_output = f"Inert step {step_id} executed successfully: {action}".encode()
+                            stdout_bytes = raw_output[:remaining_capture]
+                            output_limit_exceeded = len(raw_output) > remaining_capture
                             exit_code = 0
                         else:
-                            from cops.adapters import AdapterError, ToolAdapterRegistry
-                            registry = ToolAdapterRegistry()
-                            if tool in registry.list_tools():
-                                adapter = registry.get_adapter(tool)
-                                try:
-                                    cmd = adapter.assemble_command(action, op.get("arguments"))
-                                except AdapterError as err:
-                                    redacted_err = redactor.redact_string(str(err))
-                                    status = "failed"
-                                    status_reason = f"adapter validation error: {redacted_err}"
-                                    overall_exit_code = 1
-                                    break
-                                exec_cmd = [shutil.which(cmd[0]) or cmd[0]] + cmd[1:]
-                                proc = subprocess.run(
-                                    exec_cmd,
-                                    cwd=target_workspace,
-                                    env=clean_env,
-                                    start_new_session=(os.name == "posix"),
-                                    capture_output=True,
-                                    timeout=timeout,
-                                    check=False,
-                                )
-                                stdout_bytes = proc.stdout
-                                stderr_bytes = proc.stderr
-                                exit_code = 128 + abs(proc.returncode) if proc.returncode < 0 else proc.returncode
-                            else:
+                            if tool not in self.adapter_registry.list_tools():
                                 # Tool has no registered adapter - fail closed
                                 status = "failed"
                                 status_reason = f"tool '{tool}' has no registered execution adapter"
                                 overall_exit_code = 127
                                 break
+                            adapter = self.adapter_registry.get_adapter(tool)
+                            if adapter.version != op["tool_version"]:
+                                status = "failed"
+                                status_reason = (
+                                    f"adapter logical version for '{tool}' does not match approved version "
+                                    f"{op['tool_version']!r}"
+                                )
+                                overall_exit_code = 126
+                                break
+                            cmd = adapter.assemble_command(action, op.get("arguments"))
+                            prepared = prepare_executable(
+                                adapter,
+                                workspace=target_workspace,
+                                env=clean_env,
+                                timeout_seconds=timeout,
+                                deadline=step_deadline,
+                            )
+                            try:
+                                invocation_timeout = step_deadline - monotonic()
+                                if invocation_timeout <= 0:
+                                    stdout_bytes = b""
+                                    stderr_bytes = b""
+                                    timed_out = True
+                                    exit_code = 124
+                                else:
+                                    adapter_dispatched = True
+                                    proc = run_bounded_process(
+                                        [prepared.invocation_path, *cmd[1:]],
+                                        cwd=target_workspace,
+                                        env=clean_env,
+                                        timeout_seconds=invocation_timeout,
+                                        max_output_bytes=remaining_capture,
+                                        pass_fds=prepared.pass_fds,
+                                    )
+                                    stdout_bytes = proc.stdout
+                                    stderr_bytes = proc.stderr
+                                    timed_out = proc.timed_out
+                                    output_limit_exceeded = proc.output_limit_exceeded
+                                    exit_code = proc.returncode
+                            finally:
+                                try:
+                                    prepared.remove()
+                                except Exception:
+                                    # Cleanup must not erase the observed process
+                                    # result or the non-idempotent dispatch state.
+                                    prepared_cleanup_failed = True
+                    except ExecutablePreparationTimeoutError as err:
+                        redacted_err = redactor.redact_string(str(err))
+                        status = "partial"
+                        status_reason = (
+                            f"step '{step_id}' timed out during adapter executable preparation: {redacted_err}"
+                        )
+                        overall_exit_code = 124
+                        break
+                    except (AdapterError, ExecutableVerificationError) as err:
+                        redacted_err = redactor.redact_string(str(err))
+                        status = "failed"
+                        status_reason = f"adapter execution verification failed: {redacted_err}"
+                        overall_exit_code = 126
+                        break
                     except KeyboardInterrupt:
                         if not is_idempotent:
                             status = "uncertain"
-                            status_reason = f"interrupted during non-idempotent step '{step_id}'; automatic repeat disallowed"
+                            status_reason = (
+                                f"interrupted during non-idempotent step '{step_id}'; automatic repeat disallowed"
+                            )
                         else:
                             status = "cancelled"
                             status_reason = "execution cancelled by operator via interrupt"
                         overall_exit_code = 130
                         break
+                    except Exception:
+                        status = "uncertain" if adapter_dispatched and not is_idempotent else "failed"
+                        status_reason = f"adapter execution failed at step '{step_id}'"
+                        if status == "uncertain":
+                            status_reason += "; automatic repeat disallowed"
+                        overall_exit_code = 1
+                        break
 
+                    # A bounded prefix can end inside an arbitrarily long secret.
+                    # Suppress all raw output on timeout or overflow before any
+                    # redaction, digest, telemetry, or artifact persistence.
+                    if timed_out or output_limit_exceeded:
+                        stdout_bytes = b""
+                        stderr_bytes = b""
+                    if timed_out:
+                        exit_code = 124
+                    elif output_limit_exceeded:
+                        exit_code = 125
+                    elif exit_code < 0:
+                        exit_code = 128 - exit_code
+                    captured_output_bytes += len(stdout_bytes) + len(stderr_bytes)
                     step_finished = utc_now()
                     # Record and redact evidence
-                    redacted_output, _ = evidence_recorder.record_step_output(
-                        step_id=step_id,
-                        tool=tool,
-                        action=action,
-                        stdout=stdout_bytes,
-                        stderr=stderr_bytes,
-                        exit_code=exit_code,
-                        started_at=step_started,
-                        finished_at=step_finished,
-                    )
-
-                    # Check max output bytes
-                    if len(redacted_output) > max_output_bytes:
-                        status = "partial"
-                        status_reason = f"step '{step_id}' exceeded max_output_bytes limit ({len(redacted_output)} > {max_output_bytes})"
+                    remaining_artifact = max(0, max_output_bytes - persisted_output_bytes)
+                    try:
+                        _, artifact = evidence_recorder.record_step_output(
+                            step_id=step_id,
+                            tool=tool,
+                            action=action,
+                            stdout=stdout_bytes,
+                            stderr=stderr_bytes,
+                            exit_code=exit_code,
+                            started_at=step_started,
+                            finished_at=step_finished,
+                            max_output_bytes=remaining_artifact,
+                            reservation=artifact_reservation,
+                        )
+                    except Exception:
+                        status = "uncertain" if adapter_dispatched and not is_idempotent else "failed"
+                        status_reason = f"evidence capture failed at step '{step_id}'"
+                        if status == "uncertain":
+                            status_reason += "; automatic repeat disallowed"
                         overall_exit_code = 1
+                        break
+                    persisted_output_bytes += artifact.size_bytes
+
+                    if prepared_cleanup_failed:
+                        if adapter_dispatched and not is_idempotent:
+                            status = "uncertain"
+                            status_reason = (
+                                f"verified executable cleanup failed after non-idempotent step '{step_id}'; "
+                                "automatic repeat disallowed"
+                            )
+                        else:
+                            status = "partial"
+                            status_reason = f"verified executable cleanup failed at step '{step_id}'"
+                        overall_exit_code = 1
+                        break
+
+                    if timed_out:
+                        status = "uncertain" if adapter_dispatched and not is_idempotent else "partial"
+                        status_reason = (
+                            f"step '{step_id}' timed out after {timeout} seconds; "
+                            "retained raw output was suppressed before redaction"
+                        )
+                        if status == "uncertain":
+                            status_reason += "; automatic repeat disallowed"
+                        overall_exit_code = 124
+                        break
+
+                    if output_limit_exceeded:
+                        status = "uncertain" if adapter_dispatched and not is_idempotent else "partial"
+                        status_reason = (
+                            f"step '{step_id}' exceeded the raw max_output_bytes limit "
+                            f"({max_output_bytes} bytes for the action plan); retained raw "
+                            "output was suppressed before redaction"
+                        )
+                        if status == "uncertain":
+                            status_reason += "; automatic repeat disallowed"
+                        overall_exit_code = 125
                         break
 
                     if exit_code != 0:
@@ -554,16 +733,23 @@ class IsolatedWorker:
                         overall_exit_code = exit_code
                         break
 
-        except subprocess.TimeoutExpired as err:
-            status = "partial"
-            status_reason = f"operation timed out after {err.timeout} seconds"
-            overall_exit_code = 124
-        except Exception as err:
+                    if artifact.truncated_bytes:
+                        status = "partial"
+                        status_reason = (
+                            f"step '{step_id}' post-redaction evidence exceeded the remaining "
+                            f"max_output_bytes limit and was truncated by "
+                            f"{artifact.truncated_bytes} bytes"
+                        )
+                        overall_exit_code = 125
+                        break
+
+        except Exception:
             status = "failed"
-            status_reason = f"unexpected worker execution failure: {err}"
+            status_reason = "unexpected worker execution failure"
             overall_exit_code = 1
         finally:
             finished_at = utc_now()
+            evidence_recorder.discard_pending_reservations()
             # Perform ownership-verified rollback of tracked side effects
             cleanup_receipt = cleanup_manager.rollback()
             self.last_cleanup_receipt = cleanup_receipt
@@ -589,15 +775,17 @@ class IsolatedWorker:
 
         # 7. Build and return RunResult contract
         result_id = f"res-{uuid.uuid4().hex[:16]}"
-        summary_text = "All action plan operations completed successfully" if status == "success" else f"Execution finished with status '{status}'"
+        summary_text = (
+            "All action plan operations completed successfully"
+            if status == "success"
+            else f"Execution finished with status '{status}'"
+        )
         status_details: dict[str, Any] = {"summary": summary_text}
         if status != "success":
             status_details["reason"] = status_reason
 
         # Combine authorization proof, recorded step evidence hashes, and cleanup receipt hash
-        evidence_hashes = [
-            digest(consumed_auth.to_dict())
-        ]
+        evidence_hashes = [digest(consumed_auth.to_dict())]
         evidence_hashes.extend(evidence_recorder.get_evidence_hashes())
         evidence_hashes.append(cleanup_receipt.evidence_hash)
 

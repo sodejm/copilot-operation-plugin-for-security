@@ -6,10 +6,18 @@ import json
 import tempfile
 import threading
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
 
+import cops.execution.worker as worker_module
+from cops.adapters import (
+    ExecutableVerification,
+    ToolActionDefinition,
+    ToolAdapter,
+    ToolAdapterRegistry,
+)
 from cops.contracts.models import ActionPlan
 from cops.execution import (
     ApprovalStore,
@@ -17,6 +25,7 @@ from cops.execution import (
     IsolatedWorker,
     WorkerExecutionError,
 )
+from cops.execution.process import BoundedProcessResult
 from tests.auth_testkit import authorize_test_plan, worker_inventory_for_plan
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -36,6 +45,7 @@ def worker_context():
     }
     yield ctx
     import shutil
+
     shutil.rmtree(temp_dir, ignore_errors=True)
 
 
@@ -51,7 +61,7 @@ def load_plan_and_auth(worker_context):
     plan_dict["operations"] = [
         {
             "step_id": "step-echo",
-            "tool": "echo",
+            "tool": "inert",
             "tool_version": "0.7.0",
             "action": "run_echo",
             "arguments": {"message": "hello world"},
@@ -69,9 +79,7 @@ def load_plan_and_auth(worker_context):
         credential_references=plan_dict["credential_references"],
         created_at=plan_dict["created_at"],
     )
-    auth, trust_store, engagement = authorize_test_plan(
-        plan, worker_identity="test-worker-01", valid_hours=2
-    )
+    auth, trust_store, engagement = authorize_test_plan(plan, worker_identity="test-worker-01", valid_hours=2)
     worker_context["plan"] = plan
     worker_context["auth"] = auth
     worker_context["trust_store"] = trust_store
@@ -224,12 +232,114 @@ def execute_bad_plan(worker_context):
 def verify_bad_status(worker_context, expected_status):
     assert expected_status == "failed"
     assert isinstance(worker_context.get("bad_error"), WorkerExecutionError)
-    stored = worker_context["store"].get_authorization(
-        worker_context["bad_auth"].authorization_id
-    )
+    stored = worker_context["store"].get_authorization(worker_context["bad_auth"].authorization_id)
     assert stored.status == "approved"
 
 
 @then("the status details state that the tool is not allowed")
 def verify_bad_details(worker_context):
     assert "not allowed by this worker" in str(worker_context["bad_error"])
+
+
+@given("an authorized fake adapter action plan")
+def authorized_fake_adapter_plan(worker_context):
+    fixture = json.loads((FIXTURES / "valid_action_plan.json").read_text(encoding="utf-8"))
+    limits = dict(fixture["limits"])
+    limits["max_output_bytes"] = 4096
+    plan = ActionPlan.create(
+        plan_id="plan-fake-adapter-outcomes",
+        engagement_id=fixture["engagement_id"],
+        scenario_id=fixture["scenario_id"],
+        target=fixture["target"],
+        specialist_id=fixture["specialist_id"],
+        operations=[
+            {
+                "step_id": "step-fake",
+                "tool": "fake-tool",
+                "tool_version": "1.0.0",
+                "action": "run",
+                "arguments": {},
+                "timeout_seconds": 5,
+            }
+        ],
+        limits=limits,
+        credential_references=[],
+        created_at=fixture["created_at"],
+    )
+    authorization, trust_store, engagement = authorize_test_plan(plan, worker_identity="test-worker-01", valid_hours=2)
+    worker_context["store"].store_authorization(authorization)
+    registry = ToolAdapterRegistry(definitions_path=Path(worker_context["temp_dir"]) / "no-definitions")
+    registry.register_adapter(
+        ToolAdapter(
+            tool="fake-tool",
+            version="1.0.0",
+            binary="fake-tool",
+            provenance={
+                "source": "https://example.invalid/fake-tool",
+                "license": "MIT",
+                "pinned_revision": "1.0.0",
+            },
+            supported_environments=["linux", "darwin"],
+            actions={
+                "run": ToolActionDefinition(
+                    action="run",
+                    description="Return a controlled fake result",
+                    base_args=[],
+                    parameters={},
+                )
+            },
+            executable_verification=ExecutableVerification(
+                sha256="0" * 64,
+                version_args=("--version",),
+                version_pattern=r"(?P<version>[0-9.]+)",
+            ),
+        )
+    )
+    worker_context["fake_plan"] = plan
+    worker_context["fake_authorization"] = authorization.authorization_id
+    worker_context["fake_worker"] = IsolatedWorker(
+        worker_inventory_for_plan(plan, worker_identity="test-worker-01"),
+        store=worker_context["store"],
+        trust_store=trust_store,
+        engagement=engagement,
+        adapter_registry=registry,
+    )
+
+
+@when(parsers.parse('the fake adapter reports "{outcome}"'))
+def fake_adapter_reports(worker_context, monkeypatch, outcome):
+    outcomes = {
+        "success": BoundedProcessResult(b"ok\n", b"", 0, False, False),
+        "timeout": BoundedProcessResult(b"", b"", -9, True, False),
+        "output overflow": BoundedProcessResult(b"x" * 64, b"", -9, False, True),
+        "failure": BoundedProcessResult(b"", b"failed\n", 9, False, False),
+    }
+    prepared = SimpleNamespace(
+        invocation_path="/proc/self/fd/7",
+        pass_fds=(),
+        remove=lambda: None,
+    )
+    monkeypatch.setattr(worker_module, "verify_executable_launch_support", lambda: None)
+    monkeypatch.setattr(worker_module, "prepare_executable", lambda *args, **kwargs: prepared)
+    monkeypatch.setattr(
+        worker_module,
+        "run_bounded_process",
+        lambda *args, **kwargs: outcomes[outcome],
+    )
+    worker_context["result"] = worker_context["fake_worker"].execute_plan(
+        worker_context["fake_plan"],
+        authorization=worker_context["fake_authorization"],
+        workspace_dir=Path(worker_context["temp_dir"]).resolve() / "fake-workspace",
+    )
+
+
+@then(parsers.parse("the execution exit code is {expected_exit_code:d}"))
+def verify_result_exit_code(worker_context, expected_exit_code):
+    assert worker_context["result"].exit_code == expected_exit_code
+
+
+@then("the persisted adapter output is empty")
+def verify_persisted_output_empty(worker_context):
+    result = worker_context["result"]
+    artifact_path = Path(worker_context["temp_dir"]).resolve() / "fake-workspace" / result.artifacts[0]["path"]
+    assert artifact_path.read_bytes() == b""
