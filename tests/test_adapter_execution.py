@@ -678,6 +678,8 @@ def test_evidence_rejects_reserved_artifact_replacement(tmp_path: Path) -> None:
     artifact_path.unlink()
     artifact_path.write_bytes(b"replacement must remain intact")
     artifact_path.chmod(0o600)
+    replacement = artifact_path.stat()
+    assert (replacement.st_dev, replacement.st_ino) != (reservation.device, reservation.inode)
 
     with pytest.raises(EvidenceCaptureError, match="reservation identity changed"):
         recorder.record_step_output(

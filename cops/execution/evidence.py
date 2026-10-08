@@ -13,7 +13,7 @@ import stat
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO
 
 from cops.evidence.canonical import digest, utc_now
 
@@ -77,6 +77,7 @@ class EvidenceRecorder:
         self.step_telemetry: list[StepTelemetry] = []
         self.evidence_records: list[dict[str, Any]] = []
         self._reservations: dict[str, ArtifactReservation] = {}
+        self._reservation_handles: dict[str, BinaryIO] = {}
 
     def reserve_step_output(self, step_id: str) -> ArtifactReservation:
         """Reserve a unique evidence inode before executing a step."""
@@ -121,7 +122,12 @@ class EvidenceRecorder:
                 device=info.st_dev,
                 inode=info.st_ino,
             )
+            # Keep the inode allocated until capture or discard. Otherwise an
+            # attacker can replace the path and receive the same inode number.
+            handle = os.fdopen(artifact_fd, "wb", buffering=0)
+            artifact_fd = -1
             self._reservations[reservation.path] = reservation
+            self._reservation_handles[reservation.path] = handle
             return reservation
         except EvidenceCaptureError:
             if filename is not None and artifacts_fd >= 0:
@@ -177,6 +183,7 @@ class EvidenceRecorder:
             self.discard_reservation(reservation)
             raise
         self._reservations.pop(reservation.path, None)
+        self._reservation_handles.pop(reservation.path).close()
 
         artifact_sha256 = hashlib.sha256(redacted_bytes).hexdigest()
         artifact = CapturedArtifact(
@@ -273,6 +280,7 @@ class EvidenceRecorder:
         """Remove an unused reservation without following replaced paths."""
         if self._reservations.pop(reservation.path, None) != reservation:
             return
+        held_handle = self._reservation_handles.pop(reservation.path, None)
         workspace_fd = -1
         artifacts_fd = -1
         artifact_fd = -1
@@ -297,6 +305,8 @@ class EvidenceRecorder:
             for fd in (artifact_fd, artifacts_fd, workspace_fd):
                 if fd >= 0:
                     os.close(fd)
+            if held_handle is not None:
+                held_handle.close()
 
     def discard_pending_reservations(self) -> None:
         """Remove every reservation that was not completed by a step."""
