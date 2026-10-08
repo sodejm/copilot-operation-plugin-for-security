@@ -7,6 +7,7 @@ import os
 import re
 import shutil
 import stat
+import sys
 import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -37,6 +38,15 @@ def _required_posix_flags() -> tuple[int, int]:
             "stable executable identity requires POSIX O_NOFOLLOW and directory-descriptor support"
         )
     return os.O_NOFOLLOW, os.O_DIRECTORY
+
+
+def verify_executable_launch_support() -> None:
+    """Reject hosts that cannot launch a held, verified executable inode."""
+    _required_posix_flags()
+    if not sys.platform.startswith("linux") or not Path("/proc/self/fd").is_dir():
+        raise ExecutableVerificationError(
+            "substitution-resistant executable launch requires Linux /proc/self/fd support"
+        )
 
 
 def _validate_private_directory(fd: int, label: str) -> None:
@@ -96,6 +106,8 @@ class PreparedExecutable:
     staging_dir: Path
     filename: str
     descriptor: int
+    workspace_fd: int
+    staging_fd: int
 
     @property
     def invocation_path(self) -> str:
@@ -107,27 +119,45 @@ class PreparedExecutable:
         return (self.descriptor,)
 
     def remove(self) -> None:
-        """Remove the staged executable through its protected directory."""
-        if self.descriptor >= 0:
-            os.close(self.descriptor)
-            self.descriptor = -1
-        nofollow, directory = _required_posix_flags()
+        """Remove the verified inode through the staging directory held at creation."""
+        executable_fd, workspace_fd, staging_fd = self.descriptor, self.workspace_fd, self.staging_fd
+        self.descriptor = self.workspace_fd = self.staging_fd = -1
+        cleanup_error: ExecutableVerificationError | None = None
         try:
-            dir_fd = os.open(self.staging_dir, os.O_RDONLY | directory | nofollow)
-        except FileNotFoundError:
-            return
-        try:
-            _validate_private_directory(dir_fd, "executable staging directory")
+            if executable_fd < 0 or workspace_fd < 0 or staging_fd < 0:
+                return
+            _validate_private_directory(workspace_fd, "worker workspace")
+            _validate_private_directory(staging_fd, "executable staging directory")
+            bound = os.fstat(executable_fd)
             try:
-                os.unlink(self.filename, dir_fd=dir_fd)
+                named = os.stat(self.filename, dir_fd=staging_fd, follow_symlinks=False)
             except FileNotFoundError:
-                pass
+                named = None
+            if named is not None and (named.st_dev, named.st_ino) == (bound.st_dev, bound.st_ino):
+                os.unlink(self.filename, dir_fd=staging_fd)
+            else:
+                cleanup_error = ExecutableVerificationError("staged executable name changed before cleanup")
+            try:
+                current_stage = os.stat(".executables", dir_fd=workspace_fd, follow_symlinks=False)
+            except FileNotFoundError:
+                current_stage = None
+            held_stage = os.fstat(staging_fd)
+            if current_stage is not None and (current_stage.st_dev, current_stage.st_ino) == (
+                held_stage.st_dev,
+                held_stage.st_ino,
+            ):
+                try:
+                    os.rmdir(".executables", dir_fd=workspace_fd)
+                except OSError:
+                    pass
+            else:
+                cleanup_error = ExecutableVerificationError("executable staging directory identity changed")
+            if cleanup_error is not None:
+                raise cleanup_error
         finally:
-            os.close(dir_fd)
-        try:
-            self.staging_dir.rmdir()
-        except OSError:
-            pass
+            for fd in (executable_fd, staging_fd, workspace_fd):
+                if fd >= 0:
+                    os.close(fd)
 
 
 def prepare_executable(
@@ -144,11 +174,8 @@ def prepare_executable(
     All verified and invoked bytes come from the worker-owned staged copy.
     """
     preparation_deadline = deadline if deadline is not None else monotonic() + timeout_seconds
+    verify_executable_launch_support()
     nofollow, directory = _required_posix_flags()
-    if not Path("/proc/self/fd").is_dir():
-        raise ExecutableVerificationError(
-            "substitution-resistant executable launch requires Linux /proc/self/fd support"
-        )
     verification = adapter.executable_verification
     if verification is None or verification.sha256 is None:
         raise ExecutableVerificationError(f"adapter '{adapter.tool}' has no platform-specific pinned executable sha256")
@@ -243,9 +270,13 @@ def prepare_executable(
                 pass
         raise
     finally:
-        for fd in (destination_fd, stage_fd, workspace_fd, source_fd):
+        for fd in (destination_fd, source_fd):
             if fd >= 0:
                 os.close(fd)
+        if executable_fd < 0:
+            for fd in (stage_fd, workspace_fd):
+                if fd >= 0:
+                    os.close(fd)
 
     staged_path = staging_dir / filename
     prepared: PreparedExecutable | None = None
@@ -292,8 +323,10 @@ def prepare_executable(
             staging_dir=staging_dir,
             filename=filename,
             descriptor=executable_fd,
+            workspace_fd=workspace_fd,
+            staging_fd=stage_fd,
         )
-        executable_fd = -1
+        executable_fd = workspace_fd = stage_fd = -1
         return prepared
     finally:
         if prepared is None:
@@ -306,5 +339,7 @@ def prepare_executable(
                 staging_dir=staging_dir,
                 filename=filename,
                 descriptor=executable_fd,
+                workspace_fd=workspace_fd,
+                staging_fd=stage_fd,
             )
             provisional.remove()

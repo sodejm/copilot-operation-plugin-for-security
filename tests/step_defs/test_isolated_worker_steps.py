@@ -319,6 +319,7 @@ def fake_adapter_reports(worker_context, monkeypatch, outcome):
         pass_fds=(),
         remove=lambda: None,
     )
+    monkeypatch.setattr(worker_module, "verify_executable_launch_support", lambda: None)
     monkeypatch.setattr(worker_module, "prepare_executable", lambda *args, **kwargs: prepared)
     monkeypatch.setattr(
         worker_module,

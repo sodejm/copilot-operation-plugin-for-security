@@ -76,12 +76,9 @@ def run_bounded_process(
     assert process.stderr is not None
     process_group_id = process.pid
 
-    selector = selectors.DefaultSelector()
     streams = ((process.stdout, "stdout"), (process.stderr, "stderr"))
-    for stream, name in streams:
-        os.set_blocking(stream.fileno(), False)
-        selector.register(stream, selectors.EVENT_READ, name)
-
+    selector: selectors.BaseSelector | None = None
+    completed = False
     captured = {"stdout": bytearray(), "stderr": bytearray()}
     deadline = time.monotonic() + timeout_seconds
     timed_out = False
@@ -90,6 +87,10 @@ def run_bounded_process(
     drain_deadline: float | None = None
 
     try:
+        selector = selectors.DefaultSelector()
+        for stream, name in streams:
+            os.set_blocking(stream.fileno(), False)
+            selector.register(stream, selectors.EVENT_READ, name)
         while selector.get_map():
             remaining_time = deadline - time.monotonic()
             if not terminated and remaining_time <= 0:
@@ -138,14 +139,23 @@ def run_bounded_process(
         if process.poll() is None:
             _terminate_process_group(process, process_group_id)
         returncode = process.wait(timeout=2)
+        completed = True
     finally:
-        selector.close()
+        if not completed:
+            # Setup and collection failures happen after dispatch. Reap the
+            # leader and terminate descendants even when the leader has exited.
+            _terminate_process_group(process, process_group_id)
+        if selector is not None:
+            selector.close()
         for stream, _ in streams:
             if not stream.closed:
                 stream.close()
-        if process.poll() is None:
-            _terminate_process_group(process, process_group_id)
-            process.wait(timeout=2)
+        if not completed:
+            try:
+                process.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                _terminate_process_group(process, process_group_id)
+                process.wait(timeout=2)
 
     stdout = b"" if timed_out or overflow else bytes(captured["stdout"])
     stderr = b"" if timed_out or overflow else bytes(captured["stderr"])

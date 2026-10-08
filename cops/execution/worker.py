@@ -36,6 +36,7 @@ from .executable import (
     ExecutablePreparationTimeoutError,
     ExecutableVerificationError,
     prepare_executable,
+    verify_executable_launch_support,
 )
 from .filesystem import SecureDirectoryError, open_directory_no_symlinks
 from .process import run_bounded_process
@@ -270,6 +271,17 @@ class IsolatedWorker:
                         f"adapter logical version for {tool!r} does not match approved version "
                         f"{operation['tool_version']!r}"
                     )
+                try:
+                    adapter.assemble_command(operation["action"], operation.get("arguments"))
+                except AdapterError as err:
+                    raise WorkerExecutionError(
+                        f"adapter operation for {tool!r} is incompatible with this worker environment"
+                    ) from err
+        if any(operation["tool"] != "inert" for operation in plan.operations):
+            try:
+                verify_executable_launch_support()
+            except ExecutableVerificationError as err:
+                raise WorkerIsolationError("verified adapter launch is unavailable on this worker") from err
 
     def _verify_worker_environment(self) -> None:
         """Verify process execution boundaries and environment safety."""
@@ -633,6 +645,13 @@ class IsolatedWorker:
                             status_reason = "execution cancelled by operator via interrupt"
                         overall_exit_code = 130
                         break
+                    except Exception:
+                        status = "uncertain" if adapter_dispatched and not is_idempotent else "failed"
+                        status_reason = f"adapter execution failed at step '{step_id}'"
+                        if status == "uncertain":
+                            status_reason += "; automatic repeat disallowed"
+                        overall_exit_code = 1
+                        break
 
                     # A bounded prefix can end inside an arbitrarily long secret.
                     # Suppress all raw output on timeout or overflow before any
@@ -650,18 +669,26 @@ class IsolatedWorker:
                     step_finished = utc_now()
                     # Record and redact evidence
                     remaining_artifact = max(0, max_output_bytes - persisted_output_bytes)
-                    _, artifact = evidence_recorder.record_step_output(
-                        step_id=step_id,
-                        tool=tool,
-                        action=action,
-                        stdout=stdout_bytes,
-                        stderr=stderr_bytes,
-                        exit_code=exit_code,
-                        started_at=step_started,
-                        finished_at=step_finished,
-                        max_output_bytes=remaining_artifact,
-                        reservation=artifact_reservation,
-                    )
+                    try:
+                        _, artifact = evidence_recorder.record_step_output(
+                            step_id=step_id,
+                            tool=tool,
+                            action=action,
+                            stdout=stdout_bytes,
+                            stderr=stderr_bytes,
+                            exit_code=exit_code,
+                            started_at=step_started,
+                            finished_at=step_finished,
+                            max_output_bytes=remaining_artifact,
+                            reservation=artifact_reservation,
+                        )
+                    except Exception:
+                        status = "uncertain" if adapter_dispatched and not is_idempotent else "failed"
+                        status_reason = f"evidence capture failed at step '{step_id}'"
+                        if status == "uncertain":
+                            status_reason += "; automatic repeat disallowed"
+                        overall_exit_code = 1
+                        break
                     persisted_output_bytes += artifact.size_bytes
 
                     if prepared_cleanup_failed:

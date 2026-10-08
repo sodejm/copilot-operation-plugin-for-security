@@ -180,6 +180,12 @@ and checked against its reserved file identity where the operating system expose
 one; collisions never overwrite existing evidence, and symbolic links or Windows
 reparse points are rejected where the platform exposes them.
 
+Before consuming an approval, the worker also checks that every registered adapter
+supports the worker environment and can assemble the approved operation, and that
+the host supports descriptor-bound executable launch. The staged executable and
+reserved evidence artifact retain their parent directory descriptors until cleanup
+or capture; replacing a parent pathname cannot redirect the write or deletion.
+
 Run the worker under a dedicated isolated account. Descriptor binding prevents
 pathname substitution, but it does not defend against another process with the same
 worker UID that can modify the private staged inode in place, manipulate its file
@@ -201,7 +207,8 @@ Stdout and stderr share the Action Plan's raw byte limit. The worker enforces th
 limit while reading the pipes and terminates the process group on timeout or overflow.
 After dispatch, a non-idempotent step has an `uncertain` outcome with exit code `124`
 or `125` respectively and cannot be repeated automatically; an idempotent step is
-`partial`. A normal
+`partial`. Collector or evidence failures after a non-idempotent dispatch also
+produce `uncertain` so an operator can reconcile effects before any repeat. A normal
 non-zero tool exit is `failed`. Evidence persistence applies the same remaining
 aggregate bound after redaction; truncation is reported separately from redaction.
 Artifact directories and files are created relative to verified directory file

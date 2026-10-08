@@ -16,6 +16,7 @@ from types import SimpleNamespace
 import pytest
 
 import cops.execution.executable as executable_module
+import cops.execution.process as process_module
 import cops.execution.worker as worker_module
 from cops.adapters import (
     AdapterError,
@@ -36,6 +37,13 @@ from cops.execution.process import BoundedProcessResult, run_bounded_process
 from tests.auth_testkit import authorize_test_plan, worker_inventory_for_plan
 
 HAS_PROC_FD = Path("/proc/self/fd").is_dir()
+
+
+@pytest.fixture(autouse=True)
+def simulate_supported_launch_for_mocked_worker_tests(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep process-mocked worker tests portable; explicit preflight tests override this."""
+    if not HAS_PROC_FD:
+        monkeypatch.setattr(worker_module, "verify_executable_launch_support", lambda: None)
 
 
 def _sha256(path: Path) -> str:
@@ -318,6 +326,107 @@ def test_worker_rejects_adapter_mismatch_before_consuming_approval(
     assert worker.store.get_authorization(authorization_id).status == "approved"
 
 
+def test_worker_rejects_unsupported_adapter_environment_before_consuming_approval(tmp_path: Path) -> None:
+    plan = _fake_action_plan(tmp_path)
+    worker, authorization_id = _fake_worker(tmp_path, plan)
+    adapter = worker.adapter_registry.get_adapter("fake-tool")
+    adapter.supported_environments = ["darwin" if sys.platform.startswith("linux") else "linux"]
+
+    with pytest.raises(worker_module.WorkerExecutionError, match="incompatible with this worker environment"):
+        worker.execute_plan(plan, authorization=authorization_id)
+
+    assert worker.store is not None
+    assert worker.store.get_authorization(authorization_id).status == "approved"
+
+
+def test_worker_rejects_unsupported_executable_launch_before_consuming_approval(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plan = _fake_action_plan(tmp_path)
+    worker, authorization_id = _fake_worker(tmp_path, plan)
+
+    def unsupported_launch() -> None:
+        raise ExecutableVerificationError("private host path")
+
+    monkeypatch.setattr(worker_module, "verify_executable_launch_support", unsupported_launch)
+
+    with pytest.raises(WorkerIsolationError, match="verified adapter launch is unavailable") as caught:
+        worker.execute_plan(plan, authorization=authorization_id)
+
+    assert "private host path" not in str(caught.value)
+    assert worker.store is not None
+    assert worker.store.get_authorization(authorization_id).status == "approved"
+
+
+@pytest.mark.parametrize("failure_site", ("collector", "evidence"))
+def test_worker_marks_post_dispatch_failures_uncertain(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure_site: str
+) -> None:
+    plan = _fake_action_plan(tmp_path)
+    worker, authorization_id = _fake_worker(tmp_path, plan)
+    prepared = SimpleNamespace(invocation_path="/proc/self/fd/7", pass_fds=(), remove=lambda: None)
+    monkeypatch.setattr(worker_module, "prepare_executable", lambda *args, **kwargs: prepared)
+    launched = 0
+
+    def launch(*args, **kwargs):
+        nonlocal launched
+        launched += 1
+        if failure_site == "collector":
+            raise RuntimeError("private collector failure")
+        return BoundedProcessResult(b"result", b"", 0, False, False)
+
+    monkeypatch.setattr(worker_module, "run_bounded_process", launch)
+    if failure_site == "evidence":
+        def fail_capture(self, **kwargs):
+            raise EvidenceCaptureError("private evidence failure")
+
+        monkeypatch.setattr(EvidenceRecorder, "record_step_output", fail_capture)
+
+    result = worker.execute_plan(plan, authorization=authorization_id, workspace_dir=tmp_path / "workspace")
+
+    assert launched == 1
+    assert result.status == "uncertain"
+    assert result.exit_code == 1
+    assert "automatic repeat disallowed" in result.status_details["reason"]
+    assert "private" not in json.dumps(result.to_dict())
+
+
+def test_bounded_process_reaps_child_if_selector_registration_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    launched = []
+    original_popen = process_module.subprocess.Popen
+
+    def start_process(*args, **kwargs):
+        child = original_popen(*args, **kwargs)
+        launched.append(child)
+        return child
+
+    class FailingSelector:
+        def register(self, *args, **kwargs):
+            raise RuntimeError("selector setup failed")
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(process_module.subprocess, "Popen", start_process)
+    monkeypatch.setattr(process_module.selectors, "DefaultSelector", FailingSelector)
+
+    with pytest.raises(RuntimeError, match="selector setup failed"):
+        run_bounded_process(
+            [sys.executable, "-c", "import time; time.sleep(30)"],
+            cwd=tmp_path,
+            env=os.environ,
+            timeout_seconds=5,
+            max_output_bytes=4096,
+        )
+
+    assert len(launched) == 1
+    assert launched[0].poll() is not None
+    assert launched[0].stdout is not None and launched[0].stdout.closed
+    assert launched[0].stderr is not None and launched[0].stderr.closed
+
+
 @pytest.mark.parametrize(
     ("idempotent", "expected_status"),
     ((False, "uncertain"), (True, "partial")),
@@ -472,7 +581,7 @@ def test_worker_fails_before_launch_when_evidence_reservation_fails(
 
     assert result.status == "failed"
     assert result.exit_code == 1
-    assert result.status_details["reason"] == "unexpected worker execution failure"
+    assert result.status_details["reason"] == "adapter execution failed at step 'step-fake'"
     assert "/private/host/path" not in json.dumps(result.to_dict())
 
 
@@ -694,8 +803,27 @@ def test_prepared_executable_is_bound_to_verified_inode_after_path_swap(tmp_path
         assert result.returncode == 0
         assert result.stdout == b"verified inode\n"
     finally:
-        prepared.remove()
+        with pytest.raises(ExecutableVerificationError, match="staged executable name changed"):
+            prepared.remove()
+        prepared.path.unlink(missing_ok=True)
         replacement.unlink(missing_ok=True)
+
+
+@pytest.mark.skipif(not HAS_PROC_FD, reason="stable executable launch requires Linux /proc")
+def test_prepared_executable_cleanup_uses_held_staging_directory_after_replacement(tmp_path: Path) -> None:
+    prepared = prepare_executable(_python_adapter(), workspace=tmp_path, env=os.environ, timeout_seconds=5)
+    original_stage = tmp_path / ".executables"
+    moved_stage = tmp_path / ".executables-moved"
+    original_stage.rename(moved_stage)
+    original_stage.mkdir(mode=0o700)
+    marker = original_stage / prepared.filename
+    marker.write_bytes(b"replacement must remain intact")
+
+    with pytest.raises(ExecutableVerificationError, match="staging directory identity changed"):
+        prepared.remove()
+
+    assert not (moved_stage / prepared.filename).exists()
+    assert marker.read_bytes() == b"replacement must remain intact"
 
 
 @pytest.mark.skipif(not HAS_PROC_FD, reason="stable executable launch requires Linux /proc")
@@ -742,6 +870,34 @@ def test_evidence_rejects_symlinked_artifact_directory(tmp_path: Path) -> None:
         )
 
     assert list(outside.iterdir()) == []
+
+
+def test_evidence_rejects_artifact_directory_replacement_after_reservation(tmp_path: Path) -> None:
+    recorder = EvidenceRecorder(tmp_path)
+    reservation = recorder.reserve_step_output("step-1")
+    original_artifacts = tmp_path / "artifacts"
+    moved_artifacts = tmp_path / "artifacts-moved"
+    original_artifacts.rename(moved_artifacts)
+    original_artifacts.mkdir(mode=0o700)
+    marker = original_artifacts / reservation.name
+    marker.write_bytes(b"replacement must remain intact")
+
+    with pytest.raises(EvidenceCaptureError, match="artifact directory identity changed"):
+        recorder.record_step_output(
+            step_id="step-1",
+            tool="fake",
+            action="run",
+            exit_code=0,
+            stdout=b"new evidence",
+            stderr=b"",
+            started_at="2026-01-01T00:00:00Z",
+            finished_at="2026-01-01T00:00:01Z",
+            max_output_bytes=100,
+            reservation=reservation,
+        )
+
+    assert not (moved_artifacts / reservation.name).exists()
+    assert marker.read_bytes() == b"replacement must remain intact"
 
 
 def test_evidence_rejects_symlinked_workspace_parent_before_creation(tmp_path: Path) -> None:
@@ -883,7 +1039,7 @@ def test_evidence_rejects_fifo_replacement_without_blocking(tmp_path: Path) -> N
     artifact_path.unlink()
     os.mkfifo(artifact_path, 0o600)
 
-    with pytest.raises(EvidenceCaptureError, match="secure evidence artifact write failed"):
+    with pytest.raises(EvidenceCaptureError, match="reservation identity changed"):
         recorder.record_step_output(
             step_id="step-1",
             tool="fake",

@@ -81,6 +81,7 @@ class EvidenceRecorder:
         self.evidence_records: list[dict[str, Any]] = []
         self._reservations: dict[str, ArtifactReservation] = {}
         self._reservation_handles: dict[str, BinaryIO] = {}
+        self._reservation_dirs: dict[str, tuple[int, int]] = {}
 
     def reserve_step_output(self, step_id: str) -> ArtifactReservation:
         """Reserve a unique evidence inode before executing a step."""
@@ -134,6 +135,9 @@ class EvidenceRecorder:
             artifact_fd = -1
             self._reservations[reservation.path] = reservation
             self._reservation_handles[reservation.path] = handle
+            self._reservation_dirs[reservation.path] = (workspace_fd, artifacts_fd)
+            workspace_fd = -1
+            artifacts_fd = -1
             return reservation
         except EvidenceCaptureError:
             if filename is not None and artifacts_fd >= 0:
@@ -192,6 +196,10 @@ class EvidenceRecorder:
             raise
         self._reservations.pop(reservation.path, None)
         self._reservation_handles.pop(reservation.path).close()
+        held_dirs = self._reservation_dirs.pop(reservation.path, None)
+        if held_dirs is not None:
+            for fd in held_dirs:
+                os.close(fd)
 
         artifact_sha256 = hashlib.sha256(redacted_bytes).hexdigest()
         artifact = CapturedArtifact(
@@ -257,36 +265,59 @@ class EvidenceRecorder:
             self._write_portable_reserved_artifact(reservation, content)
             return
 
-        nofollow, directory = self._required_posix_flags()
-        workspace_fd = -1
-        artifacts_fd = -1
-        artifact_fd = -1
+        handle = self._reservation_handles.get(reservation.path)
+        held_dirs = self._reservation_dirs.get(reservation.path)
+        if handle is None or held_dirs is None:
+            raise EvidenceCaptureError("evidence artifact reservation is not active")
+        workspace_fd, artifacts_fd = held_dirs
         try:
-            workspace_fd = open_directory_no_symlinks(self.workspace_dir)
-            self._validate_private_directory(workspace_fd, "worker workspace")
-            artifacts_fd = os.open("artifacts", os.O_RDONLY | directory | nofollow, dir_fd=workspace_fd)
-            self._validate_private_directory(artifacts_fd, "evidence artifact directory")
-            artifact_fd = os.open(
-                reservation.name,
-                os.O_WRONLY | nofollow | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NONBLOCK", 0),
-                dir_fd=artifacts_fd,
-            )
-            info = os.fstat(artifact_fd)
-            self._validate_private_file(info)
-            if (info.st_dev, info.st_ino) != (reservation.device, reservation.inode):
-                raise EvidenceCaptureError("evidence artifact reservation identity changed")
-            os.ftruncate(artifact_fd, 0)
+            self._verify_reserved_path(reservation, workspace_fd, artifacts_fd, handle)
+            os.ftruncate(handle.fileno(), 0)
             view = memoryview(content)
             while view:
-                written = os.write(artifact_fd, view)
+                written = os.write(handle.fileno(), view)
                 view = view[written:]
-            os.fsync(artifact_fd)
+            os.fsync(handle.fileno())
+            self._verify_reserved_path(reservation, workspace_fd, artifacts_fd, handle)
         except OSError as err:
             raise EvidenceCaptureError("secure evidence artifact write failed") from err
+
+    def _verify_reserved_path(
+        self,
+        reservation: ArtifactReservation,
+        workspace_fd: int,
+        artifacts_fd: int,
+        handle: BinaryIO,
+    ) -> None:
+        """Confirm every advertised path component still names its held inode."""
+        current_workspace_fd = open_directory_no_symlinks(self.workspace_dir)
+        try:
+            current_workspace = os.fstat(current_workspace_fd)
+            held_workspace = os.fstat(workspace_fd)
+            if (current_workspace.st_dev, current_workspace.st_ino) != (
+                held_workspace.st_dev,
+                held_workspace.st_ino,
+            ):
+                raise EvidenceCaptureError("evidence workspace identity changed")
         finally:
-            for fd in (artifact_fd, artifacts_fd, workspace_fd):
-                if fd >= 0:
-                    os.close(fd)
+            os.close(current_workspace_fd)
+        self._validate_private_directory(workspace_fd, "worker workspace")
+        self._validate_private_directory(artifacts_fd, "evidence artifact directory")
+        current_artifacts = os.stat("artifacts", dir_fd=workspace_fd, follow_symlinks=False)
+        held_artifacts = os.fstat(artifacts_fd)
+        if (current_artifacts.st_dev, current_artifacts.st_ino) != (
+            held_artifacts.st_dev,
+            held_artifacts.st_ino,
+        ):
+            raise EvidenceCaptureError("evidence artifact directory identity changed")
+        held_file = os.fstat(handle.fileno())
+        path_file = os.stat(reservation.name, dir_fd=artifacts_fd, follow_symlinks=False)
+        self._validate_private_file(held_file)
+        if (held_file.st_dev, held_file.st_ino) != (reservation.device, reservation.inode) or (
+            path_file.st_dev,
+            path_file.st_ino,
+        ) != (reservation.device, reservation.inode):
+            raise EvidenceCaptureError("evidence artifact reservation identity changed")
 
     def discard_reservation(self, reservation: ArtifactReservation) -> None:
         """Remove an unused reservation without following replaced paths."""
@@ -297,29 +328,20 @@ class EvidenceRecorder:
             self._discard_portable_reservation(reservation, held_handle)
             return
 
-        workspace_fd = -1
-        artifacts_fd = -1
-        artifact_fd = -1
+        held_dirs = self._reservation_dirs.pop(reservation.path, None)
         try:
-            nofollow, directory = self._required_posix_flags()
-            workspace_fd = open_directory_no_symlinks(self.workspace_dir)
-            artifacts_fd = os.open("artifacts", os.O_RDONLY | directory | nofollow, dir_fd=workspace_fd)
-            artifact_fd = os.open(
-                reservation.name,
-                os.O_RDONLY | nofollow | getattr(os, "O_NONBLOCK", 0),
-                dir_fd=artifacts_fd,
-            )
-            info = os.fstat(artifact_fd)
+            if held_dirs is None:
+                return
+            artifacts_fd = held_dirs[1]
+            info = os.stat(reservation.name, dir_fd=artifacts_fd, follow_symlinks=False)
             if (info.st_dev, info.st_ino) != (reservation.device, reservation.inode):
                 return
-            os.close(artifact_fd)
-            artifact_fd = -1
             os.unlink(reservation.name, dir_fd=artifacts_fd)
         except (OSError, EvidenceCaptureError):
             pass
         finally:
-            for fd in (artifact_fd, artifacts_fd, workspace_fd):
-                if fd >= 0:
+            if held_dirs is not None:
+                for fd in held_dirs:
                     os.close(fd)
             if held_handle is not None:
                 held_handle.close()
