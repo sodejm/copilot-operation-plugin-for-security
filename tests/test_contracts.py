@@ -147,12 +147,35 @@ def test_finding_requires_evidence_when_verified():
 
 
 def test_action_plan_digest_computation():
-    target = "10.0.0.1"
-    specialist_id = "cops-network-specialist"
-    operations = [{"step_id": "s1", "tool": "ping", "action": "test", "arguments": {}, "timeout_seconds": 10}]
-    limits = {"max_duration_seconds": 60, "max_output_bytes": 1024, "egress_allowed": False}
-    digest1 = build_action_plan_digest(target=target, specialist_id=specialist_id, operations=operations, limits=limits)
-    digest2 = build_action_plan_digest(target=target, specialist_id=specialist_id, operations=operations, limits=limits)
+    snapshot = {
+        "schema_version": "cops.action-plan/v1",
+        "plan_id": "plan-digest-test",
+        "engagement_id": "eng-digest-test",
+        "scenario_id": "COPS-E03.01-S01",
+        "target": "10.0.0.1",
+        "specialist_id": "cops-network-specialist",
+        "operations": [
+            {
+                "step_id": "s1",
+                "tool": "python3",
+                "tool_version": "3.11.9",
+                "action": "test",
+                "arguments": {},
+                "timeout_seconds": 10,
+            }
+        ],
+        "limits": {
+            "max_duration_seconds": 60,
+            "max_output_bytes": 1024,
+            "egress_allowed": False,
+        },
+        "credential_references": [],
+        "created_at": "2026-10-02T10:00:00Z",
+        "platform_prerequisites": ["linux"],
+        "batch": {"mode": "sequential", "max_operations": 1, "fail_fast": True},
+    }
+    digest1 = build_action_plan_digest(snapshot=snapshot)
+    digest2 = build_action_plan_digest(snapshot=snapshot)
     assert digest1 == digest2
     assert len(digest1) == 64
 

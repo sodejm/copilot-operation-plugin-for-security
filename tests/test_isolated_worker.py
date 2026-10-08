@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 import threading
 from pathlib import Path
 
@@ -13,10 +14,12 @@ from cops.execution import (
     ApprovalStore,
     ApprovalStoreConflictError,
     ApprovalStoreNotFoundError,
+    AuthorizationError,
     IsolatedWorker,
-    WorkerConfig,
-    create_execution_authorization,
+    LegacyApprovalRecord,
+    WorkerExecutionError,
 )
+from tests.auth_testkit import authorize_test_plan, worker_inventory_for_plan
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "cops" / "contracts" / "fixtures"
@@ -36,11 +39,7 @@ def sample_plan() -> ActionPlan:
 
 def test_approval_store_roundtrip(temp_store, sample_plan):
     """Test storing, retrieving, and listing authorizations in ApprovalStore."""
-    auth = create_execution_authorization(
-        sample_plan,
-        operator="lead-secops@corp.internal",
-        valid_hours=4,
-    )
+    auth, _, _ = authorize_test_plan(sample_plan, worker_identity="worker-01", valid_hours=4)
     temp_store.store_authorization(auth)
 
     retrieved = temp_store.get_authorization(auth.authorization_id)
@@ -59,32 +58,96 @@ def test_approval_store_not_found(temp_store):
         temp_store.get_authorization("auth-nonexistent-1234")
 
 
+def test_legacy_approval_rows_migrate_to_readable_non_executable_records(tmp_path, sample_plan):
+    auth, _, _ = authorize_test_plan(sample_plan, worker_identity="legacy-worker")
+    db_path = tmp_path / "legacy" / "approvals.sqlite3"
+    db_path.parent.mkdir(mode=0o700)
+    with sqlite3.connect(db_path) as connection:
+        connection.execute(
+            """
+            CREATE TABLE approvals (
+                authorization_id TEXT PRIMARY KEY,
+                action_plan_id TEXT NOT NULL,
+                plan_digest TEXT NOT NULL,
+                engagement_id TEXT NOT NULL,
+                operator TEXT NOT NULL,
+                status TEXT NOT NULL,
+                issued_at TEXT NOT NULL,
+                authorized_until_utc TEXT NOT NULL,
+                bound_parameters_json TEXT NOT NULL,
+                approval_mode TEXT NOT NULL,
+                signature_digest TEXT NOT NULL,
+                consumed_at TEXT,
+                consumed_by_worker TEXT,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO approvals VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                auth.authorization_id,
+                auth.action_plan_id,
+                auth.plan_digest,
+                auth.engagement_id,
+                auth.operator,
+                "approved",
+                auth.issued_at,
+                auth.authorized_until_utc,
+                json.dumps(auth.to_dict()["bound_parameters"]),
+                auth.approval_mode,
+                auth.signature_digest,
+                None,
+                None,
+                "2026-10-02T10:00:00Z",
+            ),
+        )
+
+    store = ApprovalStore(db_path)
+    historical = store.get_authorization(auth.authorization_id)
+    assert isinstance(historical, LegacyApprovalRecord)
+    assert historical.status == "legacy-untrusted"
+    assert historical.historical_status == "approved"
+    listed = store.list_approvals(status="legacy-untrusted")
+    assert len(listed) == 1
+    assert isinstance(listed[0], LegacyApprovalRecord)
+    assert listed[0].to_dict()["historical_status"] == "approved"
+    with pytest.raises(ApprovalStoreConflictError, match="legacy-untrusted"):
+        store.atomically_consume(
+            auth.authorization_id,
+            expected_authorization=auth,
+            worker_identity="legacy-worker",
+        )
+
+
 def test_atomic_consume_and_double_spend_prevention(temp_store, sample_plan):
     """Test that atomic consumption succeeds once and subsequent consume fails."""
-    auth = create_execution_authorization(
-        sample_plan,
-        operator="lead-secops@corp.internal",
-        valid_hours=4,
-    )
+    auth, _, _ = authorize_test_plan(sample_plan, worker_identity="worker-01", valid_hours=4)
     temp_store.store_authorization(auth)
 
     # First consume succeeds
-    consumed = temp_store.atomically_consume(auth.authorization_id, worker_identity="worker-01")
+    consumed = temp_store.atomically_consume(
+        auth.authorization_id,
+        expected_authorization=auth,
+        worker_identity="worker-01",
+    )
     assert consumed.status == "consumed"
     assert consumed.consumed_by_worker == "worker-01"
 
     # Second consume fails
     with pytest.raises(ApprovalStoreConflictError, match="status is 'consumed'"):
-        temp_store.atomically_consume(auth.authorization_id, worker_identity="worker-02")
+        temp_store.atomically_consume(
+            auth.authorization_id,
+            expected_authorization=auth,
+            worker_identity="worker-02",
+        )
 
 
 def test_concurrent_worker_atomic_consume(temp_store, sample_plan):
     """Test that concurrent worker threads racing to consume the same approval only succeed once."""
-    auth = create_execution_authorization(
-        sample_plan,
-        operator="lead-secops@corp.internal",
-        valid_hours=4,
-    )
+    auth, _, _ = authorize_test_plan(sample_plan, worker_identity="worker-01", valid_hours=4)
     temp_store.store_authorization(auth)
 
     success_workers: list[str] = []
@@ -93,14 +156,19 @@ def test_concurrent_worker_atomic_consume(temp_store, sample_plan):
 
     def attempt_consume(worker_name: str):
         try:
-            temp_store.atomically_consume(auth.authorization_id, worker_identity=worker_name)
+            temp_store.atomically_consume(
+                auth.authorization_id,
+                expected_authorization=auth,
+                worker_identity=worker_name,
+            )
             with lock:
                 success_workers.append(worker_name)
         except ApprovalStoreConflictError:
             with lock:
                 conflict_count[0] += 1
 
-    threads = [threading.Thread(target=attempt_consume, args=(f"worker-{i}",)) for i in range(10)]
+    worker_names = ["worker-01", *(f"worker-{i}" for i in range(2, 11))]
+    threads = [threading.Thread(target=attempt_consume, args=(name,)) for name in worker_names]
     for t in threads:
         t.start()
     for t in threads:
@@ -118,6 +186,7 @@ def test_isolated_worker_execute_plan_success(temp_store, sample_plan):
         {
             "step_id": "step-1",
             "tool": "echo",
+            "tool_version": "0.7.0",
             "action": "print_status",
             "arguments": {"message": "worker execution successful"},
             "timeout_seconds": 10,
@@ -130,19 +199,22 @@ def test_isolated_worker_execute_plan_success(temp_store, sample_plan):
         target=sample_plan.target,
         specialist_id=sample_plan.specialist_id,
         operations=plan_dict["operations"],
-        limits=sample_plan.limits,
-        credential_references=sample_plan.credential_references,
+        limits=plan_dict["limits"],
+        credential_references=plan_dict["credential_references"],
+        platform_prerequisites=plan_dict["platform_prerequisites"],
+        batch=plan_dict["batch"],
         created_at=sample_plan.created_at,
     )
 
-    auth = create_execution_authorization(
-        plan,
-        operator="operator@corp",
-        valid_hours=1,
-    )
+    auth, trust_store, engagement = authorize_test_plan(plan, worker_identity="test-worker-alpha")
     temp_store.store_authorization(auth)
 
-    worker = IsolatedWorker(WorkerConfig(worker_id="test-worker-alpha"), store=temp_store)
+    worker = IsolatedWorker(
+        worker_inventory_for_plan(plan, worker_identity="test-worker-alpha"),
+        store=temp_store,
+        trust_store=trust_store,
+        engagement=engagement,
+    )
     result = worker.execute_plan(plan, authorization=auth.authorization_id)
 
     assert result.is_successful()
@@ -156,6 +228,24 @@ def test_isolated_worker_execute_plan_success(temp_store, sample_plan):
     assert retrieved_auth.status == "consumed"
 
 
+def test_worker_rejects_forged_authorization_before_persisting(temp_store, sample_plan):
+    auth, trust_store, engagement = authorize_test_plan(
+        sample_plan, worker_identity="worker-unverified"
+    )
+    worker = IsolatedWorker(
+        worker_inventory_for_plan(sample_plan, worker_identity="worker-unverified"),
+        store=temp_store,
+        trust_store=trust_store,
+        engagement=engagement,
+    )
+    forged = auth.to_dict()
+    forged["signature_digest"] = "0" * 64
+
+    with pytest.raises(AuthorizationError, match="signature verification failed"):
+        worker.execute_plan(sample_plan, authorization=forged)
+    assert temp_store.list_approvals() == []
+
+
 def test_isolated_worker_rejects_unauthorized_tool(temp_store, sample_plan):
     """Test worker rejects plan containing tools not in worker's allowed whitelist."""
     plan_dict = sample_plan.to_dict()
@@ -163,6 +253,7 @@ def test_isolated_worker_rejects_unauthorized_tool(temp_store, sample_plan):
         {
             "step_id": "step-unauthorized",
             "tool": "forbidden_tool_x",
+            "tool_version": "0.7.0",
             "action": "run",
             "arguments": {},
             "timeout_seconds": 10,
@@ -175,25 +266,36 @@ def test_isolated_worker_rejects_unauthorized_tool(temp_store, sample_plan):
         target=sample_plan.target,
         specialist_id=sample_plan.specialist_id,
         operations=plan_dict["operations"],
-        limits=sample_plan.limits,
-        credential_references=sample_plan.credential_references,
+        limits=plan_dict["limits"],
+        credential_references=plan_dict["credential_references"],
+        platform_prerequisites=plan_dict["platform_prerequisites"],
+        batch=plan_dict["batch"],
         created_at=sample_plan.created_at,
     )
-    auth = create_execution_authorization(plan, operator="op", valid_hours=1)
+    auth, trust_store, engagement = authorize_test_plan(plan, worker_identity="worker-beta")
     temp_store.store_authorization(auth)
 
-    worker = IsolatedWorker(WorkerConfig(worker_id="worker-beta", allowed_tools=("echo",)), store=temp_store)
-    result = worker.execute_plan(plan, authorization=auth.authorization_id)
+    worker = IsolatedWorker(
+        worker_inventory_for_plan(plan, worker_identity="worker-beta", allowed_tools=("echo",)),
+        store=temp_store,
+        trust_store=trust_store,
+        engagement=engagement,
+    )
+    with pytest.raises(WorkerExecutionError, match="not allowed by this worker"):
+        worker.execute_plan(plan, authorization=auth.authorization_id)
 
-    assert not result.is_successful()
-    assert result.status == "failed"
-    assert "not in worker allowed tools" in result.status_details["reason"]
+    assert temp_store.get_authorization(auth.authorization_id).status == "approved"
 
 
 @pytest.mark.parametrize("as_dict", [False, True])
 def test_authorization_storage_failure_stops_execution(temp_store, sample_plan, monkeypatch, as_dict):
-    auth = create_execution_authorization(sample_plan, operator="test-operator", valid_hours=1)
-    worker = IsolatedWorker(WorkerConfig(worker_id="storage-test"), store=temp_store)
+    auth, trust_store, engagement = authorize_test_plan(sample_plan, worker_identity="storage-test")
+    worker = IsolatedWorker(
+        worker_inventory_for_plan(sample_plan, worker_identity="storage-test"),
+        store=temp_store,
+        trust_store=trust_store,
+        engagement=engagement,
+    )
 
     def fail_storage(_authorization):
         raise OSError("approval storage unavailable")

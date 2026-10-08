@@ -16,10 +16,14 @@
     "limits",
     "credential_references",
     "plan_digest",
-    "created_at"
+    "created_at",
+    "platform_prerequisites",
+    "batch"
   ],
   "properties": {
-    "schema_version": {"const": "cops.action-plan/v1"},
+    "schema_version": {
+      "const": "cops.action-plan/v1"
+    },
     "plan_id": {
       "type": "string",
       "pattern": "^plan-[a-z0-9_-]{4,64}$"
@@ -33,7 +37,15 @@
       "pattern": "^(scen-[a-z0-9_-]{4,64}|COPS-[A-Z0-9_.-]+)$"
     },
     "status": {
-      "enum": ["draft", "pending_approval", "approved", "executing", "fulfilled", "rejected", "cancelled"]
+      "enum": [
+        "draft",
+        "pending_approval",
+        "approved",
+        "executing",
+        "fulfilled",
+        "rejected",
+        "cancelled"
+      ]
     },
     "target": {
       "type": "string",
@@ -49,13 +61,32 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["step_id", "tool", "action", "arguments", "timeout_seconds"],
+        "required": [
+          "step_id",
+          "tool",
+          "tool_version",
+          "action",
+          "arguments",
+          "timeout_seconds"
+        ],
         "properties": {
-          "step_id": {"type": "string", "minLength": 1},
-          "tool": {"type": "string", "minLength": 1},
-          "action": {"type": "string", "minLength": 1},
+          "step_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "tool": {
+            "type": "string",
+            "minLength": 1
+          },
+          "action": {
+            "type": "string",
+            "minLength": 1
+          },
           "arguments": {
-            "type": ["object", "array"]
+            "type": [
+              "object",
+              "array"
+            ]
           },
           "timeout_seconds": {
             "type": "integer",
@@ -70,27 +101,54 @@
           },
           "expected_evidence": {
             "type": "array",
-            "items": {"type": "string", "minLength": 1}
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
           },
           "side_effects": {
             "type": "array",
-            "items": {"type": "string", "minLength": 1}
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "tool_version": {
+            "type": "string",
+            "minLength": 1
           }
         }
       }
     },
     "platform_prerequisites": {
       "type": "array",
-      "items": {"type": "string", "minLength": 1}
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
     },
     "limits": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["max_duration_seconds", "max_output_bytes", "egress_allowed"],
+      "required": [
+        "max_duration_seconds",
+        "max_output_bytes",
+        "egress_allowed"
+      ],
       "properties": {
-        "max_duration_seconds": {"type": "integer", "minimum": 1, "maximum": 604800},
-        "max_output_bytes": {"type": "integer", "minimum": 1, "maximum": 104857600},
-        "egress_allowed": {"type": "boolean"}
+        "max_duration_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 604800
+        },
+        "max_output_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 104857600
+        },
+        "egress_allowed": {
+          "type": "boolean"
+        }
       }
     },
     "credential_references": {
@@ -105,6 +163,33 @@
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
     },
-    "created_at": {"type": "string", "format": "date-time"}
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "batch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "max_operations",
+        "fail_fast"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "sequential"
+          ]
+        },
+        "max_operations": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "fail_fast": {
+          "type": "boolean"
+        }
+      }
+    }
   }
 }

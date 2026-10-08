@@ -15,6 +15,25 @@ from .intake import create_engagement_contract, validate_engagement_intake
 from .planning import build_action_plan
 
 
+def _parse_tool_versions(values: list[str]) -> dict[str, str]:
+    """Parse explicit, independently measured TOOL=VERSION inputs."""
+    parsed: dict[str, str] = {}
+    for value in values:
+        tool, separator, version = value.partition("=")
+        tool = tool.strip()
+        version = version.strip()
+        if not separator or not tool or not version:
+            raise EngagementIntakeError(
+                "tool versions must use TOOL=VERSION with non-empty values"
+            )
+        if tool in parsed and parsed[tool] != version:
+            raise EngagementIntakeError(
+                f"conflicting exact versions supplied for tool '{tool}'"
+            )
+        parsed[tool] = version
+    return parsed
+
+
 def command_engagement_create(args: argparse.Namespace) -> int:
     """Handle `cops engagement create`."""
     targets = [t.strip() for t in args.targets.split(",") if t.strip()] if args.targets else []
@@ -104,6 +123,7 @@ def command_engagement_plan(args: argparse.Namespace) -> int:
             engagement=raw_eng,
             scenario=args.scenario,
             target=args.target,
+            tool_versions=_parse_tool_versions(args.tool_versions),
             specialist_id=args.specialist,
             mode=args.mode,
             root=ROOT,

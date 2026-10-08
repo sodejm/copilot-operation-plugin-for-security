@@ -35,7 +35,11 @@ class TestOffensiveEngagementWorkbench(unittest.TestCase):
         self.valid_data = json.loads(self.fixture_path.read_text(encoding="utf-8"))
 
     def test_workflow_execution(self) -> None:
-        res = run_engagement_plan_workflow(self.fixture_path, root=REPO_ROOT)
+        res = run_engagement_plan_workflow(
+            self.fixture_path,
+            root=REPO_ROOT,
+            tool_versions={"python3": "3.11.9"},
+        )
         self.assertEqual(res["status"], "passed")
         self.assertEqual(res["network_requests"], 0)
         self.assertEqual(res["mode"], "planning")
@@ -61,6 +65,7 @@ class TestOffensiveEngagementWorkbench(unittest.TestCase):
             engagement=eng,
             scenario="COPS-E03.01-S01",
             target="192.168.1.10",
+            tool_versions={"python3": "3.11.9"},
             root=REPO_ROOT,
         )
         self.assertEqual(plan.target, "192.168.1.10")

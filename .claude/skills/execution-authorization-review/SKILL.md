@@ -37,16 +37,31 @@ python3 -m cops contract transition approved consumed --type execution_authoriza
 
 ```python
 from cops.execution import (
+    AuthorizationSigner,
+    AuthorizationTrustStore,
     create_execution_authorization,
     verify_execution_authorization,
-    consume_execution_authorization,
-    AuthorizationError,
 )
 
-# 1. Create envelope from an ActionPlan
+# The verifier loads this independently from an owner-controlled file. Never
+# accept verification keys from an authorization envelope or request payload.
+trust_store = AuthorizationTrustStore.from_file("path/to/authorization-trust.json")
+
+# The signing secret comes from an operator-controlled secret store. HMAC key
+# holders can both sign and verify, so this proves membership in that trust
+# boundary rather than providing third-party non-repudiation.
+signer = AuthorizationSigner(
+    key_id="operator-2026-10",
+    operator=engagement.operator,
+    secret=signing_secret,
+)
+
+# 1. Create an envelope bound to the exact immutable plan and expected worker.
 envelope = create_execution_authorization(
     action_plan=plan,
-    operator="security-operator@corp.internal",
+    signer=signer,
+    engagement=engagement,
+    worker_identity="worker-linux-01",
     valid_hours=4,
 )
 
@@ -54,12 +69,8 @@ envelope = create_execution_authorization(
 verified_envelope = verify_execution_authorization(
     authorization=envelope,
     action_plan=plan,
-    worker_identity="worker-linux-01",
-)
-
-# 3. Atomically consume envelope upon execution dispatch
-consumed = consume_execution_authorization(
-    verified_envelope,
+    trust_store=trust_store,
+    engagement=engagement,
     worker_identity="worker-linux-01",
 )
 ```

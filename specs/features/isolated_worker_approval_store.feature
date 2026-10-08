@@ -1,7 +1,7 @@
 Feature: Isolated Execution Worker and Approval State Store
   As a security operations lead
-  I need an isolated worker runtime and ACID approval state store
-  So that authorized operations run within strict process boundaries and approvals cannot be double-spent
+  I need verifier trust, active engagement, worker capability attestation, and an ACID approval store
+  So that only compatible authorized plans dispatch and approvals cannot be double-spent
 
   Scenario: Storing an approval and executing an authorized action plan
     Given an initialized SQLite approval store

@@ -18,12 +18,22 @@
   ],
   "demo": {
     "description": "Demonstrate bounded engagement validation and reviewable action plan compilation without network requests.",
-    "command": ["$PYTHON", "plugins/offensive-security/offensive-engagement-workbench/scripts/demo.py"],
+    "command": [
+      "$PYTHON",
+      "plugins/offensive-security/offensive-engagement-workbench/scripts/demo.py",
+      "--tool-version",
+      "python3=3.11.9"
+    ],
     "timeout_seconds": 30
   },
-  "validation": [{
-    "name": "offline package gate",
-    "command": ["$PYTHON", "plugins/offensive-security/offensive-engagement-workbench/scripts/validate-package.py"],
-    "timeout_seconds": 120
-  }]
+  "validation": [
+    {
+      "name": "offline package gate",
+      "command": [
+        "$PYTHON",
+        "plugins/offensive-security/offensive-engagement-workbench/scripts/validate-package.py"
+      ],
+      "timeout_seconds": 120
+    }
+  ]
 }

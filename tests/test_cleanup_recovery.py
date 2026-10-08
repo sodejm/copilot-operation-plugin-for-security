@@ -17,10 +17,9 @@ from cops.execution import (
     CleanupManager,
     IsolatedWorker,
     SideEffectLedger,
-    WorkerConfig,
     WorkerExecutionError,
-    create_execution_authorization,
 )
+from tests.auth_testkit import authorize_test_plan, worker_inventory_for_plan
 
 
 @pytest.fixture
@@ -128,10 +127,15 @@ def test_cleanup_ownership_and_boundary_enforcement(temp_workspace):
 def test_failure_injection_after_consume_prevents_replay(temp_store, sample_plan):
     """Test that failure injected after approval consumption marks authorization consumed and prevents replay."""
     plan = sample_plan
-    auth = create_execution_authorization(plan, operator="operator@corp", valid_hours=1)
+    auth, trust_store, engagement = authorize_test_plan(plan, worker_identity="worker-fail-test")
     temp_store.store_authorization(auth)
 
-    worker = IsolatedWorker(WorkerConfig(worker_id="worker-fail-test"), store=temp_store)
+    worker = IsolatedWorker(
+        worker_inventory_for_plan(plan, worker_identity="worker-fail-test"),
+        store=temp_store,
+        trust_store=trust_store,
+        engagement=engagement,
+    )
 
     # Inject failure after consumption
     with pytest.raises(WorkerExecutionError, match="injected failure after approval consumption"):
@@ -158,6 +162,7 @@ def test_interruption_uncertain_outcome_non_idempotent(temp_store, sample_plan, 
         {
             "step_id": "step-mutating",
             "tool": "inert",
+            "tool_version": "0.7.0",
             "action": "modify_state",
             "arguments": {},
             "timeout_seconds": 10,
@@ -180,15 +185,22 @@ def test_interruption_uncertain_outcome_non_idempotent(temp_store, sample_plan, 
         target=sample_plan.target,
         specialist_id=sample_plan.specialist_id,
         operations=plan_dict["operations"],
-        limits=sample_plan.limits,
-        credential_references=sample_plan.credential_references,
+        limits=plan_dict["limits"],
+        credential_references=plan_dict["credential_references"],
+        platform_prerequisites=plan_dict["platform_prerequisites"],
+        batch=plan_dict["batch"],
         created_at=sample_plan.created_at,
     )
 
-    auth = create_execution_authorization(plan, operator="operator@corp", valid_hours=1)
+    auth, trust_store, engagement = authorize_test_plan(plan, worker_identity="worker-interrupt-test")
     temp_store.store_authorization(auth)
 
-    worker = IsolatedWorker(WorkerConfig(worker_id="worker-interrupt-test"), store=temp_store)
+    worker = IsolatedWorker(
+        worker_inventory_for_plan(plan, worker_identity="worker-interrupt-test"),
+        store=temp_store,
+        trust_store=trust_store,
+        engagement=engagement,
+    )
 
     # Inject failure during execution of step-mutating
     result = worker.execute_plan(
@@ -216,6 +228,7 @@ def test_operator_cancellation_idempotent_step(temp_store, sample_plan, temp_wor
         {
             "step_id": "step-read-only",
             "tool": "inert",
+            "tool_version": "0.7.0",
             "action": "query_status",
             "arguments": {},
             "timeout_seconds": 10,
@@ -229,15 +242,22 @@ def test_operator_cancellation_idempotent_step(temp_store, sample_plan, temp_wor
         target=sample_plan.target,
         specialist_id=sample_plan.specialist_id,
         operations=plan_dict["operations"],
-        limits=sample_plan.limits,
-        credential_references=sample_plan.credential_references,
+        limits=plan_dict["limits"],
+        credential_references=plan_dict["credential_references"],
+        platform_prerequisites=plan_dict["platform_prerequisites"],
+        batch=plan_dict["batch"],
         created_at=sample_plan.created_at,
     )
 
-    auth = create_execution_authorization(plan, operator="operator@corp", valid_hours=1)
+    auth, trust_store, engagement = authorize_test_plan(plan, worker_identity="worker-cancel-test")
     temp_store.store_authorization(auth)
 
-    worker = IsolatedWorker(WorkerConfig(worker_id="worker-cancel-test"), store=temp_store)
+    worker = IsolatedWorker(
+        worker_inventory_for_plan(plan, worker_identity="worker-cancel-test"),
+        store=temp_store,
+        trust_store=trust_store,
+        engagement=engagement,
+    )
 
     result = worker.execute_plan(
         plan,

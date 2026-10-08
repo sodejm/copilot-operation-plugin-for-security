@@ -49,7 +49,14 @@ python3 -m cops lab reset path/to/env.json
 ### Execute a Laboratory Case
 
 ```bash
-python3 -m cops lab run path/to/env.json path/to/action-plan.json path/to/authorization.json --case-type positive
+python3 -m cops lab run \
+  --environment path/to/env.json \
+  --plan path/to/action-plan.json \
+  --authorization path/to/authorization.json \
+  --worker-inventory path/to/worker-inventory.json \
+  --authorization-trust-store path/to/authorization-trust.json \
+  --engagement path/to/engagement.json \
+  --case-type positive
 ```
 
 ## Python API
@@ -59,20 +66,47 @@ from cops.laboratory import (
     LaboratoryHarness,
     make_inert_container_environment,
     make_inert_action_plan,
+    make_inert_engagement,
     make_inert_execution_authorization,
+)
+from cops.execution import (
+    AuthorizationSigner,
+    AuthorizationTrustStore,
+    WorkerCapabilityInventory,
 )
 
 harness = LaboratoryHarness()
 env = make_inert_container_environment()
 verified_env = harness.verify_environment(env)
 
-plan = make_inert_action_plan()
-auth = make_inert_execution_authorization(plan)
+engagement = make_inert_engagement()
+plan = make_inert_action_plan(engagement_id=engagement.engagement_id)
+# Load this secret from the operator's secret store. The independently
+# provisioned verifier trust store must contain the matching key identifier.
+signer = AuthorizationSigner(
+    key_id="lab-key-2026-10",
+    operator=engagement.operator,
+    secret=operator_signing_secret,
+)
+auth = make_inert_execution_authorization(
+    plan,
+    signer=signer,
+    engagement=engagement,
+    worker_identity=env.owner,
+)
+trust_store = AuthorizationTrustStore.from_file("path/to/authorization-trust.json")
+inventory = WorkerCapabilityInventory.from_file(
+    "path/to/worker-inventory.json",
+    expected_worker_identity=env.owner,
+)
 
 result = harness.execute_case(
     environment=verified_env,
     action_plan=plan,
     authorization=auth,
+    trust_store=trust_store,
+    engagement=engagement,
+    worker_inventory=inventory,
     case_type="positive",
 )
 assert result.status == "success"

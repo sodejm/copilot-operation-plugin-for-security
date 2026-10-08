@@ -417,16 +417,24 @@ def command_capabilities_matrix(output: Path | None = None, root: Path = ROOT) -
 
 
 def command_worker_status(args: argparse.Namespace) -> int:
-    from .execution import IsolatedWorker, WorkerConfig
+    from .execution import WorkerCapabilityInventory, WorkerConfig
     try:
-        worker = IsolatedWorker(WorkerConfig(worker_id=getattr(args, "worker_id", None) or "worker-local-01"))
+        inventory = WorkerCapabilityInventory.from_file(
+            args.worker_inventory,
+            expected_worker_identity=getattr(args, "worker_id", None),
+        )
+        config = WorkerConfig.from_inventory(inventory)
         info = {
-            "worker_id": worker.config.worker_id,
-            "status": "ready",
-            "enforce_unprivileged": worker.config.enforce_unprivileged,
-            "allowed_tools": list(worker.config.allowed_tools),
-            "max_wall_time_seconds": worker.config.max_wall_time_seconds,
-            "max_output_bytes": worker.config.max_output_bytes,
+            "worker_id": config.worker_id,
+            "status": "inventory_loaded",
+            "enforce_unprivileged": config.enforce_unprivileged,
+            "allowed_tools": list(config.allowed_tools),
+            "tool_versions": dict(config.tool_versions),
+            "platform_capabilities": list(config.platform_capabilities),
+            "measured_at": inventory.measured_at,
+            "measurement_source": inventory.measurement_source,
+            "max_wall_time_seconds": config.max_wall_time_seconds,
+            "max_output_bytes": config.max_output_bytes,
         }
         if getattr(args, "json", False):
             print(json.dumps(info, indent=2))
@@ -461,8 +469,15 @@ def command_worker_store_list(args: argparse.Namespace) -> int:
 
 
 def command_worker_execute(args: argparse.Namespace) -> int:
-    from .contracts.models import ExecutionAuthorization
-    from .execution import ApprovalStore, IsolatedWorker, ScopeGuard, WorkerConfig
+    from .contracts.models import Engagement, ExecutionAuthorization
+    from .execution import (
+        ApprovalStore,
+        AuthorizationTrustStore,
+        IsolatedWorker,
+        ScopeDefinition,
+        ScopeGuard,
+        WorkerCapabilityInventory,
+    )
     plan_path = Path(args.plan)
     if not plan_path.is_file():
         print(f"error: plan file not found: {plan_path}", file=sys.stderr)
@@ -470,26 +485,28 @@ def command_worker_execute(args: argparse.Namespace) -> int:
 
     db_path = getattr(args, "db", None) or (Path.home() / ".cops" / "approvals.sqlite3")
     try:
+        inventory = WorkerCapabilityInventory.from_file(
+            args.worker_inventory,
+            expected_worker_identity=getattr(args, "worker_id", None),
+        )
+        trust_store = AuthorizationTrustStore.from_file(args.authorization_trust_store)
+        engagement = Engagement.from_dict(json.loads(Path(args.engagement).read_text(encoding="utf-8")))
+        scope_guard = ScopeGuard(ScopeDefinition.from_engagement_scope(engagement.scope))
         store = ApprovalStore(db_path)
-        worker_id = getattr(args, "worker_id", None) or "worker-local-01"
-
-        # Load engagement and scope guard if provided
-        scope_guard = None
-        eng_path = getattr(args, "engagement", None)
-        if eng_path and Path(eng_path).is_file():
-            eng_doc = json.loads(Path(eng_path).read_text(encoding="utf-8"))
-            scope_guard = ScopeGuard.from_engagement(eng_doc)
-
-        worker = IsolatedWorker(WorkerConfig(worker_id=worker_id), store=store, scope_guard=scope_guard)
+        worker = IsolatedWorker(
+            inventory,
+            store=store,
+            scope_guard=scope_guard,
+            trust_store=trust_store,
+            engagement=engagement,
+        )
         plan_doc = json.loads(plan_path.read_text(encoding="utf-8"))
 
-        auth_val: str
         auth_path = Path(args.authorization)
+        auth_val: ExecutionAuthorization | str
         if auth_path.is_file():
             auth_doc = json.loads(auth_path.read_text(encoding="utf-8"))
-            auth_model = ExecutionAuthorization.from_dict(auth_doc)
-            store.store_authorization(auth_model)
-            auth_val = auth_model.authorization_id
+            auth_val = ExecutionAuthorization.from_dict(auth_doc)
         else:
             auth_val = args.authorization
 
@@ -592,7 +609,8 @@ def build_parser() -> argparse.ArgumentParser:
     worker_p = subparsers.add_parser("worker", help="isolated execution worker and approval store operations")
     worker_sub = worker_p.add_subparsers(dest="worker_command", required=True)
     w_status = worker_sub.add_parser("status", help="display worker readiness and configuration")
-    w_status.add_argument("--worker-id", help="override worker identity")
+    w_status.add_argument("--worker-inventory", type=Path, required=True, help="owner-only independently provisioned worker capability inventory")
+    w_status.add_argument("--worker-id", help="assert the expected inventory worker identity")
     w_status.add_argument("--json", action="store_true", help="output structured JSON")
 
     w_store = worker_sub.add_parser("store", help="inspect approvals in the approval store")
@@ -603,8 +621,10 @@ def build_parser() -> argparse.ArgumentParser:
     w_exec = worker_sub.add_parser("execute", help="execute an authorized action plan")
     w_exec.add_argument("plan", help="path to ActionPlan JSON file")
     w_exec.add_argument("--authorization", required=True, help="authorization ID or path to authorization JSON file")
-    w_exec.add_argument("--worker-id", default="worker-local-01", help="override worker identity")
-    w_exec.add_argument("--engagement", type=Path, help="path to engagement JSON file for scope enforcement")
+    w_exec.add_argument("--worker-inventory", type=Path, required=True, help="owner-only independently provisioned worker capability inventory")
+    w_exec.add_argument("--worker-id", help="assert the expected inventory worker identity")
+    w_exec.add_argument("--authorization-trust-store", type=Path, required=True, help="verifier-owned authorization key configuration")
+    w_exec.add_argument("--engagement", type=Path, required=True, help="path to active engagement JSON for authorization and scope enforcement")
     w_exec.add_argument("--db", type=Path, help="path to sqlite approval store")
     w_exec.add_argument("--json", action="store_true", help="output structured JSON")
 
@@ -637,6 +657,14 @@ def build_parser() -> argparse.ArgumentParser:
     e_plan.add_argument("--engagement", required=True, help="path to engagement contract JSON file")
     e_plan.add_argument("--scenario", required=True, help="scenario ID (e.g. COPS-E03.01-S01) or path to scenario JSON")
     e_plan.add_argument("--target", required=True, help="target from engagement included_targets")
+    e_plan.add_argument(
+        "--tool-version",
+        dest="tool_versions",
+        action="append",
+        required=True,
+        metavar="TOOL=VERSION",
+        help="exact independently measured version for a scenario-required tool; repeat as needed",
+    )
     e_plan.add_argument("--specialist", default="cops-pentest-specialist", help="specialist profile ID")
     e_plan.add_argument("--mode", choices=["planning", "import", "laboratory", "live"], help="override execution mode")
     e_plan.add_argument("--output", help="path to save ActionPlan JSON file")
@@ -713,6 +741,10 @@ def build_parser() -> argparse.ArgumentParser:
     l_run.add_argument("--environment", required=True, help="path to laboratory environment JSON")
     l_run.add_argument("--plan", required=True, help="path to action plan JSON")
     l_run.add_argument("--authorization", required=True, help="path to execution authorization JSON")
+    l_run.add_argument("--worker-inventory", type=Path, required=True, help="owner-only independently provisioned worker capability inventory")
+    l_run.add_argument("--worker-id", help="assert the expected inventory worker identity")
+    l_run.add_argument("--authorization-trust-store", type=Path, required=True, help="verifier-owned authorization key configuration")
+    l_run.add_argument("--engagement", type=Path, required=True, help="path to active engagement JSON for authorization and scope enforcement")
     l_run.add_argument("--case-type", choices=["positive", "negative", "remediated"], default="positive", help="case type")
     l_run.add_argument("--store", help="path to sqlite3 approval store")
     l_run.add_argument("--allowed-cidr", help="allowed network CIDR for scope guard")

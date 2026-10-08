@@ -9,6 +9,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from cops.execution.scope_guard import ScopeDefinition, ScopeGuard
 from cops.execution.store import ApprovalStore
@@ -29,6 +30,13 @@ from cops.laboratory import (
     version_ge,
 )
 from cops.laboratory.cli import command_laboratory
+from tests.auth_testkit import (
+    authorization_secret_environment,
+    make_test_authorization_context,
+    worker_inventory_for_plan,
+    write_test_authorization_trust_store,
+    write_test_worker_inventory,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -44,6 +52,16 @@ class TestLaboratoryHarness(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.temp_dir.cleanup()
+
+    @staticmethod
+    def _authorization_context(plan):
+        signer, trust_store, engagement = make_test_authorization_context(plan)
+        authorization = make_inert_execution_authorization(
+            plan,
+            signer=signer,
+            engagement=engagement,
+        )
+        return authorization, trust_store, engagement
 
     def test_version_parsing_and_comparison(self) -> None:
         """Verify semantic and dotted version comparison logic."""
@@ -151,10 +169,19 @@ class TestLaboratoryHarness(unittest.TestCase):
         """Execution gate must reject environment that has not been verified."""
         c_env = make_inert_container_environment()  # status: registered
         plan = make_inert_action_plan()
-        auth = make_inert_execution_authorization(plan)
+        auth, trust_store, engagement = self._authorization_context(plan)
+        worker_inventory = worker_inventory_for_plan(plan, worker_identity=c_env.owner)
 
         with self.assertRaises(LaboratoryGateError) as ctx:
-            self.harness.execute_case(c_env, plan, auth, case_type="positive")
+            self.harness.execute_case(
+                c_env,
+                plan,
+                auth,
+                case_type="positive",
+                trust_store=trust_store,
+                engagement=engagement,
+                worker_inventory=worker_inventory,
+            )
         self.assertIn("must be 'verified' or 'active' before execution", str(ctx.exception))
 
     def test_positive_case_execution_and_cleanup(self) -> None:
@@ -162,13 +189,17 @@ class TestLaboratoryHarness(unittest.TestCase):
         c_env = make_inert_container_environment()
         self.harness.verify_environment(c_env)
         plan = make_inert_action_plan()
-        auth = make_inert_execution_authorization(plan)
+        auth, trust_store, engagement = self._authorization_context(plan)
+        worker_inventory = worker_inventory_for_plan(plan, worker_identity=c_env.owner)
 
         result = self.harness.execute_case(
             environment=c_env,
             action_plan=plan,
             authorization=auth,
             case_type="positive",
+            trust_store=trust_store,
+            engagement=engagement,
+            worker_inventory=worker_inventory,
         )
         self.assertEqual(result.case_type, "positive")
         self.assertEqual(result.status, "success")
@@ -183,13 +214,17 @@ class TestLaboratoryHarness(unittest.TestCase):
         c_env = make_inert_container_environment()
         self.harness.verify_environment(c_env)
         plan = make_inert_action_plan()
-        auth = make_inert_execution_authorization(plan)
+        auth, trust_store, engagement = self._authorization_context(plan)
+        worker_inventory = worker_inventory_for_plan(plan, worker_identity=c_env.owner)
 
         result = self.harness.execute_case(
             environment=c_env,
             action_plan=plan,
             authorization=auth,
             case_type="remediated",
+            trust_store=trust_store,
+            engagement=engagement,
+            worker_inventory=worker_inventory,
         )
         self.assertEqual(result.case_type, "remediated")
         self.assertEqual(result.status, "remediated")
@@ -202,17 +237,43 @@ class TestLaboratoryHarness(unittest.TestCase):
         c_env = make_inert_container_environment()
         self.harness.verify_environment(c_env)
         plan = make_inert_action_plan()
-        auth = make_inert_execution_authorization(plan)
+        auth, trust_store, engagement = self._authorization_context(plan)
+        worker_inventory = worker_inventory_for_plan(plan, worker_identity=c_env.owner)
 
         result = self.harness.execute_case(
             environment=c_env,
             action_plan=plan,
             authorization=auth,
             case_type="negative",
+            trust_store=trust_store,
+            engagement=engagement,
+            worker_inventory=worker_inventory,
         )
         self.assertEqual(result.case_type, "negative")
         self.assertEqual(result.status, "rejected")
         self.assertEqual(result.run_result.status, "failed")
+
+    def test_negative_case_does_not_persist_forged_authorization(self) -> None:
+        c_env = make_inert_container_environment()
+        self.harness.verify_environment(c_env)
+        plan = make_inert_action_plan()
+        auth, trust_store, engagement = self._authorization_context(plan)
+        forged = auth.to_dict()
+        forged["signature_digest"] = "0" * 64
+        worker_inventory = worker_inventory_for_plan(plan, worker_identity=c_env.owner)
+
+        result = self.harness.execute_case(
+            environment=c_env,
+            action_plan=plan,
+            authorization=forged,
+            case_type="negative",
+            trust_store=trust_store,
+            engagement=engagement,
+            worker_inventory=worker_inventory,
+            store=self.store,
+        )
+        self.assertEqual(result.status, "rejected")
+        self.assertEqual(self.store.list_approvals(), [])
 
     def test_egress_and_scope_guard_enforcement(self) -> None:
         """Verify scope guard prevents execution against unauthorized targets or metadata IMDS."""
@@ -227,7 +288,8 @@ class TestLaboratoryHarness(unittest.TestCase):
 
         # Unauthorized target
         bad_plan = make_inert_action_plan(target="192.168.1.50")
-        bad_auth = make_inert_execution_authorization(bad_plan)
+        bad_auth, trust_store, engagement = self._authorization_context(bad_plan)
+        worker_inventory = worker_inventory_for_plan(bad_plan, worker_identity=c_env.owner)
 
         with self.assertRaises(LaboratoryGateError) as ctx:
             self.harness.execute_case(
@@ -236,6 +298,9 @@ class TestLaboratoryHarness(unittest.TestCase):
                 bad_auth,
                 case_type="positive",
                 scope_guard=guard,
+                trust_store=trust_store,
+                engagement=engagement,
+                worker_inventory=worker_inventory,
             )
         self.assertIn("scope guard violation", str(ctx.exception))
 
@@ -300,7 +365,14 @@ class TestLaboratoryHarness(unittest.TestCase):
 
         # 5. Run command
         plan = make_inert_action_plan()
-        auth = make_inert_execution_authorization(plan)
+        auth, _, engagement = self._authorization_context(plan)
+        trust_path = write_test_authorization_trust_store(self.temp_path / "authorization-trust.json")
+        worker_inventory_path = write_test_worker_inventory(
+            self.temp_path / "worker-inventory.json",
+            worker_inventory_for_plan(plan, worker_identity=c_env.owner),
+        )
+        engagement_path = self.temp_path / "engagement.json"
+        engagement_path.write_text(json.dumps(engagement.to_dict()), encoding="utf-8")
         run_args = argparse.Namespace(
             lab_command="run",
             environment=json.dumps(ver_doc),
@@ -309,11 +381,18 @@ class TestLaboratoryHarness(unittest.TestCase):
             case_type="positive",
             store=str(self.temp_path / "approvals.sqlite3"),
             allowed_cidr=None,
+            authorization_trust_store=str(trust_path),
+            engagement=str(engagement_path),
+            worker_inventory=str(worker_inventory_path),
+            worker_id=None,
+            expectation=None,
+            case_id=None,
             output=None,
         )
         sys.stdout = io.StringIO()
         try:
-            rc = command_laboratory(run_args, root=ROOT)
+            with patch.dict("os.environ", authorization_secret_environment()):
+                rc = command_laboratory(run_args, root=ROOT)
             out = sys.stdout.getvalue()
         finally:
             sys.stdout = old_stdout
