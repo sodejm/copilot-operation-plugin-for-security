@@ -159,6 +159,8 @@ python3 -m cops lab run \
   --output result.json
 ```
 
+Library callers must load `WorkerCapabilityInventory` with `from_file`. The laboratory rejects directly constructed inventories before registering or consuming authorization or invoking an adapter, for every case type.
+
 The laboratory asserts the environment owner as the worker identity unless `--worker-id` supplies an explicit assertion. Optional `--allowed-cidr` values can narrow the Engagement scope, but cannot expand it or include an excluded destination.
 
 Use synthetic engagements and keys for laboratory evidence. A successful laboratory case proves contract, signature, compatibility, and one-time-consumption behavior for that fixture. It does not prove operating-system process isolation, live target authorization, or network egress enforcement.

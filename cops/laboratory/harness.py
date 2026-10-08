@@ -173,6 +173,11 @@ class LaboratoryHarness:
         workspace_dir: Path | None = None,
     ) -> LaboratoryCaseResult:
         """Execute a positive, negative, or remediated test case in the laboratory harness."""
+        if not isinstance(worker_inventory, WorkerCapabilityInventory) or not worker_inventory.is_verified:
+            raise LaboratoryGateError(
+                "a verified owner-provisioned worker capability inventory is required"
+            )
+
         # 1. Resolve models
         plan_model = ActionPlan.from_dict(action_plan) if isinstance(action_plan, dict) else action_plan
         active_store = store or self.store

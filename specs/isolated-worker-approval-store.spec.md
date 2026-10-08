@@ -31,6 +31,10 @@ is a separate deployment boundary tracked in issue #185.
    - The loader requires a non-symlink regular file owned by the current user with no
      group or other permission bits. An optional expected worker assertion must match
      `worker_identity`.
+   - Both `IsolatedWorker` and `LaboratoryHarness.execute_case` require inventories
+     verified by the protected file loader. Directly constructed inventories are
+     rejected before authorization registration, consumption, or adapter execution
+     for positive, negative, and remediated laboratory cases.
    - `IsolatedWorker` accepts the inventory and derives an immutable runtime
      configuration from it; caller-supplied mutable capability configurations are
      not accepted.

@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
 
 from cops.execution.store import ApprovalStore
+from cops.execution.worker import WorkerCapabilityInventory
 from cops.laboratory import (
+    LaboratoryGateError,
     LaboratoryHarness,
     PrerequisiteMismatchError,
     make_inert_action_plan,
@@ -201,3 +204,44 @@ def then_run_result_status(lab_ctx, expected_status):
 @then("no positive compromise claims are made")
 def then_no_positive_claims(lab_ctx):
     assert lab_ctx["case_result"].canary_verified is False
+
+
+@given("a directly constructed worker capability inventory")
+def given_unverified_inventory(lab_ctx):
+    lab_ctx["worker_inventory"] = WorkerCapabilityInventory(**lab_ctx["worker_inventory"].to_dict())
+    assert not lab_ctx["worker_inventory"].is_verified
+    lab_ctx["adapter"] = Mock(return_value={})
+
+
+@when(parsers.parse('the laboratory harness attempts a "{case_type}" case with that inventory'))
+def when_execute_unverified_inventory(lab_ctx, case_type):
+    try:
+        lab_ctx["harness"].execute_case(
+            environment=lab_ctx["environment"],
+            action_plan=lab_ctx["plan"],
+            authorization=lab_ctx["authorization"],
+            case_type=case_type,
+            trust_store=lab_ctx["trust_store"],
+            engagement=lab_ctx["engagement"],
+            worker_inventory=lab_ctx["worker_inventory"],
+            fake_adapter=lab_ctx["adapter"],
+        )
+    except LaboratoryGateError as err:
+        lab_ctx["error"] = err
+
+
+@then("the inventory gate rejects the laboratory case")
+def then_inventory_gate_rejects(lab_ctx):
+    assert isinstance(lab_ctx["error"], LaboratoryGateError)
+    assert "verified owner-provisioned worker capability inventory" in str(lab_ctx["error"])
+    assert lab_ctx["environment"].status == "verified"
+
+
+@then("no authorization is registered or consumed")
+def then_no_authorization_persisted(lab_ctx):
+    assert lab_ctx["store"].list_approvals() == []
+
+
+@then("no laboratory adapter is invoked")
+def then_no_adapter_invoked(lab_ctx):
+    lab_ctx["adapter"].assert_not_called()

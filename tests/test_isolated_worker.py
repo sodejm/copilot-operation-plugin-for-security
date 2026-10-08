@@ -11,12 +11,12 @@ import pytest
 
 from cops.contracts.models import ActionPlan
 from cops.execution import (
-    AuthorizationError,
     ApprovalStore,
     ApprovalStoreConflictError,
     ApprovalStoreNotFoundError,
-    LegacyApprovalRecord,
+    AuthorizationError,
     IsolatedWorker,
+    LegacyApprovalRecord,
     WorkerExecutionError,
 )
 from tests.auth_testkit import authorize_test_plan, worker_inventory_for_plan

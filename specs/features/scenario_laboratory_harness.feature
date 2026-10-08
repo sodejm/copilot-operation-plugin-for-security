@@ -43,3 +43,17 @@ Feature: Scenario Laboratory Harness
     Then the laboratory case result status is "rejected"
     And the run result status is "failed"
     And no positive compromise claims are made
+
+  Scenario Outline: Rejecting unverified worker inventories before laboratory execution
+    Given a verified laboratory environment and signed execution authorization
+    And a directly constructed worker capability inventory
+    When the laboratory harness attempts a "<case_type>" case with that inventory
+    Then the inventory gate rejects the laboratory case
+    And no authorization is registered or consumed
+    And no laboratory adapter is invoked
+
+    Examples:
+      | case_type  |
+      | positive   |
+      | negative   |
+      | remediated |
