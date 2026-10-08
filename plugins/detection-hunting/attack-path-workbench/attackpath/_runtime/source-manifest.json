@@ -11,7 +11,7 @@
     },
     {
       "path": "cops/evidence/canonical.py",
-      "sha256": "2aee3b4213ddf4668e76228ecacfc91bd8e0a7aac868414a4d308f62179f0753"
+      "sha256": "f049d0a73867aafecd6975a7a6be97f17fe1e56474c9d70f19d7ed5babb85397"
     },
     {
       "path": "cops/evidence/contract.py",
