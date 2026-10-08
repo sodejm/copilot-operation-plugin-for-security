@@ -7,7 +7,11 @@
     "license": "Nmap Public Source License",
     "pinned_revision": "v7.94"
   },
-  "supported_environments": ["linux", "darwin"],
+  "execution": {
+    "version_args": ["--version"],
+    "version_pattern": "Nmap version (?P<version>[0-9.]+)"
+  },
+  "supported_environments": ["linux"],
   "actions": {
     "port_scan": {
       "description": "Scan TCP ports on target",

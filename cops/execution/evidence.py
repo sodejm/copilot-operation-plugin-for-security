@@ -9,12 +9,14 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import stat
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from cops.evidence.canonical import digest, utc_now
 
+from .filesystem import open_directory_no_symlinks
 from .redaction import StreamRedactor
 
 
@@ -26,6 +28,10 @@ class CapturedArtifact:
     path: str
     sha256: str
     size_bytes: int
+
+
+class EvidenceCaptureError(RuntimeError):
+    """Evidence could not be written without crossing the workspace boundary."""
 
 
 @dataclass
@@ -42,6 +48,7 @@ class StepTelemetry:
     stderr_sha256: str
     output_length: int
     redacted_characters: int = 0
+    truncated_bytes: int = 0
 
 
 class EvidenceRecorder:
@@ -69,19 +76,17 @@ class EvidenceRecorder:
         exit_code: int,
         started_at: str,
         finished_at: str,
+        max_output_bytes: int | None = None,
     ) -> tuple[bytes, CapturedArtifact]:
         """Redact output stream, save artifact file, and record step telemetry."""
         raw_combined = stdout + (b"\n" if stdout and stderr else b"") + stderr
-        redacted_bytes = self.redactor.redact_bytes(raw_combined)
-
-        # Write redacted output to artifact file in workspace
-        artifacts_dir = self.workspace_dir / "artifacts"
-        artifacts_dir.mkdir(parents=True, exist_ok=True)
-        if os.name == "posix":
-            try:
-                artifacts_dir.chmod(0o700)
-            except OSError:
-                pass
+        redacted_full = self.redactor.redact_bytes(raw_combined)
+        redacted_characters = max(0, len(raw_combined) - len(redacted_full))
+        redacted_bytes = redacted_full
+        if max_output_bytes is not None:
+            if max_output_bytes < 0:
+                raise ValueError("max_output_bytes must be non-negative")
+            redacted_bytes = redacted_bytes[:max_output_bytes]
 
         # Sanitize step_id against traversal and invalid filename characters
         clean_step_id = re.sub(r"[^a-zA-Z0-9_-]", "_", step_id)
@@ -92,16 +97,7 @@ class EvidenceRecorder:
         else:
             artifact_filename = base_name
 
-        artifact_path = (artifacts_dir / artifact_filename).resolve()
-        if not artifact_path.is_relative_to(artifacts_dir.resolve()):
-            raise ValueError(f"Path traversal detected in artifact filename: {artifact_filename}")
-
-        artifact_path.write_bytes(redacted_bytes)
-        if os.name == "posix":
-            try:
-                artifact_path.chmod(0o600)
-            except OSError:
-                pass
+        self._write_artifact(artifact_filename, redacted_bytes)
 
         artifact_sha256 = hashlib.sha256(redacted_bytes).hexdigest()
         rel_path = f"artifacts/{artifact_filename}"
@@ -123,7 +119,8 @@ class EvidenceRecorder:
             stdout_sha256=digest(self.redactor.redact_bytes(stdout).decode("utf-8", errors="replace")),
             stderr_sha256=digest(self.redactor.redact_bytes(stderr).decode("utf-8", errors="replace")),
             output_length=len(redacted_bytes),
-            redacted_characters=max(0, len(raw_combined) - len(redacted_bytes)),
+            redacted_characters=redacted_characters,
+            truncated_bytes=len(redacted_full) - len(redacted_bytes),
         )
         self.step_telemetry.append(telemetry)
 
@@ -140,6 +137,60 @@ class EvidenceRecorder:
         self.evidence_records.append(evidence_entry)
 
         return redacted_bytes, artifact
+
+    def _write_artifact(self, filename: str, content: bytes) -> None:
+        """Create one evidence file using only protected directory descriptors."""
+        if os.name != "posix" or not hasattr(os, "O_NOFOLLOW") or not hasattr(os, "O_DIRECTORY"):
+            raise EvidenceCaptureError(
+                "symlink-safe evidence writes require POSIX O_NOFOLLOW and directory descriptors"
+            )
+        nofollow = os.O_NOFOLLOW
+        directory = os.O_DIRECTORY
+        workspace_fd = -1
+        artifacts_fd = -1
+        artifact_fd = -1
+        try:
+            workspace_fd = open_directory_no_symlinks(self.workspace_dir)
+            self._validate_private_directory(workspace_fd, "worker workspace")
+            try:
+                os.mkdir("artifacts", mode=0o700, dir_fd=workspace_fd)
+            except FileExistsError:
+                pass
+            artifacts_fd = os.open(
+                "artifacts", os.O_RDONLY | directory | nofollow, dir_fd=workspace_fd
+            )
+            self._validate_private_directory(artifacts_fd, "evidence artifact directory")
+            artifact_fd = os.open(
+                filename,
+                os.O_WRONLY
+                | os.O_CREAT
+                | os.O_EXCL
+                | nofollow
+                | getattr(os, "O_CLOEXEC", 0),
+                0o600,
+                dir_fd=artifacts_fd,
+            )
+            view = memoryview(content)
+            while view:
+                written = os.write(artifact_fd, view)
+                view = view[written:]
+            os.fsync(artifact_fd)
+        except OSError as err:
+            raise EvidenceCaptureError(f"secure evidence artifact write failed: {err}") from err
+        finally:
+            for fd in (artifact_fd, artifacts_fd, workspace_fd):
+                if fd >= 0:
+                    os.close(fd)
+
+    @staticmethod
+    def _validate_private_directory(fd: int, label: str) -> None:
+        info = os.fstat(fd)
+        if not stat.S_ISDIR(info.st_mode):
+            raise EvidenceCaptureError(f"{label} is not a directory")
+        if hasattr(os, "geteuid") and info.st_uid != os.geteuid():
+            raise EvidenceCaptureError(f"{label} is not owned by the worker account")
+        if info.st_mode & 0o022:
+            raise EvidenceCaptureError(f"{label} is writable by group or other users")
 
     def get_artifact_dicts(self) -> list[dict[str, Any]]:
         """Return artifacts in schema-compliant dictionary format."""

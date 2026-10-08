@@ -10,6 +10,12 @@ from cops.adapters import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _linux_adapter_environment(monkeypatch):
+    """Exercise built-in definitions in their declared execution environment."""
+    monkeypatch.setattr("cops.adapters.registry.sys.platform", "linux")
+
+
 def test_registry_lists_default_tools():
     registry = ToolAdapterRegistry()
     tools = registry.list_tools()

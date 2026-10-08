@@ -24,7 +24,7 @@ scenarios("../../specs/features/execution_recovery_cleanup.feature")
 
 @pytest.fixture
 def recovery_ctx():
-    tmp_workspace = Path(tempfile.mkdtemp(prefix="cops-recovery-bdd-"))
+    tmp_workspace = Path(tempfile.mkdtemp(prefix="cops-recovery-bdd-")).resolve(strict=True)
     ctx = {"workspace": tmp_workspace}
     yield ctx
     shutil.rmtree(tmp_workspace, ignore_errors=True)

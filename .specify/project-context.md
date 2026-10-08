@@ -68,13 +68,21 @@ Engagement, checks the plan against an owner-provisioned
 `cops.worker-capability-inventory/v1` measurement artifact, and atomically consumes
 the authorization before dispatch. The inventory records worker identity, exact tool
 versions, platform capabilities, measurement time, and measurement source. It is a
-trusted provisioning input; COPS does not discover installed executables at runtime.
+trusted provisioning input; COPS does not populate it through runtime host discovery.
+For each external adapter launch, the worker separately verifies an
+operator-provisioned platform SHA-256 and the adapter's pinned upstream executable
+revision. Linux launches bind the version probe and operation to the same held staged
+inode through `/proc/self/fd`; unsupported platforms fail closed. Raw stdout and
+stderr are bounded during collection, and evidence uses bounded, directory-relative
+non-following writes.
 
 HMAC authenticates membership in the shared-key verifier channel and does not provide
 non-repudiation because every key holder can mint an authorization. Existing unsigned
 or digest-only approval rows migrate to `legacy-untrusted` and cannot execute.
 Operating-system and process transport isolation (issue #185) and live network egress
 mediation (issue #186) remain deployment controls outside this authorization proof.
+The worker must run under a dedicated UID because a hostile same-UID process can
+still modify a staged inode or interfere with held descriptors.
 
 ## Evidence policy
 

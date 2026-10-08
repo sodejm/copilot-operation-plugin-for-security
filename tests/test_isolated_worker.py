@@ -180,12 +180,12 @@ def test_concurrent_worker_atomic_consume(temp_store, sample_plan):
 
 def test_isolated_worker_execute_plan_success(temp_store, sample_plan):
     """Test worker successfully executing an authorized plan and cleaning up workspace."""
-    # Build plan using inert/echo tool
+    # Build plan using the worker's explicit inert test tool.
     plan_dict = sample_plan.to_dict()
     plan_dict["operations"] = [
         {
             "step_id": "step-1",
-            "tool": "echo",
+            "tool": "inert",
             "tool_version": "0.7.0",
             "action": "print_status",
             "arguments": {"message": "worker execution successful"},

@@ -25,7 +25,7 @@ from tests.auth_testkit import authorize_test_plan, worker_inventory_for_plan
 @pytest.fixture
 def temp_workspace():
     path = tempfile.mkdtemp(prefix="cops-cleanup-test-")
-    yield Path(path)
+    yield Path(path).resolve(strict=True)
     shutil.rmtree(path, ignore_errors=True)
 
 

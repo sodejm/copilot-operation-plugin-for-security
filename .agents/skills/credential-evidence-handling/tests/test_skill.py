@@ -17,7 +17,7 @@ class TestCredentialEvidenceSkill(unittest.TestCase):
 
     def test_skill_evidence_flow(self):
         with tempfile.TemporaryDirectory() as tmp:
-            recorder = EvidenceRecorder(workspace_dir=Path(tmp))
+            recorder = EvidenceRecorder(workspace_dir=Path(tmp).resolve(strict=True))
             recorder.record_step_output(
                 step_id="step-1",
                 tool="echo",

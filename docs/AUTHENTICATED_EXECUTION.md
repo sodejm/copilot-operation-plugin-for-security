@@ -91,7 +91,13 @@ The worker owner must measure and provision an inventory through a trusted deplo
 
 `measured_at` must be canonical UTC and cannot be in the future. The loader accepts only a non-symlink regular file owned by the current user with no group or other permission bits; mode `0600` is the normal choice. Keep the measurement workflow and artifact distribution inside the worker owner's trusted boundary.
 
-COPS loads and compares this owner-provisioned attestation. It does not discover installed executables at runtime or prove that the recorded measurement is accurate. Re-measure and replace the artifact through the trusted provisioning workflow whenever the worker's tools or platform capabilities change.
+COPS loads and compares this owner-provisioned attestation. It does not populate
+the inventory by discovering host capabilities, and it does not prove that the
+recorded measurement is accurate. Re-measure and replace the artifact through the
+trusted provisioning workflow whenever the worker's tools or platform capabilities
+change. Separately, every external adapter launch verifies the selected executable's
+platform digest and upstream version; that per-launch check does not turn the
+inventory into a host-wide discovery or attestation mechanism.
 
 Inspect a provisioned inventory without claiming execution readiness:
 
@@ -128,12 +134,56 @@ python3 -m cops worker execute action-plan.json \
   --authorization-trust-store authorization-trust-store.json \
   --engagement engagement.json \
   --worker-inventory worker-capability-inventory.json \
+  --executable-sha256 nmap=PLATFORM_SPECIFIC_SHA256 \
   --worker-id worker-lab-01 \
   --db approvals.sqlite3 \
   --json
 ```
 
-`--worker-id` is optional; when omitted, the command uses the inventory identity. The worker rejects inventory identity mismatches, missing tools, version mismatches, missing platform capabilities, unsupported batch semantics, and operation counts above the signed batch maximum before execution.
+`--worker-id` is optional; when omitted, the command uses the inventory identity.
+Repeat `--executable-sha256 TOOL=SHA256` for every external adapter executable in
+the plan. The built-in adapter definitions intentionally do not carry a digest for
+an arbitrary host binary. Provision the pin from the exact executable installed in
+the approved worker image, for example on Linux:
+
+```bash
+tool_path="$(command -v nmap)"
+tool_sha256="$(sha256sum "$tool_path" | cut -d ' ' -f 1)"
+python3 -m cops worker execute action-plan.json \
+  --authorization execution-authorization.json \
+  --authorization-trust-store authorization-trust-store.json \
+  --engagement engagement.json \
+  --worker-inventory worker-capability-inventory.json \
+  --executable-sha256 "nmap=$tool_sha256" \
+  --db approvals.sqlite3
+```
+
+Record the package or worker-image source used to obtain the executable and refresh
+the digest after every approved upgrade. A missing pin, a digest mismatch, a probe
+whose captured version differs from the adapter's pinned upstream revision, or a
+change in file identity fails closed before the operation starts. The adapter's
+logical compatibility version and its upstream executable revision are distinct;
+for example, an adapter can use logical version `coreutils-9.4` while its GNU echo
+probe captures upstream revision `9.4`.
+
+External adapter execution currently requires Linux with an executable
+`/proc/self/fd` mount. The worker copies the source through a non-following file
+descriptor into its private workspace, verifies the configured SHA-256 digest and
+version, and launches the same held staged inode through `/proc/self/fd`. This binds
+the probe and operation to one file identity even if the original pathname is
+replaced. macOS `/dev/fd` does not provide the required executable-descriptor
+behavior, so external launches fail closed there. The `inert` test operation remains
+available without an executable pin.
+
+Run the worker under a dedicated isolated account. Descriptor binding prevents
+pathname substitution, but it does not defend against another process with the same
+worker UID that can modify the private staged inode in place, manipulate its file
+descriptor, or interfere with the process. The workspace and every parent component
+must be real directories rather than symbolic links.
+
+The worker rejects inventory identity mismatches, missing tools, logical adapter
+version mismatches, missing platform capabilities, unsupported batch semantics, and
+operation counts above the signed batch maximum before execution.
 
 Library callers must pass the `WorkerCapabilityInventory` loaded by
 `WorkerCapabilityInventory.from_file` directly to `IsolatedWorker`; caller-built
@@ -141,6 +191,14 @@ inventories and mutable `WorkerConfig` values are not accepted at the worker
 boundary.
 
 The approval store consumes the authorization in a SQLite transaction immediately before dispatch. A second attempt with the same authorization fails as replay. Keep the approval database on durable local storage and protect it with the same access controls as other execution records.
+
+Stdout and stderr share the Action Plan's raw byte limit. The worker enforces that
+limit while reading the pipes, terminates the process group on timeout or overflow,
+and records a `partial` result with exit code `124` or `125` respectively. A normal
+non-zero tool exit is `failed`. Evidence persistence applies the same remaining
+aggregate bound after redaction; truncation is reported separately from redaction.
+Artifact directories and files are created relative to verified directory file
+descriptors and reject symbolic links or paths that escape the workspace.
 
 ## Validate in the scenario laboratory
 

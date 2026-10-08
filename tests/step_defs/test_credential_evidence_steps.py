@@ -47,7 +47,7 @@ def then_secret_not_in_output(cred_context, secret):
 @given("an evidence recorder with a temporary workspace")
 def given_evidence_recorder_tmp(cred_context):
     tmp = tempfile.mkdtemp(prefix="cops-evidence-test-")
-    cred_context["tmp_dir"] = Path(tmp)
+    cred_context["tmp_dir"] = Path(tmp).resolve(strict=True)
     cred_context["recorder"] = EvidenceRecorder(workspace_dir=cred_context["tmp_dir"])
 
 

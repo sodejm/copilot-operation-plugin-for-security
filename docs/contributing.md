@@ -31,7 +31,13 @@ Changes to Action Plans, execution authorizations, trust stores, approval storag
 - key, authorization, and Engagement identities and validity windows agree;
 - worker capability inventories are owner-provisioned measurements, loaded only from
   current-user-owned non-symlink files without group or other permission bits, and
-  never described as runtime executable discovery;
+  never described as runtime host capability discovery;
+- external adapter dispatch verifies an operator-provisioned platform SHA-256 and
+  the adapter's pinned upstream revision, then binds version probe and operation to
+  the same held executable inode on supported Linux workers;
+- raw stdout and stderr are bounded during collection, timeout and overflow remain
+  explicit partial outcomes, and evidence writes reject symlinks and workspace
+  escapes;
 - compatibility failures happen before authority is consumed;
 - consumption is atomic and replay fails closed; and
 - migrated unsigned or digest-only rows remain `legacy-untrusted`.
