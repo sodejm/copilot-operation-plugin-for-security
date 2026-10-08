@@ -128,3 +128,12 @@ While COPS enforces rigorous safeguards within our own packages and scripts, pra
 - **Host Model Behavior**: COPS cannot control how a proprietary third-party model (e.g., Claude, GPT-4, Copilot) formats, truncates, or interprets text.
 - **Host Sandboxes**: Host application sandboxes differ. Claude Code, Codex, and VS Code apply different limits on filesystem and network access.
 - **Human Authority**: Automated tools assist, suggest, and structure data, but **the human engineer is the ultimate decision-maker**. No high-consequence action (such as modifying firewall rules, blocking accounts, or deploying hunt rules) should take place without human authorization.
+
+## Detailed model and review obligations
+
+Use the [project threat model](THREAT_MODEL.md) for component-specific boundaries,
+implemented-control evidence, proposed mitigations and unresolved risks. Do not
+apply an offline-component claim to a live integration. Follow
+[Engineering review policy](ENGINEERING_REVIEW.md) and
+[Review coverage](security/REVIEW_COVERAGE.md) for independent human approval,
+retroactive review and maintenance.
