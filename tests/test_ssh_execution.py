@@ -1,0 +1,218 @@
+from __future__ import annotations
+
+import io
+import json
+import uuid
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+
+from cops.contracts.models import ActionPlan, RunResult
+from cops.execution.control import ApprovalConsumptionReceipt
+from cops.execution.ssh_execution import (
+    SSH_EXECUTION_REQUEST_SCHEMA,
+    RemoteAuthorizedRun,
+    SSHExecutionDispatcher,
+    SSHExecutionError,
+)
+from cops.execution.ssh_transport import SSH_PROTOCOL, SSHRemoteResponse
+from cops.remote_worker import (
+    handle_remote_execution_request,
+    serve_one_remote_execution_request,
+)
+
+FIXTURES = Path("cops/contracts/fixtures")
+
+
+def _plan() -> ActionPlan:
+    return ActionPlan.from_dict(json.loads((FIXTURES / "valid_action_plan.json").read_text(encoding="utf-8")))
+
+
+def _result(plan: ActionPlan, worker_identity: str = "worker-lab-01") -> RunResult:
+    document = json.loads((FIXTURES / "valid_run_result_success.json").read_text(encoding="utf-8"))
+    document["plan_id"] = plan.plan_id
+    document["engagement_id"] = plan.engagement_id
+    document["worker_identity"] = worker_identity
+    return RunResult.from_dict(document)
+
+
+def _receipt(
+    plan: ActionPlan,
+    worker_identity: str = "worker-lab-01",
+    authorization_id: str = "auth-01",
+) -> ApprovalConsumptionReceipt:
+    return ApprovalConsumptionReceipt(
+        authorization_id=authorization_id,
+        authorization_digest="a" * 64,
+        action_plan_id=plan.plan_id,
+        plan_digest=plan.plan_digest,
+        engagement_id=plan.engagement_id,
+        worker_identity=worker_identity,
+        target=plan.target,
+    )
+
+
+class _FakeWorker:
+    def __init__(self, *, receipt_worker_identity: str = "worker-lab-01") -> None:
+        self.calls: list[dict[str, object]] = []
+        self.receipt_worker_identity = receipt_worker_identity
+
+    def execute_plan_with_receipt(
+        self,
+        action_plan: ActionPlan,
+        *,
+        authorization_id: str,
+        workspace_dir: Path | str | None = None,
+        timeout_seconds: float = 30.0,
+        max_output_bytes: int = 65_536,
+    ) -> object:
+        self.calls.append(
+            {
+                "action_plan": action_plan,
+                "authorization_id": authorization_id,
+                "workspace_dir": workspace_dir,
+                "timeout_seconds": timeout_seconds,
+                "max_output_bytes": max_output_bytes,
+            }
+        )
+        return SimpleNamespace(
+            result=_result(action_plan, self.receipt_worker_identity),
+            approval_receipt=_receipt(
+                action_plan,
+                self.receipt_worker_identity,
+                authorization_id,
+            ),
+        )
+
+
+def _envelope(plan: ActionPlan) -> dict[str, object]:
+    return {
+        "protocol": SSH_PROTOCOL,
+        "request_id": str(uuid.uuid4()),
+        "expected_host": "worker.example.test",
+        "expected_worker_id": "worker-lab-01",
+        "payload": {
+            "schema_version": SSH_EXECUTION_REQUEST_SCHEMA,
+            "authorization_id": "auth-01",
+            "action_plan": plan.to_dict(),
+            "timeout_seconds": 2.0,
+            "max_output_bytes": 1024,
+        },
+    }
+
+
+def test_receiver_executes_once_and_derives_response_identity_locally() -> None:
+    plan = _plan()
+    worker = _FakeWorker()
+
+    response = handle_remote_execution_request(
+        _envelope(plan),
+        expected_host="worker.example.test",
+        expected_worker_identity="worker-lab-01",
+        worker=worker,
+        workspace_dir="workspace",
+    )
+
+    assert response["host"] == "worker.example.test"
+    assert response["worker_id"] == "worker-lab-01"
+    assert len(worker.calls) == 1
+    assert worker.calls[0]["authorization_id"] == "auth-01"
+    authorized_run = RemoteAuthorizedRun.from_dict(response["payload"])
+    assert authorized_run.approval_receipt.worker_identity == "worker-lab-01"
+    assert authorized_run.result.plan_id == plan.plan_id
+
+
+def test_receiver_rejects_endpoint_identity_before_authority_consumption() -> None:
+    worker = _FakeWorker()
+    envelope = _envelope(_plan())
+    envelope["expected_host"] = "substitute.example.test"
+
+    with pytest.raises(SSHExecutionError, match="endpoint identity mismatch"):
+        handle_remote_execution_request(
+            envelope,
+            expected_host="worker.example.test",
+            expected_worker_identity="worker-lab-01",
+            worker=worker,
+        )
+
+    assert worker.calls == []
+
+
+def test_receiver_rejects_authority_receipt_for_different_worker() -> None:
+    worker = _FakeWorker(receipt_worker_identity="substitute-worker")
+
+    with pytest.raises(SSHExecutionError, match="does not match"):
+        handle_remote_execution_request(
+            _envelope(_plan()),
+            expected_host="worker.example.test",
+            expected_worker_identity="worker-lab-01",
+            worker=worker,
+        )
+
+    assert len(worker.calls) == 1
+
+
+def test_receiver_bounds_request_before_authority_consumption() -> None:
+    worker = _FakeWorker()
+
+    with pytest.raises(SSHExecutionError, match="request exceeds"):
+        serve_one_remote_execution_request(
+            expected_host="worker.example.test",
+            expected_worker_identity="worker-lab-01",
+            worker=worker,
+            input_stream=io.BytesIO(b"x" * 65 + b"\n"),
+            output_stream=io.BytesIO(),
+            max_request_bytes=64,
+        )
+
+    assert worker.calls == []
+
+
+def test_dispatcher_uses_only_approved_worker_identity(monkeypatch: pytest.MonkeyPatch) -> None:
+    plan = _plan()
+    calls: list[dict[str, object]] = []
+
+    class _FakeRemoteDispatcher:
+        def __init__(self, inventory: object, **kwargs: object) -> None:
+            calls.append({"inventory": inventory, "options": kwargs})
+
+        def request(
+            self,
+            worker_id: str,
+            payload: dict[str, object],
+            *,
+            request_id: str,
+        ) -> SSHRemoteResponse:
+            calls.append({"worker_id": worker_id, "payload": payload, "request_id": request_id})
+            run = RemoteAuthorizedRun(
+                result=_result(plan, worker_id),
+                approval_receipt=_receipt(
+                    plan,
+                    worker_identity=worker_id,
+                    authorization_id=str(payload["authorization_id"]),
+                ),
+            )
+            return SSHRemoteResponse(
+                request_id=request_id,
+                host="worker.example.test",
+                worker_id=worker_id,
+                payload=run.to_dict(),
+            )
+
+    monkeypatch.setattr(
+        "cops.execution.ssh_execution.SSHRemoteDispatcher",
+        _FakeRemoteDispatcher,
+    )
+    dispatcher = SSHExecutionDispatcher(object())  # type: ignore[arg-type]
+
+    authorized_run = dispatcher.execute(
+        approved_worker_identity="worker-lab-01",
+        authorization_id="auth-01",
+        action_plan=plan,
+        request_id=str(uuid.uuid4()),
+    )
+
+    assert calls[1]["worker_id"] == "worker-lab-01"
+    assert calls[1]["payload"]["authorization_id"] == "auth-01"  # type: ignore[index]
+    assert authorized_run.approval_receipt.worker_identity == "worker-lab-01"
