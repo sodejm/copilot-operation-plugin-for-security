@@ -28,7 +28,7 @@ from cops.adapters import (
 )
 from cops.contracts.models import ActionPlan
 from cops.execution import ApprovalStore, IsolatedWorker, WorkerIsolationError
-from cops.execution.evidence import EvidenceCaptureError, EvidenceRecorder
+from cops.execution.evidence import EvidenceCaptureError, EvidenceContext, EvidenceRecorder
 from cops.execution.executable import (
     ExecutablePreparationTimeoutError,
     ExecutableVerificationError,
@@ -69,6 +69,17 @@ def _sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(65_536), b""):
             hasher.update(chunk)
     return hasher.hexdigest()
+
+
+def _evidence_context() -> EvidenceContext:
+    return EvidenceContext(
+        plan_id="plan-test",
+        plan_digest="a" * 64,
+        authorization_id="authorization-test",
+        engagement_id="engagement-test",
+        worker_identity="worker-test",
+        target="example.test",
+    )
 
 
 def _python_adapter(*, pinned_revision: str | None = None) -> ToolAdapter:
@@ -939,12 +950,13 @@ def test_evidence_rejects_symlinked_artifact_directory(tmp_path: Path) -> None:
     outside = tmp_path / "outside"
     outside.mkdir()
     (tmp_path / "artifacts").symlink_to(outside, target_is_directory=True)
-    recorder = EvidenceRecorder(tmp_path)
+    recorder = EvidenceRecorder(tmp_path, context=_evidence_context())
 
     with pytest.raises(EvidenceCaptureError, match="secure evidence artifact reservation failed"):
         recorder.record_step_output(
             step_id="step-1",
             tool="fake",
+            tool_version="1.0.0",
             action="run",
             exit_code=0,
             stdout=b"ok",
@@ -958,7 +970,7 @@ def test_evidence_rejects_symlinked_artifact_directory(tmp_path: Path) -> None:
 
 
 def test_evidence_rejects_artifact_directory_replacement_after_reservation(tmp_path: Path) -> None:
-    recorder = EvidenceRecorder(tmp_path)
+    recorder = EvidenceRecorder(tmp_path, context=_evidence_context())
     reservation = recorder.reserve_step_output("step-1")
     original_artifacts = tmp_path / "artifacts"
     moved_artifacts = tmp_path / "artifacts-moved"
@@ -971,6 +983,7 @@ def test_evidence_rejects_artifact_directory_replacement_after_reservation(tmp_p
         recorder.record_step_output(
             step_id="step-1",
             tool="fake",
+            tool_version="1.0.0",
             action="run",
             exit_code=0,
             stdout=b"new evidence",
@@ -990,12 +1003,13 @@ def test_evidence_rejects_symlinked_workspace_parent_before_creation(tmp_path: P
     outside.mkdir()
     link = tmp_path / "workspace-link"
     link.symlink_to(outside, target_is_directory=True)
-    recorder = EvidenceRecorder(link / "new-workspace")
+    recorder = EvidenceRecorder(link / "new-workspace", context=_evidence_context())
 
     with pytest.raises(EvidenceCaptureError, match="secure evidence artifact reservation failed"):
         recorder.record_step_output(
             step_id="step-1",
             tool="fake",
+            tool_version="1.0.0",
             action="run",
             exit_code=0,
             stdout=b"ok",
@@ -1066,10 +1080,15 @@ class _RemovingRedactor:
 
 
 def test_evidence_reports_redaction_before_truncation(tmp_path: Path) -> None:
-    recorder = EvidenceRecorder(tmp_path, redactor=_RemovingRedactor())  # type: ignore[arg-type]
+    recorder = EvidenceRecorder(
+        tmp_path,
+        redactor=_RemovingRedactor(),  # type: ignore[arg-type]
+        context=_evidence_context(),
+    )
     _, artifact = recorder.record_step_output(
         step_id="step-1",
         tool="fake",
+        tool_version="1.0.0",
         action="run",
         exit_code=0,
         stdout=b"secret0123456789",
@@ -1088,7 +1107,7 @@ def test_evidence_reports_redaction_before_truncation(tmp_path: Path) -> None:
 
 
 def test_evidence_rejects_reserved_artifact_replacement(tmp_path: Path) -> None:
-    recorder = EvidenceRecorder(tmp_path)
+    recorder = EvidenceRecorder(tmp_path, context=_evidence_context())
     reservation = recorder.reserve_step_output("step-1")
     artifact_path = tmp_path / reservation.path
     artifact_path.unlink()
@@ -1101,6 +1120,7 @@ def test_evidence_rejects_reserved_artifact_replacement(tmp_path: Path) -> None:
         recorder.record_step_output(
             step_id="step-1",
             tool="fake",
+            tool_version="1.0.0",
             action="run",
             exit_code=0,
             stdout=b"new evidence",
@@ -1116,7 +1136,7 @@ def test_evidence_rejects_reserved_artifact_replacement(tmp_path: Path) -> None:
 
 @pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="FIFO replacement requires POSIX")
 def test_evidence_rejects_fifo_replacement_without_blocking(tmp_path: Path) -> None:
-    recorder = EvidenceRecorder(tmp_path)
+    recorder = EvidenceRecorder(tmp_path, context=_evidence_context())
     reservation = recorder.reserve_step_output("step-1")
     artifact_path = tmp_path / reservation.path
     artifact_path.unlink()
@@ -1126,6 +1146,7 @@ def test_evidence_rejects_fifo_replacement_without_blocking(tmp_path: Path) -> N
         recorder.record_step_output(
             step_id="step-1",
             tool="fake",
+            tool_version="1.0.0",
             action="run",
             exit_code=0,
             stdout=b"new evidence",

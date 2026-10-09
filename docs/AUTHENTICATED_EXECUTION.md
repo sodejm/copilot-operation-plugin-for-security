@@ -206,6 +206,30 @@ authorization fails as replay. Keep the approval database on durable storage own
 by the authority account and protect it with the same access controls as other
 execution records.
 
+When an operation needs a credential, configure a `ScopedCredentialResolver` with
+operator-supplied exact grants and a credential provider. The worker follows this
+order for each launch:
+
+1. Validate adapter compatibility and probe executable identity and version with
+   no credential environment.
+2. Atomically consume the approval and keep the exact object returned by the
+   approval store.
+3. Immediately before an operation launch, pass that local consumed object, the
+   approved plan, the worker identity, and the exact operation to the resolver.
+4. Pass the returned environment only as the operation environment and share the
+   resolver's redactor with evidence capture.
+
+The resolver checks the plan digest, engagement, worker, target, step, tool, tool
+version, and action against each exact grant. The plan credential references are
+an allowlist: a step receives its exact grants, while a step without a grant is
+credential-free even when another step uses a credential. Credential environment
+names must use the `COPS_CREDENTIAL_` prefix, which prevents grants from replacing
+runtime, loader, broker, locale, or ordinary process settings. Provider values are
+rejected if they are empty, non-text, or contain a NUL byte. Provider errors are
+rewritten without their message or exception chain. All resolved values are
+registered for redaction before launch. Never use a status field on a
+caller-constructed authorization as evidence of atomic consumption.
+
 Stdout and stderr share the Action Plan's raw byte limit. The worker enforces that
 limit while reading the pipes and terminates the process group on timeout or overflow.
 After dispatch, a non-idempotent step has an `uncertain` outcome with exit code `124`
@@ -216,6 +240,26 @@ non-zero tool exit is `failed`. Evidence persistence applies the same remaining
 aggregate bound after redaction; truncation is reported separately from redaction.
 Artifact directories and files are created relative to verified directory file
 descriptors and reject symbolic links or paths that escape the workspace.
+
+Real execution evidence requires a complete `EvidenceContext`. The recorder emits
+validated `cops.evidence/v1` envelopes with the plan identifier and digest,
+authorization, engagement, worker, target, step, tool, tool version, and action.
+Stdout, stderr, errors, artifact identifiers, and artifact content pass through the
+same redactor before envelope validation or persistence. Artifact identifiers must
+be safe logical or workspace-relative names; absolute, drive-qualified, empty, and
+traversal components fail closed. A redaction or schema failure discards the
+reservation and produces no record or artifact. Captured output is untrusted data,
+so prompt-like text in a stream or artifact does not become an instruction.
+
+Raw values remain in memory only for redaction and are prohibited from
+persistence. Redacted artifacts use an owner-controlled workspace, private
+directories, and `0600` files on POSIX systems. File permissions restrict access;
+they do not encrypt evidence at rest. Use an encrypted filesystem or storage
+service when the deployment requires encryption. COPS does not automatically
+delete redacted evidence: the workspace owner must enforce the engagement's
+retention and deletion schedule. The evidence lifecycle fields state these
+implemented controls and the absence of automatic deletion; they are not a
+substitute for an external retention job or encryption control.
 
 ## Validate in the scenario laboratory
 

@@ -11,11 +11,13 @@ import os
 import re
 import stat
 import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, BinaryIO
 
-from cops.evidence.canonical import digest, utc_now
+from cops.evidence.canonical import digest
+from cops.evidence.contract import build_envelope
 
 from .filesystem import open_directory_no_symlinks
 from .redaction import StreamRedactor
@@ -46,6 +48,32 @@ class EvidenceCaptureError(RuntimeError):
     """Evidence could not be written without crossing the workspace boundary."""
 
 
+@dataclass(frozen=True)
+class EvidenceContext:
+    """Approval and plan provenance attached to every execution evidence record."""
+
+    plan_id: str
+    plan_digest: str
+    authorization_id: str
+    engagement_id: str
+    worker_identity: str
+    target: str
+
+    def __post_init__(self) -> None:
+        identifiers = {
+            "plan_id": self.plan_id,
+            "authorization_id": self.authorization_id,
+            "engagement_id": self.engagement_id,
+            "worker_identity": self.worker_identity,
+            "target": self.target,
+        }
+        for field_name, value in identifiers.items():
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"evidence {field_name} must be a non-empty string")
+        if not isinstance(self.plan_digest, str) or re.fullmatch(r"[0-9a-f]{64}", self.plan_digest) is None:
+            raise ValueError("evidence plan_digest must be a lowercase SHA256 digest")
+
+
 @dataclass
 class StepTelemetry:
     """Telemetry captured for a single execution step."""
@@ -72,10 +100,23 @@ class EvidenceRecorder:
         redactor: StreamRedactor | None = None,
         *,
         portable_inert: bool = False,
+        context: EvidenceContext | None = None,
     ) -> None:
         self.workspace_dir = Path(workspace_dir)
         self.redactor = redactor or StreamRedactor()
         self.portable_inert = portable_inert
+        if context is None:
+            if not portable_inert:
+                raise ValueError("complete evidence context is required for executable operations")
+            context = EvidenceContext(
+                plan_id="portable-inert-plan",
+                plan_digest=hashlib.sha256(b"portable-inert-plan").hexdigest(),
+                authorization_id="portable-inert-authorization",
+                engagement_id="portable-inert-engagement",
+                worker_identity="portable-inert-worker",
+                target="portable-inert-target",
+            )
+        self.context = context
         self.artifacts: list[CapturedArtifact] = []
         self.step_telemetry: list[StepTelemetry] = []
         self.evidence_records: list[dict[str, Any]] = []
@@ -169,12 +210,26 @@ class EvidenceRecorder:
         exit_code: int,
         started_at: str,
         finished_at: str,
+        tool_version: str = "unknown",
+        error: bytes = b"",
+        artifact_outputs: Mapping[str | bytes, bytes] | None = None,
         max_output_bytes: int | None = None,
         reservation: ArtifactReservation | None = None,
     ) -> tuple[bytes, CapturedArtifact]:
-        """Redact output stream, save artifact file, and record step telemetry."""
+        """Validate redacted evidence before any operation output is persisted.
+
+        Raw stream and artifact values remain in memory only long enough to be
+        redacted.  The evidence envelope stores redacted values or their hashes;
+        a redaction or envelope validation failure discards the reservation.
+        """
         if self.portable_inert and tool != "inert":
             raise EvidenceCaptureError("portable evidence mode is restricted to inert operations")
+        if (
+            not isinstance(tool_version, str)
+            or not tool_version.strip()
+            or (not self.portable_inert and tool_version == "unknown")
+        ):
+            raise EvidenceCaptureError("tool version is required for executable operation evidence")
         if max_output_bytes is not None and max_output_bytes < 0:
             raise ValueError("max_output_bytes must be non-negative")
         if reservation is None:
@@ -182,14 +237,120 @@ class EvidenceRecorder:
         if self._reservations.get(reservation.path) != reservation:
             raise EvidenceCaptureError("evidence artifact reservation is not active")
         try:
-            raw_combined = stdout + (b"\n" if stdout and stderr else b"") + stderr
-            redacted_full = self.redactor.redact_bytes(raw_combined)
-            redacted_characters = max(0, len(raw_combined) - len(redacted_full))
+            redacted_stdout = self.redactor.redact_bytes(stdout)
+            redacted_stderr = self.redactor.redact_bytes(stderr)
+            redacted_error = self.redactor.redact_bytes(error)
+            redacted_artifacts: list[dict[str, Any]] = []
+            for raw_path, raw_content in (artifact_outputs or {}).items():
+                if isinstance(raw_path, str):
+                    raw_path_text = raw_path
+                    raw_path_bytes = raw_path.encode("utf-8")
+                elif isinstance(raw_path, bytes):
+                    raw_path_bytes = raw_path
+                    raw_path_text = raw_path.decode("utf-8")
+                else:
+                    raise TypeError("artifact path must be text or bytes")
+                if not isinstance(raw_content, bytes):
+                    raise TypeError("artifact content must be bytes")
+                _canonical_artifact_identifier(raw_path_text)
+                redacted_path = self.redactor.redact_bytes(raw_path_bytes).decode("utf-8")
+                redacted_path = _canonical_artifact_identifier(redacted_path)
+                redacted_content = self.redactor.redact_bytes(raw_content)
+                redacted_artifacts.append(
+                    {
+                        "path": redacted_path,
+                        "content_sha256": hashlib.sha256(redacted_content).hexdigest(),
+                        "size_bytes": len(redacted_content),
+                    }
+                )
+
+            redacted_full = redacted_stdout + (b"\n" if redacted_stdout and redacted_stderr else b"") + redacted_stderr
+            redacted_characters = sum(
+                max(0, len(raw_value) - len(redacted_value))
+                for raw_value, redacted_value in (
+                    (stdout, redacted_stdout),
+                    (stderr, redacted_stderr),
+                    (error, redacted_error),
+                )
+            )
             redacted_bytes = redacted_full
             if max_output_bytes is not None:
                 redacted_bytes = redacted_bytes[:max_output_bytes]
 
             truncated_bytes = len(redacted_full) - len(redacted_bytes)
+            artifact_sha256 = hashlib.sha256(redacted_bytes).hexdigest()
+            context = self.context
+            evidence_entry = build_envelope(
+                acquisition_id=f"execution:{context.authorization_id}",
+                product="cops-worker",
+                api="execution",
+                tenant=context.engagement_id,
+                scope=[context.target],
+                identity=context.worker_identity,
+                locator=f"plan:{context.plan_id}/step:{step_id}",
+                payload={
+                    "provenance": {
+                        "plan_id": context.plan_id,
+                        "plan_digest": context.plan_digest,
+                        "authorization_id": context.authorization_id,
+                        "engagement_id": context.engagement_id,
+                        "worker_identity": context.worker_identity,
+                        "target": context.target,
+                        "step_id": step_id,
+                        "tool": tool,
+                        "tool_version": tool_version,
+                        "action": action,
+                    },
+                    "streams": {
+                        "stdout": _redacted_stream_metadata(redacted_stdout),
+                        "stderr": _redacted_stream_metadata(redacted_stderr),
+                        "error": _redacted_stream_metadata(redacted_error),
+                    },
+                    "artifacts": redacted_artifacts,
+                    "result": {
+                        "artifact_sha256": artifact_sha256,
+                        "artifact_size_bytes": len(redacted_bytes),
+                        "artifact_truncated_bytes": truncated_bytes,
+                        "exit_code": exit_code,
+                    },
+                    "trust": {
+                        "classification": "untrusted",
+                        "instruction_handling": "data_only",
+                    },
+                    "lifecycle": {
+                        "raw": {
+                            "storage": "memory_only",
+                            "persistence": "prohibited",
+                            "retained": False,
+                            "persistence_gate": "redaction_and_schema_validation",
+                        },
+                        "redacted": {
+                            "storage": "owner_only_workspace",
+                            "directory_mode": "0700",
+                            "file_mode": "0600",
+                            "retention_controller": "workspace_owner",
+                            "automatic_deletion": False,
+                        },
+                    },
+                },
+                acquired_at=finished_at,
+                transformed_at=finished_at,
+                observed_at=finished_at,
+                emitted_at=finished_at,
+                request_fingerprint=context.plan_digest,
+                page=1,
+                source_version=tool_version,
+                raw_reference=None,
+            )
+
+        except BaseException as error:
+            self.discard_reservation(reservation)
+            if not isinstance(error, Exception):
+                raise
+            raise EvidenceCaptureError("evidence redaction or validation failed") from None
+        # Persistence is deliberately last: redaction and envelope schema
+        # validation must both succeed before bytes cross this boundary.
+        try:
             self._write_reserved_artifact(reservation, redacted_bytes)
         except BaseException:
             self.discard_reservation(reservation)
@@ -201,7 +362,6 @@ class EvidenceRecorder:
             for fd in held_dirs:
                 os.close(fd)
 
-        artifact_sha256 = hashlib.sha256(redacted_bytes).hexdigest()
         artifact = CapturedArtifact(
             name=reservation.name,
             path=reservation.path,
@@ -218,26 +378,14 @@ class EvidenceRecorder:
             exit_code=exit_code,
             started_at=started_at,
             finished_at=finished_at,
-            stdout_sha256=digest(self.redactor.redact_bytes(stdout).decode("utf-8", errors="replace")),
-            stderr_sha256=digest(self.redactor.redact_bytes(stderr).decode("utf-8", errors="replace")),
+            stdout_sha256=digest(redacted_stdout.decode("utf-8", errors="replace")),
+            stderr_sha256=digest(redacted_stderr.decode("utf-8", errors="replace")),
             output_length=len(redacted_bytes),
             redacted_characters=redacted_characters,
             truncated_bytes=truncated_bytes,
         )
         self.step_telemetry.append(telemetry)
 
-        # Record structured evidence payload
-        evidence_entry = {
-            "evidence_id": f"ev-{step_id}",
-            "recorded_at": utc_now(),
-            "step_id": step_id,
-            "tool": tool,
-            "action": action,
-            "artifact_sha256": artifact_sha256,
-            "artifact_size_bytes": len(redacted_bytes),
-            "artifact_truncated_bytes": truncated_bytes,
-            "exit_code": exit_code,
-        }
         self.evidence_records.append(evidence_entry)
 
         return redacted_bytes, artifact
@@ -571,3 +719,24 @@ class EvidenceRecorder:
     def get_evidence_hashes(self) -> list[str]:
         """Return list of canonical SHA256 hashes for all recorded evidence entries."""
         return [digest(record) for record in self.evidence_records]
+
+
+def _redacted_stream_metadata(value: bytes) -> dict[str, Any]:
+    """Return non-reversible metadata for an already-redacted stream."""
+    return {
+        "sha256": hashlib.sha256(value).hexdigest(),
+        "size_bytes": len(value),
+    }
+
+
+def _canonical_artifact_identifier(value: str) -> str:
+    """Return a safe logical artifact identifier without host path details."""
+    if not value or "\x00" in value:
+        raise ValueError("artifact identifier is invalid")
+    normalized = value.replace("\\", "/")
+    if normalized.startswith("/") or re.match(r"^[A-Za-z]:", normalized):
+        raise ValueError("artifact identifier must be workspace-relative")
+    parts = normalized.split("/")
+    if any(part in {"", ".", ".."} for part in parts):
+        raise ValueError("artifact identifier contains an unsafe path component")
+    return "/".join(parts)
