@@ -7,11 +7,11 @@ import re
 import socket
 import stat
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator, Protocol
+from typing import Protocol
 
 from .filesystem import SecureDirectoryError, open_directory_no_symlinks
 from .process import BoundedProcessResult, ProcessResourceLimits, run_bounded_process
@@ -128,7 +128,7 @@ class LinuxBubblewrapSandbox:
     def _sandbox_environment(
         env: Mapping[str, str], operation_env: Mapping[str, str] | None
     ) -> dict[str, str]:
-        sandbox_env = {"PATH": "/usr/bin:/bin", "HOME": "/home/cops", "TMPDIR": "/tmp"}
+        sandbox_env = {"PATH": "/usr/bin:/bin", "HOME": "/home/cops", "TMPDIR": "/tmp"}  # noqa: S108 - private sandbox tmpfs
         sandbox_env.update({key: value for key, value in env.items() if key in {"LANG", "LC_ALL", "TZ"}})
         for key, value in (operation_env or {}).items():
             if not isinstance(key, str) or _ENV_NAME.fullmatch(key) is None:
@@ -195,7 +195,7 @@ class LinuxBubblewrapSandbox:
         for path in ("/usr", "/bin", "/lib", "/lib64"):
             if Path(path).exists():
                 command.extend(("--ro-bind", path, path))
-        command.extend(("--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--tmpfs", "/home", "--tmpfs", "/run"))
+        command.extend(("--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--tmpfs", "/home", "--tmpfs", "/run"))  # noqa: S108 - private tmpfs mount
         return command
 
     def assert_ready(self, worker_identity: str, *, cwd: Path) -> None:

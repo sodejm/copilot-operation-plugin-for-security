@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import os
 import ctypes
 import math
+import os
 import resource
 import selectors
 import signal

@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
+
 from cops.execution.sandbox import LinuxBubblewrapSandbox, SandboxReadinessError
 
 pytestmark = [
