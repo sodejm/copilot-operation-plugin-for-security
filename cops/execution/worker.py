@@ -32,6 +32,8 @@ from cops.contracts.validation import validate_contract
 from cops.evidence.canonical import utc_now
 
 from .control import ApprovalConsumptionReceipt, ApprovalControl, ApprovalControlError
+from .egress import CertificateURIIdentityVerifier, ExecutionEgressBroker, HTTPSExecutionMediator
+from .egress_policy import HTTPSOperationEgressPolicy, OperationEgressPolicyError, parse_operation_egress_policy
 from .executable import (
     ExecutablePreparationTimeoutError,
     ExecutableVerificationError,
@@ -39,7 +41,7 @@ from .executable import (
     verify_executable_launch_support,
 )
 from .filesystem import SecureDirectoryError, open_directory_no_symlinks
-from .sandbox import ExecutionSandbox
+from .sandbox import ExecutionSandbox, LinuxBubblewrapSandbox
 
 
 class WorkerError(RuntimeError):
@@ -237,6 +239,7 @@ class IsolatedWorker:
         *,
         adapter_registry: ToolAdapterRegistry | None = None,
         expected_engagement_id: str | None = None,
+        egress_trust_domain: str | None = None,
     ) -> None:
         if not isinstance(worker_inventory, WorkerCapabilityInventory) or not worker_inventory.is_verified:
             raise WorkerIsolationError("a verified owner-provisioned worker capability inventory is required")
@@ -247,6 +250,14 @@ class IsolatedWorker:
         self.scope_guard = scope_guard
         self.adapter_registry = adapter_registry or ToolAdapterRegistry()
         self.expected_engagement_id = expected_engagement_id
+        try:
+            self._egress_identity_verifier = (
+                None
+                if egress_trust_domain is None
+                else CertificateURIIdentityVerifier(trust_domain=egress_trust_domain)
+            )
+        except ValueError as err:
+            raise WorkerIsolationError("worker egress trust domain is invalid") from err
         self.last_cleanup_receipt: Any | None = None
         self._verify_worker_environment()
 
@@ -299,12 +310,33 @@ class IsolatedWorker:
                     "Worker cannot run as root (UID 0); unprivileged execution boundary required."
                 )
 
-    def _preflight_execution_request(self, plan: ActionPlan, *, cancel_requested: bool) -> None:
+    def _preflight_execution_request(
+        self, plan: ActionPlan, *, cancel_requested: bool
+    ) -> tuple[HTTPSOperationEgressPolicy | None, ...]:
         """Reject immutable request failures before preparing or consuming an approval."""
         if cancel_requested:
             raise WorkerExecutionError("execution cancelled by operator before start")
+        try:
+            operation_egress_policies = tuple(parse_operation_egress_policy(op) for op in plan.operations)
+        except OperationEgressPolicyError as err:
+            raise WorkerExecutionError("operation egress policy is invalid") from err
+
+        active_egress_policies = tuple(policy for policy in operation_egress_policies if policy is not None)
+        for operation, policy in zip(plan.operations, operation_egress_policies, strict=True):
+            if policy is not None and operation["tool"] == "inert":
+                raise WorkerExecutionError("operation egress requires a mediated adapter execution")
+        if active_egress_policies:
+            if plan.limits.get("egress_allowed") is not True:
+                raise WorkerExecutionError("action plan must explicitly allow operation egress")
+            if self._egress_identity_verifier is None:
+                raise WorkerIsolationError("operation egress requires an owner-provisioned trust domain")
+            if self.scope_guard is None or not self.scope_guard.scope.egress_allowed:
+                raise WorkerIsolationError("operation egress requires an egress-enabled engagement scope")
+            if not isinstance(self.sandbox, LinuxBubblewrapSandbox):
+                raise WorkerIsolationError("operation egress requires the production Linux sandbox")
+
         if self.scope_guard is None:
-            return
+            return operation_egress_policies
 
         from .scope_guard import ScopeViolationError
 
@@ -317,6 +349,8 @@ class IsolatedWorker:
                 raise WorkerExecutionError(f"scope violation in {label}: {err}") from err
 
         check(plan.target, "plan target")
+        for policy in active_egress_policies:
+            check(policy.host, "operation egress host")
         for operation in plan.operations:
             arguments = operation.get("arguments", {})
             if not isinstance(arguments, Mapping):
@@ -324,6 +358,7 @@ class IsolatedWorker:
             for key in ("target", "host", "destination", "ip"):
                 if key in arguments:
                     check(arguments[key], f"step {operation['step_id']!r} {key}")
+        return operation_egress_policies
 
     def execute_plan(
         self,
@@ -382,7 +417,9 @@ class IsolatedWorker:
         if max_output_bytes is not None and (max_output_bytes <= 0 or max_output_bytes > self.config.max_output_bytes):
             raise WorkerExecutionError("requested output limit exceeds worker limits")
 
-        self._preflight_execution_request(plan_model, cancel_requested=cancel_requested)
+        operation_egress_policies = self._preflight_execution_request(
+            plan_model, cancel_requested=cancel_requested
+        )
 
         # Compatibility and workspace safety are part of the pre-consumption gate.
         secure_evidence_dirs = _supports_secure_evidence_dirs()
@@ -499,7 +536,9 @@ class IsolatedWorker:
 
             # 6. Execute operations in sequence (if checks passed)
             if status == "success":
-                for op in plan_model.operations:
+                for op, operation_egress_policy in zip(
+                    plan_model.operations, operation_egress_policies, strict=True
+                ):
                     step_id = op["step_id"]
                     tool = op["tool"]
                     action = op["action"]
@@ -600,22 +639,58 @@ class IsolatedWorker:
                                 process_runner=self.sandbox.run,
                             )
                             try:
-                                invocation_timeout = step_deadline - monotonic()
-                                if invocation_timeout <= 0:
+                                def run_prepared_adapter(
+                                    *,
+                                    _step_deadline: float = step_deadline,
+                                    _prepared: Any = prepared,
+                                    _cmd: tuple[str, ...] = tuple(cmd),
+                                    _remaining_capture: int = remaining_capture,
+                                    **extra_arguments: Any,
+                                ) -> Any:
+                                    nonlocal adapter_dispatched
+                                    invocation_timeout = _step_deadline - monotonic()
+                                    if invocation_timeout <= 0:
+                                        return None
+                                    adapter_dispatched = True
+                                    return self.sandbox.run(
+                                        [_prepared.invocation_path, *_cmd[1:]],
+                                        cwd=target_workspace,
+                                        env=clean_env,
+                                        timeout_seconds=invocation_timeout,
+                                        max_output_bytes=_remaining_capture,
+                                        pass_fds=_prepared.pass_fds,
+                                        **extra_arguments,
+                                    )
+
+                                if operation_egress_policy is None:
+                                    proc = run_prepared_adapter()
+                                else:
+                                    if self.scope_guard is None or self._egress_identity_verifier is None:
+                                        raise WorkerIsolationError(
+                                            "operation egress preflight state is unavailable"
+                                        )
+                                    mediator = HTTPSExecutionMediator(
+                                        scope_guard=self.scope_guard,
+                                        identity_verifier=self._egress_identity_verifier,
+                                        identity_allowlist=operation_egress_policy.identity_allowlist,
+                                        approved_origin=(
+                                            operation_egress_policy.host,
+                                            operation_egress_policy.port,
+                                        ),
+                                    )
+                                    with ExecutionEgressBroker(mediator).open_channel(
+                                        deadline=step_deadline
+                                    ) as channel:
+                                        proc = run_prepared_adapter(
+                                            operation_env=channel.environment,
+                                            capability_fds=channel.pass_fds,
+                                        )
+                                if proc is None:
                                     stdout_bytes = b""
                                     stderr_bytes = b""
                                     timed_out = True
                                     exit_code = 124
                                 else:
-                                    adapter_dispatched = True
-                                    proc = self.sandbox.run(
-                                        [prepared.invocation_path, *cmd[1:]],
-                                        cwd=target_workspace,
-                                        env=clean_env,
-                                        timeout_seconds=invocation_timeout,
-                                        max_output_bytes=remaining_capture,
-                                        pass_fds=prepared.pass_fds,
-                                    )
                                     stdout_bytes = proc.stdout
                                     stderr_bytes = proc.stderr
                                     timed_out = proc.timed_out

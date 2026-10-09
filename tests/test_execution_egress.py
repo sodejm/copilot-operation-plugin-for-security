@@ -215,11 +215,13 @@ def _mediator(
     max_response_bytes: int = 1_048_576,
     max_response_header_bytes: int = 65_536,
     identity_verifier: ServiceIdentityVerifier | None = None,
+    approved_origin: tuple[str, int] | None = None,
 ) -> HTTPSExecutionMediator:
     return HTTPSExecutionMediator(
         scope_guard=_scope(*domains),
         identity_verifier=identity_verifier or CertificateURIIdentityVerifier(trust_domain=TRUST_DOMAIN),
         identity_allowlist=AuthenticatedServiceAllowlist({IDENTITY: request_targets}),
+        approved_origin=approved_origin,
         resolver=resolver,
         connector=connector,
         max_redirects=max_redirects,
@@ -227,6 +229,30 @@ def _mediator(
         max_response_bytes=max_response_bytes,
         max_response_header_bytes=max_response_header_bytes,
     )
+
+
+@pytest.mark.parametrize(
+    "url",
+    (
+        "https://peer.example.test/v1/status",
+        "https://api.example.test:8443/v1/status",
+    ),
+    ids=("different-host", "different-port"),
+)
+def test_mediator_rejects_scope_allowed_origin_outside_exact_operation(url: str) -> None:
+    resolver = ScriptedResolver({})
+    mediator = _mediator(
+        resolver,
+        FakeConnector(FakeConnection()),
+        domains=("api.example.test", "peer.example.test"),
+        approved_origin=("api.example.test", 443),
+    )
+
+    with pytest.raises(EgressProtocolError, match="approved operation"):
+        mediator.request(method="GET", url=url)
+
+    assert resolver.calls == []
+    assert mediator.observations[-1].decision == "blocked"
 
 
 def _request_document(url: str = "https://api.example.test/v1/status") -> dict[str, object]:

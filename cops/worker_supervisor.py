@@ -22,6 +22,7 @@ from typing import Any
 from cops.adapters import ToolAdapterRegistry
 from cops.contracts.models import Engagement
 from cops.execution.control import ApprovalControlClient
+from cops.execution.egress import CertificateURIIdentityVerifier
 from cops.execution.filesystem import open_directory_no_symlinks
 from cops.execution.sandbox import LinuxBubblewrapSandbox
 from cops.execution.scope_guard import ScopeDefinition, ScopeGuard
@@ -89,6 +90,7 @@ class WorkerSupervisorConfig:
     attestation_key_id: str
     attestation_key_path: Path
     executable_sha256_pins: dict[str, str]
+    egress_trust_domain: str | None = None
 
     @classmethod
     def from_file(cls, path: Path | str) -> WorkerSupervisorConfig:
@@ -110,7 +112,11 @@ class WorkerSupervisorConfig:
             "attestation_key_path",
             "executable_sha256_pins",
         }
-        if set(data) != required or data["schema_version"] != CONFIG_SCHEMA:
+        optional = {"egress_trust_domain"}
+        fields = set(data)
+        if not required <= fields or fields - required - optional:
+            raise WorkerSupervisorError("supervisor configuration fields or schema are invalid")
+        if data["schema_version"] != CONFIG_SCHEMA:
             raise WorkerSupervisorError("supervisor configuration fields or schema are invalid")
         for key in ("expected_host", "worker_identity"):
             if not isinstance(data[key], str) or not data[key].strip():
@@ -140,6 +146,14 @@ class WorkerSupervisorConfig:
         pins = data["executable_sha256_pins"]
         if not isinstance(pins, dict) or any(not isinstance(k, str) or not isinstance(v, str) for k, v in pins.items()):
             raise WorkerSupervisorError("supervisor executable pins must be a string mapping")
+        egress_trust_domain = data.get("egress_trust_domain")
+        if egress_trust_domain is not None:
+            if not isinstance(egress_trust_domain, str):
+                raise WorkerSupervisorError("supervisor egress trust domain is invalid")
+            try:
+                CertificateURIIdentityVerifier(trust_domain=egress_trust_domain)
+            except ValueError as err:
+                raise WorkerSupervisorError("supervisor egress trust domain is invalid") from err
         return cls(
             expected_host=data["expected_host"],
             worker_identity=data["worker_identity"],
@@ -155,6 +169,7 @@ class WorkerSupervisorConfig:
             attestation_key_id=data["attestation_key_id"],
             attestation_key_path=Path(data["attestation_key_path"]),
             executable_sha256_pins=pins,
+            egress_trust_domain=egress_trust_domain,
         )
 
 
@@ -175,9 +190,15 @@ def build_receiver(config: WorkerSupervisorConfig) -> SSHRemoteExecutionReceiver
         inventory,
         control,
         sandbox,
-        scope_guard=ScopeGuard(ScopeDefinition.from_engagement_scope(engagement.scope)),
+        scope_guard=ScopeGuard(
+            ScopeDefinition.from_engagement_scope(
+                engagement.scope,
+                egress_allowed=config.egress_trust_domain is not None,
+            )
+        ),
         adapter_registry=ToolAdapterRegistry(executable_sha256_pins=config.executable_sha256_pins),
         expected_engagement_id=engagement.engagement_id,
+        egress_trust_domain=config.egress_trust_domain,
     )
     return SSHRemoteExecutionReceiver(
         expected_host=config.expected_host,

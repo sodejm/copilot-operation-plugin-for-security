@@ -417,6 +417,7 @@ class HTTPSExecutionMediator:
         scope_guard: ScopeGuard,
         identity_verifier: ServiceIdentityVerifier,
         identity_allowlist: AuthenticatedServiceAllowlist,
+        approved_origin: tuple[str, int] | None = None,
         resolver: Resolver | None = None,
         connector: EgressConnector | None = None,
         timeout_seconds: float = 15.0,
@@ -436,6 +437,18 @@ class HTTPSExecutionMediator:
         self._scope_guard = scope_guard
         self._identity_verifier = identity_verifier
         self._identity_allowlist = identity_allowlist
+        if approved_origin is None:
+            self._approved_origin = None
+        else:
+            approved_host, approved_port = approved_origin
+            if (
+                not isinstance(approved_host, str)
+                or not approved_host.strip()
+                or type(approved_port) is not int
+                or not 1 <= approved_port <= 65_535
+            ):
+                raise ValueError("approved egress origin must contain a non-empty host and valid port")
+            self._approved_origin = (approved_host.rstrip(".").lower(), approved_port)
         self._resolver = resolver or _default_resolver
         self._connector = connector or DirectTLSConnector()
         self._timeout_seconds = timeout_seconds
@@ -469,6 +482,8 @@ class HTTPSExecutionMediator:
             for redirect_count in range(self._max_redirects + 1):
                 parsed = self._validate_url(current_url)
                 origin = (parsed.scheme, parsed.hostname or "", parsed.port or 443)
+                if self._approved_origin is not None and origin[1:] != self._approved_origin:
+                    raise EgressProtocolError("mediated request origin does not match the approved operation")
                 if initial_origin is None:
                     initial_origin = origin
                 elif origin != initial_origin:
