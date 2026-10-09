@@ -1,0 +1,70 @@
+# Reviewed 2026-10-08. Local, version-controlled rules; no registry references.
+# High-confidence dangerous primitives. Canonical analyzers and Trivy add coverage.
+rules:
+  - id: python-dynamic-evaluation
+    languages: [python]
+    severity: ERROR
+    message: Dynamic evaluation requires replacement with a constrained parser.
+    pattern-either:
+      - pattern: eval($VALUE, ...)
+      - pattern: exec($VALUE, ...)
+  - id: python-unsafe-yaml-load
+    languages: [python]
+    severity: ERROR
+    message: Use yaml.safe_load or an explicitly safe loader.
+    patterns:
+      - pattern: yaml.load(...)
+      - pattern-not: yaml.load(..., Loader=yaml.SafeLoader, ...)
+      - pattern-not: yaml.load(..., Loader=yaml.CSafeLoader, ...)
+  - id: python-shell-command
+    languages: [python]
+    severity: ERROR
+    message: Use an argument array with shell disabled.
+    pattern: subprocess.$CALL(..., shell=True, ...)
+  - id: javascript-dynamic-evaluation
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: Replace dynamic evaluation with a constrained parser.
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: new Function(...)
+  - id: javascript-disabled-tls-verification
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: TLS verification must remain enabled.
+    pattern: 'rejectUnauthorized: false'
+  - id: go-disabled-tls-verification
+    languages: [go]
+    severity: ERROR
+    message: TLS verification must remain enabled.
+    pattern: 'tls.Config{..., InsecureSkipVerify: true, ...}'
+  - id: go-shell-command
+    languages: [go]
+    severity: ERROR
+    message: Invoke the program directly with an argument array.
+    pattern-either:
+      - pattern: exec.Command("sh", "-c", ...)
+      - pattern: exec.Command("bash", "-c", ...)
+  # Generic matching avoids known Bash parser gaps on valid arithmetic and arrays.
+  # ShellCheck and bash -n provide the complementary structured shell checks.
+  - id: shell-disable-tls-verification
+    languages: [generic]
+    severity: ERROR
+    message: curl must validate TLS certificates.
+    paths:
+      include: ['*.sh']
+    pattern-regex: '\bcurl\b[^\n]*(?:--insecure\b|(?:^|\s)-k(?:\s|$))'
+  - id: workflow-insecure-node-override
+    languages: [generic]
+    severity: ERROR
+    message: Do not force insecure Node runtimes in GitHub workflows.
+    paths:
+      include: ['*.yml', '*.yaml']
+    pattern-regex: 'ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION\s*:\s*["\x27]?true'
+  - id: terraform-disable-tls-verification
+    languages: [generic]
+    severity: ERROR
+    message: Infrastructure providers must validate TLS certificates.
+    paths:
+      include: ['*.tf', '*.hcl']
+    pattern-regex: '(?m)^\s*(?:insecure|skip_tls_verify)\s*=\s*true\b'

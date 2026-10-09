@@ -14,7 +14,8 @@ Feature: Credential Masking and Evidence Capture
 
   Scenario: Recording step telemetry and generating evidence hashes
     Given an evidence recorder with a temporary workspace
-    When recording execution output "API returned ghp_abcdefghijklmnopqrstuvwxyz1234567890" for step "step-01"
+    When recording execution output with a synthetic credential for step "step01"
     Then the recorded artifact is saved to disk
     And the artifact contains "[REDACTED:GITHUB_TOKEN]"
     And at least one evidence hash is generated
+    And the synthetic credential is absent from the artifact
