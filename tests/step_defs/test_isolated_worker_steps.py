@@ -34,7 +34,9 @@ from cops.execution.control import (
     ApprovalAuthority,
     ApprovalControlError,
 )
+from cops.execution.ssh_transport import SSHTransportError
 from tests.auth_testkit import authorize_test_plan, worker_inventory_for_plan
+from tests.ssh_transport_testkit import make_transport
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = ROOT / "cops" / "contracts" / "fixtures"
@@ -113,6 +115,7 @@ def verify_control_receipt_is_consume_only(worker_context):
     }
     assert set(worker_context["control_response"]) == {
         "schema_version", "request_id", "ok", "authorization_id", "authorization_digest",
+        "target", "engagement_id", "plan_digest", "action_plan_id", "worker_identity",
     }
     assert worker_context["control_request"]["operation"] == "consume"
 
@@ -160,6 +163,30 @@ def verify_mismatch_preserves_approval(worker_context):
     assert worker_context["store"].get_authorization(
         worker_context["auth"].authorization_id
     ).status == "approved"
+
+
+@given("a versioned execution request over host-key-verified SSH")
+def versioned_ssh_request(worker_context, tmp_path: Path):
+    transport, marker, _ = make_transport(tmp_path)
+    worker_context["ssh_transport"] = transport
+    worker_context["ssh_marker"] = marker
+
+
+@when("the SSH host identity or worker identity differs from the request")
+def reject_ssh_identity_mismatch(worker_context):
+    transport = worker_context["ssh_transport"]
+    rejected_modes = []
+    for mode in ("host-mismatch", "worker-mismatch"):
+        with pytest.raises(SSHTransportError, match="identity does not match"):
+            transport.request({"mode": mode}, request_id=f"request-{mode}")
+        rejected_modes.append(mode)
+    worker_context["rejected_ssh_modes"] = rejected_modes
+
+
+@then("the worker rejects the request before dispatch")
+def verify_ssh_rejection_before_dispatch(worker_context):
+    assert worker_context["rejected_ssh_modes"] == ["host-mismatch", "worker-mismatch"]
+    assert worker_context["ssh_marker"].read_text(encoding="utf-8") == "invoked"
 
 
 @pytest.fixture

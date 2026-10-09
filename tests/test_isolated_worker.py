@@ -105,6 +105,7 @@ def test_legacy_approval_rows_migrate_to_readable_non_executable_records(tmp_pat
             ),
         )
 
+    db_path.chmod(0o600)
     store = ApprovalStore(db_path)
     historical = store.get_authorization(auth.authorization_id)
     assert isinstance(historical, LegacyApprovalRecord)
