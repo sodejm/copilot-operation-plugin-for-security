@@ -12,9 +12,13 @@ unredacted execution data.
 `ApprovalConsumptionReceipt` returned by the worker's consume-only
 `ApprovalControl.consume_authorization` call for the current dispatch. A
 caller-created authorization whose fields merely say `consumed` is not authority.
-The worker passes the exact receipt returned by that control to the resolver
-immediately before an approved operation launch. The resolver defensively checks
-the receipt's authorization digest, plan identifier and digest, engagement,
+The resolver is bound to that exact approval-control client. It first calls the
+client's receipt-provenance validator and requires the validator to return the same
+receipt object. A field-identical replacement or a receipt issued by another
+client fails before operation parsing, grant selection, or provider access. The
+worker passes the exact receipt returned by that control to the resolver
+immediately before an approved operation launch. The resolver then defensively
+checks the receipt's authorization digest, plan identifier and digest, engagement,
 worker, and target bindings before provider access.
 
 Every `CredentialGrant` binds one declared reference to all of these values:
@@ -84,6 +88,8 @@ encryption.
 
 ## Acceptance evidence
 
+- Caller-created, field-identical replacement, and other-client receipts fail
+  before provider access.
 - Cross-worker and exact-operation grants with a mismatched plan digest,
   engagement, or target fail before provider access. Grants for a different plan
   or operation cannot supply a credential to the current operation and cause no

@@ -53,6 +53,23 @@ class _ConsumptionReceipt:
     target: str
 
 
+class _ReceiptAuthority:
+    def __init__(self) -> None:
+        self._issued: dict[int, _ConsumptionReceipt] = {}
+
+    def issue(self, receipt: _ConsumptionReceipt) -> _ConsumptionReceipt:
+        self._issued[id(receipt)] = receipt
+        return receipt
+
+    def validate_receipt_provenance(
+        self,
+        receipt: _ConsumptionReceipt,
+    ) -> _ConsumptionReceipt:
+        if self._issued.get(id(receipt)) is not receipt:
+            raise RuntimeError("receipt was not issued by this authority")
+        return receipt
+
+
 def _load_plan() -> ActionPlan:
     fixture = Path(__file__).parents[2] / "cops" / "contracts" / "fixtures" / "valid_action_plan.json"
     return ActionPlan.from_dict(json.loads(fixture.read_text(encoding="utf-8")))
@@ -156,15 +173,19 @@ def then_evidence_hashes_generated(cred_context):
 @given(parsers.parse('an authority-issued consumption receipt for worker "{worker_identity}"'))
 def given_consumption_receipt(cred_context, worker_identity):
     plan = _load_plan()
+    approval_control = _ReceiptAuthority()
     cred_context["plan"] = plan
-    cred_context["consumption_receipt"] = _ConsumptionReceipt(
-        authorization_id="authorization-bdd",
-        authorization_digest="a" * 64,
-        action_plan_id=plan.plan_id,
-        plan_digest=plan.plan_digest,
-        engagement_id=plan.engagement_id,
-        worker_identity=worker_identity,
-        target=plan.target,
+    cred_context["approval_control"] = approval_control
+    cred_context["consumption_receipt"] = approval_control.issue(
+        _ConsumptionReceipt(
+            authorization_id="authorization-bdd",
+            authorization_digest="a" * 64,
+            action_plan_id=plan.plan_id,
+            plan_digest=plan.plan_digest,
+            engagement_id=plan.engagement_id,
+            worker_identity=worker_identity,
+            target=plan.target,
+        )
     )
 
 
@@ -191,6 +212,7 @@ def given_cross_worker_grant(cred_context, worker_identity):
                 action=str(operation["action"]),
             )
         ],
+        approval_control=cred_context["approval_control"],
     )
 
 
@@ -200,7 +222,7 @@ def when_worker_requests_credential(cred_context, worker_identity):
     with pytest.raises(CredentialResolutionError) as caught:
         cred_context["resolver"].resolve_for_operation(
             plan=plan,
-            authorization_receipt=cred_context["consumption_receipt"],
+            authorization=cred_context["consumption_receipt"],
             worker_identity=worker_identity,
             operation=plan.operations[0],
         )

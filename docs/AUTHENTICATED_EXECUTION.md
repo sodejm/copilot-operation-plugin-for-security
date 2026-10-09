@@ -209,8 +209,11 @@ the approval database on durable storage owned by the authority account and prot
 it with the same access controls as other execution records.
 
 When an operation needs a credential, configure a `ScopedCredentialResolver` with
-operator-supplied exact grants and a credential provider. The worker follows this
-order for each launch:
+operator-supplied exact grants, a credential provider, and the exact
+`ApprovalControlClient` used by the worker. The resolver asks that client to
+validate receipt provenance before it reads operation fields or contacts the
+credential provider. A field-identical copy or a receipt from another client is
+rejected. The worker follows this order for each launch:
 
 1. Validate adapter compatibility and probe executable identity and version with
    no credential environment.

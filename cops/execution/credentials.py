@@ -45,6 +45,16 @@ class ApprovalConsumptionReceiptView(Protocol):
     target: str
 
 
+class ApprovalReceiptAuthority(Protocol):
+    """Authority that proves a receipt came from its consume operation."""
+
+    def validate_receipt_provenance(
+        self,
+        receipt: ApprovalConsumptionReceiptView,
+    ) -> ApprovalConsumptionReceiptView:
+        """Return the same receipt only when this authority issued it."""
+
+
 @dataclass(frozen=True)
 class CredentialGrant:
     """Exact binding that permits one plan operation to resolve one reference."""
@@ -70,31 +80,40 @@ class ScopedCredentialResolver:
         provider: CredentialProvider,
         grants: list[CredentialGrant] | tuple[CredentialGrant, ...],
         *,
+        approval_control: ApprovalReceiptAuthority,
         redactor: StreamRedactor | None = None,
     ) -> None:
         self._provider = provider
         self._grants = tuple(grants)
+        self._approval_control = approval_control
         self.redactor = redactor or StreamRedactor()
 
     def resolve_for_operation(
         self,
         *,
         plan: ActionPlan,
-        authorization_receipt: ApprovalConsumptionReceiptView,
+        authorization: ApprovalConsumptionReceiptView,
         worker_identity: str,
         operation: Mapping[str, Any],
     ) -> dict[str, str]:
         """Return an environment for an authority-issued consumption receipt.
 
-        ``authorization_receipt`` must be the object returned directly by the
+        ``authorization`` must be the object returned directly by the
         worker's consume-only ``ApprovalControl`` call. The receipt bindings are
         checked defensively, but caller-constructed authorization status fields
         are not accepted as proof that the authority performed consumption.
         """
+        try:
+            verified_authorization = self._approval_control.validate_receipt_provenance(authorization)
+        except Exception:
+            raise CredentialResolutionError("credential consumption receipt provenance is invalid") from None
+        if verified_authorization is not authorization:
+            raise CredentialResolutionError("credential consumption receipt provenance is invalid")
+
         operation_data = _plain(operation)
         if not isinstance(operation_data, dict):
             raise CredentialResolutionError("credential request operation is invalid")
-        self._validate_authorization_receipt(plan, authorization_receipt, worker_identity)
+        self._validate_authorization_receipt(plan, authorization, worker_identity)
         if operation_data not in [_plain(item) for item in plan.operations]:
             raise CredentialResolutionError("credential request is outside the approved plan")
 

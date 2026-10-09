@@ -33,6 +33,26 @@ class _ForgedStatusOnlyAuthorization:
     consumed_by_worker: str = "worker-credential-test"
 
 
+class _ReceiptAuthority:
+    def __init__(self) -> None:
+        self._issued: dict[int, _ConsumptionReceipt] = {}
+
+    def issue(self, receipt: _ConsumptionReceipt) -> _ConsumptionReceipt:
+        self._issued[id(receipt)] = receipt
+        return receipt
+
+    def validate_receipt_provenance(
+        self,
+        receipt: _ConsumptionReceipt,
+    ) -> _ConsumptionReceipt:
+        if self._issued.get(id(receipt)) is not receipt:
+            raise RuntimeError("receipt was not issued by this authority")
+        return receipt
+
+
+_APPROVAL_CONTROL = _ReceiptAuthority()
+
+
 class RecordingProvider:
     def __init__(self, value: str) -> None:
         self.value = value
@@ -63,15 +83,33 @@ def _load_plan() -> ActionPlan:
 def _receipt(
     plan: ActionPlan,
     worker_identity: str = "worker-credential-test",
+    **overrides: str,
 ) -> _ConsumptionReceipt:
-    return _ConsumptionReceipt(
-        authorization_id="authorization-credential-test",
-        authorization_digest="a" * 64,
-        action_plan_id=plan.plan_id,
-        plan_digest=plan.plan_digest,
-        engagement_id=plan.engagement_id,
-        worker_identity=worker_identity,
-        target=plan.target,
+    values = {
+        "authorization_id": "authorization-credential-test",
+        "authorization_digest": "a" * 64,
+        "action_plan_id": plan.plan_id,
+        "plan_digest": plan.plan_digest,
+        "engagement_id": plan.engagement_id,
+        "worker_identity": worker_identity,
+        "target": plan.target,
+    }
+    values.update(overrides)
+    return _APPROVAL_CONTROL.issue(_ConsumptionReceipt(**values))
+
+
+def _scoped_resolver(
+    provider,
+    grants,
+    *,
+    approval_control: _ReceiptAuthority = _APPROVAL_CONTROL,
+    redactor=None,
+) -> ScopedCredentialResolver:
+    return ScopedCredentialResolver(
+        provider,
+        grants,
+        approval_control=approval_control,
+        redactor=redactor,
     )
 
 
@@ -102,12 +140,12 @@ def _grant(
 def test_resolves_only_with_authority_receipt_and_registers_redaction() -> None:
     plan = _load_plan()
     provider = RecordingProvider("short-secret")
-    resolver = ScopedCredentialResolver(provider, [_grant(plan)])
+    resolver = _scoped_resolver(provider, [_grant(plan)])
     receipt = _receipt(plan)
 
     operation_environment = resolver.resolve_for_operation(
         plan=plan,
-        authorization_receipt=receipt,
+        authorization=receipt,
         worker_identity="worker-credential-test",
         operation=plan.operations[0],
     )
@@ -135,13 +173,13 @@ def test_consumption_receipt_mismatch_is_denied_before_provider_lookup(
 ) -> None:
     plan = _load_plan()
     provider = RecordingProvider("unused-secret")
-    resolver = ScopedCredentialResolver(provider, [_grant(plan)])
-    receipt = replace(_receipt(plan), **{field: wrong_value})
+    resolver = _scoped_resolver(provider, [_grant(plan)])
+    receipt = _receipt(plan, **{field: wrong_value})
 
     with pytest.raises(CredentialResolutionError, match="consumption receipt"):
         resolver.resolve_for_operation(
             plan=plan,
-            authorization_receipt=receipt,
+            authorization=receipt,
             worker_identity="worker-credential-test",
             operation=plan.operations[0],
         )
@@ -152,12 +190,51 @@ def test_consumption_receipt_mismatch_is_denied_before_provider_lookup(
 def test_status_only_authorization_is_not_accepted_as_consumption_proof() -> None:
     plan = _load_plan()
     provider = RecordingProvider("unused-secret")
-    resolver = ScopedCredentialResolver(provider, [_grant(plan)])
+    resolver = _scoped_resolver(provider, [_grant(plan)])
 
-    with pytest.raises(CredentialResolutionError, match="consumption receipt is invalid"):
+    with pytest.raises(CredentialResolutionError, match="receipt provenance is invalid"):
         resolver.resolve_for_operation(
             plan=plan,
-            authorization_receipt=_ForgedStatusOnlyAuthorization(),  # type: ignore[arg-type]
+            authorization=_ForgedStatusOnlyAuthorization(),  # type: ignore[arg-type]
+            worker_identity="worker-credential-test",
+            operation=plan.operations[0],
+        )
+
+    assert provider.references == []
+
+
+def test_field_identical_replaced_receipt_is_denied_before_provider_lookup() -> None:
+    plan = _load_plan()
+    provider = RecordingProvider("unused-secret")
+    resolver = _scoped_resolver(provider, [_grant(plan)])
+    forged_receipt = replace(_receipt(plan))
+
+    with pytest.raises(CredentialResolutionError, match="receipt provenance is invalid"):
+        resolver.resolve_for_operation(
+            plan=plan,
+            authorization=forged_receipt,
+            worker_identity="worker-credential-test",
+            operation=plan.operations[0],
+        )
+
+    assert provider.references == []
+
+
+def test_other_authority_receipt_is_denied_before_provider_lookup() -> None:
+    plan = _load_plan()
+    provider = RecordingProvider("unused-secret")
+    other_authority = _ReceiptAuthority()
+    resolver = _scoped_resolver(
+        provider,
+        [_grant(plan)],
+        approval_control=other_authority,
+    )
+    receipt_from_original_authority = _receipt(plan)
+
+    with pytest.raises(CredentialResolutionError, match="receipt provenance is invalid"):
+        resolver.resolve_for_operation(
+            plan=plan,
+            authorization=receipt_from_original_authority,
             worker_identity="worker-credential-test",
             operation=plan.operations[0],
         )
@@ -180,13 +257,13 @@ def test_exact_operation_scope_mismatch_is_denied_before_provider_lookup(
 ) -> None:
     plan = _load_plan()
     provider = RecordingProvider("unused-secret")
-    resolver = ScopedCredentialResolver(provider, [replace(_grant(plan), **{field: wrong_value})])
+    resolver = _scoped_resolver(provider, [replace(_grant(plan), **{field: wrong_value})])
     receipt = _receipt(plan)
 
     with pytest.raises(CredentialResolutionError, match="no credential grant"):
         resolver.resolve_for_operation(
             plan=plan,
-            authorization_receipt=receipt,
+            authorization=receipt,
             worker_identity="worker-credential-test",
             operation=plan.operations[0],
         )
@@ -197,7 +274,7 @@ def test_exact_operation_scope_mismatch_is_denied_before_provider_lookup(
 def test_different_plan_grant_cannot_supply_current_operation() -> None:
     plan = _load_plan()
     provider = RecordingProvider("unused-secret")
-    resolver = ScopedCredentialResolver(
+    resolver = _scoped_resolver(
         provider,
         [replace(_grant(plan), plan_id="different-plan")],
     )
@@ -205,7 +282,7 @@ def test_different_plan_grant_cannot_supply_current_operation() -> None:
 
     environment = resolver.resolve_for_operation(
         plan=plan,
-        authorization_receipt=receipt,
+        authorization=receipt,
         worker_identity="worker-credential-test",
         operation=plan.operations[0],
     )
@@ -232,7 +309,7 @@ def test_runtime_and_broker_environment_bindings_are_denied(
 ) -> None:
     plan = _load_plan()
     provider = RecordingProvider("unused-secret")
-    resolver = ScopedCredentialResolver(
+    resolver = _scoped_resolver(
         provider,
         [_grant(plan, environment_variable=environment_variable)],
     )
@@ -241,7 +318,7 @@ def test_runtime_and_broker_environment_bindings_are_denied(
     with pytest.raises(CredentialResolutionError, match="grant metadata"):
         resolver.resolve_for_operation(
             plan=plan,
-            authorization_receipt=receipt,
+            authorization=receipt,
             worker_identity="worker-credential-test",
             operation=plan.operations[0],
         )
@@ -252,13 +329,13 @@ def test_runtime_and_broker_environment_bindings_are_denied(
 def test_nul_in_provider_value_is_denied() -> None:
     plan = _load_plan()
     provider = RecordingProvider("secret\x00suffix")
-    resolver = ScopedCredentialResolver(provider, [_grant(plan)])
+    resolver = _scoped_resolver(provider, [_grant(plan)])
     receipt = _receipt(plan)
 
     with pytest.raises(CredentialResolutionError, match="invalid value"):
         resolver.resolve_for_operation(
             plan=plan,
-            authorization_receipt=receipt,
+            authorization=receipt,
             worker_identity="worker-credential-test",
             operation=plan.operations[0],
         )
@@ -266,13 +343,13 @@ def test_nul_in_provider_value_is_denied() -> None:
 
 def test_provider_exception_is_rewritten_without_secret_or_cause() -> None:
     plan = _load_plan()
-    resolver = ScopedCredentialResolver(SecretBearingFailureProvider(), [_grant(plan)])
+    resolver = _scoped_resolver(SecretBearingFailureProvider(), [_grant(plan)])
     receipt = _receipt(plan)
 
     with pytest.raises(CredentialResolutionError) as caught:
         resolver.resolve_for_operation(
             plan=plan,
-            authorization_receipt=receipt,
+            authorization=receipt,
             worker_identity="worker-credential-test",
             operation=plan.operations[0],
         )
@@ -284,7 +361,7 @@ def test_provider_exception_is_rewritten_without_secret_or_cause() -> None:
 
 def test_redactor_registration_failure_aborts_resolution() -> None:
     plan = _load_plan()
-    resolver = ScopedCredentialResolver(
+    resolver = _scoped_resolver(
         RecordingProvider("secret-never-returned"),
         [_grant(plan)],
         redactor=FailingRedactor(),  # type: ignore[arg-type]
@@ -294,7 +371,7 @@ def test_redactor_registration_failure_aborts_resolution() -> None:
     with pytest.raises(CredentialResolutionError, match="redactor registration failed"):
         resolver.resolve_for_operation(
             plan=plan,
-            authorization_receipt=receipt,
+            authorization=receipt,
             worker_identity="worker-credential-test",
             operation=plan.operations[0],
         )
@@ -325,7 +402,7 @@ def _two_operation_plan() -> ActionPlan:
 def test_distinct_operations_receive_only_their_exact_grants() -> None:
     plan = _two_operation_plan()
     provider = RecordingProvider("scoped-secret")
-    resolver = ScopedCredentialResolver(
+    resolver = _scoped_resolver(
         provider,
         [
             _grant(
@@ -345,13 +422,13 @@ def test_distinct_operations_receive_only_their_exact_grants() -> None:
 
     first_environment = resolver.resolve_for_operation(
         plan=plan,
-        authorization_receipt=receipt,
+        authorization=receipt,
         worker_identity="worker-credential-test",
         operation=plan.operations[0],
     )
     second_environment = resolver.resolve_for_operation(
         plan=plan,
-        authorization_receipt=receipt,
+        authorization=receipt,
         worker_identity="worker-credential-test",
         operation=plan.operations[1],
     )
@@ -364,7 +441,7 @@ def test_distinct_operations_receive_only_their_exact_grants() -> None:
 def test_operation_without_an_exact_grant_is_credential_free() -> None:
     plan = _two_operation_plan()
     provider = RecordingProvider("unused-secret")
-    resolver = ScopedCredentialResolver(
+    resolver = _scoped_resolver(
         provider,
         [_grant(plan, reference="first-ref")],
     )
@@ -372,7 +449,7 @@ def test_operation_without_an_exact_grant_is_credential_free() -> None:
 
     environment = resolver.resolve_for_operation(
         plan=plan,
-        authorization_receipt=receipt,
+        authorization=receipt,
         worker_identity="worker-credential-test",
         operation=plan.operations[1],
     )
@@ -384,7 +461,7 @@ def test_operation_without_an_exact_grant_is_credential_free() -> None:
 def test_exact_grant_with_undeclared_reference_is_denied() -> None:
     plan = _two_operation_plan()
     provider = RecordingProvider("unused-secret")
-    resolver = ScopedCredentialResolver(
+    resolver = _scoped_resolver(
         provider,
         [_grant(plan, reference="undeclared-ref")],
     )
@@ -393,7 +470,7 @@ def test_exact_grant_with_undeclared_reference_is_denied() -> None:
     with pytest.raises(CredentialResolutionError, match="not declared"):
         resolver.resolve_for_operation(
             plan=plan,
-            authorization_receipt=receipt,
+            authorization=receipt,
             worker_identity="worker-credential-test",
             operation=plan.operations[0],
         )

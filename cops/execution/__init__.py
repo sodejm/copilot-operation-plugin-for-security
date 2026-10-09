@@ -22,6 +22,7 @@ from .cleanup import (
 )
 from .credentials import (
     ApprovalConsumptionReceiptView,
+    ApprovalReceiptAuthority,
     CredentialGrant,
     CredentialProvider,
     CredentialResolutionError,
@@ -101,6 +102,7 @@ __all__ = [
     "ApprovalStoreError",
     "ApprovalStoreNotFoundError",
     "ApprovalConsumptionReceiptView",
+    "ApprovalReceiptAuthority",
     "AuthorizationDeniedError",
     "AuthorizationError",
     "AuthorizationRequiredError",
