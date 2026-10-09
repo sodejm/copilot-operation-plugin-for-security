@@ -257,6 +257,14 @@ def _cleanup_events(worker: IsolatedWorker) -> list[tuple[str, str, dict[str, ob
     ]
 
 
+def _cleanup_run_count(worker: IsolatedWorker) -> int:
+    assert worker.cleanup_journal is not None
+    with sqlite3.connect(worker.cleanup_journal.path) as connection:
+        row = connection.execute("SELECT COUNT(*) FROM cleanup_runs").fetchone()
+    assert row is not None
+    return int(row[0])
+
+
 @pytest.mark.parametrize(
     ("program", "expected_code", "timed_out", "overflow"),
     [
@@ -1824,6 +1832,8 @@ def test_worker_rejects_symlinked_workspace_parent_before_creation(tmp_path: Pat
 
     assert not (outside / "new-workspace").exists()
     assert _approval_control(worker).store.get_authorization(authorization_id).status == "approved"
+    assert _cleanup_run_count(worker) == 0
+    assert _cleanup_events(worker) == []
 
 
 def test_worker_rejects_missing_caller_workspace_before_creation(tmp_path: Path) -> None:
@@ -1840,6 +1850,18 @@ def test_worker_rejects_missing_caller_workspace_before_creation(tmp_path: Path)
 
     assert not workspace.exists()
     assert _approval_control(worker).store.get_authorization(authorization_id).status == "approved"
+    assert _cleanup_run_count(worker) == 0
+    assert _cleanup_events(worker) == []
+
+    workspace.mkdir(mode=0o700)
+    worker.execute_plan(
+        plan,
+        authorization=authorization_id,
+        workspace_dir=workspace,
+    )
+
+    assert _approval_control(worker).store.get_authorization(authorization_id).status == "consumed"
+    assert _cleanup_run_count(worker) == 1
 
 
 def test_worker_rejects_workspace_parent_traversal_before_creation(tmp_path: Path) -> None:

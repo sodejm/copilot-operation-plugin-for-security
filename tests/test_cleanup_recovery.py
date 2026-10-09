@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import json
 import os
 import shutil
@@ -1146,7 +1147,46 @@ def test_recovery_skips_durably_cleaned_effect(temp_workspace, temp_journal_path
     assert journal.recoverable_runs("worker-test-01") == ()
 
 
-def test_nonempty_directory_cleanup_is_preserved_in_quarantine_and_recorded_unknown(temp_workspace):
+@pytest.mark.parametrize("resource_type", ["file", "directory"])
+def test_quarantine_root_removal_failure_is_recorded_unknown(temp_workspace, monkeypatch, resource_type):
+    ledger = SideEffectLedger("plan-root-failure", "eng-root-failure", "worker-test-01")
+    target = temp_workspace / f"removed-{resource_type}"
+    effect = _record_worker_created_resource(
+        ledger,
+        target,
+        resource_type,
+        step_id="step-root-failure",
+    )
+    manager = CleanupManager(
+        ledger,
+        worker_identity="worker-test-01",
+        workspace_dir=temp_workspace,
+    )
+    quarantine_name = manager._quarantine_name(effect)
+    original_rmdir = cleanup_module.os.rmdir
+
+    def fail_quarantine_root(path, *args, **kwargs):
+        if path == quarantine_name and kwargs.get("dir_fd") is not None:
+            raise OSError(errno.EIO, "injected quarantine root removal failure")
+        return original_rmdir(path, *args, **kwargs)
+
+    monkeypatch.setattr(cleanup_module.os, "rmdir", fail_quarantine_root)
+    receipt = manager.rollback()
+
+    quarantine_root = temp_workspace / quarantine_name
+    assert receipt.status == "failed"
+    assert effect.status == "unknown"
+    assert not target.exists()
+    assert quarantine_root.is_dir()
+    assert not (quarantine_root / "resource").exists()
+    assert len(receipt.unresolved_effects) == 1
+    unresolved = receipt.unresolved_effects[0]
+    assert unresolved["quarantine_target"] == str(quarantine_root / "resource")
+    assert str(quarantine_root) in unresolved["reason"]
+    assert "injected quarantine root removal failure" in unresolved["reason"]
+
+
+def test_nonempty_directory_cleanup_is_preserved_in_quarantine_and_recorded_unknown(temp_workspace, monkeypatch):
     ledger = SideEffectLedger("plan-partial", "eng-partial", "worker-test-01")
     target = temp_workspace / "partially-removed"
     effect = _record_worker_created_resource(
@@ -1162,6 +1202,18 @@ def test_nonempty_directory_cleanup_is_preserved_in_quarantine_and_recorded_unkn
         worker_identity="worker-test-01",
         workspace_dir=temp_workspace,
     )
+    quarantine_name = manager._quarantine_name(effect)
+    original_rmdir = cleanup_module.os.rmdir
+    root_removal_attempted = False
+
+    def reject_secondary_root_removal(path, *args, **kwargs):
+        nonlocal root_removal_attempted
+        if path == quarantine_name and kwargs.get("dir_fd") is not None:
+            root_removal_attempted = True
+            raise OSError(errno.EACCES, "secondary quarantine root failure")
+        return original_rmdir(path, *args, **kwargs)
+
+    monkeypatch.setattr(cleanup_module.os, "rmdir", reject_secondary_root_removal)
     receipt = manager.rollback()
 
     assert receipt.status == "failed"
@@ -1177,6 +1229,8 @@ def test_nonempty_directory_cleanup_is_preserved_in_quarantine_and_recorded_unkn
     assert unresolved["target"] == str(target)
     assert unresolved["quarantine_target"] == str(quarantined)
     assert unresolved["reason"].startswith("cleanup outcome unknown after resource action started")
+    assert "secondary quarantine root failure" not in unresolved["reason"]
+    assert root_removal_attempted is False
 
 
 def test_receipt_write_failure_is_partial_and_recoverable(temp_workspace, temp_journal_path, monkeypatch):

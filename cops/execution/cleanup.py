@@ -839,10 +839,8 @@ class CleanupManager:
             raise CleanupOwnershipError(f"Resource '{path}' has no durably recorded creation identity")
         quarantine_name = self._quarantine_name(effect)
         quarantine_fd = -1
-        quarantine_created = False
         try:
             os.mkdir(quarantine_name, 0o700, dir_fd=parent_fd)
-            quarantine_created = True
             quarantine_fd = self._open_child_directory(parent_fd, quarantine_name)
             os.rename(path.name, "resource", src_dir_fd=parent_fd, dst_dir_fd=quarantine_fd)
             moved = os.stat("resource", dir_fd=quarantine_fd, follow_symlinks=False)
@@ -861,21 +859,24 @@ class CleanupManager:
                 )
             if effect.resource_type == "file":
                 os.unlink("resource", dir_fd=quarantine_fd)
-                return "deleted_file"
-            # Directory identity proves ownership of this entry, not of any
-            # descendants that appeared after creation. Remove it only when it
-            # is empty so unjournaled or replaced descendants are preserved.
-            os.rmdir("resource", dir_fd=quarantine_fd)
-            return "deleted_directory"
+                action = "deleted_file"
+            else:
+                # Directory identity proves ownership of this entry, not of any
+                # descendants that appeared after creation. Remove it only when it
+                # is empty so unjournaled or replaced descendants are preserved.
+                os.rmdir("resource", dir_fd=quarantine_fd)
+                action = "deleted_directory"
         finally:
             if quarantine_fd >= 0:
                 os.close(quarantine_fd)
-            if quarantine_created:
-                try:
-                    os.rmdir(quarantine_name, dir_fd=parent_fd)
-                except OSError:
-                    # Preserve a non-empty quarantine for operator inspection.
-                    pass
+        try:
+            os.rmdir(quarantine_name, dir_fd=parent_fd)
+        except OSError as err:
+            quarantine_root = path.parent / quarantine_name
+            raise CleanupError(
+                f"resource was deleted but quarantine directory '{quarantine_root}' could not be removed: {err}"
+            ) from err
+        return action
 
     def _execute_cleanup(self, effect: SideEffect, *, parent_fd: int | None = None) -> str:
         if effect.resource_type in {"file", "directory"}:

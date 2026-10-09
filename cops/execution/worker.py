@@ -81,6 +81,15 @@ def _supports_secure_evidence_dirs() -> bool:
     return os.name == "posix"
 
 
+def _open_caller_workspace(workspace: Path) -> int:
+    try:
+        return open_directory_no_symlinks(workspace)
+    except SecureDirectoryError as err:
+        if isinstance(err.__cause__, FileNotFoundError):
+            raise WorkerIsolationError("caller-supplied worker workspace must already exist") from err
+        raise WorkerIsolationError("worker workspace path must not contain symbolic-link components") from err
+
+
 @dataclass(frozen=True)
 class WorkerCapabilityInventory:
     """Owner-provisioned measurement of a worker's execution capabilities."""
@@ -496,6 +505,13 @@ class IsolatedWorker:
             finally:
                 if parent_fd >= 0:
                     os.close(parent_fd)
+        else:
+            workspace_fd = -1
+            try:
+                workspace_fd = _open_caller_workspace(target_workspace)
+            finally:
+                if workspace_fd >= 0:
+                    os.close(workspace_fd)
 
         receipt: ApprovalConsumptionReceipt | None = None
         cleanup_manager: CleanupManager | None = None
@@ -530,10 +546,10 @@ class IsolatedWorker:
                         creation_fd=workspace_fd,
                     )
                 else:
-                    workspace_fd = open_directory_no_symlinks(target_workspace)
+                    # Re-open immediately before readiness and authorization checks
+                    # so execution remains bound to a freshly verified directory.
+                    workspace_fd = _open_caller_workspace(target_workspace)
             except SecureDirectoryError as err:
-                if not ephemeral and isinstance(err.__cause__, FileNotFoundError):
-                    raise WorkerIsolationError("caller-supplied worker workspace must already exist") from err
                 raise WorkerIsolationError("worker workspace path must not contain symbolic-link components") from err
             finally:
                 if workspace_fd >= 0:
