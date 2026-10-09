@@ -11,10 +11,32 @@ exact expected worker identity. The request and response payloads are otherwise
 opaque to the transport; worker-side code remains responsible for verifying the
 Action Plan authorization and consuming approval before execution.
 
-The dispatcher must resolve `SSHRemoteEndpoint` from trusted worker inventory
-using the worker identity bound into the approved plan. The host, port, username,
-worker ID, known-hosts path, and remote command must not come from the dispatch
-request. A missing inventory entry or identity mismatch fails before SSH starts.
+Load the endpoint mapping with `SSHRemoteEndpointInventory.from_file`, then give
+that verified object to `SSHRemoteDispatcher`. The inventory path and every
+known-hosts path must be absolute. The inventory must be an owner-only regular
+file and use this exact shape:
+
+```json
+{
+  "schema_version": "cops.ssh-remote-endpoint-inventory/v1",
+  "workers": [
+    {
+      "host": "worker.example.test",
+      "known_hosts_path": "/etc/cops/ssh/worker.example.test.known_hosts",
+      "port": 22,
+      "remote_command": ["python3", "-m", "cops.remote_worker"],
+      "username": "cops-worker",
+      "worker_id": "worker-lab-01"
+    }
+  ]
+}
+```
+
+Call `SSHRemoteDispatcher.request` with only the worker identity bound into the
+approved plan, the opaque request payload, and the request identifier. The host,
+port, username, worker ID, known-hosts path, and remote command cannot come from
+the dispatch request. A missing inventory entry, unverified inventory lookalike,
+duplicate identity, or malformed entry fails before SSH starts.
 
 The known-hosts file must be an owner-only regular file on POSIX systems. Use a
 literal host entry from a trusted provisioning channel; wildcard, hashed, marker,

@@ -17,13 +17,15 @@ import subprocess
 import tempfile
 import time
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
 from cops.execution.filesystem import SecureDirectoryError, open_directory_no_symlinks
 
 SSH_PROTOCOL = "cops.remote-worker/v1"
+SSH_ENDPOINT_INVENTORY_SCHEMA = "cops.ssh-remote-endpoint-inventory/v1"
 
 _HOST_LABEL = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?")
 _IDENTITY = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}")
@@ -39,6 +41,7 @@ _HOST_KEY_ALGORITHMS = frozenset(
     }
 )
 _MAX_PIN_BYTES = 16 * 1024
+_MAX_INVENTORY_BYTES = 64 * 1024
 _READ_CHUNK = 64 * 1024
 
 
@@ -66,6 +69,8 @@ class SSHRemoteEndpoint:
         _validate_identity(self.worker_id, "worker identity")
         if not isinstance(self.known_hosts_path, Path):
             raise TypeError("known_hosts_path must be a pathlib.Path")
+        if not self.known_hosts_path.is_absolute():
+            raise ValueError("known_hosts_path must be absolute")
         if not isinstance(self.remote_command, tuple) or not self.remote_command:
             raise ValueError("remote_command must be a non-empty tuple")
         for argument in self.remote_command:
@@ -109,6 +114,150 @@ class SSHRemoteResponse:
     host: str
     worker_id: str
     payload: Any
+
+
+@dataclass(frozen=True)
+class SSHRemoteEndpointInventory:
+    """Owner-provisioned mapping from approved worker identities to SSH endpoints."""
+
+    schema_version: str
+    endpoints: Mapping[str, SSHRemoteEndpoint]
+    _file_verified: bool = field(default=False, init=False, repr=False, compare=False)
+
+    SCHEMA_VERSION = SSH_ENDPOINT_INVENTORY_SCHEMA
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "endpoints", MappingProxyType(dict(self.endpoints)))
+
+    @classmethod
+    def from_file(cls, path: Path | str) -> SSHRemoteEndpointInventory:
+        """Load an exact-schema endpoint inventory through protected POSIX file access."""
+        _require_posix_controls()
+        source = Path(path)
+        if not source.is_absolute() or source.name in ("", ".", ".."):
+            raise SSHTransportError("SSH endpoint inventory path must be absolute")
+
+        parent_descriptor = -1
+        descriptor = -1
+        try:
+            parent_descriptor = open_directory_no_symlinks(source.parent)
+            descriptor = os.open(
+                source.name,
+                os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NONBLOCK", 0),
+                dir_fd=parent_descriptor,
+            )
+            metadata = os.fstat(descriptor)
+            if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.geteuid() or metadata.st_mode & 0o077:
+                raise SSHTransportError("SSH endpoint inventory must be an owner-only regular file")
+            if metadata.st_size > _MAX_INVENTORY_BYTES:
+                raise SSHTransportError("SSH endpoint inventory exceeds the configured byte limit")
+            raw = _read_bounded(
+                descriptor,
+                _MAX_INVENTORY_BYTES,
+                overflow_message="SSH endpoint inventory exceeds the configured byte limit",
+            )
+        except SSHTransportError:
+            raise
+        except (OSError, SecureDirectoryError) as err:
+            raise SSHTransportError("SSH endpoint inventory cannot be opened securely") from err
+        finally:
+            if descriptor >= 0:
+                os.close(descriptor)
+            if parent_descriptor >= 0:
+                os.close(parent_descriptor)
+
+        document = _decode_endpoint_inventory(raw)
+        expected_fields = {"schema_version", "workers"}
+        if not isinstance(document, dict) or set(document) != expected_fields:
+            raise SSHTransportError("SSH endpoint inventory fields do not match the required schema")
+        if document["schema_version"] != cls.SCHEMA_VERSION:
+            raise SSHTransportError("unsupported SSH endpoint inventory schema version")
+        workers = document["workers"]
+        if not isinstance(workers, list) or not workers:
+            raise SSHTransportError("SSH endpoint inventory workers must be a non-empty list")
+
+        endpoints: dict[str, SSHRemoteEndpoint] = {}
+        entry_fields = {"host", "known_hosts_path", "port", "remote_command", "username", "worker_id"}
+        for entry in workers:
+            if not isinstance(entry, dict) or set(entry) != entry_fields:
+                raise SSHTransportError("SSH endpoint inventory worker fields do not match the required schema")
+            worker_id = entry["worker_id"]
+            if not isinstance(worker_id, str):
+                raise SSHTransportError("SSH endpoint inventory worker identity is invalid")
+            try:
+                _validate_identity(worker_id, "worker identity")
+            except ValueError as err:
+                raise SSHTransportError("SSH endpoint inventory worker identity is invalid") from err
+            if worker_id in endpoints:
+                raise SSHTransportError("SSH endpoint inventory contains a duplicate worker identity")
+
+            remote_command = entry["remote_command"]
+            if not isinstance(remote_command, list):
+                raise SSHTransportError("SSH endpoint inventory remote command must be a non-empty string list")
+            known_hosts_path = entry["known_hosts_path"]
+            if not isinstance(known_hosts_path, str):
+                raise SSHTransportError("SSH endpoint inventory known-hosts path is invalid")
+            try:
+                endpoint = SSHRemoteEndpoint(
+                    host=entry["host"],
+                    port=entry["port"],
+                    username=entry["username"],
+                    worker_id=worker_id,
+                    known_hosts_path=Path(known_hosts_path),
+                    remote_command=tuple(remote_command),
+                )
+            except (TypeError, ValueError) as err:
+                raise SSHTransportError("SSH endpoint inventory contains an invalid worker endpoint") from err
+            endpoints[worker_id] = endpoint
+
+        inventory = cls(schema_version=cls.SCHEMA_VERSION, endpoints=endpoints)
+        object.__setattr__(inventory, "_file_verified", True)
+        return inventory
+
+    @property
+    def is_verified(self) -> bool:
+        """Whether the inventory passed the protected file loader."""
+        return self._file_verified
+
+    def resolve(self, worker_id: str) -> SSHRemoteEndpoint:
+        """Resolve one exact worker identity without accepting caller endpoint fields."""
+        if not self.is_verified:
+            raise SSHTransportError("a verified owner-provisioned SSH endpoint inventory is required")
+        try:
+            _validate_identity(worker_id, "worker identity")
+        except ValueError as err:
+            raise SSHTransportError("SSH worker identity is invalid") from err
+        try:
+            return self.endpoints[worker_id]
+        except KeyError as err:
+            raise SSHTransportError("SSH worker identity is not present in the trusted inventory") from err
+
+
+class SSHRemoteDispatcher:
+    """Resolve an approved worker identity and dispatch through its trusted endpoint."""
+
+    def __init__(
+        self,
+        inventory: SSHRemoteEndpointInventory,
+        *,
+        limits: SSHTransportLimits | None = None,
+        ssh_executable: Path = Path("/usr/bin/ssh"),
+    ) -> None:
+        if not isinstance(inventory, SSHRemoteEndpointInventory) or not inventory.is_verified:
+            raise SSHTransportError("a verified owner-provisioned SSH endpoint inventory is required")
+        self._inventory = inventory
+        self._limits = limits
+        self._ssh_executable = ssh_executable
+
+    def request(self, worker_id: str, payload: Mapping[str, object], *, request_id: str) -> SSHRemoteResponse:
+        """Dispatch one request using only the endpoint bound to ``worker_id``."""
+        endpoint = self._inventory.resolve(worker_id)
+        transport = SSHRemoteTransport(
+            endpoint,
+            limits=self._limits,
+            ssh_executable=self._ssh_executable,
+        )
+        return transport.request(payload, request_id=request_id)
 
 
 @dataclass(frozen=True)
@@ -292,7 +441,11 @@ def _load_exact_host_pin(endpoint: SSHRemoteEndpoint) -> tuple[bytes, str]:
             raise SSHTransportError("SSH known-host pin must be an owner-only regular file")
         if metadata.st_size > _MAX_PIN_BYTES:
             raise SSHTransportError("SSH known-host pin exceeds the configured byte limit")
-        raw = _read_bounded(descriptor, _MAX_PIN_BYTES)
+        raw = _read_bounded(
+            descriptor,
+            _MAX_PIN_BYTES,
+            overflow_message="SSH known-host pin exceeds the configured byte limit",
+        )
     except SSHTransportError:
         raise
     except (OSError, SecureDirectoryError) as err:
@@ -344,7 +497,7 @@ def _write_all(descriptor: int, content: bytes) -> None:
         offset += os.write(descriptor, content[offset:])
 
 
-def _read_bounded(descriptor: int, limit: int) -> bytes:
+def _read_bounded(descriptor: int, limit: int, *, overflow_message: str) -> bytes:
     chunks = bytearray()
     while True:
         chunk = os.read(descriptor, min(_READ_CHUNK, limit + 1 - len(chunks)))
@@ -352,7 +505,7 @@ def _read_bounded(descriptor: int, limit: int) -> bytes:
             return bytes(chunks)
         chunks.extend(chunk)
         if len(chunks) > limit:
-            raise SSHTransportError("SSH known-host pin exceeds the configured byte limit")
+            raise SSHTransportError(overflow_message)
 
 
 def _terminate_process_group(process: subprocess.Popen[bytes], process_group_id: int) -> None:
@@ -499,6 +652,31 @@ def _decode_response(stdout: bytes, endpoint: SSHRemoteEndpoint, request_id: str
         worker_id=endpoint.worker_id,
         payload=response["payload"],
     )
+
+
+def _decode_endpoint_inventory(raw: bytes) -> object:
+    try:
+        decoded = raw.decode("utf-8")
+        return json.loads(
+            decoded,
+            object_pairs_hook=_strict_inventory_json_object,
+            parse_constant=_reject_inventory_json_constant,
+        )
+    except (UnicodeDecodeError, json.JSONDecodeError) as err:
+        raise SSHTransportError("SSH endpoint inventory is not valid JSON") from err
+
+
+def _strict_inventory_json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    value: dict[str, object] = {}
+    for key, item in pairs:
+        if key in value:
+            raise SSHTransportError("SSH endpoint inventory is not valid JSON")
+        value[key] = item
+    return value
+
+
+def _reject_inventory_json_constant(_value: str) -> object:
+    raise SSHTransportError("SSH endpoint inventory is not valid JSON")
 
 
 def _strict_json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:

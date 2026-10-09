@@ -32,6 +32,14 @@ and accepts one bounded, versioned JSON response.
    - Responses must contain only the protocol identifier, request identifier,
      host, worker identity, and response payload. Every binding must match the
      request exactly before the response is returned to the caller.
+   - The inventory is loaded only through `SSHRemoteEndpointInventory.from_file`
+     from an absolute, owner-only regular file reached without following
+     symbolic links. It uses the exact
+     `cops.ssh-remote-endpoint-inventory/v1` schema, unique worker identities,
+     and absolute known-hosts paths.
+   - Directly constructed inventory objects, missing worker identities,
+     duplicate identities, unknown fields, and malformed entries fail before
+     the SSH process starts.
 
 3. **Bounded exchange**
    - Request bytes, response bytes, diagnostic bytes, and total elapsed time are

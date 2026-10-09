@@ -33,6 +33,16 @@ from .scope_guard import (
     ScopeGuard,
     ScopeViolationError,
 )
+from .ssh_transport import (
+    SSH_ENDPOINT_INVENTORY_SCHEMA,
+    SSHRemoteDispatcher,
+    SSHRemoteEndpoint,
+    SSHRemoteEndpointInventory,
+    SSHRemoteResponse,
+    SSHRemoteTransport,
+    SSHTransportError,
+    SSHTransportLimits,
+)
 from .store import (
     ApprovalStore,
     ApprovalStoreAccessError,
@@ -75,6 +85,14 @@ __all__ = [
     "ScopeViolationError",
     "SideEffect",
     "SideEffectLedger",
+    "SSH_ENDPOINT_INVENTORY_SCHEMA",
+    "SSHRemoteDispatcher",
+    "SSHRemoteEndpoint",
+    "SSHRemoteEndpointInventory",
+    "SSHRemoteResponse",
+    "SSHRemoteTransport",
+    "SSHTransportError",
+    "SSHTransportLimits",
     "StepTelemetry",
     "StreamRedactor",
     "TrustedAuthorizationKey",
