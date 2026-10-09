@@ -153,7 +153,11 @@ class EvidenceRecorder:
             except FileExistsError:
                 pass
             artifacts_fd = os.open("artifacts", os.O_RDONLY | directory | nofollow, dir_fd=workspace_fd)
-            self._validate_private_directory(artifacts_fd, "evidence artifact directory")
+            self._validate_private_directory(
+                artifacts_fd,
+                "evidence artifact directory",
+                require_owner_private=True,
+            )
 
             base_name = f"{clean_step_id}_{suffix}"
             for attempt in range(16):
@@ -247,6 +251,7 @@ class EvidenceRecorder:
         if self._reservations.get(reservation.path) != reservation:
             raise EvidenceCaptureError("evidence artifact reservation is not active")
         try:
+            combined_output = stdout + (b"\n" if stdout and stderr else b"") + stderr
             redacted_stdout = self.redactor.redact_bytes(stdout)
             redacted_stderr = self.redactor.redact_bytes(stderr)
             redacted_error = self.redactor.redact_bytes(error)
@@ -275,12 +280,11 @@ class EvidenceRecorder:
                     }
                 )
 
-            redacted_full = redacted_stdout + (b"\n" if redacted_stdout and redacted_stderr else b"") + redacted_stderr
+            redacted_full = self.redactor.redact_bytes(combined_output)
             redacted_characters = sum(
                 max(0, len(raw_value) - len(redacted_value))
                 for raw_value, redacted_value in (
-                    (stdout, redacted_stdout),
-                    (stderr, redacted_stderr),
+                    (combined_output, redacted_full),
                     (error, redacted_error),
                 )
             )
@@ -489,7 +493,11 @@ class EvidenceRecorder:
         finally:
             os.close(current_workspace_fd)
         self._validate_private_directory(workspace_fd, "worker workspace")
-        self._validate_private_directory(artifacts_fd, "evidence artifact directory")
+        self._validate_private_directory(
+            artifacts_fd,
+            "evidence artifact directory",
+            require_owner_private=True,
+        )
         current_artifacts = os.stat("artifacts", dir_fd=workspace_fd, follow_symlinks=False)
         held_artifacts = os.fstat(artifacts_fd)
         if (current_artifacts.st_dev, current_artifacts.st_ino) != (
@@ -556,7 +564,11 @@ class EvidenceRecorder:
                 artifacts_dir.mkdir(mode=0o700)
             except FileExistsError:
                 pass
-            self._validate_portable_directory(artifacts_dir, "evidence artifact directory")
+            self._validate_portable_directory(
+                artifacts_dir,
+                "evidence artifact directory",
+                require_owner_private=True,
+            )
 
             base_name = f"{clean_step_id}_{suffix}"
             flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0)
@@ -613,7 +625,11 @@ class EvidenceRecorder:
         artifact_path = self.workspace_dir / reservation.path
         try:
             self._validate_portable_directory(self.workspace_dir, "worker workspace")
-            self._validate_portable_directory(artifact_path.parent, "evidence artifact directory")
+            self._validate_portable_directory(
+                artifact_path.parent,
+                "evidence artifact directory",
+                require_owner_private=True,
+            )
             held_info = os.fstat(handle.fileno())
             self._validate_portable_file(held_info)
             if not self._matches_reservation(held_info, reservation):
@@ -690,7 +706,13 @@ class EvidenceRecorder:
             pass
 
     @classmethod
-    def _validate_portable_directory(cls, path: Path, label: str) -> None:
+    def _validate_portable_directory(
+        cls,
+        path: Path,
+        label: str,
+        *,
+        require_owner_private: bool = False,
+    ) -> None:
         try:
             info = os.lstat(path)
         except OSError as err:
@@ -699,8 +721,11 @@ class EvidenceRecorder:
             raise EvidenceCaptureError(f"{label} is not a real directory")
         if hasattr(os, "geteuid") and info.st_uid != os.geteuid():
             raise EvidenceCaptureError(f"{label} is not owned by the worker account")
-        if os.name == "posix" and info.st_mode & 0o022:
-            raise EvidenceCaptureError(f"{label} is writable by group or other users")
+        if os.name == "posix":
+            if require_owner_private and stat.S_IMODE(info.st_mode) != 0o700:
+                raise EvidenceCaptureError(f"{label} permissions must be exactly 0700")
+            if not require_owner_private and info.st_mode & 0o022:
+                raise EvidenceCaptureError(f"{label} is writable by group or other users")
 
     @classmethod
     def _validate_portable_file(cls, info: os.stat_result) -> None:
@@ -737,13 +762,20 @@ class EvidenceRecorder:
             self.discard_reservation(reservation)
 
     @staticmethod
-    def _validate_private_directory(fd: int, label: str) -> None:
+    def _validate_private_directory(
+        fd: int,
+        label: str,
+        *,
+        require_owner_private: bool = False,
+    ) -> None:
         info = os.fstat(fd)
         if not stat.S_ISDIR(info.st_mode):
             raise EvidenceCaptureError(f"{label} is not a directory")
         if hasattr(os, "geteuid") and info.st_uid != os.geteuid():
             raise EvidenceCaptureError(f"{label} is not owned by the worker account")
-        if info.st_mode & 0o022:
+        if require_owner_private and stat.S_IMODE(info.st_mode) != 0o700:
+            raise EvidenceCaptureError(f"{label} permissions must be exactly 0700")
+        if not require_owner_private and info.st_mode & 0o022:
             raise EvidenceCaptureError(f"{label} is writable by group or other users")
 
     def get_artifact_dicts(self) -> list[dict[str, Any]]:

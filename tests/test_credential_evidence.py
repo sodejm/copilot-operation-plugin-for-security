@@ -193,6 +193,46 @@ def test_every_serialized_channel_and_artifact_metadata_is_redacted(tmp_path: Pa
     }
 
 
+def test_combined_stream_redaction_catches_secret_split_across_stdout_and_stderr(tmp_path: Path) -> None:
+    secret_prefix = "credential-boundary-prefix-12345"
+    secret_suffix = "credential-boundary-suffix-67890"
+    secret = f"{secret_prefix}\n{secret_suffix}"
+    recorder = EvidenceRecorder(
+        tmp_path,
+        redactor=StreamRedactor(known_secrets=[secret]),
+        context=_context(),
+    )
+
+    redacted, captured = recorder.record_step_output(
+        step_id="step-split-secret",
+        tool="example-tool",
+        tool_version="3.4.5",
+        action="inspect",
+        stdout=secret_prefix.encode(),
+        stderr=secret_suffix.encode(),
+        exit_code=0,
+        started_at="2026-10-02T10:00:00Z",
+        finished_at="2026-10-02T10:00:01Z",
+    )
+
+    assert redacted == b"[REDACTED:SECRET]"
+    assert secret.encode() not in (tmp_path / captured.path).read_bytes()
+    assert secret.encode() not in (tmp_path / recorder.artifacts[1].path).read_bytes()
+    assert recorder.step_telemetry[0].redacted_characters == len(secret) - len("[REDACTED:SECRET]")
+
+
+def test_existing_evidence_directory_requires_exact_owner_private_mode(tmp_path: Path) -> None:
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir(mode=0o700)
+    artifacts.chmod(0o750)
+    recorder = EvidenceRecorder(tmp_path, context=_context())
+
+    with pytest.raises(EvidenceCaptureError, match="permissions must be exactly 0700"):
+        recorder.reserve_step_output("step-insecure-directory")
+
+    assert list(artifacts.iterdir()) == []
+
+
 def test_ephemeral_evidence_declares_worker_deletion(tmp_path: Path) -> None:
     recorder = EvidenceRecorder(tmp_path, context=_context(), ephemeral_workspace=True)
     recorder.record_step_output(
