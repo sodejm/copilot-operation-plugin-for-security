@@ -777,9 +777,17 @@ def _run_exchange(
                             terminated = True
                             _terminate_process_group(process, process_group_id)
                             drain_deadline = time.monotonic() + 0.5
-            if process.poll() is None:
-                _terminate_process_group(process, process_group_id)
-            returncode = process.wait(timeout=2)
+            if terminated:
+                returncode = process.wait(timeout=2)
+            else:
+                # EOF can arrive just before SSH exits. Give the leader a bounded
+                # chance to exit naturally before treating it as stuck.
+                grace = min(0.25, max(0.0, deadline - time.monotonic()))
+                try:
+                    returncode = process.wait(timeout=grace)
+                except subprocess.TimeoutExpired:
+                    _terminate_process_group(process, process_group_id)
+                    returncode = process.wait(timeout=2)
             completed = True
         finally:
             if not completed:
