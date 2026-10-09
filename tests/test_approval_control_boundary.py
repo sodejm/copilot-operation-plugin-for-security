@@ -295,6 +295,72 @@ def test_authority_rejects_a_different_valid_plan_before_consumption(authority_c
     assert authority.store.get_authorization(authorization.authorization_id).status == "approved"
 
 
+@pytest.mark.parametrize("trailer", [b"extra", b"\n{}\n"])
+def test_authority_rejects_bytes_after_request_newline_before_consumption(
+    authority_context, monkeypatch, trailer
+):
+    authority, authorization, plan = authority_context
+    monkeypatch.setattr(
+        "cops.execution.control._peer_credentials",
+        lambda connection: (authority.worker_pid, authority.worker_uid, authority.worker_gid),
+    )
+    server_connection, peer_connection = socket.socketpair()
+    request = _request(authorization.authorization_id, plan)
+    encoded = json.dumps(request).encode("utf-8") + b"\n" + trailer
+
+    def serve() -> None:
+        with server_connection:
+            authority.serve_connection(server_connection)
+
+    server = threading.Thread(target=serve)
+    server.start()
+    try:
+        peer_connection.settimeout(1)
+        peer_connection.sendall(encoded)
+        peer_connection.shutdown(socket.SHUT_WR)
+        response = json.loads(peer_connection.makefile("rb").readline())
+    finally:
+        peer_connection.close()
+        server.join(timeout=1)
+
+    assert not server.is_alive()
+    assert response["ok"] is False
+    assert authority.store.get_authorization(authorization.authorization_id).status == "approved"
+
+
+def test_authority_waits_for_request_eof_before_consumption(authority_context, monkeypatch):
+    authority, authorization, plan = authority_context
+    monkeypatch.setattr(
+        "cops.execution.control._peer_credentials",
+        lambda connection: (authority.worker_pid, authority.worker_uid, authority.worker_gid),
+    )
+    server_connection, peer_connection = socket.socketpair()
+    request = _request(authorization.authorization_id, plan)
+
+    def serve() -> None:
+        with server_connection:
+            authority.serve_connection(server_connection)
+
+    server = threading.Thread(target=serve)
+    server.start()
+    try:
+        peer_connection.sendall(json.dumps(request).encode("utf-8") + b"\n")
+        peer_connection.settimeout(0.05)
+        with pytest.raises(socket.timeout):
+            peer_connection.recv(1)
+        assert authority.store.get_authorization(authorization.authorization_id).status == "approved"
+        peer_connection.shutdown(socket.SHUT_WR)
+        peer_connection.settimeout(1)
+        response = json.loads(peer_connection.makefile("rb").readline())
+    finally:
+        peer_connection.close()
+        server.join(timeout=1)
+
+    assert not server.is_alive()
+    assert response["ok"] is True
+    assert authority.store.get_authorization(authorization.authorization_id).status == "consumed"
+
+
 def test_client_cannot_override_its_actual_uid_or_gid(tmp_path, monkeypatch):
     monkeypatch.setattr("cops.execution.control.sys_platform_linux", lambda: True)
     monkeypatch.setattr(os, "geteuid", lambda: 2001)

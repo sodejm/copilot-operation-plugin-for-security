@@ -109,8 +109,8 @@ def _read_json_line(connection: socket.socket) -> dict[str, Any]:
         data.extend(chunk)
         if len(data) > MAX_CONTROL_MESSAGE_BYTES:
             raise ApprovalControlError("approval control message exceeds the byte limit")
-        if b"\n" in chunk:
-            break
+        # A newline does not finish the frame. Wait for the peer's write-side
+        # EOF so trailing bytes cannot arrive after approval consumption.
     if not data.endswith(b"\n"):
         raise _ApprovalControlTransportError(
             "approval control connection ended before a complete response"
@@ -444,6 +444,7 @@ class ApprovalControlClient:
                         "connected approval authority UID does not match configured UID"
                     )
                 _write_json_line(connection, request)
+                connection.shutdown(socket.SHUT_WR)
                 return _read_json_line(connection)
         except ApprovalControlError:
             raise

@@ -59,7 +59,8 @@ dispatch authorized `cops.action-plan/v1` operations.
      worker and cannot be invoked by a worker request.
    - The authority accepts only a bounded, versioned request containing an
      authorization identifier, request identifier, exact Action Plan, and expected
-     worker identity.
+     worker identity. The client closes its write side after the single JSON line;
+     the authority reads through EOF and rejects trailing bytes before consumption.
      It verifies the stored signed authorization against those values and the active
      Engagement, then atomically persists the request identifier, exact request
      bindings, durable receipt, and authorization consumption. It does not accept a
