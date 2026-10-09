@@ -434,10 +434,16 @@ class IsolatedWorker:
             workspace_dir=target_workspace, redactor=redactor, portable_inert=portable_inert
         )
 
-        max_duration_seconds = plan_model.limits.get("max_duration_seconds", self.config.max_wall_time_seconds)
+        max_duration_seconds = min(
+            self.config.max_wall_time_seconds,
+            plan_model.limits.get("max_duration_seconds", self.config.max_wall_time_seconds),
+        )
         if timeout_seconds is not None:
             max_duration_seconds = min(max_duration_seconds, timeout_seconds)
-        plan_max_output_bytes = plan_model.limits.get("max_output_bytes", self.config.max_output_bytes)
+        plan_max_output_bytes = min(
+            self.config.max_output_bytes,
+            plan_model.limits.get("max_output_bytes", self.config.max_output_bytes),
+        )
         if max_output_bytes is not None:
             plan_max_output_bytes = min(plan_max_output_bytes, max_output_bytes)
         max_output_bytes = plan_max_output_bytes
@@ -605,6 +611,7 @@ class IsolatedWorker:
                                 env=clean_env,
                                 timeout_seconds=timeout,
                                 deadline=step_deadline,
+                                process_runner=self.sandbox.run,
                             )
                             try:
                                 invocation_timeout = step_deadline - monotonic()

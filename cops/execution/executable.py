@@ -16,7 +16,7 @@ from time import monotonic
 
 from cops.adapters import ToolAdapter
 
-from .process import BoundedProcessResult, run_bounded_process
+from .process import BoundedProcessResult
 
 ProcessRunner = Callable[..., BoundedProcessResult]
 
@@ -169,12 +169,13 @@ def prepare_executable(
     env: Mapping[str, str],
     timeout_seconds: float,
     deadline: float | None = None,
-    process_runner: ProcessRunner = run_bounded_process,
+    process_runner: ProcessRunner,
 ) -> PreparedExecutable:
     """Open, stage, digest, version-check, and return an adapter executable.
 
     The source pathname is used only to obtain an ``O_NOFOLLOW`` descriptor.
     All verified and invoked bytes come from the worker-owned staged copy.
+    The caller must supply its sandbox runner for the version probe.
     """
     preparation_deadline = deadline if deadline is not None else monotonic() + timeout_seconds
     verify_executable_launch_support()

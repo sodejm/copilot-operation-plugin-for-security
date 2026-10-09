@@ -10,6 +10,7 @@ import shutil
 import stat
 import sys
 import time
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -296,6 +297,30 @@ def test_worker_normalizes_fake_tool_results(
     assert recorded_exit_codes == [expected_exit_code]
     if expected_status == "uncertain":
         assert "automatic repeat disallowed" in result.status_details["reason"]
+
+
+def test_worker_uses_sandbox_for_version_probe_and_owner_resource_caps(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plan = _fake_action_plan(tmp_path)
+    worker, authorization_id = _fake_worker(tmp_path, plan)
+    worker.config = replace(worker.config, max_wall_time_seconds=1, max_output_bytes=100)
+    prepared = SimpleNamespace(invocation_path="/proc/self/fd/7", pass_fds=(), remove=lambda: None)
+    probe_runners = []
+
+    def capture_probe_runner(*args, **kwargs):
+        probe_runners.append(kwargs["process_runner"])
+        return prepared
+
+    monkeypatch.setattr(worker_module, "prepare_executable", capture_probe_runner)
+
+    result = worker.execute_plan(plan, authorization=authorization_id, workspace_dir=tmp_path / "workspace")
+
+    assert result.status == "success"
+    assert probe_runners == [_sandbox(worker).run]
+    assert len(_sandbox(worker).run_calls) == 1
+    assert _sandbox(worker).run_calls[0]["max_output_bytes"] == 100
+    assert 0 < _sandbox(worker).run_calls[0]["timeout_seconds"] <= 1
 
 
 @pytest.mark.parametrize(
@@ -720,6 +745,7 @@ def test_prepare_executable_rejects_version_mismatch(tmp_path: Path) -> None:
             workspace=tmp_path,
             env=os.environ,
             timeout_seconds=5,
+            process_runner=run_bounded_process,
         )
 
 
@@ -730,8 +756,6 @@ def test_prepare_executable_rejects_expired_shared_deadline(tmp_path: Path, monk
     def unexpected_probe(*args, **kwargs):
         raise AssertionError("version probe must not run after staging consumes the deadline")
 
-    monkeypatch.setattr(executable_module, "run_bounded_process", unexpected_probe)
-
     with pytest.raises(ExecutableVerificationError, match="exceeded the step timeout"):
         prepare_executable(
             _python_adapter(),
@@ -739,6 +763,7 @@ def test_prepare_executable_rejects_expired_shared_deadline(tmp_path: Path, monk
             env=os.environ,
             timeout_seconds=5,
             deadline=1.0,
+            process_runner=unexpected_probe,
         )
 
 
@@ -780,7 +805,13 @@ def test_prepare_executable_removes_partial_stage_after_interrupt(
     monkeypatch.setattr(executable_module, "_copy_from_open_descriptor", interrupt_copy)
 
     with pytest.raises(KeyboardInterrupt):
-        prepare_executable(_python_adapter(), workspace=tmp_path, env=os.environ, timeout_seconds=5)
+        prepare_executable(
+            _python_adapter(),
+            workspace=tmp_path,
+            env=os.environ,
+            timeout_seconds=5,
+            process_runner=run_bounded_process,
+        )
 
     assert list((tmp_path / ".executables").iterdir()) == []
 
@@ -792,6 +823,7 @@ def test_prepared_executable_is_bound_to_verified_inode_after_path_swap(tmp_path
         workspace=tmp_path,
         env=os.environ,
         timeout_seconds=5,
+        process_runner=run_bounded_process,
     )
     replacement = prepared.path.with_name("replacement")
     try:
@@ -819,7 +851,13 @@ def test_prepared_executable_is_bound_to_verified_inode_after_path_swap(tmp_path
 
 @pytest.mark.skipif(not HAS_PROC_FD, reason="stable executable launch requires Linux /proc")
 def test_prepared_executable_cleanup_uses_held_staging_directory_after_replacement(tmp_path: Path) -> None:
-    prepared = prepare_executable(_python_adapter(), workspace=tmp_path, env=os.environ, timeout_seconds=5)
+    prepared = prepare_executable(
+        _python_adapter(),
+        workspace=tmp_path,
+        env=os.environ,
+        timeout_seconds=5,
+        process_runner=run_bounded_process,
+    )
     original_stage = tmp_path / ".executables"
     moved_stage = tmp_path / ".executables-moved"
     original_stage.rename(moved_stage)
@@ -842,7 +880,13 @@ def test_prepare_executable_rejects_symlink_source(tmp_path: Path) -> None:
     adapter.binary = str(link)
 
     with pytest.raises(ExecutableVerificationError, match="without following symbolic links") as caught:
-        prepare_executable(adapter, workspace=tmp_path, env=os.environ, timeout_seconds=5)
+        prepare_executable(
+            adapter,
+            workspace=tmp_path,
+            env=os.environ,
+            timeout_seconds=5,
+            process_runner=run_bounded_process,
+        )
 
     assert str(link) not in str(caught.value)
 
@@ -855,6 +899,7 @@ def test_prepare_executable_fails_closed_without_linux_proc(tmp_path: Path) -> N
             workspace=tmp_path,
             env=os.environ,
             timeout_seconds=5,
+            process_runner=run_bounded_process,
         )
 
 
