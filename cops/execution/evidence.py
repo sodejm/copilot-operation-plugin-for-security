@@ -400,9 +400,7 @@ class EvidenceRecorder:
                             "directory_mode": "0700",
                             "file_mode": "0600",
                             "retention_controller": (
-                                "worker"
-                                if self.ephemeral_workspace and not self.portable_inert
-                                else "workspace_owner"
+                                "worker" if self.ephemeral_workspace and not self.portable_inert else "workspace_owner"
                             ),
                             "automatic_deletion": self.ephemeral_workspace and not self.portable_inert,
                         },

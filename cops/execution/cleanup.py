@@ -56,7 +56,10 @@ class FilesystemIdentity:
     def from_dict(cls, data: dict[str, Any]) -> FilesystemIdentity:
         if set(data) != {"device", "inode", "resource_type"}:
             raise ValueError("filesystem identity payload fields are invalid")
-        if any(isinstance(data[key], bool) or not isinstance(data[key], int) or data[key] < 0 for key in ("device", "inode")):
+        if any(
+            isinstance(data[key], bool) or not isinstance(data[key], int) or data[key] < 0
+            for key in ("device", "inode")
+        ):
             raise ValueError("filesystem identity device and inode must be non-negative integers")
         if data["resource_type"] not in {"file", "directory"}:
             raise ValueError("filesystem identity resource type is invalid")
@@ -615,9 +618,7 @@ class SideEffectLedger:
         if effect.resource_type not in {"file", "directory"}:
             raise CleanupPersistenceError("creation identity applies only to filesystem effects")
         if effect.status != "pending" or effect.creation_identity is not None:
-            raise CleanupPersistenceError(
-                "creation identity must be recorded once while the effect is pending"
-            )
+            raise CleanupPersistenceError("creation identity must be recorded once while the effect is pending")
         path = Path(effect.target)
         normalized = Path(os.path.abspath(os.fspath(path)))
         if not path.is_absolute() or path != normalized or ".." in path.parts:
@@ -639,9 +640,7 @@ class SideEffectLedger:
             )
         identity = FilesystemIdentity.from_stat(effect.resource_type, created)
         if not identity.matches(effect.resource_type, current):
-            raise CleanupPersistenceError(
-                f"created resource '{path}' changed before its identity could be persisted"
-            )
+            raise CleanupPersistenceError(f"created resource '{path}' changed before its identity could be persisted")
         if self.journal is not None:
             self.journal.record_creation_identity(self.run_id, effect, identity)
         effect.creation_identity = identity
@@ -729,9 +728,7 @@ class CleanupManager:
             identity = effect.creation_identity
             if identity is None:
                 os.close(parent_fd)
-                raise CleanupOwnershipError(
-                    f"Resource '{target_path}' has no durably recorded creation identity"
-                )
+                raise CleanupOwnershipError(f"Resource '{target_path}' has no durably recorded creation identity")
             try:
                 current = os.stat(target_path.name, dir_fd=parent_fd, follow_symlinks=False)
             except FileNotFoundError as err:
@@ -953,9 +950,7 @@ class CleanupManager:
         while remaining:
             for index, effect in enumerate(remaining):
                 if effect.resource_type == "directory" and any(
-                    cls._is_strict_descendant(other, effect)
-                    for other in remaining
-                    if other is not effect
+                    cls._is_strict_descendant(other, effect) for other in remaining if other is not effect
                 ):
                     continue
                 ordered.append(remaining.pop(index))

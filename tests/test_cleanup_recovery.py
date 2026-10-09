@@ -675,8 +675,10 @@ def test_recovery_handles_each_resource_creation_crash_window(
         assert target.exists() is (crash_phase == "after_creation")
         assert durable_receipt["status"] == "failed"
         assert durable_receipt["unresolved_effects"][0]["effect_id"] == effect.effect_id
-        assert "ownership cannot be verified" in durable_receipt["unresolved_effects"][0]["reason"] \
+        assert (
+            "ownership cannot be verified" in durable_receipt["unresolved_effects"][0]["reason"]
             or "no durably recorded creation identity" in durable_receipt["unresolved_effects"][0]["reason"]
+        )
 
 
 @pytest.mark.parametrize("resource_type", ["file", "directory"])
@@ -875,9 +877,7 @@ def test_unresolved_descendant_preserves_worker_owned_workspace(
     recovered_ledger, receipt = _recover_and_rollback(temp_journal_path)
     durable_receipt = _last_cleanup_receipt(temp_journal_path)
     recovered_by_id = {effect.effect_id: effect for effect in recovered_ledger.get_effects()}
-    unresolved_by_id = {
-        effect["effect_id"]: effect for effect in durable_receipt["unresolved_effects"]
-    }
+    unresolved_by_id = {effect["effect_id"]: effect for effect in durable_receipt["unresolved_effects"]}
 
     assert receipt.status == "failed"
     assert durable_receipt["status"] == "failed"

@@ -90,17 +90,23 @@ class TestLaboratoryHarness(unittest.TestCase):
         """Verify rejection of platforms with unsupported OS, distribution, or runtime."""
         # Unsupported OS
         with self.assertRaises(PrerequisiteMismatchError) as ctx:
-            verify_platform_matrix({"os": "solaris", "distribution": "solaris", "architecture": "x86_64", "runtime": "container"})
+            verify_platform_matrix(
+                {"os": "solaris", "distribution": "solaris", "architecture": "x86_64", "runtime": "container"}
+            )
         self.assertIn("Unsupported operating system 'solaris'", str(ctx.exception))
 
         # Unsupported distribution
         with self.assertRaises(PrerequisiteMismatchError) as ctx:
-            verify_platform_matrix({"os": "linux", "distribution": "archlinux", "architecture": "x86_64", "runtime": "container"})
+            verify_platform_matrix(
+                {"os": "linux", "distribution": "archlinux", "architecture": "x86_64", "runtime": "container"}
+            )
         self.assertIn("Unsupported distribution 'archlinux'", str(ctx.exception))
 
         # Unsupported runtime
         with self.assertRaises(PrerequisiteMismatchError) as ctx:
-            verify_platform_matrix({"os": "linux", "distribution": "ubuntu", "architecture": "x86_64", "runtime": "baremetal"})
+            verify_platform_matrix(
+                {"os": "linux", "distribution": "ubuntu", "architecture": "x86_64", "runtime": "baremetal"}
+            )
         self.assertIn("Unsupported laboratory runtime 'baremetal'", str(ctx.exception))
 
     def test_tool_prerequisites_rejection(self) -> None:
@@ -334,6 +340,7 @@ class TestLaboratoryHarness(unittest.TestCase):
 
         scope_def = ScopeDefinition()
         from cops.execution.scope_guard import parse_ip_or_network
+
         scope_def.included_networks.append(parse_ip_or_network("10.200.0.0/24"))
         scope_def.excluded_networks.append(parse_ip_or_network("169.254.169.254/32"))
         guard = ScopeGuard(scope_def)

@@ -26,10 +26,7 @@ class TestExecutionRecoveryAndCleanupSkill(unittest.TestCase):
             )
             creation_fd = os.open(
                 test_file,
-                os.O_WRONLY
-                | os.O_CREAT
-                | os.O_EXCL
-                | getattr(os, "O_NOFOLLOW", 0),
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
                 0o600,
             )
             try:

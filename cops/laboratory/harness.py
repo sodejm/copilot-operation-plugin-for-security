@@ -225,9 +225,7 @@ class LaboratoryHarness:
             target_workspace = None
         else:
             if ".." in Path(workspace_dir).parts:
-                raise LaboratoryGateError(
-                    "caller-supplied laboratory workspace must not contain parent traversal"
-                )
+                raise LaboratoryGateError("caller-supplied laboratory workspace must not contain parent traversal")
             target_workspace = Path(os.path.abspath(os.fspath(workspace_dir)))
             if not target_workspace.exists():
                 raise LaboratoryGateError("caller-supplied laboratory workspace must already exist")

@@ -17,8 +17,8 @@ from types import SimpleNamespace
 
 import pytest
 
-import cops.execution.executable as executable_module
 import cops.execution.cleanup as cleanup_module
+import cops.execution.executable as executable_module
 import cops.execution.process as process_module
 import cops.execution.worker as worker_module
 from cops.adapters import (
@@ -253,8 +253,7 @@ def _cleanup_events(worker: IsolatedWorker) -> list[tuple[str, str, dict[str, ob
             "SELECT event_type, effect_id, payload_json FROM cleanup_events ORDER BY sequence"
         ).fetchall()
     return [
-        (str(event_type), str(effect_id), json.loads(str(payload_json)))
-        for event_type, effect_id, payload_json in rows
+        (str(event_type), str(effect_id), json.loads(str(payload_json))) for event_type, effect_id, payload_json in rows
     ]
 
 
@@ -933,15 +932,13 @@ def test_worker_cleans_tracked_staged_file_without_claiming_preexisting_caller_d
     staged_files = [
         event
         for event in recorded
-        if event[2]["metadata"].get("purpose") == "staged_adapter_executable"
-        and event[2]["resource_type"] == "file"
+        if event[2]["metadata"].get("purpose") == "staged_adapter_executable" and event[2]["resource_type"] == "file"
     ]
     assert len(staged_files) == 1
     staged_effect_id = staged_files[0][1]
     assert Path(str(staged_files[0][2]["target"])).parent == staging_dir
     assert not any(
-        event[2]["metadata"].get("purpose") == "staged_adapter_executable"
-        and event[2]["resource_type"] == "directory"
+        event[2]["metadata"].get("purpose") == "staged_adapter_executable" and event[2]["resource_type"] == "directory"
         for event in recorded
     )
     assert any(
@@ -949,9 +946,7 @@ def test_worker_cleans_tracked_staged_file_without_claiming_preexisting_caller_d
         for event_type, effect_id, _payload in events
     )
     assert any(
-        event_type == "cleanup_transition"
-        and effect_id == staged_effect_id
-        and payload["status"] == "cleaned"
+        event_type == "cleanup_transition" and effect_id == staged_effect_id and payload["status"] == "cleaned"
         for event_type, effect_id, payload in events
     )
 
@@ -1029,8 +1024,7 @@ def test_worker_tracks_and_cleans_credential_scratch_executable_tree(
     credential_effects = [
         event
         for event in recorded
-        if event[2]["metadata"].get("purpose")
-        in {"credential_operation_scratch", "staged_adapter_executable"}
+        if event[2]["metadata"].get("purpose") in {"credential_operation_scratch", "staged_adapter_executable"}
     ]
     assert {(event[2]["metadata"]["purpose"], event[2]["resource_type"]) for event in credential_effects} == {
         ("credential_operation_scratch", "directory"),
@@ -1051,9 +1045,7 @@ def test_worker_tracks_and_cleans_credential_scratch_executable_tree(
     assert {
         effect_id
         for event_type, effect_id, payload in events
-        if event_type == "cleanup_transition"
-        and payload["status"] == "cleaned"
-        and effect_id in tracked_effect_ids
+        if event_type == "cleanup_transition" and payload["status"] == "cleaned" and effect_id in tracked_effect_ids
     } == tracked_effect_ids
 
 
@@ -1184,9 +1176,7 @@ def test_credential_scratch_preserves_unresolved_plan_declared_descendant(
         assert cleanup_target.read_text(encoding="utf-8") == "preserve me"
 
         assert worker.last_cleanup_receipt is not None
-        unresolved_targets = {
-            item["target"] for item in worker.last_cleanup_receipt.unresolved_effects
-        }
+        unresolved_targets = {item["target"] for item in worker.last_cleanup_receipt.unresolved_effects}
         assert str(cleanup_target) in unresolved_targets
         assert str(scratch_path) in unresolved_targets
 
@@ -1310,10 +1300,7 @@ def test_credential_scratch_cleanup_transition_failure_preserves_uncertain_audit
         ).fetchone()
     assert durable_row is not None
     durable_receipt = json.loads(durable_row[0])
-    assert any(
-        item["effect_id"] == scratch_effect.effect_id
-        for item in durable_receipt["unresolved_effects"]
-    )
+    assert any(item["effect_id"] == scratch_effect.effect_id for item in durable_receipt["unresolved_effects"])
 
 
 def test_worker_rejects_credential_plan_without_resolver_before_approval_consumption(

@@ -18,9 +18,7 @@ def open_directory_no_symlinks(
 ) -> int:
     """Open a directory path without following any symbolic-link component."""
     if os.name != "posix" or not hasattr(os, "O_NOFOLLOW") or not hasattr(os, "O_DIRECTORY"):
-        raise SecureDirectoryError(
-            "symlink-safe directory access requires POSIX O_NOFOLLOW and directory descriptors"
-        )
+        raise SecureDirectoryError("symlink-safe directory access requires POSIX O_NOFOLLOW and directory descriptors")
 
     requested = Path(path)
     if any(component == ".." for component in requested.parts):

@@ -324,9 +324,7 @@ def prepare_executable(
                 directory_effect=directory_effect,
             )
             if isinstance(err, CleanupError):
-                raise ExecutableVerificationError(
-                    "durable staged executable ownership tracking failed"
-                ) from err
+                raise ExecutableVerificationError("durable staged executable ownership tracking failed") from err
             if cleanup_failures and isinstance(err, OSError):
                 raise ExecutableVerificationError(
                     "staged executable creation failed and cleanup could not verify ownership"
