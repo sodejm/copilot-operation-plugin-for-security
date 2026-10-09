@@ -37,3 +37,10 @@ Feature: Credential Masking and Evidence Capture
     Given an evidence recorder whose redactor fails
     When recording output with the failing redactor
     Then no evidence record or artifact is persisted
+
+  Scenario: Recording the enforced evidence lifecycle without claiming encryption
+    Given an evidence recorder with a temporary workspace
+    When recording execution output "safe redacted output" for step "step-lifecycle"
+    Then raw evidence is memory-only and prohibited from persistence
+    And redacted evidence uses owner-only workspace permissions
+    And evidence lifecycle requires owner-managed retention and does not claim encryption

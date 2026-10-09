@@ -170,6 +170,33 @@ def then_evidence_hashes_generated(cred_context):
     assert len(hashes) >= 1
 
 
+@then("raw evidence is memory-only and prohibited from persistence")
+def then_raw_evidence_is_not_persisted(cred_context):
+    lifecycle = cred_context["recorder"].evidence_records[0]["payload"]["lifecycle"]
+    assert lifecycle["raw"] == {
+        "storage": "memory_only",
+        "persistence": "prohibited",
+        "retained": False,
+        "persistence_gate": "redaction_and_schema_validation",
+    }
+
+
+@then("redacted evidence uses owner-only workspace permissions")
+def then_redacted_evidence_is_owner_only(cred_context):
+    lifecycle = cred_context["recorder"].evidence_records[0]["payload"]["lifecycle"]
+    assert lifecycle["redacted"]["storage"] == "owner_only_workspace"
+    assert lifecycle["redacted"]["directory_mode"] == "0700"
+    assert lifecycle["redacted"]["file_mode"] == "0600"
+
+
+@then("evidence lifecycle requires owner-managed retention and does not claim encryption")
+def then_lifecycle_is_explicit_about_retention_and_encryption(cred_context):
+    lifecycle = cred_context["recorder"].evidence_records[0]["payload"]["lifecycle"]
+    assert lifecycle["redacted"]["retention_controller"] == "workspace_owner"
+    assert lifecycle["redacted"]["automatic_deletion"] is False
+    assert "encryption" not in lifecycle["redacted"]
+
+
 @given(parsers.parse('an authority-issued consumption receipt for worker "{worker_identity}"'))
 def given_consumption_receipt(cred_context, worker_identity):
     plan = _load_plan()
