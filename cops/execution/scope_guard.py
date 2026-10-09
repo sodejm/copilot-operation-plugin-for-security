@@ -194,7 +194,8 @@ class ScopeGuard:
         # It is a hostname / domain
         domain_clean = host.lower().lstrip(".")
 
-        # Explicit domain exclusion check
+        # Explicit exclusions always take precedence, including when DNS is
+        # unavailable or returns an empty answer for an otherwise included name.
         if domain_clean in self.scope.excluded_domains or any(
             domain_clean.endswith("." + exc) for exc in self.scope.excluded_domains
         ):
@@ -209,14 +210,50 @@ class ScopeGuard:
             ):
                 return
             raise ScopeViolationError(f"Domain '{domain_clean}' is neither resolvable nor in allowed domain scope")
+        self.check_resolved_destination(domain_clean, resolved_ips)
 
-        # Every resolved IP MUST pass scope checks
-        for ip_str in resolved_ips:
+    def check_resolved_destination(self, host: str, addresses: list[str] | tuple[str, ...]) -> None:
+        """Validate a hostname and the exact address set selected by an execution mediator.
+
+        The mediator owns resolution so it can bind validation, connection, and a
+        second resolution to the same request. This method deliberately performs
+        no additional lookup that could validate one DNS answer and connect to a
+        different one.
+        """
+        domain_clean = host.lower().rstrip(".").lstrip(".")
+        if not domain_clean:
+            raise ScopeViolationError("Empty destination hostname")
+        literal = parse_ip_or_network(domain_clean)
+        if not isinstance(literal, (ipaddress.IPv4Address, ipaddress.IPv6Address)) and (
+            domain_clean in self.scope.excluded_domains
+            or any(domain_clean.endswith("." + exc) for exc in self.scope.excluded_domains)
+        ):
+            raise ScopeViolationError(f"Domain '{domain_clean}' is in explicitly excluded scope")
+        if not addresses:
+            raise ScopeViolationError(f"Domain '{domain_clean}' did not resolve to an address")
+
+        resolved_addresses: set[ipaddress.IPv4Address | ipaddress.IPv6Address] = set()
+        for ip_str in addresses:
             parsed = parse_ip_or_network(ip_str)
-            if isinstance(parsed, (ipaddress.IPv4Address, ipaddress.IPv6Address)):
-                self._validate_ip(parsed, original_target=f"{destination} -> {ip_str}")
-            elif isinstance(parsed, (ipaddress.IPv4Network, ipaddress.IPv6Network)):
-                self._validate_network(parsed, original_target=f"{destination} -> {ip_str}")
+            if not isinstance(parsed, (ipaddress.IPv4Address, ipaddress.IPv6Address)):
+                raise ScopeViolationError(f"Resolver returned a non-address value for '{domain_clean}'")
+            if isinstance(parsed, ipaddress.IPv6Address) and parsed.ipv4_mapped:
+                parsed = parsed.ipv4_mapped
+            self._validate_ip(parsed, original_target=f"{domain_clean} -> {ip_str}")
+            resolved_addresses.add(parsed)
+
+        if isinstance(literal, (ipaddress.IPv4Address, ipaddress.IPv6Address)):
+            if isinstance(literal, ipaddress.IPv6Address) and literal.ipv4_mapped:
+                literal = literal.ipv4_mapped
+            if resolved_addresses != {literal}:
+                raise ScopeViolationError("IP literal resolution changed the requested destination")
+            return
+
+        if not (
+            domain_clean in self.scope.included_domains
+            or any(domain_clean.endswith("." + included) for included in self.scope.included_domains)
+        ):
+            raise ScopeViolationError(f"Domain '{domain_clean}' is outside the included domain scope")
 
     def _validate_network(
         self,
