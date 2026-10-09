@@ -28,6 +28,7 @@ class TestWorkerReadinessAndApprovalSkill(unittest.TestCase):
 
     def tearDown(self):
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_worker_and_approval_skill_flow(self):

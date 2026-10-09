@@ -125,9 +125,7 @@ class LinuxBubblewrapSandbox:
         return descriptor
 
     @staticmethod
-    def _sandbox_environment(
-        env: Mapping[str, str], operation_env: Mapping[str, str] | None
-    ) -> dict[str, str]:
+    def _sandbox_environment(env: Mapping[str, str], operation_env: Mapping[str, str] | None) -> dict[str, str]:
         sandbox_env = {"PATH": "/usr/bin:/bin", "HOME": "/home/cops", "TMPDIR": "/tmp"}  # noqa: S108 - private sandbox tmpfs
         sandbox_env.update({key: value for key, value in env.items() if key in {"LANG", "LC_ALL", "TZ"}})
         for key, value in (operation_env or {}).items():

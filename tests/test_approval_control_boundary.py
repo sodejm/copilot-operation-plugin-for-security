@@ -162,9 +162,7 @@ def test_authority_returns_the_durable_receipt_for_an_exact_retry(authority_cont
         "engagement_id": plan.engagement_id,
         "worker_identity": WORKER_IDENTITY,
         "target": plan.target,
-        "created_at": authority.store.get_authorization(
-            authorization.authorization_id
-        ).consumed_at,
+        "created_at": authority.store.get_authorization(authorization.authorization_id).consumed_at,
     }
 
 
@@ -181,9 +179,7 @@ def test_authority_rejects_altered_reuse_of_a_consumed_request_id(authority_cont
         _consume(authority, altered)
 
 
-def test_authority_checks_store_postconditions_before_consuming(
-    authority_context, monkeypatch
-):
+def test_authority_checks_store_postconditions_before_consuming(authority_context, monkeypatch):
     authority, authorization, plan = authority_context
     original_assertion = authority.store.assert_protected_owner
     assertion_calls = 0
@@ -210,9 +206,7 @@ def test_authority_checks_store_postconditions_before_consuming(
     assert receipt_count == 0
 
 
-def test_client_retries_the_same_request_after_response_loss(
-    authority_context, monkeypatch, tmp_path
-):
+def test_client_retries_the_same_request_after_response_loss(authority_context, monkeypatch, tmp_path):
     authority, authorization, plan = authority_context
     request_ids: list[str] = []
 
@@ -296,9 +290,7 @@ def test_authority_rejects_a_different_valid_plan_before_consumption(authority_c
 
 
 @pytest.mark.parametrize("trailer", [b"extra", b"\n{}\n"])
-def test_authority_rejects_bytes_after_request_newline_before_consumption(
-    authority_context, monkeypatch, trailer
-):
+def test_authority_rejects_bytes_after_request_newline_before_consumption(authority_context, monkeypatch, trailer):
     authority, authorization, plan = authority_context
     monkeypatch.setattr(
         "cops.execution.control._peer_credentials",

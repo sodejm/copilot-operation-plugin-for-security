@@ -112,9 +112,7 @@ def _read_json_line(connection: socket.socket) -> dict[str, Any]:
         # A newline does not finish the frame. Wait for the peer's write-side
         # EOF so trailing bytes cannot arrive after approval consumption.
     if not data.endswith(b"\n"):
-        raise _ApprovalControlTransportError(
-            "approval control connection ended before a complete response"
-        )
+        raise _ApprovalControlTransportError("approval control connection ended before a complete response")
     if data.count(b"\n") != 1:
         raise ApprovalControlError("approval control requires one newline-delimited JSON document")
     try:
@@ -440,9 +438,7 @@ class ApprovalControlClient:
                 connection.connect(str(self.socket_path))
                 _, peer_uid, _ = _peer_credentials(connection)
                 if peer_uid != self.expected_authority_uid:
-                    raise ApprovalControlError(
-                        "connected approval authority UID does not match configured UID"
-                    )
+                    raise ApprovalControlError("connected approval authority UID does not match configured UID")
                 _write_json_line(connection, request)
                 connection.shutdown(socket.SHUT_WR)
                 return _read_json_line(connection)
@@ -473,9 +469,7 @@ class ApprovalControlClient:
                 break
             except _ApprovalControlTransportError as err:
                 if attempt == 1:
-                    raise ApprovalControlError(
-                        "approval control transport failed after an idempotent retry"
-                    ) from err
+                    raise ApprovalControlError("approval control transport failed after an idempotent retry") from err
         if response is None:  # pragma: no cover - loop exit is exhaustive
             raise ApprovalControlError("approval control did not return a response")
         if response.get("schema_version") != RESPONSE_SCHEMA or response.get("request_id") != request_id:

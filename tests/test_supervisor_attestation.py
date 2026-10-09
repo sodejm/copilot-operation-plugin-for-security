@@ -28,7 +28,7 @@ def _request(*, request_id: str = "request-01", nonce: str = NONCE) -> dict[str,
         "expected_host": "worker.example.test",
         "expected_worker_id": "worker-lab-01",
         "payload": {
-                "schema_version": "cops.remote-execution-request/v1",
+            "schema_version": "cops.remote-execution-request/v1",
             "authorization_id": "auth-01",
             "action_plan": {
                 "plan_id": "plan-01",
@@ -66,9 +66,7 @@ def _signed_payload(
         "worker_id": "worker-lab-01",
         "payload": _authorized_run(),
     }
-    wire = SupervisorResponseAttestor(key_id, key).attest(
-        canonical(request) + b"\n", canonical(response) + b"\n"
-    )
+    wire = SupervisorResponseAttestor(key_id, key).attest(canonical(request) + b"\n", canonical(response) + b"\n")
     document = decode_json(wire[:-1])
     assert isinstance(document, dict)
     payload = document["payload"]
@@ -78,7 +76,8 @@ def _signed_payload(
 
 def _verify(
     payload: dict[str, object],
-    *, request_id: str = "request-01",
+    *,
+    request_id: str = "request-01",
     nonce: str = NONCE,
     key_id: str = KEY_ID,
     key: bytes = KEY,

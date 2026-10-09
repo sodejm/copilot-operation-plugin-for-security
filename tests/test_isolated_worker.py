@@ -292,12 +292,8 @@ def test_isolated_worker_rejects_unauthorized_tool(temp_store, sample_plan):
 
 
 @pytest.mark.parametrize("failed_boundary", ["approval-control", "sandbox"])
-def test_readiness_failure_stops_execution_before_approval_consumption(
-    temp_store, sample_plan, failed_boundary
-):
-    auth, trust_store, engagement = authorize_test_plan(
-        sample_plan, worker_identity="readiness-test"
-    )
+def test_readiness_failure_stops_execution_before_approval_consumption(temp_store, sample_plan, failed_boundary):
+    auth, trust_store, engagement = authorize_test_plan(sample_plan, worker_identity="readiness-test")
     temp_store.store_authorization(auth)
     readiness_error = WorkerExecutionError(f"{failed_boundary} unavailable")
     approval_control = TestApprovalControl(
@@ -306,9 +302,7 @@ def test_readiness_failure_stops_execution_before_approval_consumption(
         engagement,
         readiness_error=readiness_error if failed_boundary == "approval-control" else None,
     )
-    sandbox = TestExecutionSandbox(
-        readiness_error=readiness_error if failed_boundary == "sandbox" else None
-    )
+    sandbox = TestExecutionSandbox(readiness_error=readiness_error if failed_boundary == "sandbox" else None)
     worker = IsolatedWorker(
         worker_inventory_for_plan(sample_plan, worker_identity="readiness-test"),
         approval_control,

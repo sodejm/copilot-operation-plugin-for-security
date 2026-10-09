@@ -39,13 +39,16 @@ class ProcessResourceLimits:
     open_files: int = 64
 
     def __post_init__(self) -> None:
-        if min(
-            self.address_space_bytes,
-            self.process_count,
-            self.cpu_seconds,
-            self.file_size_bytes,
-            self.open_files,
-        ) <= 0:
+        if (
+            min(
+                self.address_space_bytes,
+                self.process_count,
+                self.cpu_seconds,
+                self.file_size_bytes,
+                self.open_files,
+            )
+            <= 0
+        ):
             raise ValueError("process resource limits must be positive")
 
 

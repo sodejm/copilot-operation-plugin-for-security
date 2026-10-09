@@ -167,9 +167,7 @@ class ApprovalStore:
                 # Never follow an attacker-controlled store directory or database.
                 p_stat = os.lstat(parent_dir)
                 if not stat.S_ISDIR(p_stat.st_mode):
-                    raise ApprovalStoreAccessError(
-                        f"approval store directory '{parent_dir}' is not a directory"
-                    )
+                    raise ApprovalStoreAccessError(f"approval store directory '{parent_dir}' is not a directory")
                 if p_stat.st_uid != os.geteuid():
                     raise ApprovalStoreAccessError(
                         f"approval store directory '{parent_dir}' is not owned by the current account"
@@ -268,15 +266,11 @@ class ApprovalStore:
                         "ALTER TABLE approvals ADD COLUMN signature_algorithm TEXT NOT NULL DEFAULT 'legacy-untrusted'"
                     )
                 if "signing_key_id" not in columns:
-                    conn.execute(
-                        "ALTER TABLE approvals ADD COLUMN signing_key_id TEXT NOT NULL DEFAULT ''"
-                    )
+                    conn.execute("ALTER TABLE approvals ADD COLUMN signing_key_id TEXT NOT NULL DEFAULT ''")
                 if "legacy_status" not in columns:
                     conn.execute("ALTER TABLE approvals ADD COLUMN legacy_status TEXT")
                 if legacy_database:
-                    conn.execute(
-                        "UPDATE approvals SET legacy_status = status, status = 'legacy-untrusted'"
-                    )
+                    conn.execute("UPDATE approvals SET legacy_status = status, status = 'legacy-untrusted'")
                 conn.execute("COMMIT")
             except Exception:
                 conn.execute("ROLLBACK")
@@ -331,9 +325,7 @@ class ApprovalStore:
                 conn.execute("ROLLBACK")
                 raise
 
-    def get_authorization(
-        self, authorization_id: str
-    ) -> ExecutionAuthorization | LegacyApprovalRecord:
+    def get_authorization(self, authorization_id: str) -> ExecutionAuthorization | LegacyApprovalRecord:
         """Retrieve an authorization envelope by ID."""
         import json
 
@@ -531,9 +523,7 @@ class ApprovalStore:
                     (authorization_id,),
                 ).fetchone()
                 if row is None:
-                    raise ApprovalStoreNotFoundError(
-                        f"authorization '{authorization_id}' not found in store"
-                    )
+                    raise ApprovalStoreNotFoundError(f"authorization '{authorization_id}' not found in store")
                 if row["status"] != "approved":
                     raise ApprovalStoreConflictError(
                         f"cannot consume authorization '{authorization_id}': status is '{row['status']}' "
@@ -565,9 +555,7 @@ class ApprovalStore:
                         f"authorization '{authorization_id}' is bound to a different worker"
                     )
                 if now_dt < timestamp(row["issued_at"]):
-                    raise ApprovalStoreConflictError(
-                        f"authorization '{authorization_id}' is not yet valid"
-                    )
+                    raise ApprovalStoreConflictError(f"authorization '{authorization_id}' is not yet valid")
                 if now_dt >= timestamp(row["authorized_until_utc"]):
                     conn.execute(
                         "UPDATE approvals SET status = 'expired' WHERE authorization_id = ?",
@@ -589,9 +577,7 @@ class ApprovalStore:
                     (now_str, worker_identity, authorization_id),
                 )
                 if updated.rowcount != 1:
-                    raise ApprovalStoreConflictError(
-                        f"authorization '{authorization_id}' could not be consumed"
-                    )
+                    raise ApprovalStoreConflictError(f"authorization '{authorization_id}' could not be consumed")
 
                 doc.update(
                     status="consumed",
@@ -725,9 +711,7 @@ class ApprovalStore:
                         f"authorization '{authorization_id}' is bound to a different worker"
                     )
                 if now_dt < timestamp(row["issued_at"]):
-                    raise ApprovalStoreConflictError(
-                        f"authorization '{authorization_id}' is not yet valid"
-                    )
+                    raise ApprovalStoreConflictError(f"authorization '{authorization_id}' is not yet valid")
 
                 # Check expiration
                 expiry_dt = timestamp(row["authorized_until_utc"])
@@ -770,9 +754,7 @@ class ApprovalStore:
                         pass
                 raise
 
-    def list_approvals(
-        self, status: str | None = None
-    ) -> list[ExecutionAuthorization | LegacyApprovalRecord]:
+    def list_approvals(self, status: str | None = None) -> list[ExecutionAuthorization | LegacyApprovalRecord]:
         """List authorizations optionally filtered by status."""
         import json
 

@@ -191,9 +191,7 @@ def make_test_authorization_context(
             "operator": "secops-lead",
             "rules_of_engagement": {
                 "max_intensity": "low",
-                "allowed_actions": sorted(
-                    {str(operation["action"]) for operation in plan.operations}
-                ),
+                "allowed_actions": sorted({str(operation["action"]) for operation in plan.operations}),
                 "emergency_contact": "soc@example.test",
                 "safe_mode": True,
             },

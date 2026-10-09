@@ -414,6 +414,7 @@ def test_worker_marks_post_dispatch_failures_uncertain(
 
     _sandbox(worker).run_callback = launch
     if failure_site == "evidence":
+
         def fail_capture(self, **kwargs):
             raise EvidenceCaptureError("private evidence failure")
 

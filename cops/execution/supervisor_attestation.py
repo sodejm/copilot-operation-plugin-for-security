@@ -205,7 +205,14 @@ def _claims_from_documents(
         raise SupervisorAttestationError("supervisor exchange endpoint binding mismatch")
     request_payload = request["payload"]
     run = response["payload"]
-    required = {"schema_version", "authorization_id", "action_plan", "timeout_seconds", "max_output_bytes", "exchange_nonce"}
+    required = {
+        "schema_version",
+        "authorization_id",
+        "action_plan",
+        "timeout_seconds",
+        "max_output_bytes",
+        "exchange_nonce",
+    }
     if not isinstance(request_payload, Mapping) or set(request_payload) != required or not isinstance(run, Mapping):
         raise SupervisorAttestationError("supervisor execution payload is invalid")
     claims = _build_claims(

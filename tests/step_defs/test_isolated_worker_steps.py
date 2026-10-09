@@ -96,9 +96,7 @@ def _consume_at_authority(worker_context, request, **peer_changes):
 @when("the worker submits the authorization identifier and exact action plan")
 def submit_exact_control_request(worker_context):
     worker_context["control_request"] = _control_request(worker_context)
-    worker_context["control_response"] = _consume_at_authority(
-        worker_context, worker_context["control_request"]
-    )
+    worker_context["control_response"] = _consume_at_authority(worker_context, worker_context["control_request"])
 
 
 @then("the authority verifies and consumes the stored approval exactly once")
@@ -115,12 +113,24 @@ def verify_single_authority_consumption(worker_context):
 @then("the worker never receives a signing key or approval registration capability")
 def verify_control_receipt_is_consume_only(worker_context):
     assert set(worker_context["control_request"]) == {
-        "schema_version", "request_id", "operation", "authorization_id",
-        "worker_identity", "action_plan",
+        "schema_version",
+        "request_id",
+        "operation",
+        "authorization_id",
+        "worker_identity",
+        "action_plan",
     }
     assert set(worker_context["control_response"]) == {
-        "schema_version", "request_id", "ok", "authorization_id", "authorization_digest",
-        "target", "engagement_id", "plan_digest", "action_plan_id", "worker_identity",
+        "schema_version",
+        "request_id",
+        "ok",
+        "authorization_id",
+        "authorization_digest",
+        "target",
+        "engagement_id",
+        "plan_digest",
+        "action_plan_id",
+        "worker_identity",
     }
     assert worker_context["control_request"]["operation"] == "consume"
 
@@ -165,9 +175,7 @@ def submit_mismatched_control_request(worker_context, monkeypatch, mismatch):
 
 @then("the authority rejects the request without consuming the approval")
 def verify_mismatch_preserves_approval(worker_context):
-    assert worker_context["store"].get_authorization(
-        worker_context["auth"].authorization_id
-    ).status == "approved"
+    assert worker_context["store"].get_authorization(worker_context["auth"].authorization_id).status == "approved"
 
 
 @given("a versioned execution request over host-key-verified SSH")
@@ -300,9 +308,7 @@ def worker_missing_required_sandbox_control(worker_context):
         worker_context["trust_store"],
         worker_context["engagement"],
     )
-    sandbox = TestExecutionSandbox(
-        readiness_error=WorkerExecutionError("required process sandbox control unavailable")
-    )
+    sandbox = TestExecutionSandbox(readiness_error=WorkerExecutionError("required process sandbox control unavailable"))
     worker_context["approval_control"] = approval_control
     worker_context["sandbox"] = sandbox
     worker_context["worker"] = IsolatedWorker(
@@ -324,14 +330,10 @@ def worker_checks_readiness(worker_context):
 
 @then("the worker rejects dispatch without consuming the approval")
 def worker_rejects_without_consuming(worker_context):
-    assert "required process sandbox control unavailable" in str(
-        worker_context["readiness_error"]
-    )
+    assert "required process sandbox control unavailable" in str(worker_context["readiness_error"])
     assert worker_context["approval_control"].consume_calls == []
     assert worker_context["sandbox"].run_calls == []
-    stored = worker_context["store"].get_authorization(
-        worker_context["auth"].authorization_id
-    )
+    stored = worker_context["store"].get_authorization(worker_context["auth"].authorization_id)
     assert stored.status == "approved"
 
 

@@ -179,6 +179,7 @@ def test_failure_injection_after_consume_prevents_replay(temp_store, sample_plan
 
     # Subsequent attempt to execute MUST fail closed (consumed status rejection)
     from cops.execution.authorization import AuthorizationError
+
     with pytest.raises((ApprovalStoreConflictError, AuthorizationError)):
         worker.execute_plan(plan, authorization=auth.authorization_id)
 
