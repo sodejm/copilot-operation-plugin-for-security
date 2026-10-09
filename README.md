@@ -173,3 +173,7 @@ In security engineering, confidence comes from verification:
 ### Plugin execution cost analysis
 
 Contributors can use [plugin-run-cost](.agents/skills/plugin-run-cost/SKILL.md) to measure explicitly assigned COPS runs, estimate input scaling, and compare API, local-tool and employee costs. It runs locally with synthetic examples, preserves unknown charges, and distinguishes API-equivalent estimates from actual bills.
+
+## Local pre-push validation
+
+See [installation, prerequisites, security boundaries and recovery](docs/LOCAL_PUSH_GATE.md). CI remains required.
