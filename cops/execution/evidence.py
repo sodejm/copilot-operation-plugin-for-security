@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, BinaryIO
 
-from cops.evidence.canonical import digest
+from cops.evidence.canonical import canonical, digest
 from cops.evidence.contract import build_envelope
 
 from .filesystem import open_directory_no_symlinks
@@ -46,6 +46,10 @@ class ArtifactReservation:
 
 class EvidenceCaptureError(RuntimeError):
     """Evidence could not be written without crossing the workspace boundary."""
+
+
+class EvidenceCleanupError(EvidenceCaptureError):
+    """An evidence capture failed and an artifact could not be removed."""
 
 
 @dataclass(frozen=True)
@@ -101,10 +105,12 @@ class EvidenceRecorder:
         *,
         portable_inert: bool = False,
         context: EvidenceContext | None = None,
+        ephemeral_workspace: bool = False,
     ) -> None:
         self.workspace_dir = Path(workspace_dir)
         self.redactor = redactor or StreamRedactor()
         self.portable_inert = portable_inert
+        self.ephemeral_workspace = ephemeral_workspace
         if context is None:
             if not portable_inert:
                 raise ValueError("complete evidence context is required for executable operations")
@@ -126,8 +132,12 @@ class EvidenceRecorder:
 
     def reserve_step_output(self, step_id: str) -> ArtifactReservation:
         """Reserve a unique evidence inode before executing a step."""
+        return self._reserve_artifact(step_id, "output.txt")
+
+    def _reserve_artifact(self, step_id: str, suffix: str) -> ArtifactReservation:
+        """Reserve a private inode for either output or its evidence envelope."""
         if self.portable_inert:
-            return self._reserve_portable_step_output(step_id)
+            return self._reserve_portable_artifact(step_id, suffix)
 
         clean_step_id = re.sub(r"[^a-zA-Z0-9_-]", "_", step_id)
         workspace_fd = -1
@@ -145,9 +155,9 @@ class EvidenceRecorder:
             artifacts_fd = os.open("artifacts", os.O_RDONLY | directory | nofollow, dir_fd=workspace_fd)
             self._validate_private_directory(artifacts_fd, "evidence artifact directory")
 
-            base_name = f"{clean_step_id}_output.txt"
+            base_name = f"{clean_step_id}_{suffix}"
             for attempt in range(16):
-                candidate = base_name if attempt == 0 else f"{clean_step_id}_{uuid.uuid4().hex}_output.txt"
+                candidate = base_name if attempt == 0 else f"{clean_step_id}_{uuid.uuid4().hex}_{suffix}"
                 try:
                     artifact_fd = os.open(
                         candidate,
@@ -240,6 +250,7 @@ class EvidenceRecorder:
             redacted_stdout = self.redactor.redact_bytes(stdout)
             redacted_stderr = self.redactor.redact_bytes(stderr)
             redacted_error = self.redactor.redact_bytes(error)
+            redacted_action = self.redactor.redact_string(action)
             redacted_artifacts: list[dict[str, Any]] = []
             for raw_path, raw_content in (artifact_outputs or {}).items():
                 if isinstance(raw_path, str):
@@ -299,7 +310,7 @@ class EvidenceRecorder:
                         "step_id": step_id,
                         "tool": tool,
                         "tool_version": tool_version,
-                        "action": action,
+                        "action": redacted_action,
                     },
                     "streams": {
                         "stdout": _redacted_stream_metadata(redacted_stdout),
@@ -325,11 +336,13 @@ class EvidenceRecorder:
                             "persistence_gate": "redaction_and_schema_validation",
                         },
                         "redacted": {
-                            "storage": "owner_only_workspace",
+                            "storage": (
+                                "worker_ephemeral_workspace" if self.ephemeral_workspace else "owner_only_workspace"
+                            ),
                             "directory_mode": "0700",
                             "file_mode": "0600",
-                            "retention_controller": "workspace_owner",
-                            "automatic_deletion": False,
+                            "retention_controller": "worker" if self.ephemeral_workspace else "workspace_owner",
+                            "automatic_deletion": self.ephemeral_workspace,
                         },
                     },
                 },
@@ -342,25 +355,34 @@ class EvidenceRecorder:
                 source_version=tool_version,
                 raw_reference=None,
             )
+            # Canonical bytes are the exact artifact bytes and the bytes hashed
+            # into the RunResult. The contract also bounds each envelope to 1 MiB.
+            envelope_bytes = canonical(evidence_entry)
 
         except BaseException as error:
-            self.discard_reservation(reservation)
+            removed = self.discard_reservation(reservation)
+            if not removed:
+                raise EvidenceCleanupError("evidence cleanup failed; a residual artifact may remain") from None
             if not isinstance(error, Exception):
                 raise
             raise EvidenceCaptureError("evidence redaction or validation failed") from None
-        # Persistence is deliberately last: redaction and envelope schema
-        # validation must both succeed before bytes cross this boundary.
+        # Persist both artifacts as one capture operation. A failed second write
+        # removes the already-written output through its held inode.
+        envelope_reservation: ArtifactReservation | None = None
         try:
+            envelope_reservation = self._reserve_artifact(step_id, "evidence.json")
             self._write_reserved_artifact(reservation, redacted_bytes)
+            self._write_reserved_artifact(envelope_reservation, envelope_bytes)
         except BaseException:
-            self.discard_reservation(reservation)
+            removed_output = self.discard_reservation(reservation)
+            removed_envelope = (
+                self.discard_reservation(envelope_reservation) if envelope_reservation is not None else True
+            )
+            if not (removed_output and removed_envelope):
+                raise EvidenceCleanupError("evidence cleanup failed; a residual artifact may remain") from None
             raise
-        self._reservations.pop(reservation.path, None)
-        self._reservation_handles.pop(reservation.path).close()
-        held_dirs = self._reservation_dirs.pop(reservation.path, None)
-        if held_dirs is not None:
-            for fd in held_dirs:
-                os.close(fd)
+        self._complete_reservation(reservation)
+        self._complete_reservation(envelope_reservation)
 
         artifact = CapturedArtifact(
             name=reservation.name,
@@ -370,11 +392,19 @@ class EvidenceRecorder:
             truncated_bytes=truncated_bytes,
         )
         self.artifacts.append(artifact)
+        self.artifacts.append(
+            CapturedArtifact(
+                name=envelope_reservation.name,
+                path=envelope_reservation.path,
+                sha256=hashlib.sha256(envelope_bytes).hexdigest(),
+                size_bytes=len(envelope_bytes),
+            )
+        )
 
         telemetry = StepTelemetry(
             step_id=step_id,
             tool=tool,
-            action=action,
+            action=redacted_action,
             exit_code=exit_code,
             started_at=started_at,
             finished_at=finished_at,
@@ -389,6 +419,15 @@ class EvidenceRecorder:
         self.evidence_records.append(evidence_entry)
 
         return redacted_bytes, artifact
+
+    def _complete_reservation(self, reservation: ArtifactReservation) -> None:
+        """Release descriptors only after the artifact has been fully persisted."""
+        self._reservations.pop(reservation.path)
+        self._reservation_handles.pop(reservation.path).close()
+        held_dirs = self._reservation_dirs.pop(reservation.path, None)
+        if held_dirs is not None:
+            for fd in held_dirs:
+                os.close(fd)
 
     @staticmethod
     def _required_posix_flags() -> tuple[int, int]:
@@ -467,34 +506,44 @@ class EvidenceRecorder:
         ) != (reservation.device, reservation.inode):
             raise EvidenceCaptureError("evidence artifact reservation identity changed")
 
-    def discard_reservation(self, reservation: ArtifactReservation) -> None:
-        """Remove an unused reservation without following replaced paths."""
+    def discard_reservation(self, reservation: ArtifactReservation) -> bool:
+        """Remove an unused reservation; report when removal is not confirmed."""
         if self._reservations.pop(reservation.path, None) != reservation:
-            return
+            return False
         held_handle = self._reservation_handles.pop(reservation.path, None)
         if self.portable_inert:
-            self._discard_portable_reservation(reservation, held_handle)
-            return
+            return self._discard_portable_reservation(reservation, held_handle)
 
         held_dirs = self._reservation_dirs.pop(reservation.path, None)
+        removed = False
         try:
-            if held_dirs is None:
-                return
-            artifacts_fd = held_dirs[1]
-            info = os.stat(reservation.name, dir_fd=artifacts_fd, follow_symlinks=False)
-            if (info.st_dev, info.st_ino) != (reservation.device, reservation.inode):
-                return
-            os.unlink(reservation.name, dir_fd=artifacts_fd)
+            if held_dirs is not None:
+                artifacts_fd = held_dirs[1]
+                try:
+                    info = os.stat(reservation.name, dir_fd=artifacts_fd, follow_symlinks=False)
+                except FileNotFoundError:
+                    removed = True
+                else:
+                    if (info.st_dev, info.st_ino) == (reservation.device, reservation.inode):
+                        os.unlink(reservation.name, dir_fd=artifacts_fd)
+                        removed = True
         except (OSError, EvidenceCaptureError):
             pass
         finally:
             if held_dirs is not None:
                 for fd in held_dirs:
-                    os.close(fd)
+                    try:
+                        os.close(fd)
+                    except OSError:
+                        removed = False
             if held_handle is not None:
-                held_handle.close()
+                try:
+                    held_handle.close()
+                except OSError:
+                    removed = False
+        return removed
 
-    def _reserve_portable_step_output(self, step_id: str) -> ArtifactReservation:
+    def _reserve_portable_artifact(self, step_id: str, suffix: str) -> ArtifactReservation:
         """Reserve an inert artifact without relying on POSIX directory descriptors."""
         clean_step_id = re.sub(r"[^a-zA-Z0-9_-]", "_", step_id)
         artifacts_dir = self.workspace_dir / "artifacts"
@@ -509,11 +558,11 @@ class EvidenceRecorder:
                 pass
             self._validate_portable_directory(artifacts_dir, "evidence artifact directory")
 
-            base_name = f"{clean_step_id}_output.txt"
+            base_name = f"{clean_step_id}_{suffix}"
             flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0)
             flags |= getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOINHERIT", 0)
             for attempt in range(16):
-                candidate = base_name if attempt == 0 else f"{clean_step_id}_{uuid.uuid4().hex}_output.txt"
+                candidate = base_name if attempt == 0 else f"{clean_step_id}_{uuid.uuid4().hex}_{suffix}"
                 artifact_path = artifacts_dir / candidate
                 try:
                     artifact_fd = os.open(artifact_path, flags, 0o600)
@@ -598,36 +647,30 @@ class EvidenceRecorder:
         self,
         reservation: ArtifactReservation,
         held_handle: BinaryIO | None,
-    ) -> None:
+    ) -> bool:
         """Close a portable reservation and remove only its unchanged pathname."""
         artifact_path = self.workspace_dir / reservation.path
-        should_remove = False
+        removed = False
+        close_failed = False
+        if held_handle is not None:
+            try:
+                held_handle.close()
+            except OSError:
+                close_failed = True
         try:
             try:
                 path_info = os.lstat(artifact_path)
             except FileNotFoundError:
-                return
-            if self._is_symlink_or_reparse(path_info):
-                return
-            should_remove = self._matches_reservation(path_info, reservation)
+                removed = True
+            else:
+                if not self._is_symlink_or_reparse(path_info) and self._matches_reservation(path_info, reservation):
+                    path_info = os.lstat(artifact_path)
+                    if not self._is_symlink_or_reparse(path_info) and self._matches_reservation(path_info, reservation):
+                        artifact_path.unlink()
+                        removed = True
         except OSError:
             pass
-        finally:
-            if held_handle is not None:
-                try:
-                    held_handle.close()
-                except OSError:
-                    pass
-        if not should_remove:
-            return
-        try:
-            path_info = os.lstat(artifact_path)
-            if self._is_symlink_or_reparse(path_info):
-                return
-            if self._matches_reservation(path_info, reservation):
-                artifact_path.unlink()
-        except OSError:
-            pass
+        return removed and not close_failed
 
     @classmethod
     def _remove_matching_portable_path(

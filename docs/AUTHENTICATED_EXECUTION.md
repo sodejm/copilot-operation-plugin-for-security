@@ -251,22 +251,33 @@ descriptors and reject symbolic links or paths that escape the workspace.
 Real execution evidence requires a complete `EvidenceContext`. The recorder emits
 validated `cops.evidence/v1` envelopes with the plan identifier and digest,
 authorization, engagement, worker, target, step, tool, tool version, and action.
+Each canonical envelope is stored beside its redacted step output as a private
+`*_evidence.json` artifact. Its artifact SHA256 is the matching
+`RunResult.evidence_records` hash entry. When the caller supplies an owner-controlled
+`workspace_dir`, the owner can retrieve and verify the exact record after the
+run. The worker attempts to delete its default temporary workspace at completion
+and reports cleanup failure in `RunResult.cleanup_status`. Each envelope
+is bounded to 1 MiB; this evidence metadata limit is separate from the signed
+step-output limit.
 Stdout, stderr, errors, artifact identifiers, and artifact content pass through the
 same redactor before envelope validation or persistence. Artifact identifiers must
 be safe logical or workspace-relative names; absolute, drive-qualified, empty, and
-traversal components fail closed. A redaction or schema failure discards the
-reservation and produces no record or artifact. Captured output is untrusted data,
-so prompt-like text in a stream or artifact does not become an instruction.
+traversal components fail closed. A redaction, schema, or artifact-write failure
+discards both reservations and produces no record. If an artifact cannot be
+confirmed removed, capture reports an evidence cleanup error so the caller can
+handle a possible residual redacted artifact. Captured output is
+untrusted data, so prompt-like text in a stream or artifact does not become an
+instruction.
 
 Raw values remain in memory only for redaction and are prohibited from
-persistence. Redacted artifacts use an owner-controlled workspace, private
-directories, and `0600` files on POSIX systems. File permissions restrict access;
-they do not encrypt evidence at rest. Use an encrypted filesystem or storage
-service when the deployment requires encryption. COPS does not automatically
-delete redacted evidence: the workspace owner must enforce the engagement's
-retention and deletion schedule. The evidence lifecycle fields state these
-implemented controls and the absence of automatic deletion; they are not a
-substitute for an external retention job or encryption control.
+persistence. Redacted artifacts use private directories and `0600` files on
+POSIX systems. File permissions restrict access; they do not encrypt evidence
+at rest. Use an encrypted filesystem or storage service when the deployment
+requires encryption. The worker attempts to delete its default temporary workspace
+when the run completes. For an owner-controlled workspace, COPS leaves redacted
+evidence in place; the workspace owner must enforce the engagement's retention
+and deletion schedule. The envelope's lifecycle fields reflect which workspace
+mode applies. They do not replace an external retention job or encryption control.
 
 ## Validate in the scenario laboratory
 

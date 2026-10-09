@@ -88,6 +88,11 @@ class ScopedCredentialResolver:
         self._approval_control = approval_control
         self.redactor = redactor or StreamRedactor()
 
+    @property
+    def approval_control(self) -> ApprovalReceiptAuthority:
+        """Return the authority that must issue every credential-bearing receipt."""
+        return self._approval_control
+
     def resolve_for_operation(
         self,
         *,

@@ -127,7 +127,7 @@ The repository includes audit tools (such as `session-usage-audit`) to help team
 
 1. **Completely Local & Static**: Audits read only local Git commits and local files. They make zero network calls and invoke no remote AI models.
 2. **No Transcript Code or Secrets**: Audit summaries record file paths and change metrics, but strip out raw patch bodies, shell commands, and prompts.
-3. **Owner-Only Permissions**: Generated reports are written with restricted permissions (`0600` on POSIX systems), preventing other local users from reading your session metrics. These permissions are access controls, not encryption at rest. Raw execution values are prohibited from persistence; redacted evidence remains until the workspace owner applies the engagement's retention and deletion schedule because COPS does not automatically delete it.
+3. **Owner-Only Permissions**: Generated reports are written with restricted permissions (`0600` on POSIX systems), preventing other local users from reading your session metrics. These permissions are access controls, not encryption at rest. Raw execution values are prohibited from persistence. The worker attempts to remove its default temporary evidence workspace after each run and reports cleanup failures. Redacted evidence in a caller-supplied workspace remains until its owner applies the engagement's retention and deletion schedule.
 4. **Guardrail Ignored Patterns**: Local reports (`churn-v*.json`, `*.local.json`) are automatically ignored by Git to prevent accidental commits.
 
 ---

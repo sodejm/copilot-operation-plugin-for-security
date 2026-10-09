@@ -32,6 +32,7 @@ from cops.contracts.validation import validate_contract
 from cops.evidence.canonical import utc_now
 
 from .control import ApprovalConsumptionReceipt, ApprovalControl, ApprovalControlError
+from .credentials import ScopedCredentialResolver
 from .egress import CertificateURIIdentityVerifier, ExecutionEgressBroker, HTTPSExecutionMediator
 from .egress_policy import HTTPSOperationEgressPolicy, OperationEgressPolicyError, parse_operation_egress_policy
 from .executable import (
@@ -240,6 +241,7 @@ class IsolatedWorker:
         adapter_registry: ToolAdapterRegistry | None = None,
         expected_engagement_id: str | None = None,
         egress_trust_domain: str | None = None,
+        credential_resolver: ScopedCredentialResolver | None = None,
     ) -> None:
         if not isinstance(worker_inventory, WorkerCapabilityInventory) or not worker_inventory.is_verified:
             raise WorkerIsolationError("a verified owner-provisioned worker capability inventory is required")
@@ -250,6 +252,9 @@ class IsolatedWorker:
         self.scope_guard = scope_guard
         self.adapter_registry = adapter_registry or ToolAdapterRegistry()
         self.expected_engagement_id = expected_engagement_id
+        if credential_resolver is not None and credential_resolver.approval_control is not approval_control:
+            raise WorkerIsolationError("credential resolver and worker must use the same approval control client")
+        self.credential_resolver = credential_resolver
         try:
             self._egress_identity_verifier = (
                 None
@@ -416,6 +421,8 @@ class IsolatedWorker:
             raise WorkerExecutionError("requested timeout exceeds worker limits")
         if max_output_bytes is not None and (max_output_bytes <= 0 or max_output_bytes > self.config.max_output_bytes):
             raise WorkerExecutionError("requested output limit exceeds worker limits")
+        if plan_model.credential_references and self.credential_resolver is None:
+            raise WorkerIsolationError("credential-bearing plan requires a scoped credential resolver")
 
         operation_egress_policies = self._preflight_execution_request(plan_model, cancel_requested=cancel_requested)
 
@@ -449,7 +456,9 @@ class IsolatedWorker:
             self.sandbox.assert_ready(self.config.worker_id, cwd=target_workspace)
             self._verify_plan_compatibility(plan_model)
             receipt = self.approval_control.consume_authorization(authorization_id, plan_model, self.config.worker_id)
-            self.approval_control.validate_receipt_provenance(receipt)
+            verified_receipt = self.approval_control.validate_receipt_provenance(receipt)
+            if verified_receipt is not receipt:
+                raise ApprovalControlError("approval authority receipt provenance is invalid")
             if (
                 receipt.authorization_id != authorization_id
                 or receipt.action_plan_id != plan_model.plan_id
@@ -493,13 +502,24 @@ class IsolatedWorker:
         status = "success"
         status_reason = ""
 
-        from .evidence import EvidenceRecorder
+        from .evidence import EvidenceContext, EvidenceRecorder
         from .redaction import StreamRedactor
 
         # Initialize evidence recorder with redactor
-        redactor = StreamRedactor()
+        redactor = self.credential_resolver.redactor if self.credential_resolver is not None else StreamRedactor()
         evidence_recorder = EvidenceRecorder(
-            workspace_dir=target_workspace, redactor=redactor, portable_inert=portable_inert
+            workspace_dir=target_workspace,
+            redactor=redactor,
+            portable_inert=portable_inert,
+            context=EvidenceContext(
+                plan_id=plan_model.plan_id,
+                plan_digest=plan_model.plan_digest,
+                authorization_id=receipt.authorization_id,
+                engagement_id=plan_model.engagement_id,
+                worker_identity=self.config.worker_id,
+                target=plan_model.target,
+            ),
+            ephemeral_workspace=ephemeral,
         )
 
         max_duration_seconds = min(
@@ -635,6 +655,16 @@ class IsolatedWorker:
                                 process_runner=self.sandbox.run,
                             )
                             try:
+                                credential_env = (
+                                    self.credential_resolver.resolve_for_operation(
+                                        plan=plan_model,
+                                        authorization=receipt,
+                                        worker_identity=self.config.worker_id,
+                                        operation=op,
+                                    )
+                                    if self.credential_resolver is not None
+                                    else {}
+                                )
 
                                 def run_prepared_adapter(
                                     *,
@@ -660,7 +690,9 @@ class IsolatedWorker:
                                     )
 
                                 if operation_egress_policy is None:
-                                    proc = run_prepared_adapter()
+                                    proc = run_prepared_adapter(
+                                        **({"operation_env": credential_env} if credential_env else {})
+                                    )
                                 else:
                                     if self.scope_guard is None or self._egress_identity_verifier is None:
                                         raise WorkerIsolationError("operation egress preflight state is unavailable")
@@ -677,7 +709,7 @@ class IsolatedWorker:
                                         deadline=step_deadline
                                     ) as channel:
                                         proc = run_prepared_adapter(
-                                            operation_env=channel.environment,
+                                            operation_env={**channel.environment, **credential_env},
                                             capability_fds=channel.pass_fds,
                                         )
                                 if proc is None:
@@ -752,6 +784,7 @@ class IsolatedWorker:
                             step_id=step_id,
                             tool=tool,
                             action=action,
+                            tool_version=op["tool_version"],
                             stdout=stdout_bytes,
                             stderr=stderr_bytes,
                             exit_code=exit_code,

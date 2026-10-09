@@ -10,7 +10,7 @@ import pytest
 
 import cops.execution.evidence as evidence_module
 from cops.evidence.validation import validate_envelope
-from cops.execution.evidence import EvidenceCaptureError, EvidenceContext, EvidenceRecorder
+from cops.execution.evidence import EvidenceCaptureError, EvidenceCleanupError, EvidenceContext, EvidenceRecorder
 from cops.execution.redaction import StreamRedactor
 
 
@@ -88,7 +88,18 @@ def test_evidence_recorder_creates_redacted_artifacts():
         assert b"Bearer [REDACTED:TOKEN]" in redacted
         assert artifact.name == "step-001_output.txt"
         assert (workspace / "artifacts" / "step-001_output.txt").exists()
-        assert len(recorder.get_evidence_hashes()) == 1
+        envelope_artifact = recorder.artifacts[1]
+        envelope_path = workspace / envelope_artifact.path
+        envelope_bytes = envelope_path.read_bytes()
+        assert envelope_artifact.name == "step-001_evidence.json"
+        assert envelope_artifact.size_bytes == len(envelope_bytes)
+        assert envelope_artifact.sha256 == hashlib.sha256(envelope_bytes).hexdigest()
+        assert recorder.get_evidence_hashes() == [envelope_artifact.sha256]
+        assert validate_envelope(json.loads(envelope_bytes)) == recorder.evidence_records[0]
+        assert stat.S_IMODE(envelope_path.stat().st_mode) == 0o600
+        assert b"super_secret_long_token_12345678" not in envelope_bytes
+        del recorder
+        assert envelope_path.read_bytes() == envelope_bytes
 
 
 def test_executable_evidence_requires_complete_provenance(tmp_path: Path) -> None:
@@ -116,7 +127,7 @@ def test_every_serialized_channel_and_artifact_metadata_is_redacted(tmp_path: Pa
         step_id="step-adversarial",
         tool="example-tool",
         tool_version="3.4.5",
-        action="inspect",
+        action=f"inspect {secret}",
         stdout=f"stdout {secret}\n{injection}".encode(),
         stderr=f"stderr {secret}".encode(),
         error=f"error {secret}".encode(),
@@ -139,6 +150,8 @@ def test_every_serialized_channel_and_artifact_metadata_is_redacted(tmp_path: Pa
     assert secret not in captured.path
     assert secret.encode() not in redacted
     assert secret.encode() not in artifact_content
+    assert secret.encode() not in (tmp_path / recorder.artifacts[1].path).read_bytes()
+    assert secret not in recorder.step_telemetry[0].action
     assert artifact_metadata["path"] == "reports/[REDACTED:SECRET]/finding.json"
     redacted_artifact_content = b'{"credential":"[REDACTED:SECRET]"}'
     assert artifact_metadata["content_sha256"] == hashlib.sha256(redacted_artifact_content).hexdigest()
@@ -158,7 +171,7 @@ def test_every_serialized_channel_and_artifact_metadata_is_redacted(tmp_path: Pa
         "step_id": "step-adversarial",
         "tool": "example-tool",
         "tool_version": "3.4.5",
-        "action": "inspect",
+        "action": "inspect [REDACTED:SECRET]",
     }
     assert validate_envelope(evidence) == evidence
     assert stat.S_IMODE((tmp_path / "artifacts").stat().st_mode) == 0o700
@@ -177,6 +190,29 @@ def test_every_serialized_channel_and_artifact_metadata_is_redacted(tmp_path: Pa
             "retention_controller": "workspace_owner",
             "automatic_deletion": False,
         },
+    }
+
+
+def test_ephemeral_evidence_declares_worker_deletion(tmp_path: Path) -> None:
+    recorder = EvidenceRecorder(tmp_path, context=_context(), ephemeral_workspace=True)
+    recorder.record_step_output(
+        step_id="step-ephemeral",
+        tool="example-tool",
+        tool_version="3.4.5",
+        action="inspect",
+        stdout=b"redacted output",
+        stderr=b"",
+        exit_code=0,
+        started_at="2026-10-02T10:00:00Z",
+        finished_at="2026-10-02T10:00:01Z",
+    )
+
+    assert recorder.evidence_records[0]["payload"]["lifecycle"]["redacted"] == {
+        "storage": "worker_ephemeral_workspace",
+        "directory_mode": "0700",
+        "file_mode": "0600",
+        "retention_controller": "worker",
+        "automatic_deletion": True,
     }
 
 
@@ -216,6 +252,130 @@ def test_redaction_failure_discards_reserved_artifact_and_record(tmp_path: Path)
     assert recorder.evidence_records == []
     assert recorder.artifacts == []
     assert list((tmp_path / "artifacts").iterdir()) == []
+
+
+def test_second_artifact_write_failure_discards_both_artifacts_and_record(tmp_path: Path, monkeypatch) -> None:
+    recorder = EvidenceRecorder(tmp_path, context=_context())
+    write_artifact = recorder._write_reserved_artifact
+    writes = 0
+
+    def fail_envelope_write(reservation, content):
+        nonlocal writes
+        writes += 1
+        if writes == 2:
+            raise EvidenceCaptureError("simulated envelope write failure")
+        return write_artifact(reservation, content)
+
+    monkeypatch.setattr(recorder, "_write_reserved_artifact", fail_envelope_write)
+    with pytest.raises(EvidenceCaptureError, match="simulated envelope write failure"):
+        recorder.record_step_output(
+            step_id="step-partial",
+            tool="example-tool",
+            tool_version="3.4.5",
+            action="inspect",
+            stdout=b"output cannot remain without its envelope",
+            stderr=b"",
+            exit_code=0,
+            started_at="2026-10-02T10:00:00Z",
+            finished_at="2026-10-02T10:00:01Z",
+        )
+
+    assert writes == 2
+    assert recorder.evidence_records == []
+    assert recorder.step_telemetry == []
+    assert recorder.artifacts == []
+    assert recorder._reservations == {}
+    assert recorder._reservation_handles == {}
+    assert recorder._reservation_dirs == {}
+    assert list((tmp_path / "artifacts").iterdir()) == []
+
+
+def test_failed_artifact_removal_reports_residual_without_leaking_output(tmp_path: Path, monkeypatch) -> None:
+    secret = "EngagementSuperSecretPassword123!"
+    recorder = EvidenceRecorder(tmp_path, context=_context(), redactor=StreamRedactor(known_secrets=[secret]))
+    write_artifact = recorder._write_reserved_artifact
+    unlink = evidence_module.os.unlink
+
+    def fail_envelope_write(reservation, content):
+        if reservation.name.endswith("_evidence.json"):
+            raise EvidenceCaptureError("simulated envelope write failure")
+        return write_artifact(reservation, content)
+
+    def fail_output_removal(path, *args, **kwargs):
+        if path == "step-partial_output.txt" and kwargs.get("dir_fd") is not None:
+            raise PermissionError("simulated removal failure")
+        return unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(recorder, "_write_reserved_artifact", fail_envelope_write)
+    monkeypatch.setattr(evidence_module.os, "unlink", fail_output_removal)
+    with pytest.raises(EvidenceCleanupError, match="residual artifact may remain") as caught:
+        recorder.record_step_output(
+            step_id="step-partial",
+            tool="example-tool",
+            tool_version="3.4.5",
+            action="inspect",
+            stdout=f"output {secret}".encode(),
+            stderr=b"",
+            exit_code=0,
+            started_at="2026-10-02T10:00:00Z",
+            finished_at="2026-10-02T10:00:01Z",
+        )
+
+    assert caught.value.__cause__ is None
+    assert recorder.evidence_records == []
+    assert recorder.artifacts == []
+    assert not (tmp_path / "artifacts" / "step-partial_evidence.json").exists()
+    assert secret.encode() not in (tmp_path / "artifacts" / "step-partial_output.txt").read_bytes()
+
+
+def test_oversized_envelope_discards_reserved_output(tmp_path: Path) -> None:
+    recorder = EvidenceRecorder(tmp_path, context=_context())
+    with pytest.raises(EvidenceCaptureError, match="evidence redaction or validation failed"):
+        recorder.record_step_output(
+            step_id="step-oversized",
+            tool="example-tool",
+            tool_version="3.4.5",
+            action="inspect",
+            stdout=b"output",
+            stderr=b"",
+            artifact_outputs={"reports/" + "x" * (1024 * 1024): b"redacted data"},
+            exit_code=0,
+            started_at="2026-10-02T10:00:00Z",
+            finished_at="2026-10-02T10:00:01Z",
+        )
+
+    assert recorder.artifacts == []
+    assert recorder.evidence_records == []
+    assert list((tmp_path / "artifacts").iterdir()) == []
+
+
+def test_envelope_collision_preserves_existing_file_and_hash_detects_tampering(tmp_path: Path) -> None:
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir(mode=0o700)
+    existing = artifacts / "step-collision_evidence.json"
+    existing.write_bytes(b"existing evidence")
+    existing.chmod(0o600)
+    recorder = EvidenceRecorder(tmp_path, context=_context())
+
+    recorder.record_step_output(
+        step_id="step-collision",
+        tool="example-tool",
+        tool_version="3.4.5",
+        action="inspect",
+        stdout=b"redacted output",
+        stderr=b"",
+        exit_code=0,
+        started_at="2026-10-02T10:00:00Z",
+        finished_at="2026-10-02T10:00:01Z",
+    )
+
+    envelope_artifact = recorder.artifacts[1]
+    assert existing.read_bytes() == b"existing evidence"
+    assert envelope_artifact.name != existing.name
+    envelope_path = tmp_path / envelope_artifact.path
+    assert hashlib.sha256(envelope_path.read_bytes()).hexdigest() == recorder.get_evidence_hashes()[0]
+    envelope_path.write_bytes(envelope_path.read_bytes() + b" ")
+    assert hashlib.sha256(envelope_path.read_bytes()).hexdigest() != recorder.get_evidence_hashes()[0]
 
 
 def test_redaction_interrupt_discards_all_reservation_state(tmp_path: Path) -> None:

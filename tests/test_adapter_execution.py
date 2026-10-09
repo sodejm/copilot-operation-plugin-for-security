@@ -28,7 +28,8 @@ from cops.adapters import (
 )
 from cops.contracts.models import ActionPlan
 from cops.execution import ApprovalStore, IsolatedWorker, WorkerIsolationError
-from cops.execution.evidence import EvidenceCaptureError, EvidenceContext, EvidenceRecorder
+from cops.execution.credentials import CredentialGrant, ScopedCredentialResolver
+from cops.execution.evidence import EvidenceCaptureError, EvidenceCleanupError, EvidenceContext, EvidenceRecorder
 from cops.execution.executable import (
     ExecutablePreparationTimeoutError,
     ExecutableVerificationError,
@@ -144,6 +145,7 @@ def _fake_action_plan(
     timeout_seconds: float = 5,
     max_output_bytes: int = 4096,
     idempotent: bool = False,
+    credential_references: list[str] | None = None,
 ) -> ActionPlan:
     fixture = json.loads(
         (Path(__file__).resolve().parents[1] / "cops/contracts/fixtures/valid_action_plan.json").read_text(
@@ -171,12 +173,18 @@ def _fake_action_plan(
             }
         ],
         limits=limits,
-        credential_references=[],
+        credential_references=credential_references or [],
         created_at=fixture["created_at"],
     )
 
 
-def _fake_worker(tmp_path: Path, plan: ActionPlan) -> tuple[IsolatedWorker, str]:
+def _fake_worker(
+    tmp_path: Path,
+    plan: ActionPlan,
+    *,
+    credential_provider=None,
+    credential_grants: list[CredentialGrant] | None = None,
+) -> tuple[IsolatedWorker, str]:
     auth, trust_store, engagement = authorize_test_plan(plan, worker_identity="test-worker-01", valid_hours=2)
     store = ApprovalStore(tmp_path / "approval.sqlite3")
     store.store_authorization(auth)
@@ -184,11 +192,21 @@ def _fake_worker(tmp_path: Path, plan: ActionPlan) -> tuple[IsolatedWorker, str]
     registry.register_adapter(_fake_adapter())
     approval_control = TestApprovalControl(store, trust_store, engagement)
     sandbox = TestExecutionSandbox()
+    resolver = (
+        ScopedCredentialResolver(
+            credential_provider,
+            credential_grants or [],
+            approval_control=approval_control,
+        )
+        if credential_provider is not None
+        else None
+    )
     worker = IsolatedWorker(
         worker_inventory_for_plan(plan, worker_identity="test-worker-01"),
         approval_control,
         sandbox,
         adapter_registry=registry,
+        credential_resolver=resolver,
     )
     _TEST_CONTROLS[id(worker)] = approval_control
     _TEST_SANDBOXES[id(worker)] = sandbox
@@ -289,10 +307,12 @@ def test_worker_normalizes_fake_tool_results(
     monkeypatch.setattr(worker_module, "prepare_executable", lambda *args, **kwargs: prepared)
     _sandbox(worker).result = process_result
     recorded_exit_codes: list[int] = []
+    recorded_tool_versions: list[str] = []
     original_record = EvidenceRecorder.record_step_output
 
     def record_with_exit_code(self, **kwargs):
         recorded_exit_codes.append(kwargs["exit_code"])
+        recorded_tool_versions.append(kwargs["tool_version"])
         return original_record(self, **kwargs)
 
     monkeypatch.setattr(EvidenceRecorder, "record_step_output", record_with_exit_code)
@@ -306,6 +326,7 @@ def test_worker_normalizes_fake_tool_results(
     assert result.status == expected_status
     assert result.exit_code == expected_exit_code
     assert recorded_exit_codes == [expected_exit_code]
+    assert recorded_tool_versions == ["1.0.0"]
     if expected_status == "uncertain":
         assert "automatic repeat disallowed" in result.status_details["reason"]
 
@@ -537,7 +558,7 @@ def test_worker_preserves_dispatch_evidence_when_executable_cleanup_fails(
     assert launched == 1
     assert result.status == expected_status
     assert result.exit_code == 1
-    assert len(result.artifacts) == 1
+    assert len(result.artifacts) == 2
     assert (workspace / result.artifacts[0]["path"]).read_bytes() == b"observed result\n"
     assert len(result.evidence_records) >= 3
     assert "private executable cleanup path" not in json.dumps(result.to_dict())
@@ -579,12 +600,195 @@ def test_worker_portable_inert_execution_uses_ephemeral_evidence(
     worker, authorization_id = _fake_worker(tmp_path, plan)
     monkeypatch.setattr(worker_module, "_supports_secure_evidence_dirs", lambda: False)
 
+    recorded_lifecycles: list[dict] = []
+    evidence_workspaces: list[Path] = []
+    original_record = EvidenceRecorder.record_step_output
+
+    def capture_lifecycle(self, **kwargs):
+        captured = original_record(self, **kwargs)
+        recorded_lifecycles.append(self.evidence_records[-1]["payload"]["lifecycle"]["redacted"])
+        evidence_workspaces.append(self.workspace_dir)
+        return captured
+
+    monkeypatch.setattr(EvidenceRecorder, "record_step_output", capture_lifecycle)
     result = worker.execute_plan(plan, authorization=authorization_id)
 
     assert result.status == "success"
     assert result.cleanup_status == "completed"
-    assert len(result.artifacts) == 1
+    assert len(result.artifacts) == 2
     assert len(result.evidence_records) >= 3
+    assert recorded_lifecycles[0]["storage"] == "worker_ephemeral_workspace"
+    assert recorded_lifecycles[0]["automatic_deletion"] is True
+    assert evidence_workspaces and not evidence_workspaces[0].exists()
+
+
+def test_worker_persists_provenance_bound_evidence_envelope(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    plan = _fake_action_plan(tmp_path)
+    worker, authorization_id = _fake_worker(tmp_path, plan)
+    workspace = tmp_path / "workspace"
+    prepared = SimpleNamespace(invocation_path="/proc/self/fd/7", pass_fds=(), remove=lambda: None)
+    monkeypatch.setattr(worker_module, "prepare_executable", lambda *args, **kwargs: prepared)
+    _sandbox(worker).result = BoundedProcessResult(b"observed result\n", b"", 0, False, False)
+
+    result = worker.execute_plan(plan, authorization=authorization_id, workspace_dir=workspace)
+
+    assert result.status == "success"
+    assert len(result.artifacts) == 2
+    envelope_artifact = next(artifact for artifact in result.artifacts if artifact["path"].endswith("_evidence.json"))
+    envelope_path = workspace / envelope_artifact["path"]
+    envelope_bytes = envelope_path.read_bytes()
+    assert envelope_artifact["sha256"] == hashlib.sha256(envelope_bytes).hexdigest()
+    assert envelope_artifact["sha256"] in result.evidence_records
+    assert stat.S_IMODE(envelope_path.stat().st_mode) == 0o600
+    provenance = json.loads(envelope_bytes)["payload"]["provenance"]
+    assert provenance == {
+        "plan_id": plan.plan_id,
+        "plan_digest": plan.plan_digest,
+        "authorization_id": authorization_id,
+        "engagement_id": plan.engagement_id,
+        "worker_identity": worker.config.worker_id,
+        "target": plan.target,
+        "step_id": "step-fake",
+        "tool": "fake-tool",
+        "tool_version": "1.0.0",
+        "action": "run",
+    }
+    lifecycle = json.loads(envelope_bytes)["payload"]["lifecycle"]["redacted"]
+    assert lifecycle["storage"] == "owner_only_workspace"
+    assert lifecycle["automatic_deletion"] is False
+
+
+def test_worker_resolves_credential_only_for_approved_operation_and_redacts_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    reference = "corp_service_account_token_ref"
+    secret = "opaque-COPS-operation-secret-unique"
+    plan = _fake_action_plan(tmp_path, credential_references=[reference])
+    operation = plan.operations[0]
+    grant = CredentialGrant(
+        reference=reference,
+        environment_variable="COPS_CREDENTIAL_SERVICE_TOKEN",
+        plan_id=plan.plan_id,
+        plan_digest=plan.plan_digest,
+        engagement_id=plan.engagement_id,
+        worker_identity="test-worker-01",
+        target=plan.target,
+        step_id=str(operation["step_id"]),
+        tool=str(operation["tool"]),
+        tool_version=str(operation["tool_version"]),
+        action=str(operation["action"]),
+    )
+
+    class Provider:
+        def __init__(self) -> None:
+            self.lookups: list[str] = []
+
+        def resolve(self, requested_reference: str) -> str:
+            self.lookups.append(requested_reference)
+            return secret
+
+    provider = Provider()
+    worker, authorization_id = _fake_worker(
+        tmp_path,
+        plan,
+        credential_provider=provider,
+        credential_grants=[grant],
+    )
+    workspace = tmp_path / "workspace"
+    probe_environments: list[dict[str, str]] = []
+    prepared = SimpleNamespace(invocation_path="/proc/self/fd/7", pass_fds=(), remove=lambda: None)
+
+    def capture_probe(*args, **kwargs):
+        probe_environments.append(dict(kwargs["env"]))
+        assert provider.lookups == []
+        return prepared
+
+    monkeypatch.setattr(worker_module, "prepare_executable", capture_probe)
+    _sandbox(worker).result = BoundedProcessResult(
+        f"stdout {secret}\n".encode(),
+        f"stderr {secret}\n".encode(),
+        0,
+        False,
+        False,
+    )
+
+    result = worker.execute_plan(plan, authorization=authorization_id, workspace_dir=workspace)
+
+    assert result.status == "success"
+    assert provider.lookups == [reference]
+    assert probe_environments
+    assert all(secret not in json.dumps(env) for env in probe_environments)
+    assert len(_sandbox(worker).run_calls) == 1
+    launch = _sandbox(worker).run_calls[0]
+    assert secret not in json.dumps(launch["env"])
+    assert launch["operation_env"] == {"COPS_CREDENTIAL_SERVICE_TOKEN": secret}
+    assert secret not in json.dumps(result.to_dict())
+    assert len(result.artifacts) == 2
+    for artifact in result.artifacts:
+        persisted = (workspace / artifact["path"]).read_bytes()
+        assert secret.encode() not in persisted
+        assert artifact["sha256"] == hashlib.sha256(persisted).hexdigest()
+    output_artifact = next(artifact for artifact in result.artifacts if artifact["path"].endswith("_output.txt"))
+    assert b"[REDACTED:SECRET]" in (workspace / output_artifact["path"]).read_bytes()
+
+
+def test_worker_rejects_credential_plan_without_resolver_before_approval_consumption(
+    tmp_path: Path,
+) -> None:
+    plan = _fake_action_plan(tmp_path, credential_references=["corp_service_account_token_ref"])
+    worker, authorization_id = _fake_worker(tmp_path, plan)
+
+    with pytest.raises(WorkerIsolationError, match="scoped credential resolver"):
+        worker.execute_plan(plan, authorization=authorization_id)
+
+    assert _approval_control(worker).store.get_authorization(authorization_id).status == "approved"
+    assert _sandbox(worker).run_calls == []
+
+
+def test_worker_rejects_mismatched_credential_grant_before_provider_lookup_or_launch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    reference = "corp_service_account_token_ref"
+    plan = _fake_action_plan(tmp_path, credential_references=[reference])
+    operation = plan.operations[0]
+    grant = CredentialGrant(
+        reference=reference,
+        environment_variable="COPS_CREDENTIAL_SERVICE_TOKEN",
+        plan_id=plan.plan_id,
+        plan_digest=plan.plan_digest,
+        engagement_id=plan.engagement_id,
+        worker_identity="a-different-worker",
+        target=plan.target,
+        step_id=str(operation["step_id"]),
+        tool=str(operation["tool"]),
+        tool_version=str(operation["tool_version"]),
+        action=str(operation["action"]),
+    )
+
+    class Provider:
+        def __init__(self) -> None:
+            self.lookups: list[str] = []
+
+        def resolve(self, requested_reference: str) -> str:
+            self.lookups.append(requested_reference)
+            return "should-never-be-resolved"
+
+    provider = Provider()
+    worker, authorization_id = _fake_worker(
+        tmp_path,
+        plan,
+        credential_provider=provider,
+        credential_grants=[grant],
+    )
+    prepared = SimpleNamespace(invocation_path="/proc/self/fd/7", pass_fds=(), remove=lambda: None)
+    monkeypatch.setattr(worker_module, "prepare_executable", lambda *args, **kwargs: prepared)
+
+    result = worker.execute_plan(plan, authorization=authorization_id)
+
+    assert result.status == "failed"
+    assert provider.lookups == []
+    assert _sandbox(worker).run_calls == []
+    assert "should-never-be-resolved" not in json.dumps(result.to_dict())
 
 
 @pytest.mark.parametrize("inert", (False, True), ids=("external-adapter", "caller-workspace"))
@@ -1078,6 +1282,9 @@ class _RemovingRedactor:
     def redact_bytes(self, value: bytes) -> bytes:
         return value.replace(b"secret", b"")
 
+    def redact_string(self, value: str) -> str:
+        return value.replace("secret", "")
+
 
 def test_evidence_reports_redaction_before_truncation(tmp_path: Path) -> None:
     recorder = EvidenceRecorder(
@@ -1116,7 +1323,7 @@ def test_evidence_rejects_reserved_artifact_replacement(tmp_path: Path) -> None:
     replacement = artifact_path.stat()
     assert (replacement.st_dev, replacement.st_ino) != (reservation.device, reservation.inode)
 
-    with pytest.raises(EvidenceCaptureError, match="reservation identity changed"):
+    with pytest.raises(EvidenceCleanupError, match="residual artifact may remain"):
         recorder.record_step_output(
             step_id="step-1",
             tool="fake",
@@ -1142,7 +1349,7 @@ def test_evidence_rejects_fifo_replacement_without_blocking(tmp_path: Path) -> N
     artifact_path.unlink()
     os.mkfifo(artifact_path, 0o600)
 
-    with pytest.raises(EvidenceCaptureError, match="reservation identity changed"):
+    with pytest.raises(EvidenceCleanupError, match="residual artifact may remain"):
         recorder.record_step_output(
             step_id="step-1",
             tool="fake",

@@ -77,7 +77,7 @@ class ApprovalControl(Protocol):
         self, authorization_id: str, action_plan: ActionPlan, worker_identity: str
     ) -> ApprovalConsumptionReceipt: ...
 
-    def validate_receipt_provenance(self, receipt: ApprovalConsumptionReceipt) -> None: ...
+    def validate_receipt_provenance(self, receipt: ApprovalConsumptionReceipt) -> ApprovalConsumptionReceipt: ...
 
 
 @dataclass(frozen=True)
@@ -392,9 +392,10 @@ class ApprovalControlClient:
         default_factory=dict, init=False, repr=False, compare=False
     )
 
-    def validate_receipt_provenance(self, receipt: ApprovalConsumptionReceipt) -> None:
-        if self._issued_receipts.pop(id(receipt), None) is not receipt:
+    def validate_receipt_provenance(self, receipt: ApprovalConsumptionReceipt) -> ApprovalConsumptionReceipt:
+        if self._issued_receipts.get(id(receipt)) is not receipt:
             raise ApprovalControlError("approval receipt was not issued by this control client")
+        return receipt
 
     def assert_ready(self, worker_identity: str) -> None:
         del worker_identity

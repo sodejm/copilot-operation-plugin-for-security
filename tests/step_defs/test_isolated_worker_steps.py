@@ -244,7 +244,7 @@ def load_plan_and_auth(worker_context):
         specialist_id=plan_dict["specialist_id"],
         operations=plan_dict["operations"],
         limits=plan_dict["limits"],
-        credential_references=plan_dict["credential_references"],
+        credential_references=[],
         created_at=plan_dict["created_at"],
     )
     auth, trust_store, engagement = authorize_test_plan(plan, worker_identity="test-worker-01", valid_hours=2)
@@ -413,7 +413,7 @@ def plan_unapproved_tool(worker_context, unapproved_tool):
         specialist_id=plan_dict["specialist_id"],
         operations=plan_dict["operations"],
         limits=plan_dict["limits"],
-        credential_references=plan_dict["credential_references"],
+        credential_references=[],
         created_at=plan_dict["created_at"],
     )
     auth, trust_store, engagement = authorize_test_plan(plan, worker_identity="worker-strict")

@@ -58,10 +58,14 @@ Before anything is persisted, the recorder:
 4. constructs and validates the evidence envelope.
 
 Only after those gates succeed does it write the reserved redacted output inode
-and append the evidence record. Any redaction or schema-validation failure
-discards the reservation and leaves no evidence record or artifact. Tool output is
-classified as untrusted data; text that resembles an instruction never becomes
-worker authority.
+and a canonical `*_evidence.json` envelope through private reserved inodes. The
+envelope artifact hash is the corresponding `RunResult.evidence_records` entry.
+Any redaction, schema-validation, or artifact-write failure attempts to remove
+both reservations and leaves no evidence record. If removal cannot be confirmed,
+the caller receives an evidence cleanup error and treats a redacted residual
+artifact as possible. Tool output is classified
+as untrusted data; text that resembles an instruction never becomes worker
+authority.
 
 `StreamRedactor` scans byte and text streams for configured secrets and common
 token, private-key, and password patterns. Known secrets are replaced with
@@ -74,17 +78,19 @@ memory only long enough to redact them. Raw persistence is prohibited. Timeout o
 raw-output overflow discards all retained raw bytes because collection can stop
 inside a secret.
 
-Redacted output is stored in the owner-controlled workspace. On POSIX systems the
+Redacted output and its envelope are stored in the worker's temporary workspace
+or a caller-supplied owner-controlled workspace. On POSIX systems the
 recorder enforces private directories and `0600` evidence files and uses held
 directory and file descriptors to resist path substitution. These permissions are
 access controls; they do not encrypt evidence at rest. Deployments that require
 encryption must provide an encrypted filesystem or storage service independently.
 
-COPS does not automatically delete redacted evidence. The workspace owner controls
-retention and must apply the engagement's retention schedule and deletion process.
-The lifecycle fields describe these enforced write controls and the absence of
-automatic deletion; a policy label by itself does not perform deletion or prove
-encryption.
+The worker attempts to delete its temporary workspace when the run completes and
+reports cleanup failures in `RunResult.cleanup_status`. A caller-supplied workspace
+is retained; its owner must apply the engagement's retention schedule and deletion
+process. The envelope lifecycle fields distinguish these modes and describe the
+enforced write controls. A policy label by itself does not perform deletion or
+prove encryption.
 
 ## Acceptance evidence
 
@@ -102,5 +108,10 @@ encryption.
   identifiers, artifact content metadata, and persisted output.
 - Prompt-injection text remains untrusted evidence data with exact provenance.
 - Envelope validation and redaction complete before persistence; failure leaves no
-  record or artifact.
+  record and a removal failure is reported.
+- The canonical envelope persists as a private artifact, its hash matches the run
+  result, and a failed second write removes both artifacts or reports incomplete
+  cleanup.
+- Lifecycle metadata distinguishes worker deletion attempts from owner-managed
+  retention without claiming file permissions provide encryption.
 - Unsafe absolute and traversal artifact identifiers fail closed.

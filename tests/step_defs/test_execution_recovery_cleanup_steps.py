@@ -146,7 +146,7 @@ def given_plan_with_non_idempotent_step(recovery_ctx):
         specialist_id=sample_plan["specialist_id"],
         operations=operations,
         limits=sample_plan["limits"],
-        credential_references=sample_plan["credential_references"],
+        credential_references=[],
         created_at=sample_plan["created_at"],
     )
     auth, trust_store, engagement = authorize_test_plan(plan, worker_identity="worker-bdd-02")
