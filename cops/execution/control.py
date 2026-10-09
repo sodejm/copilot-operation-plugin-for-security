@@ -14,17 +14,17 @@ import stat
 import struct
 import time
 import uuid
+from collections.abc import Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterator, Protocol
+from typing import Any, Protocol
 
 from cops.contracts.models import ActionPlan
 from cops.evidence.canonical import digest
 
 from .authorization import AuthorizationTrustStore, verify_execution_authorization
 from .store import ApprovalStore
-
 
 REQUEST_SCHEMA = "cops.approval-control-request/v1"
 RESPONSE_SCHEMA = "cops.approval-control-response/v1"
@@ -72,6 +72,8 @@ class ApprovalControl(Protocol):
     def consume_authorization(
         self, authorization_id: str, action_plan: ActionPlan, worker_identity: str
     ) -> ApprovalConsumptionReceipt: ...
+
+    def validate_receipt_provenance(self, receipt: ApprovalConsumptionReceipt) -> None: ...
 
 
 @dataclass(frozen=True)
@@ -163,8 +165,12 @@ class ApprovalAuthority:
         """Validate an exact plan/worker binding before atomic consumption."""
         self.assert_ready()
         expected_keys = {
-            "schema_version", "request_id", "operation", "authorization_id",
-            "worker_identity", "action_plan",
+            "schema_version",
+            "request_id",
+            "operation",
+            "authorization_id",
+            "worker_identity",
+            "action_plan",
         }
         if set(document) != expected_keys:
             raise ApprovalControlError("approval control request has unexpected or missing fields")
@@ -339,6 +345,13 @@ class ApprovalControlClient:
     worker_uid: int | None = None
     worker_gid: int | None = None
     timeout_seconds: float = 5.0
+    _issued_receipts: dict[int, ApprovalConsumptionReceipt] = field(
+        default_factory=dict, init=False, repr=False, compare=False
+    )
+
+    def validate_receipt_provenance(self, receipt: ApprovalConsumptionReceipt) -> None:
+        if self._issued_receipts.pop(id(receipt), None) is not receipt:
+            raise ApprovalControlError("approval receipt was not issued by this control client")
 
     def assert_ready(self, worker_identity: str) -> None:
         del worker_identity
@@ -425,17 +438,13 @@ class ApprovalControlClient:
             "worker_identity": worker_identity,
             "target": action_plan.target,
         }
-        for field, expected in exact_bindings.items():
-            value = response[field]
+        for binding_name, expected in exact_bindings.items():
+            value = response[binding_name]
             if not isinstance(value, str) or not value:
-                raise ApprovalControlError(
-                    f"approval authority returned an invalid {field} binding"
-                )
+                raise ApprovalControlError(f"approval authority returned an invalid {binding_name} binding")
             if value != expected:
-                raise ApprovalControlError(
-                    f"approval authority returned a mismatched {field} binding"
-                )
-        return ApprovalConsumptionReceipt(
+                raise ApprovalControlError(f"approval authority returned a mismatched {binding_name} binding")
+        receipt = ApprovalConsumptionReceipt(
             authorization_id=authorization_id,
             authorization_digest=authorization_digest,
             action_plan_id=response["action_plan_id"],
@@ -444,6 +453,8 @@ class ApprovalControlClient:
             worker_identity=response["worker_identity"],
             target=response["target"],
         )
+        self._issued_receipts[id(receipt)] = receipt
+        return receipt
 
 
 def sys_platform_linux() -> bool:

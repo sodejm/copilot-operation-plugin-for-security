@@ -1,7 +1,7 @@
 """Isolated execution worker runtime for COPS security operations.
 
 Executes authorized ActionPlans within strict process boundaries, enforcing:
-- Mandatory pre-execution authorization verification via ApprovalStore
+- Mandatory pre-execution authorization consumption via a separate approval control
 - Host identity and unprivileged process boundary checks
 - Atomic consumption of execution authorizations
 - Process execution resource limits (CPU/wall-clock timeouts, max output bytes)
@@ -27,11 +27,11 @@ from types import MappingProxyType
 from typing import Any
 
 from cops.adapters import AdapterError, ToolAdapterRegistry
-from cops.contracts.models import ActionPlan, ExecutionAuthorization, RunResult
+from cops.contracts.models import ActionPlan, RunResult
 from cops.contracts.validation import validate_contract
-from cops.evidence.canonical import digest, utc_now
+from cops.evidence.canonical import utc_now
 
-from .authorization import AuthorizationTrustStore, verify_execution_authorization
+from .control import ApprovalConsumptionReceipt, ApprovalControl, ApprovalControlError
 from .executable import (
     ExecutablePreparationTimeoutError,
     ExecutableVerificationError,
@@ -39,8 +39,7 @@ from .executable import (
     verify_executable_launch_support,
 )
 from .filesystem import SecureDirectoryError, open_directory_no_symlinks
-from .process import run_bounded_process
-from .store import ApprovalStore, ApprovalStoreConflictError
+from .sandbox import ExecutionSandbox
 
 
 class WorkerError(RuntimeError):
@@ -53,6 +52,14 @@ class WorkerIsolationError(WorkerError):
 
 class WorkerExecutionError(WorkerError):
     """An operation within the action plan failed or exceeded allowed limits."""
+
+
+@dataclass(frozen=True)
+class AuthorizedExecution:
+    """Execution result paired with the receipt issued by the approval authority."""
+
+    result: RunResult
+    approval_receipt: ApprovalConsumptionReceipt
 
 
 def _supports_secure_evidence_dirs() -> bool:
@@ -224,21 +231,19 @@ class IsolatedWorker:
     def __init__(
         self,
         worker_inventory: WorkerCapabilityInventory,
-        store: ApprovalStore | None = None,
+        approval_control: ApprovalControl,
+        sandbox: ExecutionSandbox,
         scope_guard: Any | None = None,
         *,
-        trust_store: AuthorizationTrustStore,
-        engagement: Any,
         adapter_registry: ToolAdapterRegistry | None = None,
     ) -> None:
         if not isinstance(worker_inventory, WorkerCapabilityInventory) or not worker_inventory.is_verified:
             raise WorkerIsolationError("a verified owner-provisioned worker capability inventory is required")
         self.worker_inventory = worker_inventory
         self.config = WorkerConfig.from_inventory(worker_inventory)
-        self.store = store
+        self.approval_control = approval_control
+        self.sandbox = sandbox
         self.scope_guard = scope_guard
-        self.trust_store = trust_store
-        self.engagement = engagement
         self.adapter_registry = adapter_registry or ToolAdapterRegistry()
         self.last_cleanup_receipt: Any | None = None
         self._verify_worker_environment()
@@ -296,12 +301,32 @@ class IsolatedWorker:
         self,
         action_plan: ActionPlan | dict[str, Any],
         *,
-        authorization: ExecutionAuthorization | dict[str, Any] | str,
+        authorization: str,
         workspace_dir: Path | None = None,
         cancel_requested: bool = False,
         failure_injection: dict[str, Any] | None = None,
     ) -> RunResult:
-        """Execute an ActionPlan under verified authorization envelope."""
+        """Execute an ActionPlan under a consume-only authorization identifier."""
+        return self.execute_plan_with_receipt(
+            action_plan,
+            authorization_id=authorization,
+            workspace_dir=workspace_dir,
+            cancel_requested=cancel_requested,
+            failure_injection=failure_injection,
+        ).result
+
+    def execute_plan_with_receipt(
+        self,
+        action_plan: ActionPlan | dict[str, Any],
+        *,
+        authorization_id: str,
+        workspace_dir: Path | None = None,
+        cancel_requested: bool = False,
+        failure_injection: dict[str, Any] | None = None,
+        timeout_seconds: float | None = None,
+        max_output_bytes: int | None = None,
+    ) -> AuthorizedExecution:
+        """Execute after both boundaries pass readiness, returning authority provenance."""
         # 1. Resolve ActionPlan model
         if isinstance(action_plan, dict):
             plan_model = ActionPlan.from_dict(action_plan)
@@ -317,62 +342,23 @@ class IsolatedWorker:
         if failure_injection and failure_injection.get("inject_at") == "before_consume":
             raise WorkerExecutionError("injected failure before approval consumption")
 
-        # 2. Resolve Authorization envelope and ensure durable storage
-        if self.store is None:
-            self.store = ApprovalStore(Path.home() / ".cops" / "approvals.sqlite3")
-
-        if isinstance(authorization, str):
-            auth_model = self.store.get_authorization(authorization)
-        elif isinstance(authorization, dict):
-            auth_model = ExecutionAuthorization.from_dict(authorization)
-        else:
-            auth_model = authorization
-
-        # Verify caller-controlled input before registering it in durable state.
-        auth_model = verify_execution_authorization(
-            auth_model,
-            plan_model,
-            trust_store=self.trust_store,
-            engagement=self.engagement,
-            worker_identity=self.config.worker_id,
-        )
-        if not isinstance(authorization, str):
-            try:
-                self.store.store_authorization(auth_model)
-            except ApprovalStoreConflictError:
-                # Existing approvals are consumed atomically below, preserving replay checks.
-                pass
+        if not isinstance(authorization_id, str) or not authorization_id:
+            raise WorkerExecutionError("authorization_id must be a nonempty string")
+        if timeout_seconds is not None and (
+            timeout_seconds <= 0 or timeout_seconds > self.config.max_wall_time_seconds
+        ):
+            raise WorkerExecutionError("requested timeout exceeds worker limits")
+        if max_output_bytes is not None and (max_output_bytes <= 0 or max_output_bytes > self.config.max_output_bytes):
+            raise WorkerExecutionError("requested output limit exceeds worker limits")
 
         # Compatibility and workspace safety are part of the pre-consumption gate.
-        self._verify_plan_compatibility(plan_model)
         secure_evidence_dirs = _supports_secure_evidence_dirs()
         portable_inert = not secure_evidence_dirs and all(op["tool"] == "inert" for op in plan_model.operations)
         if not secure_evidence_dirs and not portable_inert:
             raise WorkerIsolationError("adapter execution requires POSIX secure directory descriptors")
         if portable_inert and workspace_dir is not None:
             raise WorkerIsolationError("portable inert execution requires an isolated ephemeral workspace")
-        if workspace_dir is not None:
-            workspace_fd = -1
-            try:
-                workspace_fd = open_directory_no_symlinks(Path(workspace_dir), create=True)
-            except SecureDirectoryError as err:
-                raise WorkerIsolationError("worker workspace path must not contain symbolic-link components") from err
-            finally:
-                if workspace_fd >= 0:
-                    os.close(workspace_fd)
-
-        # 4. Atomically consume authorization envelope to prevent replay
-        consumed_auth = self.store.atomically_consume(
-            auth_model.authorization_id,
-            worker_identity=self.config.worker_id,
-            expected_authorization=auth_model,
-        )
-
-        # Failure injection: after approval consumption
-        if failure_injection and failure_injection.get("inject_at") == "after_consume":
-            raise WorkerExecutionError("injected failure after approval consumption")
-
-        # 5. Set up isolated ephemeral workspace and side-effect ledger
+        # Prepare the workspace before consuming the one-use authorization.
         ephemeral = False
         if workspace_dir is None:
             temp_scratch = tempfile.mkdtemp(prefix=f"cops-worker-{plan_model.plan_id}-")
@@ -389,6 +375,30 @@ class IsolatedWorker:
                 if workspace_fd >= 0:
                     os.close(workspace_fd)
             target_workspace = Path(os.path.abspath(os.fspath(requested_workspace)))
+
+        try:
+            self.approval_control.assert_ready(self.config.worker_id)
+            self.sandbox.assert_ready(self.config.worker_id, cwd=target_workspace)
+            self._verify_plan_compatibility(plan_model)
+            receipt = self.approval_control.consume_authorization(authorization_id, plan_model, self.config.worker_id)
+            self.approval_control.validate_receipt_provenance(receipt)
+            if (
+                receipt.authorization_id != authorization_id
+                or receipt.action_plan_id != plan_model.plan_id
+                or receipt.plan_digest != plan_model.plan_digest
+                or receipt.engagement_id != plan_model.engagement_id
+                or receipt.worker_identity != self.config.worker_id
+                or receipt.target != plan_model.target
+            ):
+                raise ApprovalControlError("approval authority receipt does not match the execution plan")
+            if failure_injection and failure_injection.get("inject_at") == "after_consume":
+                raise WorkerExecutionError("injected failure after approval consumption")
+        except Exception:
+            if ephemeral:
+                shutil.rmtree(target_workspace, ignore_errors=True)
+            raise
+
+        # 5. Set up isolated ephemeral workspace and side-effect ledger
 
         from .cleanup import CleanupManager, SideEffectLedger
 
@@ -425,7 +435,12 @@ class IsolatedWorker:
         )
 
         max_duration_seconds = plan_model.limits.get("max_duration_seconds", self.config.max_wall_time_seconds)
-        max_output_bytes = plan_model.limits.get("max_output_bytes", self.config.max_output_bytes)
+        if timeout_seconds is not None:
+            max_duration_seconds = min(max_duration_seconds, timeout_seconds)
+        plan_max_output_bytes = plan_model.limits.get("max_output_bytes", self.config.max_output_bytes)
+        if max_output_bytes is not None:
+            plan_max_output_bytes = min(plan_max_output_bytes, max_output_bytes)
+        max_output_bytes = plan_max_output_bytes
         captured_output_bytes = 0
         persisted_output_bytes = 0
         start_dt = datetime.now(UTC)
@@ -600,7 +615,7 @@ class IsolatedWorker:
                                     exit_code = 124
                                 else:
                                     adapter_dispatched = True
-                                    proc = run_bounded_process(
+                                    proc = self.sandbox.run(
                                         [prepared.invocation_path, *cmd[1:]],
                                         cwd=target_workspace,
                                         env=clean_env,
@@ -785,7 +800,7 @@ class IsolatedWorker:
             status_details["reason"] = status_reason
 
         # Combine authorization proof, recorded step evidence hashes, and cleanup receipt hash
-        evidence_hashes = [digest(consumed_auth.to_dict())]
+        evidence_hashes = [receipt.authorization_digest]
         evidence_hashes.extend(evidence_recorder.get_evidence_hashes())
         evidence_hashes.append(cleanup_receipt.evidence_hash)
 
@@ -806,4 +821,4 @@ class IsolatedWorker:
         }
 
         validate_contract(result_doc, "run_result")
-        return RunResult.from_dict(result_doc)
+        return AuthorizedExecution(RunResult.from_dict(result_doc), receipt)
