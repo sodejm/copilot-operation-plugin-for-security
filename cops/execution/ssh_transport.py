@@ -348,15 +348,19 @@ class SSHRemoteTransport:
             with tempfile.TemporaryDirectory(prefix="cops-ssh-") as temporary_directory:
                 private_directory = Path(temporary_directory)
                 os.chmod(private_directory, 0o700)
-                descriptor_launch_path = _descriptor_launch_path(executable_descriptor, executable_metadata)
-                if descriptor_launch_path is not None:
-                    launch_executable = descriptor_launch_path
-                    executable_pass_fds = (executable_descriptor,)
-                elif _path_is_immutable_to_current_user(self._ssh_executable, executable_metadata):
+                if _path_is_immutable_to_current_user(self._ssh_executable, executable_metadata):
                     # Preserve platform-signed system binaries: the held descriptor and a
                     # non-writable file/parent chain make this path stable for this identity.
-                    launch_executable = self._ssh_executable
+                    descriptor_launch_path = _descriptor_launch_path(executable_descriptor, executable_metadata)
+                    if descriptor_launch_path is not None:
+                        launch_executable = descriptor_launch_path
+                        executable_pass_fds = (executable_descriptor,)
+                    else:
+                        launch_executable = self._ssh_executable
                 else:
+                    # A mutable executable can be renamed after opening, changing its
+                    # ctime even when the held inode still contains the validated code.
+                    # Launch a checked private copy instead of that mutable inode.
                     launch_executable = _stage_executable(
                         executable_descriptor,
                         executable_metadata,

@@ -86,6 +86,8 @@ def test_transport_launches_validated_executable_after_configured_path_is_swappe
         substitute.replace(executable)
         launched["command"] = args[0]
         launched["pass_fds"] = kwargs.get("pass_fds", ())
+        launched["staged_mode"] = Path(args[0][0]).stat().st_mode & 0o777
+        launched["directory_mode"] = Path(args[0][0]).parent.stat().st_mode & 0o777
         return original_popen(*args, **kwargs)
 
     monkeypatch.setattr(ssh_transport_module.subprocess, "Popen", swap_then_launch)
@@ -95,14 +97,39 @@ def test_transport_launches_validated_executable_after_configured_path_is_swappe
     assert response.payload["result"] == "accepted"
     assert marker.read_text(encoding="utf-8") == "invoked"
     assert not malicious_marker.exists()
-    if Path("/proc/self/fd").is_dir():
-        command = launched["command"]
-        pass_fds = launched["pass_fds"]
-        assert isinstance(command, list)
-        assert isinstance(pass_fds, tuple)
-        descriptor_path = Path(command[0])
-        assert descriptor_path.parent == Path("/proc/self/fd")
-        assert int(descriptor_path.name) in pass_fds
+    command = launched["command"]
+    assert isinstance(command, list)
+    assert Path(command[0]).name == "ssh-executable"
+    assert launched["pass_fds"] == ()
+    assert launched["staged_mode"] == 0o500
+    assert launched["directory_mode"] == 0o700
+
+
+def test_transport_launches_private_copy_after_source_is_modified_in_place(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    transport, marker, _ = make_transport(tmp_path)
+    executable = tmp_path / "fake-ssh"
+    malicious_marker = tmp_path / "modified-source-invoked"
+    original_popen = ssh_transport_module.subprocess.Popen
+
+    def modify_then_launch(*args: object, **kwargs: object) -> object:
+        executable.write_text(
+            f"#!{sys.executable}\nfrom pathlib import Path\n"
+            f"Path({os.fspath(malicious_marker)!r}).write_text('invoked', encoding='utf-8')\n"
+            "raise SystemExit(91)\n",
+            encoding="utf-8",
+        )
+        return original_popen(*args, **kwargs)
+
+    monkeypatch.setattr(ssh_transport_module.subprocess, "Popen", modify_then_launch)
+
+    response = transport.request({}, request_id="request-executable-modified")
+
+    assert response.payload["result"] == "accepted"
+    assert marker.read_text(encoding="utf-8") == "invoked"
+    assert not malicious_marker.exists()
 
 
 @pytest.mark.parametrize(

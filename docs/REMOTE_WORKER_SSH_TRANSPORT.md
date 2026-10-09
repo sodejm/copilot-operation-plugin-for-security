@@ -62,6 +62,13 @@ diagnostic bytes, and the total exchange duration are bounded. Timeout or output
 overflow kills the SSH process group and discards retained output so a truncated
 credential cannot reach an error or evidence record.
 
+The configured SSH executable is opened and checked before launch. If its path
+or file is writable by the dispatcher identity, the transport copies and
+revalidates it in a private directory and launches that copy. This prevents a
+path swap or later in-place edit from changing the code launched for the
+exchange. A protected executable with non-writable ancestors can be launched
+through its held descriptor where supported, or through its protected path.
+
 The supervisor attestation binds the fresh exchange nonce, endpoint host, worker
 identity, authorization and plan digests, engagement and target, execution
 limits, and exact result and approval receipt. A missing, stale, incorrectly
