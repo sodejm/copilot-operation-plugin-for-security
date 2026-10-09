@@ -71,6 +71,11 @@ worker checks approval authority readiness, platform support, sandbox readiness,
 scope, adapter pins, and evidence constraints at the execution boundary. A
 missing or mismatched control socket fails closed.
 
+The worker binds each request to the locally provisioned engagement ID before
+it consumes approval. The supervisor allows 30 seconds to receive the complete
+request and 30 seconds to deliver the completed response; the separately
+approved worker execution timeout bounds the intervening run.
+
 The authority service must pin the supervisor worker process identity, including
 its PID, before accepting a consume request. A restarted supervisor requires a
 new authority binding. Starting the supervisor before the authority is ready is

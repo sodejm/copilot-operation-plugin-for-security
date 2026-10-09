@@ -237,6 +237,18 @@ def test_isolated_worker_execute_plan_success(temp_store, sample_plan):
     assert retrieved_auth.status == "consumed"
 
 
+def test_worker_rejects_plan_outside_provisioned_engagement_before_approval(sample_plan):
+    worker = IsolatedWorker(
+        worker_inventory_for_plan(sample_plan, worker_identity="worker-01"),
+        object(),
+        object(),
+        expected_engagement_id="different-engagement",
+    )
+
+    with pytest.raises(WorkerExecutionError, match="provisioned engagement"):
+        worker.execute_plan_with_receipt(sample_plan, authorization_id="auth-not-consumed")
+
+
 def test_isolated_worker_rejects_unauthorized_tool(temp_store, sample_plan):
     """Test worker rejects plan containing tools not in worker's allowed whitelist."""
     plan_dict = sample_plan.to_dict()

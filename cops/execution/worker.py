@@ -236,6 +236,7 @@ class IsolatedWorker:
         scope_guard: Any | None = None,
         *,
         adapter_registry: ToolAdapterRegistry | None = None,
+        expected_engagement_id: str | None = None,
     ) -> None:
         if not isinstance(worker_inventory, WorkerCapabilityInventory) or not worker_inventory.is_verified:
             raise WorkerIsolationError("a verified owner-provisioned worker capability inventory is required")
@@ -245,6 +246,7 @@ class IsolatedWorker:
         self.sandbox = sandbox
         self.scope_guard = scope_guard
         self.adapter_registry = adapter_registry or ToolAdapterRegistry()
+        self.expected_engagement_id = expected_engagement_id
         self.last_cleanup_receipt: Any | None = None
         self._verify_worker_environment()
 
@@ -358,6 +360,9 @@ class IsolatedWorker:
             plan_model = ActionPlan.from_dict(action_plan)
         else:
             plan_model = action_plan
+
+        if self.expected_engagement_id is not None and plan_model.engagement_id != self.expected_engagement_id:
+            raise WorkerExecutionError("action plan engagement does not match the provisioned engagement")
 
         if plan_model.status in ("fulfilled", "rejected", "cancelled"):
             raise WorkerExecutionError(

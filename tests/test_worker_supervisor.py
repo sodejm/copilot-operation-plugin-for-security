@@ -78,6 +78,25 @@ def test_supervisor_accepts_one_complete_request_from_pinned_relay(tmp_path, mon
     assert connection.timeouts and all(value > 0 for value in connection.timeouts)
 
 
+def test_supervisor_response_deadline_starts_after_worker_execution(tmp_path, monkeypatch):
+    monkeypatch.setattr(supervisor.sys, "platform", "linux")
+    monkeypatch.setattr(socket, "SO_PEERCRED", 17, raising=False)
+    current_time = [0.0]
+    monkeypatch.setattr(supervisor.time, "monotonic", lambda: current_time[0])
+    config = _config(tmp_path)
+    connection = _Connection([b"{}\n", b""], uid=1002, gid=1002)
+
+    class SlowReceiver(_Receiver):
+        def serve_one(self, input_stream, output_stream) -> None:
+            super().serve_one(input_stream, output_stream)
+            current_time[0] = 60.0
+
+    supervisor.serve_connection(connection, config, SlowReceiver())
+
+    assert connection.sent == b'{"ok":true}\n'
+    assert connection.timeouts[-1] == 30.0
+
+
 @pytest.mark.parametrize(
     ("chunks", "error"),
     [

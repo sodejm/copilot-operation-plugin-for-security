@@ -156,6 +156,7 @@ def build_receiver(config: WorkerSupervisorConfig) -> SSHRemoteExecutionReceiver
         sandbox,
         scope_guard=ScopeGuard(ScopeDefinition.from_engagement_scope(engagement.scope)),
         adapter_registry=ToolAdapterRegistry(executable_sha256_pins=config.executable_sha256_pins),
+        expected_engagement_id=engagement.engagement_id,
     )
     return SSHRemoteExecutionReceiver(
         expected_host=config.expected_host,
@@ -197,14 +198,17 @@ def serve_connection(
     _, peer_uid, peer_gid = struct.unpack("3i", raw_credentials)
     if (peer_uid, peer_gid) != (config.relay_uid, config.relay_gid):
         raise WorkerSupervisorError("relay peer identity mismatch")
-    deadline = time.monotonic() + timeout_seconds
-    request = _read_complete_request(connection, deadline)
+    request_deadline = time.monotonic() + timeout_seconds
+    request = _read_complete_request(connection, request_deadline)
     output = io.BytesIO()
     receiver.serve_one(io.BytesIO(request), output)
     response = output.getvalue()
     if len(response) > MAX_RESPONSE_BYTES or not response.endswith(b"\n") or response.count(b"\n") != 1:
         raise WorkerSupervisorError("worker response framing or byte limit is invalid")
-    remaining = deadline - time.monotonic()
+    # The worker enforces the approved execution timeout. This deadline only
+    # bounds response delivery after execution has completed.
+    response_deadline = time.monotonic() + timeout_seconds
+    remaining = response_deadline - time.monotonic()
     if remaining <= 0:
         raise WorkerSupervisorError("relay response deadline exceeded")
     connection.settimeout(remaining)
