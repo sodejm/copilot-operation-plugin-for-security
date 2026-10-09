@@ -16,11 +16,16 @@ from tests.ssh_transport_testkit import make_fake_ssh
 
 
 def _inventory_document(known_hosts: Path, *, worker_id: str = "worker-lab-01") -> dict[str, object]:
+    attestation_key = known_hosts.parent / "supervisor-attestation.key"
+    attestation_key.write_text("11" * 32, encoding="ascii")
+    attestation_key.chmod(0o600)
     return {
         "schema_version": SSH_ENDPOINT_INVENTORY_SCHEMA,
         "workers": [
             {
                 "host": "worker.example.test",
+                "attestation_key_id": "supervisor-key-01",
+                "attestation_key_path": str(attestation_key),
                 "known_hosts_path": str(known_hosts),
                 "port": 22,
                 "remote_command": ["python3", "-m", "cops.remote_worker"],

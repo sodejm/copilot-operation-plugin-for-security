@@ -46,9 +46,20 @@ configuration has this shape, with site-specific identities and paths:
   "approval_socket_path": "/var/lib/cops-authority/control.sock",
   "inventory_path": "/etc/cops-supervisor/worker-inventory.json",
   "engagement_path": "/etc/cops-supervisor/engagement.json",
+  "attestation_key_id": "worker-lab-01-2026-01",
+  "attestation_key_path": "/etc/cops-supervisor/response-attestation.key",
   "executable_sha256_pins": {}
 }
 ```
+
+The response-attestation key file contains exactly 64 lowercase hexadecimal
+characters (32 bytes), is owned by the supervisor, and has mode `0600`. Its path
+and all ancestors must resist writes and symbolic-link substitution by the relay
+identity. Provision the same key and key ID in the trusted operator endpoint
+inventory. The supervisor authenticates the exact request scope, fresh exchange
+nonce, approval receipt, and result before the relay receives the response. The
+relay never reads the key. Because the operator verifier uses the same symmetric
+key, protect that copy as a signing credential and rotate both copies together.
 
 For each external adapter that will execute, map its logical tool name (for
 example, `nmap`) to the exact lowercase SHA-256 digest measured by trusted

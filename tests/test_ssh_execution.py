@@ -9,6 +9,7 @@ from types import SimpleNamespace
 import pytest
 
 from cops.contracts.models import ActionPlan, RunResult
+from cops.evidence.canonical import canonical, decode_json
 from cops.execution.control import ApprovalConsumptionReceipt
 from cops.execution.ssh_execution import (
     SSH_EXECUTION_REQUEST_SCHEMA,
@@ -17,12 +18,16 @@ from cops.execution.ssh_execution import (
     SSHExecutionError,
 )
 from cops.execution.ssh_transport import SSH_PROTOCOL, SSHRemoteResponse
+from cops.execution.supervisor_attestation import SupervisorResponseAttestor
 from cops.remote_worker import (
     handle_remote_execution_request,
     serve_one_remote_execution_request,
 )
 
 FIXTURES = Path("cops/contracts/fixtures")
+ATTESTATION_KEY_ID = "supervisor-key-01"
+ATTESTATION_KEY = b"k" * 32
+EXCHANGE_NONCE = "A" * 43
 
 
 def _plan() -> ActionPlan:
@@ -98,6 +103,7 @@ def _envelope(plan: ActionPlan) -> dict[str, object]:
             "action_plan": plan.to_dict(),
             "timeout_seconds": 2.0,
             "max_output_bytes": 1024,
+            "exchange_nonce": EXCHANGE_NONCE,
         },
     }
 
@@ -193,18 +199,47 @@ def test_dispatcher_uses_only_approved_worker_identity(monkeypatch: pytest.Monke
                     authorization_id=str(payload["authorization_id"]),
                 ),
             )
+            request_document = {
+                "protocol": SSH_PROTOCOL,
+                "request_id": request_id,
+                "expected_host": "worker.example.test",
+                "expected_worker_id": worker_id,
+                "payload": payload,
+            }
+            response_document = {
+                "protocol": SSH_PROTOCOL,
+                "request_id": request_id,
+                "host": "worker.example.test",
+                "worker_id": worker_id,
+                "payload": run.to_dict(),
+            }
+            wire = SupervisorResponseAttestor(ATTESTATION_KEY_ID, ATTESTATION_KEY).attest(
+                canonical(request_document) + b"\n",
+                canonical(response_document) + b"\n",
+            )
+            signed = decode_json(wire[:-1])
+            assert isinstance(signed, dict)
             return SSHRemoteResponse(
                 request_id=request_id,
                 host="worker.example.test",
                 worker_id=worker_id,
-                payload=run.to_dict(),
+                payload=signed["payload"],
+            )
+
+    class _FakeInventory:
+        def resolve(self, worker_id: str) -> object:
+            assert worker_id == "worker-lab-01"
+            return SimpleNamespace(
+                host="worker.example.test",
+                attestation_key_id=ATTESTATION_KEY_ID,
+                attestation_key=ATTESTATION_KEY,
             )
 
     monkeypatch.setattr(
         "cops.execution.ssh_execution.SSHRemoteDispatcher",
         _FakeRemoteDispatcher,
     )
-    dispatcher = SSHExecutionDispatcher(object())  # type: ignore[arg-type]
+    dispatcher = SSHExecutionDispatcher(_FakeInventory())  # type: ignore[arg-type]
 
     authorized_run = dispatcher.execute(
         approved_worker_identity="worker-lab-01",

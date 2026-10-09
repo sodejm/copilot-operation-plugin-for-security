@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import secrets
 import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -18,6 +19,7 @@ from .ssh_transport import (
     SSHTransportError,
     SSHTransportLimits,
 )
+from .supervisor_attestation import SupervisorAttestationError, verify_attested_authorized_run
 
 SSH_EXECUTION_REQUEST_SCHEMA = "cops.remote-execution-request/v1"
 SSH_AUTHORIZED_RUN_SCHEMA = "cops.remote-authorized-run/v1"
@@ -93,6 +95,7 @@ class SSHExecutionDispatcher:
         limits: SSHTransportLimits | None = None,
         ssh_executable: Path = Path("/usr/bin/ssh"),
     ) -> None:
+        self._inventory = inventory
         self._remote = SSHRemoteDispatcher(
             inventory,
             limits=limits,
@@ -122,14 +125,21 @@ class SSHExecutionDispatcher:
         except (AttributeError, TypeError, ValueError) as err:
             raise SSHExecutionError("request_id must be a UUID") from err
 
+        endpoint = self._inventory.resolve(approved_worker_identity)
+        if not endpoint.attestation_key_id or not endpoint.attestation_key:
+            raise SSHExecutionError("trusted endpoint lacks supervisor response attestation configuration")
+        exchange_nonce = secrets.token_urlsafe(32)
+        action_plan_document = action_plan.to_dict()
+
         response = self._remote.request(
             approved_worker_identity,
             {
                 "schema_version": SSH_EXECUTION_REQUEST_SCHEMA,
                 "authorization_id": authorization_id,
-                "action_plan": action_plan.to_dict(),
+                "action_plan": action_plan_document,
                 "timeout_seconds": timeout_seconds,
                 "max_output_bytes": max_output_bytes,
+                "exchange_nonce": exchange_nonce,
             },
             request_id=exchange_id,
         )
@@ -137,7 +147,23 @@ class SSHExecutionDispatcher:
             raise SSHExecutionError("remote response worker identity mismatch")
         if not isinstance(response.payload, Mapping):
             raise SSHExecutionError("remote response payload is invalid")
-        authorized_run = RemoteAuthorizedRun.from_dict(response.payload)
+        try:
+            verified_run = verify_attested_authorized_run(
+                response.payload,
+                attestation_key_id=endpoint.attestation_key_id,
+                attestation_key=endpoint.attestation_key,
+                request_id=exchange_id,
+                exchange_nonce=exchange_nonce,
+                host=endpoint.host,
+                worker_identity=approved_worker_identity,
+                authorization_id=authorization_id,
+                action_plan_document=action_plan_document,
+                timeout_seconds=timeout_seconds,
+                max_output_bytes=max_output_bytes,
+            )
+        except SupervisorAttestationError as err:
+            raise SSHExecutionError("remote supervisor response attestation is invalid") from err
+        authorized_run = RemoteAuthorizedRun.from_dict(verified_run)
         validate_remote_authorized_run(
             authorized_run,
             approved_worker_identity=approved_worker_identity,

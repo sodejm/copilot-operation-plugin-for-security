@@ -25,6 +25,11 @@ from cops.execution.control import ApprovalControlClient
 from cops.execution.filesystem import open_directory_no_symlinks
 from cops.execution.sandbox import LinuxBubblewrapSandbox
 from cops.execution.scope_guard import ScopeDefinition, ScopeGuard
+from cops.execution.supervisor_attestation import (
+    SupervisorAttestationError,
+    SupervisorResponseAttestor,
+    validate_attestation_key_id,
+)
 from cops.execution.worker import IsolatedWorker, WorkerCapabilityInventory
 from cops.remote_worker import SSHRemoteExecutionReceiver
 
@@ -81,6 +86,8 @@ class WorkerSupervisorConfig:
     approval_socket_path: Path
     inventory_path: Path
     engagement_path: Path
+    attestation_key_id: str
+    attestation_key_path: Path
     executable_sha256_pins: dict[str, str]
 
     @classmethod
@@ -99,6 +106,8 @@ class WorkerSupervisorConfig:
             "approval_socket_path",
             "inventory_path",
             "engagement_path",
+            "attestation_key_id",
+            "attestation_key_path",
             "executable_sha256_pins",
         }
         if set(data) != required or data["schema_version"] != CONFIG_SCHEMA:
@@ -106,6 +115,10 @@ class WorkerSupervisorConfig:
         for key in ("expected_host", "worker_identity"):
             if not isinstance(data[key], str) or not data[key].strip():
                 raise WorkerSupervisorError(f"supervisor {key} must be non-empty")
+        try:
+            validate_attestation_key_id(data["attestation_key_id"])
+        except SupervisorAttestationError as err:
+            raise WorkerSupervisorError("supervisor attestation key ID is invalid") from err
         for key in ("relay_uid", "relay_gid", "supervisor_uid", "supervisor_gid", "authority_uid"):
             if type(data[key]) is not int or data[key] < 1:
                 raise WorkerSupervisorError(f"supervisor {key} must be a non-root integer")
@@ -115,7 +128,13 @@ class WorkerSupervisorConfig:
             raise WorkerSupervisorError("supervisor and authority require separate UIDs")
         if (os.geteuid(), os.getegid()) != (data["supervisor_uid"], data["supervisor_gid"]):
             raise WorkerSupervisorError("supervisor account does not match the configured UID/GID")
-        for key in ("socket_path", "approval_socket_path", "inventory_path", "engagement_path"):
+        for key in (
+            "socket_path",
+            "approval_socket_path",
+            "inventory_path",
+            "engagement_path",
+            "attestation_key_path",
+        ):
             if not isinstance(data[key], str) or not Path(data[key]).is_absolute():
                 raise WorkerSupervisorError(f"supervisor {key} must be an absolute path")
         pins = data["executable_sha256_pins"]
@@ -133,6 +152,8 @@ class WorkerSupervisorConfig:
             approval_socket_path=Path(data["approval_socket_path"]),
             inventory_path=Path(data["inventory_path"]),
             engagement_path=Path(data["engagement_path"]),
+            attestation_key_id=data["attestation_key_id"],
+            attestation_key_path=Path(data["attestation_key_path"]),
             executable_sha256_pins=pins,
         )
 
@@ -188,6 +209,7 @@ def serve_connection(
     connection: socket.socket,
     config: WorkerSupervisorConfig,
     receiver: SSHRemoteExecutionReceiver,
+    attestor: SupervisorResponseAttestor,
     *,
     timeout_seconds: float = 30.0,
 ) -> None:
@@ -202,7 +224,7 @@ def serve_connection(
     request = _read_complete_request(connection, request_deadline)
     output = io.BytesIO()
     receiver.serve_one(io.BytesIO(request), output)
-    response = output.getvalue()
+    response = attestor.attest(request, output.getvalue())
     if len(response) > MAX_RESPONSE_BYTES or not response.endswith(b"\n") or response.count(b"\n") != 1:
         raise WorkerSupervisorError("worker response framing or byte limit is invalid")
     # The worker enforces the approved execution timeout. This deadline only
@@ -219,6 +241,10 @@ def serve_forever(config: WorkerSupervisorConfig, receiver: SSHRemoteExecutionRe
     """Bind a pre-provisioned directory and serve a single request per connection."""
     if sys.platform != "linux":
         raise WorkerSupervisorError("production supervisor requires Linux")
+    attestor = SupervisorResponseAttestor.from_file(
+        config.attestation_key_id,
+        config.attestation_key_path,
+    )
     try:
         parent_descriptor = open_directory_no_symlinks(config.socket_path.parent)
         try:
@@ -254,7 +280,7 @@ def serve_forever(config: WorkerSupervisorConfig, receiver: SSHRemoteExecutionRe
                 connection, _ = listener.accept()
                 with connection:
                     try:
-                        serve_connection(connection, config, receiver)
+                        serve_connection(connection, config, receiver, attestor)
                     except (OSError, ValueError, RuntimeError):
                         # The relay receives EOF; errors must not expose local paths or secrets.
                         continue

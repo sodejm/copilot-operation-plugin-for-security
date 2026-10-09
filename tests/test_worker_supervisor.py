@@ -46,7 +46,19 @@ class _Receiver:
         output_stream.write(b'{"ok":true}\n')
 
 
+class _Attestor:
+    def __init__(self) -> None:
+        self.exchanges: list[tuple[bytes, bytes]] = []
+
+    def attest(self, request: bytes, response: bytes) -> bytes:
+        self.exchanges.append((request, response))
+        return b'{"signed":true}\n'
+
+
 def _config(tmp_path: Path) -> supervisor.WorkerSupervisorConfig:
+    attestation_key_path = tmp_path / "attestation.key"
+    attestation_key_path.write_text("22" * 32, encoding="ascii")
+    attestation_key_path.chmod(0o600)
     return supervisor.WorkerSupervisorConfig(
         expected_host="worker.example.test",
         worker_identity="worker-01",
@@ -60,6 +72,8 @@ def _config(tmp_path: Path) -> supervisor.WorkerSupervisorConfig:
         inventory_path=tmp_path / "inventory.json",
         engagement_path=tmp_path / "engagement.json",
         executable_sha256_pins={},
+        attestation_key_id="supervisor-key-01",
+        attestation_key_path=attestation_key_path,
     )
 
 
@@ -70,11 +84,13 @@ def test_supervisor_accepts_one_complete_request_from_pinned_relay(tmp_path, mon
     request = b'{"protocol":"cops.remote-worker/v1"}\n'
     connection = _Connection([request[:10], request[10:], b""], uid=1002, gid=1002)
     receiver = _Receiver()
+    attestor = _Attestor()
 
-    supervisor.serve_connection(connection, config, receiver)
+    supervisor.serve_connection(connection, config, receiver, attestor)
 
     assert receiver.requests == [request]
-    assert connection.sent == b'{"ok":true}\n'
+    assert connection.sent == b'{"signed":true}\n'
+    assert attestor.exchanges == [(request, b'{"ok":true}\n')]
     assert connection.timeouts and all(value > 0 for value in connection.timeouts)
 
 
@@ -111,9 +127,10 @@ def test_supervisor_rejects_partial_extra_and_oversize_requests(tmp_path, monkey
     config = _config(tmp_path)
     connection = _Connection(chunks, uid=1002, gid=1002)
     receiver = _Receiver()
+    attestor = _Attestor()
 
     with pytest.raises(supervisor.WorkerSupervisorError, match=error):
-        supervisor.serve_connection(connection, config, receiver)
+        supervisor.serve_connection(connection, config, receiver, attestor)
 
     assert receiver.requests == []
     assert connection.sent == b""
@@ -125,9 +142,10 @@ def test_supervisor_rejects_wrong_peer_before_read_or_execution(tmp_path, monkey
     config = _config(tmp_path)
     connection = _Connection([b"{}\n", b""], uid=1004, gid=1002)
     receiver = _Receiver()
+    attestor = _Attestor()
 
     with pytest.raises(supervisor.WorkerSupervisorError, match="relay peer identity mismatch"):
-        supervisor.serve_connection(connection, config, receiver)
+        supervisor.serve_connection(connection, config, receiver, attestor)
 
     assert connection.chunks == [b"{}\n", b""]
     assert receiver.requests == []
@@ -173,6 +191,8 @@ def test_supervisor_config_requires_distinct_accounts(tmp_path):
         "inventory_path": str(config.inventory_path),
         "engagement_path": str(config.engagement_path),
         "executable_sha256_pins": {},
+        "attestation_key_id": config.attestation_key_id,
+        "attestation_key_path": str(config.attestation_key_path),
     }
     path = tmp_path / "config.json"
     path.write_text(json.dumps(data), encoding="utf-8")

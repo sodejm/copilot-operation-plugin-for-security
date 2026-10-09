@@ -23,6 +23,11 @@ from types import MappingProxyType
 from typing import Any
 
 from cops.execution.filesystem import SecureDirectoryError, open_directory_no_symlinks
+from cops.execution.supervisor_attestation import (
+    SupervisorAttestationError,
+    load_attestation_key,
+    validate_attestation_key_id,
+)
 
 SSH_PROTOCOL = "cops.remote-worker/v1"
 SSH_ENDPOINT_INVENTORY_SCHEMA = "cops.ssh-remote-endpoint-inventory/v1"
@@ -59,6 +64,8 @@ class SSHRemoteEndpoint:
     worker_id: str
     known_hosts_path: Path
     remote_command: tuple[str, ...]
+    attestation_key_id: str = ""
+    attestation_key: bytes = field(default=b"", repr=False)
 
     def __post_init__(self) -> None:
         _validate_host(self.host)
@@ -81,6 +88,15 @@ class SSHRemoteEndpoint:
                 or any(character in argument for character in ("\x00", "\r", "\n"))
             ):
                 raise ValueError("remote command contains an invalid argument")
+        if bool(self.attestation_key_id) != bool(self.attestation_key):
+            raise ValueError("supervisor attestation key ID and key must be configured together")
+        if self.attestation_key_id:
+            try:
+                validate_attestation_key_id(self.attestation_key_id)
+            except SupervisorAttestationError as err:
+                raise ValueError("supervisor attestation key ID is invalid") from err
+            if not isinstance(self.attestation_key, bytes) or len(self.attestation_key) != 32:
+                raise ValueError("supervisor attestation key must contain 32 bytes")
 
 
 @dataclass(frozen=True)
@@ -177,7 +193,16 @@ class SSHRemoteEndpointInventory:
             raise SSHTransportError("SSH endpoint inventory workers must be a non-empty list")
 
         endpoints: dict[str, SSHRemoteEndpoint] = {}
-        entry_fields = {"host", "known_hosts_path", "port", "remote_command", "username", "worker_id"}
+        entry_fields = {
+            "attestation_key_id",
+            "attestation_key_path",
+            "host",
+            "known_hosts_path",
+            "port",
+            "remote_command",
+            "username",
+            "worker_id",
+        }
         for entry in workers:
             if not isinstance(entry, dict) or set(entry) != entry_fields:
                 raise SSHTransportError("SSH endpoint inventory worker fields do not match the required schema")
@@ -195,9 +220,11 @@ class SSHRemoteEndpointInventory:
             if not isinstance(remote_command, list):
                 raise SSHTransportError("SSH endpoint inventory remote command must be a non-empty string list")
             known_hosts_path = entry["known_hosts_path"]
-            if not isinstance(known_hosts_path, str):
+            attestation_key_path = entry["attestation_key_path"]
+            if not isinstance(known_hosts_path, str) or not isinstance(attestation_key_path, str):
                 raise SSHTransportError("SSH endpoint inventory known-hosts path is invalid")
             try:
+                attestation_key = load_attestation_key(Path(attestation_key_path))
                 endpoint = SSHRemoteEndpoint(
                     host=entry["host"],
                     port=entry["port"],
@@ -205,8 +232,10 @@ class SSHRemoteEndpointInventory:
                     worker_id=worker_id,
                     known_hosts_path=Path(known_hosts_path),
                     remote_command=tuple(remote_command),
+                    attestation_key_id=entry["attestation_key_id"],
+                    attestation_key=attestation_key,
                 )
-            except (TypeError, ValueError) as err:
+            except (TypeError, ValueError, SupervisorAttestationError) as err:
                 raise SSHTransportError("SSH endpoint inventory contains an invalid worker endpoint") from err
             endpoints[worker_id] = endpoint
 

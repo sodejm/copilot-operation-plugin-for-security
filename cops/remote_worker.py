@@ -17,6 +17,10 @@ from cops.execution.ssh_execution import (
     validate_remote_authorized_run,
 )
 from cops.execution.ssh_transport import SSH_PROTOCOL
+from cops.execution.supervisor_attestation import (
+    SupervisorAttestationError,
+    validate_exchange_nonce,
+)
 
 
 class AuthorizedRunLike(Protocol):
@@ -84,11 +88,16 @@ def handle_remote_execution_request(
         "action_plan",
         "timeout_seconds",
         "max_output_bytes",
+        "exchange_nonce",
     }
     if not isinstance(payload, dict) or set(payload) != payload_fields:
         raise SSHExecutionError("remote execution request fields do not match the required schema")
     if payload["schema_version"] != SSH_EXECUTION_REQUEST_SCHEMA:
         raise SSHExecutionError("unsupported remote execution request schema version")
+    try:
+        validate_exchange_nonce(payload["exchange_nonce"])
+    except SupervisorAttestationError as err:
+        raise SSHExecutionError("remote execution exchange nonce is invalid") from err
     authorization_id = payload["authorization_id"]
     if not isinstance(authorization_id, str) or not authorization_id:
         raise SSHExecutionError("remote execution authorization_id is invalid")
