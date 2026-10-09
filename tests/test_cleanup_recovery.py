@@ -249,7 +249,7 @@ def test_interruption_uncertain_outcome_non_idempotent(temp_store, sample_plan, 
 
 
 def test_operator_cancellation_idempotent_step(temp_store, sample_plan, temp_workspace):
-    """Test that cancellation during an idempotent operation records status='cancelled'."""
+    """A cancellation requested before dispatch leaves the approval available."""
     plan_dict = sample_plan.to_dict()
     plan_dict["operations"] = [
         {
@@ -285,13 +285,12 @@ def test_operator_cancellation_idempotent_step(temp_store, sample_plan, temp_wor
         TestExecutionSandbox(),
     )
 
-    result = worker.execute_plan(
-        plan,
-        authorization=auth.authorization_id,
-        workspace_dir=temp_workspace,
-        cancel_requested=True,
-    )
+    with pytest.raises(WorkerExecutionError, match="cancelled by operator"):
+        worker.execute_plan(
+            plan,
+            authorization=auth.authorization_id,
+            workspace_dir=temp_workspace,
+            cancel_requested=True,
+        )
 
-    assert result.status == "cancelled"
-    assert "cancelled by operator" in result.status_details["reason"]
-    assert result.cleanup_status in ("completed", "not_required")
+    assert temp_store.get_authorization(auth.authorization_id).status == "approved"

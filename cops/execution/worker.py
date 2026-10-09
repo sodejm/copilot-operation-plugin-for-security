@@ -297,6 +297,32 @@ class IsolatedWorker:
                     "Worker cannot run as root (UID 0); unprivileged execution boundary required."
                 )
 
+    def _preflight_execution_request(self, plan: ActionPlan, *, cancel_requested: bool) -> None:
+        """Reject immutable request failures before preparing or consuming an approval."""
+        if cancel_requested:
+            raise WorkerExecutionError("execution cancelled by operator before start")
+        if self.scope_guard is None:
+            return
+
+        from .scope_guard import ScopeViolationError
+
+        def check(destination: Any, label: str) -> None:
+            if not isinstance(destination, str) or not destination.strip():
+                raise WorkerExecutionError(f"{label} must be a nonempty destination")
+            try:
+                self.scope_guard.check_destination(destination)
+            except ScopeViolationError as err:
+                raise WorkerExecutionError(f"scope violation in {label}: {err}") from err
+
+        check(plan.target, "plan target")
+        for operation in plan.operations:
+            arguments = operation.get("arguments", {})
+            if not isinstance(arguments, Mapping):
+                raise WorkerExecutionError(f"operation {operation['step_id']!r} arguments must be a mapping")
+            for key in ("target", "host", "destination", "ip"):
+                if key in arguments:
+                    check(arguments[key], f"step {operation['step_id']!r} {key}")
+
     def execute_plan(
         self,
         action_plan: ActionPlan | dict[str, Any],
@@ -350,6 +376,8 @@ class IsolatedWorker:
             raise WorkerExecutionError("requested timeout exceeds worker limits")
         if max_output_bytes is not None and (max_output_bytes <= 0 or max_output_bytes > self.config.max_output_bytes):
             raise WorkerExecutionError("requested output limit exceeds worker limits")
+
+        self._preflight_execution_request(plan_model, cancel_requested=cancel_requested)
 
         # Compatibility and workspace safety are part of the pre-consumption gate.
         secure_evidence_dirs = _supports_secure_evidence_dirs()
@@ -458,27 +486,11 @@ class IsolatedWorker:
         }
 
         try:
-            # 5.5. Enforce execution-time scope boundary on plan target
-            if hasattr(self, "scope_guard") and self.scope_guard is not None:
-                from .scope_guard import ScopeViolationError
-
-                try:
-                    self.scope_guard.check_destination(plan_model.target)
-                except ScopeViolationError as err:
-                    status = "failed"
-                    status_reason = f"scope violation: {err}"
-                    overall_exit_code = 2
-
-            # Check pre-execution cancellation or injected failure
-            if status == "success":
-                if cancel_requested:
-                    status = "cancelled"
-                    status_reason = "execution cancelled by operator before start"
-                    overall_exit_code = 130
-                elif failure_injection and failure_injection.get("inject_at") == "before_process":
-                    status = "failed"
-                    status_reason = "injected failure before process start"
-                    overall_exit_code = 1
+            # Check injected failure before starting the first process.
+            if failure_injection and failure_injection.get("inject_at") == "before_process":
+                status = "failed"
+                status_reason = "injected failure before process start"
+                overall_exit_code = 1
 
             # 6. Execute operations in sequence (if checks passed)
             if status == "success":
@@ -498,18 +510,6 @@ class IsolatedWorker:
                             cleanup_action=clean_spec.get("action", "delete"),
                             metadata=clean_spec,
                         )
-
-                    if cancel_requested:
-                        if not is_idempotent:
-                            status = "uncertain"
-                            status_reason = (
-                                f"interrupted during non-idempotent step '{step_id}'; automatic repeat disallowed"
-                            )
-                        else:
-                            status = "cancelled"
-                            status_reason = f"execution cancelled by operator at step '{step_id}'"
-                        overall_exit_code = 130
-                        break
 
                     if failure_injection and failure_injection.get("inject_at") == "during_execution":
                         target_step = failure_injection.get("step_id")
@@ -548,25 +548,6 @@ class IsolatedWorker:
                         )
                         overall_exit_code = 127
                         break
-
-                    # Enforce scope on any destination-bearing arguments
-                    if hasattr(self, "scope_guard") and self.scope_guard is not None:
-                        from .scope_guard import ScopeViolationError
-
-                        op_args = op.get("arguments", {})
-                        if isinstance(op_args, Mapping):
-                            for dest_key in ("target", "host", "destination", "ip"):
-                                dest_val = op_args.get(dest_key)
-                                if dest_val and isinstance(dest_val, str):
-                                    try:
-                                        self.scope_guard.check_destination(dest_val)
-                                    except ScopeViolationError as err:
-                                        status = "failed"
-                                        status_reason = f"scope violation in step '{step_id}': {err}"
-                                        overall_exit_code = 2
-                                        break
-                        if status != "success":
-                            break
 
                     # Prepare isolated execution via adapter or simulated inert
                     stdout_bytes = b""

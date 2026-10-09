@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import ipaddress
 import sqlite3
 import threading
 from pathlib import Path
@@ -16,6 +17,8 @@ from cops.execution import (
     ApprovalStoreNotFoundError,
     IsolatedWorker,
     LegacyApprovalRecord,
+    ScopeDefinition,
+    ScopeGuard,
     WorkerExecutionError,
 )
 from tests.auth_testkit import (
@@ -304,5 +307,62 @@ def test_readiness_failure_stops_execution_before_approval_consumption(
         worker.execute_plan(sample_plan, authorization=auth.authorization_id)
 
     assert approval_control.consume_calls == []
+    assert sandbox.run_calls == []
+    assert temp_store.get_authorization(auth.authorization_id).status == "approved"
+
+
+@pytest.mark.parametrize("rejection", ["cancel", "plan_target", "operation_destination"])
+def test_request_preflight_rejects_without_consuming_approval_or_preparing_workspace(
+    temp_store, sample_plan, tmp_path, rejection
+):
+    plan = sample_plan
+    if rejection == "operation_destination":
+        data = sample_plan.to_dict()
+        operations = [dict(operation) for operation in data["operations"]]
+        operations[0]["arguments"] = {**operations[0]["arguments"], "host": "8.8.8.8"}
+        plan = ActionPlan.create(
+            plan_id=sample_plan.plan_id,
+            engagement_id=sample_plan.engagement_id,
+            scenario_id=sample_plan.scenario_id,
+            target=sample_plan.target,
+            specialist_id=sample_plan.specialist_id,
+            operations=operations,
+            limits=data["limits"],
+            credential_references=data["credential_references"],
+            platform_prerequisites=data["platform_prerequisites"],
+            batch=data["batch"],
+            created_at=sample_plan.created_at,
+        )
+
+    auth, trust_store, engagement = authorize_test_plan(plan, worker_identity="preflight-worker")
+    temp_store.store_authorization(auth)
+    approval_control = TestApprovalControl(temp_store, trust_store, engagement)
+    sandbox = TestExecutionSandbox()
+    allowed_ip = "10.0.0.6" if rejection == "plan_target" else "10.0.0.5"
+    guard = ScopeGuard(
+        ScopeDefinition(included_ips={ipaddress.ip_address(allowed_ip)}),
+        resolver=lambda _: [],
+    )
+    worker = IsolatedWorker(
+        worker_inventory_for_plan(plan, worker_identity="preflight-worker"),
+        approval_control,
+        sandbox,
+        scope_guard=guard,
+    )
+    workspace = tmp_path / "unprepared-workspace"
+
+    expected = "cancelled by operator" if rejection == "cancel" else "scope violation"
+    with pytest.raises(WorkerExecutionError, match=expected):
+        worker.execute_plan(
+            plan,
+            authorization=auth.authorization_id,
+            workspace_dir=workspace,
+            cancel_requested=rejection == "cancel",
+        )
+
+    assert not workspace.exists()
+    assert approval_control.ready_workers == []
+    assert approval_control.consume_calls == []
+    assert sandbox.ready_calls == []
     assert sandbox.run_calls == []
     assert temp_store.get_authorization(auth.authorization_id).status == "approved"
