@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import sqlite3
 import tempfile
 from pathlib import Path
 
@@ -20,6 +21,7 @@ from cops.execution import (
     IsolatedWorker,
     SideEffectLedger,
 )
+from cops.execution.filesystem import create_directory_exclusive_no_symlinks
 from tests.auth_testkit import (
     TestApprovalControl,
     TestExecutionSandbox,
@@ -58,14 +60,23 @@ def given_ledger_and_manager(recovery_ctx):
 def given_temp_file_tracked(recovery_ctx):
     workspace = recovery_ctx["workspace"]
     file_path = workspace / "temp_bdd.txt"
-    file_path.write_text("transient state", encoding="utf-8")
     recovery_ctx["file_path"] = file_path
-    recovery_ctx["ledger"].record_effect(
+    effect = recovery_ctx["ledger"].record_effect(
         step_id="step-1",
         resource_type="file",
         target=str(file_path),
         cleanup_action="delete",
     )
+    creation_fd = os.open(
+        file_path,
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+        0o600,
+    )
+    try:
+        os.write(creation_fd, b"transient state")
+        recovery_ctx["ledger"].record_created_identity(effect, creation_fd=creation_fd)
+    finally:
+        os.close(creation_fd)
 
 
 @given("an external system file tracked in the side-effect ledger")
@@ -325,3 +336,100 @@ def then_persistence_failure_is_explicit(recovery_ctx):
         unresolved["resource_type"] == "cleanup_journal" and "receipt persistence failed" in unresolved["reason"]
         for unresolved in receipt.unresolved_effects
     )
+
+
+@given("a durable cleanup journal with file and directory creation crash windows")
+def given_creation_identity_crash_windows(recovery_ctx):
+    workspace = recovery_ctx["workspace"]
+    journal = CleanupJournal(recovery_ctx["journal_path"])
+    run_workspace = workspace / "identity-run"
+    run_workspace.mkdir()
+    ledger = SideEffectLedger(
+        "plan-bdd-identity",
+        "eng-bdd-identity",
+        "worker-bdd-identity",
+        journal=journal,
+        run_id="run-bdd-identity",
+        workspace_dir=run_workspace,
+    )
+    resources = {}
+    for resource_type in ("file", "directory"):
+        for window in ("before_creation", "after_creation", "after_identity"):
+            path = run_workspace / f"{resource_type}-{window}"
+            effect = ledger.record_effect(
+                step_id=f"step-{resource_type}-{window}",
+                resource_type=resource_type,
+                target=str(path),
+                cleanup_action="delete",
+            )
+            resources[(resource_type, window)] = (path, effect.effect_id)
+            if window == "before_creation":
+                continue
+            if resource_type == "file":
+                fd = os.open(
+                    path,
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+                    0o600,
+                )
+            else:
+                fd = create_directory_exclusive_no_symlinks(path)
+            try:
+                if window == "after_identity":
+                    ledger.record_created_identity(effect, creation_fd=fd)
+            finally:
+                os.close(fd)
+    recovery_ctx.update(
+        identity_journal=journal,
+        identity_resources=resources,
+    )
+
+
+@when("cleanup recovery evaluates recorded creation identities")
+def when_recovery_evaluates_creation_identities(recovery_ctx):
+    journal = recovery_ctx["identity_journal"]
+    recovered = journal.recoverable_runs("worker-bdd-identity")[0]
+    ledger = SideEffectLedger(
+        recovered.plan_id,
+        recovered.engagement_id,
+        recovered.worker_identity,
+        journal=journal,
+        run_id=recovered.run_id,
+        workspace_dir=recovered.workspace_dir,
+        recovered_effects=recovered.effects,
+        start_run=False,
+    )
+    recovery_ctx["identity_receipt"] = CleanupManager(
+        ledger,
+        worker_identity=recovered.worker_identity,
+        workspace_dir=recovered.workspace_dir,
+    ).rollback(recovered=True)
+
+
+@then("only resources with durably recorded creation identity are removed")
+def then_only_identity_bound_resources_removed(recovery_ctx):
+    resources = recovery_ctx["identity_resources"]
+    for resource_type in ("file", "directory"):
+        assert not resources[(resource_type, "before_creation")][0].exists()
+        assert resources[(resource_type, "after_creation")][0].exists()
+        assert not resources[(resource_type, "after_identity")][0].exists()
+
+
+@then("unverified creation outcomes remain in a durable unresolved receipt")
+def then_unverified_creation_outcomes_are_durable(recovery_ctx):
+    resources = recovery_ctx["identity_resources"]
+    expected_ids = {
+        effect_id
+        for (_resource_type, window), (_path, effect_id) in resources.items()
+        if window in {"before_creation", "after_creation"}
+    }
+    receipt = recovery_ctx["identity_receipt"]
+    assert {item["effect_id"] for item in receipt.unresolved_effects} == expected_ids
+
+    with sqlite3.connect(recovery_ctx["journal_path"]) as connection:
+        durable_row = connection.execute(
+            "SELECT payload_json FROM cleanup_events "
+            "WHERE event_type = 'cleanup_receipt' ORDER BY sequence DESC LIMIT 1"
+        ).fetchone()
+    assert durable_row is not None
+    durable_receipt = json.loads(durable_row[0])
+    assert {item["effect_id"] for item in durable_receipt["unresolved_effects"]} == expected_ids

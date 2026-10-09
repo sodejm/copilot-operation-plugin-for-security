@@ -64,6 +64,7 @@
           "effect_id": {"type": "string", "minLength": 1},
           "resource_type": {"type": "string", "minLength": 1},
           "target": {"type": "string", "minLength": 1},
+          "quarantine_target": {"type": "string", "minLength": 1},
           "reason": {"type": "string", "minLength": 1}
         }
       }

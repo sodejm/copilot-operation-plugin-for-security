@@ -30,3 +30,9 @@ Feature: Execution Recovery and Cleanup Receipts
     And the interrupted cleanup outcome is recorded as unknown
     And recovered process identifiers are not signalled
     And persistence failures produce an explicit partial or failed cleanup receipt
+
+  Scenario: Restart cleanup requires durable creation identity
+    Given a durable cleanup journal with file and directory creation crash windows
+    When cleanup recovery evaluates recorded creation identities
+    Then only resources with durably recorded creation identity are removed
+    And unverified creation outcomes remain in a durable unresolved receipt

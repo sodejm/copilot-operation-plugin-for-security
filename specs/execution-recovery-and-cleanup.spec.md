@@ -15,3 +15,19 @@ Enforce predictable, failure-resilient recovery, side-effect accounting, and cle
 7. **Restart-Safe Recovery**: Worker startup safely reassesses unresolved filesystem effects while skipping effects already recorded as cleaned. Cleanup attempts interrupted before a terminal journal transition become explicit `unknown` outcomes, and recovered process identifiers are never signalled because a PID can be reused after restart.
 8. **Persistence Failure Accounting**: A failed journal write cannot be reported as successful cleanup. The emitted receipt records the affected effect or audit record as unresolved and uses `partial` or `failed` status.
 9. **Proven Ownership Required**: A cleanup declaration does not prove that the worker created its target. Plan-declared files and directories in a caller-supplied workspace, and plan-declared process identifiers in every workspace, remain unresolved and are never deleted or signalled without durable worker-created provenance. Restart recovery also preserves replacement resources for these unverified plan declarations.
+10. **Creation Identity Before Cleanup**: Before creating a worker-owned file or directory, including a default execution workspace or credential scratch directory, the worker durably records cleanup intent. It creates the final entry exclusively, derives `(device, inode, resource type)` from the still-open creation descriptor, verifies the path still names that object without following symbolic links, and durably records the identity before automatic cleanup is permitted.
+11. **Race-Resistant Filesystem Cleanup**: Cleanup resolves each path through verified parent directory descriptors, compares the current object with the durable creation identity, moves a matching object into an owner-only same-parent quarantine, and verifies the moved object again before descriptor-relative deletion. A replacement detected before or after quarantine remains present at its original path or in quarantine and is recorded as `unknown`. Recursive directory cleanup is permitted only after every ledger descendant has a durable `cleaned` state; otherwise the directory is preserved and recorded as `unknown`.
+12. **Unknown Preservation and Migration**: Missing resources, unverified creation outcomes, identity mismatches, interrupted cleanup attempts, and filesystem effects recovered from older journals without creation identity remain unresolved. Recovery never infers ownership from a path, filename, declared resource type, or cleanup action.
+
+## Filesystem identity limits
+
+The durable identity is the portable POSIX tuple `(device, inode, resource type)`.
+The quarantine-and-reverify sequence closes the path replacement window between
+identity comparison and deletion for ordinary concurrent replacement. Filesystems
+can reuse inode numbers, however, and a hostile process sharing the worker account
+can interfere with owner-only state. Creation timestamps are not a portable,
+immutable discriminator, and a worker-set pathname marker would have the same
+replacement problem. Deploy the worker under a dedicated account and treat any
+quarantined or unresolved resource as requiring operator reconciliation; the
+identity tuple does not establish an absolute guarantee against inode reuse or a
+hostile process with the same privileges.

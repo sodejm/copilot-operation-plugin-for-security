@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -17,14 +18,25 @@ class TestExecutionRecoveryAndCleanupSkill(unittest.TestCase):
             manager = CleanupManager(ledger, "worker-skill-01", workspace_dir=workspace)
 
             test_file = workspace / "temp_artifact.txt"
-            test_file.write_text("transient data", encoding="utf-8")
-
-            ledger.record_effect(
+            effect = ledger.record_effect(
                 step_id="step-skill-1",
                 resource_type="file",
                 target=str(test_file),
                 cleanup_action="delete",
             )
+            creation_fd = os.open(
+                test_file,
+                os.O_WRONLY
+                | os.O_CREAT
+                | os.O_EXCL
+                | getattr(os, "O_NOFOLLOW", 0),
+                0o600,
+            )
+            try:
+                os.write(creation_fd, b"transient data")
+                ledger.record_created_identity(effect, creation_fd=creation_fd)
+            finally:
+                os.close(creation_fd)
 
             receipt = manager.rollback()
             self.assertEqual(receipt.status, "completed")

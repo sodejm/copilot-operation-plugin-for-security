@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import sqlite3
 import stat
 import tempfile
@@ -41,6 +40,50 @@ class CleanupPersistenceError(CleanupError):
     """Cleanup journal state could not be safely persisted or recovered."""
 
 
+@dataclass(frozen=True)
+class FilesystemIdentity:
+    """Durable identity for a worker-created filesystem object."""
+
+    device: int
+    inode: int
+    resource_type: str
+
+    @classmethod
+    def from_stat(cls, resource_type: str, result: os.stat_result) -> FilesystemIdentity:
+        return cls(device=result.st_dev, inode=result.st_ino, resource_type=resource_type)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> FilesystemIdentity:
+        if set(data) != {"device", "inode", "resource_type"}:
+            raise ValueError("filesystem identity payload fields are invalid")
+        if any(isinstance(data[key], bool) or not isinstance(data[key], int) or data[key] < 0 for key in ("device", "inode")):
+            raise ValueError("filesystem identity device and inode must be non-negative integers")
+        if data["resource_type"] not in {"file", "directory"}:
+            raise ValueError("filesystem identity resource type is invalid")
+        return cls(
+            device=data["device"],
+            inode=data["inode"],
+            resource_type=data["resource_type"],
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "device": self.device,
+            "inode": self.inode,
+            "resource_type": self.resource_type,
+        }
+
+    def matches(self, resource_type: str, result: os.stat_result) -> bool:
+        expected_mode = stat.S_ISREG if resource_type == "file" else stat.S_ISDIR
+        return (
+            self.resource_type == resource_type
+            and self.device == result.st_dev
+            and self.inode == result.st_ino
+            and expected_mode(result.st_mode)
+            and not stat.S_ISLNK(result.st_mode)
+        )
+
+
 @dataclass
 class SideEffect:
     """Individual resource or state change tracked in the side-effect ledger."""
@@ -56,6 +99,8 @@ class SideEffect:
     cleanup_action: str = "delete"
     status: str = "pending"
     metadata: dict[str, Any] = field(default_factory=dict)
+    creation_identity: FilesystemIdentity | None = field(default=None, repr=False)
+    transition_details: dict[str, Any] = field(default_factory=dict, repr=False)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -319,6 +364,19 @@ class CleanupJournal:
     def record_effect(self, run_id: str, effect: SideEffect) -> None:
         self.append(run_id, "effect_recorded", effect.to_dict(), effect_id=effect.effect_id)
 
+    def record_creation_identity(
+        self,
+        run_id: str,
+        effect: SideEffect,
+        identity: FilesystemIdentity,
+    ) -> None:
+        self.append(
+            run_id,
+            "creation_identity_recorded",
+            identity.to_dict(),
+            effect_id=effect.effect_id,
+        )
+
     def transition(
         self,
         run_id: str,
@@ -407,6 +465,18 @@ class CleanupJournal:
                     if effect_id in run["effects"]:
                         raise ValueError(f"duplicate effect ID '{effect_id}'")
                     run["effects"][effect_id] = effect
+                elif event_type == "creation_identity_recorded":
+                    effect = run["effects"].get(row["effect_id"])
+                    if effect is None:
+                        raise ValueError("creation identity refers to an unknown effect")
+                    if effect.resource_type not in {"file", "directory"}:
+                        raise ValueError("creation identity requires a filesystem effect")
+                    if effect.status != "pending" or effect.creation_identity is not None:
+                        raise ValueError("creation identity must be recorded once while the effect is pending")
+                    identity = FilesystemIdentity.from_dict(payload)
+                    if identity.resource_type != effect.resource_type:
+                        raise ValueError("creation identity resource type does not match its effect")
+                    effect.creation_identity = identity
                 elif event_type == "cleanup_transition":
                     if set(payload) != {"status", "details"} or not isinstance(payload["details"], dict):
                         raise ValueError("cleanup transition payload fields are invalid")
@@ -417,6 +487,7 @@ class CleanupJournal:
                     if status not in {"pending", "cleaning", "cleaned", "failed", "unknown"}:
                         raise ValueError("cleanup transition status is invalid")
                     effect.status = status
+                    effect.transition_details.update(payload["details"])
                 elif event_type == "cleanup_receipt":
                     receipt = CleanupReceipt.from_dict(payload)
                     started = run["started"]
@@ -466,7 +537,12 @@ class CleanupJournal:
 
 
 class SideEffectLedger:
-    """Side-effect ledger with optional durable journal persistence."""
+    """Side-effect ledger with optional durable journal persistence.
+
+    A ledger without a journal is process-local support for tests and the
+    laboratory harness. Production workers always provide a journal so intent,
+    creation identity, and terminal cleanup state survive a worker crash.
+    """
 
     def __init__(
         self,
@@ -527,6 +603,50 @@ class SideEffectLedger:
         self._effects.append(effect)
         return effect
 
+    def record_created_identity(
+        self,
+        effect: SideEffect,
+        *,
+        creation_fd: int,
+    ) -> FilesystemIdentity:
+        """Verify a created object and persist its identity when journaled."""
+        if effect not in self._effects:
+            raise CleanupPersistenceError("cannot identify an effect outside this ledger")
+        if effect.resource_type not in {"file", "directory"}:
+            raise CleanupPersistenceError("creation identity applies only to filesystem effects")
+        if effect.status != "pending" or effect.creation_identity is not None:
+            raise CleanupPersistenceError(
+                "creation identity must be recorded once while the effect is pending"
+            )
+        path = Path(effect.target)
+        normalized = Path(os.path.abspath(os.fspath(path)))
+        if not path.is_absolute() or path != normalized or ".." in path.parts:
+            raise CleanupPersistenceError("filesystem effect target must be an absolute normalized path")
+        parent_fd = -1
+        try:
+            created = os.fstat(creation_fd)
+            parent_fd = open_directory_no_symlinks(path.parent)
+            current = os.stat(path.name, dir_fd=parent_fd, follow_symlinks=False)
+        except (OSError, SecureDirectoryError) as err:
+            raise CleanupPersistenceError(f"cannot verify created resource '{path}': {err}") from err
+        finally:
+            if parent_fd >= 0:
+                os.close(parent_fd)
+        expected_mode = stat.S_ISREG if effect.resource_type == "file" else stat.S_ISDIR
+        if stat.S_ISLNK(created.st_mode) or not expected_mode(created.st_mode):
+            raise CleanupPersistenceError(
+                f"creation descriptor for '{path}' does not match declared type '{effect.resource_type}'"
+            )
+        identity = FilesystemIdentity.from_stat(effect.resource_type, created)
+        if not identity.matches(effect.resource_type, current):
+            raise CleanupPersistenceError(
+                f"created resource '{path}' changed before its identity could be persisted"
+            )
+        if self.journal is not None:
+            self.journal.record_creation_identity(self.run_id, effect, identity)
+        effect.creation_identity = identity
+        return identity
+
     def get_effects(self, status: str | None = None) -> list[SideEffect]:
         if status is None:
             return list(self._effects)
@@ -545,6 +665,7 @@ class SideEffectLedger:
         if self.journal is not None:
             self.journal.transition(self.run_id, effect, status, details=details)
         effect.status = status
+        effect.transition_details.update(details or {})
 
 
 class CleanupManager:
@@ -571,14 +692,31 @@ class CleanupManager:
                 try:
                     target_path.relative_to(self.workspace_dir)
                 except ValueError as err:
-                    scratch_root = Path(tempfile.gettempdir()).resolve(strict=True)
+                    scratch_parent = Path(tempfile.gettempdir()).resolve(strict=True)
+                    scratch_value = effect.metadata.get("credential_scratch_root")
+                    scratch_path = (
+                        Path(os.path.abspath(scratch_value))
+                        if isinstance(scratch_value, str) and scratch_value
+                        else None
+                    )
+                    within_credential_scratch = False
+                    if scratch_path is not None:
+                        try:
+                            target_path.relative_to(scratch_path)
+                        except ValueError:
+                            pass
+                        else:
+                            within_credential_scratch = (
+                                scratch_path.parent == scratch_parent
+                                and scratch_path.name.startswith("cops-credential-operation-")
+                            )
                     is_credential_scratch = (
                         effect.resource_type == "directory"
                         and effect.metadata.get("purpose") == "credential_operation_scratch"
-                        and target_path.parent == scratch_root
+                        and target_path.parent == scratch_parent
                         and target_path.name.startswith("cops-credential-operation-")
                     )
-                    if not is_credential_scratch:
+                    if not is_credential_scratch and not within_credential_scratch:
                         raise CleanupOwnershipError(
                             f"Resource path '{target_path}' is outside worker workspace '{self.workspace_dir}'"
                         ) from err
@@ -588,17 +726,44 @@ class CleanupManager:
                 raise CleanupOwnershipError(
                     f"Resource parent for '{target_path}' cannot be verified without following symbolic links"
                 ) from err
+            identity = effect.creation_identity
+            if identity is None:
+                os.close(parent_fd)
+                raise CleanupOwnershipError(
+                    f"Resource '{target_path}' has no durably recorded creation identity"
+                )
+            try:
+                current = os.stat(target_path.name, dir_fd=parent_fd, follow_symlinks=False)
+            except FileNotFoundError as err:
+                os.close(parent_fd)
+                raise CleanupOwnershipError(
+                    f"Resource '{target_path}' is missing; ownership cannot be verified"
+                ) from err
+            except OSError as err:
+                os.close(parent_fd)
+                raise CleanupOwnershipError(
+                    f"Resource '{target_path}' cannot be inspected without following symbolic links"
+                ) from err
+            if not identity.matches(effect.resource_type, current):
+                os.close(parent_fd)
+                raise CleanupOwnershipError(
+                    f"Resource '{target_path}' no longer matches its recorded creation identity"
+                )
             return parent_fd
         return None
 
     @staticmethod
     def _unresolved(effect: SideEffect, reason: str) -> dict[str, Any]:
-        return {
+        unresolved = {
             "effect_id": effect.effect_id,
             "resource_type": effect.resource_type,
             "target": effect.target,
             "reason": reason,
         }
+        quarantine_target = effect.transition_details.get("quarantine_target")
+        if isinstance(quarantine_target, str) and quarantine_target:
+            unresolved["quarantine_target"] = quarantine_target
+        return unresolved
 
     def _transition(
         self,
@@ -609,48 +774,73 @@ class CleanupManager:
     ) -> None:
         self.ledger.transition_effect(effect, status, details=details)
 
-    def _execute_cleanup(self, effect: SideEffect, *, parent_fd: int | None = None) -> str:
-        if effect.resource_type == "file":
-            path = Path(os.path.abspath(effect.target))
-            if parent_fd is None:
-                raise CleanupError(f"file parent for '{path}' was not verified")
-            try:
-                target_stat = os.stat(path.name, dir_fd=parent_fd, follow_symlinks=False)
-            except FileNotFoundError:
+    @staticmethod
+    def _quarantine_name(effect: SideEffect) -> str:
+        token = uuid.uuid5(uuid.NAMESPACE_URL, effect.effect_id).hex
+        return f".cops-cleanup-{token}"
+
+    def _quarantine_target(self, effect: SideEffect) -> str:
+        path = Path(os.path.abspath(effect.target))
+        return str(path.parent / self._quarantine_name(effect) / "resource")
+
+    @staticmethod
+    def _open_child_directory(parent_fd: int, name: str) -> int:
+        flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_CLOEXEC", 0)
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        return os.open(name, flags, dir_fd=parent_fd)
+
+    def _execute_filesystem_cleanup(self, effect: SideEffect, *, parent_fd: int) -> str:
+        path = Path(os.path.abspath(effect.target))
+        identity = effect.creation_identity
+        if identity is None:
+            raise CleanupOwnershipError(f"Resource '{path}' has no durably recorded creation identity")
+        quarantine_name = self._quarantine_name(effect)
+        quarantine_fd = -1
+        quarantine_created = False
+        try:
+            os.mkdir(quarantine_name, 0o700, dir_fd=parent_fd)
+            quarantine_created = True
+            quarantine_fd = self._open_child_directory(parent_fd, quarantine_name)
+            os.rename(path.name, "resource", src_dir_fd=parent_fd, dst_dir_fd=quarantine_fd)
+            moved = os.stat("resource", dir_fd=quarantine_fd, follow_symlinks=False)
+            if not identity.matches(effect.resource_type, moved):
+                raise CleanupOwnershipError(
+                    f"Resource '{path}' changed after verification; unverified object was preserved in "
+                    f"'{quarantine_name}'"
+                )
+            # Re-check inside the owner-only quarantine immediately before the
+            # destructive operation. The descriptor keeps deletion bound to the
+            # quarantined name even if a replacement appears at the original path.
+            current = os.stat("resource", dir_fd=quarantine_fd, follow_symlinks=False)
+            if not identity.matches(effect.resource_type, current):
+                raise CleanupOwnershipError(
+                    f"Quarantined resource for '{path}' changed before deletion and was preserved"
+                )
+            if effect.resource_type == "file":
+                os.unlink("resource", dir_fd=quarantine_fd)
                 return "deleted_file"
-            if stat.S_ISLNK(target_stat.st_mode):
-                raise CleanupError(f"file '{path}' changed to a symbolic link before unlink")
-            if not stat.S_ISREG(target_stat.st_mode):
-                raise CleanupError(f"file '{path}' changed type before unlink")
-            os.unlink(path.name, dir_fd=parent_fd)
-            try:
-                os.stat(path.name, dir_fd=parent_fd, follow_symlinks=False)
-            except FileNotFoundError:
-                pass
-            else:
-                raise CleanupError(f"file '{path}' still exists after unlink")
-            return "deleted_file"
-        if effect.resource_type == "directory":
+            # Directory identity proves ownership of this entry, not of any
+            # descendants that appeared after creation. Remove it only when it
+            # is empty so unjournaled or replaced descendants are preserved.
+            os.rmdir("resource", dir_fd=quarantine_fd)
+            return "deleted_directory"
+        finally:
+            if quarantine_fd >= 0:
+                os.close(quarantine_fd)
+            if quarantine_created:
+                try:
+                    os.rmdir(quarantine_name, dir_fd=parent_fd)
+                except OSError:
+                    # Preserve a non-empty quarantine for operator inspection.
+                    pass
+
+    def _execute_cleanup(self, effect: SideEffect, *, parent_fd: int | None = None) -> str:
+        if effect.resource_type in {"file", "directory"}:
             path = Path(os.path.abspath(effect.target))
             if parent_fd is None:
-                raise CleanupError(f"directory parent for '{path}' was not verified")
-            try:
-                target_stat = os.stat(path.name, dir_fd=parent_fd, follow_symlinks=False)
-            except FileNotFoundError:
-                return "deleted_directory"
-            if stat.S_ISLNK(target_stat.st_mode):
-                raise CleanupError(f"directory '{path}' changed to a symbolic link before rmtree")
-            if stat.S_ISDIR(target_stat.st_mode):
-                shutil.rmtree(path.name, ignore_errors=False, dir_fd=parent_fd)
-            else:
-                raise CleanupError(f"directory '{path}' changed type before rmtree")
-            try:
-                os.stat(path.name, dir_fd=parent_fd, follow_symlinks=False)
-            except FileNotFoundError:
-                pass
-            else:
-                raise CleanupError(f"directory '{path}' still exists after rmtree")
-            return "deleted_directory"
+                raise CleanupError(f"{effect.resource_type} parent for '{path}' was not verified")
+            return self._execute_filesystem_cleanup(effect, parent_fd=parent_fd)
         if effect.resource_type == "process":
             pid = int(effect.target)
             try:
@@ -661,6 +851,48 @@ class CleanupManager:
                 raise CleanupError(f"permission denied killing PID {pid}") from err
             return "terminated_process"
         return f"custom_reverted_{effect.cleanup_action}"
+
+    @staticmethod
+    def _terminal_status(error: Exception, *, action_started: bool) -> str:
+        if action_started or isinstance(error, CleanupOwnershipError):
+            return "unknown"
+        return "failed"
+
+    def cleanup_effect(self, effect: SideEffect) -> str:
+        """Clean one pending effect through the verified ownership path."""
+        if effect.status != "pending":
+            raise CleanupPreconditionError(f"effect '{effect.effect_id}' is not pending")
+        parent_fd: int | None = None
+        action_started = False
+        try:
+            unresolved_descendant = self._unresolved_descendant(effect)
+            if unresolved_descendant is not None:
+                raise CleanupOwnershipError(
+                    "ancestor directory contains unresolved descendant "
+                    f"'{unresolved_descendant.target}'; ancestor was preserved"
+                )
+            parent_fd = self._verify_resource_ownership(effect)
+            self._transition(
+                effect,
+                "cleaning",
+                details={"quarantine_target": self._quarantine_target(effect)}
+                if effect.resource_type in {"file", "directory"}
+                else None,
+            )
+            action_started = True
+            action = self._execute_cleanup(effect, parent_fd=parent_fd)
+            self._transition(effect, "cleaned", details={"action_taken": action})
+            return action
+        except Exception as err:
+            terminal_status = self._terminal_status(err, action_started=action_started)
+            try:
+                self._transition(effect, terminal_status, details={"reason": str(err)})
+            except CleanupPersistenceError:
+                effect.status = "unknown"
+            raise
+        finally:
+            if parent_fd is not None:
+                os.close(parent_fd)
 
     def _build_receipt(
         self,
@@ -695,18 +927,99 @@ class CleanupManager:
             }
         )
 
+    @staticmethod
+    def _filesystem_target(effect: SideEffect) -> Path | None:
+        if effect.resource_type not in {"file", "directory"}:
+            return None
+        return Path(os.path.abspath(effect.target))
+
+    @classmethod
+    def _is_strict_descendant(cls, child: SideEffect, ancestor: SideEffect) -> bool:
+        child_path = cls._filesystem_target(child)
+        ancestor_path = cls._filesystem_target(ancestor)
+        if child_path is None or ancestor_path is None or child_path == ancestor_path:
+            return False
+        try:
+            child_path.relative_to(ancestor_path)
+        except ValueError:
+            return False
+        return True
+
+    @classmethod
+    def _rollback_order(cls, effects: list[SideEffect]) -> list[SideEffect]:
+        """Order filesystem descendants before directories that contain them."""
+        remaining = list(reversed(effects))
+        ordered: list[SideEffect] = []
+        while remaining:
+            for index, effect in enumerate(remaining):
+                if effect.resource_type == "directory" and any(
+                    cls._is_strict_descendant(other, effect)
+                    for other in remaining
+                    if other is not effect
+                ):
+                    continue
+                ordered.append(remaining.pop(index))
+                break
+            else:  # pragma: no cover - strict ancestry cannot form a cycle
+                ordered.append(remaining.pop(0))
+        return ordered
+
+    def _unresolved_descendant(self, ancestor: SideEffect) -> SideEffect | None:
+        """Return a ledger descendant that still lacks a durable cleaned state."""
+        if ancestor.resource_type != "directory":
+            return None
+        return next(
+            (
+                effect
+                for effect in self.ledger.get_effects()
+                if effect is not ancestor
+                and effect.status != "cleaned"
+                and self._is_strict_descendant(effect, ancestor)
+            ),
+            None,
+        )
+
     def rollback(self, *, dry_run: bool = False, recovered: bool = False) -> CleanupReceipt:
         """Roll back pending effects, preserving unknown outcomes across restart."""
         created_at = utc_now()
         cleaned_effects: list[dict[str, Any]] = []
         unresolved_effects: list[dict[str, Any]] = []
+        unresolved_targets: list[Path] = []
 
-        for effect in reversed(self.ledger.get_effects()):
+        def record_unresolved(effect: SideEffect, reason: str) -> None:
+            unresolved_effects.append(self._unresolved(effect, reason))
+            target = self._filesystem_target(effect)
+            if target is not None:
+                unresolved_targets.append(target)
+
+        for effect in self._rollback_order(self.ledger.get_effects()):
             if effect.status == "cleaned":
                 continue
             if effect.status in {"failed", "unknown"}:
-                unresolved_effects.append(self._unresolved(effect, f"cleanup outcome remains {effect.status}"))
+                record_unresolved(effect, f"cleanup outcome remains {effect.status}")
                 continue
+            effect_target = self._filesystem_target(effect)
+            if effect.resource_type == "directory" and effect_target is not None:
+                unresolved_descendant = next(
+                    (
+                        target
+                        for target in unresolved_targets
+                        if target != effect_target and target.is_relative_to(effect_target)
+                    ),
+                    None,
+                )
+                if unresolved_descendant is not None:
+                    reason = (
+                        f"ancestor directory contains unresolved descendant '{unresolved_descendant}'; "
+                        "ancestor was preserved"
+                    )
+                    try:
+                        self._transition(effect, "unknown", details={"reason": reason})
+                    except CleanupPersistenceError as err:
+                        effect.status = "unknown"
+                        reason = f"{reason}; cleanup state persistence failed: {err}"
+                    record_unresolved(effect, reason)
+                    continue
             if effect.status == "cleaning":
                 try:
                     self._transition(
@@ -716,9 +1029,9 @@ class CleanupManager:
                     )
                 except CleanupPersistenceError as err:
                     effect.status = "unknown"
-                    unresolved_effects.append(self._unresolved(effect, f"cleanup state persistence failed: {err}"))
+                    record_unresolved(effect, f"cleanup state persistence failed: {err}")
                     continue
-                unresolved_effects.append(self._unresolved(effect, "cleanup may have completed before worker restart"))
+                record_unresolved(effect, "cleanup may have completed before worker restart")
                 continue
             if effect.metadata.get(PLAN_DECLARED_PROVENANCE_KEY) == PLAN_DECLARED_PROVENANCE_UNVERIFIED:
                 reason = "plan cleanup declaration does not establish worker ownership; cleanup target was preserved"
@@ -726,9 +1039,9 @@ class CleanupManager:
                     self._transition(effect, "unknown", details={"reason": reason})
                 except CleanupPersistenceError as err:
                     effect.status = "unknown"
-                    unresolved_effects.append(self._unresolved(effect, f"cleanup state persistence failed: {err}"))
+                    record_unresolved(effect, f"cleanup state persistence failed: {err}")
                     continue
-                unresolved_effects.append(self._unresolved(effect, reason))
+                record_unresolved(effect, reason)
                 continue
             if recovered and effect.resource_type == "process":
                 try:
@@ -739,11 +1052,9 @@ class CleanupManager:
                     )
                 except CleanupPersistenceError as err:
                     effect.status = "unknown"
-                    unresolved_effects.append(self._unresolved(effect, f"cleanup state persistence failed: {err}"))
+                    record_unresolved(effect, f"cleanup state persistence failed: {err}")
                     continue
-                unresolved_effects.append(
-                    self._unresolved(effect, "process PID ownership cannot be verified after worker restart")
-                )
+                record_unresolved(effect, "process PID ownership cannot be verified after worker restart")
                 continue
             if dry_run:
                 cleaned_effects.append(
@@ -760,18 +1071,22 @@ class CleanupManager:
             action_started = False
             try:
                 parent_fd = self._verify_resource_ownership(effect)
-                self._transition(effect, "cleaning")
+                self._transition(
+                    effect,
+                    "cleaning",
+                    details={"quarantine_target": self._quarantine_target(effect)}
+                    if effect.resource_type in {"file", "directory"}
+                    else None,
+                )
                 action_started = True
                 action_taken = self._execute_cleanup(effect, parent_fd=parent_fd)
                 try:
                     self._transition(effect, "cleaned", details={"action_taken": action_taken})
                 except CleanupPersistenceError as err:
                     effect.status = "unknown"
-                    unresolved_effects.append(
-                        self._unresolved(
-                            effect,
-                            f"resource action completed but cleanup state persistence failed: {err}",
-                        )
+                    record_unresolved(
+                        effect,
+                        f"resource action completed but cleanup state persistence failed: {err}",
                     )
                     continue
                 cleaned_effects.append(
@@ -783,7 +1098,7 @@ class CleanupManager:
                     }
                 )
             except Exception as err:
-                terminal_status = "unknown" if action_started else "failed"
+                terminal_status = self._terminal_status(err, action_started=action_started)
                 try:
                     self._transition(effect, terminal_status, details={"reason": str(err)})
                     reason = (
@@ -794,7 +1109,7 @@ class CleanupManager:
                 except CleanupPersistenceError as persistence_error:
                     effect.status = "unknown"
                     reason = f"cleanup failed and state persistence failed: {err}; {persistence_error}"
-                unresolved_effects.append(self._unresolved(effect, reason))
+                record_unresolved(effect, reason)
             finally:
                 if parent_fd is not None:
                     os.close(parent_fd)

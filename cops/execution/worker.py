@@ -14,7 +14,6 @@ from __future__ import annotations
 import json
 import os
 import platform
-import shutil
 import stat
 import tempfile
 import uuid
@@ -34,6 +33,7 @@ from cops.evidence.canonical import utc_now
 from .cleanup import (
     PLAN_DECLARED_PROVENANCE_KEY,
     PLAN_DECLARED_PROVENANCE_UNVERIFIED,
+    CleanupError,
     CleanupJournal,
     CleanupManager,
     CleanupPersistenceError,
@@ -49,7 +49,11 @@ from .executable import (
     prepare_executable,
     verify_executable_launch_support,
 )
-from .filesystem import SecureDirectoryError, open_directory_no_symlinks
+from .filesystem import (
+    SecureDirectoryError,
+    create_directory_exclusive_no_symlinks,
+    open_directory_no_symlinks,
+)
 from .sandbox import ExecutionSandbox, LinuxBubblewrapSandbox
 
 
@@ -481,8 +485,7 @@ class IsolatedWorker:
                     "worker workspace path must not contain parent traversal or symbolic-link components"
                 )
             target_workspace = Path(os.path.abspath(os.fspath(workspace_dir)))
-        workspace_preexisting = target_workspace.exists()
-        if not workspace_preexisting:
+        if ephemeral:
             parent_fd = -1
             try:
                 parent_fd = open_directory_no_symlinks(target_workspace.parent)
@@ -510,8 +513,9 @@ class IsolatedWorker:
                 worker_identity=self.config.worker_id,
                 workspace_dir=target_workspace,
             )
+            workspace_scratch_effect = None
             if ephemeral:
-                ledger.record_effect(
+                workspace_scratch_effect = ledger.record_effect(
                     step_id="workspace-scratch",
                     resource_type="directory",
                     target=str(target_workspace),
@@ -519,8 +523,17 @@ class IsolatedWorker:
                 )
             workspace_fd = -1
             try:
-                workspace_fd = open_directory_no_symlinks(target_workspace, create=True)
+                if workspace_scratch_effect is not None:
+                    workspace_fd = create_directory_exclusive_no_symlinks(target_workspace)
+                    ledger.record_created_identity(
+                        workspace_scratch_effect,
+                        creation_fd=workspace_fd,
+                    )
+                else:
+                    workspace_fd = open_directory_no_symlinks(target_workspace)
             except SecureDirectoryError as err:
+                if not ephemeral and isinstance(err.__cause__, FileNotFoundError):
+                    raise WorkerIsolationError("caller-supplied worker workspace must already exist") from err
                 raise WorkerIsolationError("worker workspace path must not contain symbolic-link components") from err
             finally:
                 if workspace_fd >= 0:
@@ -597,6 +610,7 @@ class IsolatedWorker:
                     target=plan_model.target,
                 ),
                 ephemeral_workspace=ephemeral,
+                cleanup_manager=cleanup_manager if ephemeral and not portable_inert else None,
             )
 
             max_duration_seconds = min(
@@ -656,8 +670,7 @@ class IsolatedWorker:
                         clean_target = clean_spec.get("target") or str(target_workspace / f"{step_id}.tmp")
                         resource_type = clean_spec.get("resource_type", "file")
                         cleanup_metadata = dict(clean_spec)
-                        if not ephemeral or resource_type == "process":
-                            cleanup_metadata[PLAN_DECLARED_PROVENANCE_KEY] = PLAN_DECLARED_PROVENANCE_UNVERIFIED
+                        cleanup_metadata[PLAN_DECLARED_PROVENANCE_KEY] = PLAN_DECLARED_PROVENANCE_UNVERIFIED
                         ledger.record_effect(
                             step_id=step_id,
                             resource_type=resource_type,
@@ -732,7 +745,11 @@ class IsolatedWorker:
                         )
                         operation_workspace_fd = -1
                         try:
-                            operation_workspace_fd = open_directory_no_symlinks(operation_workspace, create=True)
+                            operation_workspace_fd = create_directory_exclusive_no_symlinks(operation_workspace)
+                            ledger.record_created_identity(
+                                credential_scratch_effect,
+                                creation_fd=operation_workspace_fd,
+                            )
                         finally:
                             if operation_workspace_fd >= 0:
                                 os.close(operation_workspace_fd)
@@ -773,6 +790,10 @@ class IsolatedWorker:
                                 timeout_seconds=timeout,
                                 deadline=step_deadline,
                                 process_runner=self.sandbox.run,
+                                cleanup_manager=cleanup_manager,
+                                credential_scratch_root=(
+                                    operation_workspace if credential_scratch_effect is not None else None
+                                ),
                             )
                             try:
                                 credential_env = (
@@ -890,13 +911,8 @@ class IsolatedWorker:
                     finally:
                         if operation_workspace != target_workspace:
                             try:
-                                shutil.rmtree(operation_workspace)
                                 assert credential_scratch_effect is not None
-                                ledger.transition_effect(
-                                    credential_scratch_effect,
-                                    "cleaned",
-                                    details={"action_taken": "deleted_directory"},
-                                )
+                                cleanup_manager.cleanup_effect(credential_scratch_effect)
                             except CleanupPersistenceError:
                                 operation_cleanup_failed = True
                                 credential_scratch_cleanup_failed = True
@@ -906,6 +922,14 @@ class IsolatedWorker:
                                 status_reason = (
                                     f"credential operation scratch cleanup audit persistence failed at step '{step_id}'"
                                 )
+                                if status == "uncertain":
+                                    status_reason += "; automatic repeat disallowed"
+                                overall_exit_code = 1
+                            except CleanupError:
+                                operation_cleanup_failed = True
+                                credential_scratch_cleanup_failed = True
+                                status = "uncertain" if adapter_dispatched and not is_idempotent else "failed"
+                                status_reason = f"credential operation scratch cleanup failed at step '{step_id}'"
                                 if status == "uncertain":
                                     status_reason += "; automatic repeat disallowed"
                                 overall_exit_code = 1

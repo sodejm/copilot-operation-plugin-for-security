@@ -65,6 +65,18 @@ unsafe ownership or permissions, or unreadable recovery state stops supervisor
 startup. Review unresolved cleanup receipts and unknown effects before repeating
 an operation; recovery does not prove an interrupted external effect rolled back.
 
+The worker records cleanup intent before exclusively creating each default
+workspace or credential scratch directory. It records the resource identity from
+the still-open creation descriptor before cleanup is permitted. Recovery verifies
+that identity without following symbolic links, quarantines a matching object in
+its verified parent, and verifies the moved object again before deletion. Missing,
+unverified, replaced, and legacy journal effects without a creation identity remain
+unresolved and are preserved. A replacement detected after quarantine remains in
+an owner-only `.cops-cleanup-*` directory for operator reconciliation. A caller-
+supplied worker workspace must already exist and remains caller-owned. Recursive
+cleanup preserves a worker-owned directory whenever any effect beneath it lacks a
+durable `cleaned` state, including an unresolved plan declaration.
+
 `egress_trust_domain` and `credential_manifest_path` are optional. Omit the
 manifest path when no operation uses a credential. For credentialed operations,
 provision the manifest as a supervisor-owned regular JSON file with mode `0600`:

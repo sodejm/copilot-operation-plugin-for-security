@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shlex
 import subprocess
 import tempfile
@@ -13,6 +14,7 @@ from typing import Any, Literal
 
 from cops.contracts.models import (
     ActionPlan,
+    CleanupReceipt,
     ExecutionAuthorization,
     LaboratoryEnvironment,
     RunResult,
@@ -25,6 +27,10 @@ from cops.execution.authorization import (
     verify_execution_authorization,
 )
 from cops.execution.cleanup import CleanupManager, SideEffectLedger
+from cops.execution.filesystem import (
+    SecureDirectoryError,
+    open_directory_no_symlinks,
+)
 from cops.execution.scope_guard import ScopeGuard, ScopeViolationError
 from cops.execution.store import ApprovalStore, ApprovalStoreConflictError
 from cops.execution.worker import WorkerCapabilityInventory
@@ -213,6 +219,29 @@ class LaboratoryHarness:
                 f"worker inventory lacks approved platform prerequisites: {sorted(missing_capabilities)}"
             )
 
+        # Caller workspaces are caller-owned. Validate them before consuming the
+        # one-use authorization; the harness never creates or removes them.
+        if workspace_dir is None:
+            target_workspace = None
+        else:
+            if ".." in Path(workspace_dir).parts:
+                raise LaboratoryGateError(
+                    "caller-supplied laboratory workspace must not contain parent traversal"
+                )
+            target_workspace = Path(os.path.abspath(os.fspath(workspace_dir)))
+            if not target_workspace.exists():
+                raise LaboratoryGateError("caller-supplied laboratory workspace must already exist")
+            workspace_fd = -1
+            try:
+                workspace_fd = open_directory_no_symlinks(target_workspace)
+            except SecureDirectoryError as err:
+                raise LaboratoryGateError(
+                    "caller-supplied laboratory workspace must contain no symbolic-link components"
+                ) from err
+            finally:
+                if workspace_fd >= 0:
+                    os.close(workspace_fd)
+
         # GATE 2: Authorization envelope review & atomic consumption gate
         if isinstance(authorization, str):
             auth_model = active_store.get_authorization(authorization)
@@ -284,14 +313,14 @@ class LaboratoryHarness:
                 )
             raise LaboratoryGateError("Environment isolation has not been verified.")
 
-        # Set up isolated ephemeral workspace & side-effect ledger
+        # Laboratory-owned workspaces remain process-local TemporaryDirectory
+        # resources. Durable crash recovery belongs to IsolatedWorker; the
+        # harness does not represent this temporary directory as a recoverable
+        # worker-owned effect.
         temp_dir: tempfile.TemporaryDirectory[str] | None = None
-        if workspace_dir is None:
+        if target_workspace is None:
             temp_dir = tempfile.TemporaryDirectory(prefix=f"cops-lab-{plan_model.plan_id}-")
             target_workspace = Path(temp_dir.name).resolve(strict=True)
-        else:
-            target_workspace = Path(workspace_dir).resolve()
-            target_workspace.mkdir(parents=True, exist_ok=True)
 
         ledger = SideEffectLedger(
             plan_id=plan_model.plan_id,
@@ -302,14 +331,6 @@ class LaboratoryHarness:
             ledger=ledger,
             worker_identity=environment.owner,
             workspace_dir=target_workspace,
-        )
-
-        # Track workspace effect
-        ledger.record_effect(
-            step_id="lab-workspace",
-            resource_type="directory",
-            target=str(target_workspace),
-            cleanup_action="delete",
         )
 
         started_at = utc_now()
@@ -377,6 +398,17 @@ class LaboratoryHarness:
 
             # Execute cleanup
             cleanup_receipt = cleanup_manager.rollback()
+            if temp_dir is not None:
+                cleanup_started_at = utc_now()
+                process_local_workspace = str(target_workspace)
+                temp_dir.cleanup()
+                temp_dir = None
+                cleanup_receipt = self._build_process_local_cleanup_receipt(
+                    plan=plan_model,
+                    worker_identity=environment.owner,
+                    workspace=process_local_workspace,
+                    created_at=cleanup_started_at,
+                )
 
             run_result = RunResult(
                 schema_version="cops.run-result/v1",
@@ -409,6 +441,43 @@ class LaboratoryHarness:
         finally:
             if temp_dir is not None:
                 temp_dir.cleanup()
+
+    @staticmethod
+    def _build_process_local_cleanup_receipt(
+        *,
+        plan: ActionPlan,
+        worker_identity: str,
+        workspace: str,
+        created_at: str,
+    ) -> CleanupReceipt:
+        """Report successful synchronous cleanup of a harness temporary directory."""
+        receipt_id = f"cln-{uuid.uuid4().hex[:16]}"
+        cleaned_effects = [
+            {
+                "effect_id": f"effect-lab-workspace-{uuid.uuid4().hex[:8]}",
+                "resource_type": "directory",
+                "target": workspace,
+                "action_taken": "process_local_temporary_directory_cleanup",
+            }
+        ]
+        payload = {
+            "receipt_id": receipt_id,
+            "plan_id": plan.plan_id,
+            "engagement_id": plan.engagement_id,
+            "worker_identity": worker_identity,
+            "cleaned_effects": cleaned_effects,
+            "unresolved_effects": [],
+        }
+        return CleanupReceipt.from_dict(
+            {
+                "schema_version": "cops.cleanup-receipt/v1",
+                **payload,
+                "status": "completed",
+                "created_at": created_at,
+                "completed_at": utc_now(),
+                "evidence_hash": digest(payload),
+            }
+        )
 
     def _build_negative_rejection_result(
         self,
