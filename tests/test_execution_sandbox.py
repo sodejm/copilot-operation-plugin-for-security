@@ -4,9 +4,13 @@ from __future__ import annotations
 
 import os
 import socket
+from contextlib import contextmanager
+from pathlib import Path
 
 import pytest
 
+import cops.execution.sandbox as sandbox_module
+from cops.execution.process import BoundedProcessResult
 from cops.execution.sandbox import LinuxBubblewrapSandbox, SandboxReadinessError
 
 
@@ -76,3 +80,63 @@ def test_inet_and_unconnected_unix_capabilities_are_rejected() -> None:
     finally:
         inet_socket.close()
         unix_socket.close()
+
+
+def test_bubblewrap_credential_environment_stays_out_of_process_arguments(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    secret = "private-credential-value"
+    argument_path = tmp_path / "bubblewrap-arguments"
+    argument_fds: list[int] = []
+
+    def open_argument_fd(_name: str, *, flags: int) -> int:
+        assert flags
+        return os.open(argument_path, os.O_CREAT | os.O_EXCL | os.O_RDWR, 0o600)
+
+    @contextmanager
+    def held_executable():
+        descriptor = os.open(os.devnull, os.O_RDONLY)
+        try:
+            yield descriptor
+        finally:
+            os.close(descriptor)
+
+    monkeypatch.setattr(sandbox_module.os, "memfd_create", open_argument_fd, raising=False)
+    monkeypatch.setattr(LinuxBubblewrapSandbox, "_validate_host", lambda self: None)
+    monkeypatch.setattr(
+        LinuxBubblewrapSandbox,
+        "_open_private_workspace",
+        staticmethod(lambda cwd: os.open(cwd, os.O_RDONLY)),
+    )
+    monkeypatch.setattr(LinuxBubblewrapSandbox, "_held_bubblewrap", lambda self: held_executable())
+    monkeypatch.setattr(LinuxBubblewrapSandbox, "_held_prlimit", lambda self: held_executable())
+
+    def observe_launch(command, **kwargs):
+        assert secret not in "\0".join(command)
+        assert kwargs["env"] == {}
+        argument_fd = int(command[command.index("--args") + 1])
+        assert argument_fd in kwargs["pass_fds"]
+        argument_fds.append(argument_fd)
+        encoded = os.read(argument_fd, 4096)
+        assert b"--setenv\0COPS_CREDENTIAL_SERVICE_TOKEN\0" + secret.encode() + b"\0" in encoded
+        return BoundedProcessResult(b"", b"", 0, False, False)
+
+    monkeypatch.setattr(sandbox_module, "run_bounded_process", observe_launch)
+    executable_fd = os.open(os.devnull, os.O_RDONLY)
+    try:
+        sandbox = LinuxBubblewrapSandbox()
+        result = sandbox.run(
+            [f"/proc/self/fd/{executable_fd}"],
+            cwd=tmp_path,
+            env={},
+            timeout_seconds=1,
+            max_output_bytes=1024,
+            pass_fds=(executable_fd,),
+            operation_env={"COPS_CREDENTIAL_SERVICE_TOKEN": secret},
+        )
+        assert result.returncode == 0
+        assert len(argument_fds) == 1
+        with pytest.raises(OSError):
+            os.fstat(argument_fds[0])
+    finally:
+        os.close(executable_fd)

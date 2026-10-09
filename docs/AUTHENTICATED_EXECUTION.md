@@ -220,14 +220,20 @@ rejected. The worker follows this order for each launch:
 2. Consume the approval through `ApprovalControl` and keep the exact
    authority-issued `ApprovalConsumptionReceipt` returned by that call.
 3. Probe executable identity, version, and digest in an isolated operation
-   scratch directory with no credential environment. A probe or preparation
-   failure after step 2 consumes the one-use approval; obtain a new approval
-   before retrying.
+   scratch directory for steps with credential grants, with no credential
+   environment. Credential-free steps continue to use the shared workspace.
+   A probe or preparation failure after step 2 consumes the one-use approval;
+   obtain a new approval before retrying.
 4. Immediately before an operation launch, pass that receipt, the approved plan,
    the worker identity, the operation index, and the exact operation to the resolver.
 5. Pass the returned environment only as the operation environment and use the
    execution's redactor for evidence capture. Delete the operation scratch
-   directory on success, failure, timeout, or interruption.
+   directory on success, failure, timeout, or interruption; report deletion
+   failure in `RunResult.cleanup_status`.
+
+The Linux sandbox passes operation environment values to bubblewrap through an
+inherited in-memory argument descriptor, so credential values do not appear in
+the bubblewrap process command line.
 
 The resolver checks the plan digest, engagement, worker, target, step, tool, tool
 version, action, operation index, and canonical operation digest (including

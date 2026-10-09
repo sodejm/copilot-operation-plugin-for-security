@@ -40,13 +40,16 @@ Executable discovery and version probing receive no credential environment. The
 one-use approval is consumed before per-operation executable probing; preparation
 failure therefore requires a new approval. Credential-bearing operations run in
 separate scratch directories outside a retained caller workspace, with their own
-`HOME` and `TMPDIR`. Scratch is deleted after success, failure, timeout, or
-interruption. After all bindings match, the resolver obtains the provider values,
-registers all of them with the evidence redactor, and returns an operation-only environment. A
-provider or redactor failure exposes a stable secret-free error and prevents the
-operation from launching. Provider resolution must finish within the operation
-deadline, and receipt provenance and registered secrets are released after the
-execution.
+`HOME` and `TMPDIR`; credential-free operations keep the shared workspace. Scratch
+is deleted after success, failure, timeout, or interruption, and deletion failure
+sets the run cleanup status to failed. On Linux, bubblewrap receives resolved
+credential values through an inherited descriptor rather than process arguments.
+After all bindings match, the resolver obtains the provider values,
+registers all of them with the evidence redactor, and returns an operation-only
+environment. A provider or redactor failure exposes a stable secret-free error
+and prevents the operation from launching. Provider resolution must finish within
+the operation deadline, and receipt provenance and registered secrets are released
+after the execution.
 
 ## Evidence capture boundary
 
@@ -110,7 +113,9 @@ prove encryption.
   or operation cannot supply a credential to the current operation and cause no
   provider access.
 - Different operations receive only their exact grants; a credential-free
-  operation receives an empty environment.
+  operation receives an empty environment and keeps the shared workspace.
+- Credential scratch deletion failure is reported in the run cleanup status;
+  resolved values are absent from the Linux sandbox process arguments.
 - NUL-bearing values, reserved environment names, provider failures, and redactor
   failures prevent launch without exposing provider text.
 - Secrets are absent from serialized evidence, stream/error metadata, artifact

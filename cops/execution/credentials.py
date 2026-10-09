@@ -99,6 +99,27 @@ class ScopedCredentialResolver:
         """Return the authority that must issue every credential-bearing receipt."""
         return self._approval_control
 
+    def has_grant_for_operation(self, plan: ActionPlan, operation: Mapping[str, Any], operation_index: int) -> bool:
+        """Identify operations that need private scratch before resolving a grant."""
+        operation_data = _plain(operation)
+        return isinstance(operation_data, dict) and bool(
+            self._matching_grants(plan.plan_id, operation_data, operation_index)
+        )
+
+    def _matching_grants(
+        self, plan_id: str, operation_data: dict[str, Any], operation_index: int
+    ) -> tuple[CredentialGrant, ...]:
+        return tuple(
+            grant
+            for grant in self._grants
+            if grant.plan_id == plan_id
+            and grant.operation_index == operation_index
+            and grant.step_id == operation_data.get("step_id")
+            and grant.tool == operation_data.get("tool")
+            and grant.tool_version == operation_data.get("tool_version")
+            and grant.action == operation_data.get("action")
+        )
+
     def resolve_for_operation(
         self,
         *,
@@ -139,16 +160,7 @@ class ScopedCredentialResolver:
         operation_digest = digest(operation_data)
 
         references = {str(reference) for reference in plan.credential_references}
-        operation_grants = [
-            grant
-            for grant in self._grants
-            if grant.plan_id == plan.plan_id
-            and grant.operation_index == operation_index
-            and grant.step_id == operation_data.get("step_id")
-            and grant.tool == operation_data.get("tool")
-            and grant.tool_version == operation_data.get("tool_version")
-            and grant.action == operation_data.get("action")
-        ]
+        operation_grants = self._matching_grants(plan.plan_id, operation_data, operation_index)
         if not operation_grants:
             # A plan can declare credentials for other operations while this
             # operation is deliberately credential-free.

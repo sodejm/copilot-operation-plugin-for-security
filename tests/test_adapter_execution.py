@@ -147,6 +147,7 @@ def _fake_action_plan(
     max_output_bytes: int = 4096,
     idempotent: bool = False,
     credential_references: list[str] | None = None,
+    step_ids: tuple[str, ...] = ("step-fake",),
 ) -> ActionPlan:
     fixture = json.loads(
         (Path(__file__).resolve().parents[1] / "cops/contracts/fixtures/valid_action_plan.json").read_text(
@@ -164,7 +165,7 @@ def _fake_action_plan(
         specialist_id=fixture["specialist_id"],
         operations=[
             {
-                "step_id": "step-fake",
+                "step_id": step_id,
                 "tool": "fake-tool",
                 "tool_version": "1.0.0",
                 "action": "run",
@@ -172,6 +173,7 @@ def _fake_action_plan(
                 "timeout_seconds": timeout_seconds,
                 "idempotent": idempotent,
             }
+            for step_id in step_ids
         ],
         limits=limits,
         credential_references=credential_references or [],
@@ -748,6 +750,126 @@ def test_worker_resolves_credential_only_for_approved_operation_and_redacts_evid
         assert artifact["sha256"] == hashlib.sha256(persisted).hexdigest()
     output_artifact = next(artifact for artifact in result.artifacts if artifact["path"].endswith("_output.txt"))
     assert b"[REDACTED:SECRET]" in (workspace / output_artifact["path"]).read_bytes()
+
+
+def test_credential_free_steps_share_workspace_around_credential_step(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    reference = "corp_service_account_token_ref"
+    secret = "private-operation-value"
+    plan = _fake_action_plan(
+        tmp_path,
+        credential_references=[reference],
+        step_ids=("step-before", "step-secret", "step-after"),
+    )
+    operation = plan.operations[1]
+    grant = CredentialGrant(
+        reference=reference,
+        environment_variable="COPS_CREDENTIAL_SERVICE_TOKEN",
+        plan_id=plan.plan_id,
+        plan_digest=plan.plan_digest,
+        engagement_id=plan.engagement_id,
+        worker_identity="test-worker-01",
+        target=plan.target,
+        step_id=str(operation["step_id"]),
+        tool=str(operation["tool"]),
+        tool_version=str(operation["tool_version"]),
+        action=str(operation["action"]),
+        operation_index=1,
+        operation_digest=digest(plan.approved_snapshot()["operations"][1]),
+    )
+
+    class Provider:
+        def resolve(self, requested_reference: str) -> str:
+            assert requested_reference == reference
+            return secret
+
+    worker, authorization_id = _fake_worker(tmp_path, plan, credential_provider=Provider(), credential_grants=[grant])
+    workspace = tmp_path / "workspace"
+    prepared = SimpleNamespace(invocation_path="/proc/self/fd/7", pass_fds=(), remove=lambda: None)
+    monkeypatch.setattr(worker_module, "prepare_executable", lambda *args, **kwargs: prepared)
+    credential_workspace: list[Path] = []
+
+    def observe_step(_command, **kwargs):
+        call_number = len(_sandbox(worker).run_calls)
+        if call_number == 1:
+            assert kwargs["cwd"] == workspace
+            assert kwargs.get("operation_env") is None
+            (workspace / "shared-state.txt").write_text("from first step")
+        elif call_number == 2:
+            assert kwargs["cwd"] != workspace
+            assert kwargs["operation_env"] == {"COPS_CREDENTIAL_SERVICE_TOKEN": secret}
+            credential_workspace.append(kwargs["cwd"])
+        else:
+            assert call_number == 3
+            assert kwargs["cwd"] == workspace
+            assert (workspace / "shared-state.txt").read_text() == "from first step"
+            assert kwargs.get("operation_env") is None
+        return _sandbox(worker).result
+
+    _sandbox(worker).run_callback = observe_step
+    result = worker.execute_plan(plan, authorization=authorization_id, workspace_dir=workspace)
+
+    assert result.status == "success"
+    assert len(_sandbox(worker).run_calls) == 3
+    assert len(credential_workspace) == 1
+    assert not credential_workspace[0].exists()
+
+
+def test_credential_scratch_deletion_failure_marks_run_cleanup_failed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    reference = "corp_service_account_token_ref"
+    plan = _fake_action_plan(tmp_path, credential_references=[reference], idempotent=True)
+    operation = plan.operations[0]
+    grant = CredentialGrant(
+        reference=reference,
+        environment_variable="COPS_CREDENTIAL_SERVICE_TOKEN",
+        plan_id=plan.plan_id,
+        plan_digest=plan.plan_digest,
+        engagement_id=plan.engagement_id,
+        worker_identity="test-worker-01",
+        target=plan.target,
+        step_id=str(operation["step_id"]),
+        tool=str(operation["tool"]),
+        tool_version=str(operation["tool_version"]),
+        action=str(operation["action"]),
+        operation_index=0,
+        operation_digest=digest(plan.approved_snapshot()["operations"][0]),
+    )
+
+    class Provider:
+        def resolve(self, requested_reference: str) -> str:
+            assert requested_reference == reference
+            return "private-operation-value"
+
+    worker, authorization_id = _fake_worker(tmp_path, plan, credential_provider=Provider(), credential_grants=[grant])
+    prepared = SimpleNamespace(invocation_path="/proc/self/fd/7", pass_fds=(), remove=lambda: None)
+    monkeypatch.setattr(worker_module, "prepare_executable", lambda *args, **kwargs: prepared)
+    scratch: list[Path] = []
+
+    def observe_step(_command, **kwargs):
+        scratch.append(kwargs["cwd"])
+        return _sandbox(worker).result
+
+    _sandbox(worker).run_callback = observe_step
+    original_rmtree = shutil.rmtree
+
+    def fail_scratch_deletion(path, *args, **kwargs):
+        if scratch and Path(path) == scratch[0]:
+            raise OSError("simulated scratch deletion failure")
+        return original_rmtree(path, *args, **kwargs)
+
+    monkeypatch.setattr(worker_module.shutil, "rmtree", fail_scratch_deletion)
+    try:
+        result = worker.execute_plan(plan, authorization=authorization_id, workspace_dir=tmp_path / "workspace")
+        assert result.status == "failed"
+        assert result.cleanup_status == "failed"
+        assert "credential operation scratch cleanup failed" in result.status_details["reason"]
+    finally:
+        monkeypatch.setattr(worker_module.shutil, "rmtree", original_rmtree)
+        for directory in scratch:
+            original_rmtree(directory, ignore_errors=True)
 
 
 def test_worker_rejects_credential_plan_without_resolver_before_approval_consumption(

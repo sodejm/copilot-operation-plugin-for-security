@@ -546,6 +546,7 @@ class IsolatedWorker:
             max_output_bytes = plan_max_output_bytes
             captured_output_bytes = 0
             persisted_output_bytes = 0
+            credential_scratch_cleanup_failed = False
             start_dt = datetime.now(UTC)
 
             clean_env = {
@@ -641,7 +642,9 @@ class IsolatedWorker:
                     adapter_dispatched = False
                     operation_workspace = (
                         Path(tempfile.mkdtemp(prefix="cops-credential-operation-"))
-                        if plan_model.credential_references and tool != "inert"
+                        if self.credential_resolver is not None
+                        and self.credential_resolver.has_grant_for_operation(plan_model, op, operation_index)
+                        and tool != "inert"
                         else target_workspace
                     )
                     operation_env = {**clean_env, "HOME": str(operation_workspace), "TMPDIR": str(operation_workspace)}
@@ -801,6 +804,7 @@ class IsolatedWorker:
                                 shutil.rmtree(operation_workspace)
                             except OSError:
                                 operation_cleanup_failed = True
+                                credential_scratch_cleanup_failed = True
                                 status = "uncertain" if adapter_dispatched and not is_idempotent else "failed"
                                 status_reason = f"credential operation scratch cleanup failed at step '{step_id}'"
                                 if status == "uncertain":
@@ -913,6 +917,8 @@ class IsolatedWorker:
                 cleanup_receipt = cleanup_manager.rollback()
                 self.last_cleanup_receipt = cleanup_receipt
                 cleanup_status = cleanup_receipt.status
+                if credential_scratch_cleanup_failed:
+                    cleanup_status = "failed"
 
                 if cleanup_receipt.status in ("failed", "partial"):
                     unres_summary = [e["target"] for e in cleanup_receipt.unresolved_effects]
