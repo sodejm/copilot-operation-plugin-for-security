@@ -85,6 +85,16 @@ def _terminate_process_group(process: subprocess.Popen[bytes], process_group_id:
             process.kill()
     except ProcessLookupError:
         pass
+    except PermissionError:
+        # Darwin reports EPERM when the group contains only an exited leader
+        # that has not yet been reaped. Reap it, then distinguish a vanished
+        # group from descendants that we still cannot terminate.
+        if process.poll() is None:
+            raise
+        try:
+            os.killpg(process_group_id, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
 
 
 def run_bounded_process(

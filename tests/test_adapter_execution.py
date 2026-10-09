@@ -191,7 +191,7 @@ def _fake_worker(tmp_path: Path, plan: ActionPlan) -> tuple[IsolatedWorker, str]
         ("import sys; print('nonzero-three'); sys.exit(3)", 3, False, False),
         ("import sys; print('failed', file=sys.stderr); sys.exit(9)", 9, False, False),
         ("import time; time.sleep(30)", -9, True, False),
-        ("print('x' * 10000)", -9, False, True),
+        ("import time; print('x' * 10000, flush=True); time.sleep(30)", -9, False, True),
     ],
     ids=("success", "nonzero-three", "failure", "timeout", "output-overflow"),
 )
