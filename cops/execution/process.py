@@ -86,15 +86,27 @@ def _terminate_process_group(process: subprocess.Popen[bytes], process_group_id:
     except ProcessLookupError:
         pass
     except PermissionError:
-        # Darwin reports EPERM when the group contains only an exited leader
-        # that has not yet been reaped. Reap it, then distinguish a vanished
-        # group from descendants that we still cannot terminate.
-        if process.poll() is None:
-            raise
-        try:
-            os.killpg(process_group_id, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
+        # Darwin may report EPERM briefly while a child exits, even for a
+        # group that is about to disappear. Retry for a bounded interval, and
+        # reject a group that remains inaccessible after that interval.
+        deadline = time.monotonic() + 0.25
+        while True:
+            try:
+                os.killpg(process_group_id, 0)
+            except ProcessLookupError:
+                return
+            except PermissionError:
+                pass
+            process.poll()
+            try:
+                os.killpg(process_group_id, signal.SIGKILL)
+                return
+            except ProcessLookupError:
+                return
+            except PermissionError:
+                if time.monotonic() >= deadline:
+                    raise
+                time.sleep(0.005)
 
 
 def run_bounded_process(

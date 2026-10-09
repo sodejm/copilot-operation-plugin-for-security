@@ -465,6 +465,37 @@ def test_bounded_process_reaps_child_if_selector_registration_fails(
     assert launched[0].stderr is not None and launched[0].stderr.closed
 
 
+@pytest.mark.parametrize("group_state", ("gone", "gone_after_reap", "live"))
+def test_process_group_cleanup_requires_no_live_descendants_after_darwin_permission_race(
+    monkeypatch: pytest.MonkeyPatch, group_state: str
+) -> None:
+    signals = []
+
+    def killpg(group_id: int, signal_number: int) -> None:
+        signals.append(signal_number)
+        if signal_number:
+            raise PermissionError(1, "Operation not permitted")
+        if group_state == "gone" or (group_state == "gone_after_reap" and len(signals) == 4):
+            raise ProcessLookupError(3, "No such process")
+
+    monkeypatch.setattr(process_module.os, "killpg", killpg)
+    exited_leader = SimpleNamespace(poll=lambda: -9)
+
+    if group_state != "live":
+        process_module._terminate_process_group(exited_leader, 12345)
+    else:
+        with pytest.raises(PermissionError):
+            process_module._terminate_process_group(exited_leader, 12345)
+
+    if group_state == "gone":
+        assert signals == [9, 0]
+    elif group_state == "gone_after_reap":
+        assert signals == [9, 0, 9, 0]
+    else:
+        assert len(signals) >= 4
+        assert signals[:4] == [9, 0, 9, 0]
+
+
 @pytest.mark.parametrize(
     ("idempotent", "expected_status"),
     ((False, "uncertain"), (True, "partial")),
