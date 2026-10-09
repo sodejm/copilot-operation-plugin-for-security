@@ -13,6 +13,7 @@ import base64
 import http.client
 import ipaddress
 import json
+import math
 import multiprocessing
 import socket
 import ssl
@@ -835,16 +836,22 @@ class ExecutionEgressBroker:
         self._protocol_timeout_seconds = protocol_timeout_seconds
 
     @contextmanager
-    def open_channel(self) -> Iterator[BrokerChannel]:
+    def open_channel(self, *, deadline: float | None = None) -> Iterator[BrokerChannel]:
         if "fork" not in multiprocessing.get_all_start_methods():
             raise EgressMediationError("egress broker requires a process runtime with fork support")
+        protocol_deadline = monotonic() + self._protocol_timeout_seconds
+        if deadline is not None:
+            if isinstance(deadline, bool) or not isinstance(deadline, (int, float)) or not math.isfinite(deadline):
+                raise ValueError("egress broker deadline must be a finite monotonic timestamp")
+            protocol_deadline = min(protocol_deadline, deadline)
+        if protocol_deadline <= monotonic():
+            raise EgressMediationError("egress broker operation deadline has expired")
         process_context = multiprocessing.get_context("fork")
         server_socket, client_socket = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
         observation_reader, observation_writer = process_context.Pipe(duplex=False)
-        deadline = monotonic() + self._protocol_timeout_seconds
         process = process_context.Process(
             target=self._serve_child,
-            args=(server_socket, client_socket, observation_reader, observation_writer, deadline),
+            args=(server_socket, client_socket, observation_reader, observation_writer, protocol_deadline),
             daemon=True,
             name="cops-egress-broker",
         )
@@ -855,7 +862,7 @@ class ExecutionEgressBroker:
             server_socket=server_socket,
             observation_reader=observation_reader,
             mediator=self._mediator,
-            deadline=deadline,
+            deadline=protocol_deadline,
         )
         channel = BrokerChannel(
             environment=MappingProxyType({BROKER_FD_ENV: str(client_socket.fileno())}),

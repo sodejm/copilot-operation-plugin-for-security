@@ -640,6 +640,29 @@ def test_broker_hard_deadline_kills_and_reaps_every_blocking_phase(phase: str) -
     assert process.exitcode is not None
 
 
+def test_broker_clamps_protocol_to_worker_operation_deadline() -> None:
+    broker = ExecutionEgressBroker(_hanging_mediator("response"), protocol_timeout_seconds=10)
+
+    started = time.monotonic()
+    with broker.open_channel(deadline=started + 0.15) as channel:
+        process = channel._supervisor._process
+        channel._client_socket.settimeout(2)
+        channel._client_socket.sendall(json.dumps(_request_document()).encode("utf-8") + b"\n")
+        assert _receive_line(channel._client_socket) == {"error": "egress_denied", "ok": False}
+
+    assert time.monotonic() - started < 2
+    assert not process.is_alive()
+    assert process.exitcode is not None
+
+
+def test_broker_rejects_expired_worker_operation_deadline() -> None:
+    broker = ExecutionEgressBroker(_hanging_mediator("response"), protocol_timeout_seconds=10)
+
+    with pytest.raises(EgressMediationError, match="deadline has expired"):
+        with broker.open_channel(deadline=time.monotonic() - 1):
+            pytest.fail("expired deadline must not open an egress channel")
+
+
 def test_broker_client_disconnect_kills_and_reaps_blocked_mediation() -> None:
     broker = ExecutionEgressBroker(_hanging_mediator("response"), protocol_timeout_seconds=10)
 
