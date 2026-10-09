@@ -39,7 +39,7 @@ from cops.execution.supervisor_attestation import (
 from cops.execution.worker import IsolatedWorker, WorkerCapabilityInventory
 from cops.remote_worker import SSHRemoteExecutionReceiver
 
-CONFIG_SCHEMA = "cops.worker-supervisor-config/v1"
+CONFIG_SCHEMA = "cops.worker-supervisor-config/v2"
 MAX_REQUEST_BYTES = 64 * 1024
 MAX_RESPONSE_BYTES = 1024 * 1024
 CREDENTIAL_MANIFEST_SCHEMA = "cops.worker-credential-manifest/v1"
@@ -93,6 +93,7 @@ class WorkerSupervisorConfig:
     supervisor_gid: int
     authority_uid: int
     approval_socket_path: Path
+    cleanup_journal_path: Path
     inventory_path: Path
     engagement_path: Path
     attestation_key_id: str
@@ -115,6 +116,7 @@ class WorkerSupervisorConfig:
             "supervisor_gid",
             "authority_uid",
             "approval_socket_path",
+            "cleanup_journal_path",
             "inventory_path",
             "engagement_path",
             "attestation_key_id",
@@ -146,6 +148,7 @@ class WorkerSupervisorConfig:
         for key in (
             "socket_path",
             "approval_socket_path",
+            "cleanup_journal_path",
             "inventory_path",
             "engagement_path",
             "attestation_key_path",
@@ -177,6 +180,7 @@ class WorkerSupervisorConfig:
             supervisor_gid=data["supervisor_gid"],
             authority_uid=data["authority_uid"],
             approval_socket_path=Path(data["approval_socket_path"]),
+            cleanup_journal_path=Path(data["cleanup_journal_path"]),
             inventory_path=Path(data["inventory_path"]),
             engagement_path=Path(data["engagement_path"]),
             attestation_key_id=data["attestation_key_id"],
@@ -317,7 +321,9 @@ def build_receiver(config: WorkerSupervisorConfig) -> SSHRemoteExecutionReceiver
         expected_engagement_id=engagement.engagement_id,
         egress_trust_domain=config.egress_trust_domain,
         credential_resolver=credential_resolver,
+        cleanup_journal_path=config.cleanup_journal_path,
     )
+    worker.recover_pending_cleanup()
     return SSHRemoteExecutionReceiver(
         expected_host=config.expected_host,
         expected_worker_identity=config.worker_identity,

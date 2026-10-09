@@ -174,9 +174,7 @@ class LaboratoryHarness:
     ) -> LaboratoryCaseResult:
         """Execute a positive, negative, or remediated test case in the laboratory harness."""
         if not isinstance(worker_inventory, WorkerCapabilityInventory) or not worker_inventory.is_verified:
-            raise LaboratoryGateError(
-                "a verified owner-provisioned worker capability inventory is required"
-            )
+            raise LaboratoryGateError("a verified owner-provisioned worker capability inventory is required")
 
         # 1. Resolve models
         plan_model = ActionPlan.from_dict(action_plan) if isinstance(action_plan, dict) else action_plan
@@ -192,9 +190,7 @@ class LaboratoryHarness:
             )
 
         if worker_inventory.worker_identity != environment.owner:
-            raise LaboratoryGateError(
-                "worker capability inventory identity does not match the laboratory owner"
-            )
+            raise LaboratoryGateError("worker capability inventory identity does not match the laboratory owner")
 
         required_tools = {operation["tool"] for operation in plan_model.operations}
         try:
@@ -211,13 +207,10 @@ class LaboratoryHarness:
                     f"laboratory tool version for {operation['tool']!r} does not match "
                     f"approved version {operation['tool_version']!r}"
                 )
-        missing_capabilities = set(plan_model.platform_prerequisites) - set(
-            worker_inventory.platform_capabilities
-        )
+        missing_capabilities = set(plan_model.platform_prerequisites) - set(worker_inventory.platform_capabilities)
         if missing_capabilities:
             raise LaboratoryGateError(
-                "worker inventory lacks approved platform prerequisites: "
-                f"{sorted(missing_capabilities)}"
+                f"worker inventory lacks approved platform prerequisites: {sorted(missing_capabilities)}"
             )
 
         # GATE 2: Authorization envelope review & atomic consumption gate
@@ -295,7 +288,7 @@ class LaboratoryHarness:
         temp_dir: tempfile.TemporaryDirectory[str] | None = None
         if workspace_dir is None:
             temp_dir = tempfile.TemporaryDirectory(prefix=f"cops-lab-{plan_model.plan_id}-")
-            target_workspace = Path(temp_dir.name)
+            target_workspace = Path(temp_dir.name).resolve(strict=True)
         else:
             target_workspace = Path(workspace_dir).resolve()
             target_workspace.mkdir(parents=True, exist_ok=True)
@@ -361,17 +354,24 @@ class LaboratoryHarness:
 
             # Create evidence artifact
             art_path = target_workspace / "evidence.json"
-            art_path.write_text(json.dumps({
-                "case_type": case_type,
-                "environment_id": environment.environment_id,
-                "canary_token_detected": canary_found,
-                "adapter_output": adapter_output,
-            }), encoding="utf-8")
-            artifacts.append({
-                "name": "evidence.json",
-                "path": str(art_path),
-                "sha256": digest(art_path.read_text(encoding="utf-8")),
-            })
+            art_path.write_text(
+                json.dumps(
+                    {
+                        "case_type": case_type,
+                        "environment_id": environment.environment_id,
+                        "canary_token_detected": canary_found,
+                        "adapter_output": adapter_output,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            artifacts.append(
+                {
+                    "name": "evidence.json",
+                    "path": str(art_path),
+                    "sha256": digest(art_path.read_text(encoding="utf-8")),
+                }
+            )
 
             finished_at = utc_now()
 

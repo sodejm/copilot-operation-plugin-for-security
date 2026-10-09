@@ -45,6 +45,7 @@ class TestWorkerReadinessAndApprovalSkill(unittest.TestCase):
             worker_inventory_for_plan(self.plan, worker_identity="worker-test-01"),
             TestApprovalControl(self.store, trust_store, engagement),
             TestExecutionSandbox(),
+            cleanup_journal_path=Path(self.temp_dir).resolve() / "cleanup.sqlite3",
         )
         self.assertEqual(worker.config.worker_id, "worker-test-01")
 

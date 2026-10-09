@@ -12,7 +12,7 @@ from cops.execution import CleanupManager, SideEffectLedger
 class TestExecutionRecoveryAndCleanupSkill(unittest.TestCase):
     def test_skill_cleanup_flow(self):
         with tempfile.TemporaryDirectory() as tmp:
-            workspace = Path(tmp)
+            workspace = Path(tmp).resolve(strict=True)
             ledger = SideEffectLedger("plan-test-01", "eng-test-01", "worker-skill-01")
             manager = CleanupManager(ledger, "worker-skill-01", workspace_dir=workspace)
 

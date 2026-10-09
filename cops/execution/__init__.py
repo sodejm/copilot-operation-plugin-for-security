@@ -14,9 +14,12 @@ from .authorization import (
 )
 from .cleanup import (
     CleanupError,
+    CleanupJournal,
     CleanupManager,
     CleanupOwnershipError,
+    CleanupPersistenceError,
     CleanupPreconditionError,
+    RecoveredCleanupRun,
     SideEffect,
     SideEffectLedger,
 )
@@ -117,8 +120,10 @@ __all__ = [
     "CapturedArtifact",
     "CertificateURIIdentityVerifier",
     "CleanupError",
+    "CleanupJournal",
     "CleanupManager",
     "CleanupOwnershipError",
+    "CleanupPersistenceError",
     "CleanupPreconditionError",
     "CredentialGrant",
     "CredentialProvider",
@@ -148,6 +153,7 @@ __all__ = [
     "SSHExecutionDispatcher",
     "SSHExecutionError",
     "RemoteAuthorizedRun",
+    "RecoveredCleanupRun",
     "SSHRemoteDispatcher",
     "SSHRemoteEndpoint",
     "SSHRemoteEndpointInventory",

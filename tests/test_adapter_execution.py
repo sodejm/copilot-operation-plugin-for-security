@@ -28,7 +28,13 @@ from cops.adapters import (
 )
 from cops.contracts.models import ActionPlan
 from cops.evidence.canonical import digest
-from cops.execution import ApprovalStore, IsolatedWorker, WorkerIsolationError
+from cops.execution import (
+    ApprovalStore,
+    CleanupJournal,
+    CleanupPersistenceError,
+    IsolatedWorker,
+    WorkerIsolationError,
+)
 from cops.execution.credentials import CredentialGrant, ScopedCredentialResolver
 from cops.execution.evidence import EvidenceCaptureError, EvidenceCleanupError, EvidenceContext, EvidenceRecorder
 from cops.execution.executable import (
@@ -187,9 +193,14 @@ def _fake_worker(
     *,
     credential_provider=None,
     credential_grants: list[CredentialGrant] | None = None,
+    cleanup_journal_path: Path | None = None,
 ) -> tuple[IsolatedWorker, str]:
-    auth, trust_store, engagement = authorize_test_plan(plan, worker_identity="test-worker-01", valid_hours=2)
     store = ApprovalStore(tmp_path / "approval.sqlite3")
+    if cleanup_journal_path is None:
+        journal_root = tmp_path.resolve() / "cleanup-journal"
+        journal_root.mkdir(mode=0o700, parents=True, exist_ok=True)
+        cleanup_journal_path = journal_root / "cleanup.sqlite3"
+    auth, trust_store, engagement = authorize_test_plan(plan, worker_identity="test-worker-01", valid_hours=2)
     store.store_authorization(auth)
     registry = ToolAdapterRegistry(definitions_path=tmp_path / "no-definitions")
     registry.register_adapter(_fake_adapter())
@@ -210,6 +221,7 @@ def _fake_worker(
         sandbox,
         adapter_registry=registry,
         credential_resolver=resolver,
+        cleanup_journal_path=cleanup_journal_path,
     )
     _TEST_CONTROLS[id(worker)] = approval_control
     _TEST_SANDBOXES[id(worker)] = sandbox
@@ -870,6 +882,82 @@ def test_credential_scratch_deletion_failure_marks_run_cleanup_failed(
         monkeypatch.setattr(worker_module.shutil, "rmtree", original_rmtree)
         for directory in scratch:
             original_rmtree(directory, ignore_errors=True)
+
+
+def test_credential_scratch_cleanup_transition_failure_preserves_uncertain_audit_state(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    reference = "corp_service_account_token_ref"
+    plan = _fake_action_plan(tmp_path, credential_references=[reference], idempotent=False)
+    operation = plan.operations[0]
+    grant = CredentialGrant(
+        reference=reference,
+        environment_variable="COPS_CREDENTIAL_SERVICE_TOKEN",
+        plan_id=plan.plan_id,
+        plan_digest=plan.plan_digest,
+        engagement_id=plan.engagement_id,
+        worker_identity="test-worker-01",
+        target=plan.target,
+        step_id=str(operation["step_id"]),
+        tool=str(operation["tool"]),
+        tool_version=str(operation["tool_version"]),
+        action=str(operation["action"]),
+        operation_index=0,
+        operation_digest=digest(plan.approved_snapshot()["operations"][0]),
+    )
+
+    class Provider:
+        def resolve(self, requested_reference: str) -> str:
+            assert requested_reference == reference
+            return "private-operation-value"
+
+    journal_root = tmp_path.resolve() / "cleanup-journal"
+    journal_root.mkdir(mode=0o700)
+    journal_path = journal_root / "cleanup.sqlite3"
+    worker, authorization_id = _fake_worker(
+        tmp_path,
+        plan,
+        credential_provider=Provider(),
+        credential_grants=[grant],
+        cleanup_journal_path=journal_path,
+    )
+    prepared = SimpleNamespace(invocation_path="/proc/self/fd/7", pass_fds=(), remove=lambda: None)
+    monkeypatch.setattr(worker_module, "prepare_executable", lambda *args, **kwargs: prepared)
+    scratch: list[Path] = []
+
+    def observe_step(_command, **kwargs):
+        scratch.append(kwargs["cwd"])
+        return _sandbox(worker).result
+
+    _sandbox(worker).run_callback = observe_step
+    assert worker.cleanup_journal is not None
+    original_transition = worker.cleanup_journal.transition
+
+    def fail_scratch_cleaned_transition(run_id, effect, status, *, details=None):
+        if effect.metadata.get("purpose") == "credential_operation_scratch" and status == "cleaned":
+            raise CleanupPersistenceError("injected scratch transition failure")
+        return original_transition(run_id, effect, status, details=details)
+
+    monkeypatch.setattr(worker.cleanup_journal, "transition", fail_scratch_cleaned_transition)
+    result = worker.execute_plan(
+        plan,
+        authorization=authorization_id,
+        workspace_dir=tmp_path / "workspace",
+    )
+
+    assert result.status == "uncertain"
+    assert result.cleanup_status == "failed"
+    assert "credential operation scratch cleanup audit persistence failed" in result.status_details["reason"]
+    assert "automatic repeat disallowed" in result.status_details["reason"]
+    assert len(scratch) == 1
+    assert not scratch[0].exists()
+
+    recovered = CleanupJournal(journal_path).recoverable_runs("test-worker-01")
+    assert len(recovered) == 1
+    scratch_effect = next(
+        effect for effect in recovered[0].effects if effect.metadata.get("purpose") == "credential_operation_scratch"
+    )
+    assert scratch_effect.status == "pending"
 
 
 def test_worker_rejects_credential_plan_without_resolver_before_approval_consumption(

@@ -83,6 +83,7 @@ def _config(manifest_path: Path) -> supervisor.WorkerSupervisorConfig:
         supervisor_gid=1001,
         authority_uid=1003,
         approval_socket_path=Path("/run/cops/approval.sock"),
+        cleanup_journal_path=Path("/var/lib/cops-supervisor/cleanup.sqlite3"),
         inventory_path=Path("/etc/cops/inventory.json"),
         engagement_path=Path("/etc/cops/engagement.json"),
         attestation_key_id="supervisor-key",

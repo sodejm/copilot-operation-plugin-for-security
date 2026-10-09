@@ -34,7 +34,7 @@ configuration has this shape, with site-specific identities and paths:
 
 ```json
 {
-  "schema_version": "cops.worker-supervisor-config/v1",
+  "schema_version": "cops.worker-supervisor-config/v2",
   "expected_host": "worker.example.test",
   "worker_identity": "worker-lab-01",
   "socket_path": "/var/lib/cops-supervisor/relay.sock",
@@ -44,6 +44,7 @@ configuration has this shape, with site-specific identities and paths:
   "supervisor_gid": 2202,
   "authority_uid": 2103,
   "approval_socket_path": "/var/lib/cops-authority/control.sock",
+  "cleanup_journal_path": "/var/lib/cops-supervisor/cleanup.sqlite3",
   "inventory_path": "/etc/cops-supervisor/worker-inventory.json",
   "engagement_path": "/etc/cops-supervisor/engagement.json",
   "attestation_key_id": "worker-lab-01-2026-01",
@@ -53,6 +54,16 @@ configuration has this shape, with site-specific identities and paths:
   "credential_manifest_path": "/etc/cops-supervisor/credential-manifest.json"
 }
 ```
+
+The v2 supervisor configuration requires `cleanup_journal_path`. Provision its
+parent as a real, supervisor-owned directory with mode `0700`. Keep the SQLite
+journal outside execution workspaces on durable storage, owned by the supervisor
+with mode `0600`, and retain it across process restarts. The worker records
+cleanup transitions before acting and recovers pending work before accepting
+another relay request. An invalid journal path,
+unsafe ownership or permissions, or unreadable recovery state stops supervisor
+startup. Review unresolved cleanup receipts and unknown effects before repeating
+an operation; recovery does not prove an interrupted external effect rolled back.
 
 `egress_trust_domain` and `credential_manifest_path` are optional. Omit the
 manifest path when no operation uses a credential. For credentialed operations,

@@ -274,6 +274,13 @@ run. The worker attempts to delete its default temporary workspace at completion
 and reports cleanup failure in `RunResult.cleanup_status`. Each envelope
 is bounded to 1 MiB; this evidence metadata limit is separate from the signed
 step-output limit.
+Every `IsolatedWorker` requires an owner-provisioned cleanup journal path whose
+parent is owner-only and outside execution workspaces. Construction fails closed
+when the journal cannot be initialized. The production supervisor supplies this
+path. The journal records owned side effects and cleanup receipts durably and
+reconstructs pending cleanup before serving requests after a restart. An
+interrupted cleanup can remain partial or unknown; inspect the receipt and
+reconcile the affected resource before retrying a non-idempotent operation.
 The assembled stdout and stderr stream, errors, artifact identifiers, and artifact
 content pass through the same redactor before envelope validation or persistence.
 This catches credential text split across stdout and stderr. Artifact identifiers must
