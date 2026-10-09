@@ -217,7 +217,9 @@ class LinuxBubblewrapSandbox:
         finally:
             os.close(true_fd)
         if probe.timed_out or probe.output_limit_exceeded or probe.returncode != 0:
-            raise SandboxReadinessError("bubblewrap namespace readiness probe failed")
+            diagnostic = probe.stderr.decode("utf-8", errors="replace").strip()[:512]
+            detail = diagnostic or f"exit status {probe.returncode}"
+            raise SandboxReadinessError(f"bubblewrap namespace readiness probe failed: {detail}")
 
     def run(
         self,

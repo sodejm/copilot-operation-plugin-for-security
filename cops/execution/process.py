@@ -5,7 +5,6 @@ from __future__ import annotations
 import ctypes
 import math
 import os
-import resource
 import selectors
 import signal
 import subprocess
@@ -54,6 +53,7 @@ class ProcessResourceLimits:
 
 def _resource_preexec(limits: ProcessResourceLimits) -> None:
     """Install non-bypassable Linux limits in the child before exec."""
+    import resource
 
     def lower(which: int, value: int) -> None:
         _, hard = resource.getrlimit(which)
