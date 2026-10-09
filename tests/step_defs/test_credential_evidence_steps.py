@@ -67,6 +67,19 @@ def when_record_execution(cred_context, output_text, step_id):
     cred_context["step_id"] = step_id
 
 
+@when(parsers.parse('recording execution output with a synthetic credential for step "{step_id}"'))
+def when_record_synthetic_credential(cred_context, step_id):
+    # Construct a recognizable token only in memory; no usable credential is stored.
+    token = "ghp" + "_" + "a1B2c3D4" * 5
+    cred_context["synthetic_secret"] = token
+    when_record_execution(cred_context, "credential=" + token, step_id)
+
+
+@then("the synthetic credential is absent from the artifact")
+def then_synthetic_credential_absent(cred_context):
+    assert cred_context["synthetic_secret"] not in cred_context["artifact_content"]
+
+
 @then("the recorded artifact is saved to disk")
 def then_artifact_saved(cred_context):
     step_id = cred_context["step_id"]

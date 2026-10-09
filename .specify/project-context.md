@@ -103,6 +103,14 @@ mediation.
 
 ## Evidence policy
 
+Local pre-push validation pins a reviewed policy and validates the proposed commit
+in an isolated checkout. It checks the whole feature branch for meaningful test
+updates and blocks scanner or canonical-check failures. The checkout excludes
+private untracked inputs but executes repository code with developer permissions;
+it is not an OS sandbox. Hooks remain bypassable and do not replace CI. See the
+[specification](../specs/local-push-gate.spec.md) and
+[installation guide](../docs/LOCAL_PUSH_GATE.md).
+
 Static structure, offline behavior, host installation, and live service behavior
 are separate claims. A manifest, generated index, fixture, or local passing test
 cannot promote host or live state. Stronger states require a dated, reproducible,
