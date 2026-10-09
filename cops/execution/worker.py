@@ -27,10 +27,18 @@ from types import MappingProxyType
 from typing import Any
 
 from cops.adapters import AdapterError, ToolAdapterRegistry
-from cops.contracts.models import ActionPlan, RunResult
+from cops.contracts.models import ActionPlan, CleanupReceipt, RunResult
 from cops.contracts.validation import validate_contract
 from cops.evidence.canonical import utc_now
 
+from .cleanup import (
+    PLAN_DECLARED_PROVENANCE_KEY,
+    PLAN_DECLARED_PROVENANCE_UNVERIFIED,
+    CleanupJournal,
+    CleanupManager,
+    CleanupPersistenceError,
+    SideEffectLedger,
+)
 from .control import ApprovalConsumptionReceipt, ApprovalControl, ApprovalControlError
 from .credentials import ScopedCredentialResolver
 from .egress import CertificateURIIdentityVerifier, ExecutionEgressBroker, HTTPSExecutionMediator
@@ -229,7 +237,7 @@ class WorkerConfig:
 
 
 class IsolatedWorker:
-    """Isolated execution worker that executes authorized ActionPlans."""
+    """Isolated execution worker backed by a durable cleanup journal."""
 
     def __init__(
         self,
@@ -238,6 +246,7 @@ class IsolatedWorker:
         sandbox: ExecutionSandbox,
         scope_guard: Any | None = None,
         *,
+        cleanup_journal_path: Path | str,
         adapter_registry: ToolAdapterRegistry | None = None,
         expected_engagement_id: str | None = None,
         egress_trust_domain: str | None = None,
@@ -263,8 +272,33 @@ class IsolatedWorker:
             )
         except ValueError as err:
             raise WorkerIsolationError("worker egress trust domain is invalid") from err
-        self.last_cleanup_receipt: Any | None = None
+        self.cleanup_journal = CleanupJournal(cleanup_journal_path)
+        self.last_cleanup_receipt: CleanupReceipt | None = None
+        self.recovery_cleanup_receipts: tuple[CleanupReceipt, ...] = ()
         self._verify_worker_environment()
+
+    def recover_pending_cleanup(self) -> tuple[CleanupReceipt, ...]:
+        """Recover journaled cleanup before the supervisor accepts new work."""
+        receipts: list[CleanupReceipt] = []
+        for recovered in self.cleanup_journal.recoverable_runs(self.config.worker_id):
+            ledger = SideEffectLedger(
+                recovered.plan_id,
+                recovered.engagement_id,
+                recovered.worker_identity,
+                journal=self.cleanup_journal,
+                run_id=recovered.run_id,
+                workspace_dir=recovered.workspace_dir,
+                recovered_effects=recovered.effects,
+                start_run=False,
+            )
+            receipt = CleanupManager(ledger, recovered.worker_identity, recovered.workspace_dir).rollback(
+                recovered=True
+            )
+            receipts.append(receipt)
+        self.recovery_cleanup_receipts = tuple(receipts)
+        if receipts:
+            self.last_cleanup_receipt = receipts[-1]
+        return self.recovery_cleanup_receipts
 
     def _verify_plan_compatibility(self, plan: ActionPlan) -> None:
         batch = plan.batch
@@ -433,66 +467,43 @@ class IsolatedWorker:
             raise WorkerIsolationError("adapter execution requires POSIX secure directory descriptors")
         if portable_inert and workspace_dir is not None:
             raise WorkerIsolationError("portable inert execution requires an isolated ephemeral workspace")
-        # Prepare the workspace before consuming the one-use authorization.
-        ephemeral = False
+        # Reserve the workspace path before consuming the one-use authorization.
+        # Ownership intent is journaled before any directory is created so a
+        # worker restart can recover an artifact created immediately before a crash.
+        ephemeral = workspace_dir is None
         if workspace_dir is None:
-            temp_scratch = tempfile.mkdtemp(prefix=f"cops-worker-{plan_model.plan_id}-")
-            target_workspace = Path(temp_scratch).resolve(strict=True)
-            ephemeral = True
+            target_workspace = Path(tempfile.gettempdir()).resolve(strict=True) / (
+                f"cops-worker-{plan_model.plan_id}-{uuid.uuid4().hex}"
+            )
         else:
-            requested_workspace = Path(workspace_dir)
-            workspace_fd = -1
+            if ".." in Path(workspace_dir).parts:
+                raise WorkerIsolationError(
+                    "worker workspace path must not contain parent traversal or symbolic-link components"
+                )
+            target_workspace = Path(os.path.abspath(os.fspath(workspace_dir)))
+        workspace_preexisting = target_workspace.exists()
+        if not workspace_preexisting:
+            parent_fd = -1
             try:
-                workspace_fd = open_directory_no_symlinks(requested_workspace, create=True)
+                parent_fd = open_directory_no_symlinks(target_workspace.parent)
             except SecureDirectoryError as err:
-                raise WorkerIsolationError("worker workspace path must not contain symbolic-link components") from err
+                raise WorkerIsolationError(
+                    "worker workspace parent must exist and contain no symbolic-link components"
+                ) from err
             finally:
-                if workspace_fd >= 0:
-                    os.close(workspace_fd)
-            target_workspace = Path(os.path.abspath(os.fspath(requested_workspace)))
+                if parent_fd >= 0:
+                    os.close(parent_fd)
 
         receipt: ApprovalConsumptionReceipt | None = None
+        cleanup_manager: CleanupManager | None = None
         try:
-            self.approval_control.assert_ready(self.config.worker_id)
-            self.sandbox.assert_ready(self.config.worker_id, cwd=target_workspace)
-            self._verify_plan_compatibility(plan_model)
-            receipt = self.approval_control.consume_authorization(authorization_id, plan_model, self.config.worker_id)
-            verified_receipt = self.approval_control.validate_receipt_provenance(receipt)
-            if verified_receipt is not receipt:
-                raise ApprovalControlError("approval authority receipt provenance is invalid")
-            if (
-                receipt.authorization_id != authorization_id
-                or receipt.action_plan_id != plan_model.plan_id
-                or receipt.plan_digest != plan_model.plan_digest
-                or receipt.engagement_id != plan_model.engagement_id
-                or receipt.worker_identity != self.config.worker_id
-                or receipt.target != plan_model.target
-            ):
-                raise ApprovalControlError("approval authority receipt does not match the execution plan")
-            if failure_injection and failure_injection.get("inject_at") == "after_consume":
-                raise WorkerExecutionError("injected failure after approval consumption")
-        except BaseException:
-            if receipt is not None:
-                try:
-                    self.approval_control.release_receipt_provenance(receipt)
-                except ApprovalControlError:
-                    pass
-            if ephemeral:
-                shutil.rmtree(target_workspace, ignore_errors=True)
-            raise
-
-        from .redaction import StreamRedactor
-
-        redactor: StreamRedactor | None = None
-        try:
-            # 5. Set up isolated ephemeral workspace and side-effect ledger
-
-            from .cleanup import CleanupManager, SideEffectLedger
-
             ledger = SideEffectLedger(
                 plan_id=plan_model.plan_id,
                 engagement_id=plan_model.engagement_id,
                 default_owner=self.config.worker_id,
+                journal=self.cleanup_journal,
+                run_id=authorization_id,
+                workspace_dir=target_workspace,
             )
             cleanup_manager = CleanupManager(
                 ledger=ledger,
@@ -506,6 +517,63 @@ class IsolatedWorker:
                     target=str(target_workspace),
                     cleanup_action="delete",
                 )
+            workspace_fd = -1
+            try:
+                workspace_fd = open_directory_no_symlinks(target_workspace, create=True)
+            except SecureDirectoryError as err:
+                raise WorkerIsolationError("worker workspace path must not contain symbolic-link components") from err
+            finally:
+                if workspace_fd >= 0:
+                    os.close(workspace_fd)
+            self.approval_control.assert_ready(self.config.worker_id)
+            self.sandbox.assert_ready(self.config.worker_id, cwd=target_workspace)
+            self._verify_plan_compatibility(plan_model)
+            if self.cleanup_journal is not None:
+                self.cleanup_journal.record_run_event(
+                    authorization_id,
+                    "approval_consumption_started",
+                    {"plan_digest": plan_model.plan_digest},
+                )
+            receipt = self.approval_control.consume_authorization(authorization_id, plan_model, self.config.worker_id)
+            verified_receipt = self.approval_control.validate_receipt_provenance(receipt)
+            if verified_receipt is not receipt:
+                raise ApprovalControlError("approval authority receipt provenance is invalid")
+            if (
+                receipt.authorization_id != authorization_id
+                or receipt.action_plan_id != plan_model.plan_id
+                or receipt.plan_digest != plan_model.plan_digest
+                or receipt.engagement_id != plan_model.engagement_id
+                or receipt.worker_identity != self.config.worker_id
+                or receipt.target != plan_model.target
+            ):
+                raise ApprovalControlError("approval authority receipt does not match the execution plan")
+            if self.cleanup_journal is not None:
+                self.cleanup_journal.record_run_event(
+                    authorization_id,
+                    "approval_consumed",
+                    {"authorization_digest": receipt.authorization_digest},
+                )
+            if failure_injection and failure_injection.get("inject_at") == "after_consume":
+                raise WorkerExecutionError("injected failure after approval consumption")
+        except BaseException:
+            try:
+                if cleanup_manager is not None:
+                    self.last_cleanup_receipt = cleanup_manager.rollback()
+            finally:
+                if receipt is not None:
+                    try:
+                        self.approval_control.release_receipt_provenance(receipt)
+                    except ApprovalControlError:
+                        pass
+            raise
+
+        from .redaction import StreamRedactor
+
+        redactor: StreamRedactor | None = None
+        try:
+            # 5. Set up isolated ephemeral workspace and side-effect ledger
+            assert cleanup_manager is not None
+            ledger = cleanup_manager.ledger
 
             started_at = utc_now()
             overall_exit_code = 0
@@ -557,12 +625,13 @@ class IsolatedWorker:
 
         except BaseException:
             try:
-                if redactor is not None:
-                    redactor.clear_secrets()
+                self.last_cleanup_receipt = cleanup_manager.rollback()
             finally:
-                self.approval_control.release_receipt_provenance(receipt)
-                if ephemeral:
-                    shutil.rmtree(target_workspace, ignore_errors=True)
+                try:
+                    if redactor is not None:
+                        redactor.clear_secrets()
+                finally:
+                    self.approval_control.release_receipt_provenance(receipt)
             raise
 
         try:
@@ -585,12 +654,16 @@ class IsolatedWorker:
                     if "cleanup" in op and isinstance(op["cleanup"], Mapping):
                         clean_spec = op["cleanup"]
                         clean_target = clean_spec.get("target") or str(target_workspace / f"{step_id}.tmp")
+                        resource_type = clean_spec.get("resource_type", "file")
+                        cleanup_metadata = dict(clean_spec)
+                        if not ephemeral or resource_type == "process":
+                            cleanup_metadata[PLAN_DECLARED_PROVENANCE_KEY] = PLAN_DECLARED_PROVENANCE_UNVERIFIED
                         ledger.record_effect(
                             step_id=step_id,
-                            resource_type=clean_spec.get("resource_type", "file"),
+                            resource_type=resource_type,
                             target=clean_target,
                             cleanup_action=clean_spec.get("action", "delete"),
-                            metadata=clean_spec,
+                            metadata=cleanup_metadata,
                         )
 
                     if failure_injection and failure_injection.get("inject_at") == "during_execution":
@@ -640,13 +713,29 @@ class IsolatedWorker:
                     prepared_cleanup_failed = False
                     operation_cleanup_failed = False
                     adapter_dispatched = False
-                    operation_workspace = (
-                        Path(tempfile.mkdtemp(prefix="cops-credential-operation-"))
-                        if self.credential_resolver is not None
+                    credential_scratch_effect = None
+                    operation_workspace = target_workspace
+                    if (
+                        self.credential_resolver is not None
                         and self.credential_resolver.has_grant_for_operation(plan_model, op, operation_index)
                         and tool != "inert"
-                        else target_workspace
-                    )
+                    ):
+                        operation_workspace = Path(tempfile.gettempdir()).resolve(strict=True) / (
+                            f"cops-credential-operation-{operation_index}-{uuid.uuid4().hex}"
+                        )
+                        credential_scratch_effect = ledger.record_effect(
+                            step_id=f"{step_id}-credential-scratch",
+                            resource_type="directory",
+                            target=str(operation_workspace),
+                            cleanup_action="delete",
+                            metadata={"purpose": "credential_operation_scratch"},
+                        )
+                        operation_workspace_fd = -1
+                        try:
+                            operation_workspace_fd = open_directory_no_symlinks(operation_workspace, create=True)
+                        finally:
+                            if operation_workspace_fd >= 0:
+                                os.close(operation_workspace_fd)
                     operation_env = {**clean_env, "HOME": str(operation_workspace), "TMPDIR": str(operation_workspace)}
                     try:
                         remaining_capture = max(0, max_output_bytes - captured_output_bytes)
@@ -802,6 +891,24 @@ class IsolatedWorker:
                         if operation_workspace != target_workspace:
                             try:
                                 shutil.rmtree(operation_workspace)
+                                assert credential_scratch_effect is not None
+                                ledger.transition_effect(
+                                    credential_scratch_effect,
+                                    "cleaned",
+                                    details={"action_taken": "deleted_directory"},
+                                )
+                            except CleanupPersistenceError:
+                                operation_cleanup_failed = True
+                                credential_scratch_cleanup_failed = True
+                                assert credential_scratch_effect is not None
+                                credential_scratch_effect.status = "unknown"
+                                status = "uncertain" if adapter_dispatched and not is_idempotent else "failed"
+                                status_reason = (
+                                    f"credential operation scratch cleanup audit persistence failed at step '{step_id}'"
+                                )
+                                if status == "uncertain":
+                                    status_reason += "; automatic repeat disallowed"
+                                overall_exit_code = 1
                             except OSError:
                                 operation_cleanup_failed = True
                                 credential_scratch_cleanup_failed = True
@@ -912,10 +1019,12 @@ class IsolatedWorker:
         finally:
             finished_at = utc_now()
             try:
-                evidence_recorder.discard_pending_reservations()
-                # Perform ownership-verified rollback of tracked side effects.
-                cleanup_receipt = cleanup_manager.rollback()
-                self.last_cleanup_receipt = cleanup_receipt
+                try:
+                    evidence_recorder.discard_pending_reservations()
+                finally:
+                    # Cleanup is mandatory even when evidence finalization fails.
+                    cleanup_receipt = cleanup_manager.rollback()
+                    self.last_cleanup_receipt = cleanup_receipt
                 cleanup_status = cleanup_receipt.status
                 if credential_scratch_cleanup_failed:
                     cleanup_status = "failed"
@@ -928,13 +1037,6 @@ class IsolatedWorker:
                     elif not status_reason:
                         status_reason = f"cleanup {cleanup_receipt.status}: unresolved artifacts: {unres_summary}"
 
-                if ephemeral and target_workspace.exists():
-                    try:
-                        shutil.rmtree(target_workspace, ignore_errors=False)
-                    except OSError:
-                        pass
-                    if target_workspace.exists():
-                        cleanup_status = "failed"
             finally:
                 try:
                     redactor.clear_secrets()

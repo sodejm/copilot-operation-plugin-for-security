@@ -51,42 +51,24 @@ python3 -m cops worker execute path/to/action-plan.json \
 
 ## Python API
 
+The production supervisor provisions the approval control, sandbox, and an
+owner-only cleanup journal outside the execution workspace. See
+`docs/WORKER_SUPERVISOR.md` for the complete configuration. An embedded worker
+with those provisioned inputs must recover pending cleanup before accepting a
+new plan:
+
 ```python
-import os
+from cops.execution import IsolatedWorker
 
-from cops.adapters import ToolAdapterRegistry
-from cops.execution import (
-    ApprovalStore,
-    AuthorizationTrustStore,
-    IsolatedWorker,
-    WorkerCapabilityInventory,
-)
-
-# 1. Initialize approval store
-store = ApprovalStore("~/.cops/approvals.sqlite3")
-
-# 2. Store pre-signed authorization envelope
-store.store_authorization(auth_envelope)
-
-# 3. Load independently provisioned verifier trust and measured worker
-# capabilities from owner-only files.
-trust_store = AuthorizationTrustStore.from_file("path/to/authorization-trust.json")
-inventory = WorkerCapabilityInventory.from_file("path/to/worker-inventory.json")
-
-# 4. Initialize the worker with the approved engagement boundary.
-registry = ToolAdapterRegistry(
-    executable_sha256_pins={"nmap": os.environ["COPS_NMAP_SHA256"]},
-)
 worker = IsolatedWorker(
     inventory,
-    store=store,
-    trust_store=trust_store,
-    engagement=engagement,
-    adapter_registry=registry,
+    approval_control,
+    sandbox,
+    cleanup_journal_path=journal_path,
+    expected_engagement_id=action_plan.engagement_id,
 )
+worker.recover_pending_cleanup()
 
-# 5. Execute the exact signed plan. The store atomically binds consumption to
-# the verified receipt payload before marking it consumed.
-run_result = worker.execute_plan(action_plan, authorization=auth_envelope)
+run_result = worker.execute_plan(action_plan, authorization=authorization_id)
 assert run_result.is_successful()
 ```

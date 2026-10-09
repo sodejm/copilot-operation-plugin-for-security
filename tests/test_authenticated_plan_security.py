@@ -283,6 +283,9 @@ def test_worker_inventory_provisions_exact_trusted_capabilities(tmp_path):
 def test_worker_accepts_inventory_not_caller_supplied_config(tmp_path):
     inventory = WorkerCapabilityInventory.from_file(_write_inventory(tmp_path))
     config = WorkerConfig.from_inventory(inventory)
+    journal_root = tmp_path.resolve() / "cleanup-journal"
+    journal_root.mkdir(mode=0o700)
+    cleanup_journal_path = journal_root / "cleanup.sqlite3"
     with pytest.raises(TypeError):
         config.tool_versions["nmap"] = "7.95"
     with pytest.raises(WorkerIsolationError, match="inventory"):
@@ -290,6 +293,7 @@ def test_worker_accepts_inventory_not_caller_supplied_config(tmp_path):
             config,
             object(),
             object(),
+            cleanup_journal_path=cleanup_journal_path,
         )
     unverified = WorkerCapabilityInventory(
         schema_version=WorkerCapabilityInventory.SCHEMA_VERSION,
@@ -304,6 +308,7 @@ def test_worker_accepts_inventory_not_caller_supplied_config(tmp_path):
             unverified,
             object(),
             object(),
+            cleanup_journal_path=cleanup_journal_path,
         )
 
 

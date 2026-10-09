@@ -204,11 +204,14 @@ def verify_ssh_rejection_before_dispatch(worker_context):
 
 @pytest.fixture
 def worker_context():
-    temp_dir = tempfile.mkdtemp()
+    temp_dir = Path(tempfile.mkdtemp()).resolve(strict=True)
     db_file = Path(temp_dir) / "store.sqlite3"
+    journal_root = temp_dir / "cleanup-journal"
+    journal_root.mkdir(mode=0o700)
     ctx = {
-        "temp_dir": temp_dir,
+        "temp_dir": str(temp_dir),
         "db_file": db_file,
+        "cleanup_journal_path": journal_root / "cleanup.sqlite3",
         "store": ApprovalStore(db_file),
     }
     yield ctx
@@ -271,6 +274,7 @@ def execute_plan(worker_context):
         worker_inventory_for_plan(worker_context["plan"], worker_identity="test-worker-01"),
         approval_control,
         sandbox,
+        cleanup_journal_path=worker_context["cleanup_journal_path"],
     )
     result = worker.execute_plan(
         worker_context["plan"],
@@ -315,6 +319,7 @@ def worker_missing_required_sandbox_control(worker_context):
         worker_inventory_for_plan(worker_context["plan"], worker_identity="test-worker-01"),
         approval_control,
         sandbox,
+        cleanup_journal_path=worker_context["cleanup_journal_path"],
     )
 
 
@@ -428,6 +433,7 @@ def plan_unapproved_tool(worker_context, unapproved_tool):
         ),
         TestApprovalControl(worker_context["store"], trust_store, engagement),
         TestExecutionSandbox(),
+        cleanup_journal_path=worker_context["cleanup_journal_path"],
     )
 
 
@@ -517,6 +523,7 @@ def authorized_fake_adapter_plan(worker_context):
         worker_inventory_for_plan(plan, worker_identity="test-worker-01"),
         TestApprovalControl(worker_context["store"], trust_store, engagement),
         sandbox,
+        cleanup_journal_path=worker_context["cleanup_journal_path"],
         adapter_registry=registry,
     )
 

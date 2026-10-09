@@ -39,6 +39,13 @@ def temp_store(tmp_path):
 
 
 @pytest.fixture
+def cleanup_journal_path(tmp_path):
+    journal_root = tmp_path.resolve() / "cleanup-journal"
+    journal_root.mkdir(mode=0o700)
+    return journal_root / "cleanup.sqlite3"
+
+
+@pytest.fixture
 def sample_plan() -> ActionPlan:
     data = json.loads((FIXTURES / "valid_action_plan.json").read_text(encoding="utf-8"))
     return ActionPlan.create(
@@ -55,6 +62,15 @@ def sample_plan() -> ActionPlan:
         platform_prerequisites=data["platform_prerequisites"],
         batch=data["batch"],
     )
+
+
+def test_isolated_worker_requires_cleanup_journal(sample_plan):
+    with pytest.raises(TypeError, match="cleanup_journal_path"):
+        IsolatedWorker(
+            worker_inventory_for_plan(sample_plan, worker_identity="worker-no-journal"),
+            object(),
+            object(),
+        )
 
 
 def test_approval_store_roundtrip(temp_store, sample_plan):
@@ -199,7 +215,7 @@ def test_concurrent_worker_atomic_consume(temp_store, sample_plan):
     assert conflict_count[0] == 9
 
 
-def test_isolated_worker_execute_plan_success(temp_store, sample_plan):
+def test_isolated_worker_execute_plan_success(temp_store, sample_plan, cleanup_journal_path):
     """Test worker successfully executing an authorized plan and cleaning up workspace."""
     # Build plan using the worker's explicit inert test tool.
     plan_dict = sample_plan.to_dict()
@@ -236,6 +252,7 @@ def test_isolated_worker_execute_plan_success(temp_store, sample_plan):
         worker_inventory_for_plan(plan, worker_identity="test-worker-alpha"),
         approval_control,
         sandbox,
+        cleanup_journal_path=cleanup_journal_path,
     )
     result = worker.execute_plan(plan, authorization=auth.authorization_id)
 
@@ -252,11 +269,12 @@ def test_isolated_worker_execute_plan_success(temp_store, sample_plan):
     assert retrieved_auth.status == "consumed"
 
 
-def test_worker_rejects_plan_outside_provisioned_engagement_before_approval(sample_plan):
+def test_worker_rejects_plan_outside_provisioned_engagement_before_approval(sample_plan, cleanup_journal_path):
     worker = IsolatedWorker(
         worker_inventory_for_plan(sample_plan, worker_identity="worker-01"),
         object(),
         object(),
+        cleanup_journal_path=cleanup_journal_path,
         expected_engagement_id="different-engagement",
     )
 
@@ -264,7 +282,7 @@ def test_worker_rejects_plan_outside_provisioned_engagement_before_approval(samp
         worker.execute_plan_with_receipt(sample_plan, authorization_id="auth-not-consumed")
 
 
-def test_isolated_worker_rejects_unauthorized_tool(temp_store, sample_plan):
+def test_isolated_worker_rejects_unauthorized_tool(temp_store, sample_plan, cleanup_journal_path):
     """Test worker rejects plan containing tools not in worker's allowed whitelist."""
     plan_dict = sample_plan.to_dict()
     plan_dict["operations"] = [
@@ -299,6 +317,7 @@ def test_isolated_worker_rejects_unauthorized_tool(temp_store, sample_plan):
         worker_inventory_for_plan(plan, worker_identity="worker-beta", allowed_tools=("echo",)),
         approval_control,
         sandbox,
+        cleanup_journal_path=cleanup_journal_path,
     )
     with pytest.raises(WorkerExecutionError, match="not allowed by this worker"):
         worker.execute_plan(plan, authorization=auth.authorization_id)
@@ -307,7 +326,9 @@ def test_isolated_worker_rejects_unauthorized_tool(temp_store, sample_plan):
 
 
 @pytest.mark.parametrize("failed_boundary", ["approval-control", "sandbox"])
-def test_readiness_failure_stops_execution_before_approval_consumption(temp_store, sample_plan, failed_boundary):
+def test_readiness_failure_stops_execution_before_approval_consumption(
+    temp_store, sample_plan, cleanup_journal_path, failed_boundary
+):
     auth, trust_store, engagement = authorize_test_plan(sample_plan, worker_identity="readiness-test")
     temp_store.store_authorization(auth)
     readiness_error = WorkerExecutionError(f"{failed_boundary} unavailable")
@@ -322,6 +343,7 @@ def test_readiness_failure_stops_execution_before_approval_consumption(temp_stor
         worker_inventory_for_plan(sample_plan, worker_identity="readiness-test"),
         approval_control,
         sandbox,
+        cleanup_journal_path=cleanup_journal_path,
     )
 
     with pytest.raises(WorkerExecutionError, match=f"{failed_boundary} unavailable"):
@@ -334,7 +356,7 @@ def test_readiness_failure_stops_execution_before_approval_consumption(temp_stor
 
 @pytest.mark.parametrize("rejection", ["cancel", "plan_target", "operation_destination"])
 def test_request_preflight_rejects_without_consuming_approval_or_preparing_workspace(
-    temp_store, sample_plan, tmp_path, rejection
+    temp_store, sample_plan, tmp_path, cleanup_journal_path, rejection
 ):
     plan = sample_plan
     if rejection == "operation_destination":
@@ -368,6 +390,7 @@ def test_request_preflight_rejects_without_consuming_approval_or_preparing_works
         worker_inventory_for_plan(plan, worker_identity="preflight-worker"),
         approval_control,
         sandbox,
+        cleanup_journal_path=cleanup_journal_path,
         scope_guard=guard,
     )
     workspace = tmp_path / "unprepared-workspace"

@@ -8,6 +8,7 @@ import socket
 import struct
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -69,6 +70,7 @@ def _config(tmp_path: Path) -> supervisor.WorkerSupervisorConfig:
         supervisor_gid=1001,
         authority_uid=1003,
         approval_socket_path=tmp_path / "approval.sock",
+        cleanup_journal_path=tmp_path / "cleanup.sqlite3",
         inventory_path=tmp_path / "inventory.json",
         engagement_path=tmp_path / "engagement.json",
         executable_sha256_pins={},
@@ -190,6 +192,7 @@ def test_supervisor_config_requires_distinct_accounts(tmp_path):
         "supervisor_gid": os.getegid(),
         "authority_uid": config.authority_uid,
         "approval_socket_path": str(config.approval_socket_path),
+        "cleanup_journal_path": str(config.cleanup_journal_path),
         "inventory_path": str(config.inventory_path),
         "engagement_path": str(config.engagement_path),
         "executable_sha256_pins": {},
@@ -202,3 +205,106 @@ def test_supervisor_config_requires_distinct_accounts(tmp_path):
 
     with pytest.raises(supervisor.WorkerSupervisorError, match="separate UIDs"):
         supervisor.WorkerSupervisorConfig.from_file(path)
+
+
+def test_supervisor_config_requires_persistent_absolute_cleanup_journal(tmp_path):
+    config = _config(tmp_path)
+    data = {
+        "schema_version": supervisor.CONFIG_SCHEMA,
+        "expected_host": config.expected_host,
+        "worker_identity": config.worker_identity,
+        "socket_path": str(config.socket_path),
+        "relay_uid": os.geteuid() + 1,
+        "relay_gid": os.getegid() + 1,
+        "supervisor_uid": os.geteuid(),
+        "supervisor_gid": os.getegid(),
+        "authority_uid": os.geteuid() + 2,
+        "approval_socket_path": str(config.approval_socket_path),
+        "inventory_path": str(config.inventory_path),
+        "engagement_path": str(config.engagement_path),
+        "executable_sha256_pins": {},
+        "attestation_key_id": config.attestation_key_id,
+        "attestation_key_path": str(config.attestation_key_path),
+    }
+    path = tmp_path / "config.json"
+
+    def load_config() -> supervisor.WorkerSupervisorConfig:
+        path.write_text(json.dumps(data), encoding="utf-8")
+        path.chmod(0o600)
+        return supervisor.WorkerSupervisorConfig.from_file(path)
+
+    with pytest.raises(supervisor.WorkerSupervisorError, match="fields or schema"):
+        load_config()
+    data["cleanup_journal_path"] = "relative-journal.sqlite3"
+    with pytest.raises(supervisor.WorkerSupervisorError, match="cleanup_journal_path must be an absolute path"):
+        load_config()
+    data["cleanup_journal_path"] = str(config.cleanup_journal_path)
+    assert load_config().cleanup_journal_path == config.cleanup_journal_path
+    data["schema_version"] = "cops.worker-supervisor-config/v1"
+    with pytest.raises(supervisor.WorkerSupervisorError, match="fields or schema"):
+        load_config()
+
+
+def test_supervisor_recovers_cleanup_before_creating_receiver(tmp_path, monkeypatch):
+    config = _config(tmp_path)
+    events = []
+    worker_kwargs = {}
+
+    monkeypatch.setattr(supervisor.WorkerCapabilityInventory, "from_file", lambda *args, **kwargs: object())
+    monkeypatch.setattr(
+        supervisor.Engagement, "from_dict", lambda data: SimpleNamespace(engagement_id="eng-1", scope={})
+    )
+    monkeypatch.setattr(supervisor, "_owner_only_json", lambda path: {})
+    monkeypatch.setattr(supervisor, "ApprovalControlClient", lambda **kwargs: object())
+    monkeypatch.setattr(supervisor, "_credential_resolver", lambda *args, **kwargs: None)
+    monkeypatch.setattr(supervisor, "LinuxBubblewrapSandbox", lambda **kwargs: object())
+    monkeypatch.setattr(supervisor.ScopeDefinition, "from_engagement_scope", lambda *args, **kwargs: object())
+    monkeypatch.setattr(supervisor, "ScopeGuard", lambda *args: object())
+    monkeypatch.setattr(supervisor, "ToolAdapterRegistry", lambda **kwargs: object())
+
+    class _Worker:
+        def __init__(self, *args, **kwargs):
+            worker_kwargs.update(kwargs)
+
+        def recover_pending_cleanup(self):
+            events.append("recover")
+            return ()
+
+    def receiver(**kwargs):
+        events.append("receiver")
+        return kwargs
+
+    monkeypatch.setattr(supervisor, "IsolatedWorker", _Worker)
+    monkeypatch.setattr(supervisor, "SSHRemoteExecutionReceiver", receiver)
+    result = supervisor.build_receiver(config)
+
+    assert events == ["recover", "receiver"]
+    assert worker_kwargs["cleanup_journal_path"] == config.cleanup_journal_path
+    assert result["worker"].__class__ is _Worker
+
+
+def test_supervisor_fails_startup_when_cleanup_recovery_fails(tmp_path, monkeypatch):
+    config = _config(tmp_path)
+    monkeypatch.setattr(supervisor.WorkerCapabilityInventory, "from_file", lambda *args, **kwargs: object())
+    monkeypatch.setattr(
+        supervisor.Engagement, "from_dict", lambda data: SimpleNamespace(engagement_id="eng-1", scope={})
+    )
+    monkeypatch.setattr(supervisor, "_owner_only_json", lambda path: {})
+    monkeypatch.setattr(supervisor, "ApprovalControlClient", lambda **kwargs: object())
+    monkeypatch.setattr(supervisor, "_credential_resolver", lambda *args, **kwargs: None)
+    monkeypatch.setattr(supervisor, "LinuxBubblewrapSandbox", lambda **kwargs: object())
+    monkeypatch.setattr(supervisor.ScopeDefinition, "from_engagement_scope", lambda *args, **kwargs: object())
+    monkeypatch.setattr(supervisor, "ScopeGuard", lambda *args: object())
+    monkeypatch.setattr(supervisor, "ToolAdapterRegistry", lambda **kwargs: object())
+
+    class _Worker:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def recover_pending_cleanup(self):
+            raise RuntimeError("cleanup journal is invalid")
+
+    monkeypatch.setattr(supervisor, "IsolatedWorker", _Worker)
+    monkeypatch.setattr(supervisor, "SSHRemoteExecutionReceiver", lambda **kwargs: pytest.fail("receiver created"))
+    with pytest.raises(RuntimeError, match="cleanup journal is invalid"):
+        supervisor.build_receiver(config)
