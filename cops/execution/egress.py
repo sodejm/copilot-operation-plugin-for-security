@@ -732,6 +732,7 @@ class _BrokerSupervisor:
         self._server_socket = server_socket
         self._observation_reader = observation_reader
         self._mediator = mediator
+        self._initial_observation_count = len(mediator.observations)
         self._deadline = deadline
         self._stop = threading.Event()
         self._lock = threading.Lock()
@@ -774,21 +775,45 @@ class _BrokerSupervisor:
                 with suppress(BrokenPipeError, ConnectionError, OSError, TimeoutError):
                     self._server_socket.settimeout(0.1)
                     self._server_socket.sendall(_json_line({"ok": False, "error": "egress_denied"}))
-            self._merge_observations()
+            latest_origin = self._merge_observations()
+            if send_timeout_error and not any(
+                observation.reason == "broker_deadline_exceeded"
+                for observation in self._mediator.observations[self._initial_observation_count :]
+            ):
+                self._mediator.observations.append(
+                    EgressObservation(
+                        origin=latest_origin,
+                        decision="blocked",
+                        reason="broker_deadline_exceeded",
+                    )
+                )
             self._observation_reader.close()
             self._server_socket.close()
             self._finalized = True
 
-    def _merge_observations(self) -> None:
+    def _merge_observations(self) -> str:
+        latest_origin = "unparseable"
         while self._observation_reader.poll():
             try:
-                observations = self._observation_reader.recv()
+                message = self._observation_reader.recv()
             except EOFError:
-                return
-            if isinstance(observations, tuple) and all(
-                isinstance(observation, EgressObservation) for observation in observations
+                break
+            if (
+                isinstance(message, tuple)
+                and len(message) == 2
+                and message[0] == "origin"
+                and isinstance(message[1], str)
             ):
-                self._mediator.observations.extend(observations)
+                latest_origin = message[1]
+            elif (
+                isinstance(message, tuple)
+                and len(message) == 2
+                and message[0] == "observations"
+                and isinstance(message[1], tuple)
+                and all(isinstance(observation, EgressObservation) for observation in message[1])
+            ):
+                self._mediator.observations.extend(message[1])
+        return latest_origin
 
 
 @dataclass
@@ -887,27 +912,41 @@ class ExecutionEgressBroker:
         observation_reader.close()
         initial_observation_count = len(self._mediator.observations)
         try:
-            self._serve(server_socket, deadline=deadline)
+            self._serve(server_socket, observation_writer=observation_writer, deadline=deadline)
         finally:
             observations = tuple(self._mediator.observations[initial_observation_count:])
             with suppress(BrokenPipeError, EOFError, OSError):
-                observation_writer.send(observations)
+                observation_writer.send(("observations", observations))
             observation_writer.close()
             server_socket.close()
 
-    def _serve(self, server_socket: socket.socket, *, deadline: float) -> None:
+    def _serve(
+        self,
+        server_socket: socket.socket,
+        *,
+        observation_writer: Connection,
+        deadline: float,
+    ) -> None:
         request_count = 0
         total_request_bytes = 0
         total_response_bytes = 0
         buffer = b""
+        current_origin = "unparseable"
         try:
             while True:
                 line, buffer = self._read_line(server_socket, buffer, deadline)
                 if line is None:
                     return
+                current_origin = _redacted_origin_from_request(line)
+                observation_writer.send(("origin", current_origin))
                 request_count += 1
                 total_request_bytes += len(line)
-                if request_count > self._max_requests or total_request_bytes > self._max_total_request_bytes:
+                if request_count > self._max_requests:
+                    self._record_broker_block(current_origin, "broker_request_count_limit")
+                    self._write_error(server_socket, "operation_limit_exceeded", deadline)
+                    return
+                if total_request_bytes > self._max_total_request_bytes:
+                    self._record_broker_block(current_origin, "broker_total_request_bytes_limit")
                     self._write_error(server_socket, "operation_limit_exceeded", deadline)
                     return
                 try:
@@ -922,6 +961,7 @@ class ExecutionEgressBroker:
                     }
                     response_line = _json_line(payload)
                     if total_response_bytes + len(response_line) > self._max_total_response_bytes:
+                        self._record_broker_block(current_origin, "broker_total_response_bytes_limit")
                         self._write_error(server_socket, "operation_limit_exceeded", deadline)
                         return
                     self._send(server_socket, response_line, deadline)
@@ -932,7 +972,14 @@ class ExecutionEgressBroker:
                     # generic denial without exposing exception details.
                     self._write_error(server_socket, "egress_denied", deadline)
                     return
-        except (BrokenPipeError, ConnectionError, OSError, TimeoutError):
+        except TimeoutError:
+            self._record_broker_block(current_origin, "broker_deadline_exceeded")
+            return
+        except EgressProtocolError:
+            # _read_line has already returned a generic response and recorded
+            # the sanitized limit observation.
+            return
+        except (BrokenPipeError, ConnectionError, OSError):
             return
 
     def _read_line(
@@ -943,6 +990,10 @@ class ExecutionEgressBroker:
     ) -> tuple[bytes | None, bytes]:
         while b"\n" not in buffer:
             if len(buffer) > self._max_request_bytes:
+                self._record_broker_block(
+                    _redacted_origin_from_request(buffer),
+                    "broker_request_bytes_limit",
+                )
                 self._write_error(server_socket, "request_too_large", deadline)
                 raise EgressProtocolError("broker request exceeded the configured byte limit")
             server_socket.settimeout(self._remaining(deadline))
@@ -953,9 +1004,18 @@ class ExecutionEgressBroker:
         line, remainder = buffer.split(b"\n", 1)
         line += b"\n"
         if len(line) > self._max_request_bytes:
+            self._record_broker_block(
+                _redacted_origin_from_request(line),
+                "broker_request_bytes_limit",
+            )
             self._write_error(server_socket, "request_too_large", deadline)
             raise EgressProtocolError("broker request exceeded the configured byte limit")
         return line, remainder
+
+    def _record_broker_block(self, origin: str, reason: str) -> None:
+        self._mediator.observations.append(
+            EgressObservation(origin=origin, decision="blocked", reason=reason)
+        )
 
     @staticmethod
     def _remaining(deadline: float) -> float:
@@ -1093,6 +1153,18 @@ def _redacted_origin(url: str) -> str:
     default_port = 443 if parsed.scheme == "https" else 80
     port_suffix = "" if port in {None, default_port} else f":{port}"
     return f"{parsed.scheme}://{host_literal}{port_suffix}"
+
+
+def _redacted_origin_from_request(request: bytes) -> str:
+    """Recover only a sanitized origin from a broker protocol request."""
+
+    try:
+        document = json.loads(request)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return "unparseable"
+    if not isinstance(document, dict) or not isinstance(document.get("url"), str):
+        return "unparseable"
+    return _redacted_origin(document["url"])
 
 
 def _json_line(document: object) -> bytes:

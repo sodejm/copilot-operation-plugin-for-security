@@ -626,18 +626,28 @@ def _hanging_mediator(phase: str) -> HTTPSExecutionMediator:
 
 @pytest.mark.parametrize("phase", ("resolver", "connector", "identity", "response", "close"))
 def test_broker_hard_deadline_kills_and_reaps_every_blocking_phase(phase: str) -> None:
-    broker = ExecutionEgressBroker(_hanging_mediator(phase), protocol_timeout_seconds=0.15)
+    mediator = _hanging_mediator(phase)
+    broker = ExecutionEgressBroker(mediator, protocol_timeout_seconds=0.15)
 
     started = time.monotonic()
     with broker.open_channel() as channel:
         process = channel._supervisor._process
         channel._client_socket.settimeout(2)
-        channel._client_socket.sendall(json.dumps(_request_document()).encode("utf-8") + b"\n")
+        request = _request_document("https://api.example.test/private?token=secret")
+        channel._client_socket.sendall(json.dumps(request).encode("utf-8") + b"\n")
         assert _receive_line(channel._client_socket) == {"error": "egress_denied", "ok": False}
 
     assert time.monotonic() - started < 2
     assert not process.is_alive()
-    assert process.exitcode is not None
+    assert process.exitcode is not None and process.exitcode < 0
+    assert mediator.observations[-1].origin == "https://api.example.test"
+    assert mediator.observations[-1].decision == "blocked"
+    assert mediator.observations[-1].reason == "broker_deadline_exceeded"
+    assert sum(
+        observation.reason == "broker_deadline_exceeded"
+        for observation in mediator.observations
+    ) == 1
+    assert "secret" not in repr(mediator.observations)
 
 
 def test_broker_clamps_protocol_to_worker_operation_deadline() -> None:
@@ -691,6 +701,8 @@ def test_broker_bounds_total_requests_and_total_request_bytes_per_operation() ->
         assert _receive_line(channel._client_socket)["ok"] is True
         channel._client_socket.sendall(request_line)
         assert _receive_line(channel._client_socket) == {"error": "operation_limit_exceeded", "ok": False}
+    assert count_mediator.observations[-1].origin == "https://api.example.test"
+    assert count_mediator.observations[-1].reason == "broker_request_count_limit"
 
     padded = _request_document()
     padded["headers"] = {"X-Padding": "a" * 300}
@@ -709,6 +721,34 @@ def test_broker_bounds_total_requests_and_total_request_bytes_per_operation() ->
         assert _receive_line(channel._client_socket)["ok"] is True
         channel._client_socket.sendall(padded_line)
         assert _receive_line(channel._client_socket) == {"error": "operation_limit_exceeded", "ok": False}
+    assert byte_mediator.observations[-1].origin == "https://api.example.test"
+    assert byte_mediator.observations[-1].reason == "broker_total_request_bytes_limit"
+
+
+def test_broker_records_redacted_per_request_byte_limit_observation() -> None:
+    allowed = (_endpoint("192.0.2.10"),)
+    mediator = _mediator(
+        ScriptedResolver({"api.example.test": [allowed, allowed]}),
+        FakeConnector(FakeConnection()),
+    )
+    request_line = json.dumps(
+        _request_document("https://api.example.test/private?token=secret")
+    ).encode("utf-8") + b"\n"
+
+    with ExecutionEgressBroker(
+        mediator,
+        max_request_bytes=len(request_line) - 1,
+        max_total_request_bytes=len(request_line),
+    ).open_channel() as channel:
+        process = channel._supervisor._process
+        channel._client_socket.sendall(request_line)
+        assert _receive_line(channel._client_socket) == {"error": "request_too_large", "ok": False}
+
+    assert process.exitcode == 0
+    assert mediator.observations[-1].origin == "https://api.example.test"
+    assert mediator.observations[-1].decision == "blocked"
+    assert mediator.observations[-1].reason == "broker_request_bytes_limit"
+    assert "secret" not in repr(mediator.observations)
 
 
 def test_broker_bounds_total_response_bytes_per_operation() -> None:
@@ -721,3 +761,5 @@ def test_broker_bounds_total_response_bytes_per_operation() -> None:
     with ExecutionEgressBroker(mediator, max_total_response_bytes=128).open_channel() as channel:
         channel._client_socket.sendall(json.dumps(_request_document()).encode("utf-8") + b"\n")
         assert _receive_line(channel._client_socket) == {"error": "operation_limit_exceeded", "ok": False}
+    assert mediator.observations[-1].origin == "https://api.example.test"
+    assert mediator.observations[-1].reason == "broker_total_response_bytes_limit"

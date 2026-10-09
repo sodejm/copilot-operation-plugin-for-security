@@ -235,6 +235,31 @@ def run_contained_adapter(scope_context, tmp_path):
     except SandboxReadinessError as err:
         pytest.fail(f"required Linux isolation readiness failed: {err}")
 
+    listeners = []
+    targets = []
+    for label, family, bind_address in (
+        ("ipv4", socket.AF_INET, ("127.0.0.1", 0)),
+        ("ipv6", socket.AF_INET6, ("::1", 0, 0, 0)),
+    ):
+        listener = socket.socket(family, socket.SOCK_STREAM)
+        try:
+            listener.settimeout(1)
+            listener.bind(bind_address)
+            listener.listen(1)
+            address = listener.getsockname()
+            with socket.socket(family, socket.SOCK_STREAM) as control:
+                control.settimeout(1)
+                control.connect(address)
+            accepted, _peer = listener.accept()
+            accepted.close()
+        except OSError:
+            listener.close()
+            if family == socket.AF_INET6:
+                continue
+            raise
+        listeners.append(listener)
+        targets.append((label, family, address))
+
     executable_fd = os.open(Path("/usr/bin/python3").resolve(strict=True), os.O_RDONLY)
     script = """
 import json
@@ -242,14 +267,11 @@ import os
 import socket
 
 direct = {}
-for label, family, address in (
-    ("ipv4", socket.AF_INET, ("192.0.2.10", 443)),
-    ("ipv6", socket.AF_INET6, ("2001:db8::10", 443, 0, 0)),
-):
+for label, family, address in json.loads(sys.argv[1]):
     try:
         with socket.socket(family, socket.SOCK_STREAM) as channel:
             channel.settimeout(0.5)
-            channel.connect(address)
+            channel.connect(tuple(address))
     except OSError as err:
         direct[label] = err.errno
     else:
@@ -269,7 +291,7 @@ print(json.dumps({"direct": direct, "broker": json.loads(reply), "net_namespace"
     try:
         with scope_context["broker"].open_channel() as channel:
             result = sandbox.run(
-                [f"/proc/self/fd/{executable_fd}", "-c", script],
+                [f"/proc/self/fd/{executable_fd}", "-c", script, json.dumps(targets)],
                 cwd=workspace,
                 env={},
                 operation_env=channel.environment,
@@ -280,27 +302,23 @@ print(json.dumps({"direct": direct, "broker": json.loads(reply), "net_namespace"
             )
     finally:
         os.close(executable_fd)
+        for listener in listeners:
+            listener.close()
     assert not result.timed_out
     assert not result.output_limit_exceeded
     assert result.returncode == 0, result.stderr.decode("utf-8", errors="replace")
     scope_context["contained_adapter"] = json.loads(result.stdout)
     scope_context["host_net_namespace"] = os.readlink("/proc/self/ns/net")
+    scope_context["direct_target_labels"] = [target[0] for target in targets]
 
 
 @then("direct IPv4 and IPv6 connections are denied and mediated broker requests remain available")
 def assert_mandatory_mediation(scope_context):
-    import errno
-
     observed = scope_context["contained_adapter"]
     assert observed["net_namespace"] != scope_context["host_net_namespace"]
-    assert observed["direct"]["ipv4"] in {errno.EPERM, errno.EACCES, errno.ENETUNREACH, errno.EHOSTUNREACH}
-    assert observed["direct"]["ipv6"] in {
-        errno.EPERM,
-        errno.EACCES,
-        errno.ENETUNREACH,
-        errno.EHOSTUNREACH,
-        errno.EAFNOSUPPORT,
-    }
+    assert "ipv4" in scope_context["direct_target_labels"]
+    assert set(observed["direct"]) == set(scope_context["direct_target_labels"])
+    assert all(isinstance(error, int) and error > 0 for error in observed["direct"].values())
     assert observed["broker"]["ok"] is True
     assert observed["broker"]["status"] == 200
     assert observed["broker"]["identity"] == _IDENTITY.as_dict()
