@@ -81,9 +81,11 @@ class UnixSocketCredentialProvider:
                 or duration <= 0
             ):
                 raise ValueError("credential provider timeout must be finite and positive")
-            deadline = time.monotonic() + float(duration)
+            deadline = time.monotonic() + min(float(duration), self._default_timeout_seconds)
         elif not isinstance(deadline, (int, float)) or isinstance(deadline, bool) or not math.isfinite(deadline):
             raise ValueError("credential provider deadline must be finite")
+        else:
+            deadline = min(float(deadline), time.monotonic() + self._default_timeout_seconds)
 
         self._validate_socket_path()
         request = (

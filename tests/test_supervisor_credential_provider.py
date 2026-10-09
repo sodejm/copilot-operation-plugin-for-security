@@ -5,6 +5,7 @@ import socket
 import struct
 from dataclasses import dataclass
 from pathlib import Path
+from time import monotonic
 
 import pytest
 
@@ -57,7 +58,7 @@ class _FakeSocket:
 
 
 @dataclass(frozen=True)
-class _OperationBoundGrant:
+class _LegacyGrant:
     reference: str
     environment_variable: str
     plan_id: str
@@ -65,8 +66,6 @@ class _OperationBoundGrant:
     engagement_id: str
     worker_identity: str
     target: str
-    operation_index: int
-    operation_digest: str
     step_id: str
     tool: str
     tool_version: str
@@ -172,13 +171,31 @@ def test_provider_rejects_unpinned_peer_before_sending_reference(
     assert connection.sent == b""
 
 
+def test_provider_clamps_worker_deadline_to_configured_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(provider_module.socket, "SO_PEERCRED", 17, raising=False)
+    reference = "vault://engagements/eng-1/api-token"
+    response = json.dumps({"protocol": PROTOCOL, "reference": reference, "value": "test-value"}).encode() + b"\n"
+    connection = _FakeSocket(peer_uid=1004, peer_gid=1004, response=response)
+    provider = UnixSocketCredentialProvider(
+        "/run/cops/credential-provider.sock",
+        expected_provider_uid=1004,
+        expected_provider_gid=1004,
+        default_timeout_seconds=0.25,
+    )
+    monkeypatch.setattr(provider, "_validate_socket_path", lambda: None)
+    monkeypatch.setattr(provider_module.socket, "socket", lambda *args: connection)
+
+    assert provider.resolve(reference, deadline=monotonic() + 30) == "test-value"
+    assert connection.timeouts and all(0 < timeout <= 0.25 for timeout in connection.timeouts)
+
+
 def test_manifest_builds_operation_bound_grant_with_same_approval_client(
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     manifest_path = tmp_path / "credentials.json"
     _write_manifest(manifest_path)
-    monkeypatch.setattr(supervisor, "CredentialGrant", _OperationBoundGrant)
     approval_control = object()
 
     resolver = supervisor._credential_resolver(
@@ -197,9 +214,11 @@ def test_manifest_builds_operation_bound_grant_with_same_approval_client(
 
 def test_manifest_fails_closed_without_operation_bound_grant_model(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     manifest_path = tmp_path / "credentials.json"
     _write_manifest(manifest_path)
+    monkeypatch.setattr(supervisor, "CredentialGrant", _LegacyGrant)
 
     with pytest.raises(supervisor.WorkerSupervisorError, match="exact operation binding"):
         supervisor._credential_resolver(
