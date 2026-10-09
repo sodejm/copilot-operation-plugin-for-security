@@ -265,6 +265,7 @@ def run_contained_adapter(scope_context, tmp_path):
 import json
 import os
 import socket
+import sys
 
 direct = {}
 for label, family, address in json.loads(sys.argv[1]):
