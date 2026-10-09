@@ -19,7 +19,12 @@ from cops.execution import (
     SideEffectLedger,
     WorkerExecutionError,
 )
-from tests.auth_testkit import authorize_test_plan, worker_inventory_for_plan
+from tests.auth_testkit import (
+    TestApprovalControl,
+    TestExecutionSandbox,
+    authorize_test_plan,
+    worker_inventory_for_plan,
+)
 
 
 @pytest.fixture
@@ -156,9 +161,8 @@ def test_failure_injection_after_consume_prevents_replay(temp_store, sample_plan
 
     worker = IsolatedWorker(
         worker_inventory_for_plan(plan, worker_identity="worker-fail-test"),
-        store=temp_store,
-        trust_store=trust_store,
-        engagement=engagement,
+        TestApprovalControl(temp_store, trust_store, engagement),
+        TestExecutionSandbox(),
     )
 
     # Inject failure after consumption
@@ -221,9 +225,8 @@ def test_interruption_uncertain_outcome_non_idempotent(temp_store, sample_plan, 
 
     worker = IsolatedWorker(
         worker_inventory_for_plan(plan, worker_identity="worker-interrupt-test"),
-        store=temp_store,
-        trust_store=trust_store,
-        engagement=engagement,
+        TestApprovalControl(temp_store, trust_store, engagement),
+        TestExecutionSandbox(),
     )
 
     # Inject failure during execution of step-mutating
@@ -278,9 +281,8 @@ def test_operator_cancellation_idempotent_step(temp_store, sample_plan, temp_wor
 
     worker = IsolatedWorker(
         worker_inventory_for_plan(plan, worker_identity="worker-cancel-test"),
-        store=temp_store,
-        trust_store=trust_store,
-        engagement=engagement,
+        TestApprovalControl(temp_store, trust_store, engagement),
+        TestExecutionSandbox(),
     )
 
     result = worker.execute_plan(

@@ -34,9 +34,25 @@ from cops.execution.executable import (
     prepare_executable,
 )
 from cops.execution.process import BoundedProcessResult, run_bounded_process
-from tests.auth_testkit import authorize_test_plan, worker_inventory_for_plan
+from tests.auth_testkit import (
+    TestApprovalControl,
+    TestExecutionSandbox,
+    authorize_test_plan,
+    worker_inventory_for_plan,
+)
 
 HAS_PROC_FD = Path("/proc/self/fd").is_dir()
+
+_TEST_CONTROLS: dict[int, TestApprovalControl] = {}
+_TEST_SANDBOXES: dict[int, TestExecutionSandbox] = {}
+
+
+def _approval_control(worker: IsolatedWorker) -> TestApprovalControl:
+    return _TEST_CONTROLS[id(worker)]
+
+
+def _sandbox(worker: IsolatedWorker) -> TestExecutionSandbox:
+    return _TEST_SANDBOXES[id(worker)]
 
 
 @pytest.fixture(autouse=True)
@@ -154,13 +170,16 @@ def _fake_worker(tmp_path: Path, plan: ActionPlan) -> tuple[IsolatedWorker, str]
     store.store_authorization(auth)
     registry = ToolAdapterRegistry(definitions_path=tmp_path / "no-definitions")
     registry.register_adapter(_fake_adapter())
+    approval_control = TestApprovalControl(store, trust_store, engagement)
+    sandbox = TestExecutionSandbox()
     worker = IsolatedWorker(
         worker_inventory_for_plan(plan, worker_identity="test-worker-01"),
-        store=store,
-        trust_store=trust_store,
-        engagement=engagement,
+        approval_control,
+        sandbox,
         adapter_registry=registry,
     )
+    _TEST_CONTROLS[id(worker)] = approval_control
+    _TEST_SANDBOXES[id(worker)] = sandbox
     return worker, auth.authorization_id
 
 
@@ -256,7 +275,7 @@ def test_worker_normalizes_fake_tool_results(
     worker, authorization_id = _fake_worker(tmp_path, plan)
     prepared = SimpleNamespace(invocation_path="/proc/self/fd/7", pass_fds=(), remove=lambda: None)
     monkeypatch.setattr(worker_module, "prepare_executable", lambda *args, **kwargs: prepared)
-    monkeypatch.setattr(worker_module, "run_bounded_process", lambda *args, **kwargs: process_result)
+    _sandbox(worker).result = process_result
     recorded_exit_codes: list[int] = []
     original_record = EvidenceRecorder.record_step_output
 
@@ -294,11 +313,7 @@ def test_idempotent_step_timeout_or_overflow_is_partial(
     worker, authorization_id = _fake_worker(tmp_path, plan)
     prepared = SimpleNamespace(invocation_path="/proc/self/fd/7", pass_fds=(), remove=lambda: None)
     monkeypatch.setattr(worker_module, "prepare_executable", lambda *args, **kwargs: prepared)
-    monkeypatch.setattr(
-        worker_module,
-        "run_bounded_process",
-        lambda *args, **kwargs: BoundedProcessResult(b"", b"", -9, timed_out, overflow),
-    )
+    _sandbox(worker).result = BoundedProcessResult(b"", b"", -9, timed_out, overflow)
 
     result = worker.execute_plan(plan, authorization=authorization_id, workspace_dir=tmp_path / "workspace")
 
@@ -322,8 +337,7 @@ def test_worker_rejects_adapter_mismatch_before_consuming_approval(
     with pytest.raises(worker_module.WorkerExecutionError, match="registered execution adapter|logical version"):
         worker.execute_plan(plan, authorization=authorization_id)
 
-    assert worker.store is not None
-    assert worker.store.get_authorization(authorization_id).status == "approved"
+    assert _approval_control(worker).store.get_authorization(authorization_id).status == "approved"
 
 
 def test_worker_rejects_unsupported_adapter_environment_before_consuming_approval(tmp_path: Path) -> None:
@@ -335,8 +349,7 @@ def test_worker_rejects_unsupported_adapter_environment_before_consuming_approva
     with pytest.raises(worker_module.WorkerExecutionError, match="incompatible with this worker environment"):
         worker.execute_plan(plan, authorization=authorization_id)
 
-    assert worker.store is not None
-    assert worker.store.get_authorization(authorization_id).status == "approved"
+    assert _approval_control(worker).store.get_authorization(authorization_id).status == "approved"
 
 
 def test_worker_rejects_unsupported_executable_launch_before_consuming_approval(
@@ -354,8 +367,7 @@ def test_worker_rejects_unsupported_executable_launch_before_consuming_approval(
         worker.execute_plan(plan, authorization=authorization_id)
 
     assert "private host path" not in str(caught.value)
-    assert worker.store is not None
-    assert worker.store.get_authorization(authorization_id).status == "approved"
+    assert _approval_control(worker).store.get_authorization(authorization_id).status == "approved"
 
 
 @pytest.mark.parametrize("failure_site", ("collector", "evidence"))
@@ -375,7 +387,7 @@ def test_worker_marks_post_dispatch_failures_uncertain(
             raise RuntimeError("private collector failure")
         return BoundedProcessResult(b"result", b"", 0, False, False)
 
-    monkeypatch.setattr(worker_module, "run_bounded_process", launch)
+    _sandbox(worker).run_callback = launch
     if failure_site == "evidence":
         def fail_capture(self, **kwargs):
             raise EvidenceCaptureError("private evidence failure")
@@ -450,7 +462,7 @@ def test_worker_preserves_dispatch_evidence_when_executable_cleanup_fails(
 
     prepared = SimpleNamespace(invocation_path="/proc/self/fd/7", pass_fds=(), remove=fail_remove)
     monkeypatch.setattr(worker_module, "prepare_executable", lambda *args, **kwargs: prepared)
-    monkeypatch.setattr(worker_module, "run_bounded_process", launch)
+    _sandbox(worker).run_callback = launch
 
     result = worker.execute_plan(plan, authorization=authorization_id, workspace_dir=workspace)
 
@@ -518,8 +530,7 @@ def test_worker_rejects_unsafe_nonposix_execution_before_consuming_approval(
     with pytest.raises(WorkerIsolationError, match="secure directory descriptors|ephemeral workspace"):
         worker.execute_plan(plan, authorization=authorization_id, workspace_dir=tmp_path / "workspace")
 
-    assert worker.store is not None
-    assert worker.store.get_authorization(authorization_id).status == "approved"
+    assert _approval_control(worker).store.get_authorization(authorization_id).status == "approved"
 
 
 def test_worker_reuses_workspace_with_unique_reserved_artifacts(
@@ -546,7 +557,8 @@ def test_worker_reuses_workspace_with_unique_reserved_artifacts(
         launch_count += 1
         return next(process_results)
 
-    monkeypatch.setattr(worker_module, "run_bounded_process", launch)
+    _sandbox(first_worker).run_callback = launch
+    _sandbox(second_worker).run_callback = launch
 
     first = first_worker.execute_plan(first_plan, authorization=first_authorization, workspace_dir=workspace)
     first_path = workspace / first.artifacts[0]["path"]
@@ -575,7 +587,7 @@ def test_worker_fails_before_launch_when_evidence_reservation_fails(
 
     monkeypatch.setattr(EvidenceRecorder, "reserve_step_output", fail_reservation)
     monkeypatch.setattr(worker_module, "prepare_executable", unexpected)
-    monkeypatch.setattr(worker_module, "run_bounded_process", unexpected)
+    _sandbox(worker).run_callback = unexpected
 
     result = worker.execute_plan(plan, authorization=authorization_id, workspace_dir=tmp_path / "workspace")
 
@@ -601,11 +613,7 @@ def test_worker_reports_post_redaction_artifact_truncation(tmp_path: Path, monke
             return value
 
     monkeypatch.setattr(worker_module, "prepare_executable", lambda *args, **kwargs: prepared)
-    monkeypatch.setattr(
-        worker_module,
-        "run_bounded_process",
-        lambda *args, **kwargs: BoundedProcessResult(b"x", b"", 0, False, False),
-    )
+    _sandbox(worker).result = BoundedProcessResult(b"x", b"", 0, False, False)
     monkeypatch.setattr("cops.execution.redaction.StreamRedactor", ExpandingRedactor)
 
     result = worker.execute_plan(plan, authorization=authorization_id, workspace_dir=tmp_path / "workspace")
@@ -631,7 +639,7 @@ def test_worker_counts_executable_preparation_against_step_timeout(
     def unexpected_launch(*args, **kwargs):
         raise AssertionError("operation must not launch after preparation consumes its deadline")
 
-    monkeypatch.setattr(worker_module, "run_bounded_process", unexpected_launch)
+    _sandbox(worker).run_callback = unexpected_launch
 
     result = worker.execute_plan(
         plan,
@@ -939,8 +947,7 @@ def test_worker_rejects_symlinked_workspace_parent_before_creation(tmp_path: Pat
         )
 
     assert not (outside / "new-workspace").exists()
-    assert worker.store is not None
-    assert worker.store.get_authorization(authorization_id).status == "approved"
+    assert _approval_control(worker).store.get_authorization(authorization_id).status == "approved"
 
 
 def test_worker_rejects_workspace_parent_traversal_before_creation(tmp_path: Path) -> None:
@@ -960,8 +967,7 @@ def test_worker_rejects_workspace_parent_traversal_before_creation(tmp_path: Pat
 
     assert not (tmp_path / "escaped").exists()
     assert not (outside / "escaped").exists()
-    assert worker.store is not None
-    assert worker.store.get_authorization(authorization_id).status == "approved"
+    assert _approval_control(worker).store.get_authorization(authorization_id).status == "approved"
 
 
 @pytest.mark.parametrize("invalid_execution", ([], {"sha256": 42}, {"sha256": ["0" * 64]}))

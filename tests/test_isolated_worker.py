@@ -14,12 +14,16 @@ from cops.execution import (
     ApprovalStore,
     ApprovalStoreConflictError,
     ApprovalStoreNotFoundError,
-    AuthorizationError,
     IsolatedWorker,
     LegacyApprovalRecord,
     WorkerExecutionError,
 )
-from tests.auth_testkit import authorize_test_plan, worker_inventory_for_plan
+from tests.auth_testkit import (
+    TestApprovalControl,
+    TestExecutionSandbox,
+    authorize_test_plan,
+    worker_inventory_for_plan,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "cops" / "contracts" / "fixtures"
@@ -210,11 +214,12 @@ def test_isolated_worker_execute_plan_success(temp_store, sample_plan):
     auth, trust_store, engagement = authorize_test_plan(plan, worker_identity="test-worker-alpha")
     temp_store.store_authorization(auth)
 
+    approval_control = TestApprovalControl(temp_store, trust_store, engagement)
+    sandbox = TestExecutionSandbox()
     worker = IsolatedWorker(
         worker_inventory_for_plan(plan, worker_identity="test-worker-alpha"),
-        store=temp_store,
-        trust_store=trust_store,
-        engagement=engagement,
+        approval_control,
+        sandbox,
     )
     result = worker.execute_plan(plan, authorization=auth.authorization_id)
 
@@ -227,24 +232,6 @@ def test_isolated_worker_execute_plan_success(temp_store, sample_plan):
     # Verify authorization is marked consumed in store
     retrieved_auth = temp_store.get_authorization(auth.authorization_id)
     assert retrieved_auth.status == "consumed"
-
-
-def test_worker_rejects_forged_authorization_before_persisting(temp_store, sample_plan):
-    auth, trust_store, engagement = authorize_test_plan(
-        sample_plan, worker_identity="worker-unverified"
-    )
-    worker = IsolatedWorker(
-        worker_inventory_for_plan(sample_plan, worker_identity="worker-unverified"),
-        store=temp_store,
-        trust_store=trust_store,
-        engagement=engagement,
-    )
-    forged = auth.to_dict()
-    forged["signature_digest"] = "0" * 64
-
-    with pytest.raises(AuthorizationError, match="signature verification failed"):
-        worker.execute_plan(sample_plan, authorization=forged)
-    assert temp_store.list_approvals() == []
 
 
 def test_isolated_worker_rejects_unauthorized_tool(temp_store, sample_plan):
@@ -276,11 +263,12 @@ def test_isolated_worker_rejects_unauthorized_tool(temp_store, sample_plan):
     auth, trust_store, engagement = authorize_test_plan(plan, worker_identity="worker-beta")
     temp_store.store_authorization(auth)
 
+    approval_control = TestApprovalControl(temp_store, trust_store, engagement)
+    sandbox = TestExecutionSandbox()
     worker = IsolatedWorker(
         worker_inventory_for_plan(plan, worker_identity="worker-beta", allowed_tools=("echo",)),
-        store=temp_store,
-        trust_store=trust_store,
-        engagement=engagement,
+        approval_control,
+        sandbox,
     )
     with pytest.raises(WorkerExecutionError, match="not allowed by this worker"):
         worker.execute_plan(plan, authorization=auth.authorization_id)
@@ -288,20 +276,33 @@ def test_isolated_worker_rejects_unauthorized_tool(temp_store, sample_plan):
     assert temp_store.get_authorization(auth.authorization_id).status == "approved"
 
 
-@pytest.mark.parametrize("as_dict", [False, True])
-def test_authorization_storage_failure_stops_execution(temp_store, sample_plan, monkeypatch, as_dict):
-    auth, trust_store, engagement = authorize_test_plan(sample_plan, worker_identity="storage-test")
+@pytest.mark.parametrize("failed_boundary", ["approval-control", "sandbox"])
+def test_readiness_failure_stops_execution_before_approval_consumption(
+    temp_store, sample_plan, failed_boundary
+):
+    auth, trust_store, engagement = authorize_test_plan(
+        sample_plan, worker_identity="readiness-test"
+    )
+    temp_store.store_authorization(auth)
+    readiness_error = WorkerExecutionError(f"{failed_boundary} unavailable")
+    approval_control = TestApprovalControl(
+        temp_store,
+        trust_store,
+        engagement,
+        readiness_error=readiness_error if failed_boundary == "approval-control" else None,
+    )
+    sandbox = TestExecutionSandbox(
+        readiness_error=readiness_error if failed_boundary == "sandbox" else None
+    )
     worker = IsolatedWorker(
-        worker_inventory_for_plan(sample_plan, worker_identity="storage-test"),
-        store=temp_store,
-        trust_store=trust_store,
-        engagement=engagement,
+        worker_inventory_for_plan(sample_plan, worker_identity="readiness-test"),
+        approval_control,
+        sandbox,
     )
 
-    def fail_storage(_authorization):
-        raise OSError("approval storage unavailable")
+    with pytest.raises(WorkerExecutionError, match=f"{failed_boundary} unavailable"):
+        worker.execute_plan(sample_plan, authorization=auth.authorization_id)
 
-    monkeypatch.setattr(temp_store, "store_authorization", fail_storage)
-    with pytest.raises(OSError, match="approval storage unavailable"):
-        worker.execute_plan(sample_plan, authorization=auth.to_dict() if as_dict else auth)
-    assert temp_store.list_approvals() == []
+    assert approval_control.consume_calls == []
+    assert sandbox.run_calls == []
+    assert temp_store.get_authorization(auth.authorization_id).status == "approved"

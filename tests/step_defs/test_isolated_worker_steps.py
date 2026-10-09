@@ -27,15 +27,20 @@ from cops.execution import (
     IsolatedWorker,
     WorkerExecutionError,
 )
-from cops.execution.process import BoundedProcessResult
 from cops.execution.control import (
     REQUEST_SCHEMA,
     RESPONSE_SCHEMA,
     ApprovalAuthority,
     ApprovalControlError,
 )
+from cops.execution.process import BoundedProcessResult
 from cops.execution.ssh_transport import SSHTransportError
-from tests.auth_testkit import authorize_test_plan, worker_inventory_for_plan
+from tests.auth_testkit import (
+    TestApprovalControl,
+    TestExecutionSandbox,
+    authorize_test_plan,
+    worker_inventory_for_plan,
+)
 from tests.ssh_transport_testkit import make_transport
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -248,11 +253,16 @@ def register_auth(worker_context):
 
 @when("the isolated worker executes the authorized plan")
 def execute_plan(worker_context):
+    approval_control = TestApprovalControl(
+        worker_context["store"],
+        worker_context["trust_store"],
+        worker_context["engagement"],
+    )
+    sandbox = TestExecutionSandbox()
     worker = IsolatedWorker(
         worker_inventory_for_plan(worker_context["plan"], worker_identity="test-worker-01"),
-        store=worker_context["store"],
-        trust_store=worker_context["trust_store"],
-        engagement=worker_context["engagement"],
+        approval_control,
+        sandbox,
     )
     result = worker.execute_plan(
         worker_context["plan"],
@@ -275,6 +285,54 @@ def verify_store_status(worker_context, expected_status):
 @then("the ephemeral workspace directory is cleaned up")
 def verify_cleanup(worker_context):
     assert worker_context["result"].cleanup_status == "completed"
+
+
+@given("a compatible approved action plan")
+def compatible_approved_plan(worker_context):
+    load_plan_and_auth(worker_context)
+    worker_context["store"].store_authorization(worker_context["auth"])
+
+
+@given("a worker host missing a required process sandbox control")
+def worker_missing_required_sandbox_control(worker_context):
+    approval_control = TestApprovalControl(
+        worker_context["store"],
+        worker_context["trust_store"],
+        worker_context["engagement"],
+    )
+    sandbox = TestExecutionSandbox(
+        readiness_error=WorkerExecutionError("required process sandbox control unavailable")
+    )
+    worker_context["approval_control"] = approval_control
+    worker_context["sandbox"] = sandbox
+    worker_context["worker"] = IsolatedWorker(
+        worker_inventory_for_plan(worker_context["plan"], worker_identity="test-worker-01"),
+        approval_control,
+        sandbox,
+    )
+
+
+@when("the worker checks readiness before execution")
+def worker_checks_readiness(worker_context):
+    with pytest.raises(WorkerExecutionError) as error:
+        worker_context["worker"].execute_plan(
+            worker_context["plan"],
+            authorization=worker_context["auth"].authorization_id,
+        )
+    worker_context["readiness_error"] = error.value
+
+
+@then("the worker rejects dispatch without consuming the approval")
+def worker_rejects_without_consuming(worker_context):
+    assert "required process sandbox control unavailable" in str(
+        worker_context["readiness_error"]
+    )
+    assert worker_context["approval_control"].consume_calls == []
+    assert worker_context["sandbox"].run_calls == []
+    stored = worker_context["store"].get_authorization(
+        worker_context["auth"].authorization_id
+    )
+    assert stored.status == "approved"
 
 
 @given("an approved authorization envelope in the approval store")
@@ -366,9 +424,8 @@ def plan_unapproved_tool(worker_context, unapproved_tool):
             worker_identity="worker-strict",
             allowed_tools=(worker_context["allowed_tool"],),
         ),
-        store=worker_context["store"],
-        trust_store=trust_store,
-        engagement=engagement,
+        TestApprovalControl(worker_context["store"], trust_store, engagement),
+        TestExecutionSandbox(),
     )
 
 
@@ -452,11 +509,12 @@ def authorized_fake_adapter_plan(worker_context):
     )
     worker_context["fake_plan"] = plan
     worker_context["fake_authorization"] = authorization.authorization_id
+    sandbox = TestExecutionSandbox()
+    worker_context["fake_sandbox"] = sandbox
     worker_context["fake_worker"] = IsolatedWorker(
         worker_inventory_for_plan(plan, worker_identity="test-worker-01"),
-        store=worker_context["store"],
-        trust_store=trust_store,
-        engagement=engagement,
+        TestApprovalControl(worker_context["store"], trust_store, engagement),
+        sandbox,
         adapter_registry=registry,
     )
 
@@ -476,11 +534,7 @@ def fake_adapter_reports(worker_context, monkeypatch, outcome):
     )
     monkeypatch.setattr(worker_module, "verify_executable_launch_support", lambda: None)
     monkeypatch.setattr(worker_module, "prepare_executable", lambda *args, **kwargs: prepared)
-    monkeypatch.setattr(
-        worker_module,
-        "run_bounded_process",
-        lambda *args, **kwargs: outcomes[outcome],
-    )
+    worker_context["fake_sandbox"].result = outcomes[outcome]
     worker_context["result"] = worker_context["fake_worker"].execute_plan(
         worker_context["fake_plan"],
         authorization=worker_context["fake_authorization"],

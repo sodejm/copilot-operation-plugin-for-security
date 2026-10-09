@@ -294,7 +294,7 @@ def test_worker_inventory_provisions_exact_trusted_capabilities(tmp_path):
     assert config.platform_capabilities == ("linux",)
 
 
-def test_worker_accepts_inventory_not_caller_supplied_config(tmp_path, trust_store, engagement):
+def test_worker_accepts_inventory_not_caller_supplied_config(tmp_path):
     inventory = WorkerCapabilityInventory.from_file(_write_inventory(tmp_path))
     config = WorkerConfig.from_inventory(inventory)
     with pytest.raises(TypeError):
@@ -302,8 +302,8 @@ def test_worker_accepts_inventory_not_caller_supplied_config(tmp_path, trust_sto
     with pytest.raises(WorkerIsolationError, match="inventory"):
         IsolatedWorker(
             config,
-            trust_store=trust_store,
-            engagement=engagement,
+            object(),
+            object(),
         )
     unverified = WorkerCapabilityInventory(
         schema_version=WorkerCapabilityInventory.SCHEMA_VERSION,
@@ -316,8 +316,8 @@ def test_worker_accepts_inventory_not_caller_supplied_config(tmp_path, trust_sto
     with pytest.raises(WorkerIsolationError, match="verified"):
         IsolatedWorker(
             unverified,
-            trust_store=trust_store,
-            engagement=engagement,
+            object(),
+            object(),
         )
 
 
