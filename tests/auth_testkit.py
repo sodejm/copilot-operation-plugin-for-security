@@ -95,9 +95,10 @@ class TestApprovalControl:
         self._issued_receipts[id(receipt)] = receipt
         return receipt
 
-    def validate_receipt_provenance(self, receipt: ApprovalConsumptionReceipt) -> None:
+    def validate_receipt_provenance(self, receipt: ApprovalConsumptionReceipt) -> ApprovalConsumptionReceipt:
         if self._issued_receipts.get(id(receipt)) is not receipt:
             raise ApprovalControlError("approval receipt was not issued by this control client")
+        return receipt
 
 
 class TestExecutionSandbox:

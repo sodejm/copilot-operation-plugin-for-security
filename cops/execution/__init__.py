@@ -20,6 +20,14 @@ from .cleanup import (
     SideEffect,
     SideEffectLedger,
 )
+from .credentials import (
+    ApprovalConsumptionReceiptView,
+    ApprovalReceiptAuthority,
+    CredentialGrant,
+    CredentialProvider,
+    CredentialResolutionError,
+    ScopedCredentialResolver,
+)
 from .egress import (
     BROKER_FD_ENV,
     BROKER_PROTOCOL,
@@ -37,7 +45,10 @@ from .egress import (
     ResolvedEndpoint,
 )
 from .evidence import (
+    ArtifactReservation,
     CapturedArtifact,
+    EvidenceCaptureError,
+    EvidenceContext,
     EvidenceRecorder,
     StepTelemetry,
 )
@@ -90,11 +101,14 @@ __all__ = [
     "ApprovalStoreConflictError",
     "ApprovalStoreError",
     "ApprovalStoreNotFoundError",
+    "ApprovalConsumptionReceiptView",
+    "ApprovalReceiptAuthority",
     "AuthorizationDeniedError",
     "AuthorizationError",
     "AuthorizationRequiredError",
     "AuthorizationSigner",
     "AuthorizationTrustStore",
+    "ArtifactReservation",
     "AuthenticatedResourceScopeError",
     "AuthenticatedServiceAllowlist",
     "AuthenticatedServiceIdentity",
@@ -106,6 +120,11 @@ __all__ = [
     "CleanupManager",
     "CleanupOwnershipError",
     "CleanupPreconditionError",
+    "CredentialGrant",
+    "CredentialProvider",
+    "CredentialResolutionError",
+    "EvidenceCaptureError",
+    "EvidenceContext",
     "EvidenceRecorder",
     "DirectTLSConnector",
     "EgressMediationError",
@@ -136,6 +155,7 @@ __all__ = [
     "SSHRemoteTransport",
     "SSHTransportError",
     "SSHTransportLimits",
+    "ScopedCredentialResolver",
     "StepTelemetry",
     "StreamRedactor",
     "TrustedAuthorizationKey",

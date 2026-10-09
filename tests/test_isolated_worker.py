@@ -41,7 +41,20 @@ def temp_store(tmp_path):
 @pytest.fixture
 def sample_plan() -> ActionPlan:
     data = json.loads((FIXTURES / "valid_action_plan.json").read_text(encoding="utf-8"))
-    return ActionPlan.from_dict(data)
+    return ActionPlan.create(
+        plan_id=data["plan_id"],
+        engagement_id=data["engagement_id"],
+        scenario_id=data["scenario_id"],
+        target=data["target"],
+        specialist_id=data["specialist_id"],
+        operations=data["operations"],
+        limits=data["limits"],
+        credential_references=[],
+        created_at=data["created_at"],
+        status=data["status"],
+        platform_prerequisites=data["platform_prerequisites"],
+        batch=data["batch"],
+    )
 
 
 def test_approval_store_roundtrip(temp_store, sample_plan):
@@ -229,8 +242,10 @@ def test_isolated_worker_execute_plan_success(temp_store, sample_plan):
     assert result.is_successful()
     assert result.status == "success"
     assert result.cleanup_status == "completed"
-    assert len(result.artifacts) == 1
-    assert "step-1" in result.artifacts[0]["name"]
+    assert {artifact["name"] for artifact in result.artifacts} == {
+        "step-1_output.txt",
+        "step-1_evidence.json",
+    }
 
     # Verify authorization is marked consumed in store
     retrieved_auth = temp_store.get_authorization(auth.authorization_id)

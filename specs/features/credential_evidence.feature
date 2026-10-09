@@ -19,3 +19,28 @@ Feature: Credential Masking and Evidence Capture
     And the artifact contains "[REDACTED:GITHUB_TOKEN]"
     And at least one evidence hash is generated
     And the synthetic credential is absent from the artifact
+
+  Scenario: Rejecting a credential grant bound to another worker
+    Given an authority-issued consumption receipt for worker "worker-bdd"
+    And a credential grant bound to worker "other-worker"
+    When worker "worker-bdd" requests the approved operation credential
+    Then credential resolution is rejected before provider access
+
+  Scenario: Treating prompt injection as untrusted evidence data
+    Given an evidence recorder configured with known secret "ClientProdSecret2026!"
+    When recording adversarial output containing the known secret
+    Then the serialized evidence excludes the known secret
+    And the evidence classifies output as untrusted data only
+    And the evidence includes exact operation provenance
+
+  Scenario: Blocking persistence when evidence redaction fails
+    Given an evidence recorder whose redactor fails
+    When recording output with the failing redactor
+    Then no evidence record or artifact is persisted
+
+  Scenario: Recording the enforced evidence lifecycle without claiming encryption
+    Given an evidence recorder with a temporary workspace
+    When recording execution output "safe redacted output" for step "step-lifecycle"
+    Then raw evidence is memory-only and prohibited from persistence
+    And redacted evidence uses owner-only workspace permissions
+    And evidence lifecycle requires owner-managed retention and does not claim encryption

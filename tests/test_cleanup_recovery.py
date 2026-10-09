@@ -46,7 +46,20 @@ def sample_plan():
     if not (fixtures_dir / "valid_action_plan.json").is_file():
         fixtures_dir = Path(__file__).resolve().parents[1] / "cops" / "contracts" / "fixtures"
     data = json.loads((fixtures_dir / "valid_action_plan.json").read_text(encoding="utf-8"))
-    return ActionPlan.from_dict(data)
+    return ActionPlan.create(
+        plan_id=data["plan_id"],
+        engagement_id=data["engagement_id"],
+        scenario_id=data["scenario_id"],
+        target=data["target"],
+        specialist_id=data["specialist_id"],
+        operations=data["operations"],
+        limits=data["limits"],
+        credential_references=[],
+        created_at=data["created_at"],
+        status=data["status"],
+        platform_prerequisites=data["platform_prerequisites"],
+        batch=data["batch"],
+    )
 
 
 def test_side_effect_ledger_and_cleanup_manager(temp_workspace):

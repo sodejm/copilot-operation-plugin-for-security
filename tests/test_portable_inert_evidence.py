@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from cops.execution.evidence import EvidenceCaptureError, EvidenceRecorder
+from cops.execution.evidence import EvidenceCaptureError, EvidenceCleanupError, EvidenceRecorder
 
 
 def _record(recorder: EvidenceRecorder, *, reservation=None, tool: str = "inert"):
@@ -73,7 +73,7 @@ def test_portable_inert_rejects_replaced_reservation_without_deleting_replacemen
     reserved_path.write_bytes(b"replacement")
     reserved_path.chmod(0o600)
 
-    with pytest.raises(EvidenceCaptureError, match="reservation identity changed"):
+    with pytest.raises(EvidenceCleanupError, match="residual artifact may remain"):
         _record(recorder, reservation=reservation)
 
     assert reserved_path.read_bytes() == b"replacement"
