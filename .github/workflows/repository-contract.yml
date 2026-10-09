@@ -78,8 +78,11 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-      - name: Install test dependencies
-        run: python3 -m pip install -r requirements.txt
+      - name: Install Linux isolation runtime and test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes bubblewrap
+          python3 -m pip install -r requirements.txt
       - name: Validate repository and plugin
         run: make check PYTHON=python3
 
