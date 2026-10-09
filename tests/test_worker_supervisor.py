@@ -107,9 +107,11 @@ def test_supervisor_response_deadline_starts_after_worker_execution(tmp_path, mo
             super().serve_one(input_stream, output_stream)
             current_time[0] = 60.0
 
-    supervisor.serve_connection(connection, config, SlowReceiver())
+    attestor = _Attestor()
+    supervisor.serve_connection(connection, config, SlowReceiver(), attestor)
 
-    assert connection.sent == b'{"ok":true}\n'
+    assert connection.sent == b'{"signed":true}\n'
+    assert attestor.exchanges == [(b"{}\n", b'{"ok":true}\n')]
     assert connection.timeouts[-1] == 30.0
 
 

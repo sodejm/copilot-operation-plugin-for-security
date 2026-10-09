@@ -683,6 +683,16 @@ def _terminate_process_group(process: subprocess.Popen[bytes], process_group_id:
         os.killpg(process_group_id, signal.SIGKILL)
     except ProcessLookupError:
         pass
+    except PermissionError:
+        # A leader can exit while descendants remain in its process group.
+        # Ignore the race only when the entire group is confirmed absent.
+        if process.poll() is None:
+            raise
+        try:
+            os.killpg(process_group_id, 0)
+        except ProcessLookupError:
+            return
+        raise
 
 
 def _run_exchange(

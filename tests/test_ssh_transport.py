@@ -206,6 +206,42 @@ def test_transport_bounds_each_output_stream(tmp_path: Path, mode: str, message:
     assert "secret" not in str(raised.value)
 
 
+@pytest.mark.parametrize(
+    ("leader_exited", "group_probe", "should_raise"),
+    [
+        (False, "gone", True),
+        (True, "gone", False),
+        (True, "present", True),
+        (True, "inaccessible", True),
+    ],
+)
+def test_terminate_process_group_only_ignores_permission_race_when_group_is_gone(
+    monkeypatch: pytest.MonkeyPatch,
+    leader_exited: bool,
+    group_probe: str,
+    should_raise: bool,
+) -> None:
+    class Process:
+        def poll(self) -> int | None:
+            return 0 if leader_exited else None
+
+    def deny_kill(_group: int, requested_signal: int) -> None:
+        if requested_signal == 0:
+            if group_probe == "gone":
+                raise ProcessLookupError("process group is gone")
+            if group_probe == "inaccessible":
+                raise PermissionError("process group is inaccessible")
+            return
+        raise PermissionError("process group could not be terminated")
+
+    monkeypatch.setattr(ssh_transport_module.os, "killpg", deny_kill)
+    if should_raise:
+        with pytest.raises(PermissionError):
+            ssh_transport_module._terminate_process_group(Process(), 123)
+    else:
+        ssh_transport_module._terminate_process_group(Process(), 123)
+
+
 def test_transport_enforces_total_timeout_and_suppresses_partial_output(tmp_path: Path) -> None:
     transport, _, _ = make_transport(
         tmp_path,
