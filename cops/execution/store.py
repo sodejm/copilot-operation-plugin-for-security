@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import stat
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -108,9 +109,11 @@ class ApprovalStore:
     """Concurrency-safe, ACID-compliant approval state store backed by SQLite."""
 
     def __init__(self, db_path: Path | str, *, require_secure_perms: bool = True) -> None:
-        self.db_path = Path(db_path).expanduser().resolve()
+        source = Path(db_path).expanduser()
+        self.db_path = source if source.is_absolute() else Path.cwd() / source
         self.require_secure_perms = require_secure_perms
         self._ensure_storage_security()
+        self._prepare_database_file()
         self._init_db()
 
     def _ensure_storage_security(self) -> None:
@@ -128,28 +131,85 @@ class ApprovalStore:
                     except OSError:
                         pass
 
-                # Check parent dir permissions
-                p_stat = parent_dir.stat()
-                if p_stat.st_mode & 0o077:
+                # Never follow an attacker-controlled store directory or database.
+                p_stat = os.lstat(parent_dir)
+                if not stat.S_ISDIR(p_stat.st_mode):
+                    raise ApprovalStoreAccessError(
+                        f"approval store directory '{parent_dir}' is not a directory"
+                    )
+                if p_stat.st_uid != os.geteuid():
+                    raise ApprovalStoreAccessError(
+                        f"approval store directory '{parent_dir}' is not owned by the current account"
+                    )
+                if stat.S_IMODE(p_stat.st_mode) != 0o700:
                     # Reject insecure pre-existing directory rather than chmoding arbitrary caller directory
                     raise ApprovalStoreAccessError(
-                        f"approval store directory '{parent_dir}' has insecure permissions {oct(p_stat.st_mode & 0o777)}: "
+                        f"approval store directory '{parent_dir}' has insecure permissions {oct(stat.S_IMODE(p_stat.st_mode))}: "
                         "must be owner-only (0700); use a private directory"
                     )
 
-                # If file exists, ensure owner-only (0600)
-                if self.db_path.exists():
-                    try:
-                        self.db_path.chmod(0o600)
-                    except OSError:
-                        pass
-                    if self.db_path.stat().st_mode & 0o077:
+                if os.path.lexists(self.db_path):
+                    db_stat = os.lstat(self.db_path)
+                    if not stat.S_ISREG(db_stat.st_mode):
+                        raise ApprovalStoreAccessError(
+                            f"approval store database file '{self.db_path}' is not a regular file"
+                        )
+                    if db_stat.st_uid != os.geteuid():
+                        raise ApprovalStoreAccessError(
+                            f"approval store database file '{self.db_path}' is not owned by the current account"
+                        )
+                    if stat.S_IMODE(db_stat.st_mode) != 0o600:
                         raise ApprovalStoreAccessError(
                             f"approval store database file '{self.db_path}' has insecure permissions: "
-                            f"{oct(self.db_path.stat().st_mode & 0o777)}"
+                            f"{oct(stat.S_IMODE(db_stat.st_mode))}; expected 0o600"
                         )
             except OSError as err:
                 raise ApprovalStoreAccessError(f"failed to secure approval store permissions: {err}") from err
+
+    def _prepare_database_file(self) -> None:
+        """Create a new database at 0600 without repairing an existing file."""
+        if os.name != "posix" or not self.require_secure_perms or os.path.lexists(self.db_path):
+            return
+        flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        try:
+            fd = os.open(self.db_path, flags, 0o600)
+        except FileExistsError:
+            # A concurrent replacement must pass the same strict checks.
+            self._ensure_storage_security()
+            return
+        except OSError as err:
+            raise ApprovalStoreAccessError(f"failed to create protected approval store: {err}") from err
+        else:
+            os.close(fd)
+
+    def assert_protected_owner(self, expected_uid: int) -> None:
+        """Fail closed unless the database and all SQLite files are authority-owned."""
+        if os.name != "posix" or not self.require_secure_perms:
+            raise ApprovalStoreAccessError("protected approval storage requires POSIX permission checks")
+        expected = (
+            (self.db_path.parent, stat.S_IFDIR, 0o700, "directory"),
+            (self.db_path, stat.S_IFREG, 0o600, "database"),
+            (Path(f"{self.db_path}-wal"), stat.S_IFREG, 0o600, "WAL sidecar"),
+            (Path(f"{self.db_path}-shm"), stat.S_IFREG, 0o600, "shared-memory sidecar"),
+        )
+        for path, file_type, required_mode, label in expected:
+            if label.endswith("sidecar") and not os.path.lexists(path):
+                continue
+            try:
+                file_stat = os.lstat(path)
+            except OSError as err:
+                raise ApprovalStoreAccessError(f"approval store {label} is unavailable: {err}") from err
+            if stat.S_IFMT(file_stat.st_mode) != file_type:
+                raise ApprovalStoreAccessError(f"approval store {label} must not be a link or special file")
+            if file_stat.st_uid != expected_uid:
+                raise ApprovalStoreAccessError(f"approval store {label} is not owned by the authority UID")
+            actual_mode = stat.S_IMODE(file_stat.st_mode)
+            if actual_mode != required_mode:
+                raise ApprovalStoreAccessError(
+                    f"approval store {label} permissions are {oct(actual_mode)}; expected {oct(required_mode)}"
+                )
 
     def _get_connection(self) -> sqlite3.Connection:
         conn = sqlite3.connect(
@@ -188,16 +248,8 @@ class ApprovalStore:
             except Exception:
                 conn.execute("ROLLBACK")
                 raise
-        if os.name == "posix" and self.require_secure_perms and self.db_path.exists():
-            try:
-                self.db_path.chmod(0o600)
-                if self.db_path.stat().st_mode & 0o077:
-                    raise ApprovalStoreAccessError(
-                        f"approval store database file '{self.db_path}' has insecure permissions: "
-                        f"{oct(self.db_path.stat().st_mode & 0o777)}"
-                    )
-            except OSError as err:
-                raise ApprovalStoreAccessError(f"failed to secure approval store permissions: {err}") from err
+        if os.name == "posix" and self.require_secure_perms:
+            self.assert_protected_owner(os.geteuid())
 
     def store_authorization(self, auth: ExecutionAuthorization) -> None:
         """Store a newly signed execution authorization."""

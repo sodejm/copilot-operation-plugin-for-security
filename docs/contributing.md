@@ -39,10 +39,15 @@ Changes to Action Plans, execution authorizations, trust stores, approval storag
   explicit partial outcomes, and evidence writes reject symlinks and workspace
   escapes;
 - compatibility failures happen before authority is consumed;
+- the approval authority alone holds verifier trust and the protected approval store;
+  the worker submits only an authorization identifier and exact plan through a
+  peer-credential-checked local control channel;
+- SSH requests bind a pinned host key and exact host and worker identities, and
+  required Linux process-isolation controls fail closed before consumption;
 - consumption is atomic and replay fails closed; and
 - migrated unsigned or digest-only rows remain `legacy-untrusted`.
 
-Add focused acceptance tests for tampering, unknown/revoked/expired keys, operator and worker mismatches, replay, migration, inventory ownership and permissions, and exact tool/platform compatibility. Update the [Authenticated Execution Guide](AUTHENTICATED_EXECUTION.md), Security Model, compatibility/migration guidance, and affected plugin operator docs when an interface or trust assumption changes. Never add live secrets, private paths, or realistic credential material to fixtures or evidence.
+Add focused acceptance tests for tampering, unknown/revoked/expired keys, operator and worker mismatches, replay, migration, inventory ownership and permissions, exact tool/platform compatibility, authority peer credentials, SSH identity binding, and sandbox readiness. Update the [Authenticated Execution Guide](AUTHENTICATED_EXECUTION.md), Security Model, compatibility/migration guidance, and affected plugin operator docs when an interface or trust assumption changes. Never add live secrets, private paths, or realistic credential material to fixtures or evidence.
 
 ---
 

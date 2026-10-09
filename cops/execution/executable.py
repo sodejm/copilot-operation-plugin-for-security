@@ -9,14 +9,16 @@ import shutil
 import stat
 import sys
 import uuid
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from time import monotonic
 
 from cops.adapters import ToolAdapter
 
-from .process import run_bounded_process
+from .process import BoundedProcessResult, run_bounded_process
+
+ProcessRunner = Callable[..., BoundedProcessResult]
 
 
 class ExecutableVerificationError(RuntimeError):
@@ -167,6 +169,7 @@ def prepare_executable(
     env: Mapping[str, str],
     timeout_seconds: float,
     deadline: float | None = None,
+    process_runner: ProcessRunner = run_bounded_process,
 ) -> PreparedExecutable:
     """Open, stage, digest, version-check, and return an adapter executable.
 
@@ -285,7 +288,7 @@ def prepare_executable(
         if remaining_time <= 0:
             raise ExecutablePreparationTimeoutError("adapter executable preparation exceeded the step timeout")
         try:
-            version_result = run_bounded_process(
+            version_result = process_runner(
                 [f"/proc/self/fd/{executable_fd}", *verification.version_args],
                 cwd=workspace,
                 env=env,

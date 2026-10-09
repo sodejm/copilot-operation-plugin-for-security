@@ -62,11 +62,14 @@ adoption. See the [SDK specification](../specs/shared-evidence-sdk.spec.md) and
 ## Authenticated execution boundary
 
 High-consequence execution requires an authorization signed over the complete
-immutable Action Plan snapshot and the expected worker identity. The worker verifies
-that authorization through an independently supplied trust store and active
-Engagement, checks the plan against an owner-provisioned
-`cops.worker-capability-inventory/v1` measurement artifact, and atomically consumes
-the authorization before dispatch. The inventory records worker identity, exact tool
+immutable Action Plan snapshot and the expected worker identity. A separate approval
+authority holds verifier trust, the active Engagement, and the protected approval
+store. The worker presents only the authorization identifier and exact plan through a
+local control channel bound to its process credentials and worker identity. The
+worker checks the plan against an owner-provisioned
+`cops.worker-capability-inventory/v1` measurement artifact, checks Linux sandbox
+readiness, and asks the authority to verify and atomically consume the authorization
+before dispatch. The inventory records worker identity, exact tool
 versions, platform capabilities, measurement time, and measurement source. It is a
 trusted provisioning input; COPS does not populate it through runtime host discovery.
 For each external adapter launch, the worker separately verifies an
@@ -81,10 +84,14 @@ non-following write, and reports post-redaction truncation as a partial result.
 HMAC authenticates membership in the shared-key verifier channel and does not provide
 non-repudiation because every key holder can mint an authorization. Existing unsigned
 or digest-only approval rows migrate to `legacy-untrusted` and cannot execute.
-Operating-system and process transport isolation (issue #185) and live network egress
-mediation (issue #186) remain deployment controls outside this authorization proof.
-The worker must run under a dedicated UID because a hostile same-UID process can
-still modify a staged inode or interfere with held descriptors.
+Remote requests use bounded, versioned JSON over SSH with a pinned host key and exact
+host and worker identities. The Linux worker requires process sandbox controls for
+namespaces, file descriptors, environment, privileges, resources, and output; absent
+controls fail closed before approval consumption. Deployments must still provision
+separate accounts and protected local paths and verify those host controls in place.
+Live network destination and authenticated-resource mediation (issue #186) remain
+outside this boundary. The worker must run under a dedicated UID because a hostile
+same-UID process can still interfere with worker-owned state.
 
 Remote isolated-worker calls use `cops.remote-worker/v1`: one bounded JSON request
 and response over an absolute OpenSSH client configured with one privately staged,

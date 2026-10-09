@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import os
+import ctypes
+import math
+import resource
 import selectors
 import signal
 import subprocess
@@ -23,6 +26,46 @@ class BoundedProcessResult:
     @property
     def captured_bytes(self) -> int:
         return len(self.stdout) + len(self.stderr)
+
+
+@dataclass(frozen=True)
+class ProcessResourceLimits:
+    """Kernel-enforced limits applied before an untrusted tool starts."""
+
+    address_space_bytes: int
+    process_count: int
+    cpu_seconds: float
+    file_size_bytes: int
+    open_files: int = 64
+
+    def __post_init__(self) -> None:
+        if min(
+            self.address_space_bytes,
+            self.process_count,
+            self.cpu_seconds,
+            self.file_size_bytes,
+            self.open_files,
+        ) <= 0:
+            raise ValueError("process resource limits must be positive")
+
+
+def _resource_preexec(limits: ProcessResourceLimits) -> None:
+    """Install non-bypassable Linux limits in the child before exec."""
+
+    def lower(which: int, value: int) -> None:
+        _, hard = resource.getrlimit(which)
+        bounded = value if hard == resource.RLIM_INFINITY else min(value, hard)
+        resource.setrlimit(which, (bounded, bounded))
+
+    lower(resource.RLIMIT_AS, limits.address_space_bytes)
+    lower(resource.RLIMIT_NPROC, limits.process_count)
+    lower(resource.RLIMIT_CPU, max(1, math.ceil(limits.cpu_seconds)))
+    lower(resource.RLIMIT_FSIZE, limits.file_size_bytes)
+    lower(resource.RLIMIT_NOFILE, limits.open_files)
+    resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+    libc = ctypes.CDLL(None, use_errno=True)
+    if libc.prctl(38, 1, 0, 0, 0) != 0:  # PR_SET_NO_NEW_PRIVS
+        raise OSError(ctypes.get_errno(), "prctl(PR_SET_NO_NEW_PRIVS) failed")
 
 
 def _terminate_process_group(process: subprocess.Popen[bytes], process_group_id: int) -> None:
@@ -49,6 +92,7 @@ def run_bounded_process(
     timeout_seconds: float,
     max_output_bytes: int,
     pass_fds: tuple[int, ...] = (),
+    resource_limits: ProcessResourceLimits | None = None,
 ) -> BoundedProcessResult:
     """Run ``command`` while bounding retained stdout and stderr bytes.
 
@@ -62,6 +106,8 @@ def run_bounded_process(
         raise RuntimeError("bounded executable collection requires POSIX process-group support")
     if max_output_bytes < 0:
         raise ValueError("max_output_bytes must be non-negative")
+    if resource_limits is not None and not __import__("sys").platform.startswith("linux"):
+        raise RuntimeError("kernel resource enforcement is supported only on Linux")
 
     process = subprocess.Popen(
         list(command),
@@ -71,6 +117,7 @@ def run_bounded_process(
         stderr=subprocess.PIPE,
         start_new_session=True,
         pass_fds=pass_fds,
+        preexec_fn=(lambda: _resource_preexec(resource_limits)) if resource_limits is not None else None,
     )
     assert process.stdout is not None
     assert process.stderr is not None

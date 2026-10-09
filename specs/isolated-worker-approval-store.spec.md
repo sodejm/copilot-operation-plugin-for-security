@@ -4,22 +4,23 @@
 COPS Isolated Execution Worker and Approval State Store (`[E02.02]`)
 
 ## Overview
-Defines fail-closed verifier inputs, worker capability attestation, and an
-ACID-compliant approval state store for dispatching authorized
-`cops.action-plan/v1` operations. Linux production dispatch also requires the
-operating-system isolation boundary defined below.
+Defines fail-closed verifier inputs, worker capability attestation, an
+ACID-compliant approval state store, and the process boundaries required to
+dispatch authorized `cops.action-plan/v1` operations.
 
 ## Architectural Boundaries
 
 1. **Independent Verification Inputs**:
-   - Worker execution requires an authorization trust store, the active Engagement,
-     the current Action Plan, the caller-supplied authorization, and a worker
-     capability inventory.
+   - Operator provisioning supplies a signed authorization, trust store, active
+     Engagement, and approval store to a separate approval authority. The worker
+     receives only the authorization identifier, current Action Plan, and its
+     owner-provisioned capability inventory.
    - The verifier validates the signature, full signed snapshot, key and engagement
      windows, operator identity, engagement identifier, and expected worker before
      approval registration or consumption.
    - HMAC is shared-key channel authentication: a holder of the verifier secret can
-     also mint authorizations. The worker does not claim non-repudiation.
+     also mint authorizations. The execution worker must not hold that secret or an
+     approval registration capability. The system does not claim non-repudiation.
 
 2. **Owner-Provisioned Worker Capability Attestation**:
    - `cops.worker-capability-inventory/v1` contains `worker_identity`, canonical UTC
@@ -52,7 +53,38 @@ operating-system isolation boundary defined below.
      historical status, and are returned through a separate read-only audit record
      representation; they remain non-executable.
 
-4. **Bounded Dispatch Behavior**:
+4. **Separate Approval Authority and Worker**:
+   - The approval authority owns verifier secrets, the protected store, and the
+     consume-only Unix socket. Operator provisioning runs outside the execution
+     worker and cannot be invoked by a worker request.
+   - The authority accepts only a bounded, versioned request containing an
+     authorization identifier, exact Action Plan, and expected worker identity.
+     It verifies the stored signed authorization against those values and the active
+     Engagement, then atomically consumes it. It does not accept a caller-supplied
+     authorization envelope for registration.
+   - A protected socket directory and socket permit only the designated worker
+     account to connect. Linux peer credentials must match the configured worker
+     UID, GID, and process identity; the worker verifies the authority UID. The
+     authority account and worker account must differ. Insecure store or socket
+     ownership and permissions fail closed.
+   - A timeout or malformed, oversized, mismatched, forged, or replayed request
+     cannot consume authority or block the authority indefinitely.
+
+5. **Host Transport and Process Isolation**:
+   - Remote requests use bounded versioned JSON over SSH with a pinned known-hosts
+     entry and strict host-key verification. The request and response bind the exact
+     host and worker identities; mismatches fail before execution.
+   - Production execution requires a supported Linux sandbox with isolated
+     process, filesystem, and network namespaces, a closed environment and file
+     descriptor set, resource limits, and no-new-privileges. The worker checks
+     readiness before consuming authority and refuses execution when a required
+     isolation feature or protected path is unavailable.
+   - Approval keys, store files, and authority sockets are never made available
+     inside the tool sandbox. A worker or tool process cannot provision or mint an
+     approval. Live destination and resource mediation remain a separate control
+     tracked in issue #186.
+
+6. **Bounded Dispatch Behavior**:
    - Commands use explicit argument arrays without shell interpolation.
    - External adapters require an operator-provisioned platform SHA-256 and verify
      their pinned upstream revision before operation dispatch. On Linux, the probe
@@ -74,12 +106,11 @@ operating-system isolation boundary defined below.
      size and post-redaction truncation separately from redaction. Truncation changes
      an otherwise successful result to `partial` with exit code `125`.
    - Deterministic `cops.run-result/v1` records include exit status and output hashes.
-   - These application controls do not mediate approved live network egress (#186);
-     deployments must provide that boundary independently. The deployment must also
-     isolate the worker UID because a hostile same-UID process can modify the staged
-     executable inode or manipulate held descriptors.
+   - The Linux sandbox does not mediate approved live network egress (#186).
+     Deployments must isolate the worker UID from untrusted same-UID processes
+     that could modify staged executables or held descriptors outside the sandbox.
 
-5. **Linux Production Isolation**:
+7. **Linux Production Isolation**:
    - Production adapter execution uses a fresh bubblewrap namespace as a dedicated
      non-root worker account. The sandbox exposes only the private operation
      workspace and required read-only runtime paths, clears the inherited
