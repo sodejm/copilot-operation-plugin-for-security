@@ -13,12 +13,15 @@ import base64
 import http.client
 import ipaddress
 import json
+import multiprocessing
 import socket
 import ssl
 import threading
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, fields
+from multiprocessing.connection import Connection
+from multiprocessing.process import BaseProcess
 from time import monotonic
 from types import MappingProxyType
 from typing import Protocol
@@ -260,7 +263,11 @@ class _MetadataBoundedReader:
         self._count_metadata = True
 
     def readline(self, limit: int = -1) -> bytes:
-        line = self._stream.readline(limit)  # type: ignore[attr-defined]
+        read_limit = limit
+        if self._count_metadata:
+            remaining_plus_one = self._max_metadata_bytes - self._metadata_bytes + 1
+            read_limit = remaining_plus_one if limit < 0 else min(limit, remaining_plus_one)
+        line = self._stream.readline(read_limit)  # type: ignore[attr-defined]
         if self._count_metadata:
             self._metadata_bytes += len(line)
             if self._metadata_bytes > self._max_metadata_bytes:
@@ -595,6 +602,7 @@ class HTTPSExecutionMediator:
             connection.close()
         except Exception as err:
             raise EgressMediationError("HTTPS connection cleanup failed") from err
+        _remaining_seconds(deadline)
         return response
 
     def _resolve(self, hostname: str, port: int, *, deadline: float) -> tuple[ResolvedEndpoint, ...]:
@@ -707,24 +715,95 @@ class HTTPSExecutionMediator:
         return status, tuple(checked_headers), body
 
 
+class _BrokerSupervisor:
+    """Reap one killable broker process at its absolute operation deadline."""
+
+    def __init__(
+        self,
+        *,
+        process: BaseProcess,
+        server_socket: socket.socket,
+        observation_reader: Connection,
+        mediator: HTTPSExecutionMediator,
+        deadline: float,
+    ) -> None:
+        self._process = process
+        self._server_socket = server_socket
+        self._observation_reader = observation_reader
+        self._mediator = mediator
+        self._deadline = deadline
+        self._stop = threading.Event()
+        self._lock = threading.Lock()
+        self._finalized = False
+        self._error: EgressMediationError | None = None
+        self._thread = threading.Thread(target=self._monitor, daemon=True, name="cops-egress-supervisor")
+        self._thread.start()
+
+    def close(self) -> None:
+        self._stop.set()
+        self._process.join(timeout=0.25)
+        self._finish(terminate=self._process.is_alive(), send_timeout_error=False)
+        self._thread.join(timeout=2)
+        if self._thread.is_alive():
+            raise EgressMediationError("egress broker supervisor did not terminate after adapter exit")
+        if self._error is not None:
+            raise self._error
+
+    def _monitor(self) -> None:
+        while not self._stop.is_set():
+            remaining = self._deadline - monotonic()
+            if remaining <= 0:
+                self._finish(terminate=True, send_timeout_error=True)
+                return
+            self._process.join(timeout=min(0.02, remaining))
+            if not self._process.is_alive():
+                self._finish(terminate=False, send_timeout_error=False)
+                return
+
+    def _finish(self, *, terminate: bool, send_timeout_error: bool) -> None:
+        with self._lock:
+            if self._finalized:
+                return
+            if terminate and self._process.is_alive():
+                self._process.kill()
+            self._process.join(timeout=2)
+            if self._process.is_alive():
+                self._error = EgressMediationError("egress broker process could not be reaped")
+            if send_timeout_error:
+                with suppress(BrokenPipeError, ConnectionError, OSError, TimeoutError):
+                    self._server_socket.settimeout(0.1)
+                    self._server_socket.sendall(_json_line({"ok": False, "error": "egress_denied"}))
+            self._merge_observations()
+            self._observation_reader.close()
+            self._server_socket.close()
+            self._finalized = True
+
+    def _merge_observations(self) -> None:
+        while self._observation_reader.poll():
+            try:
+                observations = self._observation_reader.recv()
+            except EOFError:
+                return
+            if isinstance(observations, tuple) and all(
+                isinstance(observation, EgressObservation) for observation in observations
+            ):
+                self._mediator.observations.extend(observations)
+
+
 @dataclass
 class BrokerChannel:
     environment: Mapping[str, str]
     pass_fds: tuple[int, ...]
     _client_socket: socket.socket
-    _server_socket: socket.socket
-    _thread: threading.Thread
+    _supervisor: _BrokerSupervisor
+    _closed: bool = False
 
     def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
         self._client_socket.close()
-        try:
-            self._server_socket.shutdown(socket.SHUT_RDWR)
-        except OSError:
-            pass
-        self._server_socket.close()
-        self._thread.join(timeout=2)
-        if self._thread.is_alive():
-            raise EgressMediationError("egress broker did not terminate after adapter exit")
+        self._supervisor.close()
 
 
 class ExecutionEgressBroker:
@@ -757,26 +836,62 @@ class ExecutionEgressBroker:
 
     @contextmanager
     def open_channel(self) -> Iterator[BrokerChannel]:
+        if "fork" not in multiprocessing.get_all_start_methods():
+            raise EgressMediationError("egress broker requires a process runtime with fork support")
+        process_context = multiprocessing.get_context("fork")
         server_socket, client_socket = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
-        thread = threading.Thread(target=self._serve, args=(server_socket,), daemon=True, name="cops-egress-broker")
-        thread.start()
+        observation_reader, observation_writer = process_context.Pipe(duplex=False)
+        deadline = monotonic() + self._protocol_timeout_seconds
+        process = process_context.Process(
+            target=self._serve_child,
+            args=(server_socket, client_socket, observation_reader, observation_writer, deadline),
+            daemon=True,
+            name="cops-egress-broker",
+        )
+        process.start()
+        observation_writer.close()
+        supervisor = _BrokerSupervisor(
+            process=process,
+            server_socket=server_socket,
+            observation_reader=observation_reader,
+            mediator=self._mediator,
+            deadline=deadline,
+        )
         channel = BrokerChannel(
             environment=MappingProxyType({BROKER_FD_ENV: str(client_socket.fileno())}),
             pass_fds=(client_socket.fileno(),),
             _client_socket=client_socket,
-            _server_socket=server_socket,
-            _thread=thread,
+            _supervisor=supervisor,
         )
         try:
             yield channel
         finally:
             channel.close()
 
-    def _serve(self, server_socket: socket.socket) -> None:
+    def _serve_child(
+        self,
+        server_socket: socket.socket,
+        client_socket: socket.socket,
+        observation_reader: Connection,
+        observation_writer: Connection,
+        deadline: float,
+    ) -> None:
+        client_socket.close()
+        observation_reader.close()
+        initial_observation_count = len(self._mediator.observations)
+        try:
+            self._serve(server_socket, deadline=deadline)
+        finally:
+            observations = tuple(self._mediator.observations[initial_observation_count:])
+            with suppress(BrokenPipeError, EOFError, OSError):
+                observation_writer.send(observations)
+            observation_writer.close()
+            server_socket.close()
+
+    def _serve(self, server_socket: socket.socket, *, deadline: float) -> None:
         request_count = 0
         total_request_bytes = 0
         total_response_bytes = 0
-        deadline = monotonic() + self._protocol_timeout_seconds
         buffer = b""
         try:
             while True:

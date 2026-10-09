@@ -27,6 +27,8 @@ from cops.execution.egress import (
     ExecutionEgressBroker,
     HTTPSExecutionMediator,
     ResolvedEndpoint,
+    ServiceIdentityVerifier,
+    _MetadataBoundedReader,
 )
 from cops.execution.scope_guard import ScopeDefinition, ScopeGuard, ScopeViolationError
 
@@ -107,6 +109,7 @@ class FakeConnection:
         response: tuple[object, object, object] = (200, (("Content-Type", "application/json"),), b"{}"),
         request_error: Exception | None = None,
         request_delay_seconds: float = 0.0,
+        close_delay_seconds: float = 0.0,
     ) -> None:
         self.peer_ip = peer_ip
         self.peer_certificate_der = b"authenticated-peer"
@@ -114,6 +117,7 @@ class FakeConnection:
         self.response = response
         self.request_error = request_error
         self.request_delay_seconds = request_delay_seconds
+        self.close_delay_seconds = close_delay_seconds
         self.requests: list[tuple[str, str, dict[str, str], int]] = []
         self.closed = False
 
@@ -135,6 +139,7 @@ class FakeConnection:
         return self.response
 
     def close(self) -> None:
+        time.sleep(self.close_delay_seconds)
         self.closed = True
 
 
@@ -164,6 +169,28 @@ class FakeConnector:
         return connection
 
 
+class HangingIdentityVerifier:
+    def verify(
+        self,
+        *,
+        hostname: str,
+        peer_certificate_der: bytes,
+        peer_certificate: Mapping[str, object],
+    ) -> AuthenticatedServiceIdentity:
+        del hostname, peer_certificate_der, peer_certificate
+        time.sleep(60)
+        return IDENTITY
+
+
+class RecordingMetadataStream:
+    def __init__(self) -> None:
+        self.readline_limits: list[int] = []
+
+    def readline(self, limit: int = -1) -> bytes:
+        self.readline_limits.append(limit)
+        return b"x" * limit
+
+
 def _scope(*domains: str) -> ScopeGuard:
     return ScopeGuard(
         ScopeDefinition(
@@ -187,10 +214,11 @@ def _mediator(
     timeout_seconds: float = 15.0,
     max_response_bytes: int = 1_048_576,
     max_response_header_bytes: int = 65_536,
+    identity_verifier: ServiceIdentityVerifier | None = None,
 ) -> HTTPSExecutionMediator:
     return HTTPSExecutionMediator(
         scope_guard=_scope(*domains),
-        identity_verifier=CertificateURIIdentityVerifier(trust_domain=TRUST_DOMAIN),
+        identity_verifier=identity_verifier or CertificateURIIdentityVerifier(trust_domain=TRUST_DOMAIN),
         identity_allowlist=AuthenticatedServiceAllowlist({IDENTITY: request_targets}),
         resolver=resolver,
         connector=connector,
@@ -484,6 +512,16 @@ def test_direct_connector_rejects_insecure_injected_tls_contexts() -> None:
         DirectTLSConnector(tls_context=insecure)
 
 
+def test_response_metadata_reader_bounds_the_underlying_allocation() -> None:
+    stream = RecordingMetadataStream()
+    reader = _MetadataBoundedReader(stream, max_metadata_bytes=8)
+
+    with pytest.raises(EgressMediationError, match="metadata exceeded"):
+        reader.readline()
+
+    assert stream.readline_limits == [9]
+
+
 @pytest.mark.parametrize("failure_point", ("resolver", "connector", "request", "response"))
 def test_runtime_failures_are_blocked_without_persisting_url_details(failure_point: str) -> None:
     endpoints = (_endpoint("192.0.2.10"),)
@@ -564,8 +602,57 @@ def test_subprocess_broker_requests_receive_fail_closed_denials(attempt: str) ->
 def _receive_line(client: socket.socket) -> dict[str, object]:
     received = b""
     while not received.endswith(b"\n"):
-        received += client.recv(65536)
+        chunk = client.recv(65536)
+        if not chunk:
+            raise AssertionError("broker closed without returning a complete response")
+        received += chunk
     return json.loads(received)
+
+
+def _hanging_mediator(phase: str) -> HTTPSExecutionMediator:
+    allowed = (_endpoint("192.0.2.10"),)
+    resolver = ScriptedResolver(
+        {"api.example.test": [allowed, allowed]},
+        delay_seconds=60 if phase == "resolver" else 0,
+    )
+    connection = FakeConnection(
+        request_delay_seconds=60 if phase == "response" else 0,
+        close_delay_seconds=60 if phase == "close" else 0,
+    )
+    connector = FakeConnector(connection, delay_seconds=60 if phase == "connector" else 0)
+    identity_verifier = HangingIdentityVerifier() if phase == "identity" else None
+    return _mediator(resolver, connector, identity_verifier=identity_verifier)
+
+
+@pytest.mark.parametrize("phase", ("resolver", "connector", "identity", "response", "close"))
+def test_broker_hard_deadline_kills_and_reaps_every_blocking_phase(phase: str) -> None:
+    broker = ExecutionEgressBroker(_hanging_mediator(phase), protocol_timeout_seconds=0.15)
+
+    started = time.monotonic()
+    with broker.open_channel() as channel:
+        process = channel._supervisor._process
+        channel._client_socket.settimeout(2)
+        channel._client_socket.sendall(json.dumps(_request_document()).encode("utf-8") + b"\n")
+        assert _receive_line(channel._client_socket) == {"error": "egress_denied", "ok": False}
+
+    assert time.monotonic() - started < 2
+    assert not process.is_alive()
+    assert process.exitcode is not None
+
+
+def test_broker_client_disconnect_kills_and_reaps_blocked_mediation() -> None:
+    broker = ExecutionEgressBroker(_hanging_mediator("response"), protocol_timeout_seconds=10)
+
+    started = time.monotonic()
+    with broker.open_channel() as channel:
+        process = channel._supervisor._process
+        channel._client_socket.sendall(json.dumps(_request_document()).encode("utf-8") + b"\n")
+        time.sleep(0.05)
+        assert process.is_alive()
+
+    assert time.monotonic() - started < 2
+    assert not process.is_alive()
+    assert process.exitcode is not None
 
 
 def test_broker_bounds_total_requests_and_total_request_bytes_per_operation() -> None:
