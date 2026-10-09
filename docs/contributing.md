@@ -102,6 +102,18 @@ make check-issue-coverage
 
 Python changes must also pass `ruff check .`; YAML changes must pass `yamllint -s .`, matching the hosted quality gate. Install these tools in the development environment before running them. After changing canonical skills or portable evidence sources, regenerate adapters with `make sync-agent-adapters` and the evidence bundle with `python scripts/agent/bundle_evidence.py`, then rerun validation.
 
+Linux sandbox changes must also pass the real bubblewrap integration gate:
+
+```bash
+sudo apt-get install bubblewrap
+python -m pytest -m linux_bubblewrap tests/integration/test_linux_bubblewrap_sandbox.py -q
+```
+
+Run this gate as a non-root user on Linux with unprivileged user namespaces enabled.
+The hosted Ubuntu job treats a missing bubblewrap installation, blocked user
+namespaces, or a failed readiness probe as a failure because production dispatch
+must fail closed when these boundaries are unavailable.
+
 Security lint exceptions must describe the concrete reason at the narrowest applicable scope. Offline tests use synthetic credentials and noncryptographic seeded fuzzing; standalone scripts may set up the repository import path before imports. Public string-enum behavior is preserved rather than migrated solely to satisfy a style rule. Production authorization storage errors must propagate, and XML imports must reject entity declarations before parsing imported data.
 
 ### Issue Documentation & Test Coverage Requirements

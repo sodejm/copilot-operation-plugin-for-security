@@ -10,6 +10,25 @@ permissions:
   contents: read
 
 jobs:
+  linux-bubblewrap-isolation:
+    name: Linux bubblewrap isolation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install bubblewrap and test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes bubblewrap
+          python -m pip install -r requirements.txt
+      - name: Verify required Linux isolation boundaries
+        run: python -m pytest -m linux_bubblewrap tests/integration/test_linux_bubblewrap_sandbox.py -q
+
   portability-smoke:
     name: Operator smoke (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

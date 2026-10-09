@@ -6,8 +6,8 @@ COPS Isolated Execution Worker and Approval State Store (`[E02.02]`)
 ## Overview
 Defines fail-closed verifier inputs, worker capability attestation, and an
 ACID-compliant approval state store for dispatching authorized
-`cops.action-plan/v1` operations. Operating-system and process transport isolation
-is a separate deployment boundary tracked in issue #185.
+`cops.action-plan/v1` operations. Linux production dispatch also requires the
+operating-system isolation boundary defined below.
 
 ## Architectural Boundaries
 
@@ -74,8 +74,25 @@ is a separate deployment boundary tracked in issue #185.
      size and post-redaction truncation separately from redaction. Truncation changes
      an otherwise successful result to `partial` with exit code `125`.
    - Deterministic `cops.run-result/v1` records include exit status and output hashes.
-   - These application controls do not establish operating-system or process
-     transport isolation (#185) or mediate live network egress (#186); deployments
-     must provide those controls independently. The deployment must also isolate the
-     worker UID because a hostile same-UID process can modify the staged executable
-     inode or manipulate held descriptors.
+   - These application controls do not mediate approved live network egress (#186);
+     deployments must provide that boundary independently. The deployment must also
+     isolate the worker UID because a hostile same-UID process can modify the staged
+     executable inode or manipulate held descriptors.
+
+5. **Linux Production Isolation**:
+   - Production adapter execution uses a fresh bubblewrap namespace as a dedicated
+     non-root worker account. The sandbox exposes only the private operation
+     workspace and required read-only runtime paths, clears the inherited
+     environment, drops capabilities, and does not inherit unrelated descriptors.
+   - The worker fails closed before approval consumption when bubblewrap, user
+     namespaces, the configured worker identity, a private workspace, or a required
+     kernel control is unavailable. Capability descriptors remain rejected until
+     the sandbox has an explicit mapping for each one.
+   - Kernel enforcement includes `NoNewPrivs`, address-space, process-count, CPU,
+     file-size, open-file, and core-dump limits. Each launch receives new network
+     and PID namespaces, and an untrusted adapter cannot create a raw network socket.
+   - A required Ubuntu integration gate executes bubblewrap rather than mocking the
+     process boundary. It verifies environment filtering, host-path and descriptor
+     confinement, namespace separation, kernel limits, and fail-before-consume
+     readiness behavior. Missing bubblewrap or disabled user namespaces fails that
+     gate instead of reducing coverage.
