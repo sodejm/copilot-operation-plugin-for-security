@@ -1181,7 +1181,7 @@ def test_quarantine_root_removal_failure_is_recorded_unknown(temp_workspace, mon
     assert not (quarantine_root / "resource").exists()
     assert len(receipt.unresolved_effects) == 1
     unresolved = receipt.unresolved_effects[0]
-    assert unresolved["quarantine_target"] == str(quarantine_root / "resource")
+    assert unresolved["quarantine_target"] == str(quarantine_root)
     assert str(quarantine_root) in unresolved["reason"]
     assert "injected quarantine root removal failure" in unresolved["reason"]
 

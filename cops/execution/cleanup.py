@@ -40,6 +40,14 @@ class CleanupPersistenceError(CleanupError):
     """Cleanup journal state could not be safely persisted or recovered."""
 
 
+class CleanupQuarantineError(CleanupError):
+    """Cleanup left a quarantine directory after deleting its resource."""
+
+    def __init__(self, message: str, *, quarantine_target: str) -> None:
+        super().__init__(message)
+        self.quarantine_target = quarantine_target
+
+
 @dataclass(frozen=True)
 class FilesystemIdentity:
     """Durable identity for a worker-created filesystem object."""
@@ -873,8 +881,9 @@ class CleanupManager:
             os.rmdir(quarantine_name, dir_fd=parent_fd)
         except OSError as err:
             quarantine_root = path.parent / quarantine_name
-            raise CleanupError(
-                f"resource was deleted but quarantine directory '{quarantine_root}' could not be removed: {err}"
+            raise CleanupQuarantineError(
+                f"resource was deleted but quarantine directory '{quarantine_root}' could not be removed: {err}",
+                quarantine_target=str(quarantine_root),
             ) from err
         return action
 
@@ -928,8 +937,11 @@ class CleanupManager:
             return action
         except Exception as err:
             terminal_status = self._terminal_status(err, action_started=action_started)
+            details = {"reason": str(err)}
+            if isinstance(err, CleanupQuarantineError):
+                details["quarantine_target"] = err.quarantine_target
             try:
-                self._transition(effect, terminal_status, details={"reason": str(err)})
+                self._transition(effect, terminal_status, details=details)
             except CleanupPersistenceError:
                 effect.status = "unknown"
             raise
@@ -1145,8 +1157,11 @@ class CleanupManager:
                 )
             except Exception as err:
                 terminal_status = self._terminal_status(err, action_started=action_started)
+                details = {"reason": str(err)}
+                if isinstance(err, CleanupQuarantineError):
+                    details["quarantine_target"] = err.quarantine_target
                 try:
-                    self._transition(effect, terminal_status, details={"reason": str(err)})
+                    self._transition(effect, terminal_status, details=details)
                     reason = (
                         f"cleanup outcome unknown after resource action started: {err}"
                         if action_started
