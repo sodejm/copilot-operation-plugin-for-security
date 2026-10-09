@@ -909,6 +909,68 @@ def test_journal_repeated_writes_survive_reopen(temp_workspace, temp_journal_pat
     assert len(recovered[0].effects) == 64
 
 
+def test_legacy_journal_remains_v1_until_identity_is_recorded(temp_workspace, temp_journal_path):
+    journal, ledger = _durable_ledger(temp_journal_path, temp_workspace)
+    ledger.record_effect(
+        step_id="step-legacy",
+        resource_type="custom",
+        target="legacy-resource",
+    )
+
+    with sqlite3.connect(temp_journal_path) as connection:
+        version = connection.execute(
+            "SELECT value FROM cleanup_metadata WHERE key = 'schema_version'"
+        ).fetchone()[0]
+    assert version == "1"
+    assert len(CleanupJournal(temp_journal_path).recoverable_runs("worker-test-01")) == 1
+
+    journal.append(
+        "run-recovery-test",
+        "creation_identity_recorded",
+        {"device": 1, "inode": 2, "resource_type": "file"},
+        required_schema_version=2,
+    )
+    with sqlite3.connect(temp_journal_path) as connection:
+        version = connection.execute(
+            "SELECT value FROM cleanup_metadata WHERE key = 'schema_version'"
+        ).fetchone()[0]
+    assert version == "2"
+
+    class LegacyJournal(CleanupJournal):
+        _SUPPORTED_SCHEMA_VERSIONS = frozenset({1})
+
+    with pytest.raises(CleanupPersistenceError, match="unsupported cleanup journal schema version"):
+        LegacyJournal(temp_journal_path)
+
+
+def test_journal_version_promotion_rolls_back_with_failed_event(temp_journal_path):
+    journal = CleanupJournal(temp_journal_path)
+    with sqlite3.connect(temp_journal_path) as connection:
+        connection.execute(
+            """CREATE TRIGGER reject_identity_event BEFORE INSERT ON cleanup_events
+            WHEN NEW.event_type = 'creation_identity_recorded'
+            BEGIN SELECT RAISE(ABORT, 'injected event failure'); END"""
+        )
+
+    with pytest.raises(CleanupPersistenceError, match="injected event failure"):
+        journal.append(
+            "run-promotion-test",
+            "creation_identity_recorded",
+            {"device": 1, "inode": 2, "resource_type": "file"},
+            required_schema_version=2,
+        )
+
+    with sqlite3.connect(temp_journal_path) as connection:
+        version = connection.execute(
+            "SELECT value FROM cleanup_metadata WHERE key = 'schema_version'"
+        ).fetchone()[0]
+        count = connection.execute(
+            "SELECT COUNT(*) FROM cleanup_events WHERE event_type = 'creation_identity_recorded'"
+        ).fetchone()[0]
+    assert version == "1"
+    assert count == 0
+
+
 def test_recovery_rejects_missing_run_start(temp_workspace, temp_journal_path):
     _durable_ledger(temp_journal_path, temp_workspace)
     with sqlite3.connect(temp_journal_path) as connection:

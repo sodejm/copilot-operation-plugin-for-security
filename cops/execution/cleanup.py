@@ -174,7 +174,9 @@ class RecoveredCleanupRun:
 class CleanupJournal:
     """Append-only SQLite journal stored outside execution workspaces."""
 
-    _SCHEMA_VERSION = 1
+    _INITIAL_SCHEMA_VERSION = 1
+    _CURRENT_SCHEMA_VERSION = 2
+    _SUPPORTED_SCHEMA_VERSIONS = frozenset({_INITIAL_SCHEMA_VERSION, _CURRENT_SCHEMA_VERSION})
 
     def __init__(self, path: Path | str) -> None:
         candidate = Path(path)
@@ -283,10 +285,10 @@ class CleanupJournal:
                 if version is None:
                     connection.execute(
                         "INSERT INTO cleanup_metadata(key, value) VALUES ('schema_version', ?)",
-                        (str(self._SCHEMA_VERSION),),
+                        (str(self._INITIAL_SCHEMA_VERSION),),
                     )
-                elif version["value"] != str(self._SCHEMA_VERSION):
-                    raise CleanupPersistenceError("unsupported cleanup journal schema version")
+                else:
+                    self._parse_schema_version(version["value"])
         except (OSError, sqlite3.Error) as err:
             raise CleanupPersistenceError(f"cannot initialize cleanup journal: {err}") from err
         try:
@@ -294,6 +296,40 @@ class CleanupJournal:
         except OSError as err:
             raise CleanupPersistenceError(f"cannot protect cleanup journal: {err}") from err
         self._prepare_path()
+
+    @classmethod
+    def _parse_schema_version(cls, raw_version: Any) -> int:
+        if not isinstance(raw_version, str) or not raw_version.isascii() or not raw_version.isdecimal():
+            raise CleanupPersistenceError("unsupported cleanup journal schema version")
+        version = int(raw_version)
+        if str(version) != raw_version or version not in cls._SUPPORTED_SCHEMA_VERSIONS:
+            raise CleanupPersistenceError("unsupported cleanup journal schema version")
+        return version
+
+    @classmethod
+    def _require_schema_version(cls, connection: sqlite3.Connection, required_version: int) -> None:
+        if required_version not in cls._SUPPORTED_SCHEMA_VERSIONS:
+            raise CleanupPersistenceError("unsupported cleanup journal schema version")
+        row = connection.execute(
+            "SELECT value FROM cleanup_metadata WHERE key = 'schema_version'"
+        ).fetchone()
+        if row is None:
+            raise CleanupPersistenceError("cleanup journal schema version is missing")
+        current_version = cls._parse_schema_version(row["value"])
+        if current_version >= required_version:
+            return
+        if current_version != cls._INITIAL_SCHEMA_VERSION or required_version != cls._CURRENT_SCHEMA_VERSION:
+            raise CleanupPersistenceError("unsupported cleanup journal schema promotion")
+        updated = connection.execute(
+            """
+            UPDATE cleanup_metadata
+            SET value = ?
+            WHERE key = 'schema_version' AND value = ?
+            """,
+            (str(required_version), str(current_version)),
+        )
+        if updated.rowcount != 1:
+            raise CleanupPersistenceError("cleanup journal schema promotion failed")
 
     def assert_external_to(self, workspace_dir: Path | str) -> None:
         workspace = Path(os.path.abspath(os.fspath(workspace_dir)))
@@ -310,10 +346,12 @@ class CleanupJournal:
         payload: dict[str, Any],
         *,
         effect_id: str | None = None,
+        required_schema_version: int = 1,
     ) -> None:
         try:
             serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"))
             with closing(self._connect()) as connection, connection:
+                self._require_schema_version(connection, required_schema_version)
                 connection.execute(
                     """
                     INSERT INTO cleanup_events(
@@ -378,6 +416,7 @@ class CleanupJournal:
             "creation_identity_recorded",
             identity.to_dict(),
             effect_id=effect.effect_id,
+            required_schema_version=2,
         )
 
     def transition(
@@ -396,7 +435,13 @@ class CleanupJournal:
         )
 
     def record_receipt(self, run_id: str, receipt: CleanupReceipt) -> None:
-        self.append(run_id, "cleanup_receipt", receipt.to_dict())
+        required_schema_version = 2 if receipt.schema_version == "cops.cleanup-receipt/v2" else 1
+        self.append(
+            run_id,
+            "cleanup_receipt",
+            receipt.to_dict(),
+            required_schema_version=required_schema_version,
+        )
 
     def recoverable_runs(self, worker_identity: str) -> tuple[RecoveredCleanupRun, ...]:
         try:
@@ -913,9 +958,14 @@ class CleanupManager:
             "cleaned_effects": cleaned_effects,
             "unresolved_effects": unresolved_effects,
         }
+        schema_version = (
+            "cops.cleanup-receipt/v2"
+            if any("quarantine_target" in effect for effect in unresolved_effects)
+            else "cops.cleanup-receipt/v1"
+        )
         return CleanupReceipt.from_dict(
             {
-                "schema_version": "cops.cleanup-receipt/v1",
+                "schema_version": schema_version,
                 **payload,
                 "status": status,
                 "created_at": created_at,

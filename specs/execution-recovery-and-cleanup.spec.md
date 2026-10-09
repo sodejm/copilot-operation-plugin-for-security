@@ -10,7 +10,7 @@ Enforce predictable, failure-resilient recovery, side-effect accounting, and cle
 2. **Boundary & Ownership Protection**: Cleanup managers verify worker identity ownership and filesystem boundaries (confined within authorized worker workspace) before executing deletion. Out-of-bounds resources are never deleted and are recorded in `unresolved_effects`.
 3. **Anti-Replay Resilience**: Injected failures after approval envelope consumption leave the authorization envelope in terminal `consumed` state in the `ApprovalStore`, guaranteeing that execution authorizations cannot be replayed.
 4. **Interruption & Non-Idempotence**: Interruptions occurring during non-idempotent operations transition the run result to `uncertain` with an explicit reason, preventing automated retries.
-5. **Verifiable Audit Receipt**: Rollback operations emit a canonical `cops.cleanup-receipt/v1` document, whose SHA256 digest is cryptographically bound into `RunResult.evidence_records`.
+5. **Verifiable Audit Receipt**: Rollback operations emit a canonical `cops.cleanup-receipt/v1` or `v2` document, whose SHA256 digest is cryptographically bound into `RunResult.evidence_records`. V2 reports a preserved quarantine location; v1 remains unchanged for older readers.
 6. **Durable Cleanup Journal**: Before approval consumption, the worker records the run intent in an owner-only append-only journal outside the execution workspace. It then records each side effect, cleanup attempt, terminal cleanup transition, and cleanup receipt. A side effect is not launched unless its cleanup intent is durably recorded first.
 7. **Restart-Safe Recovery**: Worker startup safely reassesses unresolved filesystem effects while skipping effects already recorded as cleaned. Cleanup attempts interrupted before a terminal journal transition become explicit `unknown` outcomes, and recovered process identifiers are never signalled because a PID can be reused after restart.
 8. **Persistence Failure Accounting**: A failed journal write cannot be reported as successful cleanup. The emitted receipt records the affected effect or audit record as unresolved and uses `partial` or `failed` status.
@@ -18,6 +18,17 @@ Enforce predictable, failure-resilient recovery, side-effect accounting, and cle
 10. **Creation Identity Before Cleanup**: Before creating a worker-owned file or directory, including a default execution workspace or credential scratch directory, the worker durably records cleanup intent. It creates the final entry exclusively, derives `(device, inode, resource type)` from the still-open creation descriptor, verifies the path still names that object without following symbolic links, and durably records the identity before automatic cleanup is permitted.
 11. **Race-Resistant Filesystem Cleanup**: Cleanup resolves each path through verified parent directory descriptors, compares the current object with the durable creation identity, moves a matching object into an owner-only same-parent quarantine, and verifies the moved object again before descriptor-relative deletion. A replacement detected before or after quarantine remains present at its original path or in quarantine and is recorded as `unknown`. Recursive directory cleanup is permitted only after every ledger descendant has a durable `cleaned` state; otherwise the directory is preserved and recorded as `unknown`.
 12. **Unknown Preservation and Migration**: Missing resources, unverified creation outcomes, identity mismatches, interrupted cleanup attempts, and filesystem effects recovered from older journals without creation identity remain unresolved. Recovery never infers ownership from a path, filename, declared resource type, or cleanup action.
+
+## Journal upgrade and rollback
+
+New cleanup journals begin at metadata version 1. The first creation-identity
+event or v2 receipt promotes the journal to version 2 in the same SQLite
+transaction as the event. Existing version 1 journals and receipts remain
+readable. Stop older workers before upgrading a journal: a version 1 reader
+rejects version 2 metadata. If reverting the worker, preserve the version 2
+journal and reconcile it with a version 2-capable worker; do not relabel or
+truncate it to make an older worker accept it. Start a separate version 1
+journal only for new work under the older worker.
 
 ## Filesystem identity limits
 

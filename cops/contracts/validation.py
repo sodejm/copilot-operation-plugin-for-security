@@ -34,6 +34,7 @@ SCHEMA_MAP: dict[str, str] = {
     "cops.finding/v1": "finding-contract.schema.json",
     "cops.execution-authorization/v1": "execution-authorization.schema.json",
     "cops.cleanup-receipt/v1": "cleanup-receipt.schema.json",
+    "cops.cleanup-receipt/v2": "cleanup-receipt-v2.schema.json",
     "cops.specialist-handoff/v1": "specialist-handoff.schema.json",
     "cops.laboratory-environment/v1": "laboratory-environment.schema.json",
 }
@@ -46,6 +47,7 @@ TYPE_MAP: dict[str, str] = {
     "cops.finding/v1": "finding",
     "cops.execution-authorization/v1": "execution_authorization",
     "cops.cleanup-receipt/v1": "cleanup_receipt",
+    "cops.cleanup-receipt/v2": "cleanup_receipt",
     "cops.specialist-handoff/v1": "specialist_handoff",
     "cops.laboratory-environment/v1": "laboratory_environment",
 }

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/sodejm/copilot-operation-plugin-for-security/catalog/schemas/cleanup-receipt.schema.json",
-  "title": "COPS Cleanup Receipt Contract",
+  "$id": "https://github.com/sodejm/copilot-operation-plugin-for-security/catalog/schemas/cleanup-receipt-v2.schema.json",
+  "title": "COPS Cleanup Receipt Contract v2",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -18,7 +18,7 @@
     "evidence_hash"
   ],
   "properties": {
-    "schema_version": {"const": "cops.cleanup-receipt/v1"},
+    "schema_version": {"const": "cops.cleanup-receipt/v2"},
     "receipt_id": {
       "type": "string",
       "pattern": "^cln-[a-z0-9_-]{4,64}$"
@@ -64,6 +64,7 @@
           "effect_id": {"type": "string", "minLength": 1},
           "resource_type": {"type": "string", "minLength": 1},
           "target": {"type": "string", "minLength": 1},
+          "quarantine_target": {"type": "string", "minLength": 1},
           "reason": {"type": "string", "minLength": 1}
         }
       }

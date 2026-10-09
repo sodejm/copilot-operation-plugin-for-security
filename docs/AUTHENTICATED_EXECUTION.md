@@ -285,6 +285,11 @@ path. The journal records owned side effects and cleanup receipts durably and
 reconstructs pending cleanup before serving requests after a restart. An
 interrupted cleanup can remain partial or unknown; inspect the receipt and
 reconcile the affected resource before retrying a non-idempotent operation.
+The journal begins at schema version 1 and promotes to version 2 atomically
+with its first creation-identity event or v2 receipt. Stop older workers before
+upgrading: they cannot read a promoted journal. Keep a version 2 journal for
+reconciliation by a version 2-capable worker during software rollback; do not
+change its metadata or discard its events to make an older worker accept it.
 For every worker-created filesystem resource eligible for automatic cleanup, the
 journal records cleanup intent before exclusive creation and records `(device,
 inode, resource type)` from the open creation descriptor before automatic cleanup.
