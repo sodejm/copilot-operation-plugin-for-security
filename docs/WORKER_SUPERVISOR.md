@@ -100,6 +100,27 @@ operator's endpoint inventory as described in
 host key through a trusted channel and keep the SSH private key and known-hosts
 file outside request payloads. Do not run the supervisor as the SSH login user.
 
+Provision `/etc/cops/remote-worker.json` as a regular file owned by the relay
+account with mode `0600`. The forced command uses this path by default, or an
+explicit `--config` path. Its host and worker identity must match the operator
+inventory and supervisor configuration; its UID and GID must identify the
+supervisor process, not the relay account:
+
+```json
+{
+  "schema_version": "cops.remote-worker-relay-config/v1",
+  "expected_host": "worker.example.test",
+  "worker_identity": "worker-lab-01",
+  "supervisor_socket_path": "/var/lib/cops-supervisor/relay.sock",
+  "supervisor_uid": 2102,
+  "supervisor_gid": 2202
+}
+```
+
+The relay rejects a missing socket, unexpected ownership or mode, or wrong
+kernel peer identity before forwarding a request. It preserves the supervisor's
+signed response for verification by the operator; it has no attestation key.
+
 Validate account ownership, socket modes, pinned process identity, installed
 `bubblewrap`, and a real end-to-end request on the intended Linux host before
 claiming deployment readiness. Repository tests cover boundary behavior but do

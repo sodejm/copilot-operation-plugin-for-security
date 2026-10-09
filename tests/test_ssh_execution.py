@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import json
+import stat
 import uuid
 from pathlib import Path
 from types import SimpleNamespace
@@ -20,7 +21,10 @@ from cops.execution.ssh_execution import (
 from cops.execution.ssh_transport import SSH_PROTOCOL, SSHRemoteResponse
 from cops.execution.supervisor_attestation import SupervisorResponseAttestor
 from cops.remote_worker import (
+    RemoteWorkerRelayConfig,
+    _validate_supervisor_socket_metadata,
     handle_remote_execution_request,
+    relay_remote_execution_request,
     serve_one_remote_execution_request,
 )
 
@@ -106,6 +110,77 @@ def _envelope(plan: ActionPlan) -> dict[str, object]:
             "exchange_nonce": EXCHANGE_NONCE,
         },
     }
+
+
+def test_relay_preserves_supervisor_attestation(monkeypatch) -> None:
+    from cops import remote_worker
+
+    request = _envelope(_plan())
+    signed_payload = {
+        "schema_version": "cops.attested-remote-authorized-run/v1",
+        "authorized_run": {"opaque": "run"},
+        "attestation": {"opaque": "signature"},
+    }
+    response = {
+        "protocol": SSH_PROTOCOL,
+        "request_id": request["request_id"],
+        "host": "worker.example.test",
+        "worker_id": "worker-lab-01",
+        "payload": signed_payload,
+    }
+    raw = json.dumps(response).encode() + b"\n"
+
+    class Socket:
+        def __init__(self) -> None:
+            self.sent = b""
+            self.responses = [raw, b""]
+
+        def settimeout(self, _seconds: float) -> None:
+            pass
+
+        def connect(self, _path: str) -> None:
+            pass
+
+        def sendall(self, data: bytes) -> None:
+            self.sent += data
+
+        def shutdown(self, _how: int) -> None:
+            pass
+
+        def recv(self, _count: int) -> bytes:
+            return self.responses.pop(0)
+
+        def close(self) -> None:
+            pass
+
+    fake_socket = Socket()
+    monkeypatch.setattr(remote_worker.socket, "socket", lambda *_args: fake_socket)
+    monkeypatch.setattr(remote_worker, "_verify_supervisor_socket", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(remote_worker, "_verify_supervisor_peer", lambda *_args, **_kwargs: None)
+    config = RemoteWorkerRelayConfig(
+        schema_version=remote_worker.REMOTE_WORKER_RELAY_CONFIG_SCHEMA,
+        expected_host="worker.example.test",
+        worker_identity="worker-lab-01",
+        supervisor_socket_path=Path("/var/lib/cops-supervisor/relay.sock"),
+        supervisor_uid=1001,
+        supervisor_gid=1001,
+        _file_verified=True,
+    )
+
+    assert relay_remote_execution_request(request, config=config) == response
+    assert json.loads(fake_socket.sent) == request
+
+
+def test_relay_accepts_provisioned_supervisor_socket_mode() -> None:
+    from types import SimpleNamespace
+
+    directory = SimpleNamespace(st_mode=stat.S_IFDIR | 0o2710, st_uid=1001, st_gid=1001)
+    endpoint = SimpleNamespace(st_mode=stat.S_IFSOCK | 0o660, st_uid=1001, st_gid=1001)
+    _validate_supervisor_socket_metadata(directory, endpoint, supervisor_uid=1001, supervisor_gid=1001)
+
+    directory.st_mode = stat.S_IFDIR | 0o2770
+    with pytest.raises(SSHExecutionError, match="directory permissions"):
+        _validate_supervisor_socket_metadata(directory, endpoint, supervisor_uid=1001, supervisor_gid=1001)
 
 
 def test_receiver_executes_once_and_derives_response_identity_locally() -> None:
