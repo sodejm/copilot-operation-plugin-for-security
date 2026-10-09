@@ -1,9 +1,9 @@
 """Operation-scoped credential resolution for authorized execution.
 
-Credential values remain provider-owned until a consumed authorization, worker,
-plan, target, tool, and action all match an explicit grant. Values are returned
-only as the environment for that one operation and are registered for output
-redaction before the caller can launch it.
+Credential values remain provider-owned until an authority-issued consumption
+receipt, worker, plan, target, tool, and action all match an explicit grant.
+Values are returned only as the environment for that one operation and are
+registered for output redaction before the caller can launch it.
 """
 
 from __future__ import annotations
@@ -13,12 +13,13 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from cops.contracts.models import ActionPlan, ExecutionAuthorization
+from cops.contracts.models import ActionPlan
 
 from .redaction import StreamRedactor
 
 _ENVIRONMENT_VARIABLE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _CREDENTIAL_ENVIRONMENT_PREFIX = "COPS_CREDENTIAL_"
+_AUTHORIZATION_DIGEST = re.compile(r"^[0-9a-f]{64}$")
 
 
 class CredentialResolutionError(RuntimeError):
@@ -30,6 +31,18 @@ class CredentialProvider(Protocol):
 
     def resolve(self, reference: str) -> str:
         """Return the current secret value for ``reference``."""
+
+
+class ApprovalConsumptionReceiptView(Protocol):
+    """Trusted bindings returned by the consume-only approval authority."""
+
+    authorization_id: str
+    authorization_digest: str
+    action_plan_id: str
+    plan_digest: str
+    engagement_id: str
+    worker_identity: str
+    target: str
 
 
 @dataclass(frozen=True)
@@ -67,21 +80,21 @@ class ScopedCredentialResolver:
         self,
         *,
         plan: ActionPlan,
-        authorization: ExecutionAuthorization,
+        authorization_receipt: ApprovalConsumptionReceiptView,
         worker_identity: str,
         operation: Mapping[str, Any],
     ) -> dict[str, str]:
-        """Return an environment for an authority-returned consumption result.
+        """Return an environment for an authority-issued consumption receipt.
 
-        ``authorization`` must be the object returned by the approval store's
-        atomic consumption call.  This resolver checks its bindings defensively;
-        it does not treat a caller-constructed object with a ``consumed`` status
-        as proof that the authority performed that transition.
+        ``authorization_receipt`` must be the object returned directly by the
+        worker's consume-only ``ApprovalControl`` call. The receipt bindings are
+        checked defensively, but caller-constructed authorization status fields
+        are not accepted as proof that the authority performed consumption.
         """
         operation_data = _plain(operation)
         if not isinstance(operation_data, dict):
             raise CredentialResolutionError("credential request operation is invalid")
-        self._validate_authorization(plan, authorization, worker_identity)
+        self._validate_authorization_receipt(plan, authorization_receipt, worker_identity)
         if operation_data not in [_plain(item) for item in plan.operations]:
             raise CredentialResolutionError("credential request is outside the approved plan")
 
@@ -149,26 +162,36 @@ class ScopedCredentialResolver:
         return environment
 
     @staticmethod
-    def _validate_authorization(
+    def _validate_authorization_receipt(
         plan: ActionPlan,
-        authorization: ExecutionAuthorization,
+        authorization_receipt: ApprovalConsumptionReceiptView,
         worker_identity: str,
     ) -> None:
-        if authorization.status != "consumed" or authorization.consumed_by_worker != worker_identity:
-            raise CredentialResolutionError("credential resolution requires a consumed worker authorization")
+        field_names = (
+            "authorization_id",
+            "authorization_digest",
+            "action_plan_id",
+            "plan_digest",
+            "engagement_id",
+            "worker_identity",
+            "target",
+        )
+        try:
+            bindings = {field_name: getattr(authorization_receipt, field_name) for field_name in field_names}
+        except (AttributeError, TypeError):
+            raise CredentialResolutionError("credential consumption receipt is invalid") from None
+        if any(not isinstance(value, str) or not value for value in bindings.values()):
+            raise CredentialResolutionError("credential consumption receipt is invalid")
+        if not _AUTHORIZATION_DIGEST.fullmatch(bindings["authorization_digest"]):
+            raise CredentialResolutionError("credential consumption receipt is invalid")
         if (
-            authorization.action_plan_id != plan.plan_id
-            or authorization.plan_digest != plan.plan_digest
-            or authorization.engagement_id != plan.engagement_id
+            bindings["action_plan_id"] != plan.plan_id
+            or bindings["plan_digest"] != plan.plan_digest
+            or bindings["engagement_id"] != plan.engagement_id
+            or bindings["worker_identity"] != worker_identity
+            or bindings["target"] != plan.target
         ):
-            raise CredentialResolutionError("credential request authorization does not match the plan")
-        bound_parameters = _plain(authorization.bound_parameters)
-        if not isinstance(bound_parameters, dict):
-            raise CredentialResolutionError("credential request authorization bindings are invalid")
-        if bound_parameters.get("worker_identity") != worker_identity:
-            raise CredentialResolutionError("credential request worker is outside the approval")
-        if bound_parameters.get("action_plan") != plan.approved_snapshot(include_digest=True):
-            raise CredentialResolutionError("credential request plan is outside the approval")
+            raise CredentialResolutionError("credential consumption receipt does not match the operation")
 
 
 def _plain(value: Any) -> Any:

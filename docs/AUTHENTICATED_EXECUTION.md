@@ -200,11 +200,13 @@ Library callers must pass the `WorkerCapabilityInventory` loaded by
 inventories and mutable `WorkerConfig` values are not accepted at the worker
 boundary.
 
-The independent approval authority consumes the authorization in a SQLite
-transaction immediately before dispatch. A second attempt with the same
-authorization fails as replay. Keep the approval database on durable storage owned
-by the authority account and protect it with the same access controls as other
-execution records.
+The independent approval authority consumes the authorization through the
+worker's consume-only `ApprovalControl` immediately before dispatch and returns a
+validated `ApprovalConsumptionReceipt`. The remote supervisor hosts this authority
+for SSH execution. Its backing approval store performs the consumption in a SQLite
+transaction, so a second attempt with the same authorization fails as replay. Keep
+the approval database on durable storage owned by the authority account and protect
+it with the same access controls as other execution records.
 
 When an operation needs a credential, configure a `ScopedCredentialResolver` with
 operator-supplied exact grants and a credential provider. The worker follows this
@@ -212,10 +214,10 @@ order for each launch:
 
 1. Validate adapter compatibility and probe executable identity and version with
    no credential environment.
-2. Atomically consume the approval and keep the exact object returned by the
-   approval store.
-3. Immediately before an operation launch, pass that local consumed object, the
-   approved plan, the worker identity, and the exact operation to the resolver.
+2. Consume the approval through `ApprovalControl` and keep the exact
+   authority-issued `ApprovalConsumptionReceipt` returned by that call.
+3. Immediately before an operation launch, pass that receipt, the approved plan,
+   the worker identity, and the exact operation to the resolver.
 4. Pass the returned environment only as the operation environment and share the
    resolver's redactor with evidence capture.
 
@@ -228,7 +230,9 @@ runtime, loader, broker, locale, or ordinary process settings. Provider values a
 rejected if they are empty, non-text, or contain a NUL byte. Provider errors are
 rewritten without their message or exception chain. All resolved values are
 registered for redaction before launch. Never use a status field on a
-caller-constructed authorization as evidence of atomic consumption.
+caller-constructed authorization as evidence of consumption. The resolver checks
+the receipt's authorization digest and exact plan, engagement, worker, and target
+bindings before it calls the credential provider.
 
 Stdout and stderr share the Action Plan's raw byte limit. The worker enforces that
 limit while reading the pipes and terminates the process group on timeout or overflow.

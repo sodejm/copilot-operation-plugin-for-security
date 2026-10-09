@@ -21,7 +21,7 @@ Feature: Credential Masking and Evidence Capture
     And the synthetic credential is absent from the artifact
 
   Scenario: Rejecting a credential grant bound to another worker
-    Given a consumed authorization for worker "worker-bdd"
+    Given an authority-issued consumption receipt for worker "worker-bdd"
     And a credential grant bound to worker "other-worker"
     When worker "worker-bdd" requests the approved operation credential
     Then credential resolution is rejected before provider access

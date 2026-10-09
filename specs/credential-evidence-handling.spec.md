@@ -8,11 +8,14 @@ unredacted execution data.
 
 ## Credential resolution boundary
 
-`cops.execution.ScopedCredentialResolver` accepts only the authorization object
-returned by `ApprovalStore.atomically_consume` for the current dispatch. A
-caller-created object whose fields merely say `consumed` is not authority. The
-worker passes the local atomic-consumption result to the resolver immediately
-before an approved operation launch.
+`cops.execution.ScopedCredentialResolver` accepts the authority-issued
+`ApprovalConsumptionReceipt` returned by the worker's consume-only
+`ApprovalControl.consume_authorization` call for the current dispatch. A
+caller-created authorization whose fields merely say `consumed` is not authority.
+The worker passes the exact receipt returned by that control to the resolver
+immediately before an approved operation launch. The resolver defensively checks
+the receipt's authorization digest, plan identifier and digest, engagement,
+worker, and target bindings before provider access.
 
 Every `CredentialGrant` binds one declared reference to all of these values:
 

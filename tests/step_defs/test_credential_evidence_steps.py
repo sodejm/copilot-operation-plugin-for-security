@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
@@ -17,8 +18,6 @@ from cops.execution.credentials import (
 )
 from cops.execution.evidence import EvidenceCaptureError, EvidenceContext, EvidenceRecorder
 from cops.execution.redaction import StreamRedactor
-from cops.execution.store import ApprovalStore
-from tests.auth_testkit import authorize_test_plan
 
 scenarios("../../specs/features/credential_evidence.feature")
 
@@ -41,6 +40,17 @@ class _FailingRedactor:
     def redact_bytes(self, value: bytes) -> bytes:
         del value
         raise RuntimeError("redactor failure containing sensitive context")
+
+
+@dataclass(frozen=True)
+class _ConsumptionReceipt:
+    authorization_id: str
+    authorization_digest: str
+    action_plan_id: str
+    plan_digest: str
+    engagement_id: str
+    worker_identity: str
+    target: str
 
 
 def _load_plan() -> ActionPlan:
@@ -143,17 +153,18 @@ def then_evidence_hashes_generated(cred_context):
     assert len(hashes) >= 1
 
 
-@given(parsers.parse('a consumed authorization for worker "{worker_identity}"'))
-def given_consumed_authorization(cred_context, tmp_path, worker_identity):
+@given(parsers.parse('an authority-issued consumption receipt for worker "{worker_identity}"'))
+def given_consumption_receipt(cred_context, worker_identity):
     plan = _load_plan()
-    authorization, _, _ = authorize_test_plan(plan, worker_identity=worker_identity)
-    store = ApprovalStore(tmp_path / "approvals.sqlite3")
-    store.store_authorization(authorization)
     cred_context["plan"] = plan
-    cred_context["consumed_authorization"] = store.atomically_consume(
-        authorization.authorization_id,
-        expected_authorization=authorization,
+    cred_context["consumption_receipt"] = _ConsumptionReceipt(
+        authorization_id="authorization-bdd",
+        authorization_digest="a" * 64,
+        action_plan_id=plan.plan_id,
+        plan_digest=plan.plan_digest,
+        engagement_id=plan.engagement_id,
         worker_identity=worker_identity,
+        target=plan.target,
     )
 
 
@@ -189,7 +200,7 @@ def when_worker_requests_credential(cred_context, worker_identity):
     with pytest.raises(CredentialResolutionError) as caught:
         cred_context["resolver"].resolve_for_operation(
             plan=plan,
-            authorization=cred_context["consumed_authorization"],
+            authorization_receipt=cred_context["consumption_receipt"],
             worker_identity=worker_identity,
             operation=plan.operations[0],
         )

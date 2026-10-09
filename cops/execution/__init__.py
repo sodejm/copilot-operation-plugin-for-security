@@ -21,6 +21,7 @@ from .cleanup import (
     SideEffectLedger,
 )
 from .credentials import (
+    ApprovalConsumptionReceiptView,
     CredentialGrant,
     CredentialProvider,
     CredentialResolutionError,
@@ -99,6 +100,7 @@ __all__ = [
     "ApprovalStoreConflictError",
     "ApprovalStoreError",
     "ApprovalStoreNotFoundError",
+    "ApprovalConsumptionReceiptView",
     "AuthorizationDeniedError",
     "AuthorizationError",
     "AuthorizationRequiredError",
