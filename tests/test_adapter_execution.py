@@ -390,10 +390,18 @@ def test_worker_uses_sandbox_for_version_probe_and_owner_resource_caps(
     worker, authorization_id = _fake_worker(tmp_path, plan)
     worker.config = replace(worker.config, max_wall_time_seconds=1, max_output_bytes=100)
     prepared = SimpleNamespace(invocation_path="/proc/self/fd/7", pass_fds=(), remove=lambda: None)
-    probe_runners = []
+    probe_results = []
 
     def capture_probe_runner(*args, **kwargs):
-        probe_runners.append(kwargs["process_runner"])
+        probe_results.append(
+            kwargs["process_runner"](
+                ["probe"],
+                cwd=kwargs["workspace"],
+                env=kwargs["env"],
+                timeout_seconds=0.1,
+                max_output_bytes=100,
+            )
+        )
         return prepared
 
     monkeypatch.setattr(worker_module, "prepare_executable", capture_probe_runner)
@@ -401,10 +409,11 @@ def test_worker_uses_sandbox_for_version_probe_and_owner_resource_caps(
     result = worker.execute_plan(plan, authorization=authorization_id, workspace_dir=tmp_path / "workspace")
 
     assert result.status == "success"
-    assert probe_runners == [_sandbox(worker).run]
-    assert len(_sandbox(worker).run_calls) == 1
-    assert _sandbox(worker).run_calls[0]["max_output_bytes"] == 100
-    assert 0 < _sandbox(worker).run_calls[0]["timeout_seconds"] <= 1
+    assert len(probe_results) == 1
+    assert probe_results[0].returncode == 0
+    assert [call["command"][0] for call in _sandbox(worker).run_calls] == ["probe", prepared.invocation_path]
+    assert all(call["max_output_bytes"] == 100 for call in _sandbox(worker).run_calls)
+    assert 0 < _sandbox(worker).run_calls[-1]["timeout_seconds"] <= 1
 
 
 @pytest.mark.parametrize(
@@ -1762,6 +1771,27 @@ def test_evidence_rejects_symlinked_artifact_directory(tmp_path: Path) -> None:
     assert list(outside.iterdir()) == []
 
 
+def test_evidence_rejects_replaced_workspace_before_artifact_creation(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir(mode=0o700)
+    expected_fd = os.open(workspace, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        workspace.rename(tmp_path / "original-workspace")
+        workspace.mkdir(mode=0o700)
+        recorder = EvidenceRecorder(
+            workspace,
+            context=_evidence_context(),
+            expected_workspace_fd=expected_fd,
+        )
+
+        with pytest.raises(EvidenceCaptureError, match="workspace changed after preflight"):
+            recorder.reserve_step_output("step-1")
+
+        assert list(workspace.iterdir()) == []
+    finally:
+        os.close(expected_fd)
+
+
 def test_evidence_rejects_artifact_directory_replacement_after_reservation(tmp_path: Path) -> None:
     recorder = EvidenceRecorder(tmp_path, context=_evidence_context())
     reservation = recorder.reserve_step_output("step-1")
@@ -1862,6 +1892,62 @@ def test_worker_rejects_missing_caller_workspace_before_creation(tmp_path: Path)
 
     assert _approval_control(worker).store.get_authorization(authorization_id).status == "consumed"
     assert _cleanup_run_count(worker) == 1
+
+
+def test_worker_rejects_caller_workspace_replacement_before_consumption(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plan = _fake_action_plan(tmp_path)
+    worker, authorization_id = _fake_worker(tmp_path, plan)
+    workspace = tmp_path / "workspace"
+    original_workspace = tmp_path / "original-workspace"
+    open_workspace = worker_module._open_caller_workspace
+    open_count = 0
+
+    def replace_before_reopen(path: Path) -> int:
+        nonlocal open_count
+        open_count += 1
+        if open_count == 2:
+            workspace.rename(original_workspace)
+            workspace.mkdir(mode=0o700)
+        return open_workspace(path)
+
+    monkeypatch.setattr(worker_module, "_open_caller_workspace", replace_before_reopen)
+
+    with pytest.raises(WorkerIsolationError, match="changed after preflight"):
+        worker.execute_plan(plan, authorization=authorization_id, workspace_dir=workspace)
+
+    assert original_workspace.is_dir()
+    assert list(workspace.iterdir()) == []
+    assert _approval_control(worker).store.get_authorization(authorization_id).status == "approved"
+    assert _sandbox(worker).run_calls == []
+
+
+def test_worker_rejects_caller_workspace_replacement_after_consumption(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plan = _fake_action_plan(tmp_path)
+    worker, authorization_id = _fake_worker(tmp_path, plan)
+    workspace = tmp_path / "workspace"
+    original_workspace = tmp_path / "original-workspace"
+    approval = _approval_control(worker)
+    consume = approval.consume_authorization
+
+    def replace_after_consume(*args: object, **kwargs: object) -> object:
+        receipt = consume(*args, **kwargs)
+        workspace.rename(original_workspace)
+        workspace.mkdir(mode=0o700)
+        return receipt
+
+    monkeypatch.setattr(approval, "consume_authorization", replace_after_consume)
+
+    result = worker.execute_plan(plan, authorization=authorization_id, workspace_dir=workspace)
+
+    assert result.status == "failed"
+    assert original_workspace.is_dir()
+    assert list(workspace.iterdir()) == []
+    assert approval.store.get_authorization(authorization_id).status == "consumed"
+    assert _sandbox(worker).run_calls == []
 
 
 def test_worker_rejects_workspace_parent_traversal_before_creation(tmp_path: Path) -> None:

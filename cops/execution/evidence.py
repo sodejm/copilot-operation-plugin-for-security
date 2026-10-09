@@ -20,7 +20,7 @@ from cops.evidence.canonical import canonical, digest
 from cops.evidence.contract import build_envelope
 
 from .cleanup import CleanupError, CleanupManager, SideEffect
-from .filesystem import open_directory_no_symlinks
+from .filesystem import open_directory_no_symlinks, same_directory_identity
 from .redaction import StreamRedactor
 
 
@@ -108,6 +108,7 @@ class EvidenceRecorder:
         context: EvidenceContext | None = None,
         ephemeral_workspace: bool = False,
         cleanup_manager: CleanupManager | None = None,
+        expected_workspace_fd: int | None = None,
     ) -> None:
         self.workspace_dir = Path(workspace_dir)
         self.redactor = redactor or StreamRedactor()
@@ -116,6 +117,7 @@ class EvidenceRecorder:
         if portable_inert and cleanup_manager is not None:
             raise ValueError("portable inert evidence does not support durable cleanup tracking")
         self._cleanup_manager = cleanup_manager
+        self._expected_workspace_fd = expected_workspace_fd
         if context is None:
             if not portable_inert:
                 raise ValueError("complete evidence context is required for executable operations")
@@ -156,6 +158,10 @@ class EvidenceRecorder:
             nofollow, directory = self._required_posix_flags()
             workspace_fd = open_directory_no_symlinks(self.workspace_dir)
             self._validate_private_directory(workspace_fd, "worker workspace")
+            if self._expected_workspace_fd is not None and not same_directory_identity(
+                workspace_fd, self._expected_workspace_fd
+            ):
+                raise EvidenceCaptureError("worker workspace changed after preflight")
             if self._cleanup_manager is not None and self._artifact_directory_effect is None:
                 directory_effect = self._cleanup_manager.ledger.record_effect(
                     step_id=f"{clean_step_id}-evidence-artifacts",

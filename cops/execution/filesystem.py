@@ -48,6 +48,13 @@ def open_directory_no_symlinks(
         ) from err
 
 
+def same_directory_identity(opened_fd: int, expected_fd: int) -> bool:
+    """Compare a reopened directory with an inode kept open by its caller."""
+    opened = os.fstat(opened_fd)
+    expected = os.fstat(expected_fd)
+    return (opened.st_dev, opened.st_ino) == (expected.st_dev, expected.st_ino)
+
+
 def create_directory_exclusive_no_symlinks(
     path: Path | str,
     *,

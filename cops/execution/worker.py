@@ -18,6 +18,7 @@ import stat
 import tempfile
 import uuid
 from collections.abc import Mapping
+from contextlib import ExitStack
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -53,6 +54,7 @@ from .filesystem import (
     SecureDirectoryError,
     create_directory_exclusive_no_symlinks,
     open_directory_no_symlinks,
+    same_directory_identity,
 )
 from .sandbox import ExecutionSandbox, LinuxBubblewrapSandbox
 
@@ -442,6 +444,31 @@ class IsolatedWorker:
         max_output_bytes: int | None = None,
     ) -> AuthorizedExecution:
         """Execute after both boundaries pass readiness, returning authority provenance."""
+        with ExitStack() as workspace_stack:
+            return self._execute_plan_with_receipt_impl(
+                action_plan,
+                authorization_id=authorization_id,
+                workspace_dir=workspace_dir,
+                cancel_requested=cancel_requested,
+                failure_injection=failure_injection,
+                timeout_seconds=timeout_seconds,
+                max_output_bytes=max_output_bytes,
+                workspace_stack=workspace_stack,
+            )
+
+    def _execute_plan_with_receipt_impl(
+        self,
+        action_plan: ActionPlan | dict[str, Any],
+        *,
+        authorization_id: str,
+        workspace_dir: Path | None,
+        cancel_requested: bool,
+        failure_injection: dict[str, Any] | None,
+        timeout_seconds: float | None,
+        max_output_bytes: int | None,
+        workspace_stack: ExitStack,
+    ) -> AuthorizedExecution:
+        """Keep workspace inode references live through execution and cleanup."""
         # 1. Resolve ActionPlan model
         if isinstance(action_plan, dict):
             plan_model = ActionPlan.from_dict(action_plan)
@@ -494,6 +521,7 @@ class IsolatedWorker:
                     "worker workspace path must not contain parent traversal or symbolic-link components"
                 )
             target_workspace = Path(os.path.abspath(os.fspath(workspace_dir)))
+        workspace_fd = -1
         if ephemeral:
             parent_fd = -1
             try:
@@ -506,12 +534,8 @@ class IsolatedWorker:
                 if parent_fd >= 0:
                     os.close(parent_fd)
         else:
-            workspace_fd = -1
-            try:
-                workspace_fd = _open_caller_workspace(target_workspace)
-            finally:
-                if workspace_fd >= 0:
-                    os.close(workspace_fd)
+            workspace_fd = _open_caller_workspace(target_workspace)
+            workspace_stack.callback(os.close, workspace_fd)
 
         receipt: ApprovalConsumptionReceipt | None = None
         cleanup_manager: CleanupManager | None = None
@@ -537,25 +561,28 @@ class IsolatedWorker:
                     target=str(target_workspace),
                     cleanup_action="delete",
                 )
-            workspace_fd = -1
             try:
                 if workspace_scratch_effect is not None:
                     workspace_fd = create_directory_exclusive_no_symlinks(target_workspace)
+                    workspace_stack.callback(os.close, workspace_fd)
                     ledger.record_created_identity(
                         workspace_scratch_effect,
                         creation_fd=workspace_fd,
                     )
                 else:
-                    # Re-open immediately before readiness and authorization checks
-                    # so execution remains bound to a freshly verified directory.
-                    workspace_fd = _open_caller_workspace(target_workspace)
+                    # Reject a path replacement before consuming authorization.
+                    reopened_fd = _open_caller_workspace(target_workspace)
+                    try:
+                        if not same_directory_identity(reopened_fd, workspace_fd):
+                            raise WorkerIsolationError("worker workspace changed after preflight")
+                    finally:
+                        os.close(reopened_fd)
             except SecureDirectoryError as err:
                 raise WorkerIsolationError("worker workspace path must not contain symbolic-link components") from err
-            finally:
-                if workspace_fd >= 0:
-                    os.close(workspace_fd)
             self.approval_control.assert_ready(self.config.worker_id)
-            self.sandbox.assert_ready(self.config.worker_id, cwd=target_workspace)
+            self.sandbox.assert_ready(
+                self.config.worker_id, cwd=target_workspace, expected_workspace_fd=workspace_fd
+            )
             self._verify_plan_compatibility(plan_model)
             if self.cleanup_journal is not None:
                 self.cleanup_journal.record_run_event(
@@ -615,6 +642,7 @@ class IsolatedWorker:
             redactor = StreamRedactor()
             evidence_recorder = EvidenceRecorder(
                 workspace_dir=target_workspace,
+                expected_workspace_fd=workspace_fd,
                 redactor=redactor,
                 portable_inert=portable_inert,
                 context=EvidenceContext(
@@ -744,6 +772,7 @@ class IsolatedWorker:
                     adapter_dispatched = False
                     credential_scratch_effect = None
                     operation_workspace = target_workspace
+                    operation_workspace_fd = workspace_fd
                     if (
                         self.credential_resolver is not None
                         and self.credential_resolver.has_grant_for_operation(plan_model, op, operation_index)
@@ -759,16 +788,12 @@ class IsolatedWorker:
                             cleanup_action="delete",
                             metadata={"purpose": "credential_operation_scratch"},
                         )
-                        operation_workspace_fd = -1
-                        try:
-                            operation_workspace_fd = create_directory_exclusive_no_symlinks(operation_workspace)
-                            ledger.record_created_identity(
-                                credential_scratch_effect,
-                                creation_fd=operation_workspace_fd,
-                            )
-                        finally:
-                            if operation_workspace_fd >= 0:
-                                os.close(operation_workspace_fd)
+                        operation_workspace_fd = create_directory_exclusive_no_symlinks(operation_workspace)
+                        workspace_stack.callback(os.close, operation_workspace_fd)
+                        ledger.record_created_identity(
+                            credential_scratch_effect,
+                            creation_fd=operation_workspace_fd,
+                        )
                     operation_env = {**clean_env, "HOME": str(operation_workspace), "TMPDIR": str(operation_workspace)}
                     try:
                         remaining_capture = max(0, max_output_bytes - captured_output_bytes)
@@ -799,13 +824,20 @@ class IsolatedWorker:
                                 overall_exit_code = 126
                                 break
                             cmd = adapter.assemble_command(action, op.get("arguments"))
+
+                            def run_bound_probe(command: Any, **kwargs: Any) -> Any:
+                                return self.sandbox.run(
+                                    command, expected_workspace_fd=operation_workspace_fd, **kwargs
+                                )
+
                             prepared = prepare_executable(
                                 adapter,
                                 workspace=operation_workspace,
+                                expected_workspace_fd=operation_workspace_fd,
                                 env=operation_env,
                                 timeout_seconds=timeout,
                                 deadline=step_deadline,
-                                process_runner=self.sandbox.run,
+                                process_runner=run_bound_probe,
                                 cleanup_manager=cleanup_manager,
                                 credential_scratch_root=(
                                     operation_workspace if credential_scratch_effect is not None else None
@@ -848,6 +880,7 @@ class IsolatedWorker:
                                         timeout_seconds=invocation_timeout,
                                         max_output_bytes=_remaining_capture,
                                         pass_fds=_prepared.pass_fds,
+                                        expected_workspace_fd=operation_workspace_fd,
                                         **extra_arguments,
                                     )
 

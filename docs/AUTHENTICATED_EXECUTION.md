@@ -188,6 +188,11 @@ supports the worker environment and can assemble the approved operation, and tha
 the host supports descriptor-bound executable launch. The staged executable and
 reserved evidence artifact retain their parent directory descriptors until cleanup
 or capture; replacing a parent pathname cannot redirect the write or deletion.
+The worker holds the opened workspace directory through execution and cleanup and
+compares later opens against it before readiness, evidence reservation, executable
+staging, and sandbox launch. A replaced caller workspace path fails closed. A
+replacement detected before consumption leaves the approval available; a later
+replacement consumes the one-use approval.
 
 Run the worker under a dedicated isolated account. Descriptor binding prevents
 pathname substitution, but it does not defend against another process with the same

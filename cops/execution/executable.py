@@ -17,6 +17,7 @@ from time import monotonic
 from cops.adapters import ToolAdapter
 
 from .cleanup import CleanupError, CleanupManager, SideEffect
+from .filesystem import same_directory_identity
 from .process import BoundedProcessResult
 
 ProcessRunner = Callable[..., BoundedProcessResult]
@@ -190,6 +191,7 @@ def prepare_executable(
     process_runner: ProcessRunner,
     cleanup_manager: CleanupManager | None = None,
     credential_scratch_root: Path | None = None,
+    expected_workspace_fd: int | None = None,
 ) -> PreparedExecutable:
     """Open, stage, digest, version-check, and return an adapter executable.
 
@@ -243,6 +245,10 @@ def prepare_executable(
 
         workspace_fd = os.open(workspace, os.O_RDONLY | directory | nofollow)
         _validate_private_directory(workspace_fd, "worker workspace")
+        if expected_workspace_fd is not None and not same_directory_identity(
+            workspace_fd, expected_workspace_fd
+        ):
+            raise ExecutableVerificationError("worker workspace changed after preflight")
         if cleanup_manager is not None:
             try:
                 os.stat(".executables", dir_fd=workspace_fd, follow_symlinks=False)
