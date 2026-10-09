@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import os
+import sys
 import time
 from pathlib import Path
 
 import pytest
 
+import cops.execution.ssh_transport as ssh_transport_module
 from cops.execution.ssh_transport import (
     SSH_PROTOCOL,
     SSHRemoteEndpoint,
@@ -59,6 +61,48 @@ def test_transport_invokes_ssh_with_strict_pinned_configuration(tmp_path: Path) 
     assert response.payload["pin"] == "worker.example.test ssh-ed25519 dGVzdC1ob3N0LWtleQ==\n"
     assert response.payload["pin_mode"] == 0o600
     assert argv[-2:] == ["worker.example.test", "python3 -m cops.remote_worker"]
+
+
+def test_transport_launches_validated_executable_after_configured_path_is_swapped(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    transport, marker, _ = make_transport(tmp_path)
+    executable = tmp_path / "fake-ssh"
+    malicious_marker = tmp_path / "substitute-invoked"
+    substitute = tmp_path / "substitute-ssh"
+    substitute.write_text(
+        f"#!{sys.executable}\nfrom pathlib import Path\n"
+        f"Path({os.fspath(malicious_marker)!r}).write_text('invoked', encoding='utf-8')\n"
+        "raise SystemExit(91)\n",
+        encoding="utf-8",
+    )
+    substitute.chmod(0o700)
+    original_popen = ssh_transport_module.subprocess.Popen
+    launched: dict[str, object] = {}
+
+    def swap_then_launch(*args: object, **kwargs: object) -> object:
+        executable.replace(tmp_path / "validated-ssh")
+        substitute.replace(executable)
+        launched["command"] = args[0]
+        launched["pass_fds"] = kwargs.get("pass_fds", ())
+        return original_popen(*args, **kwargs)
+
+    monkeypatch.setattr(ssh_transport_module.subprocess, "Popen", swap_then_launch)
+
+    response = transport.request({}, request_id="request-executable-swap")
+
+    assert response.payload["result"] == "accepted"
+    assert marker.read_text(encoding="utf-8") == "invoked"
+    assert not malicious_marker.exists()
+    if Path("/proc/self/fd").is_dir():
+        command = launched["command"]
+        pass_fds = launched["pass_fds"]
+        assert isinstance(command, list)
+        assert isinstance(pass_fds, tuple)
+        descriptor_path = Path(command[0])
+        assert descriptor_path.parent == Path("/proc/self/fd")
+        assert int(descriptor_path.name) in pass_fds
 
 
 @pytest.mark.parametrize(

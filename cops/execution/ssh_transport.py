@@ -311,13 +311,30 @@ class SSHRemoteTransport:
         if len(request_bytes) > self._limits.max_request_bytes:
             raise SSHTransportError("SSH request exceeds the configured byte limit")
 
-        _validate_executable(self._ssh_executable)
-        pin, host_key_algorithm = _load_exact_host_pin(self._endpoint)
-
+        executable_descriptor = -1
+        executable_pass_fds: tuple[int, ...] = ()
         try:
+            executable_descriptor, executable_metadata = _open_executable(self._ssh_executable)
+            pin, host_key_algorithm = _load_exact_host_pin(self._endpoint)
             with tempfile.TemporaryDirectory(prefix="cops-ssh-") as temporary_directory:
                 private_directory = Path(temporary_directory)
                 os.chmod(private_directory, 0o700)
+                descriptor_launch_path = _descriptor_launch_path(executable_descriptor, executable_metadata)
+                if descriptor_launch_path is not None:
+                    launch_executable = descriptor_launch_path
+                    executable_pass_fds = (executable_descriptor,)
+                elif _path_is_immutable_to_current_user(self._ssh_executable, executable_metadata):
+                    # Preserve platform-signed system binaries: the held descriptor and a
+                    # non-writable file/parent chain make this path stable for this identity.
+                    launch_executable = self._ssh_executable
+                else:
+                    launch_executable = _stage_executable(
+                        executable_descriptor,
+                        executable_metadata,
+                        private_directory,
+                    )
+                    os.close(executable_descriptor)
+                    executable_descriptor = -1
                 staged_pin = private_directory / "known_hosts"
                 descriptor = os.open(
                     staged_pin,
@@ -333,7 +350,7 @@ class SSHRemoteTransport:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     raise SSHTransportError("SSH exchange exceeded the configured time limit")
-                command = self._command(staged_pin, host_key_algorithm)
+                command = self._command(launch_executable, staged_pin, host_key_algorithm)
                 result = _run_exchange(
                     command,
                     request_bytes=request_bytes,
@@ -341,11 +358,17 @@ class SSHRemoteTransport:
                     timeout_seconds=remaining,
                     max_response_bytes=self._limits.max_response_bytes,
                     max_diagnostic_bytes=self._limits.max_diagnostic_bytes,
+                    pass_fds=executable_pass_fds,
                 )
+                if executable_descriptor >= 0:
+                    _verify_executable_unchanged(executable_descriptor, executable_metadata)
         except SSHTransportError:
             raise
         except OSError as err:
             raise SSHTransportError("SSH transport setup failed") from err
+        finally:
+            if executable_descriptor >= 0:
+                os.close(executable_descriptor)
 
         if result.timed_out:
             raise SSHTransportError("SSH exchange exceeded the configured time limit")
@@ -357,7 +380,7 @@ class SSHRemoteTransport:
             raise SSHTransportError(f"SSH exchange failed with exit status {result.returncode}")
         return _decode_response(result.stdout, self._endpoint, request_id)
 
-    def _command(self, staged_pin: Path, host_key_algorithm: str) -> list[str]:
+    def _command(self, staged_executable: Path, staged_pin: Path, host_key_algorithm: str) -> list[str]:
         options = (
             "BatchMode=yes",
             "StrictHostKeyChecking=yes",
@@ -379,7 +402,7 @@ class SSHRemoteTransport:
             "IdentitiesOnly=yes",
             f"HostKeyAlgorithms={host_key_algorithm}",
         )
-        command = [os.fspath(self._ssh_executable), "-F", "/dev/null"]
+        command = [os.fspath(staged_executable), "-F", "/dev/null"]
         for option in options:
             command.extend(("-o", option))
         command.extend(
@@ -482,13 +505,131 @@ def _load_exact_host_pin(endpoint: SSHRemoteEndpoint) -> tuple[bytes, str]:
     return f"{host_field} {algorithm} {encoded_key}\n".encode("ascii"), algorithm
 
 
-def _validate_executable(path: Path) -> None:
+def _open_executable(path: Path) -> tuple[int, os.stat_result]:
+    if path.name in ("", ".", ".."):
+        raise SSHTransportError("SSH executable cannot be opened securely")
+    parent_descriptor = -1
+    descriptor = -1
     try:
-        metadata = path.lstat()
-    except OSError as err:
+        parent_descriptor = open_directory_no_symlinks(path.parent)
+        descriptor = os.open(
+            path.name,
+            os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NONBLOCK", 0),
+            dir_fd=parent_descriptor,
+        )
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_mode & 0o111 == 0:
+            raise SSHTransportError("SSH executable must be an executable regular file")
+        opened_descriptor = descriptor
+        descriptor = -1
+        return opened_descriptor, metadata
+    except SSHTransportError:
+        raise
+    except (OSError, SecureDirectoryError) as err:
         raise SSHTransportError("SSH executable cannot be opened securely") from err
-    if not stat.S_ISREG(metadata.st_mode) or path.is_symlink() or metadata.st_mode & 0o111 == 0:
-        raise SSHTransportError("SSH executable must be an executable regular file")
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        if parent_descriptor >= 0:
+            os.close(parent_descriptor)
+
+
+def _stage_executable(
+    source_descriptor: int,
+    expected_metadata: os.stat_result,
+    private_directory: Path,
+) -> Path:
+    staged_path = private_directory / "ssh-executable"
+    staged_descriptor = -1
+    copied_bytes = 0
+    try:
+        staged_descriptor = os.open(
+            staged_path,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0),
+            0o500,
+        )
+        os.fchmod(staged_descriptor, 0o500)
+        os.lseek(source_descriptor, 0, os.SEEK_SET)
+        while copied_bytes <= expected_metadata.st_size:
+            chunk = os.read(
+                source_descriptor,
+                min(_READ_CHUNK, expected_metadata.st_size + 1 - copied_bytes),
+            )
+            if not chunk:
+                break
+            _write_all(staged_descriptor, chunk)
+            copied_bytes += len(chunk)
+        current_metadata = os.fstat(source_descriptor)
+        if copied_bytes != expected_metadata.st_size or _executable_identity(current_metadata) != _executable_identity(
+            expected_metadata
+        ):
+            raise SSHTransportError("SSH executable changed while being staged")
+        os.fsync(staged_descriptor)
+    except SSHTransportError:
+        raise
+    except OSError as err:
+        raise SSHTransportError("SSH executable cannot be staged securely") from err
+    finally:
+        if staged_descriptor >= 0:
+            os.close(staged_descriptor)
+    return staged_path
+
+
+def _path_is_immutable_to_current_user(path: Path, expected_metadata: os.stat_result) -> bool:
+    if not hasattr(os, "geteuid") or os.geteuid() == 0 or expected_metadata.st_uid == os.geteuid():
+        return False
+    try:
+        current_metadata = path.lstat()
+        if _executable_identity(current_metadata) != _executable_identity(expected_metadata):
+            return False
+        if current_metadata.st_mode & 0o022 or os.access(path, os.W_OK, effective_ids=True):
+            return False
+        current = path.parent
+        while True:
+            metadata = current.lstat()
+            if (
+                not stat.S_ISDIR(metadata.st_mode)
+                or metadata.st_mode & 0o022
+                or metadata.st_uid == os.geteuid()
+                or os.access(current, os.W_OK, effective_ids=True)
+            ):
+                return False
+            if current == current.parent:
+                return True
+            current = current.parent
+    except (NotImplementedError, OSError):
+        return False
+
+
+def _descriptor_launch_path(descriptor: int, expected_metadata: os.stat_result) -> Path | None:
+    descriptor_path = Path("/proc/self/fd") / str(descriptor)
+    try:
+        current_metadata = descriptor_path.stat()
+    except OSError:
+        return None
+    if _executable_identity(current_metadata) != _executable_identity(expected_metadata):
+        return None
+    return descriptor_path
+
+
+def _verify_executable_unchanged(descriptor: int, expected_metadata: os.stat_result) -> None:
+    try:
+        current_metadata = os.fstat(descriptor)
+    except OSError as err:
+        raise SSHTransportError("SSH executable could not be revalidated") from err
+    if _executable_identity(current_metadata) != _executable_identity(expected_metadata):
+        raise SSHTransportError("SSH executable changed during launch")
+
+
+def _executable_identity(metadata: os.stat_result) -> tuple[int, ...]:
+    return (
+        metadata.st_dev,
+        metadata.st_ino,
+        metadata.st_mode,
+        metadata.st_size,
+        metadata.st_mtime_ns,
+        metadata.st_ctime_ns,
+    )
 
 
 def _write_all(descriptor: int, content: bytes) -> None:
@@ -523,6 +664,7 @@ def _run_exchange(
     timeout_seconds: float,
     max_response_bytes: int,
     max_diagnostic_bytes: int,
+    pass_fds: tuple[int, ...] = (),
 ) -> _CollectedExchange:
     if os.name != "posix":
         raise SSHTransportError("SSH transport requires POSIX process-group support")
@@ -538,6 +680,7 @@ def _run_exchange(
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 close_fds=True,
+                pass_fds=pass_fds,
                 start_new_session=True,
             )
         except OSError as err:
