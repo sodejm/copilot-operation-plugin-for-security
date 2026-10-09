@@ -24,7 +24,7 @@ from cops.contracts.models import ActionPlan
 from cops.evidence.canonical import digest
 
 from .authorization import AuthorizationTrustStore, verify_execution_authorization
-from .store import ApprovalStore
+from .store import ApprovalConsumptionRecord, ApprovalStore
 
 REQUEST_SCHEMA = "cops.approval-control-request/v1"
 RESPONSE_SCHEMA = "cops.approval-control-response/v1"
@@ -33,6 +33,10 @@ MAX_CONTROL_MESSAGE_BYTES = 1_048_576
 
 class ApprovalControlError(RuntimeError):
     """The protected approval authority rejected or could not serve a request."""
+
+
+class _ApprovalControlTransportError(ApprovalControlError):
+    """The client could not determine whether the authority committed its request."""
 
 
 class _DeadlineSocket:
@@ -107,7 +111,11 @@ def _read_json_line(connection: socket.socket) -> dict[str, Any]:
             raise ApprovalControlError("approval control message exceeds the byte limit")
         if b"\n" in chunk:
             break
-    if not data.endswith(b"\n") or data.count(b"\n") != 1:
+    if not data.endswith(b"\n"):
+        raise _ApprovalControlTransportError(
+            "approval control connection ended before a complete response"
+        )
+    if data.count(b"\n") != 1:
         raise ApprovalControlError("approval control requires one newline-delimited JSON document")
     try:
         document = json.loads(data[:-1])
@@ -123,6 +131,24 @@ def _write_json_line(connection: socket.socket, document: dict[str, Any]) -> Non
     if len(encoded) > MAX_CONTROL_MESSAGE_BYTES:
         raise ApprovalControlError("approval control response exceeds the byte limit")
     connection.sendall(encoded)
+
+
+def _consumption_response(
+    request_id: str,
+    record: ApprovalConsumptionRecord,
+) -> dict[str, Any]:
+    return {
+        "schema_version": RESPONSE_SCHEMA,
+        "request_id": request_id,
+        "ok": True,
+        "authorization_id": record.authorization_id,
+        "authorization_digest": record.authorization_digest,
+        "action_plan_id": record.action_plan_id,
+        "plan_digest": record.plan_digest,
+        "engagement_id": record.engagement_id,
+        "worker_identity": record.worker_identity,
+        "target": record.target,
+    }
 
 
 @dataclass(frozen=True)
@@ -194,6 +220,24 @@ class ApprovalAuthority:
             plan = ActionPlan.from_dict(document["action_plan"])
         except (KeyError, TypeError, ValueError) as err:
             raise ApprovalControlError("approval control action plan is invalid") from err
+
+        request_digest = digest(document)
+        receipt_bindings = {
+            "request_digest": request_digest,
+            "authorization_id": document["authorization_id"],
+            "action_plan_id": plan.plan_id,
+            "plan_digest": plan.plan_digest,
+            "engagement_id": plan.engagement_id,
+            "worker_identity": self.worker_identity,
+            "target": plan.target,
+        }
+        prior = self.store.get_matching_consumption(
+            document["request_id"],
+            **receipt_bindings,
+        )
+        if prior is not None:
+            return _consumption_response(document["request_id"], prior)
+
         try:
             stored = self.store.get_authorization(document["authorization_id"])
             verified = verify_execution_authorization(
@@ -204,27 +248,28 @@ class ApprovalAuthority:
                 worker_identity=self.worker_identity,
             )
         except Exception as err:
+            # A concurrent first attempt can commit after the lookup above but
+            # before this attempt reads the one-time authorization. Recover
+            # only an exact, durably recorded retry.
+            prior = self.store.get_matching_consumption(
+                document["request_id"],
+                **receipt_bindings,
+            )
+            if prior is not None:
+                return _consumption_response(document["request_id"], prior)
             raise ApprovalControlError(
                 "approval authorization did not verify for the requested plan and worker"
             ) from err
-        consumed = self.store.atomically_consume(
-            verified.authorization_id,
-            worker_identity=self.worker_identity,
+
+        record = self.store.atomically_consume_request(
+            document["request_id"],
+            request_digest=request_digest,
+            target=plan.target,
             expected_authorization=verified,
+            worker_identity=self.worker_identity,
+            expected_authority_uid=self.authority_uid,
         )
-        self.store.assert_protected_owner(self.authority_uid)
-        return {
-            "schema_version": RESPONSE_SCHEMA,
-            "request_id": document["request_id"],
-            "ok": True,
-            "authorization_id": consumed.authorization_id,
-            "authorization_digest": digest(consumed.to_dict()),
-            "action_plan_id": consumed.action_plan_id,
-            "plan_digest": consumed.plan_digest,
-            "engagement_id": consumed.engagement_id,
-            "worker_identity": self.worker_identity,
-            "target": plan.target,
-        }
+        return _consumption_response(document["request_id"], record)
 
     def serve_connection(self, connection: socket.socket) -> None:
         peer_pid, peer_uid, peer_gid = _peer_credentials(connection)
@@ -387,6 +432,26 @@ class ApprovalControlClient:
         if stat.S_IMODE(parent_stat.st_mode) != 0o2710:
             raise ApprovalControlError("approval authority socket directory must have mode 2710")
 
+    def _exchange(self, request: dict[str, Any]) -> dict[str, Any]:
+        try:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+                connection.set_inheritable(False)
+                connection.settimeout(self.timeout_seconds)
+                connection.connect(str(self.socket_path))
+                _, peer_uid, _ = _peer_credentials(connection)
+                if peer_uid != self.expected_authority_uid:
+                    raise ApprovalControlError(
+                        "connected approval authority UID does not match configured UID"
+                    )
+                _write_json_line(connection, request)
+                return _read_json_line(connection)
+        except ApprovalControlError:
+            raise
+        except OSError as err:
+            raise _ApprovalControlTransportError(
+                "approval control transport failed before a complete response"
+            ) from err
+
     def consume_authorization(
         self, authorization_id: str, action_plan: ActionPlan, worker_identity: str
     ) -> ApprovalConsumptionReceipt:
@@ -400,15 +465,18 @@ class ApprovalControlClient:
             "worker_identity": worker_identity,
             "action_plan": action_plan.to_dict(),
         }
-        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
-            connection.set_inheritable(False)
-            connection.settimeout(self.timeout_seconds)
-            connection.connect(str(self.socket_path))
-            _, peer_uid, _ = _peer_credentials(connection)
-            if peer_uid != self.expected_authority_uid:
-                raise ApprovalControlError("connected approval authority UID does not match configured UID")
-            _write_json_line(connection, request)
-            response = _read_json_line(connection)
+        response: dict[str, Any] | None = None
+        for attempt in range(2):
+            try:
+                response = self._exchange(request)
+                break
+            except _ApprovalControlTransportError as err:
+                if attempt == 1:
+                    raise ApprovalControlError(
+                        "approval control transport failed after an idempotent retry"
+                    ) from err
+        if response is None:  # pragma: no cover - loop exit is exhaustive
+            raise ApprovalControlError("approval control did not return a response")
         if response.get("schema_version") != RESPONSE_SCHEMA or response.get("request_id") != request_id:
             raise ApprovalControlError("approval authority response identity mismatch")
         if response.get("ok") is not True:

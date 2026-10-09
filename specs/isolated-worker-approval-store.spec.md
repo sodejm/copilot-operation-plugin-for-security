@@ -58,17 +58,22 @@ dispatch authorized `cops.action-plan/v1` operations.
      consume-only Unix socket. Operator provisioning runs outside the execution
      worker and cannot be invoked by a worker request.
    - The authority accepts only a bounded, versioned request containing an
-     authorization identifier, exact Action Plan, and expected worker identity.
+     authorization identifier, request identifier, exact Action Plan, and expected
+     worker identity.
      It verifies the stored signed authorization against those values and the active
-     Engagement, then atomically consumes it. It does not accept a caller-supplied
-     authorization envelope for registration.
+     Engagement, then atomically persists the request identifier, exact request
+     bindings, durable receipt, and authorization consumption. It does not accept a
+     caller-supplied authorization envelope for registration.
+   - After an ambiguous transport failure, the client retries once with the same
+     request identifier. An exact retry returns the durable receipt from the first
+     committed request; reuse with altered bindings fails closed.
    - A protected socket directory and socket permit only the designated worker
      account to connect. Linux peer credentials must match the configured worker
      UID, GID, and process identity; the worker verifies the authority UID. The
      authority account and worker account must differ. Insecure store or socket
      ownership and permissions fail closed.
-   - A timeout or malformed, oversized, mismatched, forged, or replayed request
-     cannot consume authority or block the authority indefinitely.
+   - A timeout or malformed, oversized, mismatched, forged, or altered replay cannot
+     consume authority or block the authority indefinitely.
 
 5. **Host Transport and Process Isolation**:
    - Remote requests use bounded versioned JSON over SSH with a pinned known-hosts

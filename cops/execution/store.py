@@ -14,7 +14,7 @@ from pathlib import Path
 
 from cops.contracts.models import ExecutionAuthorization
 from cops.contracts.validation import validate_contract
-from cops.evidence.canonical import canonical, timestamp, utc_now
+from cops.evidence.canonical import canonical, digest, timestamp, utc_now
 
 
 @dataclass(frozen=True)
@@ -63,6 +63,22 @@ class LegacyApprovalRecord:
         }
 
 
+@dataclass(frozen=True)
+class ApprovalConsumptionRecord:
+    """Durable result of one idempotent approval-control request."""
+
+    request_id: str
+    request_digest: str
+    authorization_id: str
+    authorization_digest: str
+    action_plan_id: str
+    plan_digest: str
+    engagement_id: str
+    worker_identity: str
+    target: str
+    created_at: str
+
+
 class ApprovalStoreError(ValueError):
     """Base error for approval store operations."""
 
@@ -102,6 +118,23 @@ CREATE TABLE IF NOT EXISTS approvals (
 
 CREATE INDEX IF NOT EXISTS idx_approvals_plan ON approvals(action_plan_id);
 CREATE INDEX IF NOT EXISTS idx_approvals_status ON approvals(status);
+
+CREATE TABLE IF NOT EXISTS approval_consumptions (
+    request_id TEXT PRIMARY KEY,
+    request_digest TEXT NOT NULL,
+    authorization_id TEXT NOT NULL UNIQUE,
+    authorization_digest TEXT NOT NULL,
+    action_plan_id TEXT NOT NULL,
+    plan_digest TEXT NOT NULL,
+    engagement_id TEXT NOT NULL,
+    worker_identity TEXT NOT NULL,
+    target TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (authorization_id) REFERENCES approvals(authorization_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_approval_consumptions_authorization
+    ON approval_consumptions(authorization_id);
 """
 
 
@@ -360,6 +393,264 @@ class ApprovalStore:
                     consumed_by_worker=row["consumed_by_worker"],
                 )
             return ExecutionAuthorization.from_dict(doc)
+
+    @staticmethod
+    def _consumption_record(row: sqlite3.Row) -> ApprovalConsumptionRecord:
+        return ApprovalConsumptionRecord(
+            request_id=row["request_id"],
+            request_digest=row["request_digest"],
+            authorization_id=row["authorization_id"],
+            authorization_digest=row["authorization_digest"],
+            action_plan_id=row["action_plan_id"],
+            plan_digest=row["plan_digest"],
+            engagement_id=row["engagement_id"],
+            worker_identity=row["worker_identity"],
+            target=row["target"],
+            created_at=row["created_at"],
+        )
+
+    @staticmethod
+    def _assert_matching_consumption(
+        record: ApprovalConsumptionRecord,
+        *,
+        request_digest: str,
+        authorization_id: str,
+        action_plan_id: str,
+        plan_digest: str,
+        engagement_id: str,
+        worker_identity: str,
+        target: str,
+    ) -> None:
+        expected = (
+            request_digest,
+            authorization_id,
+            action_plan_id,
+            plan_digest,
+            engagement_id,
+            worker_identity,
+            target,
+        )
+        actual = (
+            record.request_digest,
+            record.authorization_id,
+            record.action_plan_id,
+            record.plan_digest,
+            record.engagement_id,
+            record.worker_identity,
+            record.target,
+        )
+        if actual != expected:
+            raise ApprovalStoreConflictError(
+                f"approval request_id '{record.request_id}' was already used for a different request"
+            )
+
+    def get_matching_consumption(
+        self,
+        request_id: str,
+        *,
+        request_digest: str,
+        authorization_id: str,
+        action_plan_id: str,
+        plan_digest: str,
+        engagement_id: str,
+        worker_identity: str,
+        target: str,
+    ) -> ApprovalConsumptionRecord | None:
+        """Return the durable receipt for an exact retry, rejecting altered reuse."""
+        with self._get_connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM approval_consumptions WHERE request_id = ?",
+                (request_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        record = self._consumption_record(row)
+        self._assert_matching_consumption(
+            record,
+            request_digest=request_digest,
+            authorization_id=authorization_id,
+            action_plan_id=action_plan_id,
+            plan_digest=plan_digest,
+            engagement_id=engagement_id,
+            worker_identity=worker_identity,
+            target=target,
+        )
+        return record
+
+    def atomically_consume_request(
+        self,
+        request_id: str,
+        *,
+        request_digest: str,
+        target: str,
+        expected_authorization: ExecutionAuthorization,
+        worker_identity: str,
+        expected_authority_uid: int,
+        current_time_iso: str | None = None,
+    ) -> ApprovalConsumptionRecord:
+        """Consume approval and persist its exact request and receipt in one transaction."""
+        import json
+
+        authorization_id = expected_authorization.authorization_id
+        now_str = current_time_iso or utc_now()
+        now_dt = timestamp(now_str)
+
+        with self._get_connection() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            committed = False
+            try:
+                prior_row = conn.execute(
+                    "SELECT * FROM approval_consumptions WHERE request_id = ?",
+                    (request_id,),
+                ).fetchone()
+                if prior_row is not None:
+                    prior = self._consumption_record(prior_row)
+                    self._assert_matching_consumption(
+                        prior,
+                        request_digest=request_digest,
+                        authorization_id=authorization_id,
+                        action_plan_id=expected_authorization.action_plan_id,
+                        plan_digest=expected_authorization.plan_digest,
+                        engagement_id=expected_authorization.engagement_id,
+                        worker_identity=worker_identity,
+                        target=target,
+                    )
+                    conn.execute("COMMIT")
+                    committed = True
+                    return prior
+
+                row = conn.execute(
+                    """
+                    SELECT authorization_id, action_plan_id, plan_digest, engagement_id,
+                           operator, status, issued_at, authorized_until_utc,
+                           bound_parameters_json, approval_mode, signature_algorithm,
+                           signing_key_id, signature_digest, legacy_status,
+                           consumed_at, consumed_by_worker
+                    FROM approvals WHERE authorization_id = ?
+                    """,
+                    (authorization_id,),
+                ).fetchone()
+                if row is None:
+                    raise ApprovalStoreNotFoundError(
+                        f"authorization '{authorization_id}' not found in store"
+                    )
+                if row["status"] != "approved":
+                    raise ApprovalStoreConflictError(
+                        f"cannot consume authorization '{authorization_id}': status is '{row['status']}' "
+                        "(already consumed or revoked)"
+                    )
+
+                doc = {
+                    "schema_version": "cops.execution-authorization/v1",
+                    "authorization_id": row["authorization_id"],
+                    "action_plan_id": row["action_plan_id"],
+                    "plan_digest": row["plan_digest"],
+                    "engagement_id": row["engagement_id"],
+                    "operator": row["operator"],
+                    "status": row["status"],
+                    "issued_at": row["issued_at"],
+                    "authorized_until_utc": row["authorized_until_utc"],
+                    "bound_parameters": json.loads(row["bound_parameters_json"]),
+                    "approval_mode": row["approval_mode"],
+                    "signature_algorithm": row["signature_algorithm"],
+                    "signing_key_id": row["signing_key_id"],
+                    "signature_digest": row["signature_digest"],
+                }
+                if canonical(doc) != canonical(expected_authorization.to_dict()):
+                    raise ApprovalStoreConflictError(
+                        f"authorization '{authorization_id}' differs from the verified receipt"
+                    )
+                if doc["bound_parameters"].get("worker_identity") != worker_identity:
+                    raise ApprovalStoreConflictError(
+                        f"authorization '{authorization_id}' is bound to a different worker"
+                    )
+                if now_dt < timestamp(row["issued_at"]):
+                    raise ApprovalStoreConflictError(
+                        f"authorization '{authorization_id}' is not yet valid"
+                    )
+                if now_dt >= timestamp(row["authorized_until_utc"]):
+                    conn.execute(
+                        "UPDATE approvals SET status = 'expired' WHERE authorization_id = ?",
+                        (authorization_id,),
+                    )
+                    self.assert_protected_owner(expected_authority_uid)
+                    conn.execute("COMMIT")
+                    committed = True
+                    raise ApprovalStoreConflictError(
+                        f"authorization '{authorization_id}' expired at {row['authorized_until_utc']}"
+                    )
+
+                updated = conn.execute(
+                    """
+                    UPDATE approvals
+                    SET status = 'consumed', consumed_at = ?, consumed_by_worker = ?
+                    WHERE authorization_id = ? AND status = 'approved'
+                    """,
+                    (now_str, worker_identity, authorization_id),
+                )
+                if updated.rowcount != 1:
+                    raise ApprovalStoreConflictError(
+                        f"authorization '{authorization_id}' could not be consumed"
+                    )
+
+                doc.update(
+                    status="consumed",
+                    consumed_at=now_str,
+                    consumed_by_worker=worker_identity,
+                )
+                consumed = ExecutionAuthorization.from_dict(doc)
+                record = ApprovalConsumptionRecord(
+                    request_id=request_id,
+                    request_digest=request_digest,
+                    authorization_id=authorization_id,
+                    authorization_digest=digest(consumed.to_dict()),
+                    action_plan_id=consumed.action_plan_id,
+                    plan_digest=consumed.plan_digest,
+                    engagement_id=consumed.engagement_id,
+                    worker_identity=worker_identity,
+                    target=target,
+                    created_at=now_str,
+                )
+                conn.execute(
+                    """
+                    INSERT INTO approval_consumptions (
+                        request_id, request_digest, authorization_id,
+                        authorization_digest, action_plan_id, plan_digest,
+                        engagement_id, worker_identity, target, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        record.request_id,
+                        record.request_digest,
+                        record.authorization_id,
+                        record.authorization_digest,
+                        record.action_plan_id,
+                        record.plan_digest,
+                        record.engagement_id,
+                        record.worker_identity,
+                        record.target,
+                        record.created_at,
+                    ),
+                )
+                # Validate the protected-store postcondition while the write
+                # transaction is still rollback-capable.
+                self.assert_protected_owner(expected_authority_uid)
+                conn.execute("COMMIT")
+                committed = True
+                return record
+            except sqlite3.IntegrityError as err:
+                if not committed:
+                    conn.execute("ROLLBACK")
+                raise ApprovalStoreConflictError(
+                    "approval consumption request conflicts with an existing receipt"
+                ) from err
+            except Exception:
+                if not committed:
+                    try:
+                        conn.execute("ROLLBACK")
+                    except sqlite3.Error:
+                        pass
+                raise
 
     def atomically_consume(
         self,

@@ -6,6 +6,7 @@ import json
 import os
 import shutil
 import socket
+import sqlite3
 import stat
 import sys
 import tempfile
@@ -17,6 +18,7 @@ from pathlib import Path
 import pytest
 
 from cops.contracts.models import ActionPlan
+from cops.evidence.canonical import digest
 from cops.execution.authorization import create_execution_authorization
 from cops.execution.control import (
     REQUEST_SCHEMA,
@@ -25,10 +27,14 @@ from cops.execution.control import (
     ApprovalAuthorityServer,
     ApprovalControlClient,
     ApprovalControlError,
+    _ApprovalControlTransportError,
 )
-from cops.execution.store import ApprovalStore, ApprovalStoreAccessError
+from cops.execution.store import (
+    ApprovalStore,
+    ApprovalStoreAccessError,
+    ApprovalStoreConflictError,
+)
 from tests.auth_testkit import make_test_authorization_context
-
 
 WORKER_IDENTITY = "worker-01"
 
@@ -134,6 +140,118 @@ def test_authority_returns_exact_consumed_authorization_bindings(authority_conte
     assert authority.store.get_authorization(authorization.authorization_id).status == "consumed"
 
 
+def test_authority_returns_the_durable_receipt_for_an_exact_retry(authority_context):
+    authority, authorization, plan = authority_context
+    request = _request(authorization.authorization_id, plan)
+
+    first = _consume(authority, request)
+    retried = _consume(authority, request)
+
+    assert retried == first
+    with sqlite3.connect(authority.store.db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute("SELECT * FROM approval_consumptions").fetchall()
+    assert len(rows) == 1
+    assert dict(rows[0]) == {
+        "request_id": request["request_id"],
+        "request_digest": digest(request),
+        "authorization_id": authorization.authorization_id,
+        "authorization_digest": first["authorization_digest"],
+        "action_plan_id": plan.plan_id,
+        "plan_digest": plan.plan_digest,
+        "engagement_id": plan.engagement_id,
+        "worker_identity": WORKER_IDENTITY,
+        "target": plan.target,
+        "created_at": authority.store.get_authorization(
+            authorization.authorization_id
+        ).consumed_at,
+    }
+
+
+def test_authority_rejects_altered_reuse_of_a_consumed_request_id(authority_context):
+    authority, authorization, plan = authority_context
+    request = _request(authorization.authorization_id, plan)
+    _consume(authority, request)
+    altered = {
+        **request,
+        "action_plan": _different_plan(plan).to_dict(),
+    }
+
+    with pytest.raises(ApprovalStoreConflictError, match="already used for a different request"):
+        _consume(authority, altered)
+
+
+def test_authority_checks_store_postconditions_before_consuming(
+    authority_context, monkeypatch
+):
+    authority, authorization, plan = authority_context
+    original_assertion = authority.store.assert_protected_owner
+    assertion_calls = 0
+
+    def fail_precommit_postcondition(authority_uid: int) -> None:
+        nonlocal assertion_calls
+        assertion_calls += 1
+        if assertion_calls == 2:
+            raise ApprovalStoreAccessError("injected ownership change")
+        original_assertion(authority_uid)
+
+    monkeypatch.setattr(
+        authority.store,
+        "assert_protected_owner",
+        fail_precommit_postcondition,
+    )
+
+    with pytest.raises(ApprovalStoreAccessError, match="injected ownership change"):
+        _consume(authority, _request(authorization.authorization_id, plan))
+
+    assert authority.store.get_authorization(authorization.authorization_id).status == "approved"
+    with sqlite3.connect(authority.store.db_path) as conn:
+        receipt_count = conn.execute("SELECT COUNT(*) FROM approval_consumptions").fetchone()[0]
+    assert receipt_count == 0
+
+
+def test_client_retries_the_same_request_after_response_loss(
+    authority_context, monkeypatch, tmp_path
+):
+    authority, authorization, plan = authority_context
+    request_ids: list[str] = []
+
+    monkeypatch.setattr(
+        ApprovalControlClient,
+        "assert_ready",
+        lambda self, worker_identity: None,
+    )
+
+    def lose_first_response(self, request):
+        del self
+        response = _consume(authority, request)
+        request_ids.append(request["request_id"])
+        if len(request_ids) == 1:
+            raise _ApprovalControlTransportError("injected response loss after commit")
+        return response
+
+    monkeypatch.setattr(ApprovalControlClient, "_exchange", lose_first_response)
+    client = ApprovalControlClient(
+        socket_path=tmp_path / "unused.sock",
+        expected_authority_uid=authority.authority_uid,
+    )
+
+    receipt = client.consume_authorization(
+        authorization.authorization_id,
+        plan,
+        WORKER_IDENTITY,
+    )
+
+    assert len(request_ids) == 2
+    assert request_ids[0] == request_ids[1]
+    assert receipt.authorization_id == authorization.authorization_id
+    assert receipt.plan_digest == plan.plan_digest
+    client.validate_receipt_provenance(receipt)
+    with sqlite3.connect(authority.store.db_path) as conn:
+        receipt_count = conn.execute("SELECT COUNT(*) FROM approval_consumptions").fetchone()[0]
+    assert receipt_count == 1
+
+
 @pytest.mark.parametrize(
     ("request_changes", "peer_changes", "message"),
     [
@@ -233,7 +351,7 @@ def test_authority_server_deadlines_a_peer_that_never_sends_a_document(tmp_path)
         def serve_connection(self, connection):
             try:
                 connection.recv(1)
-            except socket.timeout:
+            except TimeoutError:
                 self.timed_out = True
                 raise
 
