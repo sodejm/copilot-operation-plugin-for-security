@@ -39,9 +39,7 @@ def test_exact_policy_binds_origin_identity_and_target() -> None:
     policy = parse_operation_egress_policy(_operation())
     assert policy is not None
     assert (policy.host, policy.port) == ("api.example.test", 443)
-    policy.identity_allowlist.require(
-        policy.identity, request_target="/v1/accounts/account-a/resources/resource-a"
-    )
+    policy.identity_allowlist.require(policy.identity, request_target="/v1/accounts/account-a/resources/resource-a")
     with pytest.raises(Exception, match="outside the exact identity allowlist"):
         policy.identity_allowlist.require(policy.identity, request_target="/v1/accounts/account-b/resources/resource-a")
 

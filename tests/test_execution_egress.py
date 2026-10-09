@@ -669,10 +669,7 @@ def test_broker_hard_deadline_kills_and_reaps_every_blocking_phase(phase: str) -
     assert mediator.observations[-1].origin == "https://api.example.test"
     assert mediator.observations[-1].decision == "blocked"
     assert mediator.observations[-1].reason == "broker_deadline_exceeded"
-    assert sum(
-        observation.reason == "broker_deadline_exceeded"
-        for observation in mediator.observations
-    ) == 1
+    assert sum(observation.reason == "broker_deadline_exceeded" for observation in mediator.observations) == 1
     assert "secret" not in repr(mediator.observations)
 
 
@@ -757,9 +754,9 @@ def test_broker_records_redacted_per_request_byte_limit_observation() -> None:
         ScriptedResolver({"api.example.test": [allowed, allowed]}),
         FakeConnector(FakeConnection()),
     )
-    request_line = json.dumps(
-        _request_document("https://api.example.test/private?token=secret")
-    ).encode("utf-8") + b"\n"
+    request_line = (
+        json.dumps(_request_document("https://api.example.test/private?token=secret")).encode("utf-8") + b"\n"
+    )
 
     with ExecutionEgressBroker(
         mediator,

@@ -19,14 +19,18 @@ class ScopeViolationError(ValueError):
     """Raised when an operation attempts to target an unauthorized destination or egress boundary."""
 
 
-METADATA_ADDRESSES: frozenset[str] = frozenset({
-    "169.254.169.254",  # AWS/GCP/Azure IMDS
-    "fd00:ec2::254",    # AWS IPv6 IMDS
-    "100.100.100.200",  # Alibaba Cloud IMDS
-})
+METADATA_ADDRESSES: frozenset[str] = frozenset(
+    {
+        "169.254.169.254",  # AWS/GCP/Azure IMDS
+        "fd00:ec2::254",  # AWS IPv6 IMDS
+        "100.100.100.200",  # Alibaba Cloud IMDS
+    }
+)
 
 
-def parse_ip_or_network(target: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address | ipaddress.IPv4Network | ipaddress.IPv6Network | None:
+def parse_ip_or_network(
+    target: str,
+) -> ipaddress.IPv4Address | ipaddress.IPv6Address | ipaddress.IPv4Network | ipaddress.IPv6Network | None:
     """Safely parse an IP address or CIDR network string, returning None if not an IP."""
     target = target.strip()
     try:
@@ -37,7 +41,9 @@ def parse_ip_or_network(target: str) -> ipaddress.IPv4Address | ipaddress.IPv6Ad
         return None
 
 
-def is_ip_in_network(ip: ipaddress.IPv4Address | ipaddress.IPv6Address, net: ipaddress.IPv4Network | ipaddress.IPv6Network) -> bool:
+def is_ip_in_network(
+    ip: ipaddress.IPv4Address | ipaddress.IPv6Address, net: ipaddress.IPv4Network | ipaddress.IPv6Network
+) -> bool:
     """Check if an IP address is contained within a network, matching IP versions."""
     if ip.version != net.version:
         return False
@@ -275,7 +281,9 @@ class ScopeGuard:
 
         # 2. Loopback guard
         if self.scope.block_loopback_unless_explicit and net.is_loopback:
-            if not any(net.subnet_of(inc_net) for inc_net in self.scope.included_networks if inc_net.version == net.version):
+            if not any(
+                net.subnet_of(inc_net) for inc_net in self.scope.included_networks if inc_net.version == net.version
+            ):
                 raise ScopeViolationError(
                     f"Access to loopback network '{net}' is blocked without explicit inclusion ({original_target})"
                 )
@@ -286,16 +294,16 @@ class ScopeGuard:
                 raise ScopeViolationError(f"Network '{net}' covers excluded IP '{exc_ip}' ({original_target})")
         for exc_net in self.scope.excluded_networks:
             if net.overlaps(exc_net):
-                raise ScopeViolationError(f"Network '{net}' overlaps with excluded subnet '{exc_net}' ({original_target})")
+                raise ScopeViolationError(
+                    f"Network '{net}' overlaps with excluded subnet '{exc_net}' ({original_target})"
+                )
 
         # 4. Inclusion check
         for inc_net in self.scope.included_networks:
             if net.subnet_of(inc_net):
                 return
 
-        raise ScopeViolationError(
-            f"Destination network '{net}' ({original_target}) is NOT within authorized scope"
-        )
+        raise ScopeViolationError(f"Destination network '{net}' ({original_target}) is NOT within authorized scope")
 
     def _validate_ip(
         self,
@@ -317,7 +325,9 @@ class ScopeGuard:
 
         # 2. Loopback guard
         if self.scope.block_loopback_unless_explicit and ip.is_loopback:
-            if ip not in self.scope.included_ips and not any(is_ip_in_network(ip, net) for net in self.scope.included_networks):
+            if ip not in self.scope.included_ips and not any(
+                is_ip_in_network(ip, net) for net in self.scope.included_networks
+            ):
                 raise ScopeViolationError(
                     f"Access to loopback address '{ip_str}' is blocked without explicit inclusion ({original_target})"
                 )
@@ -337,6 +347,4 @@ class ScopeGuard:
                 return
 
         # Not included in scope
-        raise ScopeViolationError(
-            f"Destination IP '{ip_str}' ({original_target}) is NOT within authorized scope"
-        )
+        raise ScopeViolationError(f"Destination IP '{ip_str}' ({original_target}) is NOT within authorized scope")

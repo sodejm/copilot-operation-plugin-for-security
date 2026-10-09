@@ -183,9 +183,7 @@ class CertificateURIIdentityVerifier:
             try:
                 value = unquote(encoded, errors="strict")
             except UnicodeDecodeError as err:
-                raise AuthenticatedResourceScopeError(
-                    "TLS peer COPS resource identity URI is not valid UTF-8"
-                ) from err
+                raise AuthenticatedResourceScopeError("TLS peer COPS resource identity URI is not valid UTF-8") from err
             if (
                 not value
                 or value.strip() != value
@@ -393,22 +391,24 @@ Resolver = Callable[[str, int], tuple[ResolvedEndpoint, ...]]
 class HTTPSExecutionMediator:
     """Perform structured HTTPS requests at the parent side of an isolated worker."""
 
-    _FORBIDDEN_HEADERS = frozenset({
-        "connection",
-        "content-length",
-        "expect",
-        "forwarded",
-        "host",
-        "proxy-authorization",
-        "proxy-connection",
-        "te",
-        "trailer",
-        "transfer-encoding",
-        "upgrade",
-        "x-forwarded-for",
-        "x-forwarded-host",
-        "x-forwarded-proto",
-    })
+    _FORBIDDEN_HEADERS = frozenset(
+        {
+            "connection",
+            "content-length",
+            "expect",
+            "forwarded",
+            "host",
+            "proxy-authorization",
+            "proxy-connection",
+            "te",
+            "trailer",
+            "transfer-encoding",
+            "upgrade",
+            "x-forwarded-for",
+            "x-forwarded-host",
+            "x-forwarded-proto",
+        }
+    )
     _REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
 
     def __init__(
@@ -427,12 +427,7 @@ class HTTPSExecutionMediator:
     ) -> None:
         if not scope_guard.scope.egress_allowed:
             raise ValueError("execution egress mediator requires engagement egress_allowed=true")
-        if (
-            timeout_seconds <= 0
-            or max_response_bytes <= 0
-            or max_response_header_bytes <= 0
-            or max_redirects < 0
-        ):
+        if timeout_seconds <= 0 or max_response_bytes <= 0 or max_response_header_bytes <= 0 or max_redirects < 0:
             raise ValueError("execution egress mediator limits must be positive")
         self._scope_guard = scope_guard
         self._identity_verifier = identity_verifier
@@ -719,8 +714,7 @@ class HTTPSExecutionMediator:
             checked_headers.append((name, value))
         metadata_bytes = len(f"HTTP/1.1 {status}\r\n".encode("ascii")) + 2
         metadata_bytes += sum(
-            len(name.encode("ascii")) + 2 + len(value.encode("ascii")) + 2
-            for name, value in checked_headers
+            len(name.encode("ascii")) + 2 + len(value.encode("ascii")) + 2 for name, value in checked_headers
         )
         if metadata_bytes > self._max_response_header_bytes:
             raise EgressMediationError("mediated HTTPS response metadata exceeded the configured byte limit")
@@ -1028,9 +1022,7 @@ class ExecutionEgressBroker:
         return line, remainder
 
     def _record_broker_block(self, origin: str, reason: str) -> None:
-        self._mediator.observations.append(
-            EgressObservation(origin=origin, decision="blocked", reason=reason)
-        )
+        self._mediator.observations.append(EgressObservation(origin=origin, decision="blocked", reason=reason))
 
     @staticmethod
     def _remaining(deadline: float) -> float:

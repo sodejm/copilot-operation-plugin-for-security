@@ -417,9 +417,7 @@ class IsolatedWorker:
         if max_output_bytes is not None and (max_output_bytes <= 0 or max_output_bytes > self.config.max_output_bytes):
             raise WorkerExecutionError("requested output limit exceeds worker limits")
 
-        operation_egress_policies = self._preflight_execution_request(
-            plan_model, cancel_requested=cancel_requested
-        )
+        operation_egress_policies = self._preflight_execution_request(plan_model, cancel_requested=cancel_requested)
 
         # Compatibility and workspace safety are part of the pre-consumption gate.
         secure_evidence_dirs = _supports_secure_evidence_dirs()
@@ -536,9 +534,7 @@ class IsolatedWorker:
 
             # 6. Execute operations in sequence (if checks passed)
             if status == "success":
-                for op, operation_egress_policy in zip(
-                    plan_model.operations, operation_egress_policies, strict=True
-                ):
+                for op, operation_egress_policy in zip(plan_model.operations, operation_egress_policies, strict=True):
                     step_id = op["step_id"]
                     tool = op["tool"]
                     action = op["action"]
@@ -639,6 +635,7 @@ class IsolatedWorker:
                                 process_runner=self.sandbox.run,
                             )
                             try:
+
                                 def run_prepared_adapter(
                                     *,
                                     _step_deadline: float = step_deadline,
@@ -666,9 +663,7 @@ class IsolatedWorker:
                                     proc = run_prepared_adapter()
                                 else:
                                     if self.scope_guard is None or self._egress_identity_verifier is None:
-                                        raise WorkerIsolationError(
-                                            "operation egress preflight state is unavailable"
-                                        )
+                                        raise WorkerIsolationError("operation egress preflight state is unavailable")
                                     mediator = HTTPSExecutionMediator(
                                         scope_guard=self.scope_guard,
                                         identity_verifier=self._egress_identity_verifier,
