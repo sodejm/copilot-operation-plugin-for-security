@@ -86,6 +86,14 @@ mediation (issue #186) remain deployment controls outside this authorization pro
 The worker must run under a dedicated UID because a hostile same-UID process can
 still modify a staged inode or interfere with held descriptors.
 
+Remote isolated-worker calls use `cops.remote-worker/v1`: one bounded JSON request
+and response over an absolute OpenSSH client configured with one privately staged,
+exact known-host pin. SSH configuration, proxies, forwarding, and local commands
+are disabled. The response must exactly bind the request identifier, configured
+host, and expected worker identity before its payload is returned. This transport
+binding does not replace worker-side approval consumption, sandboxing, or egress
+mediation.
+
 ## Evidence policy
 
 Static structure, offline behavior, host installation, and live service behavior
