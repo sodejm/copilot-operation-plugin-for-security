@@ -5,6 +5,7 @@ from __future__ import annotations
 import errno
 import json
 import os
+import socket
 import stat
 import sys
 from collections.abc import Mapping, Sequence
@@ -66,6 +67,7 @@ def _run_python(
     *,
     env: Mapping[str, str] | None = None,
     operation_env: Mapping[str, str] | None = None,
+    capability_fds: tuple[int, ...] = (),
 ) -> object:
     executable_fd = _open_python()
     try:
@@ -77,6 +79,7 @@ def _run_python(
             timeout_seconds=10.0,
             max_output_bytes=64 * 1024,
             pass_fds=(executable_fd,),
+            capability_fds=capability_fds,
         )
     finally:
         os.close(executable_fd)
@@ -252,3 +255,30 @@ def test_unmapped_capability_descriptor_fails_closed(ready_sandbox: ReadySandbox
     finally:
         os.close(capability_fd)
         os.close(executable_fd)
+
+
+def test_mapped_egress_broker_socket_is_the_only_capability(
+    ready_sandbox: ReadySandbox,
+) -> None:
+    parent_socket, child_socket = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        child_socket.sendall(b"broker-ready")
+        observed = _run_python(
+            ready_sandbox,
+            """
+import json
+import os
+import socket
+
+descriptor = int(os.environ["COPS_EGRESS_BROKER_FD"])
+broker = socket.socket(fileno=descriptor)
+print(json.dumps({"message": broker.recv(64).decode("ascii"), "family": broker.family}))
+""",
+            operation_env={"COPS_EGRESS_BROKER_FD": str(parent_socket.fileno())},
+            capability_fds=(parent_socket.fileno(),),
+        )
+    finally:
+        parent_socket.close()
+        child_socket.close()
+
+    assert observed == {"message": "broker-ready", "family": socket.AF_UNIX}

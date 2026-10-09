@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+import socket
 import stat
 import sys
 from collections.abc import Mapping, Sequence
@@ -56,6 +57,7 @@ class SandboxResourcePolicy:
 
 
 _ENV_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
+_EGRESS_BROKER_FD_ENV = "COPS_EGRESS_BROKER_FD"
 
 
 @dataclass(frozen=True)
@@ -137,7 +139,11 @@ class LinuxBubblewrapSandbox:
         return sandbox_env
 
     @staticmethod
-    def _validate_fds(executable_fd: int, capability_fds: tuple[int, ...]) -> None:
+    def _validate_fds(
+        executable_fd: int,
+        capability_fds: tuple[int, ...],
+        operation_env: Mapping[str, str] | None,
+    ) -> None:
         descriptors = (executable_fd, *capability_fds)
         if any(not isinstance(fd, int) or fd < 0 for fd in descriptors) or len(set(descriptors)) != len(descriptors):
             raise SandboxReadinessError("sandbox capability descriptors must be distinct open file descriptors")
@@ -146,6 +152,34 @@ class LinuxBubblewrapSandbox:
                 os.fstat(descriptor)
         except OSError as err:
             raise SandboxReadinessError("sandbox capability descriptor is not open") from err
+
+        broker_value = (operation_env or {}).get(_EGRESS_BROKER_FD_ENV)
+        if not capability_fds:
+            if broker_value is not None:
+                raise SandboxReadinessError("egress broker environment requires its capability descriptor")
+            return
+        if len(capability_fds) != 1 or broker_value != str(capability_fds[0]):
+            raise SandboxReadinessError("sandbox accepts only the mapped egress broker capability descriptor")
+
+        try:
+            duplicate = os.dup(capability_fds[0])
+            try:
+                broker_socket = socket.socket(fileno=duplicate)
+            except OSError:
+                os.close(duplicate)
+                raise
+            try:
+                if broker_socket.family != socket.AF_UNIX:
+                    raise SandboxReadinessError("egress broker capability must be an AF_UNIX socket")
+                if broker_socket.getsockopt(socket.SOL_SOCKET, socket.SO_TYPE) != socket.SOCK_STREAM:
+                    raise SandboxReadinessError("egress broker capability must be a stream socket")
+                broker_socket.getpeername()
+            finally:
+                broker_socket.close()
+        except SandboxReadinessError:
+            raise
+        except OSError as err:
+            raise SandboxReadinessError("egress broker capability must be a connected AF_UNIX socket") from err
 
     @staticmethod
     def _base_command(bubblewrap_fd: int) -> list[str]:
@@ -205,7 +239,7 @@ class LinuxBubblewrapSandbox:
         executable_fd = pass_fds[0]
         if command[0] != f"/proc/self/fd/{executable_fd}":
             raise SandboxReadinessError("sandbox command must use the held executable descriptor")
-        self._validate_fds(executable_fd, capability_fds)
+        self._validate_fds(executable_fd, capability_fds, operation_env)
         sandbox_env = self._sandbox_environment(env, operation_env)
         workspace_fd = self._open_private_workspace(cwd)
         try:
