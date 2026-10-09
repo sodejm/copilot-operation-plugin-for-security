@@ -46,6 +46,10 @@ class StreamRedactor:
         for secret in secrets:
             self.add_secret(secret)
 
+    def clear_secrets(self) -> None:
+        """Release exact credential values after their execution has ended."""
+        self.known_secrets.clear()
+
     def redact_string(self, text: str) -> str:
         """Alias for redact string."""
         return self.redact(text)

@@ -11,6 +11,7 @@ import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
 
 from cops.contracts.models import ActionPlan
+from cops.evidence.canonical import digest
 from cops.execution.credentials import (
     CredentialGrant,
     CredentialResolutionError,
@@ -237,6 +238,8 @@ def given_cross_worker_grant(cred_context, worker_identity):
                 tool=str(operation["tool"]),
                 tool_version=str(operation["tool_version"]),
                 action=str(operation["action"]),
+                operation_index=0,
+                operation_digest=digest(plan.approved_snapshot()["operations"][0]),
             )
         ],
         approval_control=cred_context["approval_control"],
@@ -252,6 +255,7 @@ def when_worker_requests_credential(cred_context, worker_identity):
             authorization=cred_context["consumption_receipt"],
             worker_identity=worker_identity,
             operation=plan.operations[0],
+            operation_index=0,
         )
     cred_context["resolution_error"] = caught.value
 

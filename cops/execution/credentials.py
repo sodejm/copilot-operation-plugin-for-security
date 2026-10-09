@@ -8,12 +8,16 @@ registered for output redaction before the caller can launch it.
 
 from __future__ import annotations
 
+import inspect
+import multiprocessing
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
+from time import monotonic
 from typing import Any, Protocol
 
 from cops.contracts.models import ActionPlan
+from cops.evidence.canonical import digest
 
 from .redaction import StreamRedactor
 
@@ -70,6 +74,8 @@ class CredentialGrant:
     tool: str
     tool_version: str
     action: str
+    operation_index: int
+    operation_digest: str
 
 
 class ScopedCredentialResolver:
@@ -100,6 +106,9 @@ class ScopedCredentialResolver:
         authorization: ApprovalConsumptionReceiptView,
         worker_identity: str,
         operation: Mapping[str, Any],
+        operation_index: int,
+        deadline: float | None = None,
+        redactor: StreamRedactor | None = None,
     ) -> dict[str, str]:
         """Return an environment for an authority-issued consumption receipt.
 
@@ -119,14 +128,22 @@ class ScopedCredentialResolver:
         if not isinstance(operation_data, dict):
             raise CredentialResolutionError("credential request operation is invalid")
         self._validate_authorization_receipt(plan, authorization, worker_identity)
-        if operation_data not in [_plain(item) for item in plan.operations]:
+        if (
+            not isinstance(operation_index, int)
+            or isinstance(operation_index, bool)
+            or operation_index < 0
+            or operation_index >= len(plan.operations)
+            or operation_data != _plain(plan.operations[operation_index])
+        ):
             raise CredentialResolutionError("credential request is outside the approved plan")
+        operation_digest = digest(operation_data)
 
         references = {str(reference) for reference in plan.credential_references}
         operation_grants = [
             grant
             for grant in self._grants
             if grant.plan_id == plan.plan_id
+            and grant.operation_index == operation_index
             and grant.step_id == operation_data.get("step_id")
             and grant.tool == operation_data.get("tool")
             and grant.tool_version == operation_data.get("tool_version")
@@ -146,6 +163,7 @@ class ScopedCredentialResolver:
                 or grant.engagement_id != plan.engagement_id
                 or grant.worker_identity != worker_identity
                 or grant.target != plan.target
+                or grant.operation_digest != operation_digest
             ):
                 raise CredentialResolutionError("no credential grant matches the approved operation")
             if grant.reference in resolved_references:
@@ -168,7 +186,9 @@ class ScopedCredentialResolver:
         environment: dict[str, str] = {}
         for grant in operation_grants:
             try:
-                value = self._provider.resolve(grant.reference)
+                value = _resolve_provider(self._provider, grant.reference, deadline)
+            except TimeoutError:
+                raise CredentialResolutionError("credential provider resolution timed out") from None
             except Exception:
                 # A provider exception may embed the secret in its message or
                 # attributes, so do not retain it as a chained exception.
@@ -180,7 +200,7 @@ class ScopedCredentialResolver:
         # Register every value after all lookups succeed. The worker
         # shares this redactor with evidence capture before launching the process.
         try:
-            self.redactor.add_secrets(tuple(environment.values()))
+            (redactor or self.redactor).add_secrets(tuple(environment.values()))
         except Exception:
             raise CredentialResolutionError("credential redactor registration failed") from None
         return environment
@@ -224,3 +244,61 @@ def _plain(value: Any) -> Any:
     if isinstance(value, (list, tuple)):
         return [_plain(item) for item in value]
     return value
+
+
+def _resolve_provider(provider: CredentialProvider, reference: str, deadline: float | None) -> str:
+    """Bound an arbitrary provider without allowing a stalled lookup to hold the worker."""
+    if deadline is None:
+        return provider.resolve(reference)
+    remaining = deadline - monotonic()
+    if remaining <= 0:
+        raise TimeoutError("credential lookup deadline elapsed")
+
+    # The production socket provider enforces its own deadline on every I/O.
+    # Legacy providers have no such contract, so isolate them in a disposable
+    # process instead of relying on an unkillable thread.
+    try:
+        supports_deadline = "deadline" in inspect.signature(provider.resolve).parameters
+    except (TypeError, ValueError):
+        supports_deadline = False
+    if supports_deadline:
+        return provider.resolve(reference, deadline=deadline)
+    if "fork" not in multiprocessing.get_all_start_methods():
+        raise RuntimeError("credential provider has no bounded resolution interface")
+
+    context = multiprocessing.get_context("fork")
+    receiver, sender = context.Pipe(duplex=False)
+
+    def resolve_in_child() -> None:
+        receiver.close()
+        try:
+            sender.send((True, provider.resolve(reference)))
+        except BaseException:
+            # Provider errors may contain credential material; return no details.
+            sender.send((False, None))
+        finally:
+            sender.close()
+
+    process = context.Process(target=resolve_in_child, daemon=True)
+    try:
+        process.start()
+        sender.close()
+        if not receiver.poll(max(0.0, deadline - monotonic())):
+            raise TimeoutError("credential lookup deadline elapsed")
+        try:
+            succeeded, value = receiver.recv()
+        except EOFError:
+            raise RuntimeError("credential provider exited without a value") from None
+        if not succeeded:
+            raise RuntimeError("credential provider failed")
+        return value
+    finally:
+        receiver.close()
+        sender.close()
+        if process.pid is not None:
+            if process.is_alive():
+                process.terminate()
+            process.join(timeout=0.5)
+            if process.is_alive():
+                process.kill()
+                process.join(timeout=0.5)

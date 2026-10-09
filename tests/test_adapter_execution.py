@@ -27,6 +27,7 @@ from cops.adapters import (
     ToolAdapterRegistry,
 )
 from cops.contracts.models import ActionPlan
+from cops.evidence.canonical import digest
 from cops.execution import ApprovalStore, IsolatedWorker, WorkerIsolationError
 from cops.execution.credentials import CredentialGrant, ScopedCredentialResolver
 from cops.execution.evidence import EvidenceCaptureError, EvidenceCleanupError, EvidenceContext, EvidenceRecorder
@@ -677,13 +678,16 @@ def test_worker_resolves_credential_only_for_approved_operation_and_redacts_evid
         tool=str(operation["tool"]),
         tool_version=str(operation["tool_version"]),
         action=str(operation["action"]),
+        operation_index=0,
+        operation_digest=digest(plan.approved_snapshot()["operations"][0]),
     )
 
     class Provider:
         def __init__(self) -> None:
             self.lookups: list[str] = []
 
-        def resolve(self, requested_reference: str) -> str:
+        def resolve(self, requested_reference: str, *, deadline: float | None = None) -> str:
+            assert deadline is not None
             self.lookups.append(requested_reference)
             return secret
 
@@ -711,11 +715,25 @@ def test_worker_resolves_credential_only_for_approved_operation_and_redacts_evid
         False,
         False,
     )
+    operation_workspaces: list[Path] = []
+
+    def write_sensitive_scratch(_command, **kwargs):
+        operation_workspace = kwargs["cwd"]
+        operation_workspaces.append(operation_workspace)
+        assert operation_workspace != workspace
+        assert workspace not in operation_workspace.parents
+        (operation_workspace / "raw-secret.txt").write_text(secret)
+        return _sandbox(worker).result
+
+    _sandbox(worker).run_callback = write_sensitive_scratch
 
     result = worker.execute_plan(plan, authorization=authorization_id, workspace_dir=workspace)
 
     assert result.status == "success"
     assert provider.lookups == [reference]
+    assert len(operation_workspaces) == 1
+    assert not operation_workspaces[0].exists()
+    assert not (workspace / "raw-secret.txt").exists()
     assert probe_environments
     assert all(secret not in json.dumps(env) for env in probe_environments)
     assert len(_sandbox(worker).run_calls) == 1
@@ -763,6 +781,8 @@ def test_worker_rejects_mismatched_credential_grant_before_provider_lookup_or_la
         tool=str(operation["tool"]),
         tool_version=str(operation["tool_version"]),
         action=str(operation["action"]),
+        operation_index=0,
+        operation_digest=digest(plan.approved_snapshot()["operations"][0]),
     )
 
     class Provider:
@@ -876,6 +896,9 @@ def test_worker_reports_post_redaction_artifact_truncation(tmp_path: Path, monke
 
     class ExpandingRedactor:
         def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def clear_secrets(self) -> None:
             pass
 
         def redact_bytes(self, value: bytes) -> bytes:
