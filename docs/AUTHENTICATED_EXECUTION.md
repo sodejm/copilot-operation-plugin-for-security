@@ -215,24 +215,38 @@ validate receipt provenance before it reads operation fields or contacts the
 credential provider. A field-identical copy or a receipt from another client is
 rejected. The worker follows this order for each launch:
 
-1. Validate adapter compatibility and probe executable identity and version with
-   no credential environment.
+1. Validate static adapter compatibility and workspace safety with no credential
+   environment.
 2. Consume the approval through `ApprovalControl` and keep the exact
    authority-issued `ApprovalConsumptionReceipt` returned by that call.
-3. Immediately before an operation launch, pass that receipt, the approved plan,
-   the worker identity, and the exact operation to the resolver.
-4. Pass the returned environment only as the operation environment and share the
-   resolver's redactor with evidence capture.
+3. Probe executable identity, version, and digest in an isolated operation
+   scratch directory for steps with credential grants, with no credential
+   environment. Credential-free steps continue to use the shared workspace.
+   A probe or preparation failure after step 2 consumes the one-use approval;
+   obtain a new approval before retrying.
+4. Immediately before an operation launch, pass that receipt, the approved plan,
+   the worker identity, the operation index, and the exact operation to the resolver.
+5. Pass the returned environment only as the operation environment and use the
+   execution's redactor for evidence capture. Delete the operation scratch
+   directory on success, failure, timeout, or interruption; report deletion
+   failure in `RunResult.cleanup_status`.
+
+The Linux sandbox passes operation environment values to bubblewrap through an
+inherited in-memory argument descriptor, so credential values do not appear in
+the bubblewrap process command line.
 
 The resolver checks the plan digest, engagement, worker, target, step, tool, tool
-version, and action against each exact grant. The plan credential references are
+version, action, operation index, and canonical operation digest (including
+arguments and egress policy) against each exact grant. The plan credential references are
 an allowlist: a step receives its exact grants, while a step without a grant is
 credential-free even when another step uses a credential. Credential environment
 names must use the `COPS_CREDENTIAL_` prefix, which prevents grants from replacing
 runtime, loader, broker, locale, or ordinary process settings. Provider values are
 rejected if they are empty, non-text, or contain a NUL byte. Provider errors are
-rewritten without their message or exception chain. All resolved values are
-registered for redaction before launch. Never use a status field on a
+rewritten without their message or exception chain. Credential lookups must finish
+within the operation deadline. All resolved values are registered with a fresh
+execution redactor before launch; receipt provenance and registered values are
+released at the end of the execution. Never use a status field on a
 caller-constructed authorization as evidence of consumption. The resolver checks
 the receipt's authorization digest and exact plan, engagement, worker, and target
 bindings before it calls the credential provider.
@@ -246,7 +260,8 @@ produce `uncertain` so an operator can reconcile effects before any repeat. A no
 non-zero tool exit is `failed`. Evidence persistence applies the same remaining
 aggregate bound after redaction; truncation is reported separately from redaction.
 Artifact directories and files are created relative to verified directory file
-descriptors and reject symbolic links or paths that escape the workspace.
+descriptors and reject symbolic links or paths that escape the workspace. Existing
+evidence directories must have mode `0700` on POSIX systems.
 
 Real execution evidence requires a complete `EvidenceContext`. The recorder emits
 validated `cops.evidence/v1` envelopes with the plan identifier and digest,
@@ -259,8 +274,9 @@ run. The worker attempts to delete its default temporary workspace at completion
 and reports cleanup failure in `RunResult.cleanup_status`. Each envelope
 is bounded to 1 MiB; this evidence metadata limit is separate from the signed
 step-output limit.
-Stdout, stderr, errors, artifact identifiers, and artifact content pass through the
-same redactor before envelope validation or persistence. Artifact identifiers must
+The assembled stdout and stderr stream, errors, artifact identifiers, and artifact
+content pass through the same redactor before envelope validation or persistence.
+This catches credential text split across stdout and stderr. Artifact identifiers must
 be safe logical or workspace-relative names; absolute, drive-qualified, empty, and
 traversal components fail closed. A redaction, schema, or artifact-write failure
 discards both reservations and produces no record. If an artifact cannot be

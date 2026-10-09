@@ -151,6 +151,40 @@ class LinuxBubblewrapSandbox:
         return sandbox_env
 
     @staticmethod
+    @contextmanager
+    def _environment_arguments(sandbox_env: Mapping[str, str]) -> Iterator[int]:
+        """Pass environment values to bubblewrap through an inherited memory FD."""
+        try:
+            descriptor = os.memfd_create("cops-bwrap-args", flags=getattr(os, "MFD_CLOEXEC", 1))
+        except (AttributeError, OSError):
+            raise SandboxReadinessError("private bubblewrap argument descriptor is unavailable") from None
+        try:
+            try:
+                arguments = (
+                    b"\0".join(
+                        part.encode("utf-8")
+                        for key, value in sorted(sandbox_env.items())
+                        for part in ("--setenv", key, value)
+                    )
+                    + b"\0"
+                )
+            except UnicodeEncodeError:
+                raise SandboxReadinessError("sandbox environment cannot be encoded") from None
+            try:
+                pending = memoryview(arguments)
+                while pending:
+                    written = os.write(descriptor, pending)
+                    if written <= 0:
+                        raise OSError("short write to private bubblewrap argument descriptor")
+                    pending = pending[written:]
+                os.lseek(descriptor, 0, os.SEEK_SET)
+            except OSError:
+                raise SandboxReadinessError("private bubblewrap arguments could not be prepared") from None
+            yield descriptor
+        finally:
+            os.close(descriptor)
+
+    @staticmethod
     def _validate_fds(
         executable_fd: int,
         capability_fds: tuple[int, ...],
@@ -286,20 +320,27 @@ class LinuxBubblewrapSandbox:
                     "--chdir",
                     "/work",
                 ]
-                for key, value in sorted(sandbox_env.items()):
-                    wrapped.extend(("--setenv", key, value))
-                wrapped.extend(
-                    ("--", "/cops/limit", f"--nproc={process_limit}:{process_limit}", "--", "/cops/tool", *command[1:])
-                )
-                return run_bounded_process(
-                    wrapped,
-                    cwd=Path("/"),
-                    env={},
-                    timeout_seconds=timeout_seconds,
-                    max_output_bytes=max_output_bytes,
-                    pass_fds=(bubblewrap_fd, prlimit_fd, workspace_fd, executable_fd, *capability_fds),
-                    resource_limits=self.resources.as_process_limits(),
-                    defer_process_limit=True,
-                )
+                with self._environment_arguments(sandbox_env) as argument_fd:
+                    wrapped.extend(("--args", str(argument_fd)))
+                    wrapped.extend(
+                        (
+                            "--",
+                            "/cops/limit",
+                            f"--nproc={process_limit}:{process_limit}",
+                            "--",
+                            "/cops/tool",
+                            *command[1:],
+                        )
+                    )
+                    return run_bounded_process(
+                        wrapped,
+                        cwd=Path("/"),
+                        env={},
+                        timeout_seconds=timeout_seconds,
+                        max_output_bytes=max_output_bytes,
+                        pass_fds=(bubblewrap_fd, prlimit_fd, workspace_fd, executable_fd, argument_fd, *capability_fds),
+                        resource_limits=self.resources.as_process_limits(),
+                        defer_process_limit=True,
+                    )
         finally:
             os.close(workspace_fd)

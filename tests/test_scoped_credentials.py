@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from cops.contracts.models import ActionPlan
+from cops.evidence.canonical import digest
 from cops.execution.credentials import (
     CredentialGrant,
     CredentialResolutionError,
@@ -134,6 +135,8 @@ def _grant(
         tool=str(operation["tool"]),
         tool_version=str(operation["tool_version"]),
         action=str(operation["action"]),
+        operation_index=operation_index,
+        operation_digest=digest(plan.approved_snapshot()["operations"][operation_index]),
     )
 
 
@@ -148,6 +151,7 @@ def test_resolves_only_with_authority_receipt_and_registers_redaction() -> None:
         authorization=receipt,
         worker_identity="worker-credential-test",
         operation=plan.operations[0],
+        operation_index=0,
     )
 
     assert operation_environment == {"COPS_CREDENTIAL_SERVICE_TOKEN": "short-secret"}
@@ -182,6 +186,7 @@ def test_consumption_receipt_mismatch_is_denied_before_provider_lookup(
             authorization=receipt,
             worker_identity="worker-credential-test",
             operation=plan.operations[0],
+            operation_index=0,
         )
 
     assert provider.references == []
@@ -198,6 +203,7 @@ def test_status_only_authorization_is_not_accepted_as_consumption_proof() -> Non
             authorization=_ForgedStatusOnlyAuthorization(),  # type: ignore[arg-type]
             worker_identity="worker-credential-test",
             operation=plan.operations[0],
+            operation_index=0,
         )
 
     assert provider.references == []
@@ -215,6 +221,7 @@ def test_field_identical_replaced_receipt_is_denied_before_provider_lookup() -> 
             authorization=forged_receipt,
             worker_identity="worker-credential-test",
             operation=plan.operations[0],
+            operation_index=0,
         )
 
     assert provider.references == []
@@ -237,6 +244,7 @@ def test_other_authority_receipt_is_denied_before_provider_lookup() -> None:
             authorization=receipt_from_original_authority,
             worker_identity="worker-credential-test",
             operation=plan.operations[0],
+            operation_index=0,
         )
 
     assert provider.references == []
@@ -266,6 +274,7 @@ def test_exact_operation_scope_mismatch_is_denied_before_provider_lookup(
             authorization=receipt,
             worker_identity="worker-credential-test",
             operation=plan.operations[0],
+            operation_index=0,
         )
 
     assert provider.references == []
@@ -285,6 +294,7 @@ def test_different_plan_grant_cannot_supply_current_operation() -> None:
         authorization=receipt,
         worker_identity="worker-credential-test",
         operation=plan.operations[0],
+        operation_index=0,
     )
 
     assert environment == {}
@@ -321,6 +331,7 @@ def test_runtime_and_broker_environment_bindings_are_denied(
             authorization=receipt,
             worker_identity="worker-credential-test",
             operation=plan.operations[0],
+            operation_index=0,
         )
 
     assert provider.references == []
@@ -338,6 +349,7 @@ def test_nul_in_provider_value_is_denied() -> None:
             authorization=receipt,
             worker_identity="worker-credential-test",
             operation=plan.operations[0],
+            operation_index=0,
         )
 
 
@@ -352,6 +364,7 @@ def test_provider_exception_is_rewritten_without_secret_or_cause() -> None:
             authorization=receipt,
             worker_identity="worker-credential-test",
             operation=plan.operations[0],
+            operation_index=0,
         )
 
     assert str(caught.value) == "credential provider resolution failed"
@@ -374,6 +387,7 @@ def test_redactor_registration_failure_aborts_resolution() -> None:
             authorization=receipt,
             worker_identity="worker-credential-test",
             operation=plan.operations[0],
+            operation_index=0,
         )
 
 
@@ -425,17 +439,37 @@ def test_distinct_operations_receive_only_their_exact_grants() -> None:
         authorization=receipt,
         worker_identity="worker-credential-test",
         operation=plan.operations[0],
+        operation_index=0,
     )
     second_environment = resolver.resolve_for_operation(
         plan=plan,
         authorization=receipt,
         worker_identity="worker-credential-test",
         operation=plan.operations[1],
+        operation_index=1,
     )
 
     assert first_environment == {"COPS_CREDENTIAL_FIRST": "scoped-secret"}
     assert second_environment == {"COPS_CREDENTIAL_SECOND": "scoped-secret"}
     assert provider.references == ["first-ref", "second-ref"]
+
+
+def test_changed_operation_payload_cannot_use_a_stale_grant() -> None:
+    plan = _load_plan()
+    provider = RecordingProvider("unused-secret")
+    stale_grant = replace(_grant(plan), operation_digest="0" * 64)
+    resolver = _scoped_resolver(provider, [stale_grant])
+
+    with pytest.raises(CredentialResolutionError, match="approved operation"):
+        resolver.resolve_for_operation(
+            plan=plan,
+            authorization=_receipt(plan),
+            worker_identity="worker-credential-test",
+            operation=plan.operations[0],
+            operation_index=0,
+        )
+
+    assert provider.references == []
 
 
 def test_operation_without_an_exact_grant_is_credential_free() -> None:
@@ -452,6 +486,7 @@ def test_operation_without_an_exact_grant_is_credential_free() -> None:
         authorization=receipt,
         worker_identity="worker-credential-test",
         operation=plan.operations[1],
+        operation_index=1,
     )
 
     assert environment == {}
@@ -473,6 +508,7 @@ def test_exact_grant_with_undeclared_reference_is_denied() -> None:
             authorization=receipt,
             worker_identity="worker-credential-test",
             operation=plan.operations[0],
+            operation_index=0,
         )
 
     assert provider.references == []

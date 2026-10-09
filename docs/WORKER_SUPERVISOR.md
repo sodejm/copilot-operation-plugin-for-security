@@ -49,12 +49,61 @@ configuration has this shape, with site-specific identities and paths:
   "attestation_key_id": "worker-lab-01-2026-01",
   "attestation_key_path": "/etc/cops-supervisor/response-attestation.key",
   "executable_sha256_pins": {},
-  "egress_trust_domain": "services.example.test"
+  "egress_trust_domain": "services.example.test",
+  "credential_manifest_path": "/etc/cops-supervisor/credential-manifest.json"
 }
 ```
 
-`egress_trust_domain` is optional. Omit it for adapters that need no network
-access. When configured, the supervisor accepts network access only for an
+`egress_trust_domain` and `credential_manifest_path` are optional. Omit the
+manifest path when no operation uses a credential. For credentialed operations,
+provision the manifest as a supervisor-owned regular JSON file with mode `0600`:
+
+```json
+{
+  "schema_version": "cops.worker-credential-manifest/v1",
+  "provider_socket_path": "/var/lib/cops-credentials/provider.sock",
+  "provider_uid": 2104,
+  "provider_gid": 2204,
+  "provider_timeout_seconds": 5,
+  "grants": [
+    {
+      "reference": "opaque-credential-reference",
+      "environment_variable": "COPS_CREDENTIAL_API_TOKEN",
+      "plan_id": "approved-plan-id",
+      "plan_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "engagement_id": "engagement-id",
+      "worker_identity": "worker-lab-01",
+      "target": "approved-target",
+      "operation_index": 0,
+      "operation_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "step_id": "approved-step-id",
+      "tool": "approved-tool",
+      "tool_version": "approved-version",
+      "action": "approved-action"
+    }
+  ]
+}
+```
+
+Replace the example digests with the canonical digests of the approved plan and
+the operation at the stated index; the operation digest covers its arguments and
+egress policy. Every other grant field must match that same approved operation.
+The manifest contains only opaque references, never credential values. The
+provider runs under a fourth, distinct non-root UID. Its socket directory must
+be owned by root or the provider and must not be group- or other-writable; the
+socket must have the configured provider UID/GID and no access for other users.
+The supervisor checks the provider's kernel peer credentials before sending a
+reference. Provision and operate the provider through the trusted host workflow:
+this repository implements the bounded client transport, not the provider
+service. The provider accepts one newline-terminated JSON request containing
+`{"protocol":"cops.credential-provider/v1","reference":"..."}` and returns
+one newline-terminated JSON object with the same protocol and reference plus a
+non-empty `value` string. The response is limited to 1 MiB and the configured
+timeout is at most 30 seconds. Keep credential values out of provider logs and
+configuration; the worker injects each resolved value only into its isolated
+operation and clears its receipt-scoped redactor afterward.
+
+When configured, `egress_trust_domain` allows network access only for an
 operation whose signed Action Plan explicitly sets `limits.egress_allowed` to
 `true` and supplies a closed `egress_policy` object. The engagement scope must
 also permit the endpoint. A policy names one HTTPS host and port, one exact

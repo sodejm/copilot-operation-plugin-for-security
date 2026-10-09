@@ -451,6 +451,7 @@ class IsolatedWorker:
                     os.close(workspace_fd)
             target_workspace = Path(os.path.abspath(os.fspath(requested_workspace)))
 
+        receipt: ApprovalConsumptionReceipt | None = None
         try:
             self.approval_control.assert_ready(self.config.worker_id)
             self.sandbox.assert_ready(self.config.worker_id, cwd=target_workspace)
@@ -470,80 +471,99 @@ class IsolatedWorker:
                 raise ApprovalControlError("approval authority receipt does not match the execution plan")
             if failure_injection and failure_injection.get("inject_at") == "after_consume":
                 raise WorkerExecutionError("injected failure after approval consumption")
-        except Exception:
+        except BaseException:
+            if receipt is not None:
+                try:
+                    self.approval_control.release_receipt_provenance(receipt)
+                except ApprovalControlError:
+                    pass
             if ephemeral:
                 shutil.rmtree(target_workspace, ignore_errors=True)
             raise
 
-        # 5. Set up isolated ephemeral workspace and side-effect ledger
-
-        from .cleanup import CleanupManager, SideEffectLedger
-
-        ledger = SideEffectLedger(
-            plan_id=plan_model.plan_id,
-            engagement_id=plan_model.engagement_id,
-            default_owner=self.config.worker_id,
-        )
-        cleanup_manager = CleanupManager(
-            ledger=ledger,
-            worker_identity=self.config.worker_id,
-            workspace_dir=target_workspace,
-        )
-        if ephemeral:
-            ledger.record_effect(
-                step_id="workspace-scratch",
-                resource_type="directory",
-                target=str(target_workspace),
-                cleanup_action="delete",
-            )
-
-        started_at = utc_now()
-        overall_exit_code = 0
-        status = "success"
-        status_reason = ""
-
-        from .evidence import EvidenceContext, EvidenceRecorder
         from .redaction import StreamRedactor
 
-        # Initialize evidence recorder with redactor
-        redactor = self.credential_resolver.redactor if self.credential_resolver is not None else StreamRedactor()
-        evidence_recorder = EvidenceRecorder(
-            workspace_dir=target_workspace,
-            redactor=redactor,
-            portable_inert=portable_inert,
-            context=EvidenceContext(
+        redactor: StreamRedactor | None = None
+        try:
+            # 5. Set up isolated ephemeral workspace and side-effect ledger
+
+            from .cleanup import CleanupManager, SideEffectLedger
+
+            ledger = SideEffectLedger(
                 plan_id=plan_model.plan_id,
-                plan_digest=plan_model.plan_digest,
-                authorization_id=receipt.authorization_id,
                 engagement_id=plan_model.engagement_id,
+                default_owner=self.config.worker_id,
+            )
+            cleanup_manager = CleanupManager(
+                ledger=ledger,
                 worker_identity=self.config.worker_id,
-                target=plan_model.target,
-            ),
-            ephemeral_workspace=ephemeral,
-        )
+                workspace_dir=target_workspace,
+            )
+            if ephemeral:
+                ledger.record_effect(
+                    step_id="workspace-scratch",
+                    resource_type="directory",
+                    target=str(target_workspace),
+                    cleanup_action="delete",
+                )
 
-        max_duration_seconds = min(
-            self.config.max_wall_time_seconds,
-            plan_model.limits.get("max_duration_seconds", self.config.max_wall_time_seconds),
-        )
-        if timeout_seconds is not None:
-            max_duration_seconds = min(max_duration_seconds, timeout_seconds)
-        plan_max_output_bytes = min(
-            self.config.max_output_bytes,
-            plan_model.limits.get("max_output_bytes", self.config.max_output_bytes),
-        )
-        if max_output_bytes is not None:
-            plan_max_output_bytes = min(plan_max_output_bytes, max_output_bytes)
-        max_output_bytes = plan_max_output_bytes
-        captured_output_bytes = 0
-        persisted_output_bytes = 0
-        start_dt = datetime.now(UTC)
+            started_at = utc_now()
+            overall_exit_code = 0
+            status = "success"
+            status_reason = ""
 
-        clean_env = {
-            "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
-            "HOME": str(target_workspace),
-            "TMPDIR": str(target_workspace),
-        }
+            from .evidence import EvidenceContext, EvidenceRecorder
+
+            # Initialize evidence recorder with redactor
+            redactor = StreamRedactor()
+            evidence_recorder = EvidenceRecorder(
+                workspace_dir=target_workspace,
+                redactor=redactor,
+                portable_inert=portable_inert,
+                context=EvidenceContext(
+                    plan_id=plan_model.plan_id,
+                    plan_digest=plan_model.plan_digest,
+                    authorization_id=receipt.authorization_id,
+                    engagement_id=plan_model.engagement_id,
+                    worker_identity=self.config.worker_id,
+                    target=plan_model.target,
+                ),
+                ephemeral_workspace=ephemeral,
+            )
+
+            max_duration_seconds = min(
+                self.config.max_wall_time_seconds,
+                plan_model.limits.get("max_duration_seconds", self.config.max_wall_time_seconds),
+            )
+            if timeout_seconds is not None:
+                max_duration_seconds = min(max_duration_seconds, timeout_seconds)
+            plan_max_output_bytes = min(
+                self.config.max_output_bytes,
+                plan_model.limits.get("max_output_bytes", self.config.max_output_bytes),
+            )
+            if max_output_bytes is not None:
+                plan_max_output_bytes = min(plan_max_output_bytes, max_output_bytes)
+            max_output_bytes = plan_max_output_bytes
+            captured_output_bytes = 0
+            persisted_output_bytes = 0
+            credential_scratch_cleanup_failed = False
+            start_dt = datetime.now(UTC)
+
+            clean_env = {
+                "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+                "HOME": str(target_workspace),
+                "TMPDIR": str(target_workspace),
+            }
+
+        except BaseException:
+            try:
+                if redactor is not None:
+                    redactor.clear_secrets()
+            finally:
+                self.approval_control.release_receipt_provenance(receipt)
+                if ephemeral:
+                    shutil.rmtree(target_workspace, ignore_errors=True)
+            raise
 
         try:
             # Check injected failure before starting the first process.
@@ -554,7 +574,9 @@ class IsolatedWorker:
 
             # 6. Execute operations in sequence (if checks passed)
             if status == "success":
-                for op, operation_egress_policy in zip(plan_model.operations, operation_egress_policies, strict=True):
+                for operation_index, (op, operation_egress_policy) in enumerate(
+                    zip(plan_model.operations, operation_egress_policies, strict=True)
+                ):
                     step_id = op["step_id"]
                     tool = op["tool"]
                     action = op["action"]
@@ -616,7 +638,16 @@ class IsolatedWorker:
                     output_limit_exceeded = False
                     artifact_reservation = None
                     prepared_cleanup_failed = False
+                    operation_cleanup_failed = False
                     adapter_dispatched = False
+                    operation_workspace = (
+                        Path(tempfile.mkdtemp(prefix="cops-credential-operation-"))
+                        if self.credential_resolver is not None
+                        and self.credential_resolver.has_grant_for_operation(plan_model, op, operation_index)
+                        and tool != "inert"
+                        else target_workspace
+                    )
+                    operation_env = {**clean_env, "HOME": str(operation_workspace), "TMPDIR": str(operation_workspace)}
                     try:
                         remaining_capture = max(0, max_output_bytes - captured_output_bytes)
                         # Evidence storage is reserved before any operation can have
@@ -648,8 +679,8 @@ class IsolatedWorker:
                             cmd = adapter.assemble_command(action, op.get("arguments"))
                             prepared = prepare_executable(
                                 adapter,
-                                workspace=target_workspace,
-                                env=clean_env,
+                                workspace=operation_workspace,
+                                env=operation_env,
                                 timeout_seconds=timeout,
                                 deadline=step_deadline,
                                 process_runner=self.sandbox.run,
@@ -661,6 +692,9 @@ class IsolatedWorker:
                                         authorization=receipt,
                                         worker_identity=self.config.worker_id,
                                         operation=op,
+                                        operation_index=operation_index,
+                                        deadline=step_deadline,
+                                        redactor=redactor,
                                     )
                                     if self.credential_resolver is not None
                                     else {}
@@ -672,6 +706,8 @@ class IsolatedWorker:
                                     _prepared: Any = prepared,
                                     _cmd: tuple[str, ...] = tuple(cmd),
                                     _remaining_capture: int = remaining_capture,
+                                    _operation_workspace: Path = operation_workspace,
+                                    _operation_env: dict[str, str] = operation_env,
                                     **extra_arguments: Any,
                                 ) -> Any:
                                     nonlocal adapter_dispatched
@@ -681,8 +717,8 @@ class IsolatedWorker:
                                     adapter_dispatched = True
                                     return self.sandbox.run(
                                         [_prepared.invocation_path, *_cmd[1:]],
-                                        cwd=target_workspace,
-                                        env=clean_env,
+                                        cwd=_operation_workspace,
+                                        env=_operation_env,
                                         timeout_seconds=invocation_timeout,
                                         max_output_bytes=_remaining_capture,
                                         pass_fds=_prepared.pass_fds,
@@ -762,6 +798,18 @@ class IsolatedWorker:
                             status_reason += "; automatic repeat disallowed"
                         overall_exit_code = 1
                         break
+                    finally:
+                        if operation_workspace != target_workspace:
+                            try:
+                                shutil.rmtree(operation_workspace)
+                            except OSError:
+                                operation_cleanup_failed = True
+                                credential_scratch_cleanup_failed = True
+                                status = "uncertain" if adapter_dispatched and not is_idempotent else "failed"
+                                status_reason = f"credential operation scratch cleanup failed at step '{step_id}'"
+                                if status == "uncertain":
+                                    status_reason += "; automatic repeat disallowed"
+                                overall_exit_code = 1
 
                     # A bounded prefix can end inside an arbitrarily long secret.
                     # Suppress all raw output on timeout or overflow before any
@@ -801,6 +849,9 @@ class IsolatedWorker:
                         overall_exit_code = 1
                         break
                     persisted_output_bytes += artifact.size_bytes
+
+                    if operation_cleanup_failed:
+                        break
 
                     if prepared_cleanup_failed:
                         if adapter_dispatched and not is_idempotent:
@@ -860,29 +911,35 @@ class IsolatedWorker:
             overall_exit_code = 1
         finally:
             finished_at = utc_now()
-            evidence_recorder.discard_pending_reservations()
-            # Perform ownership-verified rollback of tracked side effects
-            cleanup_receipt = cleanup_manager.rollback()
-            self.last_cleanup_receipt = cleanup_receipt
-            cleanup_status = cleanup_receipt.status
-
-            if cleanup_receipt.status in ("failed", "partial"):
-                unres_summary = [e["target"] for e in cleanup_receipt.unresolved_effects]
-                if status == "success":
-                    status = "partial"
-                    status_reason = f"cleanup {cleanup_receipt.status}: unresolved artifacts: {unres_summary}"
-                elif not status_reason:
-                    status_reason = f"cleanup {cleanup_receipt.status}: unresolved artifacts: {unres_summary}"
-
-            # Ensure ephemeral workspace removal if still present
-            if ephemeral and target_workspace.exists():
-                try:
-                    shutil.rmtree(target_workspace, ignore_errors=False)
-                except OSError:
-                    # The existence check below records an unsuccessful cleanup.
-                    pass
-                if target_workspace.exists():
+            try:
+                evidence_recorder.discard_pending_reservations()
+                # Perform ownership-verified rollback of tracked side effects.
+                cleanup_receipt = cleanup_manager.rollback()
+                self.last_cleanup_receipt = cleanup_receipt
+                cleanup_status = cleanup_receipt.status
+                if credential_scratch_cleanup_failed:
                     cleanup_status = "failed"
+
+                if cleanup_receipt.status in ("failed", "partial"):
+                    unres_summary = [e["target"] for e in cleanup_receipt.unresolved_effects]
+                    if status == "success":
+                        status = "partial"
+                        status_reason = f"cleanup {cleanup_receipt.status}: unresolved artifacts: {unres_summary}"
+                    elif not status_reason:
+                        status_reason = f"cleanup {cleanup_receipt.status}: unresolved artifacts: {unres_summary}"
+
+                if ephemeral and target_workspace.exists():
+                    try:
+                        shutil.rmtree(target_workspace, ignore_errors=False)
+                    except OSError:
+                        pass
+                    if target_workspace.exists():
+                        cleanup_status = "failed"
+            finally:
+                try:
+                    redactor.clear_secrets()
+                finally:
+                    self.approval_control.release_receipt_provenance(receipt)
 
         # 7. Build and return RunResult contract
         result_id = f"res-{uuid.uuid4().hex[:16]}"

@@ -100,6 +100,10 @@ class TestApprovalControl:
             raise ApprovalControlError("approval receipt was not issued by this control client")
         return receipt
 
+    def release_receipt_provenance(self, receipt: ApprovalConsumptionReceipt) -> None:
+        self.validate_receipt_provenance(receipt)
+        del self._issued_receipts[id(receipt)]
+
 
 class TestExecutionSandbox:
     """Deterministic execution sandbox double with explicit readiness state."""
