@@ -469,59 +469,26 @@ def command_worker_store_list(args: argparse.Namespace) -> int:
 
 
 def command_worker_execute(args: argparse.Namespace) -> int:
-    from .adapters import AdapterError, ToolAdapterRegistry
-    from .contracts.models import Engagement, ExecutionAuthorization
-    from .execution import (
-        ApprovalStore,
-        AuthorizationTrustStore,
-        IsolatedWorker,
-        ScopeDefinition,
-        ScopeGuard,
-        WorkerCapabilityInventory,
-    )
+    from .contracts import ActionPlan
+    from .execution import SSHExecutionDispatcher, SSHRemoteEndpointInventory
+
     plan_path = Path(args.plan)
     if not plan_path.is_file():
         print(f"error: plan file not found: {plan_path}", file=sys.stderr)
         return 1
 
-    db_path = getattr(args, "db", None) or (Path.home() / ".cops" / "approvals.sqlite3")
     try:
-        executable_pins: dict[str, str] = {}
-        for value in getattr(args, "executable_sha256", ()):
-            tool, separator, sha256 = value.partition("=")
-            if not separator or not tool or tool in executable_pins:
-                raise AdapterError(
-                    "--executable-sha256 must use one unique TOOL=SHA256 value per adapter"
-                )
-            executable_pins[tool] = sha256
-        adapter_registry = ToolAdapterRegistry(executable_sha256_pins=executable_pins)
-        inventory = WorkerCapabilityInventory.from_file(
-            args.worker_inventory,
-            expected_worker_identity=getattr(args, "worker_id", None),
+        plan = ActionPlan.from_dict(json.loads(plan_path.read_text(encoding="utf-8")))
+        endpoint_inventory = SSHRemoteEndpointInventory.from_file(args.ssh_endpoint_inventory)
+        dispatcher = SSHExecutionDispatcher(endpoint_inventory)
+        authorized_run = dispatcher.execute(
+            approved_worker_identity=args.worker_id,
+            authorization_id=args.authorization,
+            action_plan=plan,
+            timeout_seconds=float(plan.limits["max_duration_seconds"]),
+            max_output_bytes=int(plan.limits["max_output_bytes"]),
         )
-        trust_store = AuthorizationTrustStore.from_file(args.authorization_trust_store)
-        engagement = Engagement.from_dict(json.loads(Path(args.engagement).read_text(encoding="utf-8")))
-        scope_guard = ScopeGuard(ScopeDefinition.from_engagement_scope(engagement.scope))
-        store = ApprovalStore(db_path)
-        worker = IsolatedWorker(
-            inventory,
-            store=store,
-            scope_guard=scope_guard,
-            trust_store=trust_store,
-            engagement=engagement,
-            adapter_registry=adapter_registry,
-        )
-        plan_doc = json.loads(plan_path.read_text(encoding="utf-8"))
-
-        auth_path = Path(args.authorization)
-        auth_val: ExecutionAuthorization | str
-        if auth_path.is_file():
-            auth_doc = json.loads(auth_path.read_text(encoding="utf-8"))
-            auth_val = ExecutionAuthorization.from_dict(auth_doc)
-        else:
-            auth_val = args.authorization
-
-        result = worker.execute_plan(plan_doc, authorization=auth_val)
+        result = authorized_run.result
         if getattr(args, "json", False):
             print(json.dumps(result.to_dict(), indent=2))
         else:
@@ -629,21 +596,11 @@ def build_parser() -> argparse.ArgumentParser:
     w_store.add_argument("--status", choices=["approved", "consumed", "revoked", "expired"], help="filter by status")
     w_store.add_argument("--json", action="store_true", help="output structured JSON")
 
-    w_exec = worker_sub.add_parser("execute", help="execute an authorized action plan")
-    w_exec.add_argument("plan", help="path to ActionPlan JSON file")
-    w_exec.add_argument("--authorization", required=True, help="authorization ID or path to authorization JSON file")
-    w_exec.add_argument("--worker-inventory", type=Path, required=True, help="owner-only independently provisioned worker capability inventory")
-    w_exec.add_argument("--worker-id", help="assert the expected inventory worker identity")
-    w_exec.add_argument("--authorization-trust-store", type=Path, required=True, help="verifier-owned authorization key configuration")
-    w_exec.add_argument("--engagement", type=Path, required=True, help="path to active engagement JSON for authorization and scope enforcement")
-    w_exec.add_argument(
-        "--executable-sha256",
-        action="append",
-        default=[],
-        metavar="TOOL=SHA256",
-        help="pin the platform executable digest for one adapter (repeatable)",
-    )
-    w_exec.add_argument("--db", type=Path, help="path to sqlite approval store")
+    w_exec = worker_sub.add_parser("execute", help="dispatch an authorized action plan to a remote worker")
+    w_exec.add_argument("plan", type=Path, help="path to ActionPlan JSON file")
+    w_exec.add_argument("--authorization", required=True, help="opaque authorization ID registered with the remote approval authority")
+    w_exec.add_argument("--worker-id", required=True, help="approved worker identity resolved through the trusted SSH endpoint inventory")
+    w_exec.add_argument("--ssh-endpoint-inventory", type=Path, required=True, help="owner-only SSH endpoint inventory")
     w_exec.add_argument("--json", action="store_true", help="output structured JSON")
 
     eng_p = subparsers.add_parser("engagement", help="authorized engagement intake, scope validation, and action planning")
