@@ -65,6 +65,7 @@ class LinuxBubblewrapSandbox:
     """Run each adapter in a fresh bwrap namespace with kernel limits."""
 
     bubblewrap_path: Path = Path("/usr/bin/bwrap")
+    prlimit_path: Path = Path("/usr/bin/prlimit")
     worker_uid: int | None = None
     worker_gid: int | None = None
     resources: SandboxResourcePolicy = SandboxResourcePolicy()
@@ -81,36 +82,49 @@ class LinuxBubblewrapSandbox:
             raise SandboxReadinessError("sandboxed worker must not run as root")
         if not self.bubblewrap_path.is_absolute():
             raise SandboxReadinessError("bubblewrap path must be absolute")
+        if not self.prlimit_path.is_absolute():
+            raise SandboxReadinessError("prlimit path must be absolute")
         self.resources.as_process_limits()
 
-    def _validate_bubblewrap_ancestors(self) -> None:
-        current = Path(self.bubblewrap_path.anchor)
-        for component in self.bubblewrap_path.parts[1:-1]:
+    @staticmethod
+    def _validate_executable_ancestors(path: Path, name: str) -> None:
+        current = Path(path.anchor)
+        for component in path.parts[1:-1]:
             current /= component
             try:
                 info = os.lstat(current)
             except OSError as err:
-                raise SandboxReadinessError("bubblewrap installation path is unavailable") from err
+                raise SandboxReadinessError(f"{name} installation path is unavailable") from err
             if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
-                raise SandboxReadinessError("bubblewrap installation ancestors must be root-owned and non-writable")
+                raise SandboxReadinessError(f"{name} installation ancestors must be root-owned and non-writable")
 
     @contextmanager
-    def _held_bubblewrap(self) -> Iterator[int]:
-        self._validate_bubblewrap_ancestors()
+    def _held_root_executable(self, path: Path, name: str) -> Iterator[int]:
+        self._validate_executable_ancestors(path, name)
         flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
         try:
-            descriptor = os.open(self.bubblewrap_path, flags)
+            descriptor = os.open(path, flags)
         except OSError as err:
-            raise SandboxReadinessError("bubblewrap is unavailable") from err
+            raise SandboxReadinessError(f"{name} is unavailable") from err
         try:
             info = os.fstat(descriptor)
             if not stat.S_ISREG(info.st_mode) or info.st_uid != 0:
-                raise SandboxReadinessError("bubblewrap must be a root-owned regular file")
+                raise SandboxReadinessError(f"{name} must be a root-owned regular file")
             if info.st_mode & 0o022 or info.st_mode & 0o111 == 0:
-                raise SandboxReadinessError("bubblewrap permissions are unsafe")
+                raise SandboxReadinessError(f"{name} permissions are unsafe")
             yield descriptor
         finally:
             os.close(descriptor)
+
+    @contextmanager
+    def _held_bubblewrap(self) -> Iterator[int]:
+        with self._held_root_executable(self.bubblewrap_path, "bubblewrap") as descriptor:
+            yield descriptor
+
+    @contextmanager
+    def _held_prlimit(self) -> Iterator[int]:
+        with self._held_root_executable(self.prlimit_path, "prlimit") as descriptor:
+            yield descriptor
 
     @staticmethod
     def _open_private_workspace(cwd: Path) -> int:
@@ -243,7 +257,19 @@ class LinuxBubblewrapSandbox:
         sandbox_env = self._sandbox_environment(env, operation_env)
         workspace_fd = self._open_private_workspace(cwd)
         try:
-            with self._held_bubblewrap() as bubblewrap_fd:
+            with self._held_bubblewrap() as bubblewrap_fd, self._held_prlimit() as prlimit_fd:
+                # RLIMIT_NPROC counts the host account's existing tasks. Applying it
+                # before bwrap creates its namespaces can prevent isolation itself
+                # from starting on a shared runner. Install it after isolation and
+                # immediately before the untrusted tool instead.
+                import resource
+
+                _, hard_limit = resource.getrlimit(resource.RLIMIT_NPROC)
+                process_limit = self.resources.process_count
+                if hard_limit != resource.RLIM_INFINITY:
+                    process_limit = min(process_limit, hard_limit)
+                if process_limit <= 0:
+                    raise SandboxReadinessError("worker process limit is unavailable")
                 wrapped = [
                     *self._base_command(bubblewrap_fd),
                     "--bind",
@@ -254,20 +280,26 @@ class LinuxBubblewrapSandbox:
                     "--ro-bind",
                     f"/proc/self/fd/{executable_fd}",
                     "/cops/tool",
+                    "--ro-bind",
+                    f"/proc/self/fd/{prlimit_fd}",
+                    "/cops/limit",
                     "--chdir",
                     "/work",
                 ]
                 for key, value in sorted(sandbox_env.items()):
                     wrapped.extend(("--setenv", key, value))
-                wrapped.extend(("--", "/cops/tool", *command[1:]))
+                wrapped.extend(
+                    ("--", "/cops/limit", f"--nproc={process_limit}:{process_limit}", "--", "/cops/tool", *command[1:])
+                )
                 return run_bounded_process(
                     wrapped,
                     cwd=Path("/"),
                     env={},
                     timeout_seconds=timeout_seconds,
                     max_output_bytes=max_output_bytes,
-                    pass_fds=(bubblewrap_fd, workspace_fd, executable_fd, *capability_fds),
+                    pass_fds=(bubblewrap_fd, prlimit_fd, workspace_fd, executable_fd, *capability_fds),
                     resource_limits=self.resources.as_process_limits(),
+                    defer_process_limit=True,
                 )
         finally:
             os.close(workspace_fd)

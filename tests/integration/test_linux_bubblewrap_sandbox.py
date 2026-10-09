@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from cops.execution.sandbox import LinuxBubblewrapSandbox, SandboxReadinessError
+from cops.execution.sandbox import LinuxBubblewrapSandbox, SandboxReadinessError, SandboxResourcePolicy
 
 pytestmark = [
     pytest.mark.linux_bubblewrap,
@@ -204,6 +204,37 @@ print(json.dumps({
         soft, hard = observed["limits"][name]
         assert 0 < soft == hard <= maximum
     assert tuple(observed["limits"]["core"]) == (0, 0)
+
+
+def test_process_limit_is_installed_after_namespace_creation(ready_sandbox: ReadySandbox) -> None:
+    # A limit of one would prevent bwrap from creating its namespaces if it
+    # were applied to the host-side launcher under a shared worker account.
+    constrained = LinuxBubblewrapSandbox(
+        bubblewrap_path=_BUBBLEWRAP,
+        resources=SandboxResourcePolicy(process_count=1),
+    )
+    ready = ReadySandbox(sandbox=constrained, workspace=ready_sandbox.workspace)
+    observed = _run_python(
+        ready,
+        """
+import errno
+import json
+import os
+import resource
+
+try:
+    child = os.fork()
+except OSError as err:
+    fork_errno = err.errno
+else:
+    if child == 0:
+        os._exit(0)
+    os.waitpid(child, 0)
+    fork_errno = None
+print(json.dumps({"limit": resource.getrlimit(resource.RLIMIT_NPROC), "fork_errno": fork_errno}))
+""",
+    )
+    assert observed == {"limit": [1, 1], "fork_errno": errno.EAGAIN}
 
 
 def test_network_and_pid_namespaces_are_new_and_raw_network_is_denied(

@@ -51,7 +51,7 @@ class ProcessResourceLimits:
             raise ValueError("process resource limits must be positive")
 
 
-def _resource_preexec(limits: ProcessResourceLimits) -> None:
+def _resource_preexec(limits: ProcessResourceLimits, *, defer_process_limit: bool = False) -> None:
     """Install non-bypassable Linux limits in the child before exec."""
     import resource
 
@@ -61,7 +61,8 @@ def _resource_preexec(limits: ProcessResourceLimits) -> None:
         resource.setrlimit(which, (bounded, bounded))
 
     lower(resource.RLIMIT_AS, limits.address_space_bytes)
-    lower(resource.RLIMIT_NPROC, limits.process_count)
+    if not defer_process_limit:
+        lower(resource.RLIMIT_NPROC, limits.process_count)
     lower(resource.RLIMIT_CPU, max(1, math.ceil(limits.cpu_seconds)))
     lower(resource.RLIMIT_FSIZE, limits.file_size_bytes)
     lower(resource.RLIMIT_NOFILE, limits.open_files)
@@ -118,6 +119,7 @@ def run_bounded_process(
     max_output_bytes: int,
     pass_fds: tuple[int, ...] = (),
     resource_limits: ProcessResourceLimits | None = None,
+    defer_process_limit: bool = False,
 ) -> BoundedProcessResult:
     """Run ``command`` while bounding retained stdout and stderr bytes.
 
@@ -133,6 +135,8 @@ def run_bounded_process(
         raise ValueError("max_output_bytes must be non-negative")
     if resource_limits is not None and not __import__("sys").platform.startswith("linux"):
         raise RuntimeError("kernel resource enforcement is supported only on Linux")
+    if defer_process_limit and resource_limits is None:
+        raise ValueError("a deferred process limit requires resource limits")
 
     process = subprocess.Popen(
         list(command),
@@ -142,7 +146,9 @@ def run_bounded_process(
         stderr=subprocess.PIPE,
         start_new_session=True,
         pass_fds=pass_fds,
-        preexec_fn=(lambda: _resource_preexec(resource_limits)) if resource_limits is not None else None,
+        preexec_fn=(lambda: _resource_preexec(resource_limits, defer_process_limit=defer_process_limit))
+        if resource_limits is not None
+        else None,
     )
     assert process.stdout is not None
     assert process.stderr is not None

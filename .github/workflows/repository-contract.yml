@@ -24,7 +24,7 @@ jobs:
       - name: Install bubblewrap and test dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install --yes bubblewrap
+          sudo apt-get install --yes bubblewrap util-linux
           python -m pip install -r requirements.txt
       - name: Verify required Linux isolation boundaries
         run: python -m pytest -m linux_bubblewrap tests/integration/test_linux_bubblewrap_sandbox.py -q
@@ -81,7 +81,7 @@ jobs:
       - name: Install Linux isolation runtime and test dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install --yes bubblewrap
+          sudo apt-get install --yes bubblewrap util-linux
           python3 -m pip install -r requirements.txt
       - name: Validate repository and plugin
         run: make check PYTHON=python3

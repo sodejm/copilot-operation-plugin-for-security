@@ -110,7 +110,7 @@ Python changes must also pass `ruff check .`; YAML changes must pass `yamllint -
 Linux sandbox changes must also pass the real bubblewrap integration gate:
 
 ```bash
-sudo apt-get install bubblewrap
+sudo apt-get install bubblewrap util-linux
 python -m pytest -m linux_bubblewrap tests/integration/test_linux_bubblewrap_sandbox.py -q
 ```
 
@@ -118,6 +118,10 @@ Run this gate as a non-root user on Linux with unprivileged user namespaces enab
 The hosted Ubuntu job treats a missing bubblewrap installation, blocked user
 namespaces, or a failed readiness probe as a failure because production dispatch
 must fail closed when these boundaries are unavailable.
+The sandbox also requires the root-owned `/usr/bin/prlimit` from `util-linux`.
+It applies the process-count limit inside the new namespace, immediately before
+the adapter starts, so the host account's existing tasks cannot block namespace
+creation on a shared runner.
 
 Security lint exceptions must describe the concrete reason at the narrowest applicable scope. Offline tests use synthetic credentials and noncryptographic seeded fuzzing; standalone scripts may set up the repository import path before imports. Public string-enum behavior is preserved rather than migrated solely to satisfy a style rule. Production authorization storage errors must propagate, and XML imports must reject entity declarations before parsing imported data.
 
