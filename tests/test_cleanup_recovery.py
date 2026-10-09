@@ -19,7 +19,12 @@ from cops.execution import (
     SideEffectLedger,
     WorkerExecutionError,
 )
-from tests.auth_testkit import authorize_test_plan, worker_inventory_for_plan
+from tests.auth_testkit import (
+    TestApprovalControl,
+    TestExecutionSandbox,
+    authorize_test_plan,
+    worker_inventory_for_plan,
+)
 
 
 @pytest.fixture
@@ -156,9 +161,8 @@ def test_failure_injection_after_consume_prevents_replay(temp_store, sample_plan
 
     worker = IsolatedWorker(
         worker_inventory_for_plan(plan, worker_identity="worker-fail-test"),
-        store=temp_store,
-        trust_store=trust_store,
-        engagement=engagement,
+        TestApprovalControl(temp_store, trust_store, engagement),
+        TestExecutionSandbox(),
     )
 
     # Inject failure after consumption
@@ -175,6 +179,7 @@ def test_failure_injection_after_consume_prevents_replay(temp_store, sample_plan
 
     # Subsequent attempt to execute MUST fail closed (consumed status rejection)
     from cops.execution.authorization import AuthorizationError
+
     with pytest.raises((ApprovalStoreConflictError, AuthorizationError)):
         worker.execute_plan(plan, authorization=auth.authorization_id)
 
@@ -221,9 +226,8 @@ def test_interruption_uncertain_outcome_non_idempotent(temp_store, sample_plan, 
 
     worker = IsolatedWorker(
         worker_inventory_for_plan(plan, worker_identity="worker-interrupt-test"),
-        store=temp_store,
-        trust_store=trust_store,
-        engagement=engagement,
+        TestApprovalControl(temp_store, trust_store, engagement),
+        TestExecutionSandbox(),
     )
 
     # Inject failure during execution of step-mutating
@@ -246,7 +250,7 @@ def test_interruption_uncertain_outcome_non_idempotent(temp_store, sample_plan, 
 
 
 def test_operator_cancellation_idempotent_step(temp_store, sample_plan, temp_workspace):
-    """Test that cancellation during an idempotent operation records status='cancelled'."""
+    """A cancellation requested before dispatch leaves the approval available."""
     plan_dict = sample_plan.to_dict()
     plan_dict["operations"] = [
         {
@@ -278,18 +282,16 @@ def test_operator_cancellation_idempotent_step(temp_store, sample_plan, temp_wor
 
     worker = IsolatedWorker(
         worker_inventory_for_plan(plan, worker_identity="worker-cancel-test"),
-        store=temp_store,
-        trust_store=trust_store,
-        engagement=engagement,
+        TestApprovalControl(temp_store, trust_store, engagement),
+        TestExecutionSandbox(),
     )
 
-    result = worker.execute_plan(
-        plan,
-        authorization=auth.authorization_id,
-        workspace_dir=temp_workspace,
-        cancel_requested=True,
-    )
+    with pytest.raises(WorkerExecutionError, match="cancelled by operator"):
+        worker.execute_plan(
+            plan,
+            authorization=auth.authorization_id,
+            workspace_dir=temp_workspace,
+            cancel_requested=True,
+        )
 
-    assert result.status == "cancelled"
-    assert "cancelled by operator" in result.status_details["reason"]
-    assert result.cleanup_status in ("completed", "not_required")
+    assert temp_store.get_authorization(auth.authorization_id).status == "approved"

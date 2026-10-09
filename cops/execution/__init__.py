@@ -33,6 +33,24 @@ from .scope_guard import (
     ScopeGuard,
     ScopeViolationError,
 )
+from .ssh_execution import (
+    SSH_AUTHORIZED_RUN_SCHEMA,
+    SSH_EXECUTION_REQUEST_SCHEMA,
+    RemoteAuthorizedRun,
+    SSHExecutionDispatcher,
+    SSHExecutionError,
+    validate_remote_authorized_run,
+)
+from .ssh_transport import (
+    SSH_ENDPOINT_INVENTORY_SCHEMA,
+    SSHRemoteDispatcher,
+    SSHRemoteEndpoint,
+    SSHRemoteEndpointInventory,
+    SSHRemoteResponse,
+    SSHRemoteTransport,
+    SSHTransportError,
+    SSHTransportLimits,
+)
 from .store import (
     ApprovalStore,
     ApprovalStoreAccessError,
@@ -75,6 +93,19 @@ __all__ = [
     "ScopeViolationError",
     "SideEffect",
     "SideEffectLedger",
+    "SSH_ENDPOINT_INVENTORY_SCHEMA",
+    "SSH_AUTHORIZED_RUN_SCHEMA",
+    "SSH_EXECUTION_REQUEST_SCHEMA",
+    "SSHExecutionDispatcher",
+    "SSHExecutionError",
+    "RemoteAuthorizedRun",
+    "SSHRemoteDispatcher",
+    "SSHRemoteEndpoint",
+    "SSHRemoteEndpointInventory",
+    "SSHRemoteResponse",
+    "SSHRemoteTransport",
+    "SSHTransportError",
+    "SSHTransportLimits",
     "StepTelemetry",
     "StreamRedactor",
     "TrustedAuthorizationKey",
@@ -88,4 +119,5 @@ __all__ = [
     "create_execution_authorization",
     "request_interactive_plan_authorization",
     "verify_execution_authorization",
+    "validate_remote_authorized_run",
 ]

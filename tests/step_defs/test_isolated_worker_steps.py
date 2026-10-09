@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import threading
+import uuid
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -25,13 +27,179 @@ from cops.execution import (
     IsolatedWorker,
     WorkerExecutionError,
 )
+from cops.execution.control import (
+    REQUEST_SCHEMA,
+    RESPONSE_SCHEMA,
+    ApprovalAuthority,
+    ApprovalControlError,
+)
 from cops.execution.process import BoundedProcessResult
-from tests.auth_testkit import authorize_test_plan, worker_inventory_for_plan
+from cops.execution.ssh_transport import SSHTransportError
+from tests.auth_testkit import (
+    TestApprovalControl,
+    TestExecutionSandbox,
+    authorize_test_plan,
+    worker_inventory_for_plan,
+)
+from tests.ssh_transport_testkit import make_transport
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = ROOT / "cops" / "contracts" / "fixtures"
 
 scenarios("../../specs/features/isolated_worker_approval_store.feature")
+
+
+@given("a signed approval provisioned outside the execution worker")
+def provisioned_approval(worker_context):
+    load_plan_and_auth(worker_context)
+    worker_context["store"].store_authorization(worker_context["auth"])
+
+
+@given("a protected approval authority bound to the expected worker process")
+def protected_authority(worker_context, monkeypatch):
+    monkeypatch.setattr("cops.execution.control.sys_platform_linux", lambda: True)
+    authority_uid = os.geteuid()
+    worker_context["authority"] = ApprovalAuthority(
+        store=worker_context["store"],
+        trust_store=worker_context["trust_store"],
+        engagement=worker_context["engagement"],
+        worker_identity="test-worker-01",
+        worker_uid=authority_uid + 1,
+        worker_gid=os.getegid(),
+        worker_pid=4242,
+        authority_uid=authority_uid,
+    )
+
+
+def _control_request(worker_context):
+    return {
+        "schema_version": REQUEST_SCHEMA,
+        "request_id": str(uuid.uuid4()),
+        "operation": "consume",
+        "authorization_id": worker_context["auth"].authorization_id,
+        "worker_identity": "test-worker-01",
+        "action_plan": worker_context["plan"].to_dict(),
+    }
+
+
+def _consume_at_authority(worker_context, request, **peer_changes):
+    authority = worker_context["authority"]
+    peer = {
+        "peer_pid": authority.worker_pid,
+        "peer_uid": authority.worker_uid,
+        "peer_gid": authority.worker_gid,
+    }
+    peer.update(peer_changes)
+    return authority.consume_document(request, **peer)
+
+
+@when("the worker submits the authorization identifier and exact action plan")
+def submit_exact_control_request(worker_context):
+    worker_context["control_request"] = _control_request(worker_context)
+    worker_context["control_response"] = _consume_at_authority(worker_context, worker_context["control_request"])
+
+
+@then("the authority verifies and consumes the stored approval exactly once")
+def verify_single_authority_consumption(worker_context):
+    response = worker_context["control_response"]
+    assert response["schema_version"] == RESPONSE_SCHEMA
+    assert response["ok"] is True
+    assert response["authorization_id"] == worker_context["auth"].authorization_id
+    assert worker_context["store"].get_authorization(response["authorization_id"]).status == "consumed"
+    with pytest.raises(ApprovalControlError):
+        _consume_at_authority(worker_context, _control_request(worker_context))
+
+
+@then("the worker never receives a signing key or approval registration capability")
+def verify_control_receipt_is_consume_only(worker_context):
+    assert set(worker_context["control_request"]) == {
+        "schema_version",
+        "request_id",
+        "operation",
+        "authorization_id",
+        "worker_identity",
+        "action_plan",
+    }
+    assert set(worker_context["control_response"]) == {
+        "schema_version",
+        "request_id",
+        "ok",
+        "authorization_id",
+        "authorization_digest",
+        "target",
+        "engagement_id",
+        "plan_digest",
+        "action_plan_id",
+        "worker_identity",
+    }
+    assert worker_context["control_request"]["operation"] == "consume"
+
+
+@when(parsers.parse('an approval control request has a "{mismatch}" mismatch'))
+def submit_mismatched_control_request(worker_context, monkeypatch, mismatch):
+    protected_authority(worker_context, monkeypatch)
+    request = _control_request(worker_context)
+    peer_changes = {}
+    authority = worker_context["authority"]
+    if mismatch == "worker UID":
+        peer_changes["peer_uid"] = authority.worker_uid + 1
+    elif mismatch == "worker GID":
+        peer_changes["peer_gid"] = authority.worker_gid + 1
+    elif mismatch == "worker process":
+        peer_changes["peer_pid"] = authority.worker_pid + 1
+    elif mismatch == "worker identity":
+        request["worker_identity"] = "different-worker"
+    elif mismatch == "action plan":
+        plan = worker_context["plan"]
+        snapshot = plan.approved_snapshot()
+        request["action_plan"] = ActionPlan.create(
+            plan_id="plan-authority-mismatch",
+            engagement_id=plan.engagement_id,
+            scenario_id=plan.scenario_id,
+            target=plan.target,
+            specialist_id=plan.specialist_id,
+            operations=snapshot["operations"],
+            limits=snapshot["limits"],
+            credential_references=snapshot["credential_references"],
+            created_at=plan.created_at,
+            platform_prerequisites=snapshot["platform_prerequisites"],
+            batch=snapshot["batch"],
+        ).to_dict()
+    elif mismatch == "authorization ID":
+        request["authorization_id"] = str(uuid.uuid4())
+    else:
+        raise AssertionError(f"unexpected mismatch: {mismatch}")
+    with pytest.raises(ApprovalControlError):
+        _consume_at_authority(worker_context, request, **peer_changes)
+
+
+@then("the authority rejects the request without consuming the approval")
+def verify_mismatch_preserves_approval(worker_context):
+    assert worker_context["store"].get_authorization(worker_context["auth"].authorization_id).status == "approved"
+
+
+@given("a versioned execution request over host-key-verified SSH")
+def versioned_ssh_request(worker_context, tmp_path: Path):
+    transport, marker, _ = make_transport(tmp_path)
+    worker_context["ssh_transport"] = transport
+    worker_context["ssh_marker"] = marker
+
+
+@when("the SSH host identity or worker identity differs from the request")
+def reject_ssh_identity_mismatch(worker_context):
+    transport = worker_context["ssh_transport"]
+    rejected_modes = []
+    for mode in ("host-mismatch", "worker-mismatch"):
+        with pytest.raises(SSHTransportError, match="identity does not match"):
+            transport.request({"mode": mode}, request_id=f"request-{mode}")
+        rejected_modes.append(mode)
+    worker_context["rejected_ssh_modes"] = rejected_modes
+
+
+@then("the worker rejects the request before dispatch")
+def verify_ssh_rejection_before_dispatch(worker_context):
+    assert worker_context["rejected_ssh_modes"] == ["host-mismatch", "worker-mismatch"]
+    assert worker_context["ssh_marker"].read_text(encoding="utf-8") == "invoked"
 
 
 @pytest.fixture
@@ -93,11 +261,16 @@ def register_auth(worker_context):
 
 @when("the isolated worker executes the authorized plan")
 def execute_plan(worker_context):
+    approval_control = TestApprovalControl(
+        worker_context["store"],
+        worker_context["trust_store"],
+        worker_context["engagement"],
+    )
+    sandbox = TestExecutionSandbox()
     worker = IsolatedWorker(
         worker_inventory_for_plan(worker_context["plan"], worker_identity="test-worker-01"),
-        store=worker_context["store"],
-        trust_store=worker_context["trust_store"],
-        engagement=worker_context["engagement"],
+        approval_control,
+        sandbox,
     )
     result = worker.execute_plan(
         worker_context["plan"],
@@ -120,6 +293,48 @@ def verify_store_status(worker_context, expected_status):
 @then("the ephemeral workspace directory is cleaned up")
 def verify_cleanup(worker_context):
     assert worker_context["result"].cleanup_status == "completed"
+
+
+@given("a compatible approved action plan")
+def compatible_approved_plan(worker_context):
+    load_plan_and_auth(worker_context)
+    worker_context["store"].store_authorization(worker_context["auth"])
+
+
+@given("a worker host missing a required process sandbox control")
+def worker_missing_required_sandbox_control(worker_context):
+    approval_control = TestApprovalControl(
+        worker_context["store"],
+        worker_context["trust_store"],
+        worker_context["engagement"],
+    )
+    sandbox = TestExecutionSandbox(readiness_error=WorkerExecutionError("required process sandbox control unavailable"))
+    worker_context["approval_control"] = approval_control
+    worker_context["sandbox"] = sandbox
+    worker_context["worker"] = IsolatedWorker(
+        worker_inventory_for_plan(worker_context["plan"], worker_identity="test-worker-01"),
+        approval_control,
+        sandbox,
+    )
+
+
+@when("the worker checks readiness before execution")
+def worker_checks_readiness(worker_context):
+    with pytest.raises(WorkerExecutionError) as error:
+        worker_context["worker"].execute_plan(
+            worker_context["plan"],
+            authorization=worker_context["auth"].authorization_id,
+        )
+    worker_context["readiness_error"] = error.value
+
+
+@then("the worker rejects dispatch without consuming the approval")
+def worker_rejects_without_consuming(worker_context):
+    assert "required process sandbox control unavailable" in str(worker_context["readiness_error"])
+    assert worker_context["approval_control"].consume_calls == []
+    assert worker_context["sandbox"].run_calls == []
+    stored = worker_context["store"].get_authorization(worker_context["auth"].authorization_id)
+    assert stored.status == "approved"
 
 
 @given("an approved authorization envelope in the approval store")
@@ -211,9 +426,8 @@ def plan_unapproved_tool(worker_context, unapproved_tool):
             worker_identity="worker-strict",
             allowed_tools=(worker_context["allowed_tool"],),
         ),
-        store=worker_context["store"],
-        trust_store=trust_store,
-        engagement=engagement,
+        TestApprovalControl(worker_context["store"], trust_store, engagement),
+        TestExecutionSandbox(),
     )
 
 
@@ -297,11 +511,12 @@ def authorized_fake_adapter_plan(worker_context):
     )
     worker_context["fake_plan"] = plan
     worker_context["fake_authorization"] = authorization.authorization_id
+    sandbox = TestExecutionSandbox()
+    worker_context["fake_sandbox"] = sandbox
     worker_context["fake_worker"] = IsolatedWorker(
         worker_inventory_for_plan(plan, worker_identity="test-worker-01"),
-        store=worker_context["store"],
-        trust_store=trust_store,
-        engagement=engagement,
+        TestApprovalControl(worker_context["store"], trust_store, engagement),
+        sandbox,
         adapter_registry=registry,
     )
 
@@ -321,11 +536,7 @@ def fake_adapter_reports(worker_context, monkeypatch, outcome):
     )
     monkeypatch.setattr(worker_module, "verify_executable_launch_support", lambda: None)
     monkeypatch.setattr(worker_module, "prepare_executable", lambda *args, **kwargs: prepared)
-    monkeypatch.setattr(
-        worker_module,
-        "run_bounded_process",
-        lambda *args, **kwargs: outcomes[outcome],
-    )
+    worker_context["fake_sandbox"].result = outcomes[outcome]
     worker_context["result"] = worker_context["fake_worker"].execute_plan(
         worker_context["fake_plan"],
         authorization=worker_context["fake_authorization"],

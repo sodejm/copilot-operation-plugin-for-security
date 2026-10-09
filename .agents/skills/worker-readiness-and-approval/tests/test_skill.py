@@ -9,7 +9,12 @@ from pathlib import Path
 
 from cops.contracts.models import ActionPlan
 from cops.execution import ApprovalStore, IsolatedWorker
-from tests.auth_testkit import authorize_test_plan, worker_inventory_for_plan
+from tests.auth_testkit import (
+    TestApprovalControl,
+    TestExecutionSandbox,
+    authorize_test_plan,
+    worker_inventory_for_plan,
+)
 
 
 class TestWorkerReadinessAndApprovalSkill(unittest.TestCase):
@@ -23,6 +28,7 @@ class TestWorkerReadinessAndApprovalSkill(unittest.TestCase):
 
     def tearDown(self):
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_worker_and_approval_skill_flow(self):
@@ -37,9 +43,8 @@ class TestWorkerReadinessAndApprovalSkill(unittest.TestCase):
         # 2. Worker readiness check
         worker = IsolatedWorker(
             worker_inventory_for_plan(self.plan, worker_identity="worker-test-01"),
-            store=self.store,
-            trust_store=trust_store,
-            engagement=engagement,
+            TestApprovalControl(self.store, trust_store, engagement),
+            TestExecutionSandbox(),
         )
         self.assertEqual(worker.config.worker_id, "worker-test-01")
 

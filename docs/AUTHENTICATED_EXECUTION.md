@@ -126,36 +126,35 @@ Plan status is a separate lifecycle field and is excluded from the signed snapsh
 
 ## Execute once in an isolated worker
 
-Provide the plan, authorization, verifier trust store, engagement, and independently provisioned worker inventory:
+Provide the plan, its opaque authorization ID, the approved worker identity, and
+the owner-protected SSH endpoint inventory:
 
 ```bash
 python3 -m cops worker execute action-plan.json \
-  --authorization execution-authorization.json \
-  --authorization-trust-store authorization-trust-store.json \
-  --engagement engagement.json \
-  --worker-inventory worker-capability-inventory.json \
-  --executable-sha256 nmap=PLATFORM_SPECIFIC_SHA256 \
+  --authorization auth-example-00000001 \
   --worker-id worker-lab-01 \
-  --db approvals.sqlite3 \
+  --ssh-endpoint-inventory /etc/cops/ssh-endpoints.json \
   --json
 ```
 
-`--worker-id` is optional; when omitted, the command uses the inventory identity.
-Repeat `--executable-sha256 TOOL=SHA256` for every external adapter executable in
-the plan. The built-in adapter definitions intentionally do not carry a digest for
-an arbitrary host binary. Provision the pin from the exact executable installed in
-the approved worker image, for example on Linux:
+The operator CLI treats `--authorization` as an opaque ID and sends the plan to the
+endpoint selected by the exact `--worker-id` entry. Host, account, and forced-command
+settings come only from the protected SSH inventory; they cannot be supplied as
+command-line overrides. The operator host does not load verifier keys, the approval
+database, the engagement, worker capability inventory, or adapter executable pins.
+The [worker supervisor](WORKER_SUPERVISOR.md) runs under a separate unprivileged
+account. It owns the worker inventory and execution inputs, checks plan scope and
+isolation, and asks the independent approval authority to consume the authorization.
+Only that authority account owns verifier keys, the trust store, and the approval
+database; the worker account has consume-only access to its control socket.
+
+Provision executable pins on that remote worker from the exact approved binary. For
+example, on Linux:
 
 ```bash
 tool_path="$(command -v nmap)"
 tool_sha256="$(sha256sum "$tool_path" | cut -d ' ' -f 1)"
-python3 -m cops worker execute action-plan.json \
-  --authorization execution-authorization.json \
-  --authorization-trust-store authorization-trust-store.json \
-  --engagement engagement.json \
-  --worker-inventory worker-capability-inventory.json \
-  --executable-sha256 "nmap=$tool_sha256" \
-  --db approvals.sqlite3
+printf '%s  %s\n' "$tool_sha256" "$tool_path"
 ```
 
 Record the package or worker-image source used to obtain the executable and refresh
@@ -201,7 +200,11 @@ Library callers must pass the `WorkerCapabilityInventory` loaded by
 inventories and mutable `WorkerConfig` values are not accepted at the worker
 boundary.
 
-The approval store consumes the authorization in a SQLite transaction immediately before dispatch. A second attempt with the same authorization fails as replay. Keep the approval database on durable local storage and protect it with the same access controls as other execution records.
+The independent approval authority consumes the authorization in a SQLite
+transaction immediately before dispatch. A second attempt with the same
+authorization fails as replay. Keep the approval database on durable storage owned
+by the authority account and protect it with the same access controls as other
+execution records.
 
 Stdout and stderr share the Action Plan's raw byte limit. The worker enforces that
 limit while reading the pipes and terminates the process group on timeout or overflow.
@@ -278,4 +281,4 @@ Revocation invalidates every unconsumed authorization signed by that key. If imm
 
 ## Remaining execution boundaries
 
-Authenticated authorization proves that a holder of the trusted shared key approved the immutable plan for the expected worker and records whether that one-time authority was consumed. It does not by itself create an operating-system or process transport boundary, which is tracked in issue #185. It also does not mediate live network egress, DNS resolution, redirects, or cloud metadata access, which is tracked in issue #186. Deployments must supply those controls independently before claiming isolated or destination-enforced live execution.
+Authenticated authorization proves that a holder of the trusted shared key approved the immutable plan for the expected worker and records whether that one-time authority was consumed. The [worker supervisor](WORKER_SUPERVISOR.md) and [SSH relay](REMOTE_WORKER_SSH_TRANSPORT.md) add a Linux process and transport boundary when correctly provisioned. Authorization and isolation alone do not mediate live network egress, DNS resolution, redirects, or cloud metadata access; issue #186 tracks those controls. Validate the actual host boundary before claiming isolated live execution.

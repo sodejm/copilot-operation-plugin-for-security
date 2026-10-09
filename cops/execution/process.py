@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import ctypes
+import math
 import os
 import selectors
 import signal
@@ -25,6 +27,51 @@ class BoundedProcessResult:
         return len(self.stdout) + len(self.stderr)
 
 
+@dataclass(frozen=True)
+class ProcessResourceLimits:
+    """Kernel-enforced limits applied before an untrusted tool starts."""
+
+    address_space_bytes: int
+    process_count: int
+    cpu_seconds: float
+    file_size_bytes: int
+    open_files: int = 64
+
+    def __post_init__(self) -> None:
+        if (
+            min(
+                self.address_space_bytes,
+                self.process_count,
+                self.cpu_seconds,
+                self.file_size_bytes,
+                self.open_files,
+            )
+            <= 0
+        ):
+            raise ValueError("process resource limits must be positive")
+
+
+def _resource_preexec(limits: ProcessResourceLimits, *, defer_process_limit: bool = False) -> None:
+    """Install non-bypassable Linux limits in the child before exec."""
+    import resource
+
+    def lower(which: int, value: int) -> None:
+        _, hard = resource.getrlimit(which)
+        bounded = value if hard == resource.RLIM_INFINITY else min(value, hard)
+        resource.setrlimit(which, (bounded, bounded))
+
+    lower(resource.RLIMIT_AS, limits.address_space_bytes)
+    if not defer_process_limit:
+        lower(resource.RLIMIT_NPROC, limits.process_count)
+    lower(resource.RLIMIT_CPU, max(1, math.ceil(limits.cpu_seconds)))
+    lower(resource.RLIMIT_FSIZE, limits.file_size_bytes)
+    lower(resource.RLIMIT_NOFILE, limits.open_files)
+    resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+    libc = ctypes.CDLL(None, use_errno=True)
+    if libc.prctl(38, 1, 0, 0, 0) != 0:  # PR_SET_NO_NEW_PRIVS
+        raise OSError(ctypes.get_errno(), "prctl(PR_SET_NO_NEW_PRIVS) failed")
+
+
 def _terminate_process_group(process: subprocess.Popen[bytes], process_group_id: int) -> None:
     """Terminate the dedicated group, including children after the leader exits.
 
@@ -39,6 +86,28 @@ def _terminate_process_group(process: subprocess.Popen[bytes], process_group_id:
             process.kill()
     except ProcessLookupError:
         pass
+    except PermissionError:
+        # Darwin may report EPERM briefly while a child exits, even for a
+        # group that is about to disappear. Retry for a bounded interval, and
+        # reject a group that remains inaccessible after that interval.
+        deadline = time.monotonic() + 0.25
+        while True:
+            try:
+                os.killpg(process_group_id, 0)
+            except ProcessLookupError:
+                return
+            except PermissionError:
+                pass
+            process.poll()
+            try:
+                os.killpg(process_group_id, signal.SIGKILL)
+                return
+            except ProcessLookupError:
+                return
+            except PermissionError:
+                if time.monotonic() >= deadline:
+                    raise
+                time.sleep(0.005)
 
 
 def run_bounded_process(
@@ -49,6 +118,8 @@ def run_bounded_process(
     timeout_seconds: float,
     max_output_bytes: int,
     pass_fds: tuple[int, ...] = (),
+    resource_limits: ProcessResourceLimits | None = None,
+    defer_process_limit: bool = False,
 ) -> BoundedProcessResult:
     """Run ``command`` while bounding retained stdout and stderr bytes.
 
@@ -62,6 +133,10 @@ def run_bounded_process(
         raise RuntimeError("bounded executable collection requires POSIX process-group support")
     if max_output_bytes < 0:
         raise ValueError("max_output_bytes must be non-negative")
+    if resource_limits is not None and not __import__("sys").platform.startswith("linux"):
+        raise RuntimeError("kernel resource enforcement is supported only on Linux")
+    if defer_process_limit and resource_limits is None:
+        raise ValueError("a deferred process limit requires resource limits")
 
     process = subprocess.Popen(
         list(command),
@@ -71,6 +146,9 @@ def run_bounded_process(
         stderr=subprocess.PIPE,
         start_new_session=True,
         pass_fds=pass_fds,
+        preexec_fn=(lambda: _resource_preexec(resource_limits, defer_process_limit=defer_process_limit))
+        if resource_limits is not None
+        else None,
     )
     assert process.stdout is not None
     assert process.stderr is not None

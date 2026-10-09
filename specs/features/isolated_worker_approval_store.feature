@@ -3,6 +3,38 @@ Feature: Isolated Execution Worker and Approval State Store
   I need verifier trust, active engagement, worker capability attestation, and an ACID approval store
   So that only compatible authorized plans dispatch and approvals cannot be double-spent
 
+  Scenario: Consuming a provisioned approval through a separate authority
+    Given a signed approval provisioned outside the execution worker
+    And a protected approval authority bound to the expected worker process
+    When the worker submits the authorization identifier and exact action plan
+    Then the authority verifies and consumes the stored approval exactly once
+    And the worker never receives a signing key or approval registration capability
+
+  Scenario Outline: Rejecting an approval control boundary mismatch
+    Given a signed approval provisioned outside the execution worker
+    When an approval control request has a "<mismatch>" mismatch
+    Then the authority rejects the request without consuming the approval
+
+    Examples:
+      | mismatch          |
+      | worker UID        |
+      | worker GID        |
+      | worker process    |
+      | worker identity   |
+      | action plan       |
+      | authorization ID  |
+
+  Scenario: Refusing dispatch without required Linux isolation
+    Given a compatible approved action plan
+    And a worker host missing a required process sandbox control
+    When the worker checks readiness before execution
+    Then the worker rejects dispatch without consuming the approval
+
+  Scenario: Refusing a remote host or worker identity mismatch
+    Given a versioned execution request over host-key-verified SSH
+    When the SSH host identity or worker identity differs from the request
+    Then the worker rejects the request before dispatch
+
   Scenario: Storing an approval and executing an authorized action plan
     Given an initialized SQLite approval store
     And a valid action plan and signed authorization envelope
