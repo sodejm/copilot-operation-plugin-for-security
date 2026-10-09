@@ -48,9 +48,50 @@ configuration has this shape, with site-specific identities and paths:
   "engagement_path": "/etc/cops-supervisor/engagement.json",
   "attestation_key_id": "worker-lab-01-2026-01",
   "attestation_key_path": "/etc/cops-supervisor/response-attestation.key",
-  "executable_sha256_pins": {}
+  "executable_sha256_pins": {},
+  "egress_trust_domain": "services.example.test"
 }
 ```
+
+`egress_trust_domain` is optional. Omit it for adapters that need no network
+access. When configured, the supervisor accepts network access only for an
+operation whose signed Action Plan explicitly sets `limits.egress_allowed` to
+`true` and supplies a closed `egress_policy` object. The engagement scope must
+also permit the endpoint. A policy names one HTTPS host and port, one exact
+provider/service/account/tenant/cluster/namespace/resource identity, and the
+allowed HTTP request targets:
+
+```json
+{
+  "egress_policy": {
+    "https_endpoint": {
+      "host": "api.example.test",
+      "port": 443,
+      "identity": {
+        "provider": "example",
+        "service": "inventory",
+        "account": "account-a",
+        "tenant": "tenant-a",
+        "cluster": "cluster-a",
+        "namespace": "namespace-a",
+        "resource": "resource-a"
+      },
+      "request_targets": ["/v1/accounts/account-a/resources/resource-a"]
+    }
+  }
+}
+```
+
+The mediator resolves and connects on the worker side, verifies the TLS peer
+hostname and a single COPS resource-identity URI SAN in the configured trust
+domain, and allows only the named identity and exact `GET`/`HEAD` request
+targets. Each adapter receives a per-operation Unix-socket broker capability
+inside the Linux network namespace; it cannot make direct IPv4 or IPv6
+connections. Redirects and DNS changes are rechecked at the boundary, and
+metadata, proxy, tunnel, and out-of-scope destinations fail closed. Provision
+service certificates and the trust domain through the trusted deployment
+workflow. A normal hostname-only certificate does not authenticate the account
+or resource identity required by this policy.
 
 The response-attestation key file contains exactly 64 lowercase hexadecimal
 characters (32 bytes), is owned by the supervisor, and has mode `0600`. Its path
