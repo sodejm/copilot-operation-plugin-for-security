@@ -16,6 +16,8 @@ from time import monotonic
 
 from cops.adapters import ToolAdapter
 
+from .cleanup import CleanupError, CleanupManager, SideEffect
+from .filesystem import same_directory_identity
 from .process import BoundedProcessResult
 
 ProcessRunner = Callable[..., BoundedProcessResult]
@@ -110,6 +112,9 @@ class PreparedExecutable:
     descriptor: int
     workspace_fd: int
     staging_fd: int
+    cleanup_manager: CleanupManager | None = None
+    file_effect: SideEffect | None = None
+    directory_effect: SideEffect | None = None
 
     @property
     def invocation_path(self) -> str:
@@ -124,6 +129,20 @@ class PreparedExecutable:
         """Remove the verified inode through the staging directory held at creation."""
         executable_fd, workspace_fd, staging_fd = self.descriptor, self.workspace_fd, self.staging_fd
         self.descriptor = self.workspace_fd = self.staging_fd = -1
+        if self.cleanup_manager is not None:
+            for fd in (executable_fd, staging_fd, workspace_fd):
+                if fd >= 0:
+                    os.close(fd)
+            failures = _cleanup_tracked_executable(
+                self.cleanup_manager,
+                file_effect=self.file_effect,
+                directory_effect=self.directory_effect,
+            )
+            if failures:
+                raise ExecutableVerificationError(
+                    "staged executable cleanup could not verify durable ownership"
+                ) from failures[0]
+            return
         cleanup_error: ExecutableVerificationError | None = None
         try:
             if executable_fd < 0 or workspace_fd < 0 or staging_fd < 0:
@@ -170,6 +189,9 @@ def prepare_executable(
     timeout_seconds: float,
     deadline: float | None = None,
     process_runner: ProcessRunner,
+    cleanup_manager: CleanupManager | None = None,
+    credential_scratch_root: Path | None = None,
+    expected_workspace_fd: int | None = None,
 ) -> PreparedExecutable:
     """Open, stage, digest, version-check, and return an adapter executable.
 
@@ -207,8 +229,13 @@ def prepare_executable(
     stage_fd = -1
     destination_fd = -1
     executable_fd = -1
+    directory_effect: SideEffect | None = None
+    file_effect: SideEffect | None = None
     filename = f"{re.sub(r'[^a-zA-Z0-9_-]', '_', adapter.tool)}-{uuid.uuid4().hex}"
     staging_dir = workspace / ".executables"
+    effect_metadata = {"purpose": "staged_adapter_executable"}
+    if credential_scratch_root is not None:
+        effect_metadata["credential_scratch_root"] = str(credential_scratch_root)
     try:
         source_before = os.fstat(source_fd)
         if not stat.S_ISREG(source_before.st_mode):
@@ -218,18 +245,45 @@ def prepare_executable(
 
         workspace_fd = os.open(workspace, os.O_RDONLY | directory | nofollow)
         _validate_private_directory(workspace_fd, "worker workspace")
-        try:
-            os.mkdir(".executables", mode=0o700, dir_fd=workspace_fd)
-        except FileExistsError:
-            pass
+        if expected_workspace_fd is not None and not same_directory_identity(workspace_fd, expected_workspace_fd):
+            raise ExecutableVerificationError("worker workspace changed after preflight")
+        if cleanup_manager is not None:
+            try:
+                os.stat(".executables", dir_fd=workspace_fd, follow_symlinks=False)
+            except FileNotFoundError:
+                directory_effect = cleanup_manager.ledger.record_effect(
+                    step_id=f"{adapter.tool}-executable-staging",
+                    resource_type="directory",
+                    target=str(staging_dir.absolute()),
+                    cleanup_action="delete",
+                    metadata=dict(effect_metadata),
+                )
+                os.mkdir(".executables", mode=0o700, dir_fd=workspace_fd)
+        else:
+            try:
+                os.mkdir(".executables", mode=0o700, dir_fd=workspace_fd)
+            except FileExistsError:
+                pass
         stage_fd = os.open(".executables", os.O_RDONLY | directory | nofollow, dir_fd=workspace_fd)
+        if directory_effect is not None:
+            cleanup_manager.ledger.record_created_identity(directory_effect, creation_fd=stage_fd)
         _validate_private_directory(stage_fd, "executable staging directory")
+        if cleanup_manager is not None:
+            file_effect = cleanup_manager.ledger.record_effect(
+                step_id=f"{adapter.tool}-staged-executable",
+                resource_type="file",
+                target=str((staging_dir / filename).absolute()),
+                cleanup_action="delete",
+                metadata=dict(effect_metadata),
+            )
         destination_fd = os.open(
             filename,
             os.O_WRONLY | os.O_CREAT | os.O_EXCL | nofollow | getattr(os, "O_CLOEXEC", 0),
             0o700,
             dir_fd=stage_fd,
         )
+        if file_effect is not None:
+            cleanup_manager.ledger.record_created_identity(file_effect, creation_fd=destination_fd)
         actual_sha256 = _copy_from_open_descriptor(
             source_fd,
             destination_fd,
@@ -260,14 +314,26 @@ def prepare_executable(
             staged_after.st_size,
         ):
             raise ExecutableVerificationError("staged executable was substituted before launch binding")
-    except BaseException:
+    except BaseException as err:
         if executable_fd >= 0:
             os.close(executable_fd)
             executable_fd = -1
         if destination_fd >= 0:
             os.close(destination_fd)
             destination_fd = -1
-        if stage_fd >= 0:
+        if cleanup_manager is not None:
+            cleanup_failures = _cleanup_tracked_executable(
+                cleanup_manager,
+                file_effect=file_effect,
+                directory_effect=directory_effect,
+            )
+            if isinstance(err, CleanupError):
+                raise ExecutableVerificationError("durable staged executable ownership tracking failed") from err
+            if cleanup_failures and isinstance(err, OSError):
+                raise ExecutableVerificationError(
+                    "staged executable creation failed and cleanup could not verify ownership"
+                ) from err
+        elif stage_fd >= 0:
             try:
                 os.unlink(filename, dir_fd=stage_fd)
             except FileNotFoundError:
@@ -329,6 +395,9 @@ def prepare_executable(
             descriptor=executable_fd,
             workspace_fd=workspace_fd,
             staging_fd=stage_fd,
+            cleanup_manager=cleanup_manager,
+            file_effect=file_effect,
+            directory_effect=directory_effect,
         )
         executable_fd = workspace_fd = stage_fd = -1
         return prepared
@@ -345,5 +414,26 @@ def prepare_executable(
                 descriptor=executable_fd,
                 workspace_fd=workspace_fd,
                 staging_fd=stage_fd,
+                cleanup_manager=cleanup_manager,
+                file_effect=file_effect,
+                directory_effect=directory_effect,
             )
             provisional.remove()
+
+
+def _cleanup_tracked_executable(
+    cleanup_manager: CleanupManager,
+    *,
+    file_effect: SideEffect | None,
+    directory_effect: SideEffect | None,
+) -> list[BaseException]:
+    """Clean staged objects child-first through durable ownership checks."""
+    failures: list[BaseException] = []
+    for effect in (file_effect, directory_effect):
+        if effect is None or effect.status != "pending":
+            continue
+        try:
+            cleanup_manager.cleanup_effect(effect)
+        except (CleanupError, OSError) as err:
+            failures.append(err)
+    return failures

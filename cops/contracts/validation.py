@@ -34,6 +34,7 @@ SCHEMA_MAP: dict[str, str] = {
     "cops.finding/v1": "finding-contract.schema.json",
     "cops.execution-authorization/v1": "execution-authorization.schema.json",
     "cops.cleanup-receipt/v1": "cleanup-receipt.schema.json",
+    "cops.cleanup-receipt/v2": "cleanup-receipt-v2.schema.json",
     "cops.specialist-handoff/v1": "specialist-handoff.schema.json",
     "cops.laboratory-environment/v1": "laboratory-environment.schema.json",
 }
@@ -46,6 +47,7 @@ TYPE_MAP: dict[str, str] = {
     "cops.finding/v1": "finding",
     "cops.execution-authorization/v1": "execution_authorization",
     "cops.cleanup-receipt/v1": "cleanup_receipt",
+    "cops.cleanup-receipt/v2": "cleanup_receipt",
     "cops.specialist-handoff/v1": "specialist_handoff",
     "cops.laboratory-environment/v1": "laboratory_environment",
 }
@@ -60,8 +62,7 @@ def validate_identifier(identifier: str, kind: str) -> None:
         raise ContractError("invalid_contract", f"unknown identifier kind: {kind}")
     if not pattern.fullmatch(identifier):
         raise ContractError(
-            "malformed_identifier",
-            f"identifier '{identifier}' does not match required pattern for {kind}"
+            "malformed_identifier", f"identifier '{identifier}' does not match required pattern for {kind}"
         )
 
 
@@ -99,8 +100,7 @@ def validate_contract(
     version = document.get("schema_version")
     if not version or version not in SCHEMA_MAP:
         raise ContractError(
-            "unsupported_version",
-            f"unsupported schema_version: {version!r}. Supported versions: {sorted(SCHEMA_MAP)}"
+            "unsupported_version", f"unsupported schema_version: {version!r}. Supported versions: {sorted(SCHEMA_MAP)}"
         )
 
     expected_type = TYPE_MAP[version]
@@ -109,7 +109,7 @@ def validate_contract(
         if normalized_requested != expected_type:
             raise ContractError(
                 "invalid_contract",
-                f"requested type '{contract_type}' does not match document schema_version '{version}'"
+                f"requested type '{contract_type}' does not match document schema_version '{version}'",
             )
 
     schema_file = SCHEMA_MAP[version]
@@ -166,13 +166,11 @@ def validate_contract(
             if any(secret_marker in ref.lower() for secret_marker in ("bearer ", "ghp_", "eyj", "pass")):
                 raise ContractError("credential_leak_detected", "raw credential detected in credential_references")
 
-        snapshot = {key: value for key, value in document.items()
-                    if key not in {"status", "plan_digest"}}
+        snapshot = {key: value for key, value in document.items() if key not in {"status", "plan_digest"}}
         expected_digest = build_action_plan_digest(snapshot=snapshot, max_bytes=max_bytes)
         if document["plan_digest"] != expected_digest:
             raise ContractError(
-                "integrity_mismatch",
-                f"plan_digest mismatch: expected {expected_digest}, got {document['plan_digest']}"
+                "integrity_mismatch", f"plan_digest mismatch: expected {expected_digest}, got {document['plan_digest']}"
             )
 
     elif expected_type == "execution_authorization":
@@ -188,8 +186,7 @@ def validate_contract(
         if document.get("status") == "consumed":
             if not document.get("consumed_at") or not document.get("consumed_by_worker"):
                 raise ContractError(
-                    "missing_consumption_metadata",
-                    "status 'consumed' requires consumed_at and consumed_by_worker"
+                    "missing_consumption_metadata", "status 'consumed' requires consumed_at and consumed_by_worker"
                 )
 
     elif expected_type == "run_result":
@@ -212,7 +209,7 @@ def validate_contract(
             if not reason or not isinstance(reason, str) or not reason.strip():
                 raise ContractError(
                     "missing_reason",
-                    f"non-success status '{status}' requires an explicit, non-empty status_details.reason"
+                    f"non-success status '{status}' requires an explicit, non-empty status_details.reason",
                 )
 
     elif expected_type == "finding":
@@ -227,7 +224,7 @@ def validate_contract(
             if not evidence_refs:
                 raise ContractError(
                     "missing_evidence_reference",
-                    "a verified finding must reference at least one evidence envelope record"
+                    "a verified finding must reference at least one evidence envelope record",
                 )
 
     elif expected_type == "cleanup_receipt":
@@ -242,8 +239,7 @@ def validate_contract(
 
         if document["status"] == "failed" and not document.get("unresolved_effects"):
             raise ContractError(
-                "missing_unresolved_effects",
-                "a cleanup_receipt with status 'failed' must report unresolved_effects"
+                "missing_unresolved_effects", "a cleanup_receipt with status 'failed' must report unresolved_effects"
             )
 
     elif expected_type == "specialist_handoff":

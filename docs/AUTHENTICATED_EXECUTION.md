@@ -173,17 +173,21 @@ the probe and operation to one file identity even if the original pathname is
 replaced. macOS `/dev/fd` does not provide the required executable-descriptor
 behavior, so external launches fail closed there. The `inert` test operation remains
 available without an executable pin. On non-POSIX hosts, plans containing only
-`inert` operations use a fresh private temporary workspace and a portable evidence
-reservation path. Each artifact is created exclusively, kept open through capture,
-and checked against its reserved file identity where the operating system exposes
-one; collisions never overwrite existing evidence, and symbolic links or Windows
-reparse points are rejected where the platform exposes them.
+`inert` operations currently fail workspace preflight before authorization is
+consumed because the worker requires POSIX secure directory descriptors. A portable
+evidence reservation helper exists, but the non-POSIX worker lifecycle and cleanup
+path are not implemented. Do not rely on inert execution or quarantine on those hosts.
 
 Before consuming an approval, the worker also checks that every registered adapter
 supports the worker environment and can assemble the approved operation, and that
 the host supports descriptor-bound executable launch. The staged executable and
 reserved evidence artifact retain their parent directory descriptors until cleanup
 or capture; replacing a parent pathname cannot redirect the write or deletion.
+The worker holds the opened workspace directory through execution and cleanup and
+compares later opens against it before readiness, evidence reservation, executable
+staging, and sandbox launch. A replaced caller workspace path fails closed. A
+replacement detected before consumption leaves the approval available; a later
+replacement consumes the one-use approval.
 
 Run the worker under a dedicated isolated account. Descriptor binding prevents
 pathname substitution, but it does not defend against another process with the same
@@ -268,8 +272,8 @@ validated `cops.evidence/v1` envelopes with the plan identifier and digest,
 authorization, engagement, worker, target, step, tool, tool version, and action.
 Each canonical envelope is stored beside its redacted step output as a private
 `*_evidence.json` artifact. Its artifact SHA256 is the matching
-`RunResult.evidence_records` hash entry. When the caller supplies an owner-controlled
-`workspace_dir`, the owner can retrieve and verify the exact record after the
+`RunResult.evidence_records` hash entry. When the caller supplies an owner-controlled,
+pre-existing `workspace_dir`, the owner can retrieve and verify the exact record after the
 run. The worker attempts to delete its default temporary workspace at completion
 and reports cleanup failure in `RunResult.cleanup_status`. Each envelope
 is bounded to 1 MiB; this evidence metadata limit is separate from the signed
@@ -281,6 +285,24 @@ path. The journal records owned side effects and cleanup receipts durably and
 reconstructs pending cleanup before serving requests after a restart. An
 interrupted cleanup can remain partial or unknown; inspect the receipt and
 reconcile the affected resource before retrying a non-idempotent operation.
+The journal begins at schema version 1 and promotes to version 2 atomically
+with its first creation-identity event or v2 receipt. Stop older workers before
+upgrading: they cannot read a promoted journal. Keep a version 2 journal for
+reconciliation by a version 2-capable worker during software rollback; do not
+change its metadata or discard its events to make an older worker accept it.
+For every worker-created filesystem resource eligible for automatic cleanup, the
+journal records cleanup intent before exclusive creation and records `(device,
+inode, resource type)` from the open creation descriptor before automatic cleanup.
+This applies to the default workspace, every credential scratch directory,
+worker-owned evidence artifacts, and staged executable files. A staging directory
+is tracked only when the worker creates it; a pre-existing `.executables` directory
+inside a caller-owned workspace remains caller-owned. Cleanup verifies that identity
+without following symbolic links, moves a matching object to an owner-only
+same-parent quarantine, verifies it again, and deletes it relative to held
+directory descriptors. A missing, unverified, or replaced object remains
+unresolved; a replacement detected after quarantine remains preserved there for
+operator reconciliation. Plan-declared effects and effects recovered from older
+journals without creation identity are also preserved and reported as unresolved.
 The assembled stdout and stderr stream, errors, artifact identifiers, and artifact
 content pass through the same redactor before envelope validation or persistence.
 This catches credential text split across stdout and stderr. Artifact identifiers must
@@ -305,6 +327,14 @@ mode applies. They do not replace an external retention job or encryption contro
 ## Validate in the scenario laboratory
 
 The laboratory uses the same verifier trust and engagement inputs:
+
+Library callers must provide an existing workspace when they set `workspace_dir`;
+the laboratory treats it as caller-owned and leaves it in place. When no workspace
+is supplied, the laboratory uses process-local `TemporaryDirectory` cleanup. That
+laboratory convenience does not provide the worker's durable crash-recovery
+guarantee. The harness emits a `completed` cleanup receipt only after that
+synchronous temporary-directory cleanup succeeds; the receipt does not register
+the directory as a durable worker-owned effect.
 
 ```bash
 python3 -m cops lab run \

@@ -61,3 +61,9 @@ Feature: Offline attack path workbench
     Then the v2 report records the effective limits, consumption, and stop reason
     And incomplete rankings are labelled as best discovered routes
     And the same policy and receipt replay during claim audit
+
+  Scenario: APW-13 distinguishes complete and partial legacy report sets
+    Given the four legacy reports target a fresh descriptor-anchored directory
+    When any report write fails or the requested output parent is swapped
+    Then no completion marker created by that invocation remains
+    And successful runs bind all four exact report bytes in a last-written marker

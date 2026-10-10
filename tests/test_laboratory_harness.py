@@ -90,17 +90,23 @@ class TestLaboratoryHarness(unittest.TestCase):
         """Verify rejection of platforms with unsupported OS, distribution, or runtime."""
         # Unsupported OS
         with self.assertRaises(PrerequisiteMismatchError) as ctx:
-            verify_platform_matrix({"os": "solaris", "distribution": "solaris", "architecture": "x86_64", "runtime": "container"})
+            verify_platform_matrix(
+                {"os": "solaris", "distribution": "solaris", "architecture": "x86_64", "runtime": "container"}
+            )
         self.assertIn("Unsupported operating system 'solaris'", str(ctx.exception))
 
         # Unsupported distribution
         with self.assertRaises(PrerequisiteMismatchError) as ctx:
-            verify_platform_matrix({"os": "linux", "distribution": "archlinux", "architecture": "x86_64", "runtime": "container"})
+            verify_platform_matrix(
+                {"os": "linux", "distribution": "archlinux", "architecture": "x86_64", "runtime": "container"}
+            )
         self.assertIn("Unsupported distribution 'archlinux'", str(ctx.exception))
 
         # Unsupported runtime
         with self.assertRaises(PrerequisiteMismatchError) as ctx:
-            verify_platform_matrix({"os": "linux", "distribution": "ubuntu", "architecture": "x86_64", "runtime": "baremetal"})
+            verify_platform_matrix(
+                {"os": "linux", "distribution": "ubuntu", "architecture": "x86_64", "runtime": "baremetal"}
+            )
         self.assertIn("Unsupported laboratory runtime 'baremetal'", str(ctx.exception))
 
     def test_tool_prerequisites_rejection(self) -> None:
@@ -209,6 +215,58 @@ class TestLaboratoryHarness(unittest.TestCase):
         self.assertEqual(result.cleanup_receipt.status, "completed")
         self.assertEqual(result.run_result.status, "success")
 
+    def test_caller_workspace_is_preexisting_and_remains_caller_owned(self) -> None:
+        """The laboratory leaves a validated caller workspace and its artifacts in place."""
+        c_env = make_inert_container_environment()
+        self.harness.verify_environment(c_env)
+        plan = make_inert_action_plan()
+        auth, trust_store, engagement = self._authorization_context(plan)
+        worker_inventory = worker_inventory_for_plan(plan, worker_identity=c_env.owner)
+        workspace = self.temp_path.resolve(strict=True) / "caller-workspace"
+        workspace.mkdir()
+        marker = workspace / "owner-marker.txt"
+        marker.write_text("caller owned", encoding="utf-8")
+
+        result = self.harness.execute_case(
+            environment=c_env,
+            action_plan=plan,
+            authorization=auth,
+            case_type="positive",
+            trust_store=trust_store,
+            engagement=engagement,
+            worker_inventory=worker_inventory,
+            workspace_dir=workspace,
+        )
+
+        self.assertEqual(result.status, "success")
+        self.assertTrue(workspace.is_dir())
+        self.assertEqual(marker.read_text(encoding="utf-8"), "caller owned")
+        self.assertTrue((workspace / "evidence.json").is_file())
+
+    def test_missing_caller_workspace_is_rejected_before_authorization_storage(self) -> None:
+        """The laboratory never creates an untracked caller-supplied workspace."""
+        c_env = make_inert_container_environment()
+        self.harness.verify_environment(c_env)
+        plan = make_inert_action_plan()
+        auth, trust_store, engagement = self._authorization_context(plan)
+        worker_inventory = worker_inventory_for_plan(plan, worker_identity=c_env.owner)
+        workspace = self.temp_path / "missing-caller-workspace"
+
+        with self.assertRaisesRegex(LaboratoryGateError, "must already exist"):
+            self.harness.execute_case(
+                environment=c_env,
+                action_plan=plan,
+                authorization=auth,
+                case_type="positive",
+                trust_store=trust_store,
+                engagement=engagement,
+                worker_inventory=worker_inventory,
+                workspace_dir=workspace,
+            )
+
+        self.assertFalse(workspace.exists())
+        self.assertEqual(self.store.list_approvals(), [])
+
     def test_remediated_case_execution(self) -> None:
         """Verify remediated case execution confirming security control mitigated technique."""
         c_env = make_inert_container_environment()
@@ -282,6 +340,7 @@ class TestLaboratoryHarness(unittest.TestCase):
 
         scope_def = ScopeDefinition()
         from cops.execution.scope_guard import parse_ip_or_network
+
         scope_def.included_networks.append(parse_ip_or_network("10.200.0.0/24"))
         scope_def.excluded_networks.append(parse_ip_or_network("169.254.169.254/32"))
         guard = ScopeGuard(scope_def)

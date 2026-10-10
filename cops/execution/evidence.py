@@ -19,7 +19,8 @@ from typing import Any, BinaryIO
 from cops.evidence.canonical import canonical, digest
 from cops.evidence.contract import build_envelope
 
-from .filesystem import open_directory_no_symlinks
+from .cleanup import CleanupError, CleanupManager, SideEffect
+from .filesystem import open_directory_no_symlinks, same_directory_identity
 from .redaction import StreamRedactor
 
 
@@ -106,11 +107,17 @@ class EvidenceRecorder:
         portable_inert: bool = False,
         context: EvidenceContext | None = None,
         ephemeral_workspace: bool = False,
+        cleanup_manager: CleanupManager | None = None,
+        expected_workspace_fd: int | None = None,
     ) -> None:
         self.workspace_dir = Path(workspace_dir)
         self.redactor = redactor or StreamRedactor()
         self.portable_inert = portable_inert
         self.ephemeral_workspace = ephemeral_workspace
+        if portable_inert and cleanup_manager is not None:
+            raise ValueError("portable inert evidence does not support durable cleanup tracking")
+        self._cleanup_manager = cleanup_manager
+        self._expected_workspace_fd = expected_workspace_fd
         if context is None:
             if not portable_inert:
                 raise ValueError("complete evidence context is required for executable operations")
@@ -129,6 +136,8 @@ class EvidenceRecorder:
         self._reservations: dict[str, ArtifactReservation] = {}
         self._reservation_handles: dict[str, BinaryIO] = {}
         self._reservation_dirs: dict[str, tuple[int, int]] = {}
+        self._reservation_effects: dict[str, SideEffect] = {}
+        self._artifact_directory_effect: SideEffect | None = None
 
     def reserve_step_output(self, step_id: str) -> ArtifactReservation:
         """Reserve a unique evidence inode before executing a step."""
@@ -144,15 +153,40 @@ class EvidenceRecorder:
         artifacts_fd = -1
         artifact_fd = -1
         filename: str | None = None
+        artifact_effect: SideEffect | None = None
         try:
             nofollow, directory = self._required_posix_flags()
             workspace_fd = open_directory_no_symlinks(self.workspace_dir)
             self._validate_private_directory(workspace_fd, "worker workspace")
-            try:
+            if self._expected_workspace_fd is not None and not same_directory_identity(
+                workspace_fd, self._expected_workspace_fd
+            ):
+                raise EvidenceCaptureError("worker workspace changed after preflight")
+            if self._cleanup_manager is not None and self._artifact_directory_effect is None:
+                directory_effect = self._cleanup_manager.ledger.record_effect(
+                    step_id=f"{clean_step_id}-evidence-artifacts",
+                    resource_type="directory",
+                    target=str(self._absolute_artifact_path("artifacts")),
+                    cleanup_action="delete",
+                    metadata={"purpose": "execution_evidence_artifacts"},
+                )
+                # A tracked directory must be created exclusively. Treating a
+                # pre-existing path as worker-owned would permit cleanup of an
+                # object for which this run never held a creation descriptor.
                 os.mkdir("artifacts", mode=0o700, dir_fd=workspace_fd)
-            except FileExistsError:
-                pass
+            else:
+                directory_effect = self._artifact_directory_effect
+                try:
+                    os.mkdir("artifacts", mode=0o700, dir_fd=workspace_fd)
+                except FileExistsError:
+                    pass
             artifacts_fd = os.open("artifacts", os.O_RDONLY | directory | nofollow, dir_fd=workspace_fd)
+            if directory_effect is not None and directory_effect.creation_identity is None:
+                self._cleanup_manager.ledger.record_created_identity(
+                    directory_effect,
+                    creation_fd=artifacts_fd,
+                )
+                self._artifact_directory_effect = directory_effect
             self._validate_private_directory(
                 artifacts_fd,
                 "evidence artifact directory",
@@ -163,21 +197,50 @@ class EvidenceRecorder:
             for attempt in range(16):
                 candidate = base_name if attempt == 0 else f"{clean_step_id}_{uuid.uuid4().hex}_{suffix}"
                 try:
+                    os.stat(candidate, dir_fd=artifacts_fd, follow_symlinks=False)
+                except FileNotFoundError:
+                    pass
+                else:
+                    continue
+                filename = candidate
+                if self._cleanup_manager is not None:
+                    artifact_effect = self._cleanup_manager.ledger.record_effect(
+                        step_id=f"{clean_step_id}-evidence-{suffix}",
+                        resource_type="file",
+                        target=str(self._absolute_artifact_path("artifacts", filename)),
+                        cleanup_action="delete",
+                        metadata={"purpose": "execution_evidence_artifact"},
+                    )
+                try:
                     artifact_fd = os.open(
-                        candidate,
+                        filename,
                         os.O_WRONLY | os.O_CREAT | os.O_EXCL | nofollow | getattr(os, "O_CLOEXEC", 0),
                         0o600,
                         dir_fd=artifacts_fd,
                     )
                 except FileExistsError:
+                    # The name can be claimed after stat. This attempt created
+                    # nothing, so record that fact and try another name.
+                    if artifact_effect is not None:
+                        self._cleanup_manager.ledger.transition_effect(
+                            artifact_effect,
+                            "cleaned",
+                            details={"action_taken": "no resource created; evidence artifact name collision"},
+                        )
+                        artifact_effect = None
+                    filename = None
                     continue
-                filename = candidate
                 break
-            if artifact_fd < 0 or filename is None:
+            if artifact_fd < 0:
                 raise EvidenceCaptureError("secure evidence artifact reservation could not choose a unique name")
 
             info = os.fstat(artifact_fd)
             self._validate_private_file(info)
+            if artifact_effect is not None:
+                self._cleanup_manager.ledger.record_created_identity(
+                    artifact_effect,
+                    creation_fd=artifact_fd,
+                )
             reservation = ArtifactReservation(
                 name=filename,
                 path=f"artifacts/{filename}",
@@ -191,23 +254,33 @@ class EvidenceRecorder:
             self._reservations[reservation.path] = reservation
             self._reservation_handles[reservation.path] = handle
             self._reservation_dirs[reservation.path] = (workspace_fd, artifacts_fd)
+            if artifact_effect is not None:
+                self._reservation_effects[reservation.path] = artifact_effect
             workspace_fd = -1
             artifacts_fd = -1
             return reservation
         except EvidenceCaptureError:
-            if filename is not None and artifacts_fd >= 0:
+            if artifact_effect is not None:
+                self._cleanup_failed_effect(artifact_effect)
+            elif filename is not None and artifacts_fd >= 0:
                 try:
                     os.unlink(filename, dir_fd=artifacts_fd)
                 except OSError:
                     pass
             raise
         except OSError as err:
-            if filename is not None and artifacts_fd >= 0:
+            if artifact_effect is not None:
+                self._cleanup_failed_effect(artifact_effect)
+            elif filename is not None and artifacts_fd >= 0:
                 try:
                     os.unlink(filename, dir_fd=artifacts_fd)
                 except OSError:
                     pass
             raise EvidenceCaptureError("secure evidence artifact reservation failed") from err
+        except CleanupError as err:
+            if artifact_effect is not None:
+                self._cleanup_failed_effect(artifact_effect)
+            raise EvidenceCaptureError("durable evidence ownership tracking failed") from err
         finally:
             for fd in (artifact_fd, artifacts_fd, workspace_fd):
                 if fd >= 0:
@@ -345,8 +418,10 @@ class EvidenceRecorder:
                             ),
                             "directory_mode": "0700",
                             "file_mode": "0600",
-                            "retention_controller": "worker" if self.ephemeral_workspace else "workspace_owner",
-                            "automatic_deletion": self.ephemeral_workspace,
+                            "retention_controller": (
+                                "worker" if self.ephemeral_workspace and not self.portable_inert else "workspace_owner"
+                            ),
+                            "automatic_deletion": self.ephemeral_workspace and not self.portable_inert,
                         },
                     },
                 },
@@ -427,6 +502,7 @@ class EvidenceRecorder:
     def _complete_reservation(self, reservation: ArtifactReservation) -> None:
         """Release descriptors only after the artifact has been fully persisted."""
         self._reservations.pop(reservation.path)
+        self._reservation_effects.pop(reservation.path, None)
         self._reservation_handles.pop(reservation.path).close()
         held_dirs = self._reservation_dirs.pop(reservation.path, None)
         if held_dirs is not None:
@@ -518,11 +594,33 @@ class EvidenceRecorder:
         """Remove an unused reservation; report when removal is not confirmed."""
         if self._reservations.pop(reservation.path, None) != reservation:
             return False
+        effect = self._reservation_effects.pop(reservation.path, None)
         held_handle = self._reservation_handles.pop(reservation.path, None)
         if self.portable_inert:
             return self._discard_portable_reservation(reservation, held_handle)
 
         held_dirs = self._reservation_dirs.pop(reservation.path, None)
+        if effect is not None:
+            descriptors_closed = True
+            if held_handle is not None:
+                try:
+                    held_handle.close()
+                except OSError:
+                    descriptors_closed = False
+            if held_dirs is not None:
+                for fd in held_dirs:
+                    try:
+                        os.close(fd)
+                    except OSError:
+                        descriptors_closed = False
+            if not descriptors_closed or self._cleanup_manager is None:
+                return False
+            try:
+                self._cleanup_manager.cleanup_effect(effect)
+            except CleanupError:
+                return False
+            return True
+
         removed = False
         try:
             if held_dirs is not None:
@@ -550,6 +648,21 @@ class EvidenceRecorder:
                 except OSError:
                     removed = False
         return removed
+
+    def _absolute_artifact_path(self, *parts: str) -> Path:
+        return Path(os.path.abspath(os.fspath(self.workspace_dir.joinpath(*parts))))
+
+    def _cleanup_failed_effect(self, effect: SideEffect) -> None:
+        """Best-effort verified cleanup for a reservation that did not complete."""
+        if self._cleanup_manager is None:
+            return
+        try:
+            if effect.status == "pending":
+                self._cleanup_manager.cleanup_effect(effect)
+        except CleanupError:
+            # The manager has durably classified missing, unverified, or
+            # replaced resources as unknown/failed. Do not bypass it by name.
+            pass
 
     def _reserve_portable_artifact(self, step_id: str, suffix: str) -> ArtifactReservation:
         """Reserve an inert artifact without relying on POSIX directory descriptors."""

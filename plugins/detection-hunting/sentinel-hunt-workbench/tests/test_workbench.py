@@ -13,6 +13,7 @@ from typing import Any
 from unittest import mock
 
 from huntwb import reports
+from huntwb.adapters import _expected_files
 from huntwb.catalog import _reference_record
 from huntwb.cli import _load_external_evidence, main
 from huntwb.errors import ContentError
@@ -175,6 +176,21 @@ class WorkbenchTests(unittest.TestCase):
         self.assertEqual(report["status"], "passed")
         self.assertEqual(report["contract"]["hunts"], 12)
         self.assertEqual(report["skill_count"], 6)
+
+    def test_host_routers_keep_contribution_policy_outside_hunt_authority(self) -> None:
+        files, _ = _expected_files()
+        routers = [body.decode() for path, body in files.items() if path.endswith(
+            ("AGENTS.md", "sentinel-hunt-workbench.agent.md", "sentinel-hunt-workbench.md")
+        )]
+        self.assertEqual(len(routers), 3)
+        for router in routers:
+            with self.subTest(host=router.splitlines()[6]):
+                self.assertIn("When contributing to the COPS source repository", router)
+                self.assertIn("independent human review including existing code", router)
+                self.assertIn("does not grant repository-write\nor publishing authority", router)
+                self.assertIn("Require an authorized defensive purpose", router)
+                self.assertIn("no live-service connector", router)
+                self.assertIn("must\nnot receive credentials", router)
 
     def test_rendered_hunt_uses_typed_parameters(self) -> None:
         parameters = load_json(PACKAGE_ROOT / "examples" / "h01-parameters.json")

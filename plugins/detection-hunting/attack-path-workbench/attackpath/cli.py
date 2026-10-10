@@ -3,12 +3,20 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 from pathlib import Path
 
 from .core import GateError, analyze, canonical, query_intent
 from .report import markdown
+
+LEGACY_REPORT_FILES = (
+    "report.json",
+    "graph.json",
+    "report.md",
+    "remediation-ledger.json",
+)
 
 
 def add_ingestion_flags(command):
@@ -17,8 +25,11 @@ def add_ingestion_flags(command):
 
 
 def ingestion_overrides(args):
-    return {name: value for name in ("file_bytes", "total_bytes", "files", "line_bytes",
-                                     "records", "json_depth") if (value := getattr(args, "max_" + name)) is not None}
+    return {
+        name: value
+        for name in ("file_bytes", "total_bytes", "files", "line_bytes", "records", "json_depth")
+        if (value := getattr(args, "max_" + name)) is not None
+    }
 
 
 def add_search_flags(command):
@@ -27,8 +38,11 @@ def add_search_flags(command):
 
 
 def search_overrides(args):
-    return {name: value for name in ("expansions", "frontier", "complete_paths", "partial_paths",
-                                     "emitted_paths", "report_bytes") if (value := getattr(args, "max_" + name)) is not None}
+    return {
+        name: value
+        for name in ("expansions", "frontier", "complete_paths", "partial_paths", "emitted_paths", "report_bytes")
+        if (value := getattr(args, "max_" + name)) is not None
+    }
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -56,11 +70,13 @@ def main(argv: list[str] | None = None) -> int:
         from .azure.model import AzureError
         from .azure.report import analyze as analyze_azure
         from .azure.report import write_files
+
         try:
             if args.command == "analyze-azure":
                 result = analyze_azure(args.input, args.as_of, args.output, ingestion_overrides(args))
             else:
                 from .azure.collection import plan
+
                 result = plan(args.scope_file)
                 write_files(args.output, {"collection-plan.json": result}, 4194304)
                 result = {"requests": len(result["requests"])}
@@ -77,16 +93,29 @@ def main(argv: list[str] | None = None) -> int:
         if args.output_dir.exists():
             raise GateError(f"output directory exists: {args.output_dir}")
         report = analyze(args.input, ingestion_overrides(args), search_overrides(args))
-        ledger = {"schema_version": "attackpath.ledger/v1", "run_id": report["run"]["run_id"],
-                  "actions": report["actions"]}
-        contents = {
-            "report.json": report,
-            "graph.json": report["graph"],
-            "report.md": markdown(report).encode("utf-8"),
-            "remediation-ledger.json": ledger,
+        ledger = {
+            "schema_version": "attackpath.ledger/v1",
+            "run_id": report["run"]["run_id"],
+            "actions": report["actions"],
         }
+        contents = {
+            "report.json": canonical(report),
+            "graph.json": canonical(report["graph"]),
+            "report.md": markdown(report).encode("utf-8"),
+            "remediation-ledger.json": canonical(ledger),
+        }
+        marker = {
+            "schema_version": "attackpath.completion/v1",
+            "run_id": report["run"]["run_id"],
+            "status": "complete",
+            "files": {name: hashlib.sha256(contents[name]).hexdigest() for name in LEGACY_REPORT_FILES},
+        }
+        # The completion marker is deliberately last and hashes the exact bytes
+        # passed to the descriptor-anchored writer for all four legacy reports.
+        contents["completion.json"] = canonical(marker)
         from .azure.model import AzureError
         from .azure.report import write_files
+
         limit = search_overrides(args).get("report_bytes", 33554432)
         try:
             write_files(args.output_dir, contents, limit)
