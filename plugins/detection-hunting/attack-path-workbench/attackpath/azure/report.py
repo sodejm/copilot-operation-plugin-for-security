@@ -2,6 +2,7 @@
 
 import html
 import os
+import secrets
 
 from .._runtime.cops.evidence.canonical import canonical
 from .input import load
@@ -255,13 +256,19 @@ def write_files(output, contents, limit):
     total = sum(len(v) for v in encoded.values())
     if total > limit:
         raise AzureError("output_byte_limit")
+    completion = encoded.pop("completion.json", None)
     parts = absolute_parts(output)
-    if not parts or not hasattr(os, "O_NOFOLLOW") or os.open not in os.supports_dir_fd:
+    if (
+        not parts
+        or not hasattr(os, "O_NOFOLLOW")
+        or os.open not in os.supports_dir_fd
+        or (completion is not None and os.link not in os.supports_dir_fd)
+    ):
         raise AzureError("unsafe_output")
     descriptors = []
-    directory = None
-    completion_identity = None
-    completion_fd = None
+    staging_name = None
+    staging_created = False
+    completion_published = False
     try:
         descriptors.append(os.open("/", os.O_RDONLY | os.O_DIRECTORY))
         for part in parts[:-1]:
@@ -277,12 +284,6 @@ def write_files(output, contents, limit):
         for name, data in encoded.items():
             fd = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=directory)
             try:
-                if name == "completion.json":
-                    created = os.fstat(fd)
-                    completion_identity = (created.st_dev, created.st_ino)
-                    # Retain the inode until cleanup has compared identities. A
-                    # replacement can reuse its inode immediately after unlink.
-                    completion_fd = fd
                 try:
                     os.fchmod(fd, 0o600)
                 except OSError:
@@ -295,31 +296,71 @@ def write_files(output, contents, limit):
                     view = view[count:]
                 os.fsync(fd)
             finally:
-                if fd != completion_fd:
-                    os.close(fd)
+                os.close(fd)
         os.fsync(directory)
         if not _path_names_directory(parts, directory):
             raise OSError("output path changed during write")
-    except (AzureError, OSError) as error:
-        # A completion marker is authoritative only while the requested path
-        # still names this descriptor-opened directory. Remove it through the
-        # held descriptor on every failed write or final binding check.
-        if directory is not None and completion_identity is not None:
+
+        if completion is not None:
+            # Publish the authoritative marker only after the report entries
+            # and bytes are durable. A random staging name lets link(2) make
+            # publication atomic and no-replace; failure recovery never
+            # unlinks a public marker that another invocation may own.
+            staging_name = f".completion-{secrets.token_hex(16)}.tmp"
+            fd = os.open(
+                staging_name,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                0o600,
+                dir_fd=directory,
+            )
+            staging_created = True
             try:
-                current = os.stat("completion.json", dir_fd=directory, follow_symlinks=False)
-                if (current.st_dev, current.st_ino) == completion_identity:
-                    os.unlink("completion.json", dir_fd=directory)
-                    os.fsync(directory)
+                try:
+                    os.fchmod(fd, 0o600)
+                except OSError:
+                    pass
+                view = memoryview(completion)
+                while view:
+                    count = os.write(fd, view)
+                    if count <= 0:
+                        raise AzureError("output_write_failed")
+                    view = view[count:]
+                os.fsync(fd)
+            finally:
+                os.close(fd)
+            os.fsync(directory)
+            if not _path_names_directory(parts, directory):
+                raise OSError("output path changed during write")
+            os.link(
+                staging_name,
+                "completion.json",
+                src_dir_fd=directory,
+                dst_dir_fd=directory,
+                follow_symlinks=False,
+            )
+            completion_published = True
+            os.unlink(staging_name, dir_fd=directory)
+            staging_created = False
+            os.fsync(directory)
+    except (AzureError, OSError) as error:
+        # Before publication, remove only the unpredictable staging name that
+        # this invocation opened with O_EXCL. Never roll back the public marker:
+        # publication is the commit point and its pathname may later be owned
+        # by another invocation.
+        if staging_created and not completion_published:
+            try:
+                os.unlink(staging_name, dir_fd=directory)
             except FileNotFoundError:
                 pass
             except OSError:
+                # The original operation already fails closed. Leaving a
+                # non-authoritative staging file is safer than touching a
+                # public completion marker whose ownership is uncertain.
                 pass
         if isinstance(error, AzureError):
             raise
         raise AzureError("unsafe_or_existing_output") from None
     finally:
-        if completion_fd is not None:
-            os.close(completion_fd)
         for fd in reversed(descriptors):
             os.close(fd)
 

@@ -707,72 +707,241 @@ class WorkbenchTests(unittest.TestCase):
                     {path.name for path in output.iterdir()},
                 )
 
-    def test_writer_preserves_completion_marker_it_did_not_create(self) -> None:
+    def test_writer_preserves_completion_marker_on_report_collision(self) -> None:
         real_open = os.open
         real_write = os.write
         foreign_marker = b'{"owner":"concurrent-writer"}\n'
         contents = {name: (name + "\n").encode("utf-8") for name in cli_module.LEGACY_REPORT_FILES}
         contents["completion.json"] = b'{"status":"complete"}\n'
 
-        for collision_name in ("report.json", "completion.json"):
-            with self.subTest(collision_name=collision_name), tempfile.TemporaryDirectory() as base_dir:
-                output = Path(base_dir) / "reports"
-                injected = False
+        with tempfile.TemporaryDirectory() as base_dir:
+            output = Path(base_dir) / "reports"
+            injected = False
 
-                def collision_open(path, flags, mode=0o777, *, dir_fd=None):
-                    nonlocal injected
-                    kwargs = {} if dir_fd is None else {"dir_fd": dir_fd}
-                    if path == collision_name and dir_fd is not None and not injected:
-                        injected = True
-                        marker_fd = real_open(
-                            "completion.json",
-                            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
-                            0o600,
-                            dir_fd=dir_fd,
-                        )
-                        try:
-                            real_write(marker_fd, foreign_marker)
-                        finally:
-                            os.close(marker_fd)
-                        if collision_name != "completion.json":
-                            collision_fd = real_open(
-                                collision_name,
-                                os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
-                                0o600,
-                                dir_fd=dir_fd,
-                            )
-                            os.close(collision_fd)
-                    return real_open(path, flags, mode, **kwargs)
+            def collision_open(path, flags, mode=0o777, *, dir_fd=None):
+                nonlocal injected
+                kwargs = {} if dir_fd is None else {"dir_fd": dir_fd}
+                if path == "report.json" and dir_fd is not None and not injected:
+                    injected = True
+                    marker_fd = real_open(
+                        "completion.json",
+                        os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                        0o600,
+                        dir_fd=dir_fd,
+                    )
+                    try:
+                        real_write(marker_fd, foreign_marker)
+                    finally:
+                        os.close(marker_fd)
+                    collision_fd = real_open(
+                        path,
+                        os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                        0o600,
+                        dir_fd=dir_fd,
+                    )
+                    os.close(collision_fd)
+                return real_open(path, flags, mode, **kwargs)
 
-                supported_dir_fd = azure_report.os.supports_dir_fd | {collision_open}
-                with (
-                    mock.patch.object(azure_report.os, "open", collision_open),
-                    mock.patch.object(azure_report.os, "supports_dir_fd", supported_dir_fd),
-                ):
-                    with self.assertRaises(azure_report.AzureError):
-                        azure_report.write_files(output, contents, 4096)
+            supported_dir_fd = azure_report.os.supports_dir_fd | {collision_open}
+            with (
+                mock.patch.object(azure_report.os, "open", collision_open),
+                mock.patch.object(azure_report.os, "supports_dir_fd", supported_dir_fd),
+            ):
+                with self.assertRaises(azure_report.AzureError):
+                    azure_report.write_files(output, contents, 4096)
 
-                self.assertTrue(injected)
-                self.assertEqual(foreign_marker, (output / "completion.json").read_bytes())
+            self.assertTrue(injected)
+            self.assertEqual(foreign_marker, (output / "completion.json").read_bytes())
 
-    def test_writer_preserves_replacement_completion_marker(self) -> None:
+    def test_writer_preserves_completion_marker_at_publication_collision(self) -> None:
+        real_link = os.link
+        real_open = os.open
+        real_write = os.write
         foreign_marker = b'{"owner":"replacement-writer"}\n'
         contents = {name: (name + "\n").encode("utf-8") for name in cli_module.LEGACY_REPORT_FILES}
         contents["completion.json"] = b'{"status":"complete"}\n'
 
         with tempfile.TemporaryDirectory() as base_dir:
             output = Path(base_dir) / "reports"
+            injected = False
 
-            def replace_marker(_parts, _expected):
-                (output / "completion.json").unlink()
-                (output / "completion.json").write_bytes(foreign_marker)
-                return False
+            def collision_link(src, dst, *, src_dir_fd=None, dst_dir_fd=None, follow_symlinks=True):
+                nonlocal injected
+                if dst == "completion.json" and not injected:
+                    injected = True
+                    marker_fd = real_open(
+                        dst,
+                        os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                        0o600,
+                        dir_fd=dst_dir_fd,
+                    )
+                    try:
+                        real_write(marker_fd, foreign_marker)
+                    finally:
+                        os.close(marker_fd)
+                return real_link(
+                    src,
+                    dst,
+                    src_dir_fd=src_dir_fd,
+                    dst_dir_fd=dst_dir_fd,
+                    follow_symlinks=follow_symlinks,
+                )
 
-            with mock.patch.object(azure_report, "_path_names_directory", replace_marker):
+            supported_dir_fd = azure_report.os.supports_dir_fd | {collision_link}
+            with (
+                mock.patch.object(azure_report.os, "link", collision_link),
+                mock.patch.object(azure_report.os, "supports_dir_fd", supported_dir_fd),
+            ):
                 with self.assertRaises(azure_report.AzureError):
                     azure_report.write_files(output, contents, 4096)
 
+            self.assertTrue(injected)
             self.assertEqual(foreign_marker, (output / "completion.json").read_bytes())
+
+    def test_writer_syncs_report_directory_before_publishing_completion(self) -> None:
+        real_fsync = os.fsync
+        real_link = os.link
+        events = []
+        contents = {name: (name + "\n").encode("utf-8") for name in cli_module.LEGACY_REPORT_FILES}
+        contents["completion.json"] = b'{"status":"complete"}\n'
+
+        def tracked_fsync(descriptor):
+            if stat.S_ISDIR(os.fstat(descriptor).st_mode):
+                events.append("directory-fsync")
+            return real_fsync(descriptor)
+
+        def tracked_link(src, dst, *, src_dir_fd=None, dst_dir_fd=None, follow_symlinks=True):
+            events.append("publish")
+            return real_link(
+                src,
+                dst,
+                src_dir_fd=src_dir_fd,
+                dst_dir_fd=dst_dir_fd,
+                follow_symlinks=follow_symlinks,
+            )
+
+        with tempfile.TemporaryDirectory() as base_dir:
+            output = Path(base_dir) / "reports"
+            supported_dir_fd = azure_report.os.supports_dir_fd | {tracked_link}
+            with (
+                mock.patch.object(azure_report.os, "fsync", tracked_fsync),
+                mock.patch.object(azure_report.os, "link", tracked_link),
+                mock.patch.object(azure_report.os, "supports_dir_fd", supported_dir_fd),
+            ):
+                azure_report.write_files(output, contents, 4096)
+
+            self.assertEqual("publish", events[-2])
+            self.assertEqual("directory-fsync", events[-1])
+            self.assertGreaterEqual(events[: events.index("publish")].count("directory-fsync"), 2)
+
+    def test_writer_directory_sync_failure_never_publishes_completion(self) -> None:
+        real_fsync = os.fsync
+        contents = {name: (name + "\n").encode("utf-8") for name in cli_module.LEGACY_REPORT_FILES}
+        contents["completion.json"] = b'{"status":"complete"}\n'
+
+        def failing_fsync(descriptor):
+            if stat.S_ISDIR(os.fstat(descriptor).st_mode):
+                raise OSError(errno.EIO, "injected directory sync failure")
+            return real_fsync(descriptor)
+
+        with tempfile.TemporaryDirectory() as base_dir:
+            output = Path(base_dir) / "reports"
+            with mock.patch.object(azure_report.os, "fsync", failing_fsync):
+                with self.assertRaises(azure_report.AzureError):
+                    azure_report.write_files(output, contents, 4096)
+
+            self.assertEqual(set(cli_module.LEGACY_REPORT_FILES), {path.name for path in output.iterdir()})
+
+    def test_writer_removes_staging_file_after_prepublication_write_failure(self) -> None:
+        real_open = os.open
+        real_write = os.write
+        staging_descriptors = set()
+        contents = {name: (name + "\n").encode("utf-8") for name in cli_module.LEGACY_REPORT_FILES}
+        contents["completion.json"] = b'{"status":"complete"}\n'
+
+        def tracked_open(path, flags, mode=0o777, *, dir_fd=None):
+            kwargs = {} if dir_fd is None else {"dir_fd": dir_fd}
+            descriptor = real_open(path, flags, mode, **kwargs)
+            if isinstance(path, str) and path.startswith(".completion-"):
+                staging_descriptors.add(descriptor)
+            return descriptor
+
+        def failing_write(descriptor, data):
+            if descriptor in staging_descriptors:
+                raise OSError(errno.ENOSPC, "injected completion staging write failure")
+            return real_write(descriptor, data)
+
+        with tempfile.TemporaryDirectory() as base_dir:
+            output = Path(base_dir) / "reports"
+            supported_dir_fd = azure_report.os.supports_dir_fd | {tracked_open}
+            with (
+                mock.patch.object(azure_report.os, "open", tracked_open),
+                mock.patch.object(azure_report.os, "supports_dir_fd", supported_dir_fd),
+                mock.patch.object(azure_report.os, "write", failing_write),
+            ):
+                with self.assertRaises(azure_report.AzureError):
+                    azure_report.write_files(output, contents, 4096)
+
+            self.assertEqual(set(cli_module.LEGACY_REPORT_FILES), {path.name for path in output.iterdir()})
+
+    def test_writer_keeps_published_completion_after_staging_cleanup_failure(self) -> None:
+        real_unlink = os.unlink
+        completion = b'{"status":"complete"}\n'
+        contents = {name: (name + "\n").encode("utf-8") for name in cli_module.LEGACY_REPORT_FILES}
+        contents["completion.json"] = completion
+
+        def failing_unlink(path, *, dir_fd=None):
+            if isinstance(path, str) and path.startswith(".completion-"):
+                raise OSError(errno.EIO, "injected staging cleanup failure")
+            return real_unlink(path, dir_fd=dir_fd)
+
+        with tempfile.TemporaryDirectory() as base_dir:
+            output = Path(base_dir) / "reports"
+            with mock.patch.object(azure_report.os, "unlink", failing_unlink):
+                with self.assertRaises(azure_report.AzureError):
+                    azure_report.write_files(output, contents, 4096)
+
+            self.assertEqual(completion, (output / "completion.json").read_bytes())
+            self.assertEqual(1, len(list(output.glob(".completion-*.tmp"))))
+
+    def test_writer_keeps_published_completion_after_final_sync_failure(self) -> None:
+        real_fsync = os.fsync
+        real_link = os.link
+        published = False
+        contents = {name: (name + "\n").encode("utf-8") for name in cli_module.LEGACY_REPORT_FILES}
+        completion = b'{"status":"complete"}\n'
+        contents["completion.json"] = completion
+
+        def failing_fsync(descriptor):
+            if published and stat.S_ISDIR(os.fstat(descriptor).st_mode):
+                raise OSError(errno.EIO, "injected final directory sync failure")
+            return real_fsync(descriptor)
+
+        def tracked_link(src, dst, *, src_dir_fd=None, dst_dir_fd=None, follow_symlinks=True):
+            nonlocal published
+            result = real_link(
+                src,
+                dst,
+                src_dir_fd=src_dir_fd,
+                dst_dir_fd=dst_dir_fd,
+                follow_symlinks=follow_symlinks,
+            )
+            published = True
+            return result
+
+        with tempfile.TemporaryDirectory() as base_dir:
+            output = Path(base_dir) / "reports"
+            supported_dir_fd = azure_report.os.supports_dir_fd | {tracked_link}
+            with (
+                mock.patch.object(azure_report.os, "fsync", failing_fsync),
+                mock.patch.object(azure_report.os, "link", tracked_link),
+                mock.patch.object(azure_report.os, "supports_dir_fd", supported_dir_fd),
+            ):
+                with self.assertRaises(azure_report.AzureError):
+                    azure_report.write_files(output, contents, 4096)
+
+            self.assertTrue(published)
+            self.assertEqual(completion, (output / "completion.json").read_bytes())
 
 
 if __name__ == "__main__":
