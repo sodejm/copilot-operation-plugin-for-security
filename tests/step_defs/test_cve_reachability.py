@@ -1,4 +1,5 @@
 """CLI integration tests. Fixtures demonstrate structural checks, not real CVEs."""
+
 import copy
 import importlib.util
 import json
@@ -12,248 +13,379 @@ import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
 
 ROOT = Path(__file__).resolve().parents[2]
-PACKAGE = ROOT / 'plugins/logging-telemetry/security-logging-advisor'
-SKILL = PACKAGE / 'skills/cve-reachability'
-SCRIPT = SKILL / 'scripts/reachability-report.py'
-SPEC = importlib.util.spec_from_file_location('reachability_report', SCRIPT)
+PACKAGE = ROOT / "plugins/logging-telemetry/security-logging-advisor"
+SKILL = PACKAGE / "skills/cve-reachability"
+SCRIPT = SKILL / "scripts/reachability-report.py"
+SPEC = importlib.util.spec_from_file_location("reachability_report", SCRIPT)
 HELPER = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(HELPER)
-scenarios('../../specs/features/cve_reachability.feature')
+scenarios("../../specs/features/cve_reachability.feature")
 
 
 def cli(*args):
-    return subprocess.run([sys.executable, str(SCRIPT), *map(str, args)],
-                          capture_output=True, text=True, timeout=10)
+    return subprocess.run([sys.executable, str(SCRIPT), *map(str, args)], capture_output=True, text=True, timeout=10)
 
 
-@given('an empty repository and evidence workspace', target_fixture='workspace')
+@given("an empty repository and evidence workspace", target_fixture="workspace")
 def workspace(tmp_path):
-    repo = tmp_path / 'repo'
+    repo = tmp_path / "repo"
     repo.mkdir()
-    evidence = tmp_path / 'evidence'
+    evidence = tmp_path / "evidence"
     evidence.mkdir()
-    return {'repo': repo, 'root': evidence, 'report_path': tmp_path / 'report.json'}
+    return {"repo": repo, "root": evidence, "report_path": tmp_path / "report.json"}
 
 
-@when('I initialize a report through the CLI')
+@when("I initialize a report through the CLI")
 def initialize(workspace):
-    workspace['result'] = cli('init', '--repository', workspace['repo'],
-                              '--cve', '[CVE]', '--component', '[VULNERABLE_COMPONENT]',
-                              '--output', workspace['report_path'])
+    workspace["result"] = cli(
+        "init",
+        "--repository",
+        workspace["repo"],
+        "--cve",
+        "[CVE]",
+        "--component",
+        "[VULNERABLE_COMPONENT]",
+        "--output",
+        workspace["report_path"],
+    )
 
 
-@then('the report is unresolved and the repository is unchanged')
+@then("the report is unresolved and the repository is unchanged")
 def initialized(workspace):
-    assert workspace['result'].returncode == 0
-    if HELPER.os.name == 'posix':
-        assert stat.S_IMODE(workspace['report_path'].stat().st_mode) == 0o600
-    report = json.loads(workspace['report_path'].read_text())
-    assert (report['conclusion'], report['trigger'], report['impact']) == (
-        'unresolved', 'unknown', 'untested')
-    assert report['evidence'] == []
-    assert list(workspace['repo'].iterdir()) == []
-    result = cli('check', workspace['report_path'], '--evidence-root', workspace['root'])
+    assert workspace["result"].returncode == 0
+    if HELPER.os.name == "posix":
+        assert stat.S_IMODE(workspace["report_path"].stat().st_mode) == 0o600
+    report = json.loads(workspace["report_path"].read_text())
+    assert (report["conclusion"], report["trigger"], report["impact"]) == ("unresolved", "unknown", "untested")
+    assert report["evidence"] == []
+    assert list(workspace["repo"].iterdir()) == []
+    result = cli("check", workspace["report_path"], "--evidence-root", workspace["root"])
     assert result.returncode == 0
-    assert 'NOT validated' in result.stdout
+    assert "NOT validated" in result.stdout
 
 
-@given('a structurally complete report with captured evidence')
+@given("a structurally complete report with captured evidence")
 def populated(workspace):
-    (workspace['root'] / 'capture.txt').write_text('Synthetic structural fixture.\nNo real CVE.\n')
-    result = cli('evidence', '--root', workspace['root'], '--file', 'capture.txt',
-                 '--id', 'E1', '--start', 1, '--end', 2)
+    (workspace["root"] / "capture.txt").write_text("Synthetic structural fixture.\nNo real CVE.\n")
+    result = cli(
+        "evidence", "--root", workspace["root"], "--file", "capture.txt", "--id", "E1", "--start", 1, "--end", 2
+    )
     assert result.returncode == 0, result.stderr
-    report = HELPER.scaffold(str(workspace['repo']), '[CVE]', '[VULNERABLE_COMPONENT]')
-    report['evidence'] = [json.loads(result.stdout)]
+    report = HELPER.scaffold(str(workspace["repo"]), "[CVE]", "[VULNERABLE_COMPONENT]")
+    report["evidence"] = [json.loads(result.stdout)]
     for key in HELPER.SECTIONS:
-        report[key] = {'summary': 'Synthetic fixture, not a semantic proof.', 'evidence': ['E1']}
-    report['conclusion'] = 'confirmed'
-    report['review'] = {'reviewer': 'fixture', 'basis': 'structural test only', 'evidence': ['E1']}
-    report['paths'] = [{'entrypoint': 'handler', 'sink': 'sink', 'conditions': 'fixture',
-                        'evidence': ['E1'], 'edges': [
-                            {'caller': 'handler', 'callee': 'sink', 'dispatch': 'direct',
-                             'resolved': True, 'evidence': ['E1']}]}]
-    report['parameters'] = [{key: 'fixture' for key in (
-        'sink', 'formal', 'actual', 'origin', 'control', 'transformations', 'guards', 'constraints')}]
-    report['parameters'][0]['sink'] = 'sink'
-    report['parameters'][0]['evidence'] = ['E1']
-    report['tools'] = [{'name': 'uninstalled analyzer', 'status': 'unavailable', 'evidence': []}]
-    workspace['report'] = report
+        report[key] = {"summary": "Synthetic fixture, not a semantic proof.", "evidence": ["E1"]}
+    report["conclusion"] = "confirmed"
+    report["review"] = {"reviewer": "fixture", "basis": "structural test only", "evidence": ["E1"]}
+    report["paths"] = [
+        {
+            "entrypoint": "handler",
+            "sink": "sink",
+            "conditions": "fixture",
+            "evidence": ["E1"],
+            "edges": [
+                {"caller": "handler", "callee": "sink", "dispatch": "direct", "resolved": True, "evidence": ["E1"]}
+            ],
+        }
+    ]
+    report["parameters"] = [
+        {
+            key: "fixture"
+            for key in ("sink", "formal", "actual", "origin", "control", "transformations", "guards", "constraints")
+        }
+    ]
+    report["parameters"][0]["sink"] = "sink"
+    report["parameters"][0]["evidence"] = ["E1"]
+    report["tools"] = [{"name": "uninstalled analyzer", "status": "unavailable", "evidence": []}]
+    workspace["report"] = report
 
 
 @given(parsers.parse('the report or evidence has "{defect}"'))
 def defect(workspace, defect):
-    r = workspace['report']
-    e = r['evidence'][0]
-    source = workspace['root'] / 'capture.txt'
-    if defect == 'changed bytes':
-        source.write_text('changed\n')
-    elif defect == 'missing file':
+    r = workspace["report"]
+    e = r["evidence"][0]
+    source = workspace["root"] / "capture.txt"
+    if defect == "changed bytes":
+        source.write_text("changed\n")
+    elif defect == "missing file":
         source.unlink()
-    elif defect == 'absolute path':
-        e['path'] = str(source)
-    elif defect in ('parent escape', 'symlink escape'):
-        outside = workspace['root'].parent / 'outside.txt'
+    elif defect == "absolute path":
+        e["path"] = str(source)
+    elif defect in ("parent escape", "symlink escape"):
+        outside = workspace["root"].parent / "outside.txt"
         outside.write_bytes(source.read_bytes())
-        if defect == 'parent escape':
-            e['path'] = '../outside.txt'
+        if defect == "parent escape":
+            e["path"] = "../outside.txt"
         else:
             source.unlink()
             source.symlink_to(outside)
-    elif defect == 'directory':
+    elif defect == "directory":
         source.unlink()
         source.mkdir()
-    elif defect == 'oversized file':
-        source.write_bytes(b'a' * (HELPER.LIMIT + 1))
-    elif defect == 'out of range lines':
-        e['lines'] = [1, 99]
-    elif defect == 'malformed line range':
-        e['lines'] = [True, 'two']
-    elif defect == 'null line bounds':
-        e['lines'] = [None, None]
-    elif defect == 'duplicate id':
-        r['evidence'].append(copy.deepcopy(e))
-    elif defect == 'unknown reference':
-        r['scope']['evidence'] = ['missing']
-    elif defect == 'invalid status':
-        r['conclusion'] = 'proven-safe'
-    elif defect == 'non-object report':
-        workspace['report'] = []
-    elif defect == 'malformed json':
-        workspace['raw'] = '{ invalid json'
-    elif defect == 'duplicate json key':
-        workspace['raw'] = json.dumps(r)[:-1] + ', \"conclusion\": \"unresolved\"}'
-    elif defect == 'nonfinite json':
-        workspace['raw'] = json.dumps(r)[:-1] + ', \"extra\": NaN}'
-    elif defect == 'missing limitations':
-        r['limitations'] = []
-    elif defect == 'no path':
-        r['paths'] = []
-    elif defect == 'disconnected path':
-        r['paths'][0]['edges'][0]['caller'] = 'another'
-    elif defect == 'wrong sink':
-        r['paths'][0]['sink'] = 'another'
-    elif defect == 'unresolved dispatch':
-        r['paths'][0]['edges'][0]['resolved'] = False
-    elif defect == 'no parameters':
-        r['parameters'] = []
-    elif defect == 'missing guard analysis':
-        del r['parameters'][0]['guards']
-    elif defect == 'no review':
-        r['review']['reviewer'] = ''
-    elif defect == 'no scope evidence':
-        r['scope']['evidence'] = []
-    elif defect == 'negative without proof':
-        r['conclusion'] = 'not_reachable'
-        r['negative_argument'] = {'summary': 'no scan hits', 'evidence': []}
-    elif defect == 'parameter sink mismatch':
-        r['parameters'][0]['sink'] = 'different'
-    elif defect == 'trigger without evidence':
-        r['conclusion'] = 'unresolved'
-        r['trigger'] = 'blocked'
-        r['preconditions']['evidence'] = []
-    elif defect == 'impact without review':
-        r['conclusion'] = 'unresolved'
-        r['impact'] = 'observed'
-        r['review']['evidence'] = []
-    elif defect == 'unevidenced execution':
-        r['tools'][0]['status'] = 'executed'
+    elif defect == "oversized file":
+        source.write_bytes(b"a" * (HELPER.LIMIT + 1))
+    elif defect == "out of range lines":
+        e["lines"] = [1, 99]
+    elif defect == "malformed line range":
+        e["lines"] = [True, "two"]
+    elif defect == "null line bounds":
+        e["lines"] = [None, None]
+    elif defect == "duplicate id":
+        r["evidence"].append(copy.deepcopy(e))
+    elif defect == "unknown reference":
+        r["scope"]["evidence"] = ["missing"]
+    elif defect == "invalid status":
+        r["conclusion"] = "proven-safe"
+    elif defect == "non-object report":
+        workspace["report"] = []
+    elif defect == "malformed json":
+        workspace["raw"] = "{ invalid json"
+    elif defect == "duplicate json key":
+        workspace["raw"] = json.dumps(r)[:-1] + ', "conclusion": "unresolved"}'
+    elif defect == "nonfinite json":
+        workspace["raw"] = json.dumps(r)[:-1] + ', "extra": NaN}'
+    elif defect == "missing limitations":
+        r["limitations"] = []
+    elif defect == "no path":
+        r["paths"] = []
+    elif defect == "disconnected path":
+        r["paths"][0]["edges"][0]["caller"] = "another"
+    elif defect == "wrong sink":
+        r["paths"][0]["sink"] = "another"
+    elif defect == "unresolved dispatch":
+        r["paths"][0]["edges"][0]["resolved"] = False
+    elif defect == "no parameters":
+        r["parameters"] = []
+    elif defect == "missing guard analysis":
+        del r["parameters"][0]["guards"]
+    elif defect == "no review":
+        r["review"]["reviewer"] = ""
+    elif defect == "no scope evidence":
+        r["scope"]["evidence"] = []
+    elif defect == "negative without proof":
+        r["conclusion"] = "not_reachable"
+        r["negative_argument"] = {"summary": "no scan hits", "evidence": []}
+    elif defect == "parameter sink mismatch":
+        r["parameters"][0]["sink"] = "different"
+    elif defect == "trigger without evidence":
+        r["conclusion"] = "unresolved"
+        r["trigger"] = "blocked"
+        r["preconditions"]["evidence"] = []
+    elif defect == "impact without review":
+        r["conclusion"] = "unresolved"
+        r["impact"] = "observed"
+        r["review"]["evidence"] = []
+    elif defect == "unevidenced execution":
+        r["tools"][0]["status"] = "executed"
     else:
-        raise AssertionError('unhandled defect ' + defect)
+        raise AssertionError("unhandled defect " + defect)
 
 
-@when('I check the report through the CLI')
+@when("I check the report through the CLI")
 def checked(workspace):
-    workspace['report_path'].write_text(workspace.get('raw', json.dumps(workspace['report'])))
-    workspace['result'] = cli('check', workspace['report_path'], '--evidence-root', workspace['root'])
+    workspace["report_path"].write_text(workspace.get("raw", json.dumps(workspace["report"])))
+    workspace["result"] = cli("check", workspace["report_path"], "--evidence-root", workspace["root"])
 
 
-@then('only structure and integrity are reported as checked')
+@then("only structure and integrity are reported as checked")
 def passed(workspace):
-    result = workspace['result']
+    result = workspace["result"]
     assert result.returncode == 0, result.stderr
-    assert 'structure and evidence integrity only' in result.stdout
-    assert 'Reachability, semantic correctness, tool capability, and coverage are NOT validated' in result.stdout
+    assert "structure and evidence integrity only" in result.stdout
+    assert "Reachability, semantic correctness, tool capability, and coverage are NOT validated" in result.stdout
 
 
-@then('the check fails without a traceback')
+@then("the check fails without a traceback")
 def failed(workspace):
-    result = workspace['result']
+    result = workspace["result"]
     assert result.returncode == 1
-    assert 'ERROR:' in result.stderr
-    assert 'Traceback' not in result.stderr
-    assert 'PASS:' not in result.stdout
+    assert "ERROR:" in result.stderr
+    assert "Traceback" not in result.stderr
+    assert "PASS:" not in result.stdout
 
 
-@then('the manifests and workflow assets resolve consistently')
+@then("the manifests and workflow assets resolve consistently")
 def packaging():
-    manifest = json.loads((PACKAGE / 'plugin.json').read_text(encoding='utf-8'))
-    host_manifest = json.loads((PACKAGE / '.claude-plugin/plugin.json').read_text(encoding='utf-8'))
-    assert manifest['name'] == host_manifest['name'] == 'security-logging-advisor'
-    assert manifest['version'] == host_manifest['version']
-    agent_path = PACKAGE / 'agents/cve-reachability.agent.md'
-    host_agent = PACKAGE / 'com.github.copilot/agents/cve-reachability.agent.md'
-    host_command = PACKAGE / 'com.github.copilot/commands/cve-reachability.md'
-    assert host_agent.read_text(encoding='utf-8') == agent_path.read_text(encoding='utf-8').replace('../skills/', '../../skills/')
-    assert host_command.read_text(encoding='utf-8') == (PACKAGE / 'commands/cve-reachability.md').read_text(encoding='utf-8')
-    files = [agent_path, host_agent, host_command, PACKAGE / 'commands/cve-reachability.md', SKILL / 'SKILL.md',
-             *sorted((SKILL / 'references').glob('*.md'))]
+    manifest = json.loads((PACKAGE / "plugin.json").read_text(encoding="utf-8"))
+    host_manifest = json.loads((PACKAGE / ".claude-plugin/plugin.json").read_text(encoding="utf-8"))
+    assert manifest["name"] == host_manifest["name"] == "security-logging-advisor"
+    assert manifest["version"] == host_manifest["version"]
+    agent_path = PACKAGE / "agents/cve-reachability.agent.md"
+    host_agent = PACKAGE / "com.github.copilot/agents/cve-reachability.agent.md"
+    host_command = PACKAGE / "com.github.copilot/commands/cve-reachability.md"
+    assert host_agent.read_text(encoding="utf-8") == agent_path.read_text(encoding="utf-8").replace(
+        "../skills/", "../../skills/"
+    )
+    assert host_command.read_text(encoding="utf-8") == (PACKAGE / "commands/cve-reachability.md").read_text(
+        encoding="utf-8"
+    )
+    files = [
+        agent_path,
+        host_agent,
+        host_command,
+        PACKAGE / "commands/cve-reachability.md",
+        SKILL / "SKILL.md",
+        *sorted((SKILL / "references").glob("*.md")),
+    ]
     for file in files:
         assert file.is_file()
-        for link in re.findall(r'\]\(([^)]+)\)', file.read_text(encoding='utf-8')):
-            if not link.startswith('https://'):
+        for link in re.findall(r"\]\(([^)]+)\)", file.read_text(encoding="utf-8")):
+            if not link.startswith("https://"):
                 assert (file.parent / link).is_file(), (file, link)
-    skill_text = (SKILL / 'SKILL.md').read_text(encoding='utf-8')
-    frontmatter = skill_text.split('---', 2)[1]
-    assert set(re.findall(r'^(\w+):', frontmatter, re.M)) == {'name', 'description'}
+    skill_text = (SKILL / "SKILL.md").read_text(encoding="utf-8")
+    frontmatter = skill_text.split("---", 2)[1]
+    assert set(re.findall(r"^(\w+):", frontmatter, re.M)) == {"name", "description"}
     assert len(skill_text.splitlines()) < 500
-    names = [re.search(r'^name: (.+)$', p.read_text(encoding='utf-8'), re.M).group(1)
-             for p in (PACKAGE / 'skills').glob('*/SKILL.md')]
+    names = [
+        re.search(r"^name: (.+)$", p.read_text(encoding="utf-8"), re.M).group(1)
+        for p in (PACKAGE / "skills").glob("*/SKILL.md")
+    ]
     assert len(names) == len(set(names))
-    assert 'tools:' not in agent_path.read_text(encoding='utf-8').split('---', 2)[1]
+    assert "tools:" not in agent_path.read_text(encoding="utf-8").split("---", 2)[1]
     # Acceptance criterion -> executable Gherkin scenario parity, not behavior proof.
-    spec = (ROOT / 'specs/cve-reachability.spec.md').read_text(encoding='utf-8')
-    feature = (ROOT / 'specs/features/cve_reachability.feature').read_text(encoding='utf-8')
-    for name in re.findall(r'Scenario(?: outline)?: ([^.]+)\.', spec):
-        assert re.search(r'Scenario(?: Outline)?: ' + re.escape(name) + r'\n', feature)
+    spec = (ROOT / "specs/cve-reachability.spec.md").read_text(encoding="utf-8")
+    feature = (ROOT / "specs/features/cve_reachability.feature").read_text(encoding="utf-8")
+    for name in re.findall(r"Scenario(?: outline)?: ([^.]+)\.", spec):
+        assert re.search(r"Scenario(?: Outline)?: " + re.escape(name) + r"\n", feature)
 
 
-@pytest.mark.parametrize('location', ['existing', 'inside', 'missing_repo'])
+@when("directory and leaf entries are swapped after validation")
+def synchronized_descriptor_swaps(workspace, monkeypatch):
+    if not (
+        hasattr(HELPER.os, "supports_dir_fd")
+        and HELPER.os.open in HELPER.os.supports_dir_fd
+        and hasattr(HELPER.os, "O_DIRECTORY")
+        and getattr(HELPER.os, "O_NOFOLLOW", 0)
+    ):
+        pytest.skip("descriptor race protection requires dir_fd, O_DIRECTORY and O_NOFOLLOW")
+
+    results = []
+    for kind in ("leaf", "directory"):
+        case_root = workspace["root"] / kind
+        case_root.mkdir()
+        outside = workspace["root"].parent / f"{kind}-outside"
+        outside.mkdir()
+        marker = f"{kind} external content"
+
+        if kind == "leaf":
+            entry = case_root / "evidence.txt"
+            entry.write_text("trusted evidence\n")
+            outside_target = outside / "outside.txt"
+            outside_target.write_text(marker)
+            relative = "evidence.txt"
+        else:
+            entry = case_root / "nested"
+            entry.mkdir()
+            (entry / "evidence.txt").write_text("trusted evidence\n")
+            outside_target = outside
+            (outside_target / "evidence.txt").write_text(marker)
+            relative = "nested/evidence.txt"
+
+        original_entry = entry.with_name(f"{entry.name}.original")
+        real_open = HELPER.os.open
+        real_read = HELPER.os.read
+        swapped = False
+        trigger = None
+        read_calls = []
+        swap_component = "evidence.txt" if kind == "leaf" else "nested"
+
+        def swap_before_descriptor_open(path, flags, *args, **kwargs):
+            nonlocal swapped, trigger
+            if not swapped and path == swap_component and kwargs.get("dir_fd") is not None:
+                entry.rename(original_entry)
+                entry.symlink_to(outside_target, target_is_directory=kind == "directory")
+                swapped = True
+                trigger = {"dir_fd": kwargs["dir_fd"], "path": path}
+            return real_open(path, flags, *args, **kwargs)
+
+        def record_read(fd, size):
+            read_calls.append((fd, size))
+            return real_read(fd, size)
+
+        with monkeypatch.context() as race_patch:
+            race_patch.setattr(HELPER.os, "open", swap_before_descriptor_open)
+            race_patch.setattr(
+                HELPER.os, "supports_dir_fd", set(HELPER.os.supports_dir_fd) | {swap_before_descriptor_open}
+            )
+            race_patch.setattr(HELPER.os, "read", record_read)
+            with pytest.raises(ValueError) as rejected:
+                HELPER.read_evidence_bytes(case_root, relative)
+
+        results.append(
+            {
+                "diagnostic": str(rejected.value),
+                "marker": marker,
+                "outside": outside,
+                "path": relative,
+                "read_calls": read_calls,
+                "root": case_root,
+                "swapped": swapped,
+                "trigger": trigger,
+                "trigger_path": swap_component,
+            }
+        )
+
+    workspace["descriptor_race_results"] = results
+
+
+@then("descriptor race reads fail closed with scoped errors")
+def descriptor_races_fail_closed(workspace):
+    for result in workspace["descriptor_race_results"]:
+        assert result["swapped"]
+        assert result["trigger"]["path"] == result["trigger_path"]
+        assert isinstance(result["trigger"]["dir_fd"], int)
+        assert result["read_calls"] == []
+        assert result["diagnostic"] == "cannot read evidence file: safe read rejected"
+        assert result["marker"] not in result["diagnostic"]
+        assert str(result["outside"]) not in result["diagnostic"]
+        assert result["path"] not in result["diagnostic"]
+        assert str(result["root"]) not in result["diagnostic"]
+
+
+@pytest.mark.parametrize("location", ["existing", "inside", "missing_repo"])
 def test_init_preserves_existing_files(tmp_path, location):
-    repo = tmp_path / 'repo'
+    repo = tmp_path / "repo"
     repo.mkdir()
-    output = tmp_path / 'report.json'
-    if location == 'existing':
-        output.write_text('retain me')
-    elif location == 'inside':
-        output = repo / 'report.json'
+    output = tmp_path / "report.json"
+    if location == "existing":
+        output.write_text("retain me")
+    elif location == "inside":
+        output = repo / "report.json"
     else:
-        repo = tmp_path / 'absent'
-    result = cli('init', '--repository', repo, '--cve', '[CVE]', '--component', 'fixture', '--output', output)
+        repo = tmp_path / "absent"
+    result = cli("init", "--repository", repo, "--cve", "[CVE]", "--component", "fixture", "--output", output)
     assert result.returncode == 1
-    assert 'Traceback' not in result.stderr
-    if location == 'existing':
-        assert output.read_text() == 'retain me'
+    assert "Traceback" not in result.stderr
+    if location == "existing":
+        assert output.read_text() == "retain me"
     else:
         assert not output.exists()
 
 
-@pytest.mark.parametrize('args', [[], ['--start', '1'], ['--start', '0', '--end', '2']])
+@pytest.mark.parametrize("args", [[], ["--start", "1"], ["--start", "0", "--end", "2"]])
 def test_evidence_line_options(tmp_path, args):
-    (tmp_path / 'source').write_text('one\ntwo\n')
-    result = cli('evidence', '--root', tmp_path, '--file', 'source', '--id', 'E', *args)
+    (tmp_path / "source").write_text("one\ntwo\n")
+    result = cli("evidence", "--root", tmp_path, "--file", "source", "--id", "E", *args)
     assert result.returncode == (0 if not args else 1)
 
 
-@pytest.mark.parametrize('status', HELPER.STATUSES)
+@pytest.mark.parametrize("status", HELPER.STATUSES)
 def test_supported_statuses_remain_structural(tmp_path, status):
     state = workspace(tmp_path)
     populated(state)
-    state['report']['conclusion'] = status
-    state['report']['tools'] = [{'name': 'synthetic fixture', 'status': 'executed',
-        'version': 'fixture', 'command': 'fixture', 'exit_code': 1,
-        'coverage': 'none', 'interpretation': 'failed fixture, no capability proven',
-        'evidence': ['E1']}]
+    state["report"]["conclusion"] = status
+    state["report"]["tools"] = [
+        {
+            "name": "synthetic fixture",
+            "status": "executed",
+            "version": "fixture",
+            "command": "fixture",
+            "exit_code": 1,
+            "coverage": "none",
+            "interpretation": "failed fixture, no capability proven",
+            "evidence": ["E1"],
+        }
+    ]
     checked(state)
     passed(state)
 
@@ -262,7 +394,7 @@ def test_required_fields_reject_null_through_cli(tmp_path):
     """Mutate every present field independently, including nested records."""
     state = workspace(tmp_path)
     populated(state)
-    original = copy.deepcopy(state['report'])
+    original = copy.deepcopy(state["report"])
 
     def locations(value, prefix=()):
         if isinstance(value, dict):
@@ -280,110 +412,128 @@ def test_required_fields_reject_null_through_cli(tmp_path):
         for key in location[:-1]:
             parent = parent[key]
         parent[location[-1]] = None
-        state['report'] = mutated
+        state["report"] = mutated
         checked(state)
-        assert state['result'].returncode == 1, location
+        assert state["result"].returncode == 1, location
         failed(state)
 
 
-@pytest.mark.parametrize('raw,diagnostic', [
-    (b'{"schema_version": 1, "schema_version": 1}', 'duplicate JSON object key'),
-    (b'{"nested": {"key": 1, "key": 2}}', 'duplicate JSON object key'),
-    (b'{"value": Infinity}', 'non-finite JSON constant'),
-    (b'{"value": -Infinity}', 'non-finite JSON constant'),
-    (b'\xff', None), (b'[' * 2000 + b']' * 2000, None),
-])
+@pytest.mark.parametrize(
+    "raw,diagnostic",
+    [
+        (b'{"schema_version": 1, "schema_version": 1}', "duplicate JSON object key"),
+        (b'{"nested": {"key": 1, "key": 2}}', "duplicate JSON object key"),
+        (b'{"value": Infinity}', "non-finite JSON constant"),
+        (b'{"value": -Infinity}', "non-finite JSON constant"),
+        (b"\xff", None),
+        (b"[" * 2000 + b"]" * 2000, None),
+    ],
+)
 def test_malformed_json_fails_cleanly(tmp_path, raw, diagnostic):
-    report = tmp_path / 'report.json'
+    report = tmp_path / "report.json"
     report.write_bytes(raw)
-    result = cli('check', report, '--evidence-root', tmp_path)
-    failed({'result': result})
+    result = cli("check", report, "--evidence-root", tmp_path)
+    failed({"result": result})
     if diagnostic:
         assert diagnostic in result.stderr
 
 
-@pytest.mark.parametrize('kind', ['loop', 'dangling', 'fifo', 'invalid_utf8'])
+@pytest.mark.parametrize("kind", ["loop", "dangling", "fifo", "invalid_utf8"])
 def test_evidence_filesystem_failures(tmp_path, kind):
     import os
-    source = tmp_path / 'source'
-    if kind in ('loop', 'dangling'):
-        source.symlink_to(source if kind == 'loop' else tmp_path / 'missing')
-    elif kind == 'fifo':
-        if not hasattr(os, 'mkfifo'):
-            pytest.skip('POSIX FIFO test is not applicable on this platform')
+
+    source = tmp_path / "source"
+    if kind in ("loop", "dangling"):
+        source.symlink_to(source if kind == "loop" else tmp_path / "missing")
+    elif kind == "fifo":
+        if not hasattr(os, "mkfifo"):
+            pytest.skip("POSIX FIFO test is not applicable on this platform")
         os.mkfifo(source)
     else:
-        source.write_bytes(b'\xff')
-    result = cli('evidence', '--root', tmp_path, '--file', 'source', '--id', 'E',
-                 '--start', 1, '--end', 1)
-    failed({'result': result})
+        source.write_bytes(b"\xff")
+    result = cli("evidence", "--root", tmp_path, "--file", "source", "--id", "E", "--start", 1, "--end", 1)
+    failed({"result": result})
 
 
 def test_evidence_size_boundary_and_binary_capture(tmp_path):
     import hashlib
-    source = tmp_path / 'source'
-    data = b'\xff' * HELPER.LIMIT
+
+    source = tmp_path / "source"
+    data = b"\xff" * HELPER.LIMIT
     source.write_bytes(data)
-    result = cli('evidence', '--root', tmp_path, '--file', 'source', '--id', 'E')
+    result = cli("evidence", "--root", tmp_path, "--file", "source", "--id", "E")
     assert result.returncode == 0, result.stderr
-    assert json.loads(result.stdout)['sha256'] == hashlib.sha256(data).hexdigest()
-    source.write_bytes(data + b'x')
-    failed({'result': cli('evidence', '--root', tmp_path, '--file', 'source', '--id', 'E')})
+    assert json.loads(result.stdout)["sha256"] == hashlib.sha256(data).hexdigest()
+    source.write_bytes(data + b"x")
+    failed({"result": cli("evidence", "--root", tmp_path, "--file", "source", "--id", "E")})
 
 
 def test_cve_fingerprint_leaf_swap(tmp_path):
-    root = tmp_path / 'evidence'
+    root = tmp_path / "evidence"
     root.mkdir()
-    target_file = root / 'valid.txt'
-    target_file.write_text('trusted evidence\n')
+    target_file = root / "valid.txt"
+    target_file.write_text("trusted evidence\n")
 
-    outside = tmp_path / 'outside'
+    outside = tmp_path / "outside"
     outside.mkdir()
-    secret_file = outside / 'secret.txt'
-    secret_file.write_text('secret external content\n')
+    secret_file = outside / "secret.txt"
+    secret_file.write_text("secret external content\n")
 
-    result = cli('evidence', '--root', root, '--file', 'valid.txt', '--id', 'E1')
+    result = cli("evidence", "--root", root, "--file", "valid.txt", "--id", "E1")
     assert result.returncode == 0
-    assert 'trusted evidence' not in result.stdout
+    assert "trusted evidence" not in result.stdout
 
     # Swap leaf with symlink pointing outside root
     target_file.unlink()
     target_file.symlink_to(secret_file)
 
-    swap_result = cli('evidence', '--root', root, '--file', 'valid.txt', '--id', 'E1')
-    failed({'result': swap_result})
-    assert 'secret' not in swap_result.stdout
-    assert 'secret' not in swap_result.stderr
+    swap_result = cli("evidence", "--root", root, "--file", "valid.txt", "--id", "E1")
+    failed({"result": swap_result})
+    assert "secret" not in swap_result.stdout
+    assert "secret" not in swap_result.stderr
 
     # Swap directory component with symlink pointing outside root
-    sub_dir = root / 'sub'
+    sub_dir = root / "sub"
     sub_dir.mkdir()
-    sub_file = sub_dir / 'subfile.txt'
-    sub_file.write_text('sub evidence\n')
+    sub_file = sub_dir / "subfile.txt"
+    sub_file.write_text("sub evidence\n")
     sub_file.unlink()
     sub_dir.rmdir()
     sub_dir.symlink_to(outside)
 
-    dir_swap_result = cli('evidence', '--root', root, '--file', 'sub/secret.txt', '--id', 'E2')
-    failed({'result': dir_swap_result})
-    assert 'secret' not in dir_swap_result.stdout
-    assert 'secret' not in dir_swap_result.stderr
+    dir_swap_result = cli("evidence", "--root", root, "--file", "sub/secret.txt", "--id", "E2")
+    failed({"result": dir_swap_result})
+    assert "secret" not in dir_swap_result.stdout
+    assert "secret" not in dir_swap_result.stderr
 
 
 def test_init_without_fchmod(tmp_path, monkeypatch):
     """Windows lacks fchmod; initialization must still refuse overwrites."""
-    repo = tmp_path / 'repo'
+    repo = tmp_path / "repo"
     repo.mkdir()
-    output = tmp_path / 'report.json'
-    monkeypatch.delattr(HELPER.os, 'fchmod', raising=False)
-    monkeypatch.setattr(sys, 'argv', [str(SCRIPT), 'init', '--repository', str(repo),
-                                    '--cve', '[CVE]', '--component', '[COMPONENT]',
-                                    '--output', str(output)])
+    output = tmp_path / "report.json"
+    monkeypatch.delattr(HELPER.os, "fchmod", raising=False)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            str(SCRIPT),
+            "init",
+            "--repository",
+            str(repo),
+            "--cve",
+            "[CVE]",
+            "--component",
+            "[COMPONENT]",
+            "--output",
+            str(output),
+        ],
+    )
     assert HELPER.main() == 0
     original = output.read_bytes()
-    assert json.loads(original)['conclusion'] == 'unresolved'
+    assert json.loads(original)["conclusion"] == "unresolved"
     assert list(repo.iterdir()) == []
-    if HELPER.os.name == 'posix':
+    if HELPER.os.name == "posix":
         assert output.stat().st_mode & 0o777 == 0o600
     assert HELPER.main() == 1
     assert output.read_bytes() == original
