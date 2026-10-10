@@ -30,11 +30,14 @@ python3 -m unittest discover -s tests -v
 ```
 
 ### What to look for
-The analyzer generates four detailed output files in your chosen directory:
+The analyzer generates four detailed reports and a completion marker in your chosen directory:
 1. `report.md`: A human-readable Markdown summary breaking down candidate attack routes and candidate choke points.
 2. `report.json`: Machine-readable results containing route provenance, confidence ratings, and a bounded search receipt. If a limit stops search, ranked paths are the best discovered paths only.
 3. `graph.json`: An exported node-and-edge graph model ready for visualization or SIEM ingestion.
 4. `remediation-ledger.json`: An auditable ledger mapping each identified risk to its concrete remediation step.
+5. `completion.json`: An atomically published marker that binds the run ID and SHA-256 digest of each report.
+
+Treat the four-report set as complete only when `completion.json` validates against `schemas/completion-v1.schema.json`, its run ID matches `report.json`, and every listed digest matches the exact report bytes. The writer synchronizes the new output directory, the report bytes, and their directory entries before publishing this marker from the open staging file without replacement; it then synchronizes the public marker before cleaning up staging. A missing, malformed, or mismatched marker identifies a partial set. If the marker is visible but the CLI reports that its first post-publication synchronization failed, durability is uncertain and consumers must not automate from that run. Marker status describes durable report output and is independent of the search completeness recorded in `report.json`.
 
 > [!NOTE]
 > The illustrative fixture contains synthetic test data designed to demonstrate graph analysis algorithms safely. Structural routes are conditional on exploiting starting findings, and candidate routes highlight explicit evidence gaps.
