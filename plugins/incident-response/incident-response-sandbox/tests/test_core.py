@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import sys
 import unittest
 from datetime import UTC, datetime, timedelta
@@ -33,6 +34,12 @@ class SandboxTests(unittest.TestCase):
         receipt = dry_run(p, f)
         updated, result = execute(p, receipt, f)
         self.assertEqual(result["outcome"], "applied")
+        self.assertRegex(result["provider_request_id"], r"^fixture-request-[0-9a-f]{64}$")
+        self.assertEqual(result["post_action_verification"]["result"], "succeeded")
+        self.assertRegex(
+            result["post_action_verification"]["reference"],
+            r"^fixture-state-sha256-[0-9a-f]{64}$",
+        )
         self.assertEqual(updated["targets"]["host-1"]["state"], "isolated")
         self.assertEqual(updated["targets"]["host-2"]["state"], "active")
         with self.assertRaises(ActionError):
@@ -73,6 +80,36 @@ class SandboxTests(unittest.TestCase):
                 self.assertEqual(result["outcome"], expected)
                 self.assertEqual(updated["targets"]["host-1"]["state"], state)
                 self.assertEqual(len(updated["executions"]), 1)
+                expected_verification = "failed" if mode == "partial" else "succeeded"
+                self.assertEqual(
+                    result["post_action_verification"]["result"], expected_verification
+                )
+
+    def test_unavailable_verification_is_explicit(self):
+        p, f = plan(), fixture()
+        f["verification_available"] = False
+        updated, result = execute(p, dry_run(p, f), f)
+        self.assertEqual(result["outcome"], "applied")
+        self.assertEqual(
+            result["post_action_verification"],
+            {"reference": None, "result": "unavailable"},
+        )
+        self.assertEqual(
+            updated["executions"][0]["post_action_verification"],
+            result["post_action_verification"],
+        )
+
+    def test_receipt_evidence_uses_secret_free_generated_identifiers(self):
+        p, f = plan(), fixture()
+        updated, result = execute(p, dry_run(p, f), f)
+        evidence = result["post_action_verification"]
+        self.assertTrue(re.fullmatch(r"[a-z0-9-]+", result["provider_request_id"]))
+        self.assertTrue(re.fullmatch(r"[a-z0-9-]+", evidence["reference"]))
+        self.assertNotIn("example-tenant", str(result))
+        self.assertEqual(
+            updated["executions"][0]["provider_request_id"],
+            result["provider_request_id"],
+        )
 
     def test_duplicate_nonce(self):
         p, f = plan(), fixture()
@@ -92,6 +129,12 @@ class SandboxTests(unittest.TestCase):
             execute(p, receipt, f)
         self.assertEqual(f["targets"]["host-1"]["state"], "active")
         self.assertEqual(f["revision"], 1)
+
+        f = fixture()
+        f["verification_available"] = "sometimes"
+        with self.assertRaisesRegex(ActionError, "verification availability"):
+            execute(p, dry_run(p, fixture()), f)
+        self.assertEqual(f["targets"]["host-1"]["state"], "active")
 
 
 if __name__ == "__main__":

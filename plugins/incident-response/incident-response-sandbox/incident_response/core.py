@@ -107,6 +107,10 @@ def _fixture(fixture: object) -> dict:
         raise ActionError("invalid fixture records")
     if not isinstance(fixture.get("permissions"), list):
         raise ActionError("invalid fixture permissions")
+    if "verification_available" in fixture and not isinstance(
+        fixture["verification_available"], bool
+    ):
+        raise ActionError("invalid verification availability")
     return fixture
 
 
@@ -137,6 +141,15 @@ def dry_run(plan: object, fixture: object) -> dict:
             "decision": "ready"}
 
 
+def _verification(state: dict, target: dict, desired_state: str) -> dict:
+    if state.get("verification_available", True) is False:
+        return {"reference": None, "result": "unavailable"}
+    return {
+        "reference": f"fixture-state-sha256-{_digest(target)}",
+        "result": "succeeded" if target.get("state") == desired_state else "failed",
+    }
+
+
 def execute(plan: object, receipt: object, fixture: object) -> tuple[dict, dict]:
     checked = validate_plan(plan)
     state = _fixture(fixture)
@@ -161,10 +174,22 @@ def execute(plan: object, receipt: object, fixture: object) -> tuple[dict, dict]
     else:
         outcome = "applied"
     state["revision"] += 1
-    state["executions"].append({"plan_hash": checked["plan_hash"], "nonce": checked["nonce"], "outcome": outcome})
+    provider_request_id = f"fixture-request-{checked['plan_hash']}"
+    verification = _verification(state, target, checked["desired_state"])
+    state["executions"].append(
+        {
+            "plan_hash": checked["plan_hash"],
+            "nonce": checked["nonce"],
+            "outcome": outcome,
+            "provider_request_id": provider_request_id,
+            "post_action_verification": dict(verification),
+        }
+    )
     return state, {"schema": "cops.ir-result/v1", "plan_hash": checked["plan_hash"],
                    "outcome": outcome, "fixture_revision": state["revision"],
-                   "approval_provenance": "unverified-operator-assertion"}
+                   "approval_provenance": "unverified-operator-assertion",
+                   "provider_request_id": provider_request_id,
+                   "post_action_verification": verification}
 
 
 def load_json(path: Path) -> object:

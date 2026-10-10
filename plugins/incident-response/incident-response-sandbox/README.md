@@ -20,6 +20,37 @@ permission, throttling, and duplicate plan hashes or nonces. Simulated partial
 failure records whether rollback succeeded or failed. The fixture execution
 history prevents replay of recorded attempts.
 
+Each execution result and fixture history record include a deterministic
+`provider_request_id` for the synthetic fixture operation and a
+`post_action_verification` object. Available verification reports `succeeded`
+or `failed` with a content-addressed fixture-state reference. When the fixture
+sets `verification_available` to `false`, the result is `unavailable` and the
+reference is `null`. The generated values contain only fixed labels and SHA-256
+digests; do not replace them with credentials, bearer tokens, signed URLs, or
+other secret provider response data. These fields demonstrate the receipt
+shape against a local fixture; they are not evidence from a live provider.
+
+## Retention expectations
+
+Treat plans, receipts, and fixtures as incident records because their timing,
+targets, and operator assertions may be sensitive even when the receipt fields
+contain no secrets. Store them with least-privilege access and encryption where
+required by the organization's approved incident-response, legal-hold, privacy,
+and records-retention policies. Assign an owner and deletion or review date in
+the system of record, preserve records subject to a legal hold, and securely
+delete expired copies and temporary staging files. This package does not choose
+a retention period or operate a records repository.
+
+## Emergency-use expectations
+
+Use this sandbox during an emergency only under an approved break-glass
+procedure that names the authorizing role, allowed action and target, expiry,
+evidence owner, and required after-action review. Continue to use a unique
+nonce, explicit dry run, and private staging; record verification as
+`unavailable` when it cannot be performed instead of treating the action as
+verified. The package cannot grant emergency authority, bypass provider access
+controls, contact a live provider, or attest that authorization occurred.
+
 The approver name is an operator assertion. The plan hash detects accidental
 or unauthorized changes to the plan content only when compared with a trusted
 copy; it is not a signature, approval proof, or immutable audit record. This
