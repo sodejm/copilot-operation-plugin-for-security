@@ -86,8 +86,8 @@ deliberately maps imported content into validated COPS envelopes and receipts.
 
 `tests/fixtures/export_privacy_corpus_v1.json` contains only synthetic labels.
 `evaluate_privacy_corpus` reports the policy/detector versions, record count,
-labeled sensitive-field count, unchanged labeled sensitive fields, omitted
-labeled benign fields, and unsupported cases. The detector covers the existing
+labeled sensitive-field count, unchanged labeled sensitive fields, transformed
+or omitted labeled benign fields, and unsupported cases. The detector covers the existing
 credential redactor plus email and US Social Security-number patterns for
 allowed text. Corpus results measure only those fixture labels; they do not
 establish detection of arbitrary identifiers, secrets, encodings, or files.

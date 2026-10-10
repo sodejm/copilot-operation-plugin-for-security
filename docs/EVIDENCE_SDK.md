@@ -7,6 +7,9 @@ acquisition lifecycle for reviewed, read-only adapters. Existing plugin evidence
 formats remain independent; portable exports do not automatically include this SDK.
 The Attack Path Workbench Azure profile explicitly distributes a generated,
 allowlisted contract/validation subset without collector transport or authentication.
+That subset also includes the local assessment export policy transformer and stream
+redactor because its caller-provided assessment-report adapter imports them; it
+contains no provider transport, credential, or sink integration.
 `python3 scripts/agent/bundle_evidence.py --check` verifies this subset against the
 canonical sources and is part of `make check`.
 

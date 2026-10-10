@@ -8,7 +8,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 TARGET = Path("plugins/detection-hunting/attack-path-workbench/attackpath/_runtime")
 SOURCES = tuple("cops/evidence/" + name + ".py" for name in
-                ("__init__", "canonical", "contract", "validation", "assessment")) + (
+                ("__init__", "canonical", "contract", "validation", "assessment", "export_policy")) + (
+    "cops/execution/redaction.py",
     "catalog/schemas/evidence-envelope.schema.json", "catalog/schemas/acquisition-receipt.schema.json")
 
 

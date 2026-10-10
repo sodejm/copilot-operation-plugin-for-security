@@ -4,7 +4,7 @@ from .assessment import assess, export_assessment_report, report
 from .canonical import EvidenceError, canonical, decode_json
 from .contract import build_envelope
 
-from cops.evidence.export_policy import (
+from .export_policy import (
     POLICY_SCHEMA_VERSION,
     Attachment,
     Classification,

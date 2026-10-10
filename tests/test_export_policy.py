@@ -236,6 +236,50 @@ def test_policy_mapping_rejects_non_integer_limits(invalid_limit: object) -> Non
         ExportPolicy.from_mapping(source)
 
 
+def test_more_specific_field_rule_overrides_broader_match_regardless_of_order() -> None:
+    destination = DestinationRule(
+        sink_id="specificity-fixture",
+        destination="report",
+        purpose="specificity-test",
+        permitted_classifications=frozenset({Classification.PUBLIC, Classification.INTERNAL}),
+    )
+    specific_policy = ExportPolicy(
+        policy_id="specificity-test",
+        version="1",
+        field_rules=(
+            FieldRule("tool.*.*", Classification.PUBLIC, ExportAction.ALLOW),
+            FieldRule("tool.arguments.api_key", Classification.SECRET, ExportAction.REDACT),
+        ),
+        destinations=(destination,),
+    )
+    sink = RecordingSink(SinkDescriptor("specificity-fixture", "report", "specificity-test"))
+    exported = ExportBoundary(specific_policy, pseudonym_key=b"only-synthetic-test-key").export(
+        sink,
+        {"tool": {"arguments": {"api_key": "synthetic-api-key"}}},
+        pseudonym_scope="scope",
+    )
+    assert exported.payload["tool"]["arguments"]["api_key"] == "[REDACTED:SECRET]"
+
+
+def test_policy_rejects_equal_specificity_overlapping_wildcards() -> None:
+    destination = DestinationRule(
+        sink_id="specificity-fixture",
+        destination="report",
+        purpose="specificity-test",
+        permitted_classifications=frozenset({Classification.PUBLIC}),
+    )
+    with pytest.raises(ValueError, match="ambiguous field rule overlap"):
+        ExportPolicy(
+            policy_id="ambiguous-overlap",
+            version="1",
+            field_rules=(
+                FieldRule("tool.*.api_key", Classification.PUBLIC, ExportAction.ALLOW),
+                FieldRule("tool.arguments.*", Classification.SECRET, ExportAction.REDACT),
+            ),
+            destinations=(destination,),
+        )
+
+
 def test_nested_tool_fields_are_transformed_before_each_supported_sink() -> None:
     source = {
         "summary": "Safe synthetic summary",
@@ -393,6 +437,27 @@ def test_synthetic_corpus_emits_documented_privacy_metrics() -> None:
     assert metrics.missed_sensitive_fields == 0
     assert metrics.unnecessary_redactions == 0
     assert metrics.unsupported_cases == 0
+
+
+def test_privacy_corpus_counts_redacted_benign_fields_as_unnecessary() -> None:
+    destination = DestinationRule(
+        sink_id="corpus-fixture",
+        destination="report",
+        purpose="corpus-test",
+        permitted_classifications=frozenset({Classification.PUBLIC}),
+    )
+    redacting_policy = ExportPolicy(
+        policy_id="corpus-redaction-test",
+        version="1",
+        field_rules=(FieldRule("summary", Classification.PUBLIC, ExportAction.REDACT),),
+        destinations=(destination,),
+    )
+    metrics = evaluate_privacy_corpus(
+        redacting_policy,
+        [{"payload": {"summary": "synthetic benign summary"}, "benign_paths": ["summary"]}],
+        pseudonym_key=b"only-synthetic-test-key",
+    )
+    assert metrics.unnecessary_redactions == 1
 
 
 def test_caller_may_retry_after_sanitized_sink_refusal() -> None:
