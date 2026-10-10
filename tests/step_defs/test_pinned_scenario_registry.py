@@ -152,6 +152,13 @@ def verify_all_items_resolve(registry_context):
             assert item["target_id"] in known_sids
 
 
+@then(parsers.parse('its licensing review records source "{source_id}" with disposition "{disposition}"'))
+def verify_licensing_review(registry_context, source_id, disposition):
+    review = registry_context["source"]["licensing_review"]
+    assert review["reviewed_source_id"] == source_id
+    assert review["disposition"] == disposition
+
+
 @given("a scenario registry containing a duplicate scenario identifier")
 def setup_duplicate_scenario(tmp_path, registry_context):
     catalog = tmp_path / "catalog"
@@ -165,6 +172,11 @@ def setup_duplicate_scenario(tmp_path, registry_context):
         (schemas / sfile.name).write_text(sfile.read_text(encoding="utf-8"), encoding="utf-8")
     (catalog / "provenance.json").write_text(
         (ROOT / "catalog" / "provenance.json").read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "SUPPORTING_GUIDANCE.md").write_text(
+        (ROOT / "docs" / "SUPPORTING_GUIDANCE.md").read_text(encoding="utf-8"), encoding="utf-8"
     )
 
     # Create scenarios with a duplicate scenario_id
@@ -207,16 +219,67 @@ def setup_orphan_mapping(tmp_path_factory, registry_context):
     (catalog / "scenarios.json").write_text(
         (ROOT / "catalog" / "scenarios.json").read_text(encoding="utf-8"), encoding="utf-8"
     )
+    docs = p / "docs"
+    docs.mkdir()
+    (docs / "SUPPORTING_GUIDANCE.md").write_text(
+        (ROOT / "docs" / "SUPPORTING_GUIDANCE.md").read_text(encoding="utf-8"), encoding="utf-8"
+    )
 
     # Create provenance with an orphan target
     prov_data = json.loads((ROOT / "catalog" / "provenance.json").read_text(encoding="utf-8"))
-    prov_data["sources"][0]["inventory"].append({
-        "item_id": "orphan-test-999",
-        "path_or_section": "test/section",
-        "resolution": "scenario",
-        "target_id": "COPS-DOES-NOT-EXIST-S99",
-        "notes": "Testing orphan mapping detection",
-    })
+    prov_data["sources"][0]["inventory"].append(
+        {
+            "item_id": "orphan-test-999",
+            "path_or_section": "test/section",
+            "resolution": "scenario",
+            "target_id": "COPS-DOES-NOT-EXIST-S99",
+            "notes": "Testing orphan mapping detection",
+        }
+    )
     (catalog / "provenance.json").write_text(json.dumps(prov_data), encoding="utf-8")
     registry_context["target_dir"] = p
 
+
+def _copy_registry_for_provenance_test(tmp_path: Path) -> Path:
+    catalog = tmp_path / "catalog"
+    schemas = catalog / "schemas"
+    schemas.mkdir(parents=True)
+    for schema_file in (ROOT / "catalog" / "schemas").glob("*.json"):
+        (schemas / schema_file.name).write_text(schema_file.read_text(encoding="utf-8"), encoding="utf-8")
+    (catalog / "scenarios.json").write_text(
+        (ROOT / "catalog" / "scenarios.json").read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "SUPPORTING_GUIDANCE.md").write_text(
+        (ROOT / "docs" / "SUPPORTING_GUIDANCE.md").read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    return catalog
+
+
+@given("a provenance registry containing an orphan supporting-guidance mapping")
+def setup_orphan_guidance_mapping(tmp_path_factory, registry_context):
+    root = tmp_path_factory.mktemp("orphan_guidance")
+    catalog = _copy_registry_for_provenance_test(root)
+    provenance = json.loads((ROOT / "catalog" / "provenance.json").read_text(encoding="utf-8"))
+    provenance["sources"][0]["inventory"].append(
+        {
+            "item_id": "orphan-guidance-bdd",
+            "path_or_section": "test/guidance",
+            "resolution": "supporting_guidance",
+            "target_id": "COPS-UNKNOWN-GUIDE",
+            "notes": "BDD orphan guidance mapping.",
+        }
+    )
+    (catalog / "provenance.json").write_text(json.dumps(provenance), encoding="utf-8")
+    registry_context["target_dir"] = root
+
+
+@given("a provenance registry containing duplicate guidance identifiers")
+def setup_duplicate_guidance(tmp_path_factory, registry_context):
+    root = tmp_path_factory.mktemp("duplicate_guidance")
+    catalog = _copy_registry_for_provenance_test(root)
+    provenance = json.loads((ROOT / "catalog" / "provenance.json").read_text(encoding="utf-8"))
+    provenance["guidance"].append(dict(provenance["guidance"][0]))
+    (catalog / "provenance.json").write_text(json.dumps(provenance), encoding="utf-8")
+    registry_context["target_dir"] = root
