@@ -1,5 +1,12 @@
 """Shared evidence contracts; portable consumers use the generated approved subset."""
 
+from .ai_components import (
+    ComponentVerificationError,
+    assess_component_baselines,
+    canonical_component_identity,
+    validate_component_manifest,
+    verify_component_manifest,
+)
 from .ai_inventory import (
     InventoryError,
     InventoryRegistry,
@@ -12,11 +19,6 @@ from .assessment import assess, report
 from .canonical import EvidenceError, canonical, decode_json
 from .contract import build_envelope
 from .validation import validate_envelope, validate_receipt
-from .ai_inventory import (InventoryError, InventoryRegistry, adapt_entra_service_principals,
-                           compare_inventories, import_inventory, inventory_report)
-from .ai_components import (ComponentVerificationError, assess_component_baselines,
-                            canonical_component_identity, validate_component_manifest,
-                            verify_component_manifest)
 
 __all__ = [
     "EvidenceError",

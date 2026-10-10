@@ -7,7 +7,7 @@
   "sources": [
     {
       "path": "cops/evidence/__init__.py",
-      "sha256": "667b0ccb8c6fe1de40f7e42cdd66ab18e20920e8963812e1e6aeda2d1c3fe2fc"
+      "sha256": "5931cbc19c0bd15114a3d9b8f6093ae5e472ce1e8e5ad4ea13f07357fdaf34c4"
     },
     {
       "path": "cops/evidence/canonical.py",
