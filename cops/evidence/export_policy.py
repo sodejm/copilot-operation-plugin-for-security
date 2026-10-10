@@ -44,7 +44,7 @@ class Classification(StrEnum):
     INTERNAL = "internal"
     PERSONAL = "personal"
     RESTRICTED = "restricted"
-    SECRET = "secret"
+    SECRET = "secret"  # noqa: S105 - classification label, never a credential
 
 
 @dataclass(frozen=True)
@@ -60,9 +60,7 @@ def _rule_components(rule: FieldRule) -> tuple[str, ...]:
 
 def _rules_overlap(left: tuple[str, ...], right: tuple[str, ...]) -> bool:
     return len(left) == len(right) and all(
-        left_component == right_component
-        or left_component == "*"
-        or right_component == "*"
+        left_component == right_component or left_component == "*" or right_component == "*"
         for left_component, right_component in zip(left, right, strict=True)
     )
 
@@ -323,7 +321,9 @@ class CorpusMetrics:
 
 @dataclass
 class _TransformState:
-    counts: dict[str, int] = field(default_factory=lambda: {"allowed": 0, "redacted": 0, "omitted": 0, "pseudonymized": 0})
+    counts: dict[str, int] = field(
+        default_factory=lambda: {"allowed": 0, "redacted": 0, "omitted": 0, "pseudonymized": 0}
+    )
     input_bytes: int = 0
 
 
@@ -363,14 +363,15 @@ class ExportBoundary:
             transformed_payload = self._transform_mapping(
                 payload, (), destination_rule, pseudonym_scope, state, depth=0, ancestors=set()
             )
-            if len(json.dumps(transformed_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")) > self.policy.max_payload_bytes:
+            if (
+                len(json.dumps(transformed_payload, sort_keys=True, separators=(",", ":")).encode("utf-8"))
+                > self.policy.max_payload_bytes
+            ):
                 raise ExportRefused("structured_payload_size_exceeded")
             text = None
             if text_chunks is not None:
                 text = self._transform_stream(text_chunks, ("text",), destination_rule, pseudonym_scope, state)
-            transformed_attachments = self._transform_attachments(
-                attachments, destination_rule, pseudonym_scope, state
-            )
+            transformed_attachments = self._transform_attachments(attachments, destination_rule, pseudonym_scope, state)
             reference_digest = _reference_digest(restricted_evidence_reference)
             audit = ExportAudit(
                 schema_version=self.policy.schema_version,
@@ -539,7 +540,9 @@ class ExportBoundary:
             if value is _OMITTED or not isinstance(value, str):
                 raise ExportRefused("attachment_not_permitted")
             transformed.append(
-                SanitizedAttachment(ordinal=ordinal, content_type=attachment.content_type, content=value.encode("utf-8"))
+                SanitizedAttachment(
+                    ordinal=ordinal, content_type=attachment.content_type, content=value.encode("utf-8")
+                )
             )
         return tuple(transformed)
 
@@ -551,7 +554,7 @@ class ExportBoundary:
     def _pseudonymize(self, value: Any, scope: str) -> str:
         if not scope:
             raise ExportRefused("pseudonym_scope_required")
-        material = f"{scope}\x00{value}".encode("utf-8")
+        material = f"{scope}\x00{value}".encode()
         digest = hmac.new(self._pseudonym_key, material, hashlib.sha256).hexdigest()[:24]
         return f"pseudonym-v1:{digest}"
 

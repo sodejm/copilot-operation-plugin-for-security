@@ -7,7 +7,7 @@
   "sources": [
     {
       "path": "cops/evidence/__init__.py",
-      "sha256": "4c5164c5b528a6551275013735cc7e564fc711cc6dd182a6b720663f7460f006"
+      "sha256": "bb3eea23e47fa626774d06532c7a3ada480926eb6b9e818248a0f2b0ed8c11c5"
     },
     {
       "path": "cops/evidence/canonical.py",
@@ -23,11 +23,11 @@
     },
     {
       "path": "cops/evidence/assessment.py",
-      "sha256": "1fa5fad74d95afb55bbb1795e3ef1ca2fffc61d279e4b8d898490117dae95b97"
+      "sha256": "7be15717fdb05158a2fceddae4d34c08a118b706ac150380a4ac307651f3afa5"
     },
     {
       "path": "cops/evidence/export_policy.py",
-      "sha256": "dbdb10fefa673efbd05ace9b0459237cf46b97e089a983be8f957113036ce392"
+      "sha256": "89e224865aea9bfa6493da0b89144d2fa81aa342b6375188a831af0b5c3ce965"
     },
     {
       "path": "cops/execution/redaction.py",

@@ -9,7 +9,13 @@ from pathlib import Path
 
 import pytest
 
-from cops.evidence import build_envelope, export_assessment_report
+from cops.diagnostics import DiagnosticReport, SystemDiagnostic, export_diagnostic_report
+from cops.evidence import (
+    build_envelope,
+    export_assessment_report,
+    export_assessment_telemetry,
+    export_provider_assessment,
+)
 from cops.evidence.export_policy import (
     POLICY_SCHEMA_VERSION,
     Attachment,
@@ -109,7 +115,9 @@ def boundary() -> ExportBoundary:
     )
 
 
-def assessment_policy() -> ExportPolicy:
+def assessment_policy(
+    descriptor: SinkDescriptor = SinkDescriptor("assessment-report-fixture", "report", "assessment-report-export"),
+) -> ExportPolicy:
     return ExportPolicy(
         policy_id="synthetic-assessment-policy",
         version="2026-10-10.1",
@@ -119,12 +127,13 @@ def assessment_policy() -> ExportPolicy:
             FieldRule("assessment.records.*.record_id", Classification.INTERNAL, ExportAction.PSEUDONYMIZE),
             FieldRule("assessment.records.*.completeness", Classification.PUBLIC, ExportAction.ALLOW),
             FieldRule("assessment.records.*.freshness", Classification.PUBLIC, ExportAction.ALLOW),
+            FieldRule("attachment.content", Classification.INTERNAL, ExportAction.ALLOW),
         ),
         destinations=(
             DestinationRule(
-                sink_id="assessment-report-fixture",
-                destination="report",
-                purpose="assessment-report-export",
+                sink_id=descriptor.sink_id,
+                destination=descriptor.destination,
+                purpose=descriptor.purpose,
                 permitted_classifications=frozenset({Classification.PUBLIC, Classification.INTERNAL}),
             ),
         ),
@@ -133,8 +142,10 @@ def assessment_policy() -> ExportPolicy:
     )
 
 
-def assessment_boundary() -> ExportBoundary:
-    return ExportBoundary(assessment_policy(), pseudonym_key=b"only-synthetic-test-key")
+def assessment_boundary(
+    descriptor: SinkDescriptor = SinkDescriptor("assessment-report-fixture", "report", "assessment-report-export"),
+) -> ExportBoundary:
+    return ExportBoundary(assessment_policy(descriptor), pseudonym_key=b"only-synthetic-test-key")
 
 
 def synthetic_envelope() -> dict[str, object]:
@@ -531,3 +542,173 @@ def test_assessment_export_adapter_transforms_before_caller_sink_and_refuses_unr
             pseudonym_scope="engagement-a",
         )
     assert refused.exports == []
+
+
+@pytest.mark.parametrize(
+    ("descriptor", "adapter"),
+    (
+        (
+            SinkDescriptor("assessment-provider-fixture", "model_provider", "assessment-export-contract"),
+            export_provider_assessment,
+        ),
+        (
+            SinkDescriptor("assessment-telemetry-fixture", "telemetry", "assessment-export-contract"),
+            export_assessment_telemetry,
+        ),
+        (
+            SinkDescriptor("assessment-report-fixture", "report", "assessment-report-export"),
+            export_assessment_report,
+        ),
+    ),
+)
+def test_typed_assessment_export_adapters_transform_for_each_declared_destination(
+    descriptor: SinkDescriptor, adapter: object
+) -> None:
+    """Prove each adapter hands its typed contract a transformed assessment only.
+
+    These are intentionally local recording sinks.  They exercise the generic
+    caller-supplied sink API without suggesting that this repository owns a
+    live provider, telemetry, or report-recipient delivery implementation.
+    """
+    envelope = synthetic_envelope()
+    receipt = synthetic_receipt()
+    sink = RecordingSink(descriptor)
+
+    exported = adapter(
+        [envelope],
+        receipt,
+        as_of="2026-09-28T00:00:30Z",
+        max_age_seconds=60,
+        boundary=assessment_boundary(descriptor),
+        sink=sink,
+        pseudonym_scope="engagement-a",
+    )
+
+    serialized = json.dumps(exported.payload, sort_keys=True)
+    assert sink.exports == [exported]
+    assert exported.audit.destination == descriptor.destination
+    assert exported.audit.purpose == descriptor.purpose
+    assert receipt["acquisition_id"] not in serialized
+    assert envelope["record_id"] not in serialized
+
+
+@pytest.mark.parametrize(
+    ("adapter", "descriptor"),
+    (
+        (
+            export_provider_assessment,
+            SinkDescriptor("assessment-provider-wrong", "telemetry", "assessment-export-contract"),
+        ),
+        (
+            export_assessment_telemetry,
+            SinkDescriptor("assessment-telemetry-wrong", "report", "assessment-export-contract"),
+        ),
+        (
+            export_assessment_report,
+            SinkDescriptor("assessment-report-wrong", "model_provider", "assessment-export-contract"),
+        ),
+    ),
+)
+def test_typed_assessment_export_adapters_refuse_wrong_destination(adapter: object, descriptor: SinkDescriptor) -> None:
+    sink = RecordingSink(descriptor)
+    with pytest.raises(ExportRefused, match="adapter_destination_mismatch"):
+        adapter(
+            [synthetic_envelope()],
+            synthetic_receipt(),
+            as_of="2026-09-28T00:00:30Z",
+            max_age_seconds=60,
+            boundary=assessment_boundary(descriptor),
+            sink=sink,
+            pseudonym_scope="engagement-a",
+        )
+    assert sink.exports == []
+
+
+def test_provider_assessment_export_transforms_text_attachment_before_sink() -> None:
+    descriptor = SinkDescriptor("assessment-provider-fixture", "model_provider", "assessment-export-contract")
+    sink = RecordingSink(descriptor)
+
+    exported = export_provider_assessment(
+        [synthetic_envelope()],
+        synthetic_receipt(),
+        as_of="2026-09-28T00:00:30Z",
+        max_age_seconds=60,
+        boundary=assessment_boundary(descriptor),
+        sink=sink,
+        pseudonym_scope="engagement-a",
+        attachments=(Attachment("text/plain", [b"contact person@example.test"]),),
+    )
+
+    assert sink.exports == [exported]
+    assert exported.attachments[0].content == b"contact [REDACTED:EMAIL]"
+
+
+def test_diagnostic_export_adapter_transforms_actual_diagnostic_content_before_sink() -> None:
+    descriptor = SinkDescriptor("diagnostic-report-fixture", "diagnostic", "support-diagnostic-export")
+    diagnostic_policy = ExportPolicy(
+        policy_id="synthetic-diagnostic-policy",
+        version="2026-10-10.1",
+        field_rules=(
+            FieldRule("diagnostic.timestamp", Classification.INTERNAL, ExportAction.PSEUDONYMIZE),
+            FieldRule("diagnostic.system.os", Classification.PUBLIC, ExportAction.ALLOW),
+            FieldRule("diagnostic.system.distribution", Classification.PUBLIC, ExportAction.ALLOW),
+            FieldRule("diagnostic.system.architecture", Classification.PUBLIC, ExportAction.ALLOW),
+            FieldRule("diagnostic.system.python_version", Classification.INTERNAL, ExportAction.REDACT),
+            FieldRule("diagnostic.system.is_supported", Classification.PUBLIC, ExportAction.ALLOW),
+            FieldRule("diagnostic.system.checks", Classification.INTERNAL, ExportAction.OMIT),
+            FieldRule("diagnostic.tools", Classification.INTERNAL, ExportAction.OMIT),
+            FieldRule("diagnostic.packages", Classification.INTERNAL, ExportAction.OMIT),
+            FieldRule("diagnostic.capability_truth_passed", Classification.PUBLIC, ExportAction.ALLOW),
+            FieldRule("diagnostic.capability_count", Classification.PUBLIC, ExportAction.ALLOW),
+            FieldRule("diagnostic.all_ready", Classification.PUBLIC, ExportAction.ALLOW),
+            FieldRule("diagnostic.summary", Classification.INTERNAL, ExportAction.OMIT),
+        ),
+        destinations=(
+            DestinationRule(
+                sink_id=descriptor.sink_id,
+                destination=descriptor.destination,
+                purpose=descriptor.purpose,
+                permitted_classifications=frozenset({Classification.PUBLIC, Classification.INTERNAL}),
+            ),
+        ),
+    )
+    diagnostic = DiagnosticReport(
+        timestamp="2026-10-10T00:00:00Z",
+        system=SystemDiagnostic(
+            os="test-os",
+            distribution="test-distribution",
+            architecture="test-arch",
+            python_version="private-python-path",
+            is_supported=True,
+        ),
+        tools=[],
+        packages=[],
+        capability_truth_passed=True,
+        capability_count=3,
+        all_ready=True,
+        summary={"host_path": "/private/test"},
+    )
+    sink = RecordingSink(descriptor)
+
+    exported = export_diagnostic_report(
+        diagnostic,
+        boundary=ExportBoundary(diagnostic_policy, pseudonym_key=b"only-synthetic-test-key"),
+        sink=sink,
+        pseudonym_scope="diagnostic-test",
+    )
+
+    serialized = json.dumps(exported.payload, sort_keys=True)
+    assert sink.exports == [exported]
+    assert exported.audit.destination == "diagnostic"
+    assert "private-python-path" not in serialized
+    assert "/private/test" not in serialized
+
+    wrong_sink = RecordingSink(SinkDescriptor("diagnostic-wrong", "report", "diagnostic-contract"))
+    with pytest.raises(ExportRefused, match="adapter_destination_mismatch"):
+        export_diagnostic_report(
+            diagnostic,
+            boundary=assessment_boundary(wrong_sink.descriptor),
+            sink=wrong_sink,
+            pseudonym_scope="diagnostic-test",
+        )
+    assert wrong_sink.exports == []

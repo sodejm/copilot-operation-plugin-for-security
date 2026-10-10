@@ -18,19 +18,23 @@ each export; sharing an evidence object does not automatically apply it.
 
 | Destination | Stable v1 contract | Production path instrumented in this revision | Test coverage |
 | --- | --- | --- | --- |
-| `model_provider` | A policy may register an exact `(sink_id, destination, purpose)` tuple. | No provider/export adapter currently calls the boundary. | `fixture-provider` exercises nested tool inputs/results and text streams. |
-| `telemetry` | A policy may register an exact tuple. | No telemetry exporter currently calls the boundary. | `fixture-telemetry` exercises field transformation. |
+| `model_provider` | `cops.evidence.export_provider_assessment` accepts only a `model_provider` sink descriptor and an exact registered `(sink_id, destination, purpose)` tuple. | It derives a local assessment and calls the boundary immediately before a caller-provided sink. The repository does not implement a provider recipient or network client. | A synthetic envelope/receipt test transforms content and a text attachment before an `assessment-provider-fixture` fake sink; a wrong destination refuses before delivery. |
+| `telemetry` | `cops.evidence.export_assessment_telemetry` accepts only a `telemetry` sink descriptor and an exact registered tuple. | It derives a local assessment and calls the boundary immediately before a caller-provided sink. The repository does not implement a telemetry backend or network client. | A synthetic envelope/receipt test transforms content before an `assessment-telemetry-fixture` fake sink; a wrong destination refuses before delivery. |
 | `report` | A policy may register an exact tuple. | `cops.evidence.assessment.export_assessment_report` derives a local assessment with `report()` and calls `ExportBoundary.export` immediately before the caller-provided sink. It does not select a recipient or make a network request. | A synthetic envelope/receipt test exercises the adapter with a registered fake sink and refusal; `fixture-report` exercises bounded text attachments. |
-| `diagnostic` | A policy may register an exact tuple. | No outbound diagnostic adapter currently calls the boundary. | `fixture-diagnostic` exercises safe audit output. |
+| `diagnostic` | A policy may register an exact tuple. | `cops.diagnostics.export_diagnostic_report` transforms a `DiagnosticReport` immediately before the caller-provided sink. `command_diagnostics` still renders only local terminal output; the repository does not implement a diagnostic recipient backend. | A synthetic `DiagnosticReport` test proves redaction and omission before a fake sink; `fixture-diagnostic` exercises safe audit output. |
 
-`export_assessment_report` is the only integrated outward adapter in this
-revision. Its sink is caller-provided, so its end-to-end test proves that the
-adapter transforms the assessment before the fake sink receives it; it does not
-prove delivery behavior or retention for a provider or durable recipient. The
-fixture sink IDs are test-only declarations. They do not configure a provider,
-telemetry service, report recipient, or diagnostic upload. A future adapter
-must declare its real stable sink ID, destination and purpose in a reviewed
-policy, then call this boundary immediately before the one send operation.
+`export_provider_assessment`, `export_assessment_telemetry`,
+`export_assessment_report`, and `export_diagnostic_report` are the integrated
+offline contract adapters in this revision. Each accepts a caller-provided typed
+sink and refuses a descriptor for a different destination before transforming
+or sending. The first three transform the same locally derived assessment copy;
+the telemetry path does not imply that the repository produces a distinct
+telemetry event. The diagnostic path transforms a real `DiagnosticReport`.
+Neither proves provider, telemetry, report-recipient, or diagnostic-recipient
+delivery behavior or retention. The fixture sink IDs are test-only declarations
+and do not configure any backend. A future concrete adapter must declare its
+real stable sink ID, destination and purpose in a reviewed policy, then call
+this boundary immediately before the one send operation.
 
 ## Contract
 
@@ -79,8 +83,10 @@ their execution arguments on their existing authorization path and pass only a
 copy intended for export to this API.
 
 The later #246 LangSmith importer should call `ExportBoundary` with its own
-policy and descriptor. It should use `export_assessment_report` only if it
-deliberately maps imported content into validated COPS envelopes and receipts.
+policy and descriptor. It should use one of the assessment adapters only if it
+deliberately maps imported content into validated COPS envelopes and receipts:
+choose the named adapter for the intended declared destination, never a raw
+provider or telemetry fallback.
 
 ## Corpus metric limits
 
