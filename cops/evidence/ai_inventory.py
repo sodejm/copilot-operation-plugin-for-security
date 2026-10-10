@@ -441,7 +441,7 @@ def compare_inventories(before: Mapping[str, Any], after: Mapping[str, Any], *, 
 
 def _trust_boundary_paths(
     snapshot: Mapping[str, Any], indexed: Mapping[str, Mapping[str, Any]]
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Return bounded, cycle-free paths from an agent or run to a destination."""
     outgoing: dict[str, list[Mapping[str, Any]]] = {}
     for edge in snapshot["relationships"]:
@@ -454,9 +454,9 @@ def _trust_boundary_paths(
         while queue and len(paths) < MAX_PATHS and expansions < MAX_PATH_EXPANSIONS:
             current, trail, visited = queue.pop(0)
             for edge in sorted(outgoing.get(current, []), key=lambda item: item["id"]):
-                expansions += 1
-                if expansions > MAX_PATH_EXPANSIONS:
+                if len(paths) >= MAX_PATHS or expansions >= MAX_PATH_EXPANSIONS:
                     break
+                expansions += 1
                 target = edge["to"]
                 if target in visited:
                     continue
@@ -479,12 +479,22 @@ def _trust_boundary_paths(
                     )
                 elif len(next_trail) < MAX_PATH_DEPTH:
                     queue.append((target, next_trail, visited | {target}))
-    return paths
+    return paths, _path_coverage(paths, expansions)
+
+
+def _path_coverage(paths: list[dict[str, Any]], expansions: int) -> dict[str, Any]:
+    """Make conservative graph-search limits visible to report consumers."""
+    return {
+        "max_paths": MAX_PATHS,
+        "max_depth": MAX_PATH_DEPTH,
+        "max_expansions": MAX_PATH_EXPANSIONS,
+        "limit_reached": len(paths) >= MAX_PATHS or expansions >= MAX_PATH_EXPANSIONS,
+    }
 
 
 def _privileged_document_paths(
     snapshot: Mapping[str, Any], indexed: Mapping[str, Mapping[str, Any]]
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Find bounded document -> agent -> privileged-tool -> destination paths."""
     outgoing: dict[str, list[Mapping[str, Any]]] = {}
     for edge in snapshot["relationships"]:
@@ -496,9 +506,9 @@ def _privileged_document_paths(
         while queue and len(paths) < MAX_PATHS and expansions < MAX_PATH_EXPANSIONS:
             current, trail, visited = queue.pop(0)
             for edge in sorted(outgoing.get(current, []), key=lambda item: item["id"]):
-                expansions += 1
-                if expansions > MAX_PATH_EXPANSIONS:
+                if len(paths) >= MAX_PATHS or expansions >= MAX_PATH_EXPANSIONS:
                     break
+                expansions += 1
                 target, next_trail = edge["to"], trail + [edge]
                 if target in visited:
                     continue
@@ -542,7 +552,7 @@ def _privileged_document_paths(
                     )
                 elif len(next_trail) < MAX_PATH_DEPTH:
                     queue.append((target, next_trail, visited | {target}))
-    return paths
+    return paths, _path_coverage(paths, expansions)
 
 
 def inventory_report(
@@ -564,6 +574,8 @@ def inventory_report(
                     "completeness": edge["provenance"]["completeness"],
                 }
             )
+    trust_boundary_paths, trust_boundary_coverage = _trust_boundary_paths(snapshot, indexed)
+    privileged_document_paths, privileged_document_coverage = _privileged_document_paths(snapshot, indexed)
     return {
         "schema_version": REPORT_SCHEMA_VERSION,
         "snapshot_id": snapshot["snapshot_id"],
@@ -576,8 +588,12 @@ def inventory_report(
             "unknowns": len(snapshot["unknowns"]),
         },
         "trust_boundaries": boundaries,
-        "trust_boundary_paths": _trust_boundary_paths(snapshot, indexed),
-        "privileged_document_paths": _privileged_document_paths(snapshot, indexed),
+        "trust_boundary_paths": trust_boundary_paths,
+        "privileged_document_paths": privileged_document_paths,
+        "path_coverage": {
+            "trust_boundary_paths": trust_boundary_coverage,
+            "privileged_document_paths": privileged_document_coverage,
+        },
         "identity_links": deepcopy(snapshot["identity_links"]),
         "unknowns": deepcopy(snapshot["unknowns"]),
     }

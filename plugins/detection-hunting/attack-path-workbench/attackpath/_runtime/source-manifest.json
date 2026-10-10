@@ -27,7 +27,7 @@
     },
     {
       "path": "cops/evidence/ai_inventory.py",
-      "sha256": "17d543ffab0be75956a618ab335b16480e20c818f12166116c7482ca49cf1891"
+      "sha256": "103ee2f6a895da9c108699b4176248d0afbcf3057105b6162fe50a3d7a52a37a"
     },
     {
       "path": "catalog/schemas/evidence-envelope.schema.json",

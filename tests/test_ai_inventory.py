@@ -1,4 +1,5 @@
 import copy
+import importlib
 import json
 from pathlib import Path
 
@@ -371,3 +372,34 @@ def test_versioned_schemas_validate_import_comparison_and_lineage_fixtures():
     changed["assets"][0]["scopes"] = ["audit", "billing"]
     after = import_inventory(changed, engagement_id="engagement-a")
     comparison_validator.validate(compare_inventories(before, after, engagement_id="engagement-a"))
+
+
+def test_report_exposes_conservative_path_coverage_when_a_cap_is_reached(monkeypatch):
+    source = document()
+    source["assets"].append(
+        {
+            "id": "destination/secondary",
+            "kind": "destination",
+            "external_id": "dest-2",
+            "owner": "security",
+            "sensitivity": "restricted",
+            "trust": "trusted",
+            "provenance": source["assets"][0]["provenance"],
+        }
+    )
+    source["relationships"].append(
+        {
+            "id": "edge/tool-secondary-destination",
+            "from": "tool/billing",
+            "to": "destination/secondary",
+            "kind": "outbound_transfer",
+            "support": "observed",
+            "provenance": source["assets"][0]["provenance"],
+        }
+    )
+    inventory_module = importlib.import_module("cops.evidence.ai_inventory")
+    monkeypatch.setattr(inventory_module, "MAX_PATHS", 1)
+    report = inventory_report(import_inventory(source, engagement_id="engagement-a"), engagement_id="engagement-a")
+    coverage = report["path_coverage"]["trust_boundary_paths"]
+    assert len(report["trust_boundary_paths"]) == 1
+    assert coverage == {"max_paths": 1, "max_depth": 8, "max_expansions": 10_000, "limit_reached": True}
