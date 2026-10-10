@@ -77,6 +77,10 @@ def _source(value: Any) -> dict[str, Any]:
         _fail("invalid_source")
     result = {key: _string(source[key], "invalid_source") for key in
               ("provider", "tenant", "collection_id", "collected_at", "completeness")}
+    # These two values delimit the public namespace.  Rejecting the delimiter
+    # keeps the namespace injective without encoding opaque provider names.
+    if "/" in result["provider"] or "/" in result["tenant"]:
+        _fail("invalid_source")
     timestamp(result["collected_at"])
     if result["completeness"] not in COMPLETENESS:
         _fail("invalid_source")
@@ -90,7 +94,7 @@ def _source(value: Any) -> dict[str, Any]:
 
 def _asset(value: Any, namespace: str) -> dict[str, Any]:
     item = _keys(value, {"id", "kind", "display_name", "external_id", "owner", "sensitivity", "trust",
-                         "identity", "provenance"}, "invalid_asset")
+                         "identity", "permissions", "scopes", "provenance"}, "invalid_asset")
     if {"id", "kind", "external_id", "owner", "sensitivity", "trust", "provenance"} - set(item):
         _fail("invalid_asset")
     kind = _string(item["kind"], "invalid_asset")
@@ -114,6 +118,16 @@ def _asset(value: Any, namespace: str) -> dict[str, Any]:
             _fail("invalid_identity")
         result["identity"] = {key: _string(identity[key], "invalid_identity")
                               for key in ("provider", "tenant", "kind", "id")}
+    for field in ("permissions", "scopes"):
+        if field not in item:
+            continue
+        values = item[field]
+        if not isinstance(values, list) or len(values) > 128:
+            _fail("invalid_asset")
+        normalized = [_string(value, "invalid_asset") for value in values]
+        if len(set(normalized)) != len(normalized):
+            _fail("invalid_asset")
+        result[field] = sorted(normalized)
     result["qualified_id"] = f"{namespace}/{result['id']}"
     return result
 
@@ -312,6 +326,15 @@ def compare_inventories(before: Mapping[str, Any], after: Mapping[str, Any], *, 
         result["removed"][name] = [old[item] for item in sorted(old.keys() - new.keys())]
         result["changed"][name] = [{"id": item, "before": old[item], "after": new[item]}
                                    for item in sorted(old.keys() & new.keys()) if old[item] != new[item]]
+    before_assets = {item["qualified_id"]: item for item in before["assets"]}
+    after_assets = {item["qualified_id"]: item for item in after["assets"]}
+    for field in ("permissions", "scopes"):
+        result[f"{field[:-1]}_changes"] = [
+            {"id": item, "before": before_assets[item].get(field, []),
+             "after": after_assets[item].get(field, [])}
+            for item in sorted(before_assets.keys() & after_assets.keys())
+            if before_assets[item].get(field, []) != after_assets[item].get(field, [])
+        ]
     # A declared edge or a partial source must stay visibly uncertain in a diff;
     # comparison is not permitted to silently upgrade either into observation.
     result["uncertain_relationships"] = [item for item in after["relationships"]
@@ -354,7 +377,7 @@ def _trust_boundary_paths(snapshot: Mapping[str, Any], indexed: Mapping[str, Map
 
 
 def _privileged_document_paths(snapshot: Mapping[str, Any], indexed: Mapping[str, Mapping[str, Any]]) -> list[dict[str, Any]]:
-    """Find bounded untrusted-document to privileged-tool destination paths."""
+    """Find bounded document -> agent -> privileged-tool -> destination paths."""
     outgoing: dict[str, list[Mapping[str, Any]]] = {}
     for edge in snapshot["relationships"]:
         outgoing.setdefault(edge["from"], []).append(edge)
@@ -372,9 +395,13 @@ def _privileged_document_paths(snapshot: Mapping[str, Any], indexed: Mapping[str
                 if target in visited:
                     continue
                 target_asset = indexed[target]
-                if target_asset["kind"] == "destination" and any(
-                        indexed[item["to"]]["kind"] == "mcp_tool" and indexed[item["to"]]["trust"] == "privileged"
-                        for item in next_trail):
+                agent_index = next((index for index, item in enumerate(next_trail)
+                                    if indexed[item["to"]]["kind"] in {"agent", "agent_run"}), None)
+                tool_index = next((index for index, item in enumerate(next_trail)
+                                   if indexed[item["to"]]["kind"] == "mcp_tool" and
+                                   indexed[item["to"]]["trust"] == "privileged"), None)
+                if (target_asset["kind"] == "destination" and agent_index is not None and
+                        tool_index is not None and agent_index < tool_index):
                     paths.append({"from": {"id": start["qualified_id"], "kind": "document", "trust": "untrusted"},
                                   "to": {"id": target, "kind": "destination", "trust": target_asset["trust"]},
                                   "relationships": [{"id": item["id"], "kind": item["kind"], "support": item["support"],

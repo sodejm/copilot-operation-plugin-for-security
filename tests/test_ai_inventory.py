@@ -1,9 +1,20 @@
 import copy
+import json
+from pathlib import Path
 
 import pytest
+from jsonschema import Draft202012Validator
 
 from cops.evidence import (InventoryError, InventoryRegistry, adapt_entra_service_principals,
                            compare_inventories, import_inventory, inventory_report)
+
+ROOT = Path(__file__).resolve().parents[1]
+FIXTURES = ROOT / "tests" / "fixtures"
+SCHEMAS = ROOT / "cops" / "evidence" / "schemas"
+
+
+def load_json(path):
+    return json.loads(path.read_text())
 
 
 def document(*, tenant="tenant-a", tool="billing-tool"):
@@ -52,6 +63,8 @@ def test_compare_reports_tool_changes_and_unknowns_deterministically():
 def test_compare_reports_permission_and_destination_changes():
     before = import_inventory(document(), engagement_id="engagement-a")
     changed = document()
+    changed["assets"][0]["permissions"] = ["tool:billing.read", "tool:billing.write"]
+    changed["assets"][0]["scopes"] = ["billing", "audit"]
     changed["assets"].append({"id": "destination/privileged", "kind": "destination", "external_id": "dest-2", "owner": "security", "sensitivity": "restricted", "trust": "privileged", "provenance": changed["assets"][0]["provenance"]})
     changed["relationships"][1]["support"] = "observed"
     changed["relationships"][1]["to"] = "destination/privileged"
@@ -61,6 +74,10 @@ def test_compare_reports_permission_and_destination_changes():
     assert comparison["changed"]["relationships"][0]["id"] == "edge/tool-destination"
     assert comparison["changed"]["relationships"][0]["after"]["kind"] == "delegation"
     assert comparison["changed"]["relationships"][0]["after"]["to"].endswith("destination/privileged")
+    assert comparison["permission_changes"] == [{"id": "langsmith/tenant-a/run/root", "before": [],
+                                                  "after": ["tool:billing.read", "tool:billing.write"]}]
+    assert comparison["scope_changes"] == [{"id": "langsmith/tenant-a/run/root", "before": [],
+                                             "after": ["audit", "billing"]}]
 
 
 def test_reconciles_an_agent_to_entra_sponsor_without_merging_source_records():
@@ -113,3 +130,45 @@ def test_report_identifies_untrusted_document_to_privileged_tool_path_and_revali
     snapshot["relationships"][0]["to"] = "langsmith/tenant-a/destination/audit"
     with pytest.raises(InventoryError, match="restricted_reference"):
         inventory_report(snapshot, engagement_id="engagement-a")
+
+
+def test_report_excludes_document_to_tool_path_without_an_agent():
+    source = document()
+    provenance = source["assets"][0]["provenance"]
+    source["assets"].append({"id": "document/upload", "kind": "document", "external_id": "doc-1",
+                             "owner": "external", "sensitivity": "unknown", "trust": "untrusted",
+                             "provenance": provenance})
+    source["relationships"].append({"id": "edge/document-tool", "from": "document/upload",
+                                    "to": "tool/billing", "kind": "tool_invocation", "support": "observed",
+                                    "provenance": provenance})
+    report = inventory_report(import_inventory(source, engagement_id="engagement-a"),
+                              engagement_id="engagement-a")
+    assert report["privileged_document_paths"] == []
+
+
+@pytest.mark.parametrize(("provider", "tenant"), [("a/b", "c"), ("a", "b/c")])
+def test_rejects_namespace_component_delimiter(provider, tenant):
+    source = document()
+    source["source"]["provider"] = provider
+    source["source"]["tenant"] = tenant
+    with pytest.raises(InventoryError, match="invalid_source"):
+        import_inventory(source, engagement_id="engagement-a")
+
+
+def test_versioned_schemas_validate_import_comparison_and_lineage_fixtures():
+    import_validator = Draft202012Validator(load_json(SCHEMAS / "ai-inventory-v1.schema.json"))
+    comparison_validator = Draft202012Validator(load_json(SCHEMAS / "ai-inventory-comparison-v1.schema.json"))
+    import_fixture = load_json(FIXTURES / "ai_inventory_v1.json")
+    lineage_fixture = load_json(FIXTURES / "ai_inventory_lineage_v1.json")
+    comparison_fixture = load_json(FIXTURES / "ai_inventory_comparison_v1.json")
+    import_validator.validate(import_fixture)
+    import_validator.validate(lineage_fixture)
+    comparison_validator.validate(comparison_fixture)
+    lineage = import_inventory(lineage_fixture, engagement_id="engagement-a")
+    assert [link["reason"] for link in lineage["identity_links"]] == ["sponsor", "alias", "merge", "split"]
+    before = import_inventory(import_fixture, engagement_id="engagement-a")
+    changed = copy.deepcopy(import_fixture)
+    changed["assets"][0]["permissions"] = ["tool:billing.write"]
+    changed["assets"][0]["scopes"] = ["audit", "billing"]
+    after = import_inventory(changed, engagement_id="engagement-a")
+    comparison_validator.validate(compare_inventories(before, after, engagement_id="engagement-a"))
