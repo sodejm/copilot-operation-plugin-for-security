@@ -50,6 +50,12 @@ def partial(context):
     context["fixture"]["failure_mode"] = "partial"
 
 
+@given("a fixture configured with unavailable post-action verification")
+def unavailable_verification(context):
+    setup(context)
+    context["fixture"]["verification_available"] = False
+
+
 @when("the analyst dry runs and executes the plan")
 def run(context):
     receipt = dry_run(context["plan"], context["fixture"])
@@ -75,6 +81,15 @@ def named(context):
     assert context["updated"]["targets"]["host-2"]["state"] == "active"
 
 
+@then("the result records successful post-action verification")
+def successful_verification(context):
+    assert context["result"]["provider_request_id"].startswith("fixture-request-")
+    assert context["result"]["post_action_verification"]["result"] == "succeeded"
+    assert context["result"]["post_action_verification"]["reference"].startswith(
+        "fixture-state-sha256-"
+    )
+
+
 @then("a replay of the same plan is rejected")
 def replay(context):
     with pytest.raises(ActionError):
@@ -91,3 +106,18 @@ def no_apply(context):
 def rollback(context):
     assert context["result"]["outcome"] == "partial-rolled-back"
     assert context["updated"]["targets"]["host-1"]["state"] == "active"
+
+
+@then("the result records failed post-action verification")
+def failed_verification(context):
+    verification = context["result"]["post_action_verification"]
+    assert verification["result"] == "failed"
+    assert verification["reference"].startswith("fixture-state-sha256-")
+
+
+@then("the result records unavailable post-action verification")
+def unavailable_result(context):
+    assert context["result"]["post_action_verification"] == {
+        "reference": None,
+        "result": "unavailable",
+    }
