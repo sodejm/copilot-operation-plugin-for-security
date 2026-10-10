@@ -825,9 +825,14 @@ class IsolatedWorker:
                                 break
                             cmd = adapter.assemble_command(action, op.get("arguments"))
 
-                            def run_bound_probe(command: Any, **kwargs: Any) -> Any:
+                            def run_bound_probe(
+                                command: Any,
+                                *,
+                                _operation_workspace_fd: int = operation_workspace_fd,
+                                **kwargs: Any,
+                            ) -> Any:
                                 return self.sandbox.run(
-                                    command, expected_workspace_fd=operation_workspace_fd, **kwargs
+                                    command, expected_workspace_fd=_operation_workspace_fd, **kwargs
                                 )
 
                             prepared = prepare_executable(
@@ -865,6 +870,7 @@ class IsolatedWorker:
                                     _cmd: tuple[str, ...] = tuple(cmd),
                                     _remaining_capture: int = remaining_capture,
                                     _operation_workspace: Path = operation_workspace,
+                                    _operation_workspace_fd: int = operation_workspace_fd,
                                     _operation_env: dict[str, str] = operation_env,
                                     **extra_arguments: Any,
                                 ) -> Any:
@@ -880,7 +886,7 @@ class IsolatedWorker:
                                         timeout_seconds=invocation_timeout,
                                         max_output_bytes=_remaining_capture,
                                         pass_fds=_prepared.pass_fds,
-                                        expected_workspace_fd=operation_workspace_fd,
+                                        expected_workspace_fd=_operation_workspace_fd,
                                         **extra_arguments,
                                     )
 
