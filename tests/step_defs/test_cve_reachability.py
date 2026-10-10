@@ -218,6 +218,95 @@ def packaging():
         assert re.search(r'Scenario(?: Outline)?: ' + re.escape(name) + r'\n', feature)
 
 
+@when('directory and leaf entries are swapped after validation')
+def synchronized_descriptor_swaps(workspace, monkeypatch):
+    if not (hasattr(HELPER.os, 'supports_dir_fd')
+            and HELPER.os.open in HELPER.os.supports_dir_fd
+            and hasattr(HELPER.os, 'O_DIRECTORY')
+            and getattr(HELPER.os, 'O_NOFOLLOW', 0)):
+        pytest.skip('descriptor race protection requires dir_fd, O_DIRECTORY and O_NOFOLLOW')
+
+    results = []
+    for kind in ('leaf', 'directory'):
+        case_root = workspace['root'] / kind
+        case_root.mkdir()
+        outside = workspace['root'].parent / f'{kind}-outside'
+        outside.mkdir()
+        marker = f'{kind} external content'
+
+        if kind == 'leaf':
+            entry = case_root / 'evidence.txt'
+            entry.write_text('trusted evidence\n')
+            outside_target = outside / 'outside.txt'
+            outside_target.write_text(marker)
+            relative = 'evidence.txt'
+        else:
+            entry = case_root / 'nested'
+            entry.mkdir()
+            (entry / 'evidence.txt').write_text('trusted evidence\n')
+            outside_target = outside
+            (outside_target / 'evidence.txt').write_text(marker)
+            relative = 'nested/evidence.txt'
+
+        original_entry = entry.with_name(f'{entry.name}.original')
+        real_open = HELPER.os.open
+        real_read = HELPER.os.read
+        swapped = False
+        trigger = None
+        read_calls = []
+        swap_component = 'evidence.txt' if kind == 'leaf' else 'nested'
+
+        def swap_before_descriptor_open(path, flags, *args, **kwargs):
+            nonlocal swapped, trigger
+            if not swapped and path == swap_component and kwargs.get('dir_fd') is not None:
+                entry.rename(original_entry)
+                entry.symlink_to(outside_target, target_is_directory=kind == 'directory')
+                swapped = True
+                trigger = {'dir_fd': kwargs['dir_fd'], 'path': path}
+            return real_open(path, flags, *args, **kwargs)
+
+        def record_read(fd, size):
+            read_calls.append((fd, size))
+            return real_read(fd, size)
+
+        with monkeypatch.context() as race_patch:
+            race_patch.setattr(HELPER.os, 'open', swap_before_descriptor_open)
+            race_patch.setattr(
+                HELPER.os, 'supports_dir_fd',
+                set(HELPER.os.supports_dir_fd) | {swap_before_descriptor_open})
+            race_patch.setattr(HELPER.os, 'read', record_read)
+            with pytest.raises(ValueError) as rejected:
+                HELPER.read_evidence_bytes(case_root, relative)
+
+        results.append({
+            'diagnostic': str(rejected.value),
+            'marker': marker,
+            'outside': outside,
+            'path': relative,
+            'read_calls': read_calls,
+            'root': case_root,
+            'swapped': swapped,
+            'trigger': trigger,
+            'trigger_path': swap_component,
+        })
+
+    workspace['descriptor_race_results'] = results
+
+
+@then('descriptor race reads fail closed with scoped errors')
+def descriptor_races_fail_closed(workspace):
+    for result in workspace['descriptor_race_results']:
+        assert result['swapped']
+        assert result['trigger']['path'] == result['trigger_path']
+        assert isinstance(result['trigger']['dir_fd'], int)
+        assert result['read_calls'] == []
+        assert result['diagnostic'] == 'cannot read evidence file: safe read rejected'
+        assert result['marker'] not in result['diagnostic']
+        assert str(result['outside']) not in result['diagnostic']
+        assert result['path'] not in result['diagnostic']
+        assert str(result['root']) not in result['diagnostic']
+
+
 @pytest.mark.parametrize('location', ['existing', 'inside', 'missing_repo'])
 def test_init_preserves_existing_files(tmp_path, location):
     repo = tmp_path / 'repo'
