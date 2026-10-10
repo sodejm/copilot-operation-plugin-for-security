@@ -62,6 +62,11 @@ description: Route authorized defensive Sentinel hunt planning, KQL authoring, a
 
 # Sentinel Hunt Workbench router for {host}
 
+When contributing to the COPS source repository, follow its root `AGENTS.md`
+for checkpoint commits, independent human review including existing code, and
+maintained threat models. This contribution policy does not grant repository-write
+or publishing authority during installed hunt workflows.
+
 This is a thin host adapter. The generated skill copies are authoritative only
 when their canonical bundle SHA-256 is {bundle_hash}.
 

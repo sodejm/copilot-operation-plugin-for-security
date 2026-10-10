@@ -7,7 +7,7 @@
     },
     {
       "path": "claude-code/agents/sentinel-hunt-workbench.md",
-      "sha256": "9a422eb44194d9782ef2ce9cc20d6d9da41f32a2ae6103af8c61608106b9d8e6"
+      "sha256": "6c3ea65e735c693f9ca001bb3ca7045df2134a87affc630e76e8526549c38321"
     },
     {
       "canonical_path": "skills/adapt-sentinel-hunt/SKILL.md",
@@ -83,7 +83,7 @@
     },
     {
       "path": "github-copilot/.github/agents/sentinel-hunt-workbench.agent.md",
-      "sha256": "1722c16458f151457f0a3e2ae8571fd6127cd941a6cc066db16df1407e4fd9da"
+      "sha256": "cfb900796ef63e731fb3caedd0b77ee96eccdff5c85aab43585618069cd6eb06"
     },
     {
       "canonical_path": "skills/adapt-sentinel-hunt/SKILL.md",
@@ -127,7 +127,7 @@
     },
     {
       "path": "openai/AGENTS.md",
-      "sha256": "6461a07d6cfbba05bd7439fd135d1d7d340b69f96a41a38a007a60db5b2b0531"
+      "sha256": "207af862f7e6ad2b54c639382d3bf3abf5b75906b8892d6236c616b9248663ee"
     },
     {
       "canonical_path": "skills/adapt-sentinel-hunt/SKILL.md",
