@@ -10,7 +10,9 @@ their limitations.
 
 - [ ] Accept only `cops.ai-components/v1` manifests with bounded components,
   dependency identifiers, expected publisher identity, provenance references,
-  and a policy version.
+  and a policy version. Publish a Draft 2020-12 JSON Schema and validate the
+  reference fixture against it; registry and receipt semantics remain verifier
+  checks rather than schema claims.
 - [ ] Canonicalize behavior-bearing MCP name, description, schemas and policy;
   detect a changed tool description/schema and prompt or skill content digest.
   JSON member order produces the same identity.

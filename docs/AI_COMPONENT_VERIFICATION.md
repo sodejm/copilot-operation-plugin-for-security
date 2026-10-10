@@ -5,6 +5,12 @@ manifest with supplied local observations. It does not load component content,
 fetch remote records, execute a tool, or cryptographically validate a signature.
 Those operations require separate authorized controls.
 
+Machine-readable structure is defined in
+[`cops/evidence/schemas/ai-components-v1.schema.json`](../cops/evidence/schemas/ai-components-v1.schema.json).
+The schema validates the manifest envelope. The offline Python verifier separately
+validates registered licensing decisions, inventory linkage, and exact
+caller-supplied receipt matching.
+
 | Input | What is checked | Limitation |
 | --- | --- | --- |
 | MCP tool | Name, description, input/output schemas, and policy are canonicalized | Metadata can be deceptive; it is never executed |

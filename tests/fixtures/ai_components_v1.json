@@ -1,0 +1,34 @@
+{
+  "schema_version": "cops.ai-components/v1",
+  "manifest_id": "review-1",
+  "policy": {"version": "policy-1", "signing_required": true},
+  "components": [
+    {
+      "component_id": "billing-tool",
+      "component_type": "mcp_tool",
+      "source": {"provider": "internal", "name": "billing"},
+      "version": "1.0.0",
+      "expected_publisher": "security",
+      "provenance_evidence_refs": ["S01"],
+      "licensing_decision_id": "COPS-DECISION-REFERENCE-ONLY",
+      "dependencies": [],
+      "inventory_asset_id": "langsmith/tenant-fixture/tool/billing",
+      "behavior": {"name": "billing", "description": "Read ledger entries.", "input_schema": {"type": "object", "properties": {"id": {"type": "string"}}}, "policy": {"read_only": true}},
+      "signature": {"status": "verified", "receipt_id": "receipt-billing"},
+      "organizational_approval": {"status": "approved"}
+    },
+    {
+      "component_id": "support-prompt",
+      "component_type": "prompt_bundle",
+      "source": {"provider": "internal", "name": "support"},
+      "version": "1.0.0",
+      "expected_publisher": "security",
+      "provenance_evidence_refs": ["S01"],
+      "licensing_decision_id": "COPS-DECISION-REFERENCE-ONLY",
+      "dependencies": ["billing-tool"],
+      "behavior": {"content_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+      "signature": {"status": "verified", "receipt_id": "receipt-support"},
+      "organizational_approval": {"status": "approved"}
+    }
+  ]
+}

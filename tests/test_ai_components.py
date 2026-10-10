@@ -5,6 +5,7 @@ from copy import deepcopy
 from pathlib import Path
 
 import pytest
+from jsonschema import Draft202012Validator, ValidationError
 
 from cops.evidence.ai_components import (
     ComponentVerificationError,
@@ -14,6 +15,9 @@ from cops.evidence.ai_components import (
     verify_component_manifest,
 )
 from cops.evidence.ai_inventory import import_inventory
+
+ROOT = Path(__file__).resolve().parents[1]
+FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def manifest():
@@ -59,8 +63,20 @@ def manifest():
 
 
 def snapshot():
-    fixture = Path(__file__).parent / "fixtures" / "ai_inventory_v1.json"
+    fixture = FIXTURES / "ai_inventory_v1.json"
     return import_inventory(json.loads(fixture.read_text()), engagement_id="engagement-a")
+
+
+def test_versioned_component_schema_validates_fixture_and_rejects_unknown_fields():
+    schema = json.loads((ROOT / "cops/evidence/schemas/ai-components-v1.schema.json").read_text())
+    fixture = json.loads((FIXTURES / "ai_components_v1.json").read_text())
+    validator = Draft202012Validator(schema)
+    validator.validate(fixture)
+    assert validate_component_manifest(fixture)["manifest_id"] == "review-1"
+    invalid = deepcopy(fixture)
+    invalid["unrecognized"] = True
+    with pytest.raises(ValidationError):
+        validator.validate(invalid)
 
 
 def test_canonical_identity_detects_schema_description_and_bundle_substitution():
