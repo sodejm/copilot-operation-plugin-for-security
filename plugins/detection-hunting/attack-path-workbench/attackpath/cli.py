@@ -11,7 +11,6 @@ from pathlib import Path
 from .core import GateError, analyze, canonical, query_intent
 from .report import markdown
 
-
 LEGACY_REPORT_FILES = (
     "report.json",
     "graph.json",

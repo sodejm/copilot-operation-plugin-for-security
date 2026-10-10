@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import copy
 import contextlib
+import copy
 import errno
 import hashlib
 import io

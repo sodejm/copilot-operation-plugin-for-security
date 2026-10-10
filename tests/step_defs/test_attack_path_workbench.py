@@ -18,6 +18,8 @@ ROOT = Path(__file__).resolve().parents[2]
 PLUGIN = ROOT / "plugins/detection-hunting/attack-path-workbench"
 FIXTURE = PLUGIN / "fixtures/illustrative"
 sys.path.insert(0, str(PLUGIN))
+from attackpath.azure import report as azure_report  # noqa: E402
+from attackpath.azure.model import AzureError  # noqa: E402
 from attackpath.core import (  # noqa: E402
     GateError,
     analyze,
@@ -28,8 +30,6 @@ from attackpath.core import (  # noqa: E402
     query_intent,
     validate_input,
 )
-from attackpath.azure import report as azure_report  # noqa: E402
-from attackpath.azure.model import AzureError  # noqa: E402
 
 scenarios("../../specs/features/attack_path_workbench.feature")
 
