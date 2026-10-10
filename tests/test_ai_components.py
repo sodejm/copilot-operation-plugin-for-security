@@ -134,6 +134,10 @@ def test_verified_signature_claim_requires_a_matching_trusted_receipt():
     unverified = verify_component_manifest(document)["components"][0]
     assert unverified["authenticity"] == "unverified_signature_claim"
     assert unverified["outcome"] == "rejected"
+    document["policy"]["signing_required"] = False
+    optional = verify_component_manifest(document)["components"][0]
+    assert optional["outcome"] == "limited"
+    document["policy"]["signing_required"] = True
     identity = validate_component_manifest(document)["components"][0]["identity"]
     verified = verify_component_manifest(
         document,

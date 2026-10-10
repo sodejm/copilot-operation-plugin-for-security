@@ -327,7 +327,12 @@ def verify_component_manifest(
                 else (
                     "limited"
                     if integrity == "limited_opaque_alias"
-                    or authenticity in {"unsigned_allowed", "unsupported_verification"}
+                    or authenticity
+                    in {
+                        "unsigned_allowed",
+                        "unsupported_verification",
+                        "unverified_signature_claim",
+                    }
                     or provenance != "recorded"
                     or approval != "approved"
                     else "verified"
