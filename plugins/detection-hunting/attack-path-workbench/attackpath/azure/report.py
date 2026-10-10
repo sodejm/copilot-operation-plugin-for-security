@@ -1,8 +1,11 @@
 """Bounded reports and individually re-evaluated entitlement cuts."""
 
+import ctypes
+import errno
 import html
 import os
 import secrets
+import sys
 
 from .._runtime.cops.evidence.canonical import canonical
 from .input import load
@@ -233,19 +236,67 @@ def markdown(report):
     return "\n".join(lines) + "\n"
 
 
-def _path_names_directory(parts, expected):
-    """Return whether the requested lexical path still names expected."""
+def _path_identities(parts):
+    """Resolve path components without following a final-component symlink."""
     descriptors = []
     try:
         descriptors.append(os.open("/", os.O_RDONLY | os.O_DIRECTORY))
+        identities = []
         for part in parts:
             descriptors.append(os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=descriptors[-1]))
-        actual_stat = os.fstat(descriptors[-1])
-        expected_stat = os.fstat(expected)
-        return (actual_stat.st_dev, actual_stat.st_ino) == (expected_stat.st_dev, expected_stat.st_ino)
+            item = os.fstat(descriptors[-1])
+            identities.append((item.st_dev, item.st_ino))
+        return identities
     finally:
         for fd in reversed(descriptors):
             os.close(fd)
+
+
+def _path_names_directory(parts, expected):
+    """Return whether two fresh walks still name expected."""
+    first = _path_identities(parts)
+    second = _path_identities(parts)
+    expected_stat = os.fstat(expected)
+    expected_identity = (expected_stat.st_dev, expected_stat.st_ino)
+    return first == second and second[-1] == expected_identity
+
+
+def _publish_completion(staging_fd, directory):
+    """Atomically publish the staged inode without replacing a marker."""
+    if sys.platform == "darwin":
+        libc = ctypes.CDLL(None, use_errno=True)
+        try:
+            clone = libc.fclonefileat
+        except AttributeError:
+            raise OSError(errno.ENOTSUP, "descriptor-bound completion publication is unavailable") from None
+        clone.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint32]
+        clone.restype = ctypes.c_int
+        if clone(staging_fd, directory, b"completion.json", 0) != 0:
+            error = ctypes.get_errno()
+            raise OSError(error, os.strerror(error))
+        return
+    if sys.platform.startswith("linux") and os.link in os.supports_dir_fd:
+        os.link(
+            f"/proc/self/fd/{staging_fd}",
+            "completion.json",
+            dst_dir_fd=directory,
+            follow_symlinks=True,
+        )
+        return
+    raise OSError(errno.ENOTSUP, "descriptor-bound completion publication is unavailable")
+
+
+def _unlink_staging_if_owned(staging_name, staging_fd, directory):
+    """Unlink the staging name only while it still names our open inode."""
+    try:
+        named = os.stat(staging_name, dir_fd=directory, follow_symlinks=False)
+    except FileNotFoundError:
+        return True
+    opened = os.fstat(staging_fd)
+    if (named.st_dev, named.st_ino) != (opened.st_dev, opened.st_ino):
+        return False
+    os.unlink(staging_name, dir_fd=directory)
+    return True
 
 
 def write_files(output, contents, limit):
@@ -262,11 +313,12 @@ def write_files(output, contents, limit):
         not parts
         or not hasattr(os, "O_NOFOLLOW")
         or os.open not in os.supports_dir_fd
-        or (completion is not None and os.link not in os.supports_dir_fd)
+        or (completion is not None and sys.platform != "darwin" and not sys.platform.startswith("linux"))
     ):
         raise AzureError("unsafe_output")
     descriptors = []
     staging_name = None
+    staging_fd = None
     staging_created = False
     completion_published = False
     try:
@@ -281,6 +333,7 @@ def write_files(output, contents, limit):
             os.fchmod(directory, 0o700)
         except OSError:
             pass
+        os.fsync(parent)
         for name, data in encoded.items():
             fd = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=directory)
             try:
@@ -303,53 +356,51 @@ def write_files(output, contents, limit):
 
         if completion is not None:
             # Publish the authoritative marker only after the report entries
-            # and bytes are durable. A random staging name lets link(2) make
-            # publication atomic and no-replace; failure recovery never
-            # unlinks a public marker that another invocation may own.
+            # and bytes are durable. The publication primitive uses the open
+            # staging descriptor, so replacing its pathname cannot substitute
+            # marker bytes. Failure recovery never unlinks a public marker.
             staging_name = f".completion-{secrets.token_hex(16)}.tmp"
-            fd = os.open(
+            staging_fd = os.open(
                 staging_name,
-                os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
                 0o600,
                 dir_fd=directory,
             )
             staging_created = True
             try:
-                try:
-                    os.fchmod(fd, 0o600)
-                except OSError:
-                    pass
-                view = memoryview(completion)
-                while view:
-                    count = os.write(fd, view)
-                    if count <= 0:
-                        raise AzureError("output_write_failed")
-                    view = view[count:]
-                os.fsync(fd)
-            finally:
-                os.close(fd)
+                os.fchmod(staging_fd, 0o600)
+            except OSError:
+                pass
+            view = memoryview(completion)
+            while view:
+                count = os.write(staging_fd, view)
+                if count <= 0:
+                    raise AzureError("output_write_failed")
+                view = view[count:]
+            os.fsync(staging_fd)
             os.fsync(directory)
             if not _path_names_directory(parts, directory):
                 raise OSError("output path changed during write")
-            os.link(
-                staging_name,
-                "completion.json",
-                src_dir_fd=directory,
-                dst_dir_fd=directory,
-                follow_symlinks=False,
-            )
+            _publish_completion(staging_fd, directory)
             completion_published = True
-            os.unlink(staging_name, dir_fd=directory)
+            # Make the public marker durable before any fallible staging-name
+            # cleanup can cause the command to report an error.
+            os.fsync(directory)
+            if not _unlink_staging_if_owned(staging_name, staging_fd, directory):
+                raise OSError("completion staging path changed during write")
             staging_created = False
             os.fsync(directory)
+            if not _path_names_directory(parts, directory):
+                raise OSError("output path changed during write")
     except (AzureError, OSError) as error:
         # Before publication, remove only the unpredictable staging name that
         # this invocation opened with O_EXCL. Never roll back the public marker:
-        # publication is the commit point and its pathname may later be owned
-        # by another invocation.
-        if staging_created and not completion_published:
+        # its pathname may later be owned by another invocation. The marker is
+        # authoritative only after the immediate post-publication directory
+        # fsync succeeds; a failure there leaves durability uncertain.
+        if staging_created and not completion_published and staging_fd is not None:
             try:
-                os.unlink(staging_name, dir_fd=directory)
+                _unlink_staging_if_owned(staging_name, staging_fd, directory)
             except FileNotFoundError:
                 pass
             except OSError:
@@ -361,6 +412,8 @@ def write_files(output, contents, limit):
             raise
         raise AzureError("unsafe_or_existing_output") from None
     finally:
+        if staging_fd is not None:
+            os.close(staging_fd)
         for fd in reversed(descriptors):
             os.close(fd)
 
