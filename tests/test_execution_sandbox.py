@@ -63,6 +63,33 @@ def test_non_socket_capability_is_rejected() -> None:
         os.close(directory_fd)
 
 
+def test_sandbox_rejects_replaced_workspace_before_launch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir(mode=0o700)
+    expected_fd = os.open(workspace, os.O_RDONLY | os.O_DIRECTORY)
+    executable_fd = os.open(os.devnull, os.O_RDONLY)
+    try:
+        workspace.rename(tmp_path / "original-workspace")
+        workspace.mkdir(mode=0o700)
+        monkeypatch.setattr(LinuxBubblewrapSandbox, "_validate_host", lambda self: None)
+
+        with pytest.raises(SandboxReadinessError, match="workspace changed after preflight"):
+            LinuxBubblewrapSandbox().run(
+                [f"/proc/self/fd/{executable_fd}"],
+                cwd=workspace,
+                env={},
+                timeout_seconds=1,
+                max_output_bytes=1024,
+                pass_fds=(executable_fd,),
+                expected_workspace_fd=expected_fd,
+            )
+
+        assert list(workspace.iterdir()) == []
+    finally:
+        os.close(executable_fd)
+        os.close(expected_fd)
+
+
 def test_inet_and_unconnected_unix_capabilities_are_rejected() -> None:
     inet_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     unix_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)

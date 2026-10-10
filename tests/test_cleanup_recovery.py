@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import json
 import os
 import shutil
@@ -12,6 +13,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import cops.execution.cleanup as cleanup_module
 import cops.execution.worker as worker_module
 from cops.adapters import (
     ExecutableVerification,
@@ -209,6 +211,7 @@ def _assert_post_dispatch_failure_is_durable(
         monkeypatch.setattr(EvidenceRecorder, "record_step_output", fail_capture)
 
     workspace = temp_workspace / f"{failure_site}-workspace"
+    workspace.mkdir(mode=0o700)
     result = worker.execute_plan(
         plan,
         authorization=authorization.authorization_id,
@@ -243,6 +246,75 @@ def _assert_post_dispatch_failure_is_durable(
     assert replacement_sandbox.run_calls == []
 
 
+def test_eager_staging_cleanup_is_reported_in_run_result(
+    temp_store,
+    sample_plan,
+    temp_workspace,
+    temp_journal_path,
+    monkeypatch,
+):
+    worker_identity = "worker-eager-cleanup-test"
+    plan, authorization, _, _, _, sandbox, worker = _authorized_adapter_worker(
+        temp_store,
+        sample_plan,
+        temp_workspace,
+        temp_journal_path,
+        worker_identity=worker_identity,
+    )
+    workspace = temp_workspace / "eager-cleanup-workspace"
+    workspace.mkdir(mode=0o700)
+    tracked_effects = []
+
+    def fake_prepare(*args, cleanup_manager, **kwargs):
+        staging_dir = workspace / ".executables"
+        directory_effect = _record_worker_created_resource(
+            cleanup_manager.ledger,
+            staging_dir,
+            "directory",
+            step_id="step-fake-executable-directory",
+        )
+        file_effect = _record_worker_created_resource(
+            cleanup_manager.ledger,
+            staging_dir / "fake-tool",
+            "file",
+            step_id="step-fake-executable",
+        )
+        tracked_effects.extend((file_effect, directory_effect))
+
+        def remove():
+            cleanup_manager.cleanup_effect(file_effect)
+            cleanup_manager.cleanup_effect(directory_effect)
+
+        return SimpleNamespace(invocation_path="/proc/self/fd/7", pass_fds=(), remove=remove)
+
+    monkeypatch.setattr(worker_module, "verify_executable_launch_support", lambda: None)
+    monkeypatch.setattr(worker_module, "prepare_executable", fake_prepare)
+    sandbox.run_callback = lambda *args, **kwargs: BoundedProcessResult(b"result", b"", 0, False, False)
+
+    result = worker.execute_plan(
+        plan,
+        authorization=authorization.authorization_id,
+        workspace_dir=workspace,
+    )
+
+    assert result.status == "success"
+    assert result.cleanup_status == "completed"
+    assert worker.last_cleanup_receipt is not None
+    assert worker.last_cleanup_receipt.status == "completed"
+    assert {
+        cleaned_effect["effect_id"]: cleaned_effect for cleaned_effect in worker.last_cleanup_receipt.cleaned_effects
+    } == {
+        effect.effect_id: {
+            "effect_id": effect.effect_id,
+            "resource_type": effect.resource_type,
+            "target": effect.target,
+            "action_taken": effect.transition_details["action_taken"],
+        }
+        for effect in tracked_effects
+    }
+    assert not (workspace / ".executables").exists()
+
+
 def test_side_effect_ledger_and_cleanup_manager(temp_workspace):
     """Test side-effect ledger tracking and cleanup rollback execution."""
     plan_id = "plan-test-01"
@@ -252,26 +324,33 @@ def test_side_effect_ledger_and_cleanup_manager(temp_workspace):
     ledger = SideEffectLedger(plan_id, engagement_id, default_owner=worker_id)
     cleanup_manager = CleanupManager(ledger, worker_identity=worker_id, workspace_dir=temp_workspace)
 
-    # Create dummy files
     f1 = temp_workspace / "created_file.txt"
-    f1.write_text("temporary resource", encoding="utf-8")
     d1 = temp_workspace / "created_dir"
-    d1.mkdir()
-    (d1 / "nested.txt").write_text("nested content", encoding="utf-8")
+    _record_worker_created_resource(
+        ledger,
+        f1,
+        "file",
+        step_id="step-1",
+        content=b"temporary resource",
+    )
+    _record_worker_created_resource(ledger, d1, "directory", step_id="step-2")
+    _record_worker_created_resource(
+        ledger,
+        d1 / "nested.txt",
+        "file",
+        step_id="step-2-child",
+        content=b"nested content",
+    )
 
-    # Record effects in ledger
-    ledger.record_effect(step_id="step-1", resource_type="file", target=str(f1), cleanup_action="delete")
-    ledger.record_effect(step_id="step-2", resource_type="directory", target=str(d1), cleanup_action="delete")
-
-    assert len(ledger.get_effects()) == 2
-    assert len(ledger.get_effects(status="pending")) == 2
+    assert len(ledger.get_effects()) == 3
+    assert len(ledger.get_effects(status="pending")) == 3
 
     # Execute rollback
     receipt = cleanup_manager.rollback()
 
     assert isinstance(receipt, CleanupReceipt)
     assert receipt.status == "completed"
-    assert len(receipt.cleaned_effects) == 2
+    assert len(receipt.cleaned_effects) == 3
     assert len(receipt.unresolved_effects) == 0
     assert not f1.exists()
     assert not d1.exists()
@@ -547,6 +626,228 @@ def _durable_ledger(
     return journal, ledger
 
 
+def _record_worker_created_resource(
+    ledger: SideEffectLedger,
+    target: Path,
+    resource_type: str,
+    *,
+    step_id: str = "step-created",
+    content: bytes = b"worker-created",
+):
+    """Persist intent, create exclusively, and bind identity from the creation descriptor."""
+    effect = ledger.record_effect(
+        step_id=step_id,
+        resource_type=resource_type,
+        target=str(target),
+        cleanup_action="delete",
+    )
+    if resource_type == "file":
+        fd = os.open(
+            target,
+            os.O_RDWR | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+            0o600,
+        )
+        if content:
+            os.write(fd, content)
+    else:
+        os.mkdir(target, 0o700)
+        fd = os.open(
+            target,
+            os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
+        )
+    try:
+        ledger.record_created_identity(effect, creation_fd=fd)
+    finally:
+        os.close(fd)
+    return effect
+
+
+def _last_cleanup_receipt(journal_path: Path) -> dict:
+    with sqlite3.connect(journal_path) as connection:
+        row = connection.execute(
+            "SELECT payload_json FROM cleanup_events "
+            "WHERE event_type = 'cleanup_receipt' ORDER BY sequence DESC LIMIT 1"
+        ).fetchone()
+    assert row is not None
+    return json.loads(row[0])
+
+
+def _recover_and_rollback(journal_path: Path) -> tuple[SideEffectLedger, CleanupReceipt]:
+    journal = CleanupJournal(journal_path)
+    recovered = journal.recoverable_runs("worker-test-01")[0]
+    ledger = SideEffectLedger(
+        recovered.plan_id,
+        recovered.engagement_id,
+        recovered.worker_identity,
+        journal=journal,
+        run_id=recovered.run_id,
+        workspace_dir=recovered.workspace_dir,
+        recovered_effects=recovered.effects,
+        start_run=False,
+    )
+    receipt = CleanupManager(
+        ledger,
+        worker_identity=recovered.worker_identity,
+        workspace_dir=recovered.workspace_dir,
+    ).rollback(recovered=True)
+    return ledger, receipt
+
+
+@pytest.mark.parametrize("resource_type", ["file", "directory"])
+@pytest.mark.parametrize("crash_phase", ["before_creation", "after_creation", "after_identity"])
+def test_recovery_handles_each_resource_creation_crash_window(
+    temp_workspace,
+    temp_journal_path,
+    resource_type,
+    crash_phase,
+):
+    """Recovery deletes only an object whose creation identity reached durable storage."""
+    _, ledger = _durable_ledger(temp_journal_path, temp_workspace)
+    target = temp_workspace / f"{resource_type}-{crash_phase}"
+    effect = ledger.record_effect(
+        step_id="step-crash-window",
+        resource_type=resource_type,
+        target=str(target),
+        cleanup_action="delete",
+    )
+    creation_fd = -1
+    if crash_phase != "before_creation":
+        if resource_type == "file":
+            creation_fd = os.open(
+                target,
+                os.O_RDWR | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+                0o600,
+            )
+            os.write(creation_fd, b"created before crash")
+        else:
+            os.mkdir(target, 0o700)
+            creation_fd = os.open(
+                target,
+                os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
+            )
+        if crash_phase == "after_identity":
+            ledger.record_created_identity(effect, creation_fd=creation_fd)
+        os.close(creation_fd)
+
+    recovered_ledger, receipt = _recover_and_rollback(temp_journal_path)
+    recovered_effect = recovered_ledger.get_effects()[0]
+    durable_receipt = _last_cleanup_receipt(temp_journal_path)
+
+    if crash_phase == "after_identity":
+        assert receipt.status == "completed"
+        assert recovered_effect.status == "cleaned"
+        assert not target.exists()
+        assert durable_receipt["status"] == "completed"
+        assert durable_receipt["unresolved_effects"] == []
+    else:
+        assert receipt.status == "failed"
+        assert recovered_effect.status == "unknown"
+        assert target.exists() is (crash_phase == "after_creation")
+        assert durable_receipt["status"] == "failed"
+        assert durable_receipt["unresolved_effects"][0]["effect_id"] == effect.effect_id
+        assert (
+            "ownership cannot be verified" in durable_receipt["unresolved_effects"][0]["reason"]
+            or "no durably recorded creation identity" in durable_receipt["unresolved_effects"][0]["reason"]
+        )
+
+
+@pytest.mark.parametrize("resource_type", ["file", "directory"])
+def test_recovery_preserves_same_type_replacement(
+    temp_workspace,
+    temp_journal_path,
+    resource_type,
+):
+    """A same-type replacement does not inherit the worker's recorded ownership."""
+    _, ledger = _durable_ledger(temp_journal_path, temp_workspace)
+    target = temp_workspace / f"identified-{resource_type}"
+    _record_worker_created_resource(ledger, target, resource_type)
+    owned = temp_workspace / f"owned-{resource_type}"
+    target.rename(owned)
+    if resource_type == "file":
+        target.write_text("replacement", encoding="utf-8")
+    else:
+        target.mkdir()
+        (target / "marker.txt").write_text("replacement", encoding="utf-8")
+
+    recovered_ledger, receipt = _recover_and_rollback(temp_journal_path)
+    durable_receipt = _last_cleanup_receipt(temp_journal_path)
+
+    assert receipt.status == "failed"
+    assert recovered_ledger.get_effects()[0].status == "unknown"
+    assert owned.exists()
+    if resource_type == "file":
+        assert target.read_text(encoding="utf-8") == "replacement"
+    else:
+        assert (target / "marker.txt").read_text(encoding="utf-8") == "replacement"
+    assert "no longer matches its recorded creation identity" in durable_receipt["unresolved_effects"][0]["reason"]
+
+
+@pytest.mark.parametrize("resource_type", ["file", "directory"])
+def test_cleanup_quarantines_replacement_swapped_after_verification_without_overwriting_new_target(
+    temp_workspace,
+    temp_journal_path,
+    resource_type,
+    monkeypatch,
+):
+    """A swap between verification and rename is preserved without a racy restore."""
+    _, ledger = _durable_ledger(temp_journal_path, temp_workspace)
+    target = temp_workspace / f"race-{resource_type}"
+    effect = _record_worker_created_resource(ledger, target, resource_type, content=b"owned")
+    owned = temp_workspace / f"owned-after-swap-{resource_type}"
+    original_rename = cleanup_module.os.rename
+    injected = False
+
+    def create_entry(parent_fd: int, name: str, marker: bytes) -> None:
+        if resource_type == "file":
+            fd = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600, dir_fd=parent_fd)
+            try:
+                os.write(fd, marker)
+            finally:
+                os.close(fd)
+            return
+        os.mkdir(name, 0o700, dir_fd=parent_fd)
+        directory_fd = os.open(name, os.O_RDONLY | os.O_DIRECTORY, dir_fd=parent_fd)
+        try:
+            marker_fd = os.open("marker.txt", os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600, dir_fd=directory_fd)
+            try:
+                os.write(marker_fd, marker)
+            finally:
+                os.close(marker_fd)
+        finally:
+            os.close(directory_fd)
+
+    def swap_before_quarantine(src, dst, *, src_dir_fd=None, dst_dir_fd=None):
+        nonlocal injected
+        if not injected and src == target.name and dst == "resource":
+            injected = True
+            original_rename(src, owned.name, src_dir_fd=src_dir_fd, dst_dir_fd=src_dir_fd)
+            create_entry(src_dir_fd, src, b"swapped")
+            original_rename(src, dst, src_dir_fd=src_dir_fd, dst_dir_fd=dst_dir_fd)
+            create_entry(src_dir_fd, src, b"new original")
+            return
+        original_rename(src, dst, src_dir_fd=src_dir_fd, dst_dir_fd=dst_dir_fd)
+
+    monkeypatch.setattr(cleanup_module.os, "rename", swap_before_quarantine)
+    recovered_ledger, receipt = _recover_and_rollback(temp_journal_path)
+    durable_receipt = _last_cleanup_receipt(temp_journal_path)
+    quarantine = temp_workspace / CleanupManager._quarantine_name(effect) / "resource"
+
+    assert injected
+    assert receipt.status == "failed"
+    assert recovered_ledger.get_effects()[0].status == "unknown"
+    assert owned.exists()
+    assert quarantine.exists()
+    if resource_type == "file":
+        assert owned.read_bytes() == b"owned"
+        assert quarantine.read_bytes() == b"swapped"
+        assert target.read_bytes() == b"new original"
+    else:
+        assert (quarantine / "marker.txt").read_bytes() == b"swapped"
+        assert (target / "marker.txt").read_bytes() == b"new original"
+    assert "changed after verification" in durable_receipt["unresolved_effects"][0]["reason"]
+    assert "preserved in" in durable_receipt["unresolved_effects"][0]["reason"]
+
+
 @pytest.mark.parametrize("resource_type", ["file", "directory"])
 def test_recovery_preserves_replacement_for_unverified_plan_target(
     temp_workspace,
@@ -597,6 +898,72 @@ def test_recovery_preserves_replacement_for_unverified_plan_target(
         assert (target / "marker.txt").read_text(encoding="utf-8") == "replacement"
 
 
+@pytest.mark.parametrize("resource_type", ["file", "directory"])
+@pytest.mark.parametrize("unresolved_kind", ["same_type_replacement", "plan_declared"])
+def test_unresolved_descendant_preserves_worker_owned_workspace(
+    temp_workspace,
+    temp_journal_path,
+    resource_type,
+    unresolved_kind,
+):
+    """Recursive workspace cleanup cannot erase an unresolved descendant."""
+    workspace = temp_workspace / f"workspace-{resource_type}-{unresolved_kind}"
+    _, ledger = _durable_ledger(temp_journal_path, workspace)
+    workspace_effect = _record_worker_created_resource(
+        ledger,
+        workspace,
+        "directory",
+        step_id="worker-workspace",
+    )
+    target = workspace / f"unresolved-{resource_type}"
+
+    if unresolved_kind == "same_type_replacement":
+        child_effect = _record_worker_created_resource(
+            ledger,
+            target,
+            resource_type,
+            step_id="worker-child",
+            content=b"owned",
+        )
+        owned = workspace / f"original-{resource_type}"
+        target.rename(owned)
+    else:
+        child_effect = ledger.record_effect(
+            step_id="plan-child",
+            resource_type=resource_type,
+            target=str(target),
+            cleanup_action="delete",
+            metadata={
+                PLAN_DECLARED_PROVENANCE_KEY: PLAN_DECLARED_PROVENANCE_UNVERIFIED,
+            },
+        )
+
+    if resource_type == "file":
+        target.write_text("replacement", encoding="utf-8")
+    else:
+        target.mkdir()
+        (target / "marker.txt").write_text("replacement", encoding="utf-8")
+
+    recovered_ledger, receipt = _recover_and_rollback(temp_journal_path)
+    durable_receipt = _last_cleanup_receipt(temp_journal_path)
+    recovered_by_id = {effect.effect_id: effect for effect in recovered_ledger.get_effects()}
+    unresolved_by_id = {effect["effect_id"]: effect for effect in durable_receipt["unresolved_effects"]}
+
+    assert receipt.status == "failed"
+    assert durable_receipt["status"] == "failed"
+    assert recovered_by_id[child_effect.effect_id].status == "unknown"
+    assert recovered_by_id[workspace_effect.effect_id].status == "unknown"
+    assert set(unresolved_by_id) == {child_effect.effect_id, workspace_effect.effect_id}
+    assert "ancestor directory contains unresolved descendant" in unresolved_by_id[workspace_effect.effect_id]["reason"]
+    assert workspace.is_dir()
+    if resource_type == "file":
+        assert target.read_text(encoding="utf-8") == "replacement"
+    else:
+        assert (target / "marker.txt").read_text(encoding="utf-8") == "replacement"
+    if unresolved_kind == "same_type_replacement":
+        assert owned.exists()
+
+
 def test_journal_repeated_writes_survive_reopen(temp_workspace, temp_journal_path):
     journal, ledger = _durable_ledger(temp_journal_path, temp_workspace)
     for index in range(64):
@@ -610,6 +977,62 @@ def test_journal_repeated_writes_survive_reopen(temp_workspace, temp_journal_pat
     recovered = reopened.recoverable_runs("worker-test-01")
     assert len(recovered) == 1
     assert len(recovered[0].effects) == 64
+
+
+def test_legacy_journal_remains_v1_until_identity_is_recorded(temp_workspace, temp_journal_path):
+    journal, ledger = _durable_ledger(temp_journal_path, temp_workspace)
+    ledger.record_effect(
+        step_id="step-legacy",
+        resource_type="custom",
+        target="legacy-resource",
+    )
+
+    with sqlite3.connect(temp_journal_path) as connection:
+        version = connection.execute("SELECT value FROM cleanup_metadata WHERE key = 'schema_version'").fetchone()[0]
+    assert version == "1"
+    assert len(CleanupJournal(temp_journal_path).recoverable_runs("worker-test-01")) == 1
+
+    journal.append(
+        "run-recovery-test",
+        "creation_identity_recorded",
+        {"device": 1, "inode": 2, "resource_type": "file"},
+        required_schema_version=2,
+    )
+    with sqlite3.connect(temp_journal_path) as connection:
+        version = connection.execute("SELECT value FROM cleanup_metadata WHERE key = 'schema_version'").fetchone()[0]
+    assert version == "2"
+
+    class LegacyJournal(CleanupJournal):
+        _SUPPORTED_SCHEMA_VERSIONS = frozenset({1})
+
+    with pytest.raises(CleanupPersistenceError, match="unsupported cleanup journal schema version"):
+        LegacyJournal(temp_journal_path)
+
+
+def test_journal_version_promotion_rolls_back_with_failed_event(temp_journal_path):
+    journal = CleanupJournal(temp_journal_path)
+    with sqlite3.connect(temp_journal_path) as connection:
+        connection.execute(
+            """CREATE TRIGGER reject_identity_event BEFORE INSERT ON cleanup_events
+            WHEN NEW.event_type = 'creation_identity_recorded'
+            BEGIN SELECT RAISE(ABORT, 'injected event failure'); END"""
+        )
+
+    with pytest.raises(CleanupPersistenceError, match="injected event failure"):
+        journal.append(
+            "run-promotion-test",
+            "creation_identity_recorded",
+            {"device": 1, "inode": 2, "resource_type": "file"},
+            required_schema_version=2,
+        )
+
+    with sqlite3.connect(temp_journal_path) as connection:
+        version = connection.execute("SELECT value FROM cleanup_metadata WHERE key = 'schema_version'").fetchone()[0]
+        count = connection.execute(
+            "SELECT COUNT(*) FROM cleanup_events WHERE event_type = 'creation_identity_recorded'"
+        ).fetchone()[0]
+    assert version == "1"
+    assert count == 0
 
 
 def test_recovery_rejects_missing_run_start(temp_workspace, temp_journal_path):
@@ -683,15 +1106,16 @@ def test_cleanup_remains_anchored_when_verified_parent_is_replaced(temp_workspac
         owned_parent = temp_workspace / "owned"
         owned_parent.mkdir()
         target = owned_parent / "temporary.txt"
-        target.write_text("delete me", encoding="utf-8")
         outside_target = outside_root / target.name
         outside_target.write_text("preserve me", encoding="utf-8")
 
         ledger = SideEffectLedger("plan-test-01", "eng-secops-20261002", default_owner="worker-test-01")
-        ledger.record_effect(
+        _record_worker_created_resource(
+            ledger,
+            target,
+            "file",
             step_id="step-parent-swap",
-            resource_type="file",
-            target=str(target),
+            content=b"delete me",
         )
         manager = CleanupManager(
             ledger,
@@ -755,7 +1179,11 @@ def test_recovered_process_is_never_signalled(temp_workspace, temp_journal_path,
     assert recovered_ledger.get_effects()[0].status == "unknown"
 
 
-def test_recovery_skips_durably_cleaned_effect(temp_workspace, temp_journal_path):
+def test_recovery_reports_durably_cleaned_effect_without_replaying(
+    temp_workspace,
+    temp_journal_path,
+    monkeypatch,
+):
     journal, ledger = _durable_ledger(temp_journal_path, temp_workspace)
     target = temp_workspace / "already-cleaned.txt"
     target.write_text("first generation", encoding="utf-8")
@@ -775,64 +1203,200 @@ def test_recovery_skips_durably_cleaned_effect(temp_workspace, temp_journal_path
         recovered_effects=recovered.effects,
         start_run=False,
     )
-    receipt = CleanupManager(
+    manager = CleanupManager(
         recovered_ledger,
         worker_identity=recovered.worker_identity,
         workspace_dir=recovered.workspace_dir,
-    ).rollback(recovered=True)
+    )
+    ordered_effects = []
+    original_rollback_order = manager._rollback_order
 
-    assert receipt.status == "not_required"
+    def capture_rollback_order(effects):
+        ordered_effects.extend(effects)
+        return original_rollback_order(effects)
+
+    monkeypatch.setattr(manager, "_rollback_order", capture_rollback_order)
+    receipt = manager.rollback(recovered=True)
+
+    assert ordered_effects == []
+    assert receipt.status == "completed"
+    assert receipt.cleaned_effects == [
+        {
+            "effect_id": effect.effect_id,
+            "resource_type": "file",
+            "target": str(target),
+            "action_taken": "deleted_file",
+        }
+    ]
     assert target.read_text(encoding="utf-8") == "replacement"
     assert journal.recoverable_runs("worker-test-01") == ()
 
 
-def test_partial_directory_cleanup_failure_is_recorded_as_unknown(temp_workspace, monkeypatch):
-    ledger = SideEffectLedger("plan-partial", "eng-partial", "worker-test-01")
-    target = temp_workspace / "partially-removed"
-    target.mkdir()
-    child = target / "child.txt"
-    child.write_text("remove before failure", encoding="utf-8")
-    effect = ledger.record_effect(
-        step_id="step-partial",
-        resource_type="directory",
-        target=str(target),
-        cleanup_action="delete",
+def test_deleted_resource_omits_stale_quarantine_target_when_terminal_persistence_fails(
+    temp_workspace,
+    monkeypatch,
+):
+    ledger = SideEffectLedger("plan-stale-quarantine", "eng-stale-quarantine", "worker-test-01")
+    target = temp_workspace / "deleted-before-transition.txt"
+    effect = _record_worker_created_resource(
+        ledger,
+        target,
+        "file",
+        step_id="step-stale-quarantine",
     )
-    original_rmtree = shutil.rmtree
-
-    def partially_remove_then_fail(path, *args, **kwargs):
-        if path == target.name and kwargs.get("dir_fd") is not None:
-            directory_fd = os.open(
-                path,
-                os.O_RDONLY | os.O_DIRECTORY,
-                dir_fd=kwargs["dir_fd"],
-            )
-            try:
-                os.unlink(child.name, dir_fd=directory_fd)
-            finally:
-                os.close(directory_fd)
-            raise OSError("injected failure after partial deletion")
-        return original_rmtree(path, *args, **kwargs)
-
-    monkeypatch.setattr(shutil, "rmtree", partially_remove_then_fail)
-    receipt = CleanupManager(
+    manager = CleanupManager(
         ledger,
         worker_identity="worker-test-01",
         workspace_dir=temp_workspace,
-    ).rollback()
+    )
+    quarantine_target = Path(manager._quarantine_target(effect))
+    original_transition = manager._transition
+
+    def fail_terminal_transition(effect_arg, status, *, details=None):
+        if status == "cleaned":
+            raise CleanupPersistenceError("injected terminal transition failure")
+        original_transition(effect_arg, status, details=details)
+
+    monkeypatch.setattr(manager, "_transition", fail_terminal_transition)
+    receipt = manager.rollback()
+
+    assert receipt.status == "failed"
+    assert receipt.schema_version == "cops.cleanup-receipt/v1"
+    assert not target.exists()
+    assert not quarantine_target.exists()
+    assert "quarantine_target" not in receipt.unresolved_effects[0]
+
+
+def test_rollback_order_uses_bounded_child_before_parent_sort(temp_workspace, monkeypatch):
+    ledger = SideEffectLedger("plan-bounded-order", "eng-bounded-order", "worker-test-01")
+    child = ledger.record_effect(
+        step_id="step-child",
+        resource_type="file",
+        target=str(temp_workspace / "tree" / "nested" / "child.txt"),
+        cleanup_action="delete",
+    )
+    external_effects = [
+        ledger.record_effect(
+            step_id=f"step-custom-{index}",
+            resource_type="custom",
+            target=f"custom-{index}",
+            cleanup_action="revert",
+        )
+        for index in range(2048)
+    ]
+    parent = ledger.record_effect(
+        step_id="step-parent",
+        resource_type="directory",
+        target=str(temp_workspace / "tree"),
+        cleanup_action="delete",
+    )
+    effects = [child, *external_effects, parent]
+
+    def reject_pairwise_ancestry_scan(*args, **kwargs):
+        raise AssertionError("rollback ordering must not compare every effect pair")
+
+    monkeypatch.setattr(CleanupManager, "_is_strict_descendant", reject_pairwise_ancestry_scan)
+    ordered = CleanupManager._rollback_order(effects)
+
+    assert ordered == [*reversed(external_effects), child, parent]
+
+
+@pytest.mark.parametrize("resource_type", ["file", "directory"])
+def test_quarantine_root_removal_failure_is_recorded_unknown(temp_workspace, monkeypatch, resource_type):
+    ledger = SideEffectLedger("plan-root-failure", "eng-root-failure", "worker-test-01")
+    target = temp_workspace / f"removed-{resource_type}"
+    effect = _record_worker_created_resource(
+        ledger,
+        target,
+        resource_type,
+        step_id="step-root-failure",
+    )
+    manager = CleanupManager(
+        ledger,
+        worker_identity="worker-test-01",
+        workspace_dir=temp_workspace,
+    )
+    quarantine_name = manager._quarantine_name(effect)
+    original_rmdir = cleanup_module.os.rmdir
+
+    def fail_quarantine_root(path, *args, **kwargs):
+        if path == quarantine_name and kwargs.get("dir_fd") is not None:
+            raise OSError(errno.EIO, "injected quarantine root removal failure")
+        return original_rmdir(path, *args, **kwargs)
+
+    monkeypatch.setattr(cleanup_module.os, "rmdir", fail_quarantine_root)
+    receipt = manager.rollback()
+
+    quarantine_root = temp_workspace / quarantine_name
+    assert receipt.status == "failed"
+    assert effect.status == "unknown"
+    assert not target.exists()
+    assert quarantine_root.is_dir()
+    assert not (quarantine_root / "resource").exists()
+    assert len(receipt.unresolved_effects) == 1
+    unresolved = receipt.unresolved_effects[0]
+    assert unresolved["quarantine_target"] == str(quarantine_root)
+    assert str(quarantine_root) in unresolved["reason"]
+    assert "injected quarantine root removal failure" in unresolved["reason"]
+
+
+def test_nonempty_directory_cleanup_is_preserved_in_quarantine_and_recorded_unknown(temp_workspace, monkeypatch):
+    ledger = SideEffectLedger("plan-partial", "eng-partial", "worker-test-01")
+    target = temp_workspace / "partially-removed"
+    effect = _record_worker_created_resource(
+        ledger,
+        target,
+        "directory",
+        step_id="step-partial",
+    )
+    child = target / "child.txt"
+    child.write_text("preserve unknown descendant", encoding="utf-8")
+    manager = CleanupManager(
+        ledger,
+        worker_identity="worker-test-01",
+        workspace_dir=temp_workspace,
+    )
+    quarantine_name = manager._quarantine_name(effect)
+    original_rmdir = cleanup_module.os.rmdir
+    root_removal_attempted = False
+
+    def reject_secondary_root_removal(path, *args, **kwargs):
+        nonlocal root_removal_attempted
+        if path == quarantine_name and kwargs.get("dir_fd") is not None:
+            root_removal_attempted = True
+            raise OSError(errno.EACCES, "secondary quarantine root failure")
+        return original_rmdir(path, *args, **kwargs)
+
+    monkeypatch.setattr(cleanup_module.os, "rmdir", reject_secondary_root_removal)
+    receipt = manager.rollback()
 
     assert receipt.status == "failed"
     assert effect.status == "unknown"
-    assert target.is_dir()
-    assert not child.exists()
-    assert "cleanup outcome unknown after resource action started" in receipt.unresolved_effects[0]["reason"]
+    assert not target.exists()
+    quarantined = temp_workspace / manager._quarantine_name(effect) / "resource"
+    assert quarantined.is_dir()
+    assert (quarantined / child.name).read_text(encoding="utf-8") == "preserve unknown descendant"
+    assert len(receipt.unresolved_effects) == 1
+    unresolved = receipt.unresolved_effects[0]
+    assert unresolved["effect_id"] == effect.effect_id
+    assert unresolved["resource_type"] == "directory"
+    assert unresolved["target"] == str(target)
+    assert unresolved["quarantine_target"] == str(quarantined)
+    assert unresolved["reason"].startswith("cleanup outcome unknown after resource action started")
+    assert "secondary quarantine root failure" not in unresolved["reason"]
+    assert root_removal_attempted is False
 
 
 def test_receipt_write_failure_is_partial_and_recoverable(temp_workspace, temp_journal_path, monkeypatch):
     journal, ledger = _durable_ledger(temp_journal_path, temp_workspace)
     target = temp_workspace / "receipt-failure.txt"
-    target.write_text("cleanup", encoding="utf-8")
-    ledger.record_effect(step_id="step-receipt", resource_type="file", target=str(target))
+    _record_worker_created_resource(
+        ledger,
+        target,
+        "file",
+        step_id="step-receipt",
+        content=b"cleanup",
+    )
     original_record_receipt = journal.record_receipt
 
     def fail_record_receipt(run_id, receipt):
@@ -864,15 +1428,28 @@ def test_receipt_write_failure_is_partial_and_recoverable(temp_workspace, temp_j
         worker_identity=recovered[0].worker_identity,
         workspace_dir=recovered[0].workspace_dir,
     ).rollback(recovered=True)
-    assert recovered_receipt.status == "not_required"
+    assert recovered_receipt.status == "completed"
+    assert recovered_receipt.cleaned_effects == [
+        {
+            "effect_id": recovered[0].effects[0].effect_id,
+            "resource_type": "file",
+            "target": str(target),
+            "action_taken": "deleted_file",
+        }
+    ]
     assert journal.recoverable_runs("worker-test-01") == ()
 
 
 def test_inconsistent_completed_receipt_cannot_hide_pending_effect(temp_workspace, temp_journal_path):
     journal, ledger = _durable_ledger(temp_journal_path, temp_workspace)
     target = temp_workspace / "pending-after-corruption.txt"
-    target.write_text("cleanup", encoding="utf-8")
-    ledger.record_effect(step_id="step-corrupt", resource_type="file", target=str(target))
+    _record_worker_created_resource(
+        ledger,
+        target,
+        "file",
+        step_id="step-corrupt",
+        content=b"cleanup",
+    )
     receipt = CleanupManager(ledger, worker_identity="worker-test-01", workspace_dir=temp_workspace).rollback()
     assert receipt.status == "completed"
 

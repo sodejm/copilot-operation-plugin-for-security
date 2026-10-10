@@ -22,6 +22,54 @@ from cops.contracts import (
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "cops" / "contracts" / "fixtures"
 
 
+def _cleanup_receipt_payload(
+    schema_version: str = "cops.cleanup-receipt/v1",
+    *,
+    quarantine_target: str | None = None,
+) -> dict[str, object]:
+    unresolved_effect: dict[str, object] = {
+        "effect_id": "effect-contract-test",
+        "resource_type": "directory",
+        "target": "/tmp/contract-test",
+        "reason": "preserved for operator reconciliation",
+    }
+    if quarantine_target is not None:
+        unresolved_effect["quarantine_target"] = quarantine_target
+    return {
+        "schema_version": schema_version,
+        "receipt_id": "cln-contract-test",
+        "plan_id": "plan-contract-test",
+        "engagement_id": "eng-contract-test",
+        "worker_identity": "worker-contract-test",
+        "status": "failed",
+        "created_at": "2026-10-09T12:00:00Z",
+        "completed_at": "2026-10-09T12:00:01Z",
+        "cleaned_effects": [],
+        "unresolved_effects": [unresolved_effect],
+        "evidence_hash": "0" * 64,
+    }
+
+
+def test_cleanup_receipt_v1_remains_strict_and_backward_compatible():
+    validate_contract(_cleanup_receipt_payload(), "cleanup_receipt")
+
+    with pytest.raises(ContractError):
+        validate_contract(
+            _cleanup_receipt_payload(quarantine_target="/tmp/quarantine"),
+            "cleanup_receipt",
+        )
+
+
+def test_cleanup_receipt_v2_accepts_quarantine_location():
+    validate_contract(
+        _cleanup_receipt_payload(
+            "cops.cleanup-receipt/v2",
+            quarantine_target="/tmp/quarantine",
+        ),
+        "cleanup_receipt",
+    )
+
+
 def test_valid_fixtures_pass():
     valid_files = [
         "valid_engagement.json",

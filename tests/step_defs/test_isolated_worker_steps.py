@@ -544,10 +544,12 @@ def fake_adapter_reports(worker_context, monkeypatch, outcome):
     monkeypatch.setattr(worker_module, "verify_executable_launch_support", lambda: None)
     monkeypatch.setattr(worker_module, "prepare_executable", lambda *args, **kwargs: prepared)
     worker_context["fake_sandbox"].result = outcomes[outcome]
+    workspace = Path(worker_context["temp_dir"]).resolve() / "fake-workspace"
+    workspace.mkdir(mode=0o700)
     worker_context["result"] = worker_context["fake_worker"].execute_plan(
         worker_context["fake_plan"],
         authorization=worker_context["fake_authorization"],
-        workspace_dir=Path(worker_context["temp_dir"]).resolve() / "fake-workspace",
+        workspace_dir=workspace,
     )
 
 

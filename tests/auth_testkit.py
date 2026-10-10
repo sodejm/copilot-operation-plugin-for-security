@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from pathlib import Path
@@ -21,6 +22,7 @@ from cops.execution.control import (
     ApprovalConsumptionReceipt,
     ApprovalControlError,
 )
+from cops.execution.filesystem import open_directory_no_symlinks, same_directory_identity
 from cops.execution.process import BoundedProcessResult
 from cops.execution.store import ApprovalStore
 from cops.execution.worker import WorkerCapabilityInventory
@@ -129,8 +131,20 @@ class TestExecutionSandbox:
         self.ready_calls: list[tuple[str, Path]] = []
         self.run_calls: list[dict[str, Any]] = []
 
-    def assert_ready(self, worker_identity: str, *, cwd: Path) -> None:
+    @staticmethod
+    def _verify_workspace(cwd: Path, expected_workspace_fd: int | None) -> None:
+        if expected_workspace_fd is None:
+            return
+        opened_fd = open_directory_no_symlinks(cwd)
+        try:
+            if not same_directory_identity(opened_fd, expected_workspace_fd):
+                raise RuntimeError("sandbox workspace changed after preflight")
+        finally:
+            os.close(opened_fd)
+
+    def assert_ready(self, worker_identity: str, *, cwd: Path, expected_workspace_fd: int | None = None) -> None:
         self.ready_calls.append((worker_identity, cwd))
+        self._verify_workspace(cwd, expected_workspace_fd)
         if self.readiness_error is not None:
             raise self.readiness_error
 
@@ -146,7 +160,9 @@ class TestExecutionSandbox:
         pass_fds: tuple[int, ...] = (),
         operation_env: Mapping[str, str] | None = None,
         capability_fds: tuple[int, ...] = (),
+        expected_workspace_fd: int | None = None,
     ) -> BoundedProcessResult:
+        self._verify_workspace(cwd, expected_workspace_fd)
         call = {
             "command": tuple(command),
             "cwd": cwd,

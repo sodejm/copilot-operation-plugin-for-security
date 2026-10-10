@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
-from .filesystem import SecureDirectoryError, open_directory_no_symlinks
+from .filesystem import SecureDirectoryError, open_directory_no_symlinks, same_directory_identity
 from .process import BoundedProcessResult, ProcessResourceLimits, run_bounded_process
 
 
@@ -22,7 +22,7 @@ class SandboxReadinessError(RuntimeError):
 
 
 class ExecutionSandbox(Protocol):
-    def assert_ready(self, worker_identity: str, *, cwd: Path) -> None: ...
+    def assert_ready(self, worker_identity: str, *, cwd: Path, expected_workspace_fd: int | None = None) -> None: ...
 
     def run(
         self,
@@ -35,6 +35,7 @@ class ExecutionSandbox(Protocol):
         pass_fds: tuple[int, ...] = (),
         operation_env: Mapping[str, str] | None = None,
         capability_fds: tuple[int, ...] = (),
+        expected_workspace_fd: int | None = None,
     ) -> BoundedProcessResult: ...
 
 
@@ -244,7 +245,7 @@ class LinuxBubblewrapSandbox:
         command.extend(("--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--tmpfs", "/home", "--tmpfs", "/run"))  # noqa: S108 - private tmpfs mount
         return command
 
-    def assert_ready(self, worker_identity: str, *, cwd: Path) -> None:
+    def assert_ready(self, worker_identity: str, *, cwd: Path, expected_workspace_fd: int | None = None) -> None:
         if not worker_identity.strip():
             raise SandboxReadinessError("worker identity must be non-empty")
         self._validate_host()
@@ -261,6 +262,7 @@ class LinuxBubblewrapSandbox:
                 timeout_seconds=5.0,
                 max_output_bytes=4096,
                 pass_fds=(true_fd,),
+                expected_workspace_fd=expected_workspace_fd,
             )
         finally:
             os.close(true_fd)
@@ -280,6 +282,7 @@ class LinuxBubblewrapSandbox:
         pass_fds: tuple[int, ...] = (),
         operation_env: Mapping[str, str] | None = None,
         capability_fds: tuple[int, ...] = (),
+        expected_workspace_fd: int | None = None,
     ) -> BoundedProcessResult:
         self._validate_host()
         if not command or len(pass_fds) != 1:
@@ -291,6 +294,8 @@ class LinuxBubblewrapSandbox:
         sandbox_env = self._sandbox_environment(env, operation_env)
         workspace_fd = self._open_private_workspace(cwd)
         try:
+            if expected_workspace_fd is not None and not same_directory_identity(workspace_fd, expected_workspace_fd):
+                raise SandboxReadinessError("sandbox workspace changed after preflight")
             with self._held_bubblewrap() as bubblewrap_fd, self._held_prlimit() as prlimit_fd:
                 # RLIMIT_NPROC counts the host account's existing tasks. Applying it
                 # before bwrap creates its namespaces can prevent isolation itself
