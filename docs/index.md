@@ -132,12 +132,13 @@ Learn more in the [Specialist Agents Guide](specialist-agents.md).
 - [Contributor Guide](contributing.md): Development environment setup, adding plugins, and test gates.
 - [Troubleshooting](troubleshooting.md): Step-by-step solutions for common setup issues.
 - [Security Model](SECURITY_MODEL.md): Threat modeling, prompt injection resistance, and readiness modes.
+- [Authenticated Execution](AUTHENTICATED_EXECUTION.md): Verifier trust-store setup, one-time approval consumption, migration, and key rotation.
 - [Engagement Contracts Specification](../specs/engagement-contracts.spec.md): Schema contracts for engagements, scenarios, action plans, and findings.
 - [Execution Authorization Specification](../specs/execution-authorization.spec.md): Cryptographically bound approval envelopes and legacy receipt rejection.
-- [Isolated Worker and Approval Store Specification](../specs/isolated-worker-approval-store.spec.md): Process boundaries, SQLite approval store, and anti-replay execution.
+- [Isolated Worker and Approval Store Specification](../specs/isolated-worker-approval-store.spec.md): Verifier inputs, worker capability attestation, SQLite approval state, and anti-replay execution.
 - [Execution Scope & Egress Specification](../specs/execution-scope-enforcement.spec.md): Execution-time destination verification, cloud metadata defense, and DNS pinning.
 - [Tool Adapter Registry Specification](../specs/tool-adapter-registry.spec.md): Declarative typed parameters, command assembly, and parameter injection prevention.
-- [Credential and Evidence Handling Specification](../specs/credential-evidence-handling.spec.md): Real-time stream redaction, secret masking, and cryptographic run-result evidence binding.
+- [Credential and Evidence Handling Specification](../specs/credential-evidence-handling.spec.md): Operation-scoped credential resolution, fail-closed redaction, validated execution evidence, and storage/retention boundaries.
 - [Execution Recovery and Cleanup Specification](../specs/execution-recovery-and-cleanup.spec.md): Ownership-aware side-effect ledgers, cancellation resilience, non-idempotent handling, and verifiable cleanup receipts.
 - [Pinned Scenario Registry](../specs/pinned-scenario-registry.spec.md): Pinned research sources and canonical scenario registry.
 - [Capability Reconciliation](../specs/capability-reconciliation.spec.md): Operational readiness taxonomy and truth-in-advertising invariants.

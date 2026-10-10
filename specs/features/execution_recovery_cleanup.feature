@@ -20,4 +20,13 @@ Feature: Execution Recovery and Cleanup Receipts
     When execution is interrupted during the non-idempotent step
     Then the run result status is "uncertain"
     And automatic retry is disallowed
-    And cleanup receipt documents verified rollback
+    And cleanup receipt documents unresolved caller-owned state
+
+  Scenario: Restart recovery preserves cleanup ownership and audit state
+    Given a durable cleanup journal containing unresolved worker-owned side effects
+    And one cleanup transition was interrupted before its terminal journal record
+    When a replacement worker recovers the cleanup journal
+    Then already-cleaned effects are not replayed
+    And the interrupted cleanup outcome is recorded as unknown
+    And recovered process identifiers are not signalled
+    And persistence failures produce an explicit partial or failed cleanup receipt

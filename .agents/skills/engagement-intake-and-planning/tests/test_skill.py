@@ -32,6 +32,7 @@ class TestEngagementIntakeAndPlanningSkill(unittest.TestCase):
             scenario="COPS-E03.01-S01",
             target="10.0.0.10",
             specialist_id="cops-pentest-specialist",
+            tool_versions={"python3": "3.11.9"},
             root=ROOT,
         )
         self.assertEqual(plan.target, "10.0.0.10")

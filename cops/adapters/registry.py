@@ -10,7 +10,8 @@ import ipaddress
 import json
 import re
 import sys
-from dataclasses import dataclass, field
+from collections.abc import Mapping
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -118,6 +119,21 @@ class ToolActionDefinition:
     parameters: dict[str, ToolParameter]
 
 
+@dataclass(frozen=True)
+class ExecutableVerification:
+    """Pinned executable identity and version-probe contract.
+
+    ``sha256`` is intentionally optional at parse time so the built-in catalog can
+    describe tools that differ by platform.  Execution fails closed until a
+    deployment supplies a platform-specific digest.
+    """
+
+    sha256: str | None
+    version_args: tuple[str, ...]
+    version_pattern: str
+    max_size_bytes: int = 268_435_456
+
+
 @dataclass
 class ToolAdapter:
     """Registered tool adapter schema."""
@@ -128,6 +144,7 @@ class ToolAdapter:
     provenance: dict[str, str]
     supported_environments: list[str]
     actions: dict[str, ToolActionDefinition]
+    executable_verification: ExecutableVerification | None = None
 
     def assemble_command(self, action: str, arguments: dict[str, Any] | None = None) -> list[str]:
         """Assemble deterministic argument array for tool execution."""
@@ -163,10 +180,24 @@ class ToolAdapter:
 class ToolAdapterRegistry:
     """Registry managing available tool adapters."""
 
-    def __init__(self, definitions_path: Path | None = None) -> None:
+    def __init__(
+        self,
+        definitions_path: Path | None = None,
+        *,
+        executable_sha256_pins: Mapping[str, str] | None = None,
+    ) -> None:
         self.definitions_path = definitions_path or DEFINITIONS_DIR
         self._adapters: dict[str, ToolAdapter] = {}
+        self._executable_sha256_pins = dict(executable_sha256_pins or {})
+        for tool, sha256 in self._executable_sha256_pins.items():
+            if not tool or not re.fullmatch(r"[0-9a-f]{64}", sha256):
+                raise AdapterError(
+                    f"platform executable pin for {tool!r} must be 64 lowercase hexadecimal characters"
+                )
         self.load_definitions()
+        unknown_pins = set(self._executable_sha256_pins) - set(self._adapters)
+        if unknown_pins:
+            raise AdapterError(f"executable pins reference unknown adapters: {sorted(unknown_pins)}")
 
     def load_definitions(self) -> None:
         """Load adapter JSON definitions from directory."""
@@ -176,6 +207,15 @@ class ToolAdapterRegistry:
         for p in sorted(self.definitions_path.glob("*.json")):
             data = json.loads(p.read_text(encoding="utf-8"))
             adapter = self._parse_adapter(data)
+            pin = self._executable_sha256_pins.get(adapter.tool)
+            if pin is not None:
+                if adapter.executable_verification is None:
+                    raise AdapterError(
+                        f"adapter {adapter.tool!r} has no executable verification contract"
+                    )
+                adapter.executable_verification = replace(
+                    adapter.executable_verification, sha256=pin
+                )
             self._adapters[adapter.tool] = adapter
 
     def _parse_adapter(self, data: dict[str, Any]) -> ToolAdapter:
@@ -199,6 +239,40 @@ class ToolAdapterRegistry:
                 parameters=params,
             )
 
+        verification = None
+        execution_data = data.get("execution")
+        if execution_data is not None:
+            if not isinstance(execution_data, dict):
+                raise AdapterError("adapter execution metadata must be an object")
+            sha256 = execution_data.get("sha256")
+            if sha256 is not None and (
+                not isinstance(sha256, str) or not re.fullmatch(r"[0-9a-f]{64}", sha256)
+            ):
+                raise AdapterError("adapter execution sha256 must be 64 lowercase hexadecimal characters")
+            version_args = execution_data.get("version_args", ["--version"])
+            if not isinstance(version_args, list) or any(not isinstance(arg, str) for arg in version_args):
+                raise AdapterError("adapter execution version_args must be a string list")
+            version_pattern = execution_data.get("version_pattern")
+            if not isinstance(version_pattern, str) or not version_pattern:
+                raise AdapterError("adapter execution version_pattern must be a non-empty string")
+            try:
+                compiled_pattern = re.compile(version_pattern)
+            except re.error as err:
+                raise AdapterError(f"adapter execution version_pattern is invalid: {err}") from err
+            if "version" not in compiled_pattern.groupindex and compiled_pattern.groups < 1:
+                raise AdapterError(
+                    "adapter execution version_pattern must contain a named 'version' or first capture group"
+                )
+            max_size_bytes = execution_data.get("max_size_bytes", 268_435_456)
+            if not isinstance(max_size_bytes, int) or isinstance(max_size_bytes, bool) or max_size_bytes < 1:
+                raise AdapterError("adapter execution max_size_bytes must be a positive integer")
+            verification = ExecutableVerification(
+                sha256=sha256,
+                version_args=tuple(version_args),
+                version_pattern=version_pattern,
+                max_size_bytes=max_size_bytes,
+            )
+
         return ToolAdapter(
             tool=data["tool"],
             version=data.get("version", "pinned"),
@@ -206,6 +280,7 @@ class ToolAdapterRegistry:
             provenance=data.get("provenance", {}),
             supported_environments=data.get("supported_environments", ["linux", "darwin"]),
             actions=actions,
+            executable_verification=verification,
         )
 
     def register_adapter(self, adapter: ToolAdapter) -> None:

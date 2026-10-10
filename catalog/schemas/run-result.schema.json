@@ -65,7 +65,9 @@
         "properties": {
           "name": {"type": "string", "minLength": 1},
           "path": {"type": "string", "minLength": 1},
-          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "size_bytes": {"type": "integer", "minimum": 0},
+          "truncated_bytes": {"type": "integer", "minimum": 0}
         }
       }
     },

@@ -8,11 +8,12 @@ import unittest
 from pathlib import Path
 
 from cops.contracts.models import ActionPlan
-from cops.execution import (
-    ApprovalStore,
-    IsolatedWorker,
-    WorkerConfig,
-    create_execution_authorization,
+from cops.execution import ApprovalStore, IsolatedWorker
+from tests.auth_testkit import (
+    TestApprovalControl,
+    TestExecutionSandbox,
+    authorize_test_plan,
+    worker_inventory_for_plan,
 )
 
 
@@ -27,13 +28,13 @@ class TestWorkerReadinessAndApprovalSkill(unittest.TestCase):
 
     def tearDown(self):
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_worker_and_approval_skill_flow(self):
         # 1. Create and store authorization
-        auth = create_execution_authorization(
+        auth, trust_store, engagement = authorize_test_plan(
             self.plan,
-            operator="secops@corp.internal",
             valid_hours=2,
             worker_identity="worker-test-01",
         )
@@ -41,8 +42,10 @@ class TestWorkerReadinessAndApprovalSkill(unittest.TestCase):
 
         # 2. Worker readiness check
         worker = IsolatedWorker(
-            WorkerConfig(worker_id="worker-test-01", allowed_tools=("nmap", "echo")),
-            store=self.store,
+            worker_inventory_for_plan(self.plan, worker_identity="worker-test-01"),
+            TestApprovalControl(self.store, trust_store, engagement),
+            TestExecutionSandbox(),
+            cleanup_journal_path=Path(self.temp_dir).resolve() / "cleanup.sqlite3",
         )
         self.assertEqual(worker.config.worker_id, "worker-test-01")
 
@@ -51,7 +54,11 @@ class TestWorkerReadinessAndApprovalSkill(unittest.TestCase):
         self.assertEqual(retrieved.status, "approved")
 
         # 4. Atomic consume
-        consumed = self.store.atomically_consume(auth.authorization_id, worker_identity="worker-test-01")
+        consumed = self.store.atomically_consume(
+            auth.authorization_id,
+            worker_identity="worker-test-01",
+            expected_authorization=auth,
+        )
         self.assertEqual(consumed.status, "consumed")
 
 

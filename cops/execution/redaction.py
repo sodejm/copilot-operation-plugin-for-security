@@ -28,10 +28,27 @@ class StreamRedactor:
         known_secrets: Sequence[str] | None = None,
         custom_patterns: Sequence[tuple[str, re.Pattern[str]]] | None = None,
     ) -> None:
-        self.known_secrets = [s for s in (known_secrets or []) if s and len(s) >= 4]
-        # Sort secrets by length descending to match longest secret first
-        self.known_secrets.sort(key=len, reverse=True)
+        self.known_secrets: list[str] = []
+        self.add_secrets(known_secrets or [])
         self.patterns = list(custom_patterns or DEFAULT_SENSITIVE_PATTERNS)
+
+    def add_secret(self, secret: str) -> None:
+        """Register a credential for exact masking before operation output is handled."""
+        if not isinstance(secret, str) or not secret:
+            raise ValueError("known secret must be a non-empty string")
+        if secret not in self.known_secrets:
+            self.known_secrets.append(secret)
+            # Match longer overlapping values first.
+            self.known_secrets.sort(key=len, reverse=True)
+
+    def add_secrets(self, secrets: Sequence[str]) -> None:
+        """Register multiple credentials without exposing their values."""
+        for secret in secrets:
+            self.add_secret(secret)
+
+    def clear_secrets(self) -> None:
+        """Release exact credential values after their execution has ended."""
+        self.known_secrets.clear()
 
     def redact_string(self, text: str) -> str:
         """Alias for redact string."""

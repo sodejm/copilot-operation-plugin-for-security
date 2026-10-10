@@ -30,16 +30,22 @@ def utc_now():
 def canonical(value, *, max_bytes=1024 * 1024, max_depth=32):
     if type(max_bytes) is not int or max_bytes <= 0 or type(max_depth) is not int or not 1 <= max_depth <= 64:
         raise EvidenceError("invalid_limit")
-    pending = [(value, 1)]
+    # Pending depth is the number of enclosing containers. Count each container
+    # before inspecting children so empty and populated containers have the same
+    # depth, matching the streaming decoder's structural preflight.
+    pending = [(value, 0)]
     nodes = 0
     minimum_bytes = 0
     while pending:
         item, depth = pending.pop()
         nodes += 1
         minimum_bytes += 1
-        if depth > max_depth or nodes > max_bytes:
+        if nodes > max_bytes:
             raise EvidenceError("payload_limit")
         if type(item) is dict:
+            container_depth = depth + 1
+            if container_depth > max_depth:
+                raise EvidenceError("payload_limit")
             minimum_bytes += 1
             if nodes + len(pending) + len(item) > max_bytes:
                 raise EvidenceError("payload_limit")
@@ -49,12 +55,15 @@ def canonical(value, *, max_bytes=1024 * 1024, max_depth=32):
                 minimum_bytes += len(key) + 3
                 if minimum_bytes > max_bytes:
                     raise EvidenceError("payload_limit")
-            pending.extend((child, depth + 1) for child in item.values())
+            pending.extend((child, container_depth) for child in item.values())
         elif type(item) is list:
+            container_depth = depth + 1
+            if container_depth > max_depth:
+                raise EvidenceError("payload_limit")
             minimum_bytes += 1
             if nodes + len(pending) + len(item) > max_bytes:
                 raise EvidenceError("payload_limit")
-            pending.extend((child, depth + 1) for child in item)
+            pending.extend((child, container_depth) for child in item)
         elif type(item) is float:
             if not math.isfinite(item):
                 raise EvidenceError("invalid_json")

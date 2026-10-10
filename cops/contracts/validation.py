@@ -67,20 +67,11 @@ def validate_identifier(identifier: str, kind: str) -> None:
 
 def build_action_plan_digest(
     *,
-    target: str,
-    specialist_id: str,
-    operations: list[dict[str, Any]],
-    limits: dict[str, Any],
+    snapshot: dict[str, Any],
     max_bytes: int = 1024 * 1024,
 ) -> str:
-    """Calculate deterministic canonical digest of an action plan payload."""
-    payload = {
-        "target": target,
-        "specialist_id": specialist_id,
-        "operations": operations,
-        "limits": limits,
-    }
-    return digest(payload, max_bytes=max_bytes)
+    """Calculate a deterministic digest over every approved plan field."""
+    return digest(snapshot, max_bytes=max_bytes)
 
 
 def evaluate_run_result(result: dict[str, Any]) -> bool:
@@ -175,13 +166,9 @@ def validate_contract(
             if any(secret_marker in ref.lower() for secret_marker in ("bearer ", "ghp_", "eyj", "pass")):
                 raise ContractError("credential_leak_detected", "raw credential detected in credential_references")
 
-        expected_digest = build_action_plan_digest(
-            target=document["target"],
-            specialist_id=document["specialist_id"],
-            operations=document["operations"],
-            limits=document["limits"],
-            max_bytes=max_bytes,
-        )
+        snapshot = {key: value for key, value in document.items()
+                    if key not in {"status", "plan_digest"}}
+        expected_digest = build_action_plan_digest(snapshot=snapshot, max_bytes=max_bytes)
         if document["plan_digest"] != expected_digest:
             raise ContractError(
                 "integrity_mismatch",
@@ -197,24 +184,6 @@ def validate_contract(
         t_auth_until = timestamp(document["authorized_until_utc"])
         if t_auth_until < t_issued:
             raise ContractError("invalid_timestamp", "authorized_until_utc cannot precede issued_at")
-
-        # Verify signature_digest over payload
-        payload = {
-            "action_plan_id": document["action_plan_id"],
-            "plan_digest": document["plan_digest"],
-            "engagement_id": document["engagement_id"],
-            "operator": document["operator"],
-            "issued_at": document["issued_at"],
-            "authorized_until_utc": document["authorized_until_utc"],
-            "bound_parameters": document["bound_parameters"],
-            "approval_mode": document["approval_mode"],
-        }
-        expected_sig = digest(payload, max_bytes=max_bytes)
-        if document["signature_digest"] != expected_sig:
-            raise ContractError(
-                "integrity_mismatch",
-                f"signature_digest mismatch: expected {expected_sig}, got {document['signature_digest']}"
-            )
 
         if document.get("status") == "consumed":
             if not document.get("consumed_at") or not document.get("consumed_by_worker"):

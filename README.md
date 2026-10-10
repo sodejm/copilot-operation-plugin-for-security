@@ -145,6 +145,7 @@ make check PYTHON=.venv/bin/python
 Before creating new plugins or modifying contracts, please review:
 - **[Documentation Site](https://sodejm.github.io/copilot-operation-plugin-for-security/)**: The official documentation website.
 - **[Getting Started Guide](docs/getting-started.md)**: Quickstart and command walkthroughs.
+- **[Authenticated Execution Guide](docs/AUTHENTICATED_EXECUTION.md)**: Configure verifier trust, immutable approval binding, one-time execution, migration, and key rotation.
 - **[Adding a Plugin](docs/ADDING_A_PLUGIN.md)**: Step-by-step instructions for contributing a new security capability.
 - **[Troubleshooting Guide](docs/troubleshooting.md)**: Solutions for common setup and dependency issues.
 - **[Repository Contract (AGENTS.md)](AGENTS.md)**: Coding conventions, git workflow, and branch rules.
@@ -160,6 +161,7 @@ In security engineering, confidence comes from verification:
 - **Clear Status Separation**: We clearly separate what has been **validated locally** from what remains **unverified** in a live cloud environment. A passing offline test proves code correctness—it does not claim your production SIEM is currently receiving live alerts.
 - **Data Privacy**: Tools treat all input code and logs as sensitive data. They do not store credentials or transmit telemetry to third parties.
 - **Truth-in-Advertising**: Capabilities are audited into four operational readiness modes (`planned`, `import`, `laboratory`, `live-validated`), with zero false live claims.
+- **Authenticated Execution Authority**: High-consequence execution requires a signed full-plan snapshot, the expected worker identity, an active engagement, an independent verifier trust store, and an owner-provisioned worker capability inventory. See the [Authenticated Execution Guide](docs/AUTHENTICATED_EXECUTION.md).
 
 ---
 
@@ -171,3 +173,7 @@ In security engineering, confidence comes from verification:
 ### Plugin execution cost analysis
 
 Contributors can use [plugin-run-cost](.agents/skills/plugin-run-cost/SKILL.md) to measure explicitly assigned COPS runs, estimate input scaling, and compare API, local-tool and employee costs. It runs locally with synthetic examples, preserves unknown charges, and distinguishes API-equivalent estimates from actual bills.
+
+## Local pre-push validation
+
+See [installation, prerequisites, security boundaries and recovery](docs/LOCAL_PUSH_GATE.md). CI remains required.

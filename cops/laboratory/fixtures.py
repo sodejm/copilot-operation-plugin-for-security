@@ -8,8 +8,8 @@ from cops.contracts.models import (
     ExecutionAuthorization,
     LaboratoryEnvironment,
 )
-from cops.contracts.validation import build_action_plan_digest
-from cops.evidence.canonical import digest, utc_now
+from cops.evidence.canonical import utc_now
+from cops.execution.authorization import AuthorizationSigner, create_execution_authorization
 
 
 def make_inert_container_environment(
@@ -127,8 +127,8 @@ def make_inert_engagement(
         status="active",
         mode="laboratory",
         scope={
-            "included_networks": [target_cidr],
-            "excluded_networks": ["169.254.169.254/32", "0.0.0.0/0"],
+            "included_targets": [target_cidr],
+            "excluded_targets": ["169.254.169.254/32"],
         },
         window={
             "started_at": now_iso,
@@ -158,6 +158,7 @@ def make_inert_action_plan(
         {
             "step_id": "step-01",
             "tool": "kube-bench",
+            "tool_version": "0.7.0",
             "action": "run_cis_benchmark",
             "arguments": {"target": target, "standards": "cis-1.7"},
             "timeout_seconds": 60,
@@ -168,69 +169,38 @@ def make_inert_action_plan(
         "max_output_bytes": 1048576,
         "egress_allowed": False,
     }
-    plan_digest = build_action_plan_digest(
-        target=target,
-        specialist_id=specialist_id,
-        operations=operations,
-        limits=limits,
-    )
-    return ActionPlan(
-        schema_version="cops.action-plan/v1",
+    return ActionPlan.create(
         plan_id=plan_id,
         engagement_id=engagement_id,
         scenario_id=scenario_id,
         target=target,
         specialist_id=specialist_id,
-        status="approved",
         operations=operations,
         limits=limits,
-        plan_digest=plan_digest,
+        status="approved",
         created_at=now_iso,
         credential_references=[],
+        platform_prerequisites=["linux"],
+        batch={"mode": "sequential", "max_operations": 1, "fail_fast": True},
     )
 
 
 def make_inert_execution_authorization(
     plan: ActionPlan,
-    authorization_id: str = "auth-lab-00000001",
-    operator: str = "secops-lead",
+    *,
+    signer: AuthorizationSigner,
+    engagement: Engagement | dict,
     worker_identity: str = "lab-operator",
+    authorization_id: str | None = None,
 ) -> ExecutionAuthorization:
     """Create a cryptographically bound ExecutionAuthorization envelope."""
-    now_iso = utc_now()
-    bound_params = {
-        "target": plan.target,
-        "specialist_id": plan.specialist_id,
-        "worker_identity": worker_identity,
-        "limits": plan.limits,
-        "credential_references": plan.credential_references,
-        "operations_summary": [
-            {"step_id": op["step_id"], "tool": op["tool"], "action": op["action"]}
-            for op in plan.operations
-        ],
-    }
-    payload = {
-        "action_plan_id": plan.plan_id,
-        "plan_digest": plan.plan_digest,
-        "engagement_id": plan.engagement_id,
-        "operator": operator,
-        "issued_at": now_iso,
-        "authorized_until_utc": "2029-12-31T23:59:59Z",
-        "bound_parameters": bound_params,
-        "approval_mode": "pre_signed_envelope",
-    }
-    signature_digest = digest(payload)
-    return ExecutionAuthorization(
-        schema_version="cops.execution-authorization/v1",
-        authorization_id=authorization_id,
-        action_plan_id=plan.plan_id,
-        plan_digest=plan.plan_digest,
-        engagement_id=plan.engagement_id,
-        operator=operator,
-        issued_at=now_iso,
+    return create_execution_authorization(
+        plan,
+        signer=signer,
+        engagement=engagement,
+        worker_identity=worker_identity,
+        authorization_id=authorization_id or "auth-lab-00000001",
+        issued_at=utc_now(),
         authorized_until_utc="2029-12-31T23:59:59Z",
-        bound_parameters=bound_params,
         approval_mode="pre_signed_envelope",
-        signature_digest=signature_digest,
-        status="approved",
     )

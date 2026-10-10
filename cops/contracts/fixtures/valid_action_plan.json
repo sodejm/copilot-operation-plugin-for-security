@@ -10,6 +10,7 @@
     {
       "step_id": "step-1",
       "tool": "nmap",
+      "tool_version": "0.7.0",
       "action": "port_scan",
       "arguments": {
         "ports": "80,443",
@@ -18,12 +19,20 @@
       "timeout_seconds": 60
     }
   ],
+  "platform_prerequisites": [
+    "linux"
+  ],
   "limits": {
     "max_duration_seconds": 300,
     "max_output_bytes": 65536,
     "egress_allowed": false
   },
+  "batch": {
+    "mode": "sequential",
+    "max_operations": 1,
+    "fail_fast": true
+  },
   "credential_references": ["corp_service_account_token_ref"],
-  "plan_digest": "0aedaf187e93ccd7779616f04a89aaaa100c50d69a60002bad448b58d5f5fac5",
+  "plan_digest": "b9f513c36e52bcaf3aa679a546eae17efe745398ecc8768b1d66990548cc8ab8",
   "created_at": "2026-10-02T10:00:00Z"
 }

@@ -59,7 +59,57 @@ Portable plugins must explicitly declare and distribute a compatible SDK before
 adoption. See the [SDK specification](../specs/shared-evidence-sdk.spec.md) and
 [guide](../docs/EVIDENCE_SDK.md) for raw/normalized evidence, security and migration.
 
+## Authenticated execution boundary
+
+High-consequence execution requires an authorization signed over the complete
+immutable Action Plan snapshot and the expected worker identity. A separate approval
+authority holds verifier trust, the active Engagement, and the protected approval
+store. The worker presents only the authorization identifier and exact plan through a
+local control channel bound to its process credentials and worker identity. The
+worker checks the plan against an owner-provisioned
+`cops.worker-capability-inventory/v1` measurement artifact, checks Linux sandbox
+readiness, and asks the authority to verify and atomically consume the authorization
+before dispatch. The inventory records worker identity, exact tool
+versions, platform capabilities, measurement time, and measurement source. It is a
+trusted provisioning input; COPS does not populate it through runtime host discovery.
+For each external adapter launch, the worker separately verifies an
+operator-provisioned platform SHA-256 and the adapter's pinned upstream executable
+revision. Linux launches bind the version probe and operation to the same held staged
+inode through `/proc/self/fd`; unsupported platforms fail closed. Raw stdout and
+stderr are bounded during collection. A timeout or raw-output overflow suppresses
+all retained bytes before redaction and persistence. The worker reserves a unique
+evidence inode before dispatch, revalidates it before a directory-relative
+non-following write, and reports post-redaction truncation as a partial result.
+
+HMAC authenticates membership in the shared-key verifier channel and does not provide
+non-repudiation because every key holder can mint an authorization. Existing unsigned
+or digest-only approval rows migrate to `legacy-untrusted` and cannot execute.
+Remote requests use bounded, versioned JSON over SSH with a pinned host key and exact
+host and worker identities. The Linux worker requires process sandbox controls for
+namespaces, file descriptors, environment, privileges, resources, and output; absent
+controls fail closed before approval consumption. Deployments must still provision
+separate accounts and protected local paths and verify those host controls in place.
+Live network destination and authenticated-resource mediation (issue #186) remain
+outside this boundary. The worker must run under a dedicated UID because a hostile
+same-UID process can still interfere with worker-owned state.
+
+Remote isolated-worker calls use `cops.remote-worker/v1`: one bounded JSON request
+and response over an absolute OpenSSH client configured with one privately staged,
+exact known-host pin. SSH configuration, proxies, forwarding, and local commands
+are disabled. The response must exactly bind the request identifier, configured
+host, and expected worker identity before its payload is returned. This transport
+binding does not replace worker-side approval consumption, sandboxing, or egress
+mediation.
+
 ## Evidence policy
+
+Local pre-push validation pins a reviewed policy and validates the proposed commit
+in an isolated checkout. It checks the whole feature branch for meaningful test
+updates and blocks scanner or canonical-check failures. The checkout excludes
+private untracked inputs but executes repository code with developer permissions;
+it is not an OS sandbox. Hooks remain bypassable and do not replace CI. See the
+[specification](../specs/local-push-gate.spec.md) and
+[installation guide](../docs/LOCAL_PUSH_GATE.md).
 
 Static structure, offline behavior, host installation, and live service behavior
 are separate claims. A manifest, generated index, fixture, or local passing test

@@ -10,6 +10,27 @@ permissions:
   contents: read
 
 jobs:
+  linux-bubblewrap-isolation:
+    name: Linux bubblewrap isolation
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install bubblewrap, its AppArmor profile, and test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes apparmor-profiles apparmor-utils bubblewrap util-linux
+          sudo install -m 0644 /usr/share/apparmor/extra-profiles/bwrap-userns-restrict /etc/apparmor.d/bwrap-userns-restrict
+          sudo apparmor_parser -r /etc/apparmor.d/bwrap-userns-restrict
+          python -m pip install -r requirements.txt
+      - name: Verify required Linux isolation boundaries
+        run: python -m pytest -m linux_bubblewrap tests/integration/test_linux_bubblewrap_sandbox.py -q
+
   portability-smoke:
     name: Operator smoke (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -47,7 +68,7 @@ jobs:
           python -m cops demo attack-path-workbench
 
   validate:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         python-version: ["3.11", "3.13"]
@@ -59,8 +80,13 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-      - name: Install test dependencies
-        run: python3 -m pip install -r requirements.txt
+      - name: Install Linux isolation runtime, AppArmor profile, and test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes apparmor-profiles apparmor-utils bubblewrap util-linux
+          sudo install -m 0644 /usr/share/apparmor/extra-profiles/bwrap-userns-restrict /etc/apparmor.d/bwrap-userns-restrict
+          sudo apparmor_parser -r /etc/apparmor.d/bwrap-userns-restrict
+          python3 -m pip install -r requirements.txt
       - name: Validate repository and plugin
         run: make check PYTHON=python3
 

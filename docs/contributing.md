@@ -22,6 +22,35 @@ All contributions adhere to the canonical [Repository Contract (AGENTS.md)](../A
 
 ---
 
+## Authenticated Execution Changes
+
+Changes to Action Plans, execution authorizations, trust stores, approval storage, or worker dispatch must preserve these invariants:
+
+- secret bytes enter only through the environment variable named by verifier-owned trust configuration;
+- signatures cover the full approved Action Plan snapshot and expected worker identity;
+- key, authorization, and Engagement identities and validity windows agree;
+- worker capability inventories are owner-provisioned measurements, loaded only from
+  current-user-owned non-symlink files without group or other permission bits, and
+  never described as runtime host capability discovery;
+- external adapter dispatch verifies an operator-provisioned platform SHA-256 and
+  the adapter's pinned upstream revision, then binds version probe and operation to
+  the same held executable inode on supported Linux workers;
+- raw stdout and stderr are bounded during collection, timeout and overflow remain
+  explicit partial outcomes, and evidence writes reject symlinks and workspace
+  escapes;
+- compatibility failures happen before authority is consumed;
+- the approval authority alone holds verifier trust and the protected approval store;
+  the worker submits only an authorization identifier and exact plan through a
+  peer-credential-checked local control channel;
+- SSH requests bind a pinned host key and exact host and worker identities, and
+  required Linux process-isolation controls fail closed before consumption;
+- consumption is atomic and replay fails closed; and
+- migrated unsigned or digest-only rows remain `legacy-untrusted`.
+
+Add focused acceptance tests for tampering, unknown/revoked/expired keys, operator and worker mismatches, replay, migration, inventory ownership and permissions, exact tool/platform compatibility, authority peer credentials, SSH identity binding, and sandbox readiness. Update the [Authenticated Execution Guide](AUTHENTICATED_EXECUTION.md), Security Model, compatibility/migration guidance, and affected plugin operator docs when an interface or trust assumption changes. Never add live secrets, private paths, or realistic credential material to fixtures or evidence.
+
+---
+
 ## Environment Setup
 
 ### 1. Create a Dedicated Virtual Environment
@@ -77,6 +106,26 @@ make check-issue-coverage
 ```
 
 Python changes must also pass `ruff check .`; YAML changes must pass `yamllint -s .`, matching the hosted quality gate. Install these tools in the development environment before running them. After changing canonical skills or portable evidence sources, regenerate adapters with `make sync-agent-adapters` and the evidence bundle with `python scripts/agent/bundle_evidence.py`, then rerun validation.
+
+Linux sandbox changes must also pass the real bubblewrap integration gate:
+
+```bash
+sudo apt-get install apparmor-profiles apparmor-utils bubblewrap util-linux
+sudo install -m 0644 /usr/share/apparmor/extra-profiles/bwrap-userns-restrict /etc/apparmor.d/bwrap-userns-restrict
+sudo apparmor_parser -r /etc/apparmor.d/bwrap-userns-restrict
+python -m pytest -m linux_bubblewrap tests/integration/test_linux_bubblewrap_sandbox.py -q
+```
+
+These setup commands target Ubuntu 24.04, whose AppArmor user-namespace policy
+otherwise blocks bubblewrap while it configures the isolated loopback interface.
+Run the gate as a non-root user with unprivileged user namespaces enabled.
+The hosted Ubuntu job treats a missing bubblewrap installation, blocked user
+namespaces, or a failed readiness probe as a failure because production dispatch
+must fail closed when these boundaries are unavailable.
+The sandbox also requires the root-owned `/usr/bin/prlimit` from `util-linux`.
+It applies the process-count limit inside the new namespace, immediately before
+the adapter starts, so the host account's existing tasks cannot block namespace
+creation on a shared runner.
 
 Security lint exceptions must describe the concrete reason at the narrowest applicable scope. Offline tests use synthetic credentials and noncryptographic seeded fuzzing; standalone scripts may set up the repository import path before imports. Public string-enum behavior is preserved rather than migrated solely to satisfy a style rule. Production authorization storage errors must propagate, and XML imports must reject entity declarations before parsing imported data.
 

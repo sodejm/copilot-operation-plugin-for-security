@@ -1,7 +1,7 @@
-Feature: Execution Authorization Envelopes and Legacy Receipt Rejection
+Feature: Authenticated Full-Plan Execution Authorization
   As a security operations lead
-  I need cryptographically bound, operator-authenticated execution authorization envelopes
-  So that high-consequence operations cannot be executed with forged, expired, mismatched, or legacy receipts
+  I need independently verified authorizations bound to the full plan and expected worker
+  So that forged, expired, mismatched, replayed, or legacy authority fails closed
 
   Scenario: Authorizing an immutable action plan and verifying signature
     Given a valid action plan from "valid_action_plan.json"

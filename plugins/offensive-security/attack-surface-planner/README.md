@@ -32,6 +32,10 @@ Every engagement begins with explicit human authorization. Before generating a p
 
 Record this sign-off in your local scope manifest. Discovered assets never automatically expand scope—if an asset's ownership is unverified, the planner flags it as `unresolved` and blocks testing until an authorized human signs off.
 
+### Planning versus execution authority
+
+The planner's report and sign-off record document scope; they do not authorize a worker to execute operations. A separate execution phase must bind the complete approved Action Plan and expected worker identity to an authenticated authorization, validate it through verifier-owned trust and the active Engagement, compare signed requirements with an independently owner-provisioned worker capability inventory, and consume it once. COPS loads that inventory as a trusted measurement artifact; it does not discover installed executables at runtime. Never place signing secret bytes in the plan, authorization, scope manifest, worker request, or inventory. Follow the repository [Authenticated Execution Guide](docs/AUTHENTICATED_EXECUTION.md) for provisioning, setup, migration, rotation, and rejection handling.
+
 ---
 
 ## Quick Test Drive (Offline Demo)

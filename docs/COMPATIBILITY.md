@@ -70,3 +70,28 @@ Before certifying that a COPS plugin runs smoothly in your organization's specif
 3. **Verify Discovery**: Ask the assistant to list its available skills or tools. Confirm that the plugin's skills appear in the list.
 4. **Execute Safe Offline Demo**: Prompt the assistant to run the plugin's safe offline demo or explain a packaged hunt. Ensure it requests only documented, expected permissions.
 5. **Document the Evidence**: Record the date, assistant version, reviewer name, and observed output. Keep live-service claims separate unless real cloud telemetry was queried.
+
+---
+
+## 5. Authenticated Execution Compatibility and Migration
+
+Authenticated execution adds an explicit compatibility check between the approved Action Plan and the selected worker. Operators provide the active Engagement, authorization trust store, and an independently provisioned, owner-only `cops.worker-capability-inventory/v1` artifact. That artifact identifies the worker and records exact tool versions, platform capabilities, measurement time, and measurement source. COPS does not populate that inventory through runtime host discovery; the worker owner is responsible for generating the measurement through a trusted host-baseline or deployment process and refreshing it when the host changes. At every external adapter launch, COPS separately locates the selected executable and verifies its operator-provisioned platform SHA-256 pin and adapter-declared upstream version before dispatch.
+
+The loader requires the inventory to be a non-symlink regular file owned by the current user with no group or other permission bits. Before dispatch, the worker compares the signed snapshot with that inventory and rejects a tool-version or platform-capability mismatch, non-sequential batch semantics, an operation count above the signed maximum, or an optional expected-worker assertion that does not match the inventory.
+
+External adapter execution is supported on Linux workers with an executable
+`/proc/self/fd` mount. The version probe and operation launch use the same verified,
+held staged inode; unsupported hosts, including macOS, fail closed. Built-in adapter
+definitions require an operator-provisioned `--executable-sha256 TOOL=SHA256` value
+for each installed platform binary. The general CLI, planning, inventory inspection,
+and `inert` execution paths remain portable. On non-POSIX hosts, a plan containing
+only `inert` operations uses a fresh private temporary workspace and a portable,
+exclusive-create evidence path that retains each artifact handle through capture,
+rejects collisions without overwriting them, and rejects symbolic links and Windows
+reparse points where the platform exposes them. Deploy the worker under a dedicated UID:
+descriptor-bound launch prevents pathname replacement but does not protect a staged
+inode from a hostile process with the same UID.
+
+Opening an older SQLite approval store preserves existing records but marks unsigned and digest-only approvals `legacy-untrusted`. The store exposes these through a separate read-only audit representation and retains their prior status as `historical_status`; they cannot authorize a new execution. Revalidate the current Engagement and plan, then issue a new authorization through an active trusted key; there is no automatic conversion or in-place trust upgrade.
+
+Repository tests can prove deterministic contract validation, full-snapshot and worker binding, key/engagement window checks, compatibility rejection, atomic one-time consumption, legacy migration, bounded collection, and executable substitution rejection against local fixtures. Each deployment must still verify secret injection, file and database permissions, executable-pin provenance, the accuracy of the owner-provisioned capability measurement, same-UID isolation, operating-system process isolation, and live network controls on the actual worker host. See [Authenticated Execution](AUTHENTICATED_EXECUTION.md) for the operating procedure.

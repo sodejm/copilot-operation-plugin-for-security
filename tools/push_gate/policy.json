@@ -1,0 +1,38 @@
+{
+  "default_branch": "main",
+  "tools": {
+    "semgrep": "1.179.0",
+    "trivy": "0.75.0"
+  },
+  "test_areas": [
+    {
+      "name": "push gate",
+      "implementation": [
+        "^tools/push_gate/.*\\.py$"
+      ],
+      "tests": [
+        "^(tests|gate_tests)/test_local_push_gate\\.py$"
+      ]
+    },
+    {
+      "name": "repository behavior",
+      "implementation": [
+        "^(?!tools/push_gate/)(?!tests/test_local_push_gate\\.py$)(?!gate_tests/).+\\.(py|js|mjs|ts|tsx|go|sh|tf)$"
+      ],
+      "tests": [
+        "^(?!tests/test_local_push_gate\\.py$)(?!gate_tests/)(?:.*?/)?(?:tests?|specs/features)/",
+        "^(?!.*test_local_push_gate).*test[^/]*\\.(py|mjs|js|ts|tsx|go)$",
+        "\\.tftest\\.hcl$"
+      ]
+    }
+  ],
+  "checks": [
+    [
+      "{python}",
+      "tools/push_gate/checks.py",
+      "cops",
+      "{base}",
+      "{sha}"
+    ]
+  ]
+}

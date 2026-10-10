@@ -1,7 +1,7 @@
 Feature: Scenario Laboratory Harness
   As a security operations specialist
-  I want an operator-controlled laboratory harness with isolation, canary verification, and reproducible reset
-  So that offensive and defensive scenarios execute reproducibly in tested environments without escaping boundaries
+  I want a harness that uses verifier trust, active engagement, measured worker capabilities, canary verification, and reproducible reset
+  So that authorized scenarios execute reproducibly with explicit evidence and residual boundaries
 
   Scenario: Registering and verifying an operator laboratory environment
     Given an inert operator laboratory environment contract
@@ -43,3 +43,17 @@ Feature: Scenario Laboratory Harness
     Then the laboratory case result status is "rejected"
     And the run result status is "failed"
     And no positive compromise claims are made
+
+  Scenario Outline: Rejecting unverified worker inventories before laboratory execution
+    Given a verified laboratory environment and signed execution authorization
+    And a directly constructed worker capability inventory
+    When the laboratory harness attempts a "<case_type>" case with that inventory
+    Then the inventory gate rejects the laboratory case
+    And no authorization is registered or consumed
+    And no laboratory adapter is invoked
+
+    Examples:
+      | case_type  |
+      | positive   |
+      | negative   |
+      | remediated |

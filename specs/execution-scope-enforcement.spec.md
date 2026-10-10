@@ -9,7 +9,7 @@ Enforces actual network destinations and resource identities at execution time a
 ## Rules & Mitigations
 
 1. **Destination Boundary Validation**:
-   - Destination targets (IPv4, IPv6, CIDR subnets, hostnames, URLs, and cloud resource identities) are inspected immediately prior to process dispatch.
+   - The HTTPS mediator validates IPv4, IPv6, hostname, and URL destinations immediately before each mediated connection.
    - Destinations must fall strictly within `included_targets` and outside `excluded_targets`.
 
 2. **Cloud Metadata Exfiltration Guard**:
@@ -20,4 +20,14 @@ Enforces actual network destinations and resource identities at execution time a
    - All resolved IP endpoints must satisfy authorized CIDR boundaries; domains resolving to private/metadata IPs trigger immediate rejection.
 
 4. **Resource Identity Binding**:
-   - Cloud accounts, Kubernetes namespaces, and role ARNs are validated against engagement allowlists without implicit scope expansion.
+   - A verified TLS peer must present exactly one canonical URI identity whose provider, service, account, tenant, cluster, namespace, and resource match an allowlisted identity.
+   - Each identity is bound to an exact canonical request-target allowlist, preventing a shared service endpoint from reaching another account, namespace, resource path, or query.
+
+5. **Bounded Mediation Protocol**:
+   - Only HTTPS `GET` and `HEAD` operations with strict request framing are supported.
+   - Redirects, resolution changes, peer-address changes, proxy/tunnel headers, metadata endpoints, malformed responses, and request or response limit overruns fail closed and produce redacted observations.
+   - The broker bounds request count, aggregate bytes, and total protocol time for one operation.
+
+## Deployment boundary
+
+The mediator and broker are a capability for a contained worker. They do not remove an adapter's ambient network access by themselves. A deployment may claim mandatory egress mediation only after the worker derives the destination, identity, and exact request-target allowlists from consumed trusted authorization, passes only the broker capability into an operating-system network sandbox, and proves the child cannot open direct IPv4 or IPv6 sockets while broker traffic succeeds.
