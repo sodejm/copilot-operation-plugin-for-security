@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[2]
 TARGET = Path("plugins/detection-hunting/attack-path-workbench/attackpath/_runtime")
 SOURCES = tuple(
     "cops/evidence/" + name + ".py"
-    for name in ("__init__", "canonical", "contract", "validation", "assessment", "ai_inventory")
+    for name in ("__init__", "canonical", "contract", "validation", "assessment", "ai_inventory", "langsmith_inventory")
 ) + ("catalog/schemas/evidence-envelope.schema.json", "catalog/schemas/acquisition-receipt.schema.json")
 
 
@@ -25,7 +25,7 @@ def generate(root=ROOT, *, check=False, destination=None):
     )
     manifest = {
         "schema_version": "attackpath.sdk-bundle/v1",
-        "contracts": ["cops.evidence/v1", "cops.acquisition/v1"],
+        "contracts": ["cops.evidence/v1", "cops.acquisition/v1", "cops.langsmith-query-runs/v2"],
         "sources": [{"path": name, "sha256": hashlib.sha256(expected[name]).hexdigest()} for name in SOURCES],
     }
     expected["source-manifest.json"] = (json.dumps(manifest, indent=2, sort_keys=True) + "\n").encode()

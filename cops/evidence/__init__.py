@@ -11,6 +11,11 @@ from .ai_inventory import (
 from .assessment import assess, report
 from .canonical import EvidenceError, canonical, decode_json
 from .contract import build_envelope
+from .langsmith_inventory import (
+    adapt_langsmith_query_runs,
+    export_langsmith_inventory,
+    import_langsmith_query_runs,
+)
 from .validation import validate_envelope, validate_receipt
 
 __all__ = [
@@ -30,4 +35,7 @@ __all__ += [
     "compare_inventories",
     "inventory_report",
     "adapt_entra_service_principals",
+    "adapt_langsmith_query_runs",
+    "import_langsmith_query_runs",
+    "export_langsmith_inventory",
 ]

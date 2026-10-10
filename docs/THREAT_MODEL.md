@@ -34,6 +34,7 @@ private payloads and real identifiers must never be copied into this document.
 | Canonical hunt skills → generated host adapters | Hashes and deterministic generation establish consistency, not trust in malicious canonical content. |
 | Attack Path input → descriptor-anchored report writer → operator-selected output directory | Output paths and concurrent filesystem names remain untrusted; a report set is complete only when the completion marker and recorded hashes validate. |
 | AI inventory import → bounded evidence graph/report → authorized operator | Imported provider records remain untrusted; strict projection rejects raw trace content and engagement-bound references prevent cross-engagement report access. |
+| Offline LangSmith response → strict selected-field parser → AI inventory registry → injected export boundary and caller sink | The parser accepts one versioned envelope, discards user-defined names and cursors, and never fetches provider data. A report reaches a sink only through the caller-supplied privacy boundary. |
 
 ```mermaid
 flowchart LR
@@ -60,6 +61,9 @@ account and credential recipient rather than only their user-supplied labels.
 - `plugins/detection-hunting/attack-path-workbench/tests/test_workbench.py`: negative tests for output-path replacement, publication races, durability failures and cleanup behavior.
 - `docs/SECURITY_MODEL.md`: inspect at the baseline revision; evidence scope is limited to this component.
 - `scripts/agent/check.py`: inspect at the baseline revision; evidence scope is limited to this component.
+- `cops/evidence/langsmith_inventory.py`: bounded selected-field parser, deterministic graph mapping and mandatory injected export boundary.
+- `cops/evidence/schemas/langsmith-query-runs-v2.schema.json`: fixed offline envelope and response projection.
+- `tests/test_langsmith_inventory.py`: malformed envelope, tenant collision, duplicate conflict, missing parent, truncation, provenance and fail-closed export tests.
 
 ## Threat register and prioritization
 
@@ -165,6 +169,14 @@ validation before the affected release/capability expansion and schedule P2 with
 - Existing evidence / limitation: The writer anchors traversal to directory descriptors, synchronizes new directories and reports before publication, creates the staging marker exclusively, publishes the open staging inode without replacement and synchronizes the published marker before cleaning up the staging name. The marker binds the run ID and report hashes, but a same-authority administrator can bypass these controls and some filesystems may provide weaker durability guarantees.
 - Proposed mitigation and validation: Keep negative tests for parent/output swaps, mid-walk renames, report and synchronization failures, competing marker creation, staging substitution and cleanup failure. Require consumers to validate marker schema, run ID and hashes, then record exact-revision human review and applicable filesystem evidence before release.
 - Residual risk / status: automated negative tests provide local evidence only; post-write mutation, hostile same-authority principals and filesystem-specific durability remain unverified. Human review and exact-revision acceptance are pending.
+
+### T11: LangSmith trace disclosure or misleading graph
+
+- Attack path / prerequisite: An untrusted, malformed or partial offline export embeds sensitive trace content, collides run IDs across tenants, forges parent lineage, or is treated as complete provider coverage; an export path bypasses the privacy policy and writes a report directly.
+- Inherent impact: High; likelihood: Medium; priority: P1.
+- Existing evidence / limitation: The adapter accepts one strict selected-field envelope, caps the document at 512 KiB and 240 runs, tenant-qualifies generic run records, rejects extra trace fields and conflicting records, validates present parent context and cycles, discards run names and cursors, and marks missing parents or pages unknown. LLM, embedding and tool records produce operation edges only; all records retain unknown trust and do not claim provider resources or privilege. Export requires the injected boundary's `export` method with a caller-provided sink, and policy refusal propagates. Local tests cover these behaviors with synthetic fixtures.
+- Proposed mitigation and validation: Keep the field projection pinned to the documented provider response; add a new schema version for provider changes. After the issue #238 boundary stabilizes, run the importer export tests against that concrete implementation and its refusal cases. Treat the source reference as restricted, apply retention/deletion policy to the original export, and require authorized source-specific checks before making coverage, identity, trust, permission or tool-effect claims.
+- Residual risk / status: Source authenticity and export completeness are not verified; omitted response fields can hide relationships; run types and semantic operation edges do not prove a model endpoint, retrieval store, MCP registration, target resource, provider identity, privilege or authorization; an authorized caller controls the sink and boundary instance; local parsing tests do not establish hosted LangSmith behavior. Human review of the exact integration revision and residual privacy risk is pending.
 
 ## STRIDE and privacy coverage
 

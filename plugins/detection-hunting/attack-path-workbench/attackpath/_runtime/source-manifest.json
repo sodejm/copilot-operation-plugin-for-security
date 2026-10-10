@@ -1,13 +1,14 @@
 {
   "contracts": [
     "cops.evidence/v1",
-    "cops.acquisition/v1"
+    "cops.acquisition/v1",
+    "cops.langsmith-query-runs/v2"
   ],
   "schema_version": "attackpath.sdk-bundle/v1",
   "sources": [
     {
       "path": "cops/evidence/__init__.py",
-      "sha256": "5906aea1fd058eab5dcfabacd1c326e908e58d99fa17f3df6f1e7124da5950bf"
+      "sha256": "046d8565f12c9b98ba1ff896843e05ffea02708131a7678d2fa415c40dddf219"
     },
     {
       "path": "cops/evidence/canonical.py",
@@ -28,6 +29,10 @@
     {
       "path": "cops/evidence/ai_inventory.py",
       "sha256": "103ee2f6a895da9c108699b4176248d0afbcf3057105b6162fe50a3d7a52a37a"
+    },
+    {
+      "path": "cops/evidence/langsmith_inventory.py",
+      "sha256": "7a12f441ab3aa76c6c79601cce3871dae356d01c18e6859bdd372e2a0c990e3e"
     },
     {
       "path": "catalog/schemas/evidence-envelope.schema.json",
