@@ -261,6 +261,7 @@ def write_files(output, contents, limit):
     descriptors = []
     directory = None
     completion_identity = None
+    completion_fd = None
     try:
         descriptors.append(os.open("/", os.O_RDONLY | os.O_DIRECTORY))
         for part in parts[:-1]:
@@ -275,10 +276,13 @@ def write_files(output, contents, limit):
             pass
         for name, data in encoded.items():
             fd = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=directory)
-            if name == "completion.json":
-                created = os.fstat(fd)
-                completion_identity = (created.st_dev, created.st_ino)
             try:
+                if name == "completion.json":
+                    created = os.fstat(fd)
+                    completion_identity = (created.st_dev, created.st_ino)
+                    # Retain the inode until cleanup has compared identities. A
+                    # replacement can reuse its inode immediately after unlink.
+                    completion_fd = fd
                 try:
                     os.fchmod(fd, 0o600)
                 except OSError:
@@ -291,7 +295,8 @@ def write_files(output, contents, limit):
                     view = view[count:]
                 os.fsync(fd)
             finally:
-                os.close(fd)
+                if fd != completion_fd:
+                    os.close(fd)
         os.fsync(directory)
         if not _path_names_directory(parts, directory):
             raise OSError("output path changed during write")
@@ -313,6 +318,8 @@ def write_files(output, contents, limit):
             raise
         raise AzureError("unsafe_or_existing_output") from None
     finally:
+        if completion_fd is not None:
+            os.close(completion_fd)
         for fd in reversed(descriptors):
             os.close(fd)
 
