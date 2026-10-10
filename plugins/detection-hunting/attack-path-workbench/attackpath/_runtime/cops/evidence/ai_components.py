@@ -326,7 +326,7 @@ def verify_component_manifest(
                 if blocked
                 else (
                     "limited"
-                    if integrity == "limited_opaque_alias"
+                    if integrity != "match"
                     or authenticity
                     in {
                         "unsigned_allowed",

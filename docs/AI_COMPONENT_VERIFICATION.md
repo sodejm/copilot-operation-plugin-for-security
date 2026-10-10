@@ -20,8 +20,10 @@ caller-supplied receipt matching.
 | AI inventory | Optional normalized `cops.ai-inventory/v1` snapshot | Inventory completeness remains the source's stated completeness |
 
 The report keeps integrity, authenticity, provenance, licensing, and organization
-approval separate. A matching component identity establishes integrity only. Each
-component must name a registered provenance decision through
+approval separate. A `verified` outcome requires a supplied observation whose
+identity and manifest ID match the manifest; no observation is limited assurance.
+A mutable model alias without an immutable digest remains limited even when its
+observation matches. Each component must name a registered provenance decision through
 `licensing_decision_id`; the report preserves that exact decision ID and rationale.
 This links to the #209 decision registry, but does not represent a source-specific
 reuse review unless the registry itself records one.

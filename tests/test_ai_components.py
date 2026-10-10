@@ -169,6 +169,37 @@ def test_verified_signature_claim_requires_a_matching_trusted_receipt():
     assert verified["authenticity"] == "verified"
 
 
+def test_verified_outcome_requires_matching_component_observation():
+    document = manifest()
+    identity = validate_component_manifest(document)["components"][0]["identity"]
+    receipts = [
+        {
+            "receipt_id": "receipt-billing",
+            "component_id": "billing-tool",
+            "identity": identity,
+            "verifier": "offline-test",
+        }
+    ]
+    unobserved = verify_component_manifest(
+        document, trusted_verification_receipts=receipts
+    )["components"][0]
+    assert unobserved["integrity"] == "not_observed"
+    assert unobserved["outcome"] == "limited"
+    observed = verify_component_manifest(
+        document,
+        trusted_verification_receipts=receipts,
+        observations=[
+            {
+                "component_id": "billing-tool",
+                "manifest_id": "review-1",
+                "identity": identity,
+            }
+        ],
+    )["components"][0]
+    assert observed["integrity"] == "match"
+    assert observed["outcome"] == "verified"
+
+
 def test_signing_required_rejects_unsupported_and_unsigned_states():
     for status in ("unsupported", "unsigned_allowed", "missing"):
         document = manifest()
