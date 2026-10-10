@@ -142,9 +142,7 @@ class TestExecutionSandbox:
         finally:
             os.close(opened_fd)
 
-    def assert_ready(
-        self, worker_identity: str, *, cwd: Path, expected_workspace_fd: int | None = None
-    ) -> None:
+    def assert_ready(self, worker_identity: str, *, cwd: Path, expected_workspace_fd: int | None = None) -> None:
         self.ready_calls.append((worker_identity, cwd))
         self._verify_workspace(cwd, expected_workspace_fd)
         if self.readiness_error is not None:

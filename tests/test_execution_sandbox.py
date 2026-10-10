@@ -63,9 +63,7 @@ def test_non_socket_capability_is_rejected() -> None:
         os.close(directory_fd)
 
 
-def test_sandbox_rejects_replaced_workspace_before_launch(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_sandbox_rejects_replaced_workspace_before_launch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     workspace = tmp_path / "workspace"
     workspace.mkdir(mode=0o700)
     expected_fd = os.open(workspace, os.O_RDONLY | os.O_DIRECTORY)

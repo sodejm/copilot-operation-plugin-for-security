@@ -318,9 +318,7 @@ class CleanupJournal:
     def _require_schema_version(cls, connection: sqlite3.Connection, required_version: int) -> None:
         if required_version not in cls._SUPPORTED_SCHEMA_VERSIONS:
             raise CleanupPersistenceError("unsupported cleanup journal schema version")
-        row = connection.execute(
-            "SELECT value FROM cleanup_metadata WHERE key = 'schema_version'"
-        ).fetchone()
+        row = connection.execute("SELECT value FROM cleanup_metadata WHERE key = 'schema_version'").fetchone()
         if row is None:
             raise CleanupPersistenceError("cleanup journal schema version is missing")
         current_version = cls._parse_schema_version(row["value"])

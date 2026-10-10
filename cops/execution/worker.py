@@ -580,9 +580,7 @@ class IsolatedWorker:
             except SecureDirectoryError as err:
                 raise WorkerIsolationError("worker workspace path must not contain symbolic-link components") from err
             self.approval_control.assert_ready(self.config.worker_id)
-            self.sandbox.assert_ready(
-                self.config.worker_id, cwd=target_workspace, expected_workspace_fd=workspace_fd
-            )
+            self.sandbox.assert_ready(self.config.worker_id, cwd=target_workspace, expected_workspace_fd=workspace_fd)
             self._verify_plan_compatibility(plan_model)
             if self.cleanup_journal is not None:
                 self.cleanup_journal.record_run_event(

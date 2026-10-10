@@ -245,9 +245,7 @@ class LinuxBubblewrapSandbox:
         command.extend(("--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--tmpfs", "/home", "--tmpfs", "/run"))  # noqa: S108 - private tmpfs mount
         return command
 
-    def assert_ready(
-        self, worker_identity: str, *, cwd: Path, expected_workspace_fd: int | None = None
-    ) -> None:
+    def assert_ready(self, worker_identity: str, *, cwd: Path, expected_workspace_fd: int | None = None) -> None:
         if not worker_identity.strip():
             raise SandboxReadinessError("worker identity must be non-empty")
         self._validate_host()
@@ -296,9 +294,7 @@ class LinuxBubblewrapSandbox:
         sandbox_env = self._sandbox_environment(env, operation_env)
         workspace_fd = self._open_private_workspace(cwd)
         try:
-            if expected_workspace_fd is not None and not same_directory_identity(
-                workspace_fd, expected_workspace_fd
-            ):
+            if expected_workspace_fd is not None and not same_directory_identity(workspace_fd, expected_workspace_fd):
                 raise SandboxReadinessError("sandbox workspace changed after preflight")
             with self._held_bubblewrap() as bubblewrap_fd, self._held_prlimit() as prlimit_fd:
                 # RLIMIT_NPROC counts the host account's existing tasks. Applying it

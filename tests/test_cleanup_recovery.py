@@ -919,9 +919,7 @@ def test_legacy_journal_remains_v1_until_identity_is_recorded(temp_workspace, te
     )
 
     with sqlite3.connect(temp_journal_path) as connection:
-        version = connection.execute(
-            "SELECT value FROM cleanup_metadata WHERE key = 'schema_version'"
-        ).fetchone()[0]
+        version = connection.execute("SELECT value FROM cleanup_metadata WHERE key = 'schema_version'").fetchone()[0]
     assert version == "1"
     assert len(CleanupJournal(temp_journal_path).recoverable_runs("worker-test-01")) == 1
 
@@ -932,9 +930,7 @@ def test_legacy_journal_remains_v1_until_identity_is_recorded(temp_workspace, te
         required_schema_version=2,
     )
     with sqlite3.connect(temp_journal_path) as connection:
-        version = connection.execute(
-            "SELECT value FROM cleanup_metadata WHERE key = 'schema_version'"
-        ).fetchone()[0]
+        version = connection.execute("SELECT value FROM cleanup_metadata WHERE key = 'schema_version'").fetchone()[0]
     assert version == "2"
 
     class LegacyJournal(CleanupJournal):
@@ -962,9 +958,7 @@ def test_journal_version_promotion_rolls_back_with_failed_event(temp_journal_pat
         )
 
     with sqlite3.connect(temp_journal_path) as connection:
-        version = connection.execute(
-            "SELECT value FROM cleanup_metadata WHERE key = 'schema_version'"
-        ).fetchone()[0]
+        version = connection.execute("SELECT value FROM cleanup_metadata WHERE key = 'schema_version'").fetchone()[0]
         count = connection.execute(
             "SELECT COUNT(*) FROM cleanup_events WHERE event_type = 'creation_identity_recorded'"
         ).fetchone()[0]

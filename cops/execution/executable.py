@@ -245,9 +245,7 @@ def prepare_executable(
 
         workspace_fd = os.open(workspace, os.O_RDONLY | directory | nofollow)
         _validate_private_directory(workspace_fd, "worker workspace")
-        if expected_workspace_fd is not None and not same_directory_identity(
-            workspace_fd, expected_workspace_fd
-        ):
+        if expected_workspace_fd is not None and not same_directory_identity(workspace_fd, expected_workspace_fd):
             raise ExecutableVerificationError("worker workspace changed after preflight")
         if cleanup_manager is not None:
             try:
