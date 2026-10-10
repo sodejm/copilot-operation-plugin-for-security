@@ -11,6 +11,7 @@ import uuid
 from collections.abc import Mapping
 from contextlib import closing
 from dataclasses import dataclass, field
+from heapq import heapify, heappop, heappush
 from pathlib import Path
 from typing import Any
 
@@ -809,9 +810,26 @@ class CleanupManager:
             "reason": reason,
         }
         quarantine_target = effect.transition_details.get("quarantine_target")
-        if isinstance(quarantine_target, str) and quarantine_target:
+        if (
+            isinstance(quarantine_target, str)
+            and quarantine_target
+            and os.path.lexists(quarantine_target)
+        ):
             unresolved["quarantine_target"] = quarantine_target
         return unresolved
+
+    @staticmethod
+    def _durably_cleaned_effect(effect: SideEffect) -> dict[str, Any] | None:
+        """Return receipt evidence for an action already committed to the ledger."""
+        action_taken = effect.transition_details.get("action_taken")
+        if effect.status != "cleaned" or not isinstance(action_taken, str) or not action_taken:
+            return None
+        return {
+            "effect_id": effect.effect_id,
+            "resource_type": effect.resource_type,
+            "target": effect.target,
+            "action_taken": action_taken,
+        }
 
     def _transition(
         self,
@@ -1005,19 +1023,44 @@ class CleanupManager:
 
     @classmethod
     def _rollback_order(cls, effects: list[SideEffect]) -> list[SideEffect]:
-        """Order filesystem descendants before directories that contain them."""
-        remaining = list(reversed(effects))
+        """Preserve reverse ledger order while delaying directories behind descendants."""
+        baseline = list(reversed(effects))
+        filesystem_paths = [cls._filesystem_target(effect) for effect in baseline]
+        directory_indices: dict[Path, list[int]] = {}
+        for index, (effect, target) in enumerate(zip(baseline, filesystem_paths, strict=True)):
+            if effect.resource_type == "directory" and target is not None:
+                directory_indices.setdefault(target, []).append(index)
+
+        remaining_descendants = {target: 0 for target in directory_indices}
+        for target in filesystem_paths:
+            if target is None:
+                continue
+            for ancestor in target.parents:
+                if ancestor in remaining_descendants:
+                    remaining_descendants[ancestor] += 1
+
+        ready = [
+            index
+            for index, (effect, target) in enumerate(zip(baseline, filesystem_paths, strict=True))
+            if effect.resource_type != "directory"
+            or target is None
+            or remaining_descendants[target] == 0
+        ]
+        heapify(ready)
         ordered: list[SideEffect] = []
-        while remaining:
-            for index, effect in enumerate(remaining):
-                if effect.resource_type == "directory" and any(
-                    cls._is_strict_descendant(other, effect) for other in remaining if other is not effect
-                ):
+        while ready:
+            index = heappop(ready)
+            ordered.append(baseline[index])
+            target = filesystem_paths[index]
+            if target is None:
+                continue
+            for ancestor in target.parents:
+                if ancestor not in remaining_descendants or remaining_descendants[ancestor] == 0:
                     continue
-                ordered.append(remaining.pop(index))
-                break
-            else:  # pragma: no cover - strict ancestry cannot form a cycle
-                ordered.append(remaining.pop(0))
+                remaining_descendants[ancestor] -= 1
+                if remaining_descendants[ancestor] == 0:
+                    for directory_index in directory_indices[ancestor]:
+                        heappush(ready, directory_index)
         return ordered
 
     def _unresolved_descendant(self, ancestor: SideEffect) -> SideEffect | None:
@@ -1048,12 +1091,21 @@ class CleanupManager:
             if target is not None:
                 unresolved_targets.append(target)
 
-        for effect in self._rollback_order(self.ledger.get_effects()):
+        actionable_effects: list[SideEffect] = []
+        for effect in self.ledger.get_effects():
+            cleaned_effect = self._durably_cleaned_effect(effect)
+            if cleaned_effect is not None:
+                cleaned_effects.append(cleaned_effect)
+                continue
             if effect.status == "cleaned":
+                record_unresolved(effect, "durably cleaned effect is missing action_taken evidence")
                 continue
             if effect.status in {"failed", "unknown"}:
                 record_unresolved(effect, f"cleanup outcome remains {effect.status}")
                 continue
+            actionable_effects.append(effect)
+
+        for effect in self._rollback_order(actionable_effects):
             effect_target = self._filesystem_target(effect)
             if effect.resource_type == "directory" and effect_target is not None:
                 unresolved_descendant = next(

@@ -246,6 +246,76 @@ def _assert_post_dispatch_failure_is_durable(
     assert replacement_sandbox.run_calls == []
 
 
+def test_eager_staging_cleanup_is_reported_in_run_result(
+    temp_store,
+    sample_plan,
+    temp_workspace,
+    temp_journal_path,
+    monkeypatch,
+):
+    worker_identity = "worker-eager-cleanup-test"
+    plan, authorization, _, _, _, sandbox, worker = _authorized_adapter_worker(
+        temp_store,
+        sample_plan,
+        temp_workspace,
+        temp_journal_path,
+        worker_identity=worker_identity,
+    )
+    workspace = temp_workspace / "eager-cleanup-workspace"
+    workspace.mkdir(mode=0o700)
+    tracked_effects = []
+
+    def fake_prepare(*args, cleanup_manager, **kwargs):
+        staging_dir = workspace / ".executables"
+        directory_effect = _record_worker_created_resource(
+            cleanup_manager.ledger,
+            staging_dir,
+            "directory",
+            step_id="step-fake-executable-directory",
+        )
+        file_effect = _record_worker_created_resource(
+            cleanup_manager.ledger,
+            staging_dir / "fake-tool",
+            "file",
+            step_id="step-fake-executable",
+        )
+        tracked_effects.extend((file_effect, directory_effect))
+
+        def remove():
+            cleanup_manager.cleanup_effect(file_effect)
+            cleanup_manager.cleanup_effect(directory_effect)
+
+        return SimpleNamespace(invocation_path="/proc/self/fd/7", pass_fds=(), remove=remove)
+
+    monkeypatch.setattr(worker_module, "verify_executable_launch_support", lambda: None)
+    monkeypatch.setattr(worker_module, "prepare_executable", fake_prepare)
+    sandbox.run_callback = lambda *args, **kwargs: BoundedProcessResult(b"result", b"", 0, False, False)
+
+    result = worker.execute_plan(
+        plan,
+        authorization=authorization.authorization_id,
+        workspace_dir=workspace,
+    )
+
+    assert result.status == "success"
+    assert result.cleanup_status == "completed"
+    assert worker.last_cleanup_receipt is not None
+    assert worker.last_cleanup_receipt.status == "completed"
+    assert {
+        cleaned_effect["effect_id"]: cleaned_effect
+        for cleaned_effect in worker.last_cleanup_receipt.cleaned_effects
+    } == {
+        effect.effect_id: {
+            "effect_id": effect.effect_id,
+            "resource_type": effect.resource_type,
+            "target": effect.target,
+            "action_taken": effect.transition_details["action_taken"],
+        }
+        for effect in tracked_effects
+    }
+    assert not (workspace / ".executables").exists()
+
+
 def test_side_effect_ledger_and_cleanup_manager(temp_workspace):
     """Test side-effect ledger tracking and cleanup rollback execution."""
     plan_id = "plan-test-01"
@@ -1110,7 +1180,11 @@ def test_recovered_process_is_never_signalled(temp_workspace, temp_journal_path,
     assert recovered_ledger.get_effects()[0].status == "unknown"
 
 
-def test_recovery_skips_durably_cleaned_effect(temp_workspace, temp_journal_path):
+def test_recovery_reports_durably_cleaned_effect_without_replaying(
+    temp_workspace,
+    temp_journal_path,
+    monkeypatch,
+):
     journal, ledger = _durable_ledger(temp_journal_path, temp_workspace)
     target = temp_workspace / "already-cleaned.txt"
     target.write_text("first generation", encoding="utf-8")
@@ -1130,15 +1204,102 @@ def test_recovery_skips_durably_cleaned_effect(temp_workspace, temp_journal_path
         recovered_effects=recovered.effects,
         start_run=False,
     )
-    receipt = CleanupManager(
+    manager = CleanupManager(
         recovered_ledger,
         worker_identity=recovered.worker_identity,
         workspace_dir=recovered.workspace_dir,
-    ).rollback(recovered=True)
+    )
+    ordered_effects = []
+    original_rollback_order = manager._rollback_order
 
-    assert receipt.status == "not_required"
+    def capture_rollback_order(effects):
+        ordered_effects.extend(effects)
+        return original_rollback_order(effects)
+
+    monkeypatch.setattr(manager, "_rollback_order", capture_rollback_order)
+    receipt = manager.rollback(recovered=True)
+
+    assert ordered_effects == []
+    assert receipt.status == "completed"
+    assert receipt.cleaned_effects == [
+        {
+            "effect_id": effect.effect_id,
+            "resource_type": "file",
+            "target": str(target),
+            "action_taken": "deleted_file",
+        }
+    ]
     assert target.read_text(encoding="utf-8") == "replacement"
     assert journal.recoverable_runs("worker-test-01") == ()
+
+
+def test_deleted_resource_omits_stale_quarantine_target_when_terminal_persistence_fails(
+    temp_workspace,
+    monkeypatch,
+):
+    ledger = SideEffectLedger("plan-stale-quarantine", "eng-stale-quarantine", "worker-test-01")
+    target = temp_workspace / "deleted-before-transition.txt"
+    effect = _record_worker_created_resource(
+        ledger,
+        target,
+        "file",
+        step_id="step-stale-quarantine",
+    )
+    manager = CleanupManager(
+        ledger,
+        worker_identity="worker-test-01",
+        workspace_dir=temp_workspace,
+    )
+    quarantine_target = Path(manager._quarantine_target(effect))
+    original_transition = manager._transition
+
+    def fail_terminal_transition(effect_arg, status, *, details=None):
+        if status == "cleaned":
+            raise CleanupPersistenceError("injected terminal transition failure")
+        original_transition(effect_arg, status, details=details)
+
+    monkeypatch.setattr(manager, "_transition", fail_terminal_transition)
+    receipt = manager.rollback()
+
+    assert receipt.status == "failed"
+    assert receipt.schema_version == "cops.cleanup-receipt/v1"
+    assert not target.exists()
+    assert not quarantine_target.exists()
+    assert "quarantine_target" not in receipt.unresolved_effects[0]
+
+
+def test_rollback_order_uses_bounded_child_before_parent_sort(temp_workspace, monkeypatch):
+    ledger = SideEffectLedger("plan-bounded-order", "eng-bounded-order", "worker-test-01")
+    child = ledger.record_effect(
+        step_id="step-child",
+        resource_type="file",
+        target=str(temp_workspace / "tree" / "nested" / "child.txt"),
+        cleanup_action="delete",
+    )
+    external_effects = [
+        ledger.record_effect(
+            step_id=f"step-custom-{index}",
+            resource_type="custom",
+            target=f"custom-{index}",
+            cleanup_action="revert",
+        )
+        for index in range(2048)
+    ]
+    parent = ledger.record_effect(
+        step_id="step-parent",
+        resource_type="directory",
+        target=str(temp_workspace / "tree"),
+        cleanup_action="delete",
+    )
+    effects = [child, *external_effects, parent]
+
+    def reject_pairwise_ancestry_scan(*args, **kwargs):
+        raise AssertionError("rollback ordering must not compare every effect pair")
+
+    monkeypatch.setattr(CleanupManager, "_is_strict_descendant", reject_pairwise_ancestry_scan)
+    ordered = CleanupManager._rollback_order(effects)
+
+    assert ordered == [*reversed(external_effects), child, parent]
 
 
 @pytest.mark.parametrize("resource_type", ["file", "directory"])
@@ -1268,7 +1429,15 @@ def test_receipt_write_failure_is_partial_and_recoverable(temp_workspace, temp_j
         worker_identity=recovered[0].worker_identity,
         workspace_dir=recovered[0].workspace_dir,
     ).rollback(recovered=True)
-    assert recovered_receipt.status == "not_required"
+    assert recovered_receipt.status == "completed"
+    assert recovered_receipt.cleaned_effects == [
+        {
+            "effect_id": recovered[0].effects[0].effect_id,
+            "resource_type": "file",
+            "target": str(target),
+            "action_taken": "deleted_file",
+        }
+    ]
     assert journal.recoverable_runs("worker-test-01") == ()
 
 
