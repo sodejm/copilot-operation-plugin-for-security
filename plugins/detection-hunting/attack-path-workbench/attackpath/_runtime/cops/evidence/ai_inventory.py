@@ -417,6 +417,8 @@ def _source_freshness(source: Mapping[str, Any], as_of: str | None) -> dict[str,
     if policy is None:
         return {"status": "unknown", "as_of": as_of, **result}
     collected_at = timestamp(source["collected_at"])
+    if collected_at > as_of_time:
+        return {"status": "unknown", "as_of": as_of, **result}
     status = "stale" if (as_of_time - collected_at).total_seconds() > policy else "fresh"
     return {"status": status, "as_of": as_of, **result}
 
