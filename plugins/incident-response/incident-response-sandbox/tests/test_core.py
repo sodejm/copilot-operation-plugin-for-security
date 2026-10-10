@@ -13,17 +13,30 @@ from incident_response.core import ActionError, build_plan, dry_run, execute
 
 
 def fixture() -> dict:
-    return {"schema": "cops.ir-fixture/v1", "tenant": "example-tenant", "revision": 1,
-            "permissions": ["isolate-host"], "throttled": False, "failure_mode": "none",
-            "targets": {"host-1": {"action": "isolate-host", "state": "active"},
-                        "host-2": {"action": "isolate-host", "state": "active"}},
-            "executions": []}
+    return {
+        "schema": "cops.ir-fixture/v1",
+        "tenant": "example-tenant",
+        "revision": 1,
+        "permissions": ["isolate-host"],
+        "throttled": False,
+        "failure_mode": "none",
+        "targets": {
+            "host-1": {"action": "isolate-host", "state": "active"},
+            "host-2": {"action": "isolate-host", "state": "active"},
+        },
+        "executions": [],
+    }
 
 
 def plan() -> dict:
-    return build_plan(action="isolate-host", tenant="example-tenant", target="host-1",
-                      expires_at=(datetime.now(UTC) + timedelta(hours=1)).isoformat(),
-                      nonce="unique-1", approver_assertion="analyst-1")
+    return build_plan(
+        action="isolate-host",
+        tenant="example-tenant",
+        target="host-1",
+        expires_at=(datetime.now(UTC) + timedelta(hours=1)).isoformat(),
+        nonce="unique-1",
+        approver_assertion="analyst-1",
+    )
 
 
 class SandboxTests(unittest.TestCase):
@@ -51,8 +64,14 @@ class SandboxTests(unittest.TestCase):
         with self.assertRaisesRegex(ActionError, "hash"):
             dry_run(p, fixture())
         with self.assertRaisesRegex(ActionError, "expired"):
-            build_plan(action="isolate-host", tenant="example-tenant", target="host-1",
-                       expires_at="2000-01-01T00:00:00Z", nonce="old", approver_assertion="analyst")
+            build_plan(
+                action="isolate-host",
+                tenant="example-tenant",
+                target="host-1",
+                expires_at="2000-01-01T00:00:00Z",
+                nonce="old",
+                approver_assertion="analyst",
+            )
 
     def test_drift_permission_throttle(self):
         p, f = plan(), fixture()
@@ -70,8 +89,10 @@ class SandboxTests(unittest.TestCase):
             dry_run(p, f)
 
     def test_partial_and_failed_rollback_are_distinct(self):
-        for mode, expected, state in (("partial", "partial-rolled-back", "active"),
-                                      ("rollback-failed", "partial-rollback-failed", "isolated")):
+        for mode, expected, state in (
+            ("partial", "partial-rolled-back", "active"),
+            ("rollback-failed", "partial-rollback-failed", "isolated"),
+        ):
             with self.subTest(mode=mode):
                 f = fixture()
                 f["failure_mode"] = mode
@@ -81,9 +102,7 @@ class SandboxTests(unittest.TestCase):
                 self.assertEqual(updated["targets"]["host-1"]["state"], state)
                 self.assertEqual(len(updated["executions"]), 1)
                 expected_verification = "failed" if mode == "partial" else "succeeded"
-                self.assertEqual(
-                    result["post_action_verification"]["result"], expected_verification
-                )
+                self.assertEqual(result["post_action_verification"]["result"], expected_verification)
 
     def test_unavailable_verification_is_explicit(self):
         p, f = plan(), fixture()

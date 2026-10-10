@@ -11,8 +11,19 @@ from pathlib import Path
 from typing import Literal, TypedDict
 
 Action = Literal["isolate-host", "revoke-session"]
-PLAN_FIELDS = {"schema", "action", "tenant", "target", "parameters", "expected_state",
-               "desired_state", "expires_at", "nonce", "approver_assertion", "plan_hash"}
+PLAN_FIELDS = {
+    "schema",
+    "action",
+    "tenant",
+    "target",
+    "parameters",
+    "expected_state",
+    "desired_state",
+    "expires_at",
+    "nonce",
+    "approver_assertion",
+    "plan_hash",
+}
 RECEIPT_FIELDS = {"schema", "plan_hash", "fixture_revision", "target_state_hash", "decision"}
 
 
@@ -43,8 +54,10 @@ def _digest(value: object) -> str:
 
 
 def _identifier(value: object, label: str) -> str:
-    if not isinstance(value, str) or not 1 <= len(value) <= 128 or not all(
-        char.isascii() and (char.isalnum() or char in "-_.@") for char in value
+    if (
+        not isinstance(value, str)
+        or not 1 <= len(value) <= 128
+        or not all(char.isascii() and (char.isalnum() or char in "-_.@") for char in value)
     ):
         raise ActionError(f"invalid {label}")
     return value
@@ -68,9 +81,12 @@ def validate_plan(plan: object, *, now: datetime | None = None) -> Plan:
     for key in ("tenant", "target", "nonce", "approver_assertion"):
         _identifier(plan[key], key)
     action = plan["action"]
-    states = {"isolate-host": ("active", "isolated"),
-              "revoke-session": ("valid", "revoked")}
-    if not isinstance(action, str) or action not in states or (plan["expected_state"], plan["desired_state"]) != states[action]:
+    states = {"isolate-host": ("active", "isolated"), "revoke-session": ("valid", "revoked")}
+    if (
+        not isinstance(action, str)
+        or action not in states
+        or (plan["expected_state"], plan["desired_state"]) != states[action]
+    ):
         raise ActionError("unsupported action or state transition")
     if not isinstance(plan["parameters"], dict) or plan["parameters"]:
         raise ActionError("parameters must be an empty object for fixture actions")
@@ -83,17 +99,25 @@ def validate_plan(plan: object, *, now: datetime | None = None) -> Plan:
     return plan  # type: ignore[return-value]
 
 
-def build_plan(*, action: Action, tenant: str, target: str, expires_at: str,
-               nonce: str, approver_assertion: str) -> Plan:
-    states = {"isolate-host": ("active", "isolated"),
-              "revoke-session": ("valid", "revoked")}
+def build_plan(
+    *, action: Action, tenant: str, target: str, expires_at: str, nonce: str, approver_assertion: str
+) -> Plan:
+    states = {"isolate-host": ("active", "isolated"), "revoke-session": ("valid", "revoked")}
     if not isinstance(action, str) or action not in states:
         raise ActionError("unsupported action")
     expected, desired = states[action]
-    plan = {"schema": "cops.ir-plan/v1", "action": action, "tenant": tenant,
-            "target": target, "parameters": {}, "expected_state": expected,
-            "desired_state": desired, "expires_at": expires_at, "nonce": nonce,
-            "approver_assertion": approver_assertion}
+    plan = {
+        "schema": "cops.ir-plan/v1",
+        "action": action,
+        "tenant": tenant,
+        "target": target,
+        "parameters": {},
+        "expected_state": expected,
+        "desired_state": desired,
+        "expires_at": expires_at,
+        "nonce": nonce,
+        "approver_assertion": approver_assertion,
+    }
     plan["plan_hash"] = _digest(plan)
     return validate_plan(plan)
 
@@ -107,9 +131,7 @@ def _fixture(fixture: object) -> dict:
         raise ActionError("invalid fixture records")
     if not isinstance(fixture.get("permissions"), list):
         raise ActionError("invalid fixture permissions")
-    if "verification_available" in fixture and not isinstance(
-        fixture["verification_available"], bool
-    ):
+    if "verification_available" in fixture and not isinstance(fixture["verification_available"], bool):
         raise ActionError("invalid verification availability")
     return fixture
 
@@ -126,8 +148,11 @@ def _check(plan: Plan, fixture: dict) -> str:
         raise ActionError("permission denied")
     if fixture.get("throttled") is True:
         raise ActionError("throttled")
-    if any(record.get("plan_hash") == plan["plan_hash"] or record.get("nonce") == plan["nonce"]
-           for record in fixture["executions"] if isinstance(record, dict)):
+    if any(
+        record.get("plan_hash") == plan["plan_hash"] or record.get("nonce") == plan["nonce"]
+        for record in fixture["executions"]
+        if isinstance(record, dict)
+    ):
         raise ActionError("duplicate or replayed plan")
     return _digest(target)
 
@@ -136,9 +161,13 @@ def dry_run(plan: object, fixture: object) -> dict:
     checked = validate_plan(plan)
     state = _fixture(fixture)
     state_hash = _check(checked, state)
-    return {"schema": "cops.ir-dry-run/v1", "plan_hash": checked["plan_hash"],
-            "fixture_revision": state["revision"], "target_state_hash": state_hash,
-            "decision": "ready"}
+    return {
+        "schema": "cops.ir-dry-run/v1",
+        "plan_hash": checked["plan_hash"],
+        "fixture_revision": state["revision"],
+        "target_state_hash": state_hash,
+        "decision": "ready",
+    }
 
 
 def _verification(state: dict, target: dict, desired_state: str) -> dict:
@@ -153,7 +182,12 @@ def _verification(state: dict, target: dict, desired_state: str) -> dict:
 def execute(plan: object, receipt: object, fixture: object) -> tuple[dict, dict]:
     checked = validate_plan(plan)
     state = _fixture(fixture)
-    if not isinstance(receipt, dict) or set(receipt) != RECEIPT_FIELDS or receipt["schema"] != "cops.ir-dry-run/v1" or receipt["decision"] != "ready":
+    if (
+        not isinstance(receipt, dict)
+        or set(receipt) != RECEIPT_FIELDS
+        or receipt["schema"] != "cops.ir-dry-run/v1"
+        or receipt["decision"] != "ready"
+    ):
         raise ActionError("explicit dry run receipt required")
     if receipt["plan_hash"] != checked["plan_hash"] or receipt["fixture_revision"] != state["revision"]:
         raise ActionError("dry run receipt drift")
@@ -185,11 +219,15 @@ def execute(plan: object, receipt: object, fixture: object) -> tuple[dict, dict]
             "post_action_verification": dict(verification),
         }
     )
-    return state, {"schema": "cops.ir-result/v1", "plan_hash": checked["plan_hash"],
-                   "outcome": outcome, "fixture_revision": state["revision"],
-                   "approval_provenance": "unverified-operator-assertion",
-                   "provider_request_id": provider_request_id,
-                   "post_action_verification": verification}
+    return state, {
+        "schema": "cops.ir-result/v1",
+        "plan_hash": checked["plan_hash"],
+        "outcome": outcome,
+        "fixture_revision": state["revision"],
+        "approval_provenance": "unverified-operator-assertion",
+        "provider_request_id": provider_request_id,
+        "post_action_verification": verification,
+    }
 
 
 def load_json(path: Path) -> object:
