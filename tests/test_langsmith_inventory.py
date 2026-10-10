@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import json
 from pathlib import Path
 
@@ -11,6 +12,17 @@ from cops.evidence import (
     adapt_langsmith_query_runs,
     export_langsmith_inventory,
     import_langsmith_query_runs,
+)
+from cops.evidence.export_policy import (
+    Classification,
+    DestinationRule,
+    ExportAction,
+    ExportBoundary,
+    ExportPolicy,
+    ExportRefused,
+    FieldRule,
+    SanitizedExport,
+    SinkDescriptor,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -185,25 +197,44 @@ def test_run_and_parent_limits_reject_oversized_responses():
         adapt_langsmith_query_runs(too_many_parents)
 
 
-class RecordingBoundary:
-    def __init__(self):
-        self.call = None
-
-    def export(self, sink, payload, *, restricted_evidence_reference=None, pseudonym_scope):
-        self.call = {
-            "sink": sink,
-            "payload": payload,
-            "reference": restricted_evidence_reference,
-            "scope": pseudonym_scope,
-        }
-        sink.append("sent")
-        return "sanitized-export"
+REPORT_DESCRIPTOR = SinkDescriptor("langsmith-report-fixture", "report", "inventory-report-export")
 
 
-def test_export_uses_injected_privacy_boundary_with_restricted_reference():
+class RecordingSink:
+    def __init__(self, descriptor=REPORT_DESCRIPTOR):
+        self.descriptor = descriptor
+        self.exports: list[SanitizedExport] = []
+
+    def send(self, export):
+        self.exports.append(export)
+
+
+def export_boundary(descriptor=REPORT_DESCRIPTOR):
+    return ExportBoundary(
+        ExportPolicy(
+            policy_id="synthetic-langsmith-inventory-policy",
+            version="2026-10-10.1",
+            field_rules=(
+                FieldRule("schema_version", Classification.PUBLIC, ExportAction.ALLOW),
+                FieldRule("counts.assets", Classification.INTERNAL, ExportAction.ALLOW),
+            ),
+            destinations=(
+                DestinationRule(
+                    sink_id=descriptor.sink_id,
+                    destination=descriptor.destination,
+                    purpose=descriptor.purpose,
+                    permitted_classifications=frozenset({Classification.PUBLIC, Classification.INTERNAL}),
+                ),
+            ),
+        ),
+        pseudonym_key=b"only-synthetic-langsmith-test-key",
+    )
+
+
+def test_export_uses_concrete_privacy_boundary_with_restricted_reference():
     snapshot = import_langsmith_query_runs(document(), registry=InventoryRegistry("engagement-a"))
-    boundary = RecordingBoundary()
-    sink = []
+    boundary = export_boundary()
+    sink = RecordingSink()
 
     result = export_langsmith_inventory(
         snapshot,
@@ -213,36 +244,48 @@ def test_export_uses_injected_privacy_boundary_with_restricted_reference():
         pseudonym_scope="engagement-a",
     )
 
-    assert result == "sanitized-export"
-    assert sink == ["sent"]
-    assert boundary.call["payload"]["schema_version"] == "cops.ai-inventory-report/v1"
-    assert boundary.call["reference"] == snapshot["snapshot_id"]
-    assert boundary.call["scope"] == "engagement-a"
+    assert isinstance(result, SanitizedExport)
+    assert result.payload == {
+        "schema_version": "cops.ai-inventory-report/v1",
+        "counts": {"assets": 5},
+    }
+    assert sink.exports == [result]
+    assert (
+        result.audit.restricted_evidence_reference_sha256
+        == hashlib.sha256(snapshot["snapshot_id"].encode()).hexdigest()
+    )
 
 
 def test_export_fails_closed_when_boundary_refuses():
     snapshot = import_langsmith_query_runs(document(), registry=InventoryRegistry("engagement-a"))
-    sink = []
-
-    class RefusingBoundary:
-        def export(self, sink, payload, *, restricted_evidence_reference=None, pseudonym_scope):
-            raise RuntimeError("policy_refused")
-
-    with pytest.raises(RuntimeError, match="policy_refused"):
+    unregistered = RecordingSink(SinkDescriptor("unregistered", "report", "inventory-report-export"))
+    with pytest.raises(ExportRefused, match="unregistered_destination"):
         export_langsmith_inventory(
             snapshot,
             engagement_id="engagement-a",
-            boundary=RefusingBoundary(),
-            sink=sink,
+            boundary=export_boundary(),
+            sink=unregistered,
             pseudonym_scope="engagement-a",
         )
-    assert sink == []
+    assert unregistered.exports == []
+
+    wrong_destination = SinkDescriptor("langsmith-report-fixture", "telemetry", "inventory-report-export")
+    wrong_sink = RecordingSink(wrong_destination)
+    with pytest.raises(ExportRefused, match="adapter_destination_mismatch"):
+        export_langsmith_inventory(
+            snapshot,
+            engagement_id="engagement-a",
+            boundary=export_boundary(wrong_destination),
+            sink=wrong_sink,
+            pseudonym_scope="engagement-a",
+        )
+    assert wrong_sink.exports == []
 
     with pytest.raises(InventoryError, match="invalid_export_boundary"):
         export_langsmith_inventory(
             snapshot,
             engagement_id="engagement-a",
             boundary=object(),
-            sink=sink,
+            sink=RecordingSink(),
             pseudonym_scope="engagement-a",
         )

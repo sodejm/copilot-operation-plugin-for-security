@@ -22,6 +22,7 @@ Feature: AI asset inventory import
 
   Scenario: LangSmith inventory export uses the privacy boundary
     Given an imported LangSmith inventory report and a caller-provided sink
-    When the report is exported through the injected export boundary
+    When the report is exported through the concrete export boundary to a registered report sink
     Then the boundary receives only the bounded report and its restricted reference
+    And an unregistered or non-report sink is refused without fallback output
     And a boundary refusal produces no fallback export

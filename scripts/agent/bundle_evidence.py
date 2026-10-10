@@ -10,8 +10,21 @@ ROOT = Path(__file__).resolve().parents[2]
 TARGET = Path("plugins/detection-hunting/attack-path-workbench/attackpath/_runtime")
 SOURCES = tuple(
     "cops/evidence/" + name + ".py"
-    for name in ("__init__", "canonical", "contract", "validation", "assessment", "ai_inventory", "langsmith_inventory")
-) + ("catalog/schemas/evidence-envelope.schema.json", "catalog/schemas/acquisition-receipt.schema.json")
+    for name in (
+        "__init__",
+        "canonical",
+        "contract",
+        "validation",
+        "assessment",
+        "ai_inventory",
+        "export_policy",
+        "langsmith_inventory",
+    )
+) + (
+    "cops/execution/redaction.py",
+    "catalog/schemas/evidence-envelope.schema.json",
+    "catalog/schemas/acquisition-receipt.schema.json",
+)
 
 
 def generate(root=ROOT, *, check=False, destination=None):

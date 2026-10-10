@@ -7,11 +7,12 @@ content has no representation in the normalized inventory document.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, Protocol
+from typing import Any
 from uuid import UUID
 
 from .ai_inventory import InventoryError, InventoryRegistry, inventory_report
 from .canonical import EvidenceError, canonical, timestamp
+from .export_policy import ExportBoundary, ExportRefused, ExportSink, SanitizedExport
 
 SCHEMA_VERSION = "cops.langsmith-query-runs/v2"
 MAX_DOCUMENT_BYTES = 512 * 1024
@@ -29,24 +30,6 @@ _SEMANTIC_EDGE_KINDS = {
     "EMBEDDING": "delegation",
     "TOOL": "tool_invocation",
 }
-
-
-class TrustedExportBoundary(Protocol):
-    """Caller-trusted structural subset of issue #238's privacy boundary.
-
-    The concrete ``cops.evidence.export_policy.ExportBoundary`` is supplied by
-    issue #238. Until that dependency is merged, this protocol provides typing
-    only; callers are responsible for injecting the reviewed implementation.
-    """
-
-    def export(
-        self,
-        sink: object,
-        payload: Mapping[str, Any],
-        *,
-        restricted_evidence_reference: str | None = None,
-        pseudonym_scope: str,
-    ) -> object: ...
 
 
 def _fail(code: str) -> None:
@@ -281,17 +264,22 @@ def export_langsmith_inventory(
     snapshot: Mapping[str, Any],
     *,
     engagement_id: str,
-    boundary: TrustedExportBoundary,
-    sink: object,
+    boundary: ExportBoundary,
+    sink: ExportSink,
     pseudonym_scope: str,
     namespace: str | None = None,
-) -> object:
-    """Send a report through a caller-trusted issue #238 boundary instance."""
-    export = getattr(boundary, "export", None)
-    if not callable(export):
+) -> SanitizedExport:
+    """Send a bounded report through the concrete privacy boundary."""
+    if not isinstance(boundary, ExportBoundary):
         _fail("invalid_export_boundary")
+    try:
+        destination = sink.descriptor.destination
+    except (AttributeError, TypeError):
+        raise ExportRefused("adapter_destination_mismatch") from None
+    if destination != "report":
+        raise ExportRefused("adapter_destination_mismatch")
     report = inventory_report(snapshot, engagement_id=engagement_id, namespace=namespace)
-    return export(
+    return boundary.export(
         sink,
         report,
         restricted_evidence_reference=report["restricted_reference"],
