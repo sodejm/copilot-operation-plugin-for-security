@@ -178,9 +178,9 @@ validation before the affected release/capability expansion and schedule P2 with
 
 - Attack path / prerequisite: A mutable tool description, schema, prompt bundle, model alias or evidence record changes after assessment, or a restored prior component is presented as silently reapproved.
 - Inherent impact: High; likelihood: Medium; priority: P1.
-- Existing evidence / limitation: The offline verifier canonicalizes declared behavior, reports invocation substitution, separates integrity from signer/provenance/approval evidence, and retains stale baselines after restoration. It consumes supplied observations only and does not execute, fetch, or verify signatures.
-- Proposed mitigation and validation: Require versioned manifests, bounded revocation evidence, exact registered provenance references, review and retest after baseline invalidation, and separate authorized runtime enforcement. Exercise changed MCP schemas/descriptions, prompt digests, signers, opaque aliases and inventory references with local fixtures.
-- Residual risk / status: local checks cannot establish live invocation coverage, signature validity, source licensing, inventory completeness or human review. These require engagement-scoped evidence and approval.
+- Existing evidence / limitation: The offline verifier canonicalizes declared behavior, reports invocation substitution, separates integrity from signer/provenance/approval evidence, and retains stale baselines after restoration. A manifest claim of a verified signature is accepted only when its ID and canonical identity match a caller-supplied trusted receipt. It consumes supplied observations only and does not execute, fetch, or cryptographically verify a signature or receipt.
+- Proposed mitigation and validation: Require versioned manifests, bounded revocation evidence, exact registered provenance references, review and retest after baseline invalidation, and separate authorized runtime enforcement. The focused verifier fixtures reject absent, invalid, revoked, untrusted, or receipt-mismatched observations; none can be reported as `live-validated` or runtime-verified. Exercise changed MCP schemas/descriptions, prompt digests, signers, opaque aliases and inventory references with local fixtures.
+- Residual risk / status: caller-supplied receipts can be false, and local checks cannot establish live invocation coverage, signature validity, source licensing, inventory completeness or human review. These require engagement-scoped evidence and approval.
 
 ## STRIDE and privacy coverage
 
