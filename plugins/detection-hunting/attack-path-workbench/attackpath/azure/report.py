@@ -360,6 +360,7 @@ def write_files(output, contents, limit):
             # staging descriptor, so replacing its pathname cannot substitute
             # marker bytes. Failure recovery never unlinks a public marker.
             staging_name = f".completion-{secrets.token_hex(16)}.tmp"
+            os.fsync(directory)
             staging_fd = os.open(
                 staging_name,
                 os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,

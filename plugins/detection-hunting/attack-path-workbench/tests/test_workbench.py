@@ -822,10 +822,17 @@ class WorkbenchTests(unittest.TestCase):
 
     def test_writer_syncs_report_directory_before_publishing_completion(self) -> None:
         real_fsync = os.fsync
+        real_open = os.open
         real_publish = azure_report._publish_completion
         events = []
         contents = {name: (name + "\n").encode("utf-8") for name in cli_module.LEGACY_REPORT_FILES}
         contents["completion.json"] = b'{"status":"complete"}\n'
+
+        def tracked_open(path, flags, mode=0o777, *, dir_fd=None):
+            if isinstance(path, str) and path.startswith(".completion-"):
+                events.append("marker-open")
+            kwargs = {} if dir_fd is None else {"dir_fd": dir_fd}
+            return real_open(path, flags, mode, **kwargs)
 
         def tracked_fsync(descriptor):
             if stat.S_ISDIR(os.fstat(descriptor).st_mode):
@@ -838,13 +845,18 @@ class WorkbenchTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as base_dir:
             output = Path(base_dir) / "reports"
+            supported_dir_fd = azure_report.os.supports_dir_fd | {tracked_open}
             with (
+                mock.patch.object(azure_report.os, "open", tracked_open),
                 mock.patch.object(azure_report.os, "fsync", tracked_fsync),
+                mock.patch.object(azure_report.os, "supports_dir_fd", supported_dir_fd),
                 mock.patch.object(azure_report, "_publish_completion", tracked_publish),
             ):
                 azure_report.write_files(output, contents, 4096)
 
+            marker_open_index = events.index("marker-open")
             publish_index = events.index("publish")
+            self.assertEqual("directory-fsync", events[marker_open_index - 1])
             self.assertEqual("directory-fsync", events[publish_index + 1])
             self.assertGreaterEqual(events[:publish_index].count("directory-fsync"), 3)
 
