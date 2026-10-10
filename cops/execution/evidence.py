@@ -199,27 +199,40 @@ class EvidenceRecorder:
                 try:
                     os.stat(candidate, dir_fd=artifacts_fd, follow_symlinks=False)
                 except FileNotFoundError:
-                    filename = candidate
-                    break
+                    pass
                 else:
                     continue
-            if filename is None:
+                filename = candidate
+                if self._cleanup_manager is not None:
+                    artifact_effect = self._cleanup_manager.ledger.record_effect(
+                        step_id=f"{clean_step_id}-evidence-{suffix}",
+                        resource_type="file",
+                        target=str(self._absolute_artifact_path("artifacts", filename)),
+                        cleanup_action="delete",
+                        metadata={"purpose": "execution_evidence_artifact"},
+                    )
+                try:
+                    artifact_fd = os.open(
+                        filename,
+                        os.O_WRONLY | os.O_CREAT | os.O_EXCL | nofollow | getattr(os, "O_CLOEXEC", 0),
+                        0o600,
+                        dir_fd=artifacts_fd,
+                    )
+                except FileExistsError:
+                    # The name can be claimed after stat. This attempt created
+                    # nothing, so record that fact and try another name.
+                    if artifact_effect is not None:
+                        self._cleanup_manager.ledger.transition_effect(
+                            artifact_effect,
+                            "cleaned",
+                            details={"action_taken": "no resource created; evidence artifact name collision"},
+                        )
+                        artifact_effect = None
+                    filename = None
+                    continue
+                break
+            if artifact_fd < 0:
                 raise EvidenceCaptureError("secure evidence artifact reservation could not choose a unique name")
-
-            if self._cleanup_manager is not None:
-                artifact_effect = self._cleanup_manager.ledger.record_effect(
-                    step_id=f"{clean_step_id}-evidence-{suffix}",
-                    resource_type="file",
-                    target=str(self._absolute_artifact_path("artifacts", filename)),
-                    cleanup_action="delete",
-                    metadata={"purpose": "execution_evidence_artifact"},
-                )
-            artifact_fd = os.open(
-                filename,
-                os.O_WRONLY | os.O_CREAT | os.O_EXCL | nofollow | getattr(os, "O_CLOEXEC", 0),
-                0o600,
-                dir_fd=artifacts_fd,
-            )
 
             info = os.fstat(artifact_fd)
             self._validate_private_file(info)

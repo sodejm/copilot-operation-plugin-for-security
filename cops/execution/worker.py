@@ -787,11 +787,14 @@ class IsolatedWorker:
                             metadata={"purpose": "credential_operation_scratch"},
                         )
                         operation_workspace_fd = create_directory_exclusive_no_symlinks(operation_workspace)
-                        workspace_stack.callback(os.close, operation_workspace_fd)
-                        ledger.record_created_identity(
-                            credential_scratch_effect,
-                            creation_fd=operation_workspace_fd,
-                        )
+                        try:
+                            ledger.record_created_identity(
+                                credential_scratch_effect,
+                                creation_fd=operation_workspace_fd,
+                            )
+                        except BaseException:
+                            os.close(operation_workspace_fd)
+                            raise
                     operation_env = {**clean_env, "HOME": str(operation_workspace), "TMPDIR": str(operation_workspace)}
                     try:
                         remaining_capture = max(0, max_output_bytes - captured_output_bytes)
@@ -963,6 +966,21 @@ class IsolatedWorker:
                         break
                     finally:
                         if operation_workspace != target_workspace:
+                            # The descriptor is needed only while this operation
+                            # runs. Keeping every scratch descriptor until plan
+                            # teardown exhausts the process limit on long plans.
+                            try:
+                                os.close(operation_workspace_fd)
+                            except OSError:
+                                operation_cleanup_failed = True
+                                credential_scratch_cleanup_failed = True
+                                status = "uncertain" if adapter_dispatched and not is_idempotent else "failed"
+                                status_reason = (
+                                    f"credential operation scratch descriptor close failed at step '{step_id}'"
+                                )
+                                if status == "uncertain":
+                                    status_reason += "; automatic repeat disallowed"
+                                overall_exit_code = 1
                             try:
                                 assert credential_scratch_effect is not None
                                 cleanup_manager.cleanup_effect(credential_scratch_effect)

@@ -173,15 +173,10 @@ the probe and operation to one file identity even if the original pathname is
 replaced. macOS `/dev/fd` does not provide the required executable-descriptor
 behavior, so external launches fail closed there. The `inert` test operation remains
 available without an executable pin. On non-POSIX hosts, plans containing only
-`inert` operations use a fresh private temporary workspace and a portable evidence
-reservation path. Each artifact is created exclusively, kept open through capture,
-and checked against its reserved file identity where the operating system exposes
-one; collisions never overwrite existing evidence, and symbolic links or Windows
-reparse points are rejected where the platform exposes them. Portable inert mode
-cannot provide descriptor-relative, no-symlink directory cleanup, so its evidence
-is not eligible for automatic deletion. The worker moves the non-empty temporary
-workspace to owner-only quarantine, reports it as unresolved, and leaves it for
-operator reconciliation.
+`inert` operations currently fail workspace preflight before authorization is
+consumed because the worker requires POSIX secure directory descriptors. A portable
+evidence reservation helper exists, but the non-POSIX worker lifecycle and cleanup
+path are not implemented. Do not rely on inert execution or quarantine on those hosts.
 
 Before consuming an approval, the worker also checks that every registered adapter
 supports the worker environment and can assemble the approved operation, and that

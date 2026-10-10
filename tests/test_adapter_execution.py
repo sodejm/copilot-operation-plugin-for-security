@@ -18,6 +18,7 @@ from types import SimpleNamespace
 import pytest
 
 import cops.execution.cleanup as cleanup_module
+import cops.execution.evidence as evidence_module
 import cops.execution.executable as executable_module
 import cops.execution.process as process_module
 import cops.execution.worker as worker_module
@@ -873,6 +874,24 @@ def test_credential_free_steps_share_workspace_around_credential_step(
 
     monkeypatch.setattr(worker_module, "prepare_executable", capture_prepare_executable)
     credential_workspace: list[Path] = []
+    scratch_fds: set[int] = set()
+    closed_scratch_fds: set[int] = set()
+    create_directory = worker_module.create_directory_exclusive_no_symlinks
+    close_fd = os.close
+
+    def track_directory(path: Path) -> int:
+        fd = create_directory(path)
+        if path.name.startswith("cops-credential-operation-"):
+            scratch_fds.add(fd)
+        return fd
+
+    def track_close(fd: int) -> None:
+        if fd in scratch_fds:
+            closed_scratch_fds.add(fd)
+        close_fd(fd)
+
+    monkeypatch.setattr(worker_module, "create_directory_exclusive_no_symlinks", track_directory)
+    monkeypatch.setattr(os, "close", track_close)
 
     def observe_step(_command, **kwargs):
         call_number = len(_sandbox(worker).run_calls)
@@ -886,6 +905,7 @@ def test_credential_free_steps_share_workspace_around_credential_step(
             credential_workspace.append(kwargs["cwd"])
         else:
             assert call_number == 3
+            assert scratch_fds == closed_scratch_fds
             assert kwargs["cwd"] == workspace
             assert (workspace / "shared-state.txt").read_text() == "from first step"
             assert kwargs.get("operation_env") is None
@@ -897,6 +917,7 @@ def test_credential_free_steps_share_workspace_around_credential_step(
     assert result.status == "success"
     assert len(_sandbox(worker).run_calls) == 3
     assert len(credential_workspace) == 1
+    assert scratch_fds == closed_scratch_fds
     assert not credential_workspace[0].exists()
     assert len(prepare_calls) == 3
     assert all(call["cleanup_manager"] is not None for call in prepare_calls)
@@ -1790,6 +1811,40 @@ def test_evidence_rejects_replaced_workspace_before_artifact_creation(tmp_path: 
         assert list(workspace.iterdir()) == []
     finally:
         os.close(expected_fd)
+
+
+def test_evidence_retries_name_claimed_between_check_and_exclusive_create(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir(mode=0o700)
+    ledger = SideEffectLedger("plan", "engagement", "worker", workspace_dir=workspace)
+    manager = CleanupManager(ledger, "worker", workspace)
+    recorder = EvidenceRecorder(workspace, context=_evidence_context(), cleanup_manager=manager)
+    original_open = os.open
+    raced = False
+
+    def claim_first_name(path, flags, mode=0o777, *, dir_fd=None):
+        nonlocal raced
+        if path == "step-1_output.txt" and flags & os.O_EXCL and not raced:
+            raced = True
+            fd = original_open(path, flags, mode, dir_fd=dir_fd)
+            try:
+                os.write(fd, b"racer-owned evidence")
+            finally:
+                os.close(fd)
+        return original_open(path, flags, mode, dir_fd=dir_fd)
+
+    monkeypatch.setattr(evidence_module.os, "open", claim_first_name)
+    reservation = recorder.reserve_step_output("step-1")
+
+    assert raced
+    assert reservation.name != "step-1_output.txt"
+    assert (workspace / "artifacts" / "step-1_output.txt").read_bytes() == b"racer-owned evidence"
+    collision = next(effect for effect in ledger.get_effects() if effect.target.endswith("/step-1_output.txt"))
+    assert collision.status == "cleaned"
+    assert collision.creation_identity is None
+    recorder.discard_pending_reservations()
 
 
 def test_evidence_rejects_artifact_directory_replacement_after_reservation(tmp_path: Path) -> None:
