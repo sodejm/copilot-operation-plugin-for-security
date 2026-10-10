@@ -7,7 +7,7 @@
   "sources": [
     {
       "path": "cops/evidence/__init__.py",
-      "sha256": "ed8db14cfedcf45dc6c52b857820434f31dab1bb2fae5b06194574ead8d78d00"
+      "sha256": "5906aea1fd058eab5dcfabacd1c326e908e58d99fa17f3df6f1e7124da5950bf"
     },
     {
       "path": "cops/evidence/canonical.py",
@@ -27,7 +27,7 @@
     },
     {
       "path": "cops/evidence/ai_inventory.py",
-      "sha256": "c7aa45b8bf7884b7928f5471e17d0681e5a9dcdf7e8f3bf96c4ba812f4f39f75"
+      "sha256": "17d543ffab0be75956a618ab335b16480e20c818f12166116c7482ca49cf1891"
     },
     {
       "path": "catalog/schemas/evidence-envelope.schema.json",
