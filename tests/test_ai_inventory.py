@@ -274,6 +274,22 @@ def test_compare_marks_absence_uncertain_when_freshness_policy_is_unavailable():
     }
 
 
+def test_compare_marks_future_dated_evidence_uncertain():
+    before = import_inventory(document(), engagement_id="engagement-a")
+    after_document = document()
+    after_document["assets"] = after_document["assets"][:1]
+    after_document["relationships"] = []
+    after = import_inventory(after_document, engagement_id="engagement-a")
+
+    comparison = compare_inventories(before, after, engagement_id="engagement-a", as_of="2026-10-09T23:59:59Z")
+
+    assert comparison["removed"] == {"assets": [], "relationships": []}
+    assert comparison["freshness"]["after"]["status"] == "unknown"
+    assert {item["reason"] for item in comparison["unknowns"] if item["subject"].startswith("removal:")} == {
+        "source_freshness_unknown"
+    }
+
+
 def test_reconciles_an_agent_to_entra_sponsor_without_merging_source_records():
     source = document()
     source["assets"].append(
