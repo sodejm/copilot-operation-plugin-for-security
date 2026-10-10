@@ -164,6 +164,7 @@ In security engineering, confidence comes from verification:
 - **Data Privacy**: Tools treat all input code and logs as sensitive data. They do not store credentials or transmit telemetry to third parties.
 - **Truth-in-Advertising**: Capabilities are audited into four operational readiness modes (`planned`, `import`, `laboratory`, `live-validated`), with zero false live claims.
 - **Authenticated Execution Authority**: High-consequence execution requires a signed full-plan snapshot, the expected worker identity, an active engagement, an independent verifier trust store, and an owner-provisioned worker capability inventory. See the [Authenticated Execution Guide](docs/AUTHENTICATED_EXECUTION.md).
+- **AI Component Verification**: Offline component identity, provenance and review-state reporting is documented in the [AI Component Verification Guide](docs/AI_COMPONENT_VERIFICATION.md); it never executes or fetches a component.
 
 ---
 
