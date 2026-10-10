@@ -810,11 +810,7 @@ class CleanupManager:
             "reason": reason,
         }
         quarantine_target = effect.transition_details.get("quarantine_target")
-        if (
-            isinstance(quarantine_target, str)
-            and quarantine_target
-            and os.path.lexists(quarantine_target)
-        ):
+        if isinstance(quarantine_target, str) and quarantine_target and os.path.lexists(quarantine_target):
             unresolved["quarantine_target"] = quarantine_target
         return unresolved
 
@@ -1042,9 +1038,7 @@ class CleanupManager:
         ready = [
             index
             for index, (effect, target) in enumerate(zip(baseline, filesystem_paths, strict=True))
-            if effect.resource_type != "directory"
-            or target is None
-            or remaining_descendants[target] == 0
+            if effect.resource_type != "directory" or target is None or remaining_descendants[target] == 0
         ]
         heapify(ready)
         ordered: list[SideEffect] = []

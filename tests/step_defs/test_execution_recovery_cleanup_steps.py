@@ -434,9 +434,7 @@ def then_eager_cleanup_reported_without_replay(recovery_ctx):
     effects = recovery_ctx["eager_cleanup_effects"]
     assert recovery_ctx["eager_cleanup_ordered_effects"] == []
     assert not recovery_ctx["staging_dir"].exists()
-    assert {
-        cleaned["effect_id"]: cleaned["action_taken"] for cleaned in receipt.cleaned_effects
-    } == {
+    assert {cleaned["effect_id"]: cleaned["action_taken"] for cleaned in receipt.cleaned_effects} == {
         effect.effect_id: effect.transition_details["action_taken"] for effect in effects
     }
 

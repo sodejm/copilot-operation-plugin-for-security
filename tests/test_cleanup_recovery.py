@@ -302,8 +302,7 @@ def test_eager_staging_cleanup_is_reported_in_run_result(
     assert worker.last_cleanup_receipt is not None
     assert worker.last_cleanup_receipt.status == "completed"
     assert {
-        cleaned_effect["effect_id"]: cleaned_effect
-        for cleaned_effect in worker.last_cleanup_receipt.cleaned_effects
+        cleaned_effect["effect_id"]: cleaned_effect for cleaned_effect in worker.last_cleanup_receipt.cleaned_effects
     } == {
         effect.effect_id: {
             "effect_id": effect.effect_id,
