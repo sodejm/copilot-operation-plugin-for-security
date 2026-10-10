@@ -17,6 +17,8 @@ CATALOG = ROOT / "catalog"
 def build_registry() -> None:
     now_utc = "2026-10-02T23:00:00Z"
 
+    # Preserve the compact source inventory rows until that generated catalog is migrated.
+    # fmt: off
     # --- 1. S01: command-cheatsheet (135 items) ---
     s01_items = [
         # Network Recon & Discovery (22)
@@ -522,9 +524,109 @@ def build_registry() -> None:
         },
     ]
 
+    # fmt: on
+    guidance = [
+        {
+            "guidance_id": "COPS-E01.01-GUIDE",
+            "title": "Network discovery safety guidance",
+            "document_path": "docs/SUPPORTING_GUIDANCE.md",
+        },
+        {
+            "guidance_id": "COPS-E03.01-GUIDE",
+            "title": "Pivoting scope guidance",
+            "document_path": "docs/SUPPORTING_GUIDANCE.md",
+        },
+        {
+            "guidance_id": "COPS-E06.03-GUIDE",
+            "title": "Privilege boundary guidance",
+            "document_path": "docs/SUPPORTING_GUIDANCE.md",
+        },
+        {
+            "guidance_id": "COPS-E10.07-GUIDE",
+            "title": "Pod Security Standards guidance",
+            "document_path": "docs/SUPPORTING_GUIDANCE.md",
+        },
+        {
+            "guidance_id": "COPS-E10.08-GUIDE",
+            "title": "Kubernetes RBAC guidance",
+            "document_path": "docs/SUPPORTING_GUIDANCE.md",
+        },
+        {
+            "guidance_id": "COPS-E14.01-GUIDE",
+            "title": "Web assessment safety guidance",
+            "document_path": "docs/SUPPORTING_GUIDANCE.md",
+        },
+        {
+            "guidance_id": "COPS-E17.02-GUIDE",
+            "title": "Active Directory assessment guidance",
+            "document_path": "docs/SUPPORTING_GUIDANCE.md",
+        },
+    ]
+
+    decisions = [
+        {
+            "decision_id": "COPS-DECISION-REFERENCE-ONLY",
+            "rationale": "Retain a source item as provenance only when COPS has no maintained, authorized scenario or supporting-guidance mapping for it.",
+        }
+    ]
+
+    licensing_reviews = {
+        "S01": (
+            "reuse_with_attribution",
+            "MIT license record: preserve required copyright and license notices when reusing eligible material.",
+        ),
+        "S02": (
+            "reuse_with_attribution",
+            "MIT license record: preserve required copyright and license notices when reusing eligible material.",
+        ),
+        "S03": (
+            "citation_only",
+            "Copyrighted technical article: retain as a citation and do not copy its procedure text.",
+        ),
+        "S04": (
+            "citation_only",
+            "Copyrighted threat research: retain as a citation and do not copy its procedure text.",
+        ),
+        "S05": (
+            "citation_only",
+            "Copyrighted technical analysis: retain as a citation and do not copy its procedure text.",
+        ),
+        "S06": (
+            "reuse_with_attribution",
+            "CC BY 4.0 record: preserve required attribution and license information for eligible reuse.",
+        ),
+        "S07": (
+            "citation_only",
+            "Copyrighted technical research: retain as a citation and do not copy its procedure text.",
+        ),
+        "S08": ("reuse_with_attribution", "Apache-2.0 record: preserve required notices for eligible reuse."),
+        "S09": ("reuse_with_attribution", "Apache-2.0 record: preserve required notices for eligible reuse."),
+        "S10": ("reuse_with_attribution", "Apache-2.0 record: preserve required notices for eligible reuse."),
+        "S11": ("reuse_with_attribution", "Apache-2.0 record: preserve required notices for eligible reuse."),
+        "S12": (
+            "reuse_with_attribution",
+            "CC BY 4.0 record: preserve required attribution and license information for eligible reuse.",
+        ),
+        "S13": (
+            "reuse_with_attribution",
+            "CC BY 4.0 record: preserve required attribution and license information for eligible reuse.",
+        ),
+    }
+
+    for source in sources:
+        disposition, rationale = licensing_reviews[source["source_id"]]
+        source["licensing_review"] = {
+            "reviewed_source_id": source["source_id"],
+            "reviewed_license": source["license"],
+            "disposition": disposition,
+            "rationale": rationale,
+        }
+
     provenance_doc = {
         "schema_version": "cops.provenance/v1",
         "updated_at": now_utc,
+        "guidance": guidance,
+        "decisions": decisions,
         "sources": sources,
     }
 

@@ -28,7 +28,7 @@
     },
     {
       "path": "cops/evidence/ai_inventory.py",
-      "sha256": "103ee2f6a895da9c108699b4176248d0afbcf3057105b6162fe50a3d7a52a37a"
+      "sha256": "ddae2f163e2dd0eb30ef30b91c05eec0534dff44bdbab4b2786266da76b50f2e"
     },
     {
       "path": "cops/evidence/langsmith_inventory.py",
