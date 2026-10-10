@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cops.example/schemas/ai-inventory-v1.schema.json",
+  "title": "COPS AI inventory v1 import",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "source", "assets", "relationships", "unknowns"],
+  "properties": {
+    "schema_version": {"const": "cops.ai-inventory/v1"},
+    "source": {"$ref": "#/$defs/source"},
+    "assets": {"type": "array", "maxItems": 1000, "items": {"$ref": "#/$defs/asset"}},
+    "relationships": {"type": "array", "maxItems": 5000, "items": {"$ref": "#/$defs/relationship"}},
+    "identity_links": {"type": "array", "maxItems": 1000, "items": {"$ref": "#/$defs/identityLink"}},
+    "unknowns": {"type": "array", "maxItems": 1000, "items": {"$ref": "#/$defs/unknown"}}
+  },
+  "$defs": {
+    "text": {"type": "string", "minLength": 1, "maxLength": 256},
+    "source": {"type": "object", "additionalProperties": false, "required": ["provider", "tenant", "collection_id", "collected_at", "completeness"], "properties": {"provider": {"$ref": "#/$defs/text", "pattern": "^[^/]+$"}, "tenant": {"$ref": "#/$defs/text", "pattern": "^[^/]+$"}, "collection_id": {"$ref": "#/$defs/text"}, "collected_at": {"$ref": "#/$defs/text"}, "completeness": {"enum": ["complete", "partial", "unknown", "inaccessible"]}, "freshness_policy_seconds": {"type": "integer", "minimum": 0}}},
+    "provenance": {"type": "object", "additionalProperties": false, "required": ["record_id", "reference", "completeness"], "properties": {"record_id": {"$ref": "#/$defs/text"}, "reference": {"$ref": "#/$defs/text"}, "observed_at": {"$ref": "#/$defs/text"}, "completeness": {"enum": ["complete", "partial", "unknown", "inaccessible"]}}},
+    "identity": {"type": "object", "additionalProperties": false, "required": ["provider", "tenant", "kind", "id"], "properties": {"provider": {"$ref": "#/$defs/text"}, "tenant": {"$ref": "#/$defs/text"}, "kind": {"$ref": "#/$defs/text"}, "id": {"$ref": "#/$defs/text"}}},
+    "asset": {"type": "object", "additionalProperties": false, "required": ["id", "kind", "external_id", "owner", "sensitivity", "trust", "provenance"], "properties": {"id": {"$ref": "#/$defs/text"}, "kind": {"enum": ["agent", "agent_run", "model_endpoint", "mcp_server", "mcp_tool", "retrieval_store", "memory_store", "cache_store", "service_identity", "document", "destination"]}, "display_name": {"$ref": "#/$defs/text"}, "external_id": {"$ref": "#/$defs/text"}, "owner": {"$ref": "#/$defs/text"}, "sensitivity": {"enum": ["public", "internal", "confidential", "restricted", "unknown"]}, "trust": {"enum": ["untrusted", "trusted", "privileged", "unknown"]}, "permissions": {"type": "array", "maxItems": 128, "uniqueItems": true, "items": {"$ref": "#/$defs/text"}}, "scopes": {"type": "array", "maxItems": 128, "uniqueItems": true, "items": {"$ref": "#/$defs/text"}}, "identity": {"$ref": "#/$defs/identity"}, "provenance": {"$ref": "#/$defs/provenance"}}},
+    "relationship": {"type": "object", "additionalProperties": false, "required": ["id", "from", "to", "kind", "support", "provenance"], "properties": {"id": {"$ref": "#/$defs/text"}, "from": {"$ref": "#/$defs/text"}, "to": {"$ref": "#/$defs/text"}, "kind": {"enum": ["authentication", "delegation", "reads", "writes", "tool_invocation", "outbound_transfer", "parent_child"]}, "support": {"enum": ["observed", "declared"]}, "provenance": {"$ref": "#/$defs/provenance"}}},
+    "identityLink": {"type": "object", "additionalProperties": false, "required": ["asset", "identity", "reason", "provenance"], "properties": {"asset": {"$ref": "#/$defs/text"}, "identity": {"$ref": "#/$defs/identity"}, "reason": {"enum": ["sponsor", "alias", "merge", "split"]}, "provenance": {"$ref": "#/$defs/provenance"}}},
+    "unknown": {"type": "object", "additionalProperties": false, "required": ["subject", "reason"], "properties": {"subject": {"$ref": "#/$defs/text"}, "reason": {"enum": ["missing", "stale", "opaque", "conflicting", "inaccessible"]}}}
+  }
+}

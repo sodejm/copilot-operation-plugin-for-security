@@ -1,0 +1,20 @@
+[
+  {
+    "id": "nested-tool-result",
+    "payload": {
+      "summary": "synthetic customer check",
+      "tool": {
+        "arguments": {"api_key": "fixture-only-api-key", "customer_id": "customer-1842"},
+        "result": {"customer_email": "person@example.test", "status": "ok"}
+      }
+    },
+    "sensitive_paths": ["tool.arguments.api_key", "tool.arguments.customer_id", "tool.result.customer_email"],
+    "benign_paths": ["summary", "tool.result.status"]
+  },
+  {
+    "id": "public-summary",
+    "payload": {"summary": "synthetic completed assessment"},
+    "sensitive_paths": [],
+    "benign_paths": ["summary"]
+  }
+]

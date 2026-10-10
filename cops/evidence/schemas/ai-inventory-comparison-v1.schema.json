@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cops.example/schemas/ai-inventory-comparison-v1.schema.json",
+  "title": "COPS AI inventory v1 comparison result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "engagement_id", "namespace", "added", "removed", "changed", "uncertain_removals", "freshness", "permission_changes", "scope_changes", "unknowns", "uncertain_relationships", "identity_links"],
+  "properties": {
+    "schema_version": {"const": "cops.ai-inventory-comparison/v1"},
+    "engagement_id": {"type": "string", "minLength": 1},
+    "namespace": {"type": "string", "minLength": 3},
+    "added": {"$ref": "#/$defs/delta"}, "removed": {"$ref": "#/$defs/delta"}, "uncertain_removals": {"$ref": "#/$defs/delta"}, "changed": {"$ref": "#/$defs/changed"},
+    "freshness": {"$ref": "#/$defs/freshness"},
+    "permission_changes": {"type": "array", "items": {"$ref": "#/$defs/access-change"}},
+    "scope_changes": {"type": "array", "items": {"$ref": "#/$defs/access-change"}},
+    "unknowns": {"type": "array"}, "uncertain_relationships": {"type": "array"}, "identity_links": {"type": "array"}
+  },
+  "$defs": {
+    "delta": {"type": "object", "additionalProperties": false, "required": ["assets", "relationships"], "properties": {"assets": {"type": "array"}, "relationships": {"type": "array"}}},
+    "changed": {"type": "object", "additionalProperties": false, "required": ["assets", "relationships"], "properties": {"assets": {"type": "array", "items": {"$ref": "#/$defs/change"}}, "relationships": {"type": "array", "items": {"$ref": "#/$defs/change"}}}},
+    "change": {"type": "object", "additionalProperties": false, "required": ["id", "before", "after"], "properties": {"id": {"type": "string", "minLength": 1}, "before": {"type": "object"}, "after": {"type": "object"}}},
+    "access-change": {"type": "object", "additionalProperties": false, "required": ["id", "before", "after"], "properties": {"id": {"type": "string", "minLength": 1}, "before": {"type": "array", "items": {"type": "string"}}, "after": {"type": "array", "items": {"type": "string"}}}},
+    "freshness": {"type": "object", "additionalProperties": false, "required": ["after"], "properties": {"after": {"$ref": "#/$defs/freshness-assessment"}}},
+    "freshness-assessment": {"type": "object", "additionalProperties": false, "required": ["status", "collected_at", "freshness_policy_seconds"], "properties": {"status": {"enum": ["fresh", "stale", "unknown", "not_evaluated"]}, "as_of": {"type": "string", "format": "date-time"}, "collected_at": {"type": "string", "format": "date-time"}, "freshness_policy_seconds": {"type": ["integer", "null"], "minimum": 0}}}
+  }
+}
