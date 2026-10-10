@@ -180,9 +180,7 @@ def test_verified_outcome_requires_matching_component_observation():
             "verifier": "offline-test",
         }
     ]
-    unobserved = verify_component_manifest(
-        document, trusted_verification_receipts=receipts
-    )["components"][0]
+    unobserved = verify_component_manifest(document, trusted_verification_receipts=receipts)["components"][0]
     assert unobserved["integrity"] == "not_observed"
     assert unobserved["outcome"] == "limited"
     observed = verify_component_manifest(
