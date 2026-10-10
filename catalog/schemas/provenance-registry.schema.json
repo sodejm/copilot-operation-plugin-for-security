@@ -7,11 +7,40 @@
   "required": [
     "schema_version",
     "updated_at",
+    "guidance",
+    "decisions",
     "sources"
   ],
   "properties": {
     "schema_version": {"const": "cops.provenance/v1"},
     "updated_at": {"type": "string", "format": "date-time"},
+    "guidance": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["guidance_id", "title", "document_path"],
+        "properties": {
+          "guidance_id": {"type": "string", "minLength": 1},
+          "title": {"type": "string", "minLength": 1},
+          "document_path": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "decisions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["decision_id", "rationale"],
+        "properties": {
+          "decision_id": {"type": "string", "minLength": 1},
+          "rationale": {"type": "string", "minLength": 1}
+        }
+      }
+    },
     "sources": {
       "type": "array",
       "minItems": 13,
@@ -25,6 +54,7 @@
           "url",
           "pinned_revision",
           "license",
+          "licensing_review",
           "item_count",
           "applicability",
           "inventory"
@@ -41,6 +71,17 @@
           "url": {"type": "string", "minLength": 1},
           "pinned_revision": {"type": "string", "minLength": 1},
           "license": {"type": "string", "minLength": 1},
+          "licensing_review": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["reviewed_source_id", "reviewed_license", "disposition", "rationale"],
+            "properties": {
+              "reviewed_source_id": {"type": "string", "pattern": "^S[0-9]{2}$"},
+              "reviewed_license": {"type": "string", "minLength": 1},
+              "disposition": {"enum": ["citation_only", "reuse_with_attribution"]},
+              "rationale": {"type": "string", "minLength": 1}
+            }
+          },
           "item_count": {"type": "integer", "minimum": 1},
           "applicability": {
             "type": "object",

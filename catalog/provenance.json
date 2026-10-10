@@ -1,4 +1,47 @@
 {
+  "decisions": [
+    {
+      "decision_id": "COPS-DECISION-REFERENCE-ONLY",
+      "rationale": "Retain a source item as provenance only when COPS has no maintained, authorized scenario or supporting-guidance mapping for it."
+    }
+  ],
+  "guidance": [
+    {
+      "document_path": "docs/SUPPORTING_GUIDANCE.md",
+      "guidance_id": "COPS-E01.01-GUIDE",
+      "title": "Network discovery safety guidance"
+    },
+    {
+      "document_path": "docs/SUPPORTING_GUIDANCE.md",
+      "guidance_id": "COPS-E03.01-GUIDE",
+      "title": "Pivoting scope guidance"
+    },
+    {
+      "document_path": "docs/SUPPORTING_GUIDANCE.md",
+      "guidance_id": "COPS-E06.03-GUIDE",
+      "title": "Privilege boundary guidance"
+    },
+    {
+      "document_path": "docs/SUPPORTING_GUIDANCE.md",
+      "guidance_id": "COPS-E10.07-GUIDE",
+      "title": "Pod Security Standards guidance"
+    },
+    {
+      "document_path": "docs/SUPPORTING_GUIDANCE.md",
+      "guidance_id": "COPS-E10.08-GUIDE",
+      "title": "Kubernetes RBAC guidance"
+    },
+    {
+      "document_path": "docs/SUPPORTING_GUIDANCE.md",
+      "guidance_id": "COPS-E14.01-GUIDE",
+      "title": "Web assessment safety guidance"
+    },
+    {
+      "document_path": "docs/SUPPORTING_GUIDANCE.md",
+      "guidance_id": "COPS-E17.02-GUIDE",
+      "title": "Active Directory assessment guidance"
+    }
+  ],
   "schema_version": "cops.provenance/v1",
   "sources": [
     {
@@ -966,6 +1009,12 @@
       ],
       "item_count": 135,
       "license": "MIT",
+      "licensing_review": {
+        "disposition": "reuse_with_attribution",
+        "rationale": "MIT license record: preserve required copyright and license notices when reusing eligible material.",
+        "reviewed_license": "MIT",
+        "reviewed_source_id": "S01"
+      },
       "name": "command-cheatsheet",
       "pinned_revision": "4c118399602212f205c91e8f01e418e226fa320c",
       "source_id": "S01",
@@ -1348,6 +1397,12 @@
       ],
       "item_count": 51,
       "license": "MIT",
+      "licensing_review": {
+        "disposition": "reuse_with_attribution",
+        "rationale": "MIT license record: preserve required copyright and license notices when reusing eligible material.",
+        "reviewed_license": "MIT",
+        "reviewed_source_id": "S02"
+      },
       "name": "Cheatsheet-God",
       "pinned_revision": "b879fd62eaae297b38087b8227dde5f8f0cf7668",
       "source_id": "S02",
@@ -1405,6 +1460,12 @@
       ],
       "item_count": 5,
       "license": "Copyrighted Technical Article (fair use citation)",
+      "licensing_review": {
+        "disposition": "citation_only",
+        "rationale": "Copyrighted technical article: retain as a citation and do not copy its procedure text.",
+        "reviewed_license": "Copyrighted Technical Article (fair use citation)",
+        "reviewed_source_id": "S03"
+      },
       "name": "Dynatrace: container misconfigurations",
       "pinned_revision": "2026-10-02",
       "source_id": "S03",
@@ -1461,6 +1522,12 @@
       ],
       "item_count": 5,
       "license": "Copyrighted Threat Research (fair use citation)",
+      "licensing_review": {
+        "disposition": "citation_only",
+        "rationale": "Copyrighted threat research: retain as a citation and do not copy its procedure text.",
+        "reviewed_license": "Copyrighted Threat Research (fair use citation)",
+        "reviewed_source_id": "S04"
+      },
       "name": "Unit 42: modern Kubernetes threats",
       "pinned_revision": "2026-10-02",
       "source_id": "S04",
@@ -1510,6 +1577,12 @@
       ],
       "item_count": 4,
       "license": "Copyrighted Threat Research (fair use citation)",
+      "licensing_review": {
+        "disposition": "citation_only",
+        "rationale": "Copyrighted technical analysis: retain as a citation and do not copy its procedure text.",
+        "reviewed_license": "Copyrighted Threat Research (fair use citation)",
+        "reviewed_source_id": "S05"
+      },
       "name": "SentinelOne: Kubernetes privilege escalation",
       "pinned_revision": "2026-10-02",
       "source_id": "S05",
@@ -1573,6 +1646,12 @@
       ],
       "item_count": 6,
       "license": "Creative Commons Attribution 4.0",
+      "licensing_review": {
+        "disposition": "reuse_with_attribution",
+        "rationale": "CC BY 4.0 record: preserve required attribution and license information for eligible reuse.",
+        "reviewed_license": "Creative Commons Attribution 4.0",
+        "reviewed_source_id": "S06"
+      },
       "name": "Kubernetes RBAC privilege escalation and mitigation",
       "pinned_revision": "2026-10-02",
       "source_id": "S06",
@@ -1651,6 +1730,12 @@
       ],
       "item_count": 8,
       "license": "Copyrighted Technical Research (fair use citation)",
+      "licensing_review": {
+        "disposition": "citation_only",
+        "rationale": "Copyrighted technical research: retain as a citation and do not copy its procedure text.",
+        "reviewed_license": "Copyrighted Technical Research (fair use citation)",
+        "reviewed_source_id": "S07"
+      },
       "name": "Bishop Fox: Kubernetes Bad Pods",
       "pinned_revision": "2026-10-02",
       "source_id": "S07",
@@ -1708,6 +1793,12 @@
       ],
       "item_count": 5,
       "license": "Apache-2.0",
+      "licensing_review": {
+        "disposition": "reuse_with_attribution",
+        "rationale": "Apache-2.0 record: preserve required notices for eligible reuse.",
+        "reviewed_license": "Apache-2.0",
+        "reviewed_source_id": "S08"
+      },
       "name": "Kubescape",
       "pinned_revision": "v3.0.0",
       "source_id": "S08",
@@ -1758,6 +1849,12 @@
       ],
       "item_count": 4,
       "license": "Apache-2.0",
+      "licensing_review": {
+        "disposition": "reuse_with_attribution",
+        "rationale": "Apache-2.0 record: preserve required notices for eligible reuse.",
+        "reviewed_license": "Apache-2.0",
+        "reviewed_source_id": "S09"
+      },
       "name": "kube-bench",
       "pinned_revision": "v0.8.0",
       "source_id": "S09",
@@ -1814,6 +1911,12 @@
       ],
       "item_count": 5,
       "license": "Apache-2.0",
+      "licensing_review": {
+        "disposition": "reuse_with_attribution",
+        "rationale": "Apache-2.0 record: preserve required notices for eligible reuse.",
+        "reviewed_license": "Apache-2.0",
+        "reviewed_source_id": "S10"
+      },
       "name": "kube-hunter",
       "pinned_revision": "v0.6.8",
       "source_id": "S10",
@@ -1864,6 +1967,12 @@
       ],
       "item_count": 4,
       "license": "Apache-2.0",
+      "licensing_review": {
+        "disposition": "reuse_with_attribution",
+        "rationale": "Apache-2.0 record: preserve required notices for eligible reuse.",
+        "reviewed_license": "Apache-2.0",
+        "reviewed_source_id": "S11"
+      },
       "name": "Trivy Kubernetes documentation",
       "pinned_revision": "v0.58.0",
       "source_id": "S11",
@@ -1906,6 +2015,12 @@
       ],
       "item_count": 3,
       "license": "Creative Commons Attribution 4.0",
+      "licensing_review": {
+        "disposition": "reuse_with_attribution",
+        "rationale": "CC BY 4.0 record: preserve required attribution and license information for eligible reuse.",
+        "reviewed_license": "Creative Commons Attribution 4.0",
+        "reviewed_source_id": "S12"
+      },
       "name": "Kubernetes RBAC good practices",
       "pinned_revision": "2026-10-02",
       "source_id": "S12",
@@ -1948,6 +2063,12 @@
       ],
       "item_count": 3,
       "license": "Creative Commons Attribution 4.0",
+      "licensing_review": {
+        "disposition": "reuse_with_attribution",
+        "rationale": "CC BY 4.0 record: preserve required attribution and license information for eligible reuse.",
+        "reviewed_license": "Creative Commons Attribution 4.0",
+        "reviewed_source_id": "S13"
+      },
       "name": "Kubernetes Pod Security Standards",
       "pinned_revision": "2026-10-02",
       "source_id": "S13",
