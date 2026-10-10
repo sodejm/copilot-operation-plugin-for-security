@@ -25,11 +25,8 @@ def add_ingestion_flags(command):
 
 
 def ingestion_overrides(args):
-    return {
-        name: value
-        for name in ("file_bytes", "total_bytes", "files", "line_bytes", "records", "json_depth")
-        if (value := getattr(args, "max_" + name)) is not None
-    }
+    return {name: value for name in ("file_bytes", "total_bytes", "files", "line_bytes",
+                                     "records", "json_depth") if (value := getattr(args, "max_" + name)) is not None}
 
 
 def add_search_flags(command):
@@ -38,11 +35,8 @@ def add_search_flags(command):
 
 
 def search_overrides(args):
-    return {
-        name: value
-        for name in ("expansions", "frontier", "complete_paths", "partial_paths", "emitted_paths", "report_bytes")
-        if (value := getattr(args, "max_" + name)) is not None
-    }
+    return {name: value for name in ("expansions", "frontier", "complete_paths", "partial_paths",
+                                     "emitted_paths", "report_bytes") if (value := getattr(args, "max_" + name)) is not None}
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -82,11 +82,8 @@ def normalized(context):
 @then("each accepted fact has a source pointer and malformed records are quarantined")
 def provenance_reconciles(context):
     report = context["report"]
-    assert all(
-        f["source"]["record_pointer"].startswith("/records/")
-        and f["source"]["file_sha256"] == file_hash(context["export"])
-        for f in report["evidence"]
-    )
+    assert all(f["source"]["record_pointer"].startswith("/records/") and
+               f["source"]["file_sha256"] == file_hash(context["export"]) for f in report["evidence"])
     assert any("unknown record type" in item["reason"] for item in report["quarantine"])
     counts = report["reconciliation"]
     assert counts["raw"] == counts["accepted"] + counts["quarantined"] + counts["rejected"]
@@ -129,10 +126,8 @@ def separated(context):
     assert len(report["supported_paths"]) == len(report["candidate_paths"]) == 1
     assert not report["supported_paths"][0]["gaps"]
     assert any("missing capability control" in gap for gap in report["candidate_paths"][0]["gaps"])
-    assert all(
-        path["premise"] == "conditional_successful_exploitation_of_finding"
-        for path in report["supported_paths"] + report["candidate_paths"]
-    )
+    assert all(path["premise"] == "conditional_successful_exploitation_of_finding"
+               for path in report["supported_paths"] + report["candidate_paths"])
 
 
 @given("duplicate routes and supported assets")
@@ -141,7 +136,6 @@ def duplicate_routes(context):
         duplicate = copy.deepcopy(next(row for row in export["records"] if row.get("id") == "ILL-PERMISSION"))
         duplicate["id"] = "ILL-PERMISSION-SECOND"
         export["records"].append(duplicate)
-
     change_export(context, add_duplicate)
 
 
@@ -211,9 +205,8 @@ def repeat_analysis(context):
 @then("canonical outputs match and the ledger has no invented owner or closure")
 def reproducible(context):
     assert canonical(context["report"]) == canonical(context["repeat"])
-    assert all(
-        action["owner"] is None and action["closure_evidence"] is None for action in context["report"]["actions"]
-    )
+    assert all(action["owner"] is None and action["closure_evidence"] is None
+               for action in context["report"]["actions"])
 
 
 @given("two conflicting structured specialist opinions")
@@ -221,27 +214,15 @@ def conflicting_reviews(context):
     report = analyze(context["input"])
     evidence = report["supported_paths"][0]["evidence_refs"]
     packet_hash = hashlib.sha256(canonical(report["supported_paths"][0])).hexdigest()
-    common = {
-        "schema_version": "attackpath.review/v1",
-        "specialist": "path_skeptic",
-        "prompt_version": "illustrative/v1",
-        "input_sha256": packet_hash,
-        "model_settings": None,
-        "evidence_refs": evidence,
-        "alternatives": [],
-        "validation_questions": ["Confirm the transition"],
-        "disagrees_with_gate": False,
-        "human_disposition": None,
-    }
+    common = {"schema_version": "attackpath.review/v1", "specialist": "path_skeptic",
+              "prompt_version": "illustrative/v1", "input_sha256": packet_hash, "model_settings": None,
+              "evidence_refs": evidence, "alternatives": [], "validation_questions": ["Confirm the transition"],
+              "disagrees_with_gate": False, "human_disposition": None}
     context["report"] = report
     context["reviews"] = [
         {**common, "verdict": "supported", "rationale": "Illustrative structural support only"},
-        {
-            **common,
-            "verdict": "candidate",
-            "rationale": "Illustrative precondition disputed",
-            "disagrees_with_gate": True,
-        },
+        {**common, "verdict": "candidate", "rationale": "Illustrative precondition disputed",
+         "disagrees_with_gate": True},
     ]
 
 

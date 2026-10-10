@@ -175,41 +175,16 @@ class WorkbenchTests(unittest.TestCase):
         self.assertEqual(1, report["search"]["consumed"]["emitted_paths"])
 
     def test_frontier_complete_and_partial_limits_stop_search(self) -> None:
-        nodes = {
-            name: {
-                "record": {"node_type": "asset"},
-                "class": "observed",
-                "evidence_id": f"N-{name}",
-                "confidence": "high",
-            }
-            for name in ("A", "B", "C")
-        }
-        findings = [
-            {
-                "record": {"id": "F", "asset_ref": "A"},
-                "class": "observed",
-                "evidence_id": "E-F",
-                "confidence": "high",
-                "scope": "S",
-            }
-        ]
-        edges = [
-            {
-                "record": {
-                    "id": f"E-{target}",
-                    "from": "A",
-                    "to": target,
-                    "relation": "reachable_from",
-                    "preconditions": ["finding_on_asset"],
-                    "postcondition": "network_reachability",
-                    "support": "observed",
-                },
-                "evidence_id": f"E-{target}",
-                "class": "observed",
-                "confidence": "high",
-            }
-            for target in ("B", "C")
-        ]
+        nodes = {name: {"record": {"node_type": "asset"}, "class": "observed",
+                        "evidence_id": f"N-{name}", "confidence": "high"}
+                 for name in ("A", "B", "C")}
+        findings = [{"record": {"id": "F", "asset_ref": "A"}, "class": "observed",
+                     "evidence_id": "E-F", "confidence": "high", "scope": "S"}]
+        edges = [{"record": {"id": f"E-{target}", "from": "A", "to": target,
+                             "relation": "reachable_from", "preconditions": ["finding_on_asset"],
+                             "postcondition": "network_reachability", "support": "observed"},
+                  "evidence_id": f"E-{target}",
+                  "class": "observed", "confidence": "high"} for target in ("B", "C")]
         crowns = [{"asset_ref": "B", "priority": 1}, {"asset_ref": "C", "priority": 2}]
         for overrides, targets, reason in (
             ({"frontier": 1}, crowns, "frontier_limit"),
@@ -217,7 +192,8 @@ class WorkbenchTests(unittest.TestCase):
             ({"partial_paths": 1}, [], "partial_path_limit"),
         ):
             with self.subTest(reason=reason):
-                _, _, receipt = trace_paths(nodes, findings, edges, targets, SearchLimits.from_values(overrides))
+                _, _, receipt = trace_paths(nodes, findings, edges, targets,
+                                            SearchLimits.from_values(overrides))
                 self.assertEqual(reason, receipt["stop_reason"])
                 self.assertFalse(receipt["complete"])
                 self.assertEqual("best_discovered", receipt["ranking_scope"])
@@ -226,31 +202,17 @@ class WorkbenchTests(unittest.TestCase):
         width = 12
         depth = 5
         nodes = {
-            "START": {
-                "record": {"node_type": "asset"},
-                "class": "observed",
-                "evidence_id": "N-START",
-                "confidence": "high",
-            }
+            "START": {"record": {"node_type": "asset"}, "class": "observed",
+                      "evidence_id": "N-START", "confidence": "high"}
         }
         for layer in range(1, depth + 1):
             for index in range(width):
                 name = f"L{layer}-{index:02d}"
-                nodes[name] = {
-                    "record": {"node_type": "asset"},
-                    "class": "observed",
-                    "evidence_id": f"N-{name}",
-                    "confidence": "high",
-                }
-        findings = [
-            {
-                "record": {"id": "F-START", "asset_ref": "START"},
-                "class": "observed",
-                "evidence_id": "E-F-START",
-                "confidence": "high",
-                "scope": "SCOPE",
-            }
-        ]
+                nodes[name] = {"record": {"node_type": "asset"}, "class": "observed",
+                               "evidence_id": f"N-{name}", "confidence": "high"}
+        findings = [{"record": {"id": "F-START", "asset_ref": "START"},
+                     "class": "observed", "evidence_id": "E-F-START",
+                     "confidence": "high", "scope": "SCOPE"}]
         edges = []
         prior = ["START"]
         for layer in range(1, depth + 1):
@@ -258,29 +220,21 @@ class WorkbenchTests(unittest.TestCase):
             for source in prior:
                 for target in current:
                     edge_id = f"E-{source}-{target}"
-                    edges.append(
-                        {
-                            "record": {
-                                "id": edge_id,
-                                "from": source,
-                                "to": target,
-                                "relation": "reachable_from",
-                                "preconditions": (
-                                    ["finding_on_asset"] if source == "START" else ["network_reachability"]
-                                ),
-                                "postcondition": "network_reachability",
-                                "support": "observed",
-                            },
-                            "evidence_id": edge_id,
-                            "class": "observed",
-                            "confidence": "high",
-                        }
-                    )
+                    edges.append({
+                        "record": {"id": edge_id, "from": source, "to": target,
+                                   "relation": "reachable_from",
+                                   "preconditions": (["finding_on_asset"] if source == "START"
+                                                     else ["network_reachability"]),
+                                   "postcondition": "network_reachability", "support": "observed"},
+                        "evidence_id": edge_id, "class": "observed", "confidence": "high",
+                    })
             prior = current
-        crowns = [{"asset_ref": f"L{depth}-{index:02d}", "priority": index + 1} for index in range(width)]
-        limits = SearchLimits.from_values(
-            {"expansions": 600, "frontier": 1_000, "complete_paths": 1_000, "partial_paths": 1_000, "emitted_paths": 8}
-        )
+        crowns = [{"asset_ref": f"L{depth}-{index:02d}", "priority": index + 1}
+                  for index in range(width)]
+        limits = SearchLimits.from_values({"expansions": 600, "frontier": 1_000,
+                                           "complete_paths": 1_000,
+                                           "partial_paths": 1_000,
+                                           "emitted_paths": 8})
 
         # Fixture construction is intentionally outside both measurements. The peak cap
         # allows one 4 KiB page for every fixed graph item and permitted expansion. That
@@ -300,7 +254,8 @@ class WorkbenchTests(unittest.TestCase):
         paths, partial, receipt = first
         self.assertEqual(first, second)
         self.assertEqual(
-            {"expansions": 600, "max_frontier": 56, "complete_paths": 547, "partial_paths": 0, "emitted_paths": 8},
+            {"expansions": 600, "max_frontier": 56, "complete_paths": 547,
+             "partial_paths": 0, "emitted_paths": 8},
             receipt["consumed"],
         )
         self.assertEqual("expansion_limit", receipt["stop_reason"])
@@ -313,31 +268,22 @@ class WorkbenchTests(unittest.TestCase):
         self.assertTrue(all(path["target"] == f"L{depth}-00" for path in paths))
         self.assertEqual(
             [
-                (
-                    "P-02847eeae0883daf",
-                    ["E-START-L1-00", "E-L1-00-L2-00", "E-L2-00-L3-00", "E-L3-00-L4-09", "E-L4-09-L5-00"],
-                ),
-                (
-                    "P-1a31062c62b8f6a5",
-                    ["E-START-L1-00", "E-L1-00-L2-00", "E-L2-00-L3-03", "E-L3-03-L4-01", "E-L4-01-L5-00"],
-                ),
-                (
-                    "P-1e9ad07a7a67ca9b",
-                    ["E-START-L1-00", "E-L1-00-L2-00", "E-L2-00-L3-00", "E-L3-00-L4-05", "E-L4-05-L5-00"],
-                ),
+                ("P-02847eeae0883daf", ["E-START-L1-00", "E-L1-00-L2-00",
+                                        "E-L2-00-L3-00", "E-L3-00-L4-09",
+                                        "E-L4-09-L5-00"]),
+                ("P-1a31062c62b8f6a5", ["E-START-L1-00", "E-L1-00-L2-00",
+                                        "E-L2-00-L3-03", "E-L3-03-L4-01",
+                                        "E-L4-01-L5-00"]),
+                ("P-1e9ad07a7a67ca9b", ["E-START-L1-00", "E-L1-00-L2-00",
+                                        "E-L2-00-L3-00", "E-L3-00-L4-05",
+                                        "E-L4-05-L5-00"]),
             ],
-            [(path["path_id"], [step["edge_id"] for step in path["steps"]]) for path in paths[:3]],
+            [(path["path_id"], [step["edge_id"] for step in path["steps"]])
+             for path in paths[:3]],
         )
         self.assertEqual(
-            [
-                {
-                    "crown_priority": 1,
-                    "business_rating": "unrated",
-                    "supported_step_count": depth,
-                    "total_step_count": depth,
-                }
-            ]
-            * 3,
+            [{"crown_priority": 1, "business_rating": "unrated",
+              "supported_step_count": depth, "total_step_count": depth}] * 3,
             [path["rank_inputs"] for path in paths[:3]],
         )
 
@@ -382,31 +328,14 @@ class WorkbenchTests(unittest.TestCase):
 
     def test_partial_branch_retained_when_another_branch_reaches_target(self) -> None:
         def change(export):
-            export["records"].append(
-                {
-                    "record_type": "node",
-                    "id": "ILL-DEAD-END",
-                    "node_type": "asset",
-                    "scope": "ILL-SCOPE",
-                    "observed_at": "2026-01-01T00:00:00Z",
-                    "support": "observed",
-                }
-            )
-            export["records"].append(
-                {
-                    "record_type": "edge",
-                    "id": "ILL-DEAD-END-EDGE",
-                    "from": "ILL-ASSET-A",
-                    "to": "ILL-DEAD-END",
-                    "relation": "reachable_from",
-                    "preconditions": ["finding_on_asset"],
-                    "postcondition": "network_reachability",
-                    "scope": "ILL-SCOPE",
-                    "observed_at": "2026-01-01T00:00:00Z",
-                    "support": "observed",
-                }
-            )
-
+            export["records"].append({"record_type": "node", "id": "ILL-DEAD-END",
+                                      "node_type": "asset", "scope": "ILL-SCOPE",
+                                      "observed_at": "2026-01-01T00:00:00Z", "support": "observed"})
+            export["records"].append({"record_type": "edge", "id": "ILL-DEAD-END-EDGE",
+                                      "from": "ILL-ASSET-A", "to": "ILL-DEAD-END",
+                                      "relation": "reachable_from", "preconditions": ["finding_on_asset"],
+                                      "postcondition": "network_reachability", "scope": "ILL-SCOPE",
+                                      "observed_at": "2026-01-01T00:00:00Z", "support": "observed"})
         report = self.analyze_changed_export(change)
         self.assertEqual(1, len(report["supported_paths"]))
         self.assertTrue(any(p["stopped_at"] == "ILL-DEAD-END" for p in report["partial_paths"]))
@@ -416,7 +345,6 @@ class WorkbenchTests(unittest.TestCase):
             for row in export["records"]:
                 if row.get("id") == "ILL-PERMISSION":
                     row["preconditions"] = ["control"]
-
         report = self.analyze_changed_export(change)
         self.assertEqual([], report["supported_paths"])
         path = next(p for p in report["candidate_paths"] if any(s["edge_id"] == "ILL-PERMISSION" for s in p["steps"]))
@@ -429,7 +357,6 @@ class WorkbenchTests(unittest.TestCase):
             for row in export["records"]:
                 if row.get("id") == "ILL-PERMISSION":
                     row["scope"] = "OTHER-SCOPE"
-
         report = self.analyze_changed_export(change)
         self.assertEqual([], report["supported_paths"])
         self.assertTrue(any("scope mismatch" in q["reason"] for q in report["quarantine"]))
@@ -465,7 +392,6 @@ class WorkbenchTests(unittest.TestCase):
             duplicate = copy.deepcopy(next(row for row in export["records"] if row.get("id") == "ILL-PERMISSION"))
             duplicate["id"] = "ILL-PERMISSION-SECOND"
             export["records"].append(duplicate)
-
         report = self.analyze_changed_export(change)
         self.assertEqual(1, len(report["supported_paths"]))
         path = report["supported_paths"][0]
@@ -478,7 +404,6 @@ class WorkbenchTests(unittest.TestCase):
             alternative["id"] = "ILL-PERMISSION-NEEDS-CONTROL"
             alternative["preconditions"] = ["control"]
             export["records"].append(alternative)
-
         report = self.analyze_changed_export(change)
         self.assertEqual(1, len(report["supported_paths"]))
         self.assertEqual(2, len(report["candidate_paths"]))
@@ -488,7 +413,6 @@ class WorkbenchTests(unittest.TestCase):
             for row in export["records"]:
                 if row.get("id") == "ILL-ASSET-B":
                     row["support"] = "hypothesis"
-
         report = self.analyze_changed_export(change)
         self.assertEqual([], report["supported_paths"])
         path = next(p for p in report["candidate_paths"] if len(p["steps"]) == 2)
@@ -501,7 +425,6 @@ class WorkbenchTests(unittest.TestCase):
             for row in export["records"]:
                 if row.get("id") == "ILL-FINDING":
                     row["support"] = "hypothesis"
-
         report = self.analyze_changed_export(change)
         self.assertEqual([], report["supported_paths"])
         self.assertTrue(all(p["blast_radius"]["evidenced_asset_count"] == 0 for p in report["candidate_paths"]))
@@ -521,7 +444,6 @@ class WorkbenchTests(unittest.TestCase):
             for row in export["records"]:
                 if row.get("id") == "ILL-ASSET-B":
                     row["node_type"] = "service"
-
         report = self.analyze_changed_export(change)
         self.assertEqual([], report["supported_paths"])
         self.assertTrue(any("reachable_from requires" in e["reason"] for e in report["graph_exclusions"]))
@@ -531,7 +453,6 @@ class WorkbenchTests(unittest.TestCase):
             for row in export["records"]:
                 if row.get("id") == "ILL-DEPENDENCY":
                     row["support"] = "hypothesis"
-
         report = self.analyze_changed_export(change)
         self.assertEqual(0, report["supported_paths"][0]["blast_radius"]["evidenced_service_count"])
 
@@ -540,7 +461,6 @@ class WorkbenchTests(unittest.TestCase):
             for row in export["records"]:
                 if row.get("id") == "ILL-CROWN":
                     row["node_type"] = "identity"
-
         report = self.analyze_changed_export(change)
         self.assertTrue(any("dependency requires" in e["reason"] for e in report["graph_exclusions"]))
 
@@ -549,14 +469,10 @@ class WorkbenchTests(unittest.TestCase):
             duplicate = copy.deepcopy(next(row for row in export["records"] if row.get("id") == "ILL-PERMISSION"))
             duplicate["postcondition"] = "modify"
             export["records"].append(duplicate)
-
         report = self.analyze_changed_export(change)
         self.assertEqual([], report["supported_paths"])
         self.assertEqual(2, sum("duplicate record identifier" in q["reason"] for q in report["quarantine"]))
-        self.assertEqual(
-            report["reconciliation"]["raw"],
-            sum(report["reconciliation"][key] for key in ("accepted", "quarantined", "rejected")),
-        )
+        self.assertEqual(report["reconciliation"]["raw"], sum(report["reconciliation"][key] for key in ("accepted", "quarantined", "rejected")))
 
     def test_legacy_attackpath_output_permissions_and_symlink_safety(self) -> None:
         cli_script = Path(__file__).resolve().parents[1] / "scripts/attackpath.py"
@@ -800,10 +716,17 @@ class WorkbenchTests(unittest.TestCase):
 
     def test_writer_syncs_report_directory_before_publishing_completion(self) -> None:
         real_fsync = os.fsync
+        real_open = os.open
         real_link = os.link
         events = []
         contents = {name: (name + "\n").encode("utf-8") for name in cli_module.LEGACY_REPORT_FILES}
         contents["completion.json"] = b'{"status":"complete"}\n'
+
+        def tracked_open(path, flags, mode=0o777, *, dir_fd=None):
+            if isinstance(path, str) and path.startswith(".completion-"):
+                events.append("marker-open")
+            kwargs = {} if dir_fd is None else {"dir_fd": dir_fd}
+            return real_open(path, flags, mode, **kwargs)
 
         def tracked_fsync(descriptor):
             if stat.S_ISDIR(os.fstat(descriptor).st_mode):
@@ -822,17 +745,20 @@ class WorkbenchTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as base_dir:
             output = Path(base_dir) / "reports"
-            supported_dir_fd = azure_report.os.supports_dir_fd | {tracked_link}
+            supported_dir_fd = azure_report.os.supports_dir_fd | {tracked_open, tracked_link}
             with (
+                mock.patch.object(azure_report.os, "open", tracked_open),
                 mock.patch.object(azure_report.os, "fsync", tracked_fsync),
                 mock.patch.object(azure_report.os, "link", tracked_link),
                 mock.patch.object(azure_report.os, "supports_dir_fd", supported_dir_fd),
             ):
                 azure_report.write_files(output, contents, 4096)
 
+            marker_open = events.index("marker-open")
+            self.assertEqual("directory-fsync", events[marker_open - 1])
             self.assertEqual("publish", events[-2])
             self.assertEqual("directory-fsync", events[-1])
-            self.assertGreaterEqual(events[: events.index("publish")].count("directory-fsync"), 2)
+            self.assertGreaterEqual(events[: events.index("publish")].count("directory-fsync"), 3)
 
     def test_writer_directory_sync_failure_never_publishes_completion(self) -> None:
         real_fsync = os.fsync

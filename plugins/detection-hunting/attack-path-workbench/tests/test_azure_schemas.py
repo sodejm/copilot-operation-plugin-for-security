@@ -1,5 +1,4 @@
 """Validate actual CLI artifacts against the shipped Azure JSON Schemas."""
-
 import copy
 import json
 import tempfile
@@ -59,13 +58,9 @@ class SchemaTests(unittest.TestCase):
             output = Path(tmp) / "report"
             result = run_cli("analyze-azure", "--input", manifest, "--as-of", NOW, "--output", output)
             self.assertEqual(0, result.returncode, result.stderr)
-            for filename, schema in (
-                ("report.json", "report"),
-                ("graph.json", "graph"),
-                ("evidence-ledger.json", "ledger"),
-                ("remediation.json", "remediation"),
-                ("completion.json", "completion"),
-            ):
+            for filename, schema in (("report.json", "report"), ("graph.json", "graph"),
+                                     ("evidence-ledger.json", "ledger"), ("remediation.json", "remediation"),
+                                     ("completion.json", "completion")):
                 with self.subTest(schema=schema):
                     validate(json.loads((output / filename).read_text()), schema)
             report = json.loads((output / "report.json").read_text())
