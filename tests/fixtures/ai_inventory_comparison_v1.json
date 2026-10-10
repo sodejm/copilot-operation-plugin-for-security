@@ -1,0 +1,13 @@
+{
+  "schema_version": "cops.ai-inventory-comparison/v1",
+  "engagement_id": "engagement-fixture",
+  "namespace": "langsmith/tenant-fixture",
+  "added": {"assets": [], "relationships": []},
+  "removed": {"assets": [], "relationships": []},
+  "changed": {"assets": [], "relationships": []},
+  "permission_changes": [{"id": "langsmith/tenant-fixture/run/root", "before": ["tool:billing.read"], "after": ["tool:billing.write"]}],
+  "scope_changes": [{"id": "langsmith/tenant-fixture/run/root", "before": ["billing"], "after": ["billing", "audit"]}],
+  "unknowns": [],
+  "uncertain_relationships": [],
+  "identity_links": []
+}
