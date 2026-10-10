@@ -7,6 +7,7 @@ import json
 import os
 import platform
 import shutil
+import sqlite3
 import stat
 import sys
 import time
@@ -16,6 +17,8 @@ from types import SimpleNamespace
 
 import pytest
 
+import cops.execution.cleanup as cleanup_module
+import cops.execution.evidence as evidence_module
 import cops.execution.executable as executable_module
 import cops.execution.process as process_module
 import cops.execution.worker as worker_module
@@ -31,8 +34,10 @@ from cops.evidence.canonical import digest
 from cops.execution import (
     ApprovalStore,
     CleanupJournal,
+    CleanupManager,
     CleanupPersistenceError,
     IsolatedWorker,
+    SideEffectLedger,
     WorkerIsolationError,
 )
 from cops.execution.credentials import CredentialGrant, ScopedCredentialResolver
@@ -154,6 +159,7 @@ def _fake_action_plan(
     idempotent: bool = False,
     credential_references: list[str] | None = None,
     step_ids: tuple[str, ...] = ("step-fake",),
+    cleanup_target: Path | None = None,
 ) -> ActionPlan:
     fixture = json.loads(
         (Path(__file__).resolve().parents[1] / "cops/contracts/fixtures/valid_action_plan.json").read_text(
@@ -163,24 +169,36 @@ def _fake_action_plan(
     limits = dict(fixture["limits"])
     limits["max_output_bytes"] = max_output_bytes
     limits["max_duration_seconds"] = 30
+    operations = [
+        {
+            "step_id": step_id,
+            "tool": "fake-tool",
+            "tool_version": "1.0.0",
+            "action": "run",
+            "arguments": {},
+            "timeout_seconds": timeout_seconds,
+            "idempotent": idempotent,
+            **(
+                {
+                    "cleanup": {
+                        "resource_type": "file",
+                        "target": str(cleanup_target),
+                        "action": "delete",
+                    }
+                }
+                if cleanup_target is not None
+                else {}
+            ),
+        }
+        for step_id in step_ids
+    ]
     return ActionPlan.create(
         plan_id=f"plan-fake-{tmp_path.name}",
         engagement_id=fixture["engagement_id"],
         scenario_id=fixture["scenario_id"],
         target=fixture["target"],
         specialist_id=fixture["specialist_id"],
-        operations=[
-            {
-                "step_id": step_id,
-                "tool": "fake-tool",
-                "tool_version": "1.0.0",
-                "action": "run",
-                "arguments": {},
-                "timeout_seconds": timeout_seconds,
-                "idempotent": idempotent,
-            }
-            for step_id in step_ids
-        ],
+        operations=operations,
         limits=limits,
         credential_references=credential_references or [],
         created_at=fixture["created_at"],
@@ -195,6 +213,7 @@ def _fake_worker(
     credential_grants: list[CredentialGrant] | None = None,
     cleanup_journal_path: Path | None = None,
 ) -> tuple[IsolatedWorker, str]:
+    (tmp_path / "workspace").mkdir(mode=0o700, parents=True, exist_ok=True)
     store = ApprovalStore(tmp_path / "approval.sqlite3")
     if cleanup_journal_path is None:
         journal_root = tmp_path.resolve() / "cleanup-journal"
@@ -226,6 +245,25 @@ def _fake_worker(
     _TEST_CONTROLS[id(worker)] = approval_control
     _TEST_SANDBOXES[id(worker)] = sandbox
     return worker, auth.authorization_id
+
+
+def _cleanup_events(worker: IsolatedWorker) -> list[tuple[str, str, dict[str, object]]]:
+    assert worker.cleanup_journal is not None
+    with sqlite3.connect(worker.cleanup_journal.path) as connection:
+        rows = connection.execute(
+            "SELECT event_type, effect_id, payload_json FROM cleanup_events ORDER BY sequence"
+        ).fetchall()
+    return [
+        (str(event_type), str(effect_id), json.loads(str(payload_json))) for event_type, effect_id, payload_json in rows
+    ]
+
+
+def _cleanup_run_count(worker: IsolatedWorker) -> int:
+    assert worker.cleanup_journal is not None
+    with sqlite3.connect(worker.cleanup_journal.path) as connection:
+        row = connection.execute("SELECT COUNT(*) FROM cleanup_runs").fetchone()
+    assert row is not None
+    return int(row[0])
 
 
 @pytest.mark.parametrize(
@@ -353,10 +391,18 @@ def test_worker_uses_sandbox_for_version_probe_and_owner_resource_caps(
     worker, authorization_id = _fake_worker(tmp_path, plan)
     worker.config = replace(worker.config, max_wall_time_seconds=1, max_output_bytes=100)
     prepared = SimpleNamespace(invocation_path="/proc/self/fd/7", pass_fds=(), remove=lambda: None)
-    probe_runners = []
+    probe_results = []
 
     def capture_probe_runner(*args, **kwargs):
-        probe_runners.append(kwargs["process_runner"])
+        probe_results.append(
+            kwargs["process_runner"](
+                ["probe"],
+                cwd=kwargs["workspace"],
+                env=kwargs["env"],
+                timeout_seconds=0.1,
+                max_output_bytes=100,
+            )
+        )
         return prepared
 
     monkeypatch.setattr(worker_module, "prepare_executable", capture_probe_runner)
@@ -364,10 +410,11 @@ def test_worker_uses_sandbox_for_version_probe_and_owner_resource_caps(
     result = worker.execute_plan(plan, authorization=authorization_id, workspace_dir=tmp_path / "workspace")
 
     assert result.status == "success"
-    assert probe_runners == [_sandbox(worker).run]
-    assert len(_sandbox(worker).run_calls) == 1
-    assert _sandbox(worker).run_calls[0]["max_output_bytes"] == 100
-    assert 0 < _sandbox(worker).run_calls[0]["timeout_seconds"] <= 1
+    assert len(probe_results) == 1
+    assert probe_results[0].returncode == 0
+    assert [call["command"][0] for call in _sandbox(worker).run_calls] == ["probe", prepared.invocation_path]
+    assert all(call["max_output_bytes"] == 100 for call in _sandbox(worker).run_calls)
+    assert 0 < _sandbox(worker).run_calls[-1]["timeout_seconds"] <= 1
 
 
 @pytest.mark.parametrize(
@@ -628,13 +675,23 @@ def test_worker_portable_inert_execution_uses_ephemeral_evidence(
     monkeypatch.setattr(EvidenceRecorder, "record_step_output", capture_lifecycle)
     result = worker.execute_plan(plan, authorization=authorization_id)
 
-    assert result.status == "success"
-    assert result.cleanup_status == "completed"
+    assert result.status == "partial"
+    assert result.cleanup_status == "failed"
     assert len(result.artifacts) == 2
     assert len(result.evidence_records) >= 3
     assert recorded_lifecycles[0]["storage"] == "worker_ephemeral_workspace"
-    assert recorded_lifecycles[0]["automatic_deletion"] is True
+    assert recorded_lifecycles[0]["retention_controller"] == "workspace_owner"
+    assert recorded_lifecycles[0]["automatic_deletion"] is False
     assert evidence_workspaces and not evidence_workspaces[0].exists()
+    assert worker.last_cleanup_receipt is not None
+    workspace_unknown = next(
+        effect
+        for effect in worker.last_cleanup_receipt.unresolved_effects
+        if effect["target"] == str(evidence_workspaces[0])
+    )
+    quarantined_workspace = Path(workspace_unknown["quarantine_target"])
+    assert quarantined_workspace.is_dir()
+    assert any((quarantined_workspace / "artifacts").iterdir())
 
 
 def test_worker_persists_provenance_bound_evidence_envelope(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -743,11 +800,21 @@ def test_worker_resolves_credential_only_for_approved_operation_and_redacts_evid
 
     result = worker.execute_plan(plan, authorization=authorization_id, workspace_dir=workspace)
 
-    assert result.status == "success"
+    assert result.status == "uncertain"
+    assert result.cleanup_status == "failed"
     assert provider.lookups == [reference]
     assert len(operation_workspaces) == 1
     assert not operation_workspaces[0].exists()
     assert not (workspace / "raw-secret.txt").exists()
+    assert worker.last_cleanup_receipt is not None
+    scratch_unknown = next(
+        effect
+        for effect in worker.last_cleanup_receipt.unresolved_effects
+        if effect["target"] == str(operation_workspaces[0])
+    )
+    quarantined_scratch = Path(scratch_unknown["quarantine_target"])
+    assert quarantined_scratch.is_dir()
+    assert (quarantined_scratch / "raw-secret.txt").read_text(encoding="utf-8") == secret
     assert probe_environments
     assert all(secret not in json.dumps(env) for env in probe_environments)
     assert len(_sandbox(worker).run_calls) == 1
@@ -799,8 +866,32 @@ def test_credential_free_steps_share_workspace_around_credential_step(
     worker, authorization_id = _fake_worker(tmp_path, plan, credential_provider=Provider(), credential_grants=[grant])
     workspace = tmp_path / "workspace"
     prepared = SimpleNamespace(invocation_path="/proc/self/fd/7", pass_fds=(), remove=lambda: None)
-    monkeypatch.setattr(worker_module, "prepare_executable", lambda *args, **kwargs: prepared)
+    prepare_calls: list[dict[str, object]] = []
+
+    def capture_prepare_executable(*args, **kwargs):
+        prepare_calls.append(dict(kwargs))
+        return prepared
+
+    monkeypatch.setattr(worker_module, "prepare_executable", capture_prepare_executable)
     credential_workspace: list[Path] = []
+    scratch_fds: set[int] = set()
+    closed_scratch_fds: set[int] = set()
+    create_directory = worker_module.create_directory_exclusive_no_symlinks
+    close_fd = os.close
+
+    def track_directory(path: Path) -> int:
+        fd = create_directory(path)
+        if path.name.startswith("cops-credential-operation-"):
+            scratch_fds.add(fd)
+        return fd
+
+    def track_close(fd: int) -> None:
+        if fd in scratch_fds:
+            closed_scratch_fds.add(fd)
+        close_fd(fd)
+
+    monkeypatch.setattr(worker_module, "create_directory_exclusive_no_symlinks", track_directory)
+    monkeypatch.setattr(os, "close", track_close)
 
     def observe_step(_command, **kwargs):
         call_number = len(_sandbox(worker).run_calls)
@@ -814,6 +905,7 @@ def test_credential_free_steps_share_workspace_around_credential_step(
             credential_workspace.append(kwargs["cwd"])
         else:
             assert call_number == 3
+            assert scratch_fds == closed_scratch_fds
             assert kwargs["cwd"] == workspace
             assert (workspace / "shared-state.txt").read_text() == "from first step"
             assert kwargs.get("operation_env") is None
@@ -825,7 +917,174 @@ def test_credential_free_steps_share_workspace_around_credential_step(
     assert result.status == "success"
     assert len(_sandbox(worker).run_calls) == 3
     assert len(credential_workspace) == 1
+    assert scratch_fds == closed_scratch_fds
     assert not credential_workspace[0].exists()
+    assert len(prepare_calls) == 3
+    assert all(call["cleanup_manager"] is not None for call in prepare_calls)
+    assert prepare_calls[0]["credential_scratch_root"] is None
+    assert prepare_calls[1]["credential_scratch_root"] == credential_workspace[0]
+    assert prepare_calls[2]["credential_scratch_root"] is None
+
+
+def test_worker_cleans_tracked_staged_file_without_claiming_preexisting_caller_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plan = _fake_action_plan(tmp_path)
+    worker, authorization_id = _fake_worker(tmp_path, plan)
+    workspace = tmp_path / "workspace"
+    staging_dir = workspace / ".executables"
+    staging_dir.mkdir(mode=0o700)
+    marker = staging_dir / "caller-owned.txt"
+    marker.write_text("retain", encoding="utf-8")
+    worker.adapter_registry.register_adapter(
+        replace(
+            _python_adapter(),
+            tool="fake-tool",
+            version="1.0.0",
+            supported_environments=["linux", "darwin"],
+        )
+    )
+    monkeypatch.setattr(executable_module, "verify_executable_launch_support", lambda: None)
+
+    def run_staged_executable(command, **_kwargs):
+        if tuple(command)[1:] == ("--version",):
+            return BoundedProcessResult(
+                stdout=f"Python {platform.python_version()}\n".encode(),
+                stderr=b"",
+                returncode=0,
+                timed_out=False,
+                output_limit_exceeded=False,
+            )
+        return _sandbox(worker).result
+
+    _sandbox(worker).run_callback = run_staged_executable
+    result = worker.execute_plan(plan, authorization=authorization_id, workspace_dir=workspace)
+
+    assert result.status == "success"
+    assert staging_dir.is_dir()
+    assert marker.read_text(encoding="utf-8") == "retain"
+    assert list(staging_dir.iterdir()) == [marker]
+
+    events = _cleanup_events(worker)
+    recorded = [event for event in events if event[0] == "effect_recorded"]
+    staged_files = [
+        event
+        for event in recorded
+        if event[2]["metadata"].get("purpose") == "staged_adapter_executable" and event[2]["resource_type"] == "file"
+    ]
+    assert len(staged_files) == 1
+    staged_effect_id = staged_files[0][1]
+    assert Path(str(staged_files[0][2]["target"])).parent == staging_dir
+    assert not any(
+        event[2]["metadata"].get("purpose") == "staged_adapter_executable" and event[2]["resource_type"] == "directory"
+        for event in recorded
+    )
+    assert any(
+        event_type == "creation_identity_recorded" and effect_id == staged_effect_id
+        for event_type, effect_id, _payload in events
+    )
+    assert any(
+        event_type == "cleanup_transition" and effect_id == staged_effect_id and payload["status"] == "cleaned"
+        for event_type, effect_id, payload in events
+    )
+
+
+def test_worker_tracks_and_cleans_credential_scratch_executable_tree(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    reference = "corp_service_account_token_ref"
+    plan = _fake_action_plan(tmp_path, credential_references=[reference])
+    operation = plan.operations[0]
+    grant = CredentialGrant(
+        reference=reference,
+        environment_variable="COPS_CREDENTIAL_SERVICE_TOKEN",
+        plan_id=plan.plan_id,
+        plan_digest=plan.plan_digest,
+        engagement_id=plan.engagement_id,
+        worker_identity="test-worker-01",
+        target=plan.target,
+        step_id=str(operation["step_id"]),
+        tool=str(operation["tool"]),
+        tool_version=str(operation["tool_version"]),
+        action=str(operation["action"]),
+        operation_index=0,
+        operation_digest=digest(plan.approved_snapshot()["operations"][0]),
+    )
+
+    class Provider:
+        def resolve(self, requested_reference: str) -> str:
+            assert requested_reference == reference
+            return "private-operation-value"
+
+    worker, authorization_id = _fake_worker(
+        tmp_path,
+        plan,
+        credential_provider=Provider(),
+        credential_grants=[grant],
+    )
+    worker.adapter_registry.register_adapter(
+        replace(
+            _python_adapter(),
+            tool="fake-tool",
+            version="1.0.0",
+            supported_environments=["linux", "darwin"],
+        )
+    )
+    monkeypatch.setattr(executable_module, "verify_executable_launch_support", lambda: None)
+    operation_workspaces: list[Path] = []
+
+    def run_staged_executable(command, **kwargs):
+        if tuple(command)[1:] == ("--version",):
+            return BoundedProcessResult(
+                stdout=f"Python {platform.python_version()}\n".encode(),
+                stderr=b"",
+                returncode=0,
+                timed_out=False,
+                output_limit_exceeded=False,
+            )
+        operation_workspaces.append(Path(kwargs["cwd"]))
+        return _sandbox(worker).result
+
+    _sandbox(worker).run_callback = run_staged_executable
+    result = worker.execute_plan(
+        plan,
+        authorization=authorization_id,
+        workspace_dir=tmp_path / "workspace",
+    )
+
+    assert result.status == "success"
+    assert len(operation_workspaces) == 1
+    scratch = operation_workspaces[0]
+    assert not scratch.exists()
+
+    events = _cleanup_events(worker)
+    recorded = [event for event in events if event[0] == "effect_recorded"]
+    credential_effects = [
+        event
+        for event in recorded
+        if event[2]["metadata"].get("purpose") in {"credential_operation_scratch", "staged_adapter_executable"}
+    ]
+    assert {(event[2]["metadata"]["purpose"], event[2]["resource_type"]) for event in credential_effects} == {
+        ("credential_operation_scratch", "directory"),
+        ("staged_adapter_executable", "directory"),
+        ("staged_adapter_executable", "file"),
+    }
+    staged_effects = [
+        event for event in credential_effects if event[2]["metadata"]["purpose"] == "staged_adapter_executable"
+    ]
+    assert all(Path(str(event[2]["target"])).is_relative_to(scratch) for event in staged_effects)
+    assert all(event[2]["metadata"]["credential_scratch_root"] == str(scratch) for event in staged_effects)
+    tracked_effect_ids = {event[1] for event in credential_effects}
+    assert {
+        effect_id
+        for event_type, effect_id, _payload in events
+        if event_type == "creation_identity_recorded" and effect_id in tracked_effect_ids
+    } == tracked_effect_ids
+    assert {
+        effect_id
+        for event_type, effect_id, payload in events
+        if event_type == "cleanup_transition" and payload["status"] == "cleaned" and effect_id in tracked_effect_ids
+    } == tracked_effect_ids
 
 
 def test_credential_scratch_deletion_failure_marks_run_cleanup_failed(
@@ -865,23 +1124,112 @@ def test_credential_scratch_deletion_failure_marks_run_cleanup_failed(
         return _sandbox(worker).result
 
     _sandbox(worker).run_callback = observe_step
-    original_rmtree = shutil.rmtree
+    original_rmdir = os.rmdir
 
     def fail_scratch_deletion(path, *args, **kwargs):
-        if scratch and Path(path) == scratch[0]:
+        if scratch and Path(path) == Path("resource") and kwargs.get("dir_fd") is not None:
             raise OSError("simulated scratch deletion failure")
-        return original_rmtree(path, *args, **kwargs)
+        return original_rmdir(path, *args, **kwargs)
 
-    monkeypatch.setattr(worker_module.shutil, "rmtree", fail_scratch_deletion)
+    monkeypatch.setattr(cleanup_module.os, "rmdir", fail_scratch_deletion)
     try:
         result = worker.execute_plan(plan, authorization=authorization_id, workspace_dir=tmp_path / "workspace")
         assert result.status == "failed"
         assert result.cleanup_status == "failed"
         assert "credential operation scratch cleanup failed" in result.status_details["reason"]
     finally:
-        monkeypatch.setattr(worker_module.shutil, "rmtree", original_rmtree)
+        monkeypatch.setattr(cleanup_module.os, "rmdir", original_rmdir)
         for directory in scratch:
-            original_rmtree(directory, ignore_errors=True)
+            shutil.rmtree(directory, ignore_errors=True)
+
+
+def test_credential_scratch_preserves_unresolved_plan_declared_descendant(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    reference = "corp_service_account_token_ref"
+    scratch_nonce = hashlib.sha256(os.fsencode(tmp_path)).hexdigest()[:32]
+    scratch_path = Path(worker_module.tempfile.gettempdir()).resolve(strict=True) / (
+        f"cops-credential-operation-0-{scratch_nonce}"
+    )
+    cleanup_target = scratch_path / "plan-declared.txt"
+    plan = _fake_action_plan(
+        tmp_path,
+        credential_references=[reference],
+        idempotent=True,
+        cleanup_target=cleanup_target,
+    )
+    operation = plan.operations[0]
+    grant = CredentialGrant(
+        reference=reference,
+        environment_variable="COPS_CREDENTIAL_SERVICE_TOKEN",
+        plan_id=plan.plan_id,
+        plan_digest=plan.plan_digest,
+        engagement_id=plan.engagement_id,
+        worker_identity="test-worker-01",
+        target=plan.target,
+        step_id=str(operation["step_id"]),
+        tool=str(operation["tool"]),
+        tool_version=str(operation["tool_version"]),
+        action=str(operation["action"]),
+        operation_index=0,
+        operation_digest=digest(plan.approved_snapshot()["operations"][0]),
+    )
+
+    class Provider:
+        def resolve(self, requested_reference: str) -> str:
+            assert requested_reference == reference
+            return "private-operation-value"
+
+    worker, authorization_id = _fake_worker(
+        tmp_path,
+        plan,
+        credential_provider=Provider(),
+        credential_grants=[grant],
+    )
+    prepared = SimpleNamespace(invocation_path="/proc/self/fd/7", pass_fds=(), remove=lambda: None)
+    monkeypatch.setattr(worker_module, "prepare_executable", lambda *args, **kwargs: prepared)
+    monkeypatch.setattr(
+        worker_module,
+        "uuid",
+        SimpleNamespace(uuid4=lambda: SimpleNamespace(hex=scratch_nonce)),
+    )
+
+    def create_plan_declared_descendant(_command, **kwargs):
+        assert kwargs["cwd"] == scratch_path
+        cleanup_target.write_text("preserve me", encoding="utf-8")
+        return _sandbox(worker).result
+
+    _sandbox(worker).run_callback = create_plan_declared_descendant
+    try:
+        result = worker.execute_plan(
+            plan,
+            authorization=authorization_id,
+            workspace_dir=tmp_path / "workspace",
+        )
+
+        assert result.status == "failed"
+        assert result.cleanup_status == "failed"
+        assert "credential operation scratch cleanup failed" in result.status_details["reason"]
+        assert scratch_path.is_dir()
+        assert cleanup_target.read_text(encoding="utf-8") == "preserve me"
+
+        assert worker.last_cleanup_receipt is not None
+        unresolved_targets = {item["target"] for item in worker.last_cleanup_receipt.unresolved_effects}
+        assert str(cleanup_target) in unresolved_targets
+        assert str(scratch_path) in unresolved_targets
+
+        with sqlite3.connect(worker.cleanup_journal.path) as connection:
+            durable_row = connection.execute(
+                "SELECT payload_json FROM cleanup_events "
+                "WHERE event_type = 'cleanup_receipt' ORDER BY sequence DESC LIMIT 1"
+            ).fetchone()
+        assert durable_row is not None
+        durable_receipt = json.loads(durable_row[0])
+        assert {str(cleanup_target), str(scratch_path)} <= {
+            item["target"] for item in durable_receipt["unresolved_effects"]
+        }
+    finally:
+        shutil.rmtree(scratch_path, ignore_errors=True)
 
 
 def test_credential_scratch_cleanup_transition_failure_preserves_uncertain_audit_state(
@@ -957,7 +1305,40 @@ def test_credential_scratch_cleanup_transition_failure_preserves_uncertain_audit
     scratch_effect = next(
         effect for effect in recovered[0].effects if effect.metadata.get("purpose") == "credential_operation_scratch"
     )
-    assert scratch_effect.status == "pending"
+    assert scratch_effect.status == "unknown"
+    assert scratch_effect.creation_identity is not None
+
+    recovered_run = recovered[0]
+    recovery_journal = CleanupJournal(journal_path)
+    recovered_ledger = SideEffectLedger(
+        recovered_run.plan_id,
+        recovered_run.engagement_id,
+        recovered_run.worker_identity,
+        journal=recovery_journal,
+        run_id=recovered_run.run_id,
+        workspace_dir=recovered_run.workspace_dir,
+        recovered_effects=recovered_run.effects,
+        start_run=False,
+    )
+    recovery_receipt = CleanupManager(
+        recovered_ledger,
+        worker_identity=recovered_run.worker_identity,
+        workspace_dir=recovered_run.workspace_dir,
+    ).rollback(recovered=True)
+    recovered_scratch = next(
+        item for item in recovery_receipt.unresolved_effects if item["effect_id"] == scratch_effect.effect_id
+    )
+    assert recovery_receipt.status == "failed"
+    assert "unknown" in recovered_scratch["reason"].lower()
+
+    with sqlite3.connect(journal_path) as connection:
+        durable_row = connection.execute(
+            "SELECT payload_json FROM cleanup_events "
+            "WHERE event_type = 'cleanup_receipt' ORDER BY sequence DESC LIMIT 1"
+        ).fetchone()
+    assert durable_row is not None
+    durable_receipt = json.loads(durable_row[0])
+    assert any(item["effect_id"] == scratch_effect.effect_id for item in durable_receipt["unresolved_effects"])
 
 
 def test_worker_rejects_credential_plan_without_resolver_before_approval_consumption(
@@ -1039,10 +1420,15 @@ def test_worker_reuses_workspace_with_unique_reserved_artifacts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     workspace = tmp_path / "workspace"
-    first_plan = _fake_action_plan(tmp_path / "first")
-    second_plan = _fake_action_plan(tmp_path / "second")
-    first_worker, first_authorization = _fake_worker(tmp_path / "first", first_plan)
-    second_worker, second_authorization = _fake_worker(tmp_path / "second", second_plan)
+    workspace.mkdir(mode=0o700)
+    first_root = tmp_path / "first"
+    second_root = tmp_path / "second"
+    first_root.mkdir(mode=0o700)
+    second_root.mkdir(mode=0o700)
+    first_plan = _fake_action_plan(first_root)
+    second_plan = _fake_action_plan(second_root)
+    first_worker, first_authorization = _fake_worker(first_root, first_plan)
+    second_worker, second_authorization = _fake_worker(second_root, second_plan)
     prepared = SimpleNamespace(invocation_path="/proc/self/fd/7", pass_fds=(), remove=lambda: None)
     process_results = iter(
         (
@@ -1406,6 +1792,61 @@ def test_evidence_rejects_symlinked_artifact_directory(tmp_path: Path) -> None:
     assert list(outside.iterdir()) == []
 
 
+def test_evidence_rejects_replaced_workspace_before_artifact_creation(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir(mode=0o700)
+    expected_fd = os.open(workspace, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        workspace.rename(tmp_path / "original-workspace")
+        workspace.mkdir(mode=0o700)
+        recorder = EvidenceRecorder(
+            workspace,
+            context=_evidence_context(),
+            expected_workspace_fd=expected_fd,
+        )
+
+        with pytest.raises(EvidenceCaptureError, match="workspace changed after preflight"):
+            recorder.reserve_step_output("step-1")
+
+        assert list(workspace.iterdir()) == []
+    finally:
+        os.close(expected_fd)
+
+
+def test_evidence_retries_name_claimed_between_check_and_exclusive_create(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir(mode=0o700)
+    ledger = SideEffectLedger("plan", "engagement", "worker", workspace_dir=workspace)
+    manager = CleanupManager(ledger, "worker", workspace)
+    recorder = EvidenceRecorder(workspace, context=_evidence_context(), cleanup_manager=manager)
+    original_open = os.open
+    raced = False
+
+    def claim_first_name(path, flags, mode=0o777, *, dir_fd=None):
+        nonlocal raced
+        if path == "step-1_output.txt" and flags & os.O_EXCL and not raced:
+            raced = True
+            fd = original_open(path, flags, mode, dir_fd=dir_fd)
+            try:
+                os.write(fd, b"racer-owned evidence")
+            finally:
+                os.close(fd)
+        return original_open(path, flags, mode, dir_fd=dir_fd)
+
+    monkeypatch.setattr(evidence_module.os, "open", claim_first_name)
+    reservation = recorder.reserve_step_output("step-1")
+
+    assert raced
+    assert reservation.name != "step-1_output.txt"
+    assert (workspace / "artifacts" / "step-1_output.txt").read_bytes() == b"racer-owned evidence"
+    collision = next(effect for effect in ledger.get_effects() if effect.target.endswith("/step-1_output.txt"))
+    assert collision.status == "cleaned"
+    assert collision.creation_identity is None
+    recorder.discard_pending_reservations()
+
+
 def test_evidence_rejects_artifact_directory_replacement_after_reservation(tmp_path: Path) -> None:
     recorder = EvidenceRecorder(tmp_path, context=_evidence_context())
     reservation = recorder.reserve_step_output("step-1")
@@ -1476,6 +1917,92 @@ def test_worker_rejects_symlinked_workspace_parent_before_creation(tmp_path: Pat
 
     assert not (outside / "new-workspace").exists()
     assert _approval_control(worker).store.get_authorization(authorization_id).status == "approved"
+    assert _cleanup_run_count(worker) == 0
+    assert _cleanup_events(worker) == []
+
+
+def test_worker_rejects_missing_caller_workspace_before_creation(tmp_path: Path) -> None:
+    plan = _fake_action_plan(tmp_path)
+    worker, authorization_id = _fake_worker(tmp_path, plan)
+    workspace = tmp_path / "missing-caller-workspace"
+
+    with pytest.raises(WorkerIsolationError, match="must already exist"):
+        worker.execute_plan(
+            plan,
+            authorization=authorization_id,
+            workspace_dir=workspace,
+        )
+
+    assert not workspace.exists()
+    assert _approval_control(worker).store.get_authorization(authorization_id).status == "approved"
+    assert _cleanup_run_count(worker) == 0
+    assert _cleanup_events(worker) == []
+
+    workspace.mkdir(mode=0o700)
+    worker.execute_plan(
+        plan,
+        authorization=authorization_id,
+        workspace_dir=workspace,
+    )
+
+    assert _approval_control(worker).store.get_authorization(authorization_id).status == "consumed"
+    assert _cleanup_run_count(worker) == 1
+
+
+def test_worker_rejects_caller_workspace_replacement_before_consumption(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plan = _fake_action_plan(tmp_path)
+    worker, authorization_id = _fake_worker(tmp_path, plan)
+    workspace = tmp_path / "workspace"
+    original_workspace = tmp_path / "original-workspace"
+    open_workspace = worker_module._open_caller_workspace
+    open_count = 0
+
+    def replace_before_reopen(path: Path) -> int:
+        nonlocal open_count
+        open_count += 1
+        if open_count == 2:
+            workspace.rename(original_workspace)
+            workspace.mkdir(mode=0o700)
+        return open_workspace(path)
+
+    monkeypatch.setattr(worker_module, "_open_caller_workspace", replace_before_reopen)
+
+    with pytest.raises(WorkerIsolationError, match="changed after preflight"):
+        worker.execute_plan(plan, authorization=authorization_id, workspace_dir=workspace)
+
+    assert original_workspace.is_dir()
+    assert list(workspace.iterdir()) == []
+    assert _approval_control(worker).store.get_authorization(authorization_id).status == "approved"
+    assert _sandbox(worker).run_calls == []
+
+
+def test_worker_rejects_caller_workspace_replacement_after_consumption(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plan = _fake_action_plan(tmp_path)
+    worker, authorization_id = _fake_worker(tmp_path, plan)
+    workspace = tmp_path / "workspace"
+    original_workspace = tmp_path / "original-workspace"
+    approval = _approval_control(worker)
+    consume = approval.consume_authorization
+
+    def replace_after_consume(*args: object, **kwargs: object) -> object:
+        receipt = consume(*args, **kwargs)
+        workspace.rename(original_workspace)
+        workspace.mkdir(mode=0o700)
+        return receipt
+
+    monkeypatch.setattr(approval, "consume_authorization", replace_after_consume)
+
+    result = worker.execute_plan(plan, authorization=authorization_id, workspace_dir=workspace)
+
+    assert result.status == "failed"
+    assert original_workspace.is_dir()
+    assert list(workspace.iterdir()) == []
+    assert approval.store.get_authorization(authorization_id).status == "consumed"
+    assert _sandbox(worker).run_calls == []
 
 
 def test_worker_rejects_workspace_parent_traversal_before_creation(tmp_path: Path) -> None:
