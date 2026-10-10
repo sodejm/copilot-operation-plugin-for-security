@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import copy
+import errno
 import hashlib
 import json
+import os
 import sys
 from pathlib import Path
+from unittest import mock
 
 import pytest
 from pytest_bdd import given, scenarios, then, when
@@ -25,6 +28,8 @@ from attackpath.core import (  # noqa: E402
     query_intent,
     validate_input,
 )
+from attackpath.azure import report as azure_report  # noqa: E402
+from attackpath.azure.model import AzureError  # noqa: E402
 
 scenarios("../../specs/features/attack_path_workbench.feature")
 
@@ -77,8 +82,11 @@ def normalized(context):
 @then("each accepted fact has a source pointer and malformed records are quarantined")
 def provenance_reconciles(context):
     report = context["report"]
-    assert all(f["source"]["record_pointer"].startswith("/records/") and
-               f["source"]["file_sha256"] == file_hash(context["export"]) for f in report["evidence"])
+    assert all(
+        f["source"]["record_pointer"].startswith("/records/")
+        and f["source"]["file_sha256"] == file_hash(context["export"])
+        for f in report["evidence"]
+    )
     assert any("unknown record type" in item["reason"] for item in report["quarantine"])
     counts = report["reconciliation"]
     assert counts["raw"] == counts["accepted"] + counts["quarantined"] + counts["rejected"]
@@ -121,8 +129,10 @@ def separated(context):
     assert len(report["supported_paths"]) == len(report["candidate_paths"]) == 1
     assert not report["supported_paths"][0]["gaps"]
     assert any("missing capability control" in gap for gap in report["candidate_paths"][0]["gaps"])
-    assert all(path["premise"] == "conditional_successful_exploitation_of_finding"
-               for path in report["supported_paths"] + report["candidate_paths"])
+    assert all(
+        path["premise"] == "conditional_successful_exploitation_of_finding"
+        for path in report["supported_paths"] + report["candidate_paths"]
+    )
 
 
 @given("duplicate routes and supported assets")
@@ -131,6 +141,7 @@ def duplicate_routes(context):
         duplicate = copy.deepcopy(next(row for row in export["records"] if row.get("id") == "ILL-PERMISSION"))
         duplicate["id"] = "ILL-PERMISSION-SECOND"
         export["records"].append(duplicate)
+
     change_export(context, add_duplicate)
 
 
@@ -200,8 +211,9 @@ def repeat_analysis(context):
 @then("canonical outputs match and the ledger has no invented owner or closure")
 def reproducible(context):
     assert canonical(context["report"]) == canonical(context["repeat"])
-    assert all(action["owner"] is None and action["closure_evidence"] is None
-               for action in context["report"]["actions"])
+    assert all(
+        action["owner"] is None and action["closure_evidence"] is None for action in context["report"]["actions"]
+    )
 
 
 @given("two conflicting structured specialist opinions")
@@ -209,15 +221,27 @@ def conflicting_reviews(context):
     report = analyze(context["input"])
     evidence = report["supported_paths"][0]["evidence_refs"]
     packet_hash = hashlib.sha256(canonical(report["supported_paths"][0])).hexdigest()
-    common = {"schema_version": "attackpath.review/v1", "specialist": "path_skeptic",
-              "prompt_version": "illustrative/v1", "input_sha256": packet_hash, "model_settings": None,
-              "evidence_refs": evidence, "alternatives": [], "validation_questions": ["Confirm the transition"],
-              "disagrees_with_gate": False, "human_disposition": None}
+    common = {
+        "schema_version": "attackpath.review/v1",
+        "specialist": "path_skeptic",
+        "prompt_version": "illustrative/v1",
+        "input_sha256": packet_hash,
+        "model_settings": None,
+        "evidence_refs": evidence,
+        "alternatives": [],
+        "validation_questions": ["Confirm the transition"],
+        "disagrees_with_gate": False,
+        "human_disposition": None,
+    }
     context["report"] = report
     context["reviews"] = [
         {**common, "verdict": "supported", "rationale": "Illustrative structural support only"},
-        {**common, "verdict": "candidate", "rationale": "Illustrative precondition disputed",
-         "disagrees_with_gate": True},
+        {
+            **common,
+            "verdict": "candidate",
+            "rationale": "Illustrative precondition disputed",
+            "disagrees_with_gate": True,
+        },
     ]
 
 
@@ -326,3 +350,86 @@ def replay_search_policy_audit(context):
     tampered["search"]["consumed"]["expansions"] += 1
     with pytest.raises(GateError, match="search receipt"):
         audit_report(tampered, sources)
+
+
+@given("the four legacy reports target a fresh descriptor-anchored directory")
+def fresh_legacy_report_set(context):
+    reports = {
+        "report.json": b'{"report":true}\n',
+        "graph.json": b'{"graph":true}\n',
+        "report.md": b"# Report\n",
+        "remediation-ledger.json": b'{"actions":[]}\n',
+    }
+    marker = {
+        "schema_version": "attackpath.completion/v1",
+        "run_id": "acceptance-run",
+        "status": "complete",
+        "files": {name: hashlib.sha256(data).hexdigest() for name, data in reports.items()},
+    }
+    context["legacy_contents"] = {**reports, "completion.json": canonical(marker)}
+
+
+@when("any report write fails or the requested output parent is swapped")
+def interrupt_legacy_report_sets(context):
+    contents = context["legacy_contents"]
+    root = context["input"].parent
+    partial = root / "partial-reports"
+    real_open = os.open
+
+    def fail_graph(path, flags, mode=0o777, *, dir_fd=None):
+        if path == "graph.json":
+            raise OSError(errno.ENOSPC, "injected report failure")
+        return real_open(path, flags, mode, dir_fd=dir_fd)
+
+    with (
+        mock.patch.object(azure_report.os, "open", side_effect=fail_graph) as patched_open,
+        mock.patch.object(azure_report.os, "supports_dir_fd", os.supports_dir_fd | {patched_open}),
+    ):
+        with pytest.raises(AzureError):
+            azure_report.write_files(partial, contents, 4096)
+
+    parent = root / "requested-parent"
+    parent.mkdir()
+    moved_parent = root / "held-parent"
+    external = root / "replacement-parent"
+    external.mkdir()
+    swapped = False
+
+    def swap_parent(path, flags, mode=0o777, *, dir_fd=None):
+        nonlocal swapped
+        if path == "report.json" and not swapped:
+            swapped = True
+            os.rename(parent, moved_parent)
+            os.symlink(external, parent, target_is_directory=True)
+        return real_open(path, flags, mode, dir_fd=dir_fd)
+
+    with (
+        mock.patch.object(azure_report.os, "open", side_effect=swap_parent) as patched_open,
+        mock.patch.object(azure_report.os, "supports_dir_fd", os.supports_dir_fd | {patched_open}),
+    ):
+        with pytest.raises(AzureError):
+            azure_report.write_files(parent / "reports", contents, 4096)
+
+    context["partial_output"] = partial
+    context["swapped_output"] = moved_parent / "reports"
+
+
+@then("no completion marker created by that invocation remains")
+def interrupted_sets_have_no_completion(context):
+    assert not (context["partial_output"] / "completion.json").exists()
+    assert not (context["swapped_output"] / "completion.json").exists()
+
+
+@then("successful runs bind all four exact report bytes in a last-written marker")
+def successful_set_has_bound_completion(context):
+    output = context["input"].parent / "complete-reports"
+    azure_report.write_files(output, context["legacy_contents"], 4096)
+    marker = json.loads((output / "completion.json").read_bytes())
+    assert set(marker["files"]) == {
+        "report.json",
+        "graph.json",
+        "report.md",
+        "remediation-ledger.json",
+    }
+    for name, expected in marker["files"].items():
+        assert hashlib.sha256((output / name).read_bytes()).hexdigest() == expected
