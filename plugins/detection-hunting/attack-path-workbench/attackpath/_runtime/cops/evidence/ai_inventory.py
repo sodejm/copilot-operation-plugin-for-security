@@ -325,11 +325,19 @@ class InventoryRegistry:
         except KeyError:
             _fail("unknown_snapshot")
 
-    def report(self, snapshot_id: str, *, engagement_id: str, namespace: str | None = None) -> dict[str, Any]:
+    def report(
+        self,
+        snapshot_id: str,
+        *,
+        engagement_id: str,
+        namespace: str | None = None,
+        as_of: str | None = None,
+    ) -> dict[str, Any]:
         return inventory_report(
             self.get(snapshot_id, engagement_id=engagement_id, namespace=namespace),
             engagement_id=engagement_id,
             namespace=namespace,
+            as_of=as_of,
         )
 
 
@@ -396,12 +404,47 @@ def _validated_snapshot(
     return rebuilt
 
 
-def compare_inventories(before: Mapping[str, Any], after: Mapping[str, Any], *, engagement_id: str) -> dict[str, Any]:
+def _source_freshness(source: Mapping[str, Any], as_of: str | None) -> dict[str, Any]:
+    """Evaluate freshness only against a caller-supplied, deterministic clock."""
+    result: dict[str, Any] = {
+        "collected_at": source["collected_at"],
+        "freshness_policy_seconds": source.get("freshness_policy_seconds"),
+    }
+    if as_of is None:
+        return {"status": "not_evaluated", **result}
+    as_of_time = timestamp(as_of)
+    policy = source.get("freshness_policy_seconds")
+    if policy is None:
+        return {"status": "unknown", "as_of": as_of, **result}
+    collected_at = timestamp(source["collected_at"])
+    status = "stale" if (as_of_time - collected_at).total_seconds() > policy else "fresh"
+    return {"status": status, "as_of": as_of, **result}
+
+
+def _removal_uncertainty(source: Mapping[str, Any], freshness: Mapping[str, Any]) -> str | None:
+    """Return why absence from the second snapshot cannot prove removal."""
+    if source["completeness"] != "complete":
+        return f"source_{source['completeness']}"
+    if freshness["status"] == "stale":
+        return "source_stale"
+    if freshness["status"] == "unknown":
+        return "source_freshness_unknown"
+    if freshness["status"] == "not_evaluated":
+        return "source_freshness_not_evaluated"
+    return None
+
+
+def compare_inventories(
+    before: Mapping[str, Any], after: Mapping[str, Any], *, engagement_id: str, as_of: str | None = None
+) -> dict[str, Any]:
     """Return deterministic added, removed, changed and unknown inventory facts."""
     before = _validated_snapshot(before, engagement_id)
     after = _validated_snapshot(after, engagement_id)
     if before["namespace"] != after["namespace"]:
         _fail("namespace_mismatch")
+    freshness = _source_freshness(after["source"], as_of)
+    removal_uncertainty = _removal_uncertainty(after["source"], freshness)
+    unknowns = deepcopy(after["unknowns"])
     result: dict[str, Any] = {
         "schema_version": COMPARISON_SCHEMA_VERSION,
         "engagement_id": engagement_id,
@@ -409,17 +452,27 @@ def compare_inventories(before: Mapping[str, Any], after: Mapping[str, Any], *, 
         "added": {},
         "removed": {},
         "changed": {},
-        "unknowns": sorted(after["unknowns"], key=lambda item: (item["subject"], item["reason"])),
+        "uncertain_removals": {},
+        "freshness": {"after": freshness},
+        "unknowns": unknowns,
     }
     for name, key in (("assets", "qualified_id"), ("relationships", "id")):
         old, new = ({item[key]: item for item in before[name]}, {item[key]: item for item in after[name]})
         result["added"][name] = [new[item] for item in sorted(new.keys() - old.keys())]
-        result["removed"][name] = [old[item] for item in sorted(old.keys() - new.keys())]
+        absent = sorted(old.keys() - new.keys())
+        if removal_uncertainty is None:
+            result["removed"][name] = [old[item] for item in absent]
+            result["uncertain_removals"][name] = []
+        else:
+            result["removed"][name] = []
+            result["uncertain_removals"][name] = [old[item] for item in absent]
+            unknowns.extend({"subject": f"removal:{name}:{item}", "reason": removal_uncertainty} for item in absent)
         result["changed"][name] = [
             {"id": item, "before": old[item], "after": new[item]}
             for item in sorted(old.keys() & new.keys())
             if old[item] != new[item]
         ]
+    result["unknowns"] = sorted(unknowns, key=lambda item: (item["subject"], item["reason"]))
     before_assets = {item["qualified_id"]: item for item in before["assets"]}
     after_assets = {item["qualified_id"]: item for item in after["assets"]}
     for field in ("permissions", "scopes"):
@@ -556,7 +609,7 @@ def _privileged_document_paths(
 
 
 def inventory_report(
-    snapshot: Mapping[str, Any], *, engagement_id: str, namespace: str | None = None
+    snapshot: Mapping[str, Any], *, engagement_id: str, namespace: str | None = None, as_of: str | None = None
 ) -> dict[str, Any]:
     """Produce a restricted, deterministic summary; never expose source payloads."""
     snapshot = _validated_snapshot(snapshot, engagement_id, namespace)
@@ -581,6 +634,7 @@ def inventory_report(
         "snapshot_id": snapshot["snapshot_id"],
         "restricted_reference": snapshot["snapshot_id"],
         "source": deepcopy(snapshot["source"]),
+        "freshness": _source_freshness(snapshot["source"], as_of),
         "namespace": snapshot["namespace"],
         "counts": {
             "assets": len(snapshot["assets"]),

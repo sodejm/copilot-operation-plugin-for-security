@@ -190,6 +190,90 @@ def test_compare_reports_permission_and_destination_changes():
     ]
 
 
+@pytest.mark.parametrize(
+    ("completeness", "as_of", "reason"),
+    [
+        ("partial", None, "source_partial"),
+        ("inaccessible", None, "source_inaccessible"),
+        ("complete", "2026-10-10T01:00:01Z", "source_stale"),
+    ],
+)
+def test_compare_does_not_confirm_removals_from_partial_inaccessible_or_stale_evidence(completeness, as_of, reason):
+    before = import_inventory(document(), engagement_id="engagement-a")
+    after_document = document()
+    after_document["source"]["completeness"] = completeness
+    after_document["assets"] = after_document["assets"][:1]
+    after_document["relationships"] = []
+    after = import_inventory(after_document, engagement_id="engagement-a")
+
+    comparison = compare_inventories(before, after, engagement_id="engagement-a", as_of=as_of)
+
+    assert comparison["removed"] == {"assets": [], "relationships": []}
+    assert [item["id"] for item in comparison["uncertain_removals"]["relationships"]] == [
+        "edge/run-tool",
+        "edge/tool-destination",
+    ]
+    assert [item["qualified_id"] for item in comparison["uncertain_removals"]["assets"]] == [
+        "langsmith/tenant-a/destination/audit",
+        "langsmith/tenant-a/tool/billing",
+    ]
+    assert {item["reason"] for item in comparison["unknowns"] if item["subject"].startswith("removal:")} == {reason}
+    expected_status = "stale" if reason == "source_stale" else "not_evaluated"
+    assert comparison["freshness"]["after"]["status"] == expected_status
+
+
+def test_compare_confirms_removal_from_fresh_complete_evidence_and_report_is_clock_deterministic():
+    before = import_inventory(document(), engagement_id="engagement-a")
+    after_document = document()
+    after_document["assets"] = after_document["assets"][:1]
+    after_document["relationships"] = []
+    after = import_inventory(after_document, engagement_id="engagement-a")
+
+    comparison = compare_inventories(before, after, engagement_id="engagement-a", as_of="2026-10-10T00:59:59Z")
+    report = inventory_report(after, engagement_id="engagement-a", as_of="2026-10-10T01:00:01Z")
+
+    assert comparison["uncertain_removals"] == {"assets": [], "relationships": []}
+    assert [item["id"] for item in comparison["removed"]["relationships"]] == [
+        "edge/run-tool",
+        "edge/tool-destination",
+    ]
+    assert comparison["freshness"]["after"]["status"] == "fresh"
+    assert report["freshness"]["status"] == "stale"
+
+
+def test_compare_marks_absence_uncertain_without_a_freshness_evaluation():
+    before = import_inventory(document(), engagement_id="engagement-a")
+    after_document = document()
+    after_document["assets"] = after_document["assets"][:1]
+    after_document["relationships"] = []
+    after = import_inventory(after_document, engagement_id="engagement-a")
+
+    comparison = compare_inventories(before, after, engagement_id="engagement-a")
+
+    assert comparison["removed"] == {"assets": [], "relationships": []}
+    assert comparison["freshness"]["after"]["status"] == "not_evaluated"
+    assert {item["reason"] for item in comparison["unknowns"] if item["subject"].startswith("removal:")} == {
+        "source_freshness_not_evaluated"
+    }
+
+
+def test_compare_marks_absence_uncertain_when_freshness_policy_is_unavailable():
+    before = import_inventory(document(), engagement_id="engagement-a")
+    after_document = document()
+    after_document["source"].pop("freshness_policy_seconds")
+    after_document["assets"] = after_document["assets"][:1]
+    after_document["relationships"] = []
+    after = import_inventory(after_document, engagement_id="engagement-a")
+
+    comparison = compare_inventories(before, after, engagement_id="engagement-a", as_of="2026-10-10T00:00:01Z")
+
+    assert comparison["removed"] == {"assets": [], "relationships": []}
+    assert comparison["freshness"]["after"]["status"] == "unknown"
+    assert {item["reason"] for item in comparison["unknowns"] if item["subject"].startswith("removal:")} == {
+        "source_freshness_unknown"
+    }
+
+
 def test_reconciles_an_agent_to_entra_sponsor_without_merging_source_records():
     source = document()
     source["assets"].append(
