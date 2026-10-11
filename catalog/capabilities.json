@@ -1,16 +1,16 @@
 {
   "schema_version": "cops.capabilities/v1",
-  "updated_at": "2026-10-05T14:42:39.203767Z",
+  "updated_at": "2026-10-11T17:33:59.383545Z",
   "summary": {
-    "total_capabilities": 69,
+    "total_capabilities": 71,
     "by_kind": {
-      "plugin": 14,
-      "specialist": 18,
+      "plugin": 15,
+      "specialist": 19,
       "scenario": 37
     },
     "by_mode": {
-      "planned": 36,
-      "import": 15,
+      "planned": 37,
+      "import": 16,
       "laboratory": 18,
       "live-validated": 0
     }
@@ -87,6 +87,21 @@
       "evidence_requirements": [
         "Scoping specification",
         "Human-approved rules of engagement"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "kubernetes-assessment-workbench",
+      "name": "COPS Kubernetes Assessment Workbench",
+      "kind": "plugin",
+      "mode": "import",
+      "domain": "offensive-security",
+      "validation_status": "validated",
+      "truth_boundaries": "Approval, context selection, cluster facts, and access observations are operator assertions, not independently verified.; A Namespace UID is an object identity anchor and does not prove a universal cluster identity.; No kubeconfig, kubectl, cluster API, node, control-plane, or admission-controller integration is exercised.; The report never authorizes live execution or establishes security posture, exploitability, or complete coverage.",
+      "evidence_requirements": [
+        "Local static file/manifest parsing",
+        "Deterministic AST/schema validation",
+        "Zero live service mutation"
       ],
       "live_evidence_verified": false
     },
@@ -172,7 +187,7 @@
       "mode": "import",
       "domain": "detection-hunting",
       "validation_status": "validated",
-      "truth_boundaries": "Azure application IDs are validated locally but have no supported provider lookup.; TAXII complex STIX patterns and paginated collections are reported as incomplete.; Standalone portable installation requires explicit packaging of the shared COPS connector SDK.",
+      "truth_boundaries": "Azure application IDs support only tenant service-principal lookup; this is not a threat verdict.; TAXII complex STIX patterns and paginated collections are reported as incomplete.; Standalone portable installation requires explicit packaging of the shared COPS connector SDK.",
       "evidence_requirements": [
         "Local static file/manifest parsing",
         "Deterministic AST/schema validation",
@@ -187,7 +202,7 @@
       "mode": "laboratory",
       "domain": "logging-telemetry",
       "validation_status": "validated",
-      "truth_boundaries": "Operates offline with recorded stage evidence; does not make live network calls to production Cribl Stream workers or SIEM APIs.; Pipeline health reflects recorded evidence logs for synthetic markers and should not be confused with broad infrastructure telemetry uptime.; Automatic redaction strips common API keys, tokens, and passwords while strictly preserving synthetic correlation markers.",
+      "truth_boundaries": "Operates offline with recorded stage evidence; does not make live network calls to production Cribl Stream workers or SIEM APIs.; Pipeline health reflects recorded evidence logs for synthetic markers and should not be confused with broad infrastructure telemetry uptime.; Built-in redaction applies to Cribl metric details only; sanitize source exports and identifiers before use.",
       "evidence_requirements": [
         "Deterministic offline test execution",
         "Synthetic fixture validation",
@@ -257,6 +272,21 @@
     {
       "id": "cops-attack-surface-planner",
       "name": "COPS Attack Surface Planner",
+      "kind": "specialist",
+      "mode": "planned",
+      "domain": "offensive-security",
+      "validation_status": "validated",
+      "truth_boundaries": "Advisory, reasoning, and planning profile; requires human-signed ActionPlan and authorization receipt for active execution.",
+      "evidence_requirements": [
+        "Specialist profile frontmatter validation",
+        "Intent routing keyword mapping",
+        "Contract file presence"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "cops-kubernetes-specialist",
+      "name": "COPS Kubernetes Assessment Specialist",
       "kind": "specialist",
       "mode": "planned",
       "domain": "offensive-security",
@@ -601,12 +631,12 @@
     },
     {
       "id": "COPS-E04.06-S01",
-      "name": "Mail Relay and Messaging Boundary Verification",
+      "name": "Mail, Messaging, and Message Broker Services Exposure Assessment",
       "kind": "scenario",
       "mode": "laboratory",
       "domain": "COPS-E04.06",
       "validation_status": "validated",
-      "truth_boundaries": "Impact: non_destructive; Safe for production: False; Reversible: True. Verifies whether SMTP endpoints reject unauthorized open relay attempts and enforce TLS encryption.",
+      "truth_boundaries": "Impact: non_destructive; Safe for production: False; Reversible: True. Assesses email services (SMTP, POP3, IMAP), chat (IRC), and message brokers/queues (AMQP/RabbitMQ, NATS, IBM MQ, Kafka, MQTT) for unauthorized exposure, open relays, anonymous/guest access, synthetic canaries, and bounded message budgets with verifiable cleanup.",
       "evidence_requirements": [
         "Pinned research source S01",
         "MITRE ATT&CK technique mapping",

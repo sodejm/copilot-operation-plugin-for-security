@@ -1,12 +1,12 @@
 ---
 layout: documentation
 title: "When to Use Each COPS Plugin"
-description: "A comprehensive guide to selecting, evaluating, and running each of the fourteen security plugins across defensive and offensive cybersecurity disciplines."
+description: "A comprehensive guide to selecting, evaluating, and running each of the fifteen security plugins across defensive and offensive cybersecurity disciplines."
 ---
 
 # When to Use Each COPS Plugin
 
-COPS packages **fourteen specialized cybersecurity plugins** across six core disciplines. Each plugin is self-contained under `plugins/<category>/<plugin-id>/` and includes deterministic Python tools, reusable AI skills, and a practitioner playbook.
+COPS packages **fifteen specialized cybersecurity plugins** across six core disciplines. Each plugin is self-contained under `plugins/<category>/<plugin-id>/` and includes deterministic Python tools, reusable AI skills, and a practitioner playbook.
 
 Use this guide to determine which plugin best matches your operational requirements.
 
@@ -27,6 +27,7 @@ Use this guide to determine which plugin best matches your operational requireme
 | **Prioritize vulnerability triage with SBOM reachability** | `exposure-triage-workbench` | Vulnerability Management | <span class="badge badge-beta">Beta</span> | `import` | `python3 -m cops check exposure-triage-workbench` |
 | **Review code diffs and pull requests for security flaws** | `patch-security-review` | Vulnerability Management | <span class="badge badge-beta">Beta</span> | `import` | `python3 -m cops check patch-security-review` |
 | **Plan an authorized, passive attack surface review** | `attack-surface-planner` | Offensive Security | <span class="badge badge-experimental">Experimental</span> | `planned` | `python3 -m cops demo attack-surface-planner` |
+| **Reconcile an approved Kubernetes context and namespace scope** | `kubernetes-assessment-workbench` | Offensive Security | <span class="badge badge-experimental">Experimental</span> | `import` | `python3 -m cops demo kubernetes-assessment-workbench` |
 | **Intake engagement scope and compile action plans** | `offensive-engagement-workbench` | Offensive Security | <span class="badge badge-experimental">Experimental</span> | `planned` | `python3 -m cops demo offensive-engagement-workbench` |
 | **Test AI agent prompt injection resistance** | `foundry-agent-harness` | Offensive Security | <span class="badge badge-beta">Beta</span> | `laboratory` | `python3 -m cops check foundry-agent-harness` |
 | **Rehearse containment with cryptographic receipts** | `incident-response-sandbox` | Incident Response | <span class="badge badge-beta">Beta</span> | `laboratory` | `python3 -m cops check incident-response-sandbox` |
@@ -130,6 +131,13 @@ Use this guide to determine which plugin best matches your operational requireme
 - **Boundaries**: Strictly an authorized planning and scoping tool; operates offline or within bounded authorized parameters without executing uncoordinated exploits.
 - **Playbook**: `plugins/offensive-security/attack-surface-planner/docs/PLAYBOOK.md`
 
+#### Kubernetes Assessment Workbench
+- **Maturity**: <span class="badge badge-experimental">Experimental</span> | **Operational Mode**: `import`
+- **When to use**: Before planning a Kubernetes assessment, compare an explicitly approved context, namespaces, and surfaces with a sanitized local observation.
+- **Key Capabilities**: Exact context tuple checks, local Namespace name and UID anchor comparison, namespace access and environment fact reporting.
+- **Boundaries**: Reads a local JSON record only. Matching local assertions do not establish live cluster identity or readiness; missing or denied access stays visible, and the report never grants execution.
+- **Playbook**: `plugins/offensive-security/kubernetes-assessment-workbench/README.md`
+
 #### Offensive Engagement Workbench
 - **Maturity**: <span class="badge badge-experimental">Experimental</span> | **Operational Mode**: `planned`
 - **When to use**: When intaking authorized adversary engagements, enforcing target scope and boundary exclusions, compiling immutable action plans, orchestrating Triad specialist handoffs, and managing scenario laboratory environments.
@@ -166,7 +174,7 @@ To maintain absolute integrity and avoid capability over-claiming, COPS reconcil
 - **`laboratory`**: Controlled offline simulation, synthetic event replay, or sandbox rehearsal; zero external egress.
 - **`live-validated`**: Fully authorized, live-tested execution path against an authorized environment with cryptographic evidence receipt. Currently 0 capabilities claim live-validated, ensuring zero false claims.
 
-To audit all 69 capabilities across plugins, specialist profiles, and scenarios:
+To audit all 71 capabilities across plugins, specialist profiles, and scenarios:
 
 ```bash
 python3 -m cops capabilities audit --check

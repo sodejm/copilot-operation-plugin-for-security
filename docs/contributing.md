@@ -154,7 +154,7 @@ If an administrative change, refactor, or typo fix requires an exemption, provid
 7. **Evidence Bundle Validation** (`scripts/agent/bundle_evidence.py --check`): Ensures evidence receipts adhere to schema constraints.
 8. **Host Marketplace Synchronization** (`python3 -m cops generate --check`): Verifies that `.github/`, `.claude-plugin/`, and `.agents/` marketplace files match `catalog/plugins.json`.
 9. **ATT&CK Coverage Check** (`python3 -m cops coverage --check`): Validates MITRE ATT&CK matrix mappings.
-10. **Plugin Test Suites** (`python3 -m cops check`): Runs declared offline verification suites across all 14 plugins.
+10. **Plugin Test Suites** (`python3 -m cops check`): Runs declared offline verification suites across all 15 plugins.
 11. **Pytest & Unittest Suites**: Executes all acceptance scenarios (`pytest tests`) and skill unittests.
 12. **Git Diff Check**: Confirms no trailing whitespace or corrupt line endings exist.
 
