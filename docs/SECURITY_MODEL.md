@@ -87,7 +87,7 @@ flowchart TD
 ### Threat 4: Supply Chain Poisoning & Adapter Drift
 - **The Risk**: A malicious dependency or a drifted host manifest quietly introduces altered behavior into one assistant while passing tests in another.
 - **Our Defense**:
-  - Core tools use Python standard library only—no third-party dependencies required for normal operations.
+  - Core tools use Python standard library only—no third-party dependencies required for normal operations. The optional laboratory receipt verifier loads `cryptography` only when checking signed observations.
   - Manifests for Copilot, Claude Code, and Codex are generated from a single canonical catalog and validated for byte-for-byte agreement in CI (`python3 -m cops generate --check`).
 
 ### Threat 5: False Assurance & Hallucinated Proof
@@ -114,6 +114,7 @@ flowchart TD
   - **Operation-Scoped Credentials**: Executable probing is credential-free. Immediately before each approved launch, the worker passes the exact authority-issued `ApprovalConsumptionReceipt` returned by its consume-only approval control to a scoped resolver. The resolver validates the receipt's authorization digest and plan, engagement, worker, and target bindings before provider access. A grant must also match the plan digest, engagement, worker, target, step, tool, version, and action, and can populate only a dedicated `COPS_CREDENTIAL_*` operation environment. Resolved values are registered with the evidence redactor before launch. A tool can echo a credential into raw in-memory output, so every evidence channel is redacted before evidence ingestion or persistence.
   - **Fail-Closed Evidence (`cops.evidence/v1`)**: Real execution requires complete plan, authorization, engagement, worker, target, and operation provenance. Stdout, stderr, errors, artifact identifiers, and artifact content are redacted and the envelope is schema-validated before any record or output is persisted. Unsafe absolute or traversal artifact identifiers fail closed. Captured output is untrusted data, including text that resembles an instruction.
   - **Execution Truthfulness (`cops.run-result/v1`)**: Non-success outcomes (`partial`, `cancelled`, `failed`, `uncertain`, `not_assessed`) require explicit reasons and are never silently converted into success claims. Findings marked `verified` must reference affirmative `cops.evidence/v1` records.
+  - **Assessment Reporting (`cops.assessment-report/v1`)**: The offline report validates supplied contract joins and marks access or evidence gaps `not_assessed`. It omits evidence payloads and source locators, but scope identifiers and caller-authored text may still be sensitive. Owner-only output permissions are not encryption. Supplied hashes, modes, and statuses do not independently authenticate sources, authorization, or execution; see the [reporting guide](ENGAGEMENT_REPORTING.md).
   - **Shared-Key Limitation**: HMAC authenticates membership in a shared-key channel. Any verifier that holds the key can mint an authorization, so it does not provide non-repudiation.
   - **Execution Egress Boundary**: An explicitly egress-enabled, signed operation supplies one HTTPS endpoint, exact authenticated service identity, and exact request targets. The worker creates a per-operation broker capability only when its own trust domain, engagement scope, plan limit, and Linux sandbox support agree. The mediator rechecks DNS, redirects, TLS peer identity, and resource targets; the adapter's network namespace removes direct IPv4 and IPv6 access.
   - **Residual Boundaries**: The sandbox, approval transport, mediated HTTPS channel, and cleanup journal require deployment with separately owned authority and worker accounts, protected socket/store paths, pinned SSH host keys, correctly provisioned service certificates, and a working Linux sandbox runtime. Repository tests cannot prove a particular installation enforces those host controls. The cleanup identity uses the portable device, inode, and type tuple; filesystems can reuse inode numbers, and a hostile process sharing the worker UID can interfere with worker-owned state or quarantine. The dedicated UID and operator review of unresolved cleanup therefore remain necessary.
@@ -147,5 +148,6 @@ Use the [project threat model](THREAT_MODEL.md) for component-specific boundarie
 implemented-control evidence, proposed mitigations and unresolved risks. Do not
 apply an offline-component claim to a live integration. Follow
 [Engineering review policy](ENGINEERING_REVIEW.md) and
-[Review coverage](security/REVIEW_COVERAGE.md) for independent human approval,
-retroactive review and maintenance.
+[Review coverage](security/REVIEW_COVERAGE.md) for retroactive review and
+maintenance. A repository owner can authorize merge under the engineering review
+policy; release review remains separate.

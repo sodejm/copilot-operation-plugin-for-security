@@ -56,3 +56,6 @@ Represents a normalized security finding derived from RunResult evidence.
 - **Verification Levels:** `verified`, `partially-verified`, `unverified`, `contradicted`
 - **Evidence Invariant:**
   - A finding with `verification == "verified"` must reference at least one `cops.evidence/v1` record ID.
+
+The [engagement findings and reporting specification](engagement-findings-and-reporting.spec.md)
+defines the separate offline assessment join and its evidence and coverage labels.

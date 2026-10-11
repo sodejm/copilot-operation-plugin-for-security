@@ -5,9 +5,15 @@ from __future__ import annotations
 import io
 import json
 import sys
+import tempfile
 import unittest
+from copy import deepcopy
+from pathlib import Path
+
+import jsonschema
 
 from cops.catalog import ROOT
+from cops.contracts.lifecycle import ContractError
 from cops.contracts.validation import validate_contract
 from cops.engagement.cli import command_engagement_handoff
 from cops.routing import (
@@ -22,6 +28,7 @@ from cops.routing import (
     propose_specialist_handoff,
     review_with_skeptic,
 )
+from cops.routing.handoff import _resolve_workflow_target
 
 
 class TestSpecialistWorkflowHandoff(unittest.TestCase):
@@ -91,6 +98,8 @@ class TestSpecialistWorkflowHandoff(unittest.TestCase):
             task_description="Perform authorized network reconnaissance against 10.100.1.10",
             sender_id="secops-lead",
             specialist_id="cops-pentest-specialist",
+            workflow_skill_id="network-active-discovery",
+            capability_id="cops-pentest-specialist",
             required_capabilities=["reconnaissance", "port scan"],
         )
         self.assertEqual(handoff.status, "proposed")
@@ -103,6 +112,11 @@ class TestSpecialistWorkflowHandoff(unittest.TestCase):
         accepted = accept_specialist_handoff(handoff, "cops-pentest-specialist")
         self.assertEqual(accepted.status, "accepted")
         self.assertEqual(len(accepted.transition_log), 2)
+        self.assertEqual(
+            accepted.task["workflow_target"]["implementation"],
+            ".agents/skills/network-active-discovery/SKILL.md",
+        )
+        self.assertTrue(accepted.task["workflow_target"]["implementation_digest"].startswith("sha256:"))
         validate_contract(accepted.to_dict(), "specialist_handoff")
 
         # 3. Skeptic review
@@ -132,7 +146,222 @@ class TestSpecialistWorkflowHandoff(unittest.TestCase):
         )
         self.assertEqual(completed.status, "completed")
         self.assertEqual(completed.approval_status, "approved")
+        self.assertNotIn("execution_result", completed.to_dict())
         validate_contract(completed.to_dict(), "specialist_handoff")
+
+    def test_missing_workflow_target_cannot_be_accepted(self) -> None:
+        handoff = propose_specialist_handoff(
+            self.engagement,
+            self.action_plan,
+            "Review discovery plan",
+            "secops-lead",
+            specialist_id="cops-pentest-specialist",
+        )
+        self.assertEqual(handoff.status, "proposed")
+        with self.assertRaises(MissingCapabilityError):
+            accept_specialist_handoff(handoff, "cops-pentest-specialist")
+        self.assertEqual(handoff.status, "rejected")
+
+    def test_nonexistent_or_mismatched_workflow_targets_are_rejected(self) -> None:
+        for skill_id, capability_id in (
+            ("unknown-workflow", "cops-pentest-specialist"),
+            ("authorized-attack-surface-planning", "cops-pentest-specialist"),
+            ("network-active-discovery", "unregistered-specialist"),
+            ("network-active-discovery", "cops-threat-hunter"),
+        ):
+            with self.subTest(skill_id=skill_id, capability_id=capability_id):
+                handoff = propose_specialist_handoff(
+                    self.engagement,
+                    self.action_plan,
+                    "Review discovery plan",
+                    "secops-lead",
+                    specialist_id="cops-pentest-specialist",
+                    workflow_skill_id=skill_id,
+                    capability_id=capability_id,
+                )
+                with self.assertRaises(MissingCapabilityError):
+                    accept_specialist_handoff(handoff, "cops-pentest-specialist")
+                self.assertEqual(handoff.status, "rejected")
+
+    def test_path_like_workflow_skill_is_invalid_at_proposal(self) -> None:
+        with self.assertRaises(ContractError):
+            propose_specialist_handoff(
+                self.engagement,
+                self.action_plan,
+                "Review discovery plan",
+                "secops-lead",
+                specialist_id="cops-pentest-specialist",
+                workflow_skill_id="../network-active-discovery",
+                capability_id="cops-pentest-specialist",
+            )
+
+    def test_connected_contract_requires_bound_workflow(self) -> None:
+        handoff = propose_specialist_handoff(
+            self.engagement,
+            self.action_plan,
+            "Review discovery plan",
+            "secops-lead",
+            specialist_id="cops-pentest-specialist",
+            workflow_skill_id="network-active-discovery",
+            capability_id="cops-pentest-specialist",
+        )
+        accept_specialist_handoff(handoff, "cops-pentest-specialist")
+        schema = json.loads((ROOT / "catalog/schemas/specialist-handoff.schema.json").read_text(encoding="utf-8"))
+        for status in ("accepted", "in_review", "completed"):
+            for missing in ("workflow_target", "implementation", "implementation_digest", "workflow_target_checksum"):
+                with self.subTest(status=status, missing=missing):
+                    record = deepcopy(handoff.to_dict())
+                    record["status"] = status
+                    if missing == "workflow_target_checksum":
+                        del record["transition_log"][-1][missing]
+                    elif missing == "workflow_target":
+                        del record["task"][missing]
+                    else:
+                        del record["task"]["workflow_target"][missing]
+                    with self.assertRaises(ContractError):
+                        validate_contract(record, "specialist_handoff")
+                    with self.assertRaises(jsonschema.ValidationError):
+                        jsonschema.validate(record, schema)
+
+    def test_duplicate_skill_frontmatter_name_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            registry = json.loads((ROOT / "agents/registry.json").read_text(encoding="utf-8"))
+            profile = next(p for p in registry["specialists"] if p["id"] == "cops-pentest-specialist")
+            registry_path = root / "agents/registry.json"
+            registry_path.parent.mkdir()
+            registry_path.write_text(json.dumps({"specialists": [profile]}), encoding="utf-8")
+            capabilities_path = root / "catalog/capabilities.json"
+            capabilities_path.parent.mkdir()
+            capabilities_path.write_text(
+                json.dumps(
+                    {
+                        "capabilities": [
+                            {"id": "cops-pentest-specialist", "kind": "specialist"},
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            skill_path = root / ".agents/skills/network-active-discovery/SKILL.md"
+            skill_path.parent.mkdir(parents=True)
+            content = (ROOT / ".agents/skills/network-active-discovery/SKILL.md").read_text(encoding="utf-8")
+            for extra_name in ("name: another-skill", "name : another-skill"):
+                with self.subTest(extra_name=extra_name):
+                    handoff = propose_specialist_handoff(
+                        self.engagement,
+                        self.action_plan,
+                        "Review discovery plan",
+                        "secops-lead",
+                        specialist_id="cops-pentest-specialist",
+                        workflow_skill_id="network-active-discovery",
+                        capability_id="cops-pentest-specialist",
+                        registry_path=registry_path,
+                    )
+                    skill_path.write_text(
+                        content.replace(
+                            "name: network-active-discovery\n",
+                            f"name: network-active-discovery\n{extra_name}\n",
+                            1,
+                        ),
+                        encoding="utf-8",
+                    )
+                    with self.assertRaises(MissingCapabilityError):
+                        accept_specialist_handoff(handoff, "cops-pentest-specialist", registry_path=registry_path)
+                    self.assertEqual(handoff.status, "rejected")
+
+    def test_audit_rejects_rebound_valid_workflow(self) -> None:
+        handoff = propose_specialist_handoff(
+            self.engagement,
+            self.action_plan,
+            "Review discovery plan",
+            "secops-lead",
+            specialist_id="cops-pentest-specialist",
+            workflow_skill_id="network-active-discovery",
+            capability_id="cops-pentest-specialist",
+        )
+        accept_specialist_handoff(handoff, "cops-pentest-specialist")
+        review_with_skeptic(handoff, "cops-threat-hunter")
+        handoff.task["workflow_target"] = _resolve_workflow_target(
+            {"skill_id": "network-infrastructure-services", "capability_id": "cops-pentest-specialist"},
+            "cops-pentest-specialist",
+        )
+        with self.assertRaises(ContractError):
+            validate_contract(handoff.to_dict(), "specialist_handoff")
+        with self.assertRaises(MissingCapabilityError):
+            audit_and_approve_handoff(handoff, "cops-compliance-auditor", self.action_plan)
+        self.assertEqual(handoff.status, "rejected")
+
+    def test_review_and_audit_reject_skill_file_drift(self) -> None:
+        for stage in ("review", "audit"):
+            with self.subTest(stage=stage), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                registry = json.loads((ROOT / "agents/registry.json").read_text(encoding="utf-8"))
+                profiles = [
+                    p
+                    for p in registry["specialists"]
+                    if p["id"] in {"cops-pentest-specialist", "cops-threat-hunter", "cops-compliance-auditor"}
+                ]
+                registry_path = root / "agents/registry.json"
+                registry_path.parent.mkdir()
+                registry_path.write_text(json.dumps({"specialists": profiles}), encoding="utf-8")
+                capabilities_path = root / "catalog/capabilities.json"
+                capabilities_path.parent.mkdir()
+                capabilities_path.write_text(
+                    json.dumps(
+                        {
+                            "capabilities": [
+                                {"id": "cops-pentest-specialist", "kind": "specialist"},
+                            ]
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                skill_path = root / ".agents/skills/network-active-discovery/SKILL.md"
+                skill_path.parent.mkdir(parents=True)
+                skill_path.write_bytes((ROOT / ".agents/skills/network-active-discovery/SKILL.md").read_bytes())
+                handoff = propose_specialist_handoff(
+                    self.engagement,
+                    self.action_plan,
+                    "Review discovery plan",
+                    "secops-lead",
+                    specialist_id="cops-pentest-specialist",
+                    workflow_skill_id="network-active-discovery",
+                    capability_id="cops-pentest-specialist",
+                    registry_path=registry_path,
+                )
+                accept_specialist_handoff(handoff, "cops-pentest-specialist", registry_path=registry_path)
+                if stage == "audit":
+                    review_with_skeptic(handoff, "cops-threat-hunter", registry_path=registry_path)
+                skill_path.write_bytes(skill_path.read_bytes() + b"\n")
+                with self.assertRaises(MissingCapabilityError):
+                    if stage == "review":
+                        review_with_skeptic(handoff, "cops-threat-hunter", registry_path=registry_path)
+                    else:
+                        audit_and_approve_handoff(
+                            handoff,
+                            "cops-compliance-auditor",
+                            self.action_plan,
+                            registry_path=registry_path,
+                        )
+                self.assertEqual(handoff.status, "rejected")
+
+    def test_audit_rechecks_bound_implementation(self) -> None:
+        handoff = propose_specialist_handoff(
+            self.engagement,
+            self.action_plan,
+            "Review discovery plan",
+            "secops-lead",
+            specialist_id="cops-pentest-specialist",
+            workflow_skill_id="network-active-discovery",
+            capability_id="cops-pentest-specialist",
+        )
+        accept_specialist_handoff(handoff, "cops-pentest-specialist")
+        review_with_skeptic(handoff, "cops-threat-hunter")
+        handoff.task["workflow_target"]["implementation_digest"] = "sha256:" + "0" * 64
+        with self.assertRaises(MissingCapabilityError):
+            audit_and_approve_handoff(handoff, "cops-compliance-auditor", self.action_plan)
+        self.assertEqual(handoff.status, "rejected")
 
     def test_missing_capability_rejection(self) -> None:
         """Specialist must reject handoff when missing required capabilities."""
@@ -158,6 +387,8 @@ class TestSpecialistWorkflowHandoff(unittest.TestCase):
             task_description="Inspect host reachability",
             sender_id="secops-lead",
             specialist_id="cops-pentest-specialist",
+            workflow_skill_id="network-active-discovery",
+            capability_id="cops-pentest-specialist",
             required_capabilities=["reconnaissance"],
         )
         accept_specialist_handoff(handoff, "cops-pentest-specialist")
@@ -183,6 +414,8 @@ class TestSpecialistWorkflowHandoff(unittest.TestCase):
             task_description="Verify host services",
             sender_id="secops-lead",
             specialist_id="cops-pentest-specialist",
+            workflow_skill_id="network-active-discovery",
+            capability_id="cops-pentest-specialist",
             required_capabilities=["reconnaissance"],
         )
         accept_specialist_handoff(handoff, "cops-pentest-specialist")
@@ -204,6 +437,8 @@ class TestSpecialistWorkflowHandoff(unittest.TestCase):
             task_description="Perform scanning",
             sender_id="secops-lead",
             specialist_id="cops-pentest-specialist",
+            workflow_skill_id="network-active-discovery",
+            capability_id="cops-pentest-specialist",
             required_capabilities=["reconnaissance"],
         )
         accept_specialist_handoff(handoff, "cops-pentest-specialist")
@@ -228,14 +463,14 @@ class TestSpecialistWorkflowHandoff(unittest.TestCase):
             task_description="Perform scanning",
             sender_id="secops-lead",
             specialist_id="cops-pentest-specialist",
+            workflow_skill_id="network-active-discovery",
+            capability_id="cops-pentest-specialist",
             required_capabilities=["reconnaissance"],
         )
         accept_specialist_handoff(handoff, "cops-pentest-specialist")
         review_with_skeptic(handoff, "cops-threat-hunter")
 
-        candidate_ops = [
-            {"step_id": "step-02", "tool": "exploit-framework", "action": "rce"}
-        ]
+        candidate_ops = [{"step_id": "step-02", "tool": "exploit-framework", "action": "rce"}]
         with self.assertRaises(AuthorizationExpansionError) as ctx:
             audit_and_approve_handoff(
                 handoff,
@@ -254,6 +489,8 @@ class TestSpecialistWorkflowHandoff(unittest.TestCase):
             task_description="Perform scanning",
             sender_id="secops-lead",
             specialist_id="cops-pentest-specialist",
+            workflow_skill_id="network-active-discovery",
+            capability_id="cops-pentest-specialist",
             required_capabilities=["reconnaissance"],
         )
         accept_specialist_handoff(handoff, "cops-pentest-specialist")
@@ -279,6 +516,8 @@ class TestSpecialistWorkflowHandoff(unittest.TestCase):
             task_description="Perform scanning",
             sender_id="secops-lead",
             specialist_id="cops-pentest-specialist",
+            workflow_skill_id="network-active-discovery",
+            capability_id="cops-pentest-specialist",
             required_capabilities=["reconnaissance"],
         )
         accept_specialist_handoff(handoff, "cops-pentest-specialist")
@@ -304,6 +543,8 @@ class TestSpecialistWorkflowHandoff(unittest.TestCase):
             task_description="Run discovery and port scan against approved target",
             planner_id="secops-lead",
             specialist_id="cops-pentest-specialist",
+            workflow_skill_id="network-active-discovery",
+            capability_id="cops-pentest-specialist",
             evidence_envelopes=evidence,
             findings=findings,
         )
@@ -323,6 +564,8 @@ class TestSpecialistWorkflowHandoff(unittest.TestCase):
             task="Execute reconnaissance",
             planner="secops-lead",
             specialist="cops-pentest-specialist",
+            workflow_skill="network-active-discovery",
+            capability="cops-pentest-specialist",
             capabilities="reconnaissance,port scan",
             output=None,
             json=True,
@@ -410,6 +653,8 @@ class TestSpecialistWorkflowHandoff(unittest.TestCase):
             task="End to end workflow test",
             planner="secops-lead",
             specialist="cops-pentest-specialist",
+            workflow_skill="network-active-discovery",
+            capability="cops-pentest-specialist",
             output=None,
             json=True,
         )

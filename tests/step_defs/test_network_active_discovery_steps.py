@@ -18,6 +18,7 @@ if str(ROOT) not in sys.path:
 from cops.discovery import (
     ActiveScanner,
     ActiveScanSession,
+    ActiveServiceAssessment,
     ConfidenceLevel,
     ObservedConfiguration,
     ObservedTLS,
@@ -54,8 +55,16 @@ def bdd_ctx():
         "mock_targets": {
             "app.corp.internal": {
                 "ports": {
-                    80: {"banner": "HTTP/1.1 200 OK\r\nServer: nginx/1.18.0\r\n\r\n", "headers": {"Server": "nginx/1.18.0"}, "http_status": 200},
-                    443: {"tls": {"version": "TLSv1.3", "subject_cn": "app.corp.internal", "sans": ["app.corp.internal"]}, "headers": {"Server": "nginx/1.18.0"}, "http_status": 200},
+                    80: {
+                        "banner": "HTTP/1.1 200 OK\r\nServer: nginx/1.18.0\r\n\r\n",
+                        "headers": {"Server": "nginx/1.18.0"},
+                        "http_status": 200,
+                    },
+                    443: {
+                        "tls": {"version": "TLSv1.3", "subject_cn": "app.corp.internal", "sans": ["app.corp.internal"]},
+                        "headers": {"Server": "nginx/1.18.0"},
+                        "http_status": 200,
+                    },
                     22: {"banner": "SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.6\r\n"},
                 }
             }
@@ -69,6 +78,7 @@ def bdd_ctx():
 
 # Scenario 1: Bounded active port and TLS assessment
 
+
 @given("an approved target list and port range with external vantage")
 def given_targets_ports(bdd_ctx):
     bdd_ctx["session"] = ActiveScanSession(
@@ -79,9 +89,7 @@ def given_targets_ports(bdd_ctx):
         vantage=ScanVantage.EXTERNAL.value,
         budget=bdd_ctx["budget"],
     )
-    bdd_ctx["dispatcher"] = OfflineSyntheticDispatcher(
-        targets=bdd_ctx["mock_targets"], dns_map=bdd_ctx["dns_map"]
-    )
+    bdd_ctx["dispatcher"] = OfflineSyntheticDispatcher(targets=bdd_ctx["mock_targets"], dns_map=bdd_ctx["dns_map"])
 
 
 @given("an explicit rate limit of 50 probes per second and 2 second timeout")
@@ -111,11 +119,16 @@ def then_discrete_records(bdd_ctx):
 def then_assessment_fields(bdd_ctx):
     for a in bdd_ctx["completed"].assessments:
         assert a.vantage == ScanVantage.EXTERNAL.value
-        assert a.reachability in (ServiceReachability.REACHABLE.value, ServiceReachability.UNREACHABLE.value, ServiceReachability.FILTERED.value)
+        assert a.reachability in (
+            ServiceReachability.REACHABLE.value,
+            ServiceReachability.UNREACHABLE.value,
+            ServiceReachability.FILTERED.value,
+        )
         assert a.observed_config is not None
 
 
 # Scenario 2: Resuming active scan without repeating completed side effects
+
 
 @given("an interrupted active scan session with pre-recorded completed probe keys")
 def given_interrupted_session(bdd_ctx):
@@ -130,11 +143,19 @@ def given_interrupted_session(bdd_ctx):
     key_80 = ActiveScanSession.make_probe_key(ScanVantage.EXTERNAL.value, "tcp", "app.corp.internal", 80)
     key_443 = ActiveScanSession.make_probe_key(ScanVantage.EXTERNAL.value, "tcp", "app.corp.internal", 443)
     session.completed_probe_keys.update([key_80, key_443])
+    session.assessments.extend(
+        ActiveServiceAssessment(
+            probe_id=f"prior-{port}",
+            target_host="app.corp.internal",
+            resolved_ip=bdd_ctx["dns_map"]["app.corp.internal"],
+            port=port,
+            vantage=ScanVantage.EXTERNAL.value,
+        )
+        for port in (80, 443)
+    )
 
     bdd_ctx["session"] = session
-    bdd_ctx["dispatcher"] = OfflineSyntheticDispatcher(
-        targets=bdd_ctx["mock_targets"], dns_map=bdd_ctx["dns_map"]
-    )
+    bdd_ctx["dispatcher"] = OfflineSyntheticDispatcher(targets=bdd_ctx["mock_targets"], dns_map=bdd_ctx["dns_map"])
 
 
 @when("the active scanner resumes execution from the session checkpoint")
@@ -151,8 +172,7 @@ def when_scanner_resumes(bdd_ctx):
 def then_probes_skipped(bdd_ctx):
     completed = bdd_ctx["completed"]
     # Only 1 remaining probe (port 22) should have been added
-    assert len(completed.assessments) == 1
-    assert completed.assessments[0].port == 22
+    assert [assessment.port for assessment in completed.assessments] == [80, 443, 22]
 
 
 @then("zero redundant probe side effects are dispatched to already assessed ports")
@@ -161,6 +181,7 @@ def then_zero_redundant_side_effects(bdd_ctx):
 
 
 # Scenario 3: Distinguishing reachable services, inferred fingerprints, and observed configuration
+
 
 @given("target endpoints with varying service configurations and reverse proxies")
 def given_various_endpoints(bdd_ctx):
@@ -212,6 +233,7 @@ def then_tls_mismatch_lowers_confidence(bdd_ctx):
 
 # Scenario 4: Quarantining targets upon dynamic DNS shift or rebind detection
 
+
 @given("an approved target hostname configured in scope")
 def given_approved_target_host(bdd_ctx):
     bdd_ctx["session"] = ActiveScanSession(
@@ -225,9 +247,7 @@ def given_approved_target_host(bdd_ctx):
 @when("the hostname resolves to an IP address outside authorized CIDR boundaries")
 def when_host_resolves_out_of_scope(bdd_ctx):
     bad_dns = {"app.corp.internal": "10.0.0.1"}
-    bdd_ctx["dispatcher"] = OfflineSyntheticDispatcher(
-        targets=bdd_ctx["mock_targets"], dns_map=bad_dns
-    )
+    bdd_ctx["dispatcher"] = OfflineSyntheticDispatcher(targets=bdd_ctx["mock_targets"], dns_map=bad_dns)
     scanner = ActiveScanner(
         session=bdd_ctx["session"],
         dispatcher=bdd_ctx["dispatcher"],
@@ -251,13 +271,12 @@ def then_records_dns_rebind_quarantine(bdd_ctx):
 
 # Scenario 5: Handling unreachable hosts and timed-out probes gracefully
 
+
 @given("a target host with unreachable network routes and filtered ports")
 def given_unreachable_and_filtered(bdd_ctx):
     mock = {
         "unreachable.corp.internal": {"unreachable": True},
-        "filtered.corp.internal": {
-            "ports": {8080: {"state": "filtered", "timeout": True}}
-        },
+        "filtered.corp.internal": {"ports": {8080: {"state": "filtered", "timeout": True}}},
     }
     dns = {
         "unreachable.corp.internal": "198.51.100.50",
@@ -299,6 +318,7 @@ def then_timed_out_filtered(bdd_ctx):
 
 # Scenario 6: Checkpointing partial results upon execution budget exhaustion
 
+
 @given("an active scan session with a tight overall execution time budget")
 def given_tight_budget(bdd_ctx):
     bdd_ctx["session"] = ActiveScanSession(
@@ -308,9 +328,7 @@ def given_tight_budget(bdd_ctx):
         approved_ports=[80, 443, 22],
         budget=ScanBudget(max_total_seconds=0.0001),
     )
-    bdd_ctx["dispatcher"] = OfflineSyntheticDispatcher(
-        targets=bdd_ctx["mock_targets"], dns_map=bdd_ctx["dns_map"]
-    )
+    bdd_ctx["dispatcher"] = OfflineSyntheticDispatcher(targets=bdd_ctx["mock_targets"], dns_map=bdd_ctx["dns_map"])
 
 
 @when("the allocated time budget expires during execution")
@@ -337,13 +355,14 @@ def then_partial_results_preserved(bdd_ctx):
 
 # Scenario 7: Verifying remediated exposures against baseline active assessment
 
+
 @given("a baseline active scan session observing open vulnerable ports")
 def given_baseline_scan(bdd_ctx):
     sess_base = ActiveScanSession(
         session_id="bdd-baseline",
         scope_reference="BDD-SCOPE-01",
         approved_targets=["app.corp.internal"],
-        approved_ports=[80, 22],
+        approved_ports=[80, 443, 22],
     )
     disp = OfflineSyntheticDispatcher(targets=bdd_ctx["mock_targets"], dns_map=bdd_ctx["dns_map"])
     scanner = ActiveScanner(session=sess_base, dispatcher=disp, scope=bdd_ctx["scope"])
@@ -356,6 +375,7 @@ def given_retest_scan(bdd_ctx):
         "app.corp.internal": {
             "ports": {
                 80: bdd_ctx["mock_targets"]["app.corp.internal"]["ports"][80],
+                443: {"state": "filtered"},
                 22: {"state": "closed"},
             }
         }
@@ -364,7 +384,7 @@ def given_retest_scan(bdd_ctx):
         session_id="bdd-retest",
         scope_reference="BDD-SCOPE-01",
         approved_targets=["app.corp.internal"],
-        approved_ports=[80, 22],
+        approved_ports=[80, 443, 22],
     )
     disp = OfflineSyntheticDispatcher(targets=remediated_mock, dns_map=bdd_ctx["dns_map"])
     scanner = ActiveScanner(session=sess_retest, dispatcher=disp, scope=bdd_ctx["scope"])
@@ -376,17 +396,20 @@ def when_delta_evaluated(bdd_ctx):
     bdd_ctx["delta"] = compare_active_scans(bdd_ctx["baseline_session"], bdd_ctx["retest_session"])
 
 
-@then("closed or filtered ports are identified as remediated exposures")
+@then("closed ports are remediated and filtered ports remain unverified")
 def then_remediated_ports_identified(bdd_ctx):
     delta = bdd_ctx["delta"]
     assert len(delta.remediated_exposures) == 1
     assert delta.remediated_exposures[0]["port"] == 22
+    assert len(delta.unverified_exposures) == 1
+    assert delta.unverified_exposures[0]["port"] == 443
+    assert delta.unverified_exposures[0]["current_state"] == PortState.FILTERED.value
 
 
 @then("an exact remediation rate percentage is calculated")
 def then_exact_remediation_rate(bdd_ctx):
     delta = bdd_ctx["delta"]
-    assert delta.remediation_rate == 50.0
+    assert delta.remediation_rate == 33.33
 
 
 @given("the standard socket TLS probe")

@@ -85,6 +85,7 @@ change workflows or make model calls.
 - `agentskills-frontmatter-enforcer`: checks skill authoring conventions.
 - `git-workflow-manager`: scopes Git transitions and preserves unrelated work.
 - `route-security-specialist`: dynamically selects and routes to the best specialist agent profile with Triad orchestration for critical tasks.
+- `engagement-findings-and-reporting`: assembles and reviews an offline, evidence-aware engagement assessment.
 
 The `milestone-delivery` baseline skill is available for explicitly authorized
 milestone work. PARK's template-project-creator skill is not part of COPS.

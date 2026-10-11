@@ -51,6 +51,11 @@ from .developer_collector import (
     StandardSocketDeveloperCollector,
     assess_developer_services,
 )
+from .developer_destinations import (
+    DestinationScopeError,
+    DeveloperDestinationPolicy,
+    prepare_developer_handoff,
+)
 from .developer_models import (
     DeveloperAuthPrerequisite,
     DeveloperCategory,
@@ -106,6 +111,7 @@ from .messaging_collector import (
     assess_messaging_services,
 )
 from .messaging_models import (
+    CanaryDeliveryPolicy,
     MessagingAuthPrerequisite,
     MessagingCategory,
     MessagingExposureStatus,
@@ -205,6 +211,7 @@ __all__ = [
     "reconcile_inventory",
     "DEFAULT_REMOTE_PORTS",
     "CleanupReceipt",
+    "CanaryDeliveryPolicy",
     "HostPrivilegeCandidate",
     "LateralMovementImpact",
     "OfflineSyntheticRemoteCollector",
@@ -253,10 +260,13 @@ __all__ = [
     "DeveloperServicesReport",
     "DeveloperServiceType",
     "DeveloperServicesCollector",
+    "DeveloperDestinationPolicy",
+    "DestinationScopeError",
     "ExecutionEffect",
     "OfflineSyntheticDeveloperCollector",
     "StandardSocketDeveloperCollector",
     "assess_developer_services",
+    "prepare_developer_handoff",
     "DEFAULT_LEGACY_PORTS",
     "LegacyAuthPrerequisite",
     "LegacyCategory",

@@ -1,0 +1,631 @@
+{
+  "schema_version": 1,
+  "source": {
+    "repository": "https://github.com/gunyakit/command-cheatsheet",
+    "revision": "4c118399602212f205c91e8f01e418e226fa320c",
+    "topic_directory": "1.Scanning/IT-Ports",
+    "sorted_paths_sha256": "cec7246d3a2117680b3f550d40a0ac659a12b24597262f275ca82c5c7bf86c9e"
+  },
+  "scope": "Mapping of pinned historical topics to COPS deterministic offline models or explicit environment limits; no live protocol-operation validation is implied.",
+  "topics": [
+    {
+      "source_path": "1.Scanning/IT-Ports/10000-ndmp.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "legacy",
+      "service_type": "ndmp",
+      "evidence_test": "tests/test_legacy_services.py::TestOfflineSyntheticLegacyCollector::test_assess_all_9_protocols_vulnerable"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/1080-socks.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "legacy",
+      "service_type": "socks",
+      "evidence_test": "tests/test_legacy_services.py::TestOfflineSyntheticLegacyCollector::test_assess_all_9_protocols_vulnerable"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/1099-java-rmi.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "developer",
+      "service_type": "rmi",
+      "evidence_test": "tests/test_developer_services.py::TestOfflineSyntheticDeveloperCollector::test_assess_rmi_and_jdwp_vulnerabilities"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/110-995-pop3.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "messaging",
+      "service_type": "pop3",
+      "evidence_test": "tests/test_messaging_services.py::TestOfflineSyntheticMessagingCollector::test_assess_pop3_and_imap"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/111-rpc.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "infra",
+      "service_type": "rpc",
+      "evidence_test": "tests/test_infrastructure_services.py::TestInfrastructureCollectorsAndProtocols::test_rpc_endpoint_mapper_interfaces"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/11211-memcache.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "data",
+      "service_type": "memcached",
+      "evidence_test": "tests/test_data_services.py::TestOfflineSyntheticDataCollector::test_positive_exposures_all_13_services"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/113-ident.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "environment_limit",
+      "limitation": "No ident collector or deterministic protocol fixture; assess only in an authorized protocol laboratory."
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/123-ntp.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "infra",
+      "service_type": "ntp",
+      "evidence_test": "tests/test_infrastructure_services.py::TestInfrastructureCollectorsAndProtocols::test_ntp_monlist_amplification_assessment"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/135-593-msrpc.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "infra",
+      "service_type": "rpc",
+      "evidence_test": "tests/test_infrastructure_services.py::TestInfrastructureCollectorsAndProtocols::test_rpc_endpoint_mapper_interfaces",
+      "limitation": "The offline RPC endpoint mapper fixture covers port 135; the port 593 transport is not tested."
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/139-445-smb.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "remote",
+      "service_type": "smb",
+      "evidence_test": "tests/test_remote_file_print_services.py::TestOfflineSyntheticRemoteCollector::test_assess_all_15_protocols_on_vulnerable_host"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/1414-ibmmq.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "messaging",
+      "service_type": "ibmmq",
+      "evidence_test": "tests/test_messaging_services.py::TestOfflineSyntheticMessagingCollector::test_assess_all_brokers"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/143-993-imap.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "messaging",
+      "service_type": "imap",
+      "evidence_test": "tests/test_messaging_services.py::TestOfflineSyntheticMessagingCollector::test_assess_pop3_and_imap"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/1433-mssql.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "data",
+      "service_type": "mssql",
+      "evidence_test": "tests/test_data_services.py::TestOfflineSyntheticDataCollector::test_positive_exposures_all_13_services"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/1521-oracle.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "data",
+      "service_type": "oracle",
+      "evidence_test": "tests/test_data_services.py::TestOfflineSyntheticDataCollector::test_positive_exposures_all_13_services"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/15672-rabbitmq-mgmt.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "messaging",
+      "service_type": "rabbitmq",
+      "evidence_test": "tests/test_messaging_services.py::TestOfflineSyntheticMessagingCollector::test_assess_all_brokers",
+      "limitation": "The RabbitMQ management exposure flag is simulated; its HTTP management API is not exercised."
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/161-162-snmp.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "infra",
+      "service_type": "snmp",
+      "evidence_test": "tests/test_infrastructure_services.py::TestInfrastructureCollectorsAndProtocols::test_snmp_credential_leak_assessment"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/1723-pptp.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "legacy",
+      "service_type": "pptp",
+      "evidence_test": "tests/test_legacy_services.py::TestOfflineSyntheticLegacyCollector::test_assess_all_9_protocols_vulnerable"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/194-6667-irc.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "messaging",
+      "service_type": "irc",
+      "evidence_test": "tests/test_messaging_services.py::TestOfflineSyntheticMessagingCollector::test_assess_irc"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/2049-nfs.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "remote",
+      "service_type": "nfs",
+      "evidence_test": "tests/test_remote_file_print_services.py::TestOfflineSyntheticRemoteCollector::test_assess_all_15_protocols_on_vulnerable_host"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/21-ftp.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "remote",
+      "service_type": "ftp",
+      "evidence_test": "tests/test_remote_file_print_services.py::TestOfflineSyntheticRemoteCollector::test_assess_all_15_protocols_on_vulnerable_host"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/22-ssh.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "remote",
+      "service_type": "ssh",
+      "evidence_test": "tests/test_remote_file_print_services.py::TestOfflineSyntheticRemoteCollector::test_assess_all_15_protocols_on_vulnerable_host"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/23-telnet.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "remote",
+      "service_type": "telnet",
+      "evidence_test": "tests/test_remote_file_print_services.py::TestOfflineSyntheticRemoteCollector::test_assess_all_15_protocols_on_vulnerable_host"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/2375-2376-docker.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "developer",
+      "service_type": "docker",
+      "evidence_test": "tests/test_developer_services.py::TestOfflineSyntheticDeveloperCollector::test_assess_docker_api_vulnerabilities"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/25-smtp.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "messaging",
+      "service_type": "smtp",
+      "evidence_test": "tests/test_messaging_services.py::TestOfflineSyntheticMessagingCollector::test_assess_smtp_open_relay_and_enum"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/27017-mongodb.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "data",
+      "service_type": "mongodb",
+      "evidence_test": "tests/test_data_services.py::TestOfflineSyntheticDataCollector::test_positive_exposures_all_13_services"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/3128-squid.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "legacy",
+      "service_type": "squid",
+      "evidence_test": "tests/test_legacy_services.py::TestOfflineSyntheticLegacyCollector::test_assess_all_9_protocols_vulnerable"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/3260-iscsi.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "legacy",
+      "service_type": "iscsi",
+      "evidence_test": "tests/test_legacy_services.py::TestOfflineSyntheticLegacyCollector::test_assess_all_9_protocols_vulnerable"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/3306-mysql.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "data",
+      "service_type": "mysql",
+      "evidence_test": "tests/test_data_services.py::TestOfflineSyntheticDataCollector::test_positive_exposures_all_13_services"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/3389-rdp.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "remote",
+      "service_type": "rdp",
+      "evidence_test": "tests/test_remote_file_print_services.py::TestOfflineSyntheticRemoteCollector::test_assess_all_15_protocols_on_vulnerable_host"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/3632-distcc.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "developer",
+      "service_type": "distcc",
+      "evidence_test": "tests/test_developer_services.py::TestOfflineSyntheticDeveloperCollector::test_assess_distcc_and_svn_vulnerabilities"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/3690-svn.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "developer",
+      "service_type": "svn",
+      "evidence_test": "tests/test_developer_services.py::TestOfflineSyntheticDeveloperCollector::test_assess_distcc_and_svn_vulnerabilities"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/389-636-3268-3269-ldap.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "infra",
+      "service_type": "ldap",
+      "evidence_test": "tests/test_infrastructure_services.py::TestInfrastructureCollectorsAndProtocols::test_ldap_anonymous_root_dse_assessment"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/4222-nats.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "messaging",
+      "service_type": "nats",
+      "evidence_test": "tests/test_messaging_services.py::TestOfflineSyntheticMessagingCollector::test_assess_all_brokers"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/43-whois.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "environment_limit",
+      "limitation": "No WHOIS collector or deterministic protocol fixture; registry reachability and policy are environment dependent."
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/4369-epmd.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "developer",
+      "service_type": "erlang_epmd",
+      "evidence_test": "tests/test_developer_services.py::TestOfflineSyntheticDeveloperCollector::test_assess_erlang_epmd_and_adb_vulnerabilities"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/4786-cisco-smart-install.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "legacy",
+      "service_type": "cisco_smart_install",
+      "evidence_test": "tests/test_legacy_services.py::TestOfflineSyntheticLegacyCollector::test_assess_all_9_protocols_vulnerable"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/49-tacacs.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "legacy",
+      "service_type": "tacacs",
+      "evidence_test": "tests/test_legacy_services.py::TestOfflineSyntheticLegacyCollector::test_assess_all_9_protocols_vulnerable"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/500-ipsec.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "legacy",
+      "service_type": "ike",
+      "evidence_test": "tests/test_legacy_services.py::TestOfflineSyntheticLegacyCollector::test_assess_all_9_protocols_vulnerable",
+      "limitation": "The model covers IKEv1 Aggressive Mode configuration only; ESP, AH, and broader IPsec negotiation are not tested."
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/5000-docker-registry.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "developer",
+      "service_type": "docker_registry",
+      "evidence_test": "tests/test_developer_services.py::TestOfflineSyntheticDeveloperCollector::test_assess_docker_registry_vulnerabilities"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/512-514-rservices.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "environment_limit",
+      "limitation": "No r-services collector or deterministic protocol fixture; authentication and trust behavior require an isolated legacy host."
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/515-lpd.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "remote",
+      "service_type": "lpd",
+      "evidence_test": "tests/test_remote_file_print_services.py::TestOfflineSyntheticRemoteCollector::test_assess_all_15_protocols_on_vulnerable_host"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/53-dns.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "infra",
+      "service_type": "dns",
+      "evidence_test": "tests/test_infrastructure_services.py::TestInfrastructureCollectorsAndProtocols::test_dns_open_recursion_assessment"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/5353-mdns.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "environment_limit",
+      "limitation": "mDNS is in the infrastructure taxonomy, but no deterministic mDNS assessment fixture exists; multicast reachability depends on the local segment."
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/5432-5433-postgresql.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "data",
+      "service_type": "postgres",
+      "evidence_test": "tests/test_data_services.py::TestOfflineSyntheticDataCollector::test_positive_exposures_all_13_services"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/548-afp.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "remote",
+      "service_type": "afp",
+      "evidence_test": "tests/test_remote_file_print_services.py::TestOfflineSyntheticRemoteCollector::test_assess_all_15_protocols_on_vulnerable_host"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/554-rtsp.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "environment_limit",
+      "limitation": "No RTSP collector or deterministic protocol fixture; stream access depends on server and codec configuration."
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/5555-adb.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "developer",
+      "service_type": "adb",
+      "evidence_test": "tests/test_developer_services.py::TestOfflineSyntheticDeveloperCollector::test_assess_erlang_epmd_and_adb_vulnerabilities"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/5601-kibana.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "data",
+      "service_type": "kibana",
+      "evidence_test": "tests/test_data_services.py::TestOfflineSyntheticDataCollector::test_positive_exposures_all_13_services"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/5672-amqp.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "messaging",
+      "service_type": "rabbitmq",
+      "evidence_test": "tests/test_messaging_services.py::TestOfflineSyntheticMessagingCollector::test_assess_all_brokers",
+      "limitation": "The RabbitMQ broker model is tested; generic AMQP implementations and wire exchanges are not."
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/5900-vnc.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "remote",
+      "service_type": "vnc",
+      "evidence_test": "tests/test_remote_file_print_services.py::TestOfflineSyntheticRemoteCollector::test_assess_all_15_protocols_on_vulnerable_host"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/5984-couchdb.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "data",
+      "service_type": "couchdb",
+      "evidence_test": "tests/test_data_services.py::TestOfflineSyntheticDataCollector::test_positive_exposures_all_13_services"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/5985-winrm.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "remote",
+      "service_type": "winrm",
+      "evidence_test": "tests/test_remote_file_print_services.py::TestOfflineSyntheticRemoteCollector::test_assess_all_15_protocols_on_vulnerable_host"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/6000-x11.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "remote",
+      "service_type": "x11",
+      "evidence_test": "tests/test_remote_file_print_services.py::TestOfflineSyntheticRemoteCollector::test_assess_all_15_protocols_on_vulnerable_host"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/623-ipmi.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "legacy",
+      "service_type": "ipmi",
+      "evidence_test": "tests/test_legacy_services.py::TestOfflineSyntheticLegacyCollector::test_assess_all_9_protocols_vulnerable"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/631-ipp-cups.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "remote",
+      "service_type": "ipp",
+      "evidence_test": "tests/test_remote_file_print_services.py::TestOfflineSyntheticRemoteCollector::test_assess_all_15_protocols_on_vulnerable_host",
+      "limitation": "The model covers IPP; CUPS-specific versions, admin endpoints, and wire exchanges are not tested."
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/6379-redis.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "data",
+      "service_type": "redis",
+      "evidence_test": "tests/test_data_services.py::TestOfflineSyntheticDataCollector::test_positive_exposures_all_13_services"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/69-tftp.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "remote",
+      "service_type": "tftp",
+      "evidence_test": "tests/test_remote_file_print_services.py::TestOfflineSyntheticRemoteCollector::test_assess_all_15_protocols_on_vulnerable_host"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/7-echo.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "environment_limit",
+      "limitation": "No Echo collector or deterministic protocol fixture; service may be disabled by host policy."
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/79-finger.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "environment_limit",
+      "limitation": "No Finger collector or deterministic protocol fixture; account disclosure depends on host configuration."
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/80-443-http.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "environment_limit",
+      "limitation": "Generic HTTP is outside the six protocol collector families reconciled here; endpoint and API behavior require the separate web inventory workflow."
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/8000-jdwp.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "developer",
+      "service_type": "jdwp",
+      "evidence_test": "tests/test_developer_services.py::TestOfflineSyntheticDeveloperCollector::test_assess_rmi_and_jdwp_vulnerabilities"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/8009-ajp.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "developer",
+      "service_type": "ajp",
+      "evidence_test": "tests/test_developer_services.py::TestOfflineSyntheticDeveloperCollector::test_assess_ajp_and_fastcgi_vulnerabilities"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/8086-influxdb.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "data",
+      "service_type": "influxdb",
+      "evidence_test": "tests/test_data_services.py::TestOfflineSyntheticDataCollector::test_positive_exposures_all_13_services"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/8089-splunk.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "data",
+      "service_type": "splunk",
+      "evidence_test": "tests/test_data_services.py::TestOfflineSyntheticDataCollector::test_positive_exposures_all_13_services"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/873-rsync.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "remote",
+      "service_type": "rsync",
+      "evidence_test": "tests/test_remote_file_print_services.py::TestOfflineSyntheticRemoteCollector::test_assess_all_15_protocols_on_vulnerable_host"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/88-kerberos.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "infra",
+      "service_type": "kerberos",
+      "evidence_test": "tests/test_infrastructure_services.py::TestInfrastructureCollectorsAndProtocols::test_kerberos_preauth_candidates_multiple_accounts"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/9000-fastcgi.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "developer",
+      "service_type": "fastcgi",
+      "evidence_test": "tests/test_developer_services.py::TestOfflineSyntheticDeveloperCollector::test_assess_ajp_and_fastcgi_vulnerabilities"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/9042-9160-cassandra.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "data",
+      "service_type": "cassandra",
+      "evidence_test": "tests/test_data_services.py::TestOfflineSyntheticDataCollector::test_positive_exposures_all_13_services"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/9100-jetdirect.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "remote",
+      "service_type": "raw_print",
+      "evidence_test": "tests/test_remote_file_print_services.py::TestOfflineSyntheticRemoteCollector::test_assess_all_15_protocols_on_vulnerable_host"
+    },
+    {
+      "source_path": "1.Scanning/IT-Ports/9200-elasticsearch.md",
+      "technique_applicability": "conditional_requires_lab",
+      "source_tool_maintenance": "not_assessed",
+      "coverage_status": "offline_model",
+      "collector": "data",
+      "service_type": "elasticsearch",
+      "evidence_test": "tests/test_data_services.py::TestOfflineSyntheticDataCollector::test_positive_exposures_all_13_services"
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sodejm/copilot-operation-plugin-for-security/plugins/detection-hunting/threat-intelligence-enrichment/schemas/claim.schema.json",
+  "title": "COPS threat intelligence source claim",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "source",
+    "assertion",
+    "observed_at",
+    "retrieved_at",
+    "sharing_restrictions",
+    "confidence",
+    "expires_at",
+    "provenance"
+  ],
+  "properties": {
+    "source": {"enum": ["misp", "taxii", "microsoft"]},
+    "assertion": {
+      "enum": ["malicious", "context", "indicator", "host_record", "tenant_service_principal"]
+    },
+    "observed_at": {"$ref": "#/$defs/optionalTimestamp"},
+    "retrieved_at": {"type": "string", "format": "date-time"},
+    "sharing_restrictions": {
+      "description": "Provider marking identifiers; unknown means sharing permissions were not established.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^(unknown|misp:distribution:[0-5]|stix:marking-definition--[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12})$"
+      }
+    },
+    "confidence": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
+    "expires_at": {"$ref": "#/$defs/optionalTimestamp"},
+    "provenance": {"type": ["string", "null"], "maxLength": 128}
+  },
+  "$defs": {
+    "optionalTimestamp": {
+      "anyOf": [
+        {"type": "string", "format": "date-time"},
+        {"type": "null"}
+      ]
+    }
+  }
+}

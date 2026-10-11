@@ -92,32 +92,22 @@ python3 -m cops specialists
 
 ## Triad Orchestration for High-Risk Operations
 
-For sensitive or destructive operational domains (penetration testing, active containment rehearsal, red teaming, cloud IAM modifications), single-agent execution introduces unverified risk.
+For sensitive operational domains, the specialist handoff contract records a bounded review by a planner, specialist, skeptic, and auditor. The planner selects a workflow skill and specialist capability. Acceptance verifies the skill is declared by the recipient, exists locally, and maps to a registered specialist capability. It records the resolved skill path, file digest, and a checksum of the target within the handoff record. Skeptic review and audit repeat the resolution and reject a missing or changed local target.
 
-COPS dynamically activates **Triad Orchestration** whenever high-risk tasks are detected:
+Records marked `accepted`, `in_review`, or `completed` must include the resolved skill path, digest, and target checksum. Older records without these fields fail current contract validation and need a new proposal and acceptance before continuing the handoff. The checksum detects partial edits to one record; an operator who can rewrite the entire JSON record can also replace its checksum. Treat the handoff file as operator-controlled input, not authenticated approval evidence.
+
+The handoff API and CLI do not automatically activate on high-risk tasks or execute the selected skill. A `completed` handoff records successful metadata and evidence review; it is not an execution receipt.
 
 ```mermaid
-flowchart TD
-    TASK["High-Risk Task (e.g. Containment Rehearsal)"] --> ROUTER["Dynamic Router"]
-    ROUTER --> TRIAD["Triad Assembly"]
-
-    subgraph TRIAD["Triad Multi-Agent Review"]
-        PRIMARY["1. Primary Specialist<br/>(Drafts Action Plan)"]
-        SKEPTIC["2. Domain Skeptic<br/>(Challenges Assumptions & Edge Cases)"]
-        AUDITOR["3. Evidence Auditor<br/>(Verifies Schemas & Boundaries)"]
-    end
-
-    PRIMARY --> SKEPTIC
-    SKEPTIC --> AUDITOR
-    AUDITOR --> GATE{"Interactive Operator Gate<br/>Human Sign-off Required"}
-    GATE -- Approved --> EXEC["Controlled Offline Execution with Cryptographic Receipt"]
-    GATE -- Rejected --> ABORT["Operation Aborted"]
+flowchart LR
+    PLAN["Approved action plan"] --> PROPOSAL["Proposed handoff and workflow target"]
+    PROPOSAL --> ACCEPT["Specialist accepts resolved skill and capability"]
+    ACCEPT --> REVIEW["Skeptic reviews candidate evidence"]
+    REVIEW --> AUDIT["Auditor checks plan bounds and skill digest"]
+    AUDIT --> COMPLETE["Completed handoff record"]
 ```
 
-1. **Primary Specialist**: Drafts the proposed plan and technical parameters.
-2. **Domain Skeptic**: Actively challenges the plan, seeking false positives, unintended consequences, and unverified assumptions.
-3. **Evidence Auditor**: Validates contract schemas, bounding limits, and input integrity.
-4. **Mandatory Operator Authorization**: The orchestrated plan cannot execute until a human operator explicitly approves the action.
+The approved `ActionPlan` supplies the bounds checked by this workflow. Tool execution and its authorization use separate execution contracts and controls.
 
 ---
 

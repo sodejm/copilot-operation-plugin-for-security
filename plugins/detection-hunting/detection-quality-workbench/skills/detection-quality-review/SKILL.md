@@ -24,7 +24,7 @@ flowchart TD
 ### Key Review Principles
 
 1. **Explicit Data Dependencies**:
-   Every detection rule declares required vs. optional fields, source tables/indexes, and join scopes. If a required field is dropped in an upstream logging pipeline, the workbench detects schema drift immediately.
+   Every detection rule declares required vs. optional fields, source tables/indexes, and join scopes. The workbench reports missing required values in fixture primary rows; compare those findings with actual source telemetry separately.
 
 2. **Labeled Fixture Quality Metrics**:
    - **True Positive (TP)**: Target attack events correctly caught.

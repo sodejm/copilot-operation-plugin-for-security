@@ -63,9 +63,7 @@ def conflicting_claims_setup(context):
         ]
     }
     context["taxii_data"] = {
-        "objects": [
-            {"type": "indicator", "pattern": "[domain-name:value = 'example.org']", "id": "taxii-indicator-1"}
-        ]
+        "objects": [{"type": "indicator", "pattern": "[domain-name:value = 'example.org']", "id": "taxii-indicator-1"}]
     }
 
 
@@ -81,6 +79,7 @@ def normalize_claims(context):
 def claims_recorded_with_sources(context):
     sources = {c["source"] for c in context["claims"]}
     assert "misp" in sources and "taxii" in sources
+    assert all(c["retrieved_at"] and c["sharing_restrictions"] for c in context["claims"])
     assert len(context["conflicts"]) == 1
     assert "misp" in context["conflicts"][0]["sources"]
 
@@ -121,3 +120,79 @@ def cache_only_lookup(context):
 @then("the result is labeled stale")
 def result_labeled_stale(context):
     assert context["result"]["cache"] == "stale"
+
+
+@given("an older marked claim was replaced by a later negative lookup")
+def replaced_marked_claim(context):
+    indicator = Indicator("domain", "example.org")
+    source = Source("misp", "misp.example.org", "/attributes/restSearch", "test-token")
+    approval = Approval("misp", indicator.digest)
+    cache = Cache(positive_ttl=10, negative_ttl=5)
+    FakeTransport.response = Response(
+        200,
+        b'{"Attribute":[{"type":"domain","value":"example.org","to_ids":true,"uuid":"old","distribution":0}]}',
+    )
+    enrich(indicator, source, approval, cache=cache, now=100, transport_factory=FakeTransport)
+    FakeTransport.response = Response(200, b'{"Attribute":[]}')
+    enrich(indicator, source, approval, cache=cache, now=120, transport_factory=FakeTransport)
+    context.update(indicator=indicator, source=source, approval=approval, cache=cache)
+
+
+@when("the analyst replays the cache before the later lookup")
+def replay_old_claim(context):
+    context["calls_before_replay"] = len(FakeTransport.calls)
+    context["result"] = enrich(
+        context["indicator"],
+        context["source"],
+        context["approval"],
+        cache=context["cache"],
+        as_of=115,
+        transport_factory=FakeTransport,
+    )
+
+
+@then("the expired claim retains its retrieval time, marking, and source locator")
+def expired_provenance_retained(context):
+    result = context["result"]
+    assert result["status"] == "positive" and result["cache"] == "stale"
+    assert result["claims"][0]["retrieved_at"] == "1970-01-01T00:01:40Z"
+    assert result["claims"][0]["sharing_restrictions"] == ["misp:distribution:0"]
+    assert result["claims"][0]["provenance"] == "old"
+    assert len(FakeTransport.calls) == context["calls_before_replay"]
+
+
+@given("a provider responds with a rate limit")
+def source_rate_limited(context):
+    indicator = Indicator("domain", "example.org")
+    source = Source("misp", "misp.example.org", "/attributes/restSearch", "test-token")
+    cache = Cache()
+    FakeTransport.response = Response(429, b"", retry_after="30")
+    context["first"] = enrich(
+        indicator,
+        source,
+        Approval("misp", indicator.digest),
+        cache=cache,
+        now=100,
+        transport_factory=FakeTransport,
+    )
+    context.update(source=source, cache=cache)
+
+
+@when("another indicator is looked up from the same source")
+def other_indicator_same_source(context):
+    indicator = Indicator("domain", "example.net")
+    context["result"] = enrich(
+        indicator,
+        context["source"],
+        Approval("misp", indicator.digest),
+        cache=context["cache"],
+        now=110,
+        transport_factory=FakeTransport,
+    )
+
+
+@then("the source cooldown prevents an outbound request")
+def cooldown_prevents_request(context):
+    assert context["first"]["error"] == "rate_limited"
+    assert context["result"]["retry_after_seconds"] == 20
+    assert len(FakeTransport.calls) == 1
