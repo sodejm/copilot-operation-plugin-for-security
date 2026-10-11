@@ -151,7 +151,7 @@ Invoke this planner under the following concrete triggers:
    - Declare `ExecutionEffect`: `read_only`, `non_destructive`, `state_change`, `code_execution`.
    - Operations that execute code or modify state require explicit authorization (`--allow-code-execution`, `--allow-state-change`) bound to the active plan.
 3. **Application vs Infrastructure Specialist Routing**:
-   - Route application-layer findings to web specialists (`cops-web-specialist`), orchestrator paths to cloud specialists (`cops-cloud-specialist`), and code execution / breakout findings to pentest specialists (`cops-pentest-specialist`).
+   - Route application-layer findings to web specialists (`cops-web-specialist`), orchestrator paths to cloud specialists (`cops-cloud-specialist`), and code execution / breakout findings to pentest specialists (`cops-pentest-specialist`). Before a cluster handoff, validate the allowed cluster, current Kubernetes context, and API hostname with `python3 -m cops developer-services handoff --kind cluster ...`; this is an offline metadata check.
 4. **Strict Inaccessible != Secure Grounding**:
    - Filtered, closed, or timed-out endpoints are strictly classified as `inaccessible` (with `auth_prerequisite: unknown`). Never assume an inaccessible service is secure or hardened.
 5. **Canary Validation and Verifiable Cleanup Receipts**:
