@@ -245,7 +245,8 @@
         "linux",
         "offline-import",
         "offensive-security",
-        "privilege-boundaries"
+        "privilege-boundaries",
+        "windows"
       ]
     },
     {

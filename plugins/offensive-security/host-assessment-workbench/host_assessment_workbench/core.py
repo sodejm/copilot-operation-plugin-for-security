@@ -1,4 +1,4 @@
-"""Validate local Linux assessment exports and classify only reported evidence.
+"""Validate local host assessment exports and classify only reported evidence.
 
 No collector or live host access exists in this module. The caller supplies an
 already-produced local export; canary results remain source assertions.
@@ -202,6 +202,10 @@ def _decision(host: dict[str, Any], req: dict[str, Any]) -> str:
 
 def assess_document(payload: dict[str, Any]) -> dict[str, Any]:
     """Classify an export without treating imported claims as live verification."""
+    if isinstance(payload, dict) and payload.get("schema_version") == "windows-1.0":
+        from .windows import assess_windows_document
+
+        return assess_windows_document(payload)
     document = _exact_keys(
         payload, {"schema_version", "source_kind", "source_id", "host", "coverage", "observations"}, "document"
     )

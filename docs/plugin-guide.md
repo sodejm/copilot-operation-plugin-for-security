@@ -30,7 +30,7 @@ Use this guide to determine which plugin best matches your operational requireme
 | **Plan an authorized, passive attack surface review** | `attack-surface-planner` | Offensive Security | <span class="badge badge-experimental">Experimental</span> | `planned` | `python3 -m cops demo attack-surface-planner` |
 | **Reconcile an approved Kubernetes context and namespace scope** | `kubernetes-assessment-workbench` | Offensive Security | <span class="badge badge-experimental">Experimental</span> | `import` | `python3 -m cops demo kubernetes-assessment-workbench` |
 | **Intake engagement scope and compile action plans** | `offensive-engagement-workbench` | Offensive Security | <span class="badge badge-experimental">Experimental</span> | `planned` | `python3 -m cops demo offensive-engagement-workbench` |
-| **Review Linux privilege-boundary exports** | `host-assessment-workbench` | Offensive Security | <span class="badge badge-experimental">Experimental</span> | `import` | `python3 -m cops demo host-assessment-workbench` |
+| **Review Linux and Windows privilege-boundary exports** | `host-assessment-workbench` | Offensive Security | <span class="badge badge-experimental">Experimental</span> | `import` | `python3 -m cops demo host-assessment-workbench` |
 | **Rehearse synthetic agent tool authorization** | `foundry-agent-harness` | Offensive Security | <span class="badge badge-beta">Beta</span> | `laboratory` | `python3 -m cops check foundry-agent-harness` |
 | **Rehearse containment with cryptographic receipts** | `incident-response-sandbox` | Incident Response | <span class="badge badge-beta">Beta</span> | `laboratory` | `python3 -m cops check incident-response-sandbox` |
 
@@ -156,8 +156,8 @@ Use this guide to determine which plugin best matches your operational requireme
 
 #### Host Assessment Workbench
 - **Maturity**: <span class="badge badge-experimental">Experimental</span> | **Operational Mode**: `import`
-- **When to use**: When reviewing a bounded local export of Linux host configuration, prerequisite context, coverage, and canary outcomes.
-- **Key Capabilities**: Strict versioned import, eight privilege-boundary surfaces, prerequisite selection, and distinct configuration versus reported-canary classifications.
+- **When to use**: When reviewing a bounded local Linux or Windows export of host configuration, prerequisite context, coverage, and canary outcomes.
+- **Key Capabilities**: Strict versioned import, eight Linux or seven Windows privilege-boundary surfaces, prerequisite selection, and distinct configuration versus reported-canary classifications.
 - **Boundaries**: No host collection or execution; imported canary assertions are not independent proof of privilege crossing or cleanup.
 - **Playbook**: `plugins/offensive-security/host-assessment-workbench/README.md`
 

@@ -42,7 +42,7 @@ python3 -m cops specialists
 | Agent Profile ID | Role | Key Capabilities |
 | :--- | :--- | :--- |
 | `cops-pentest-specialist` | Penetration Testing Specialist | Scoping validation, non-destructive methodology planning, vulnerability assessment. |
-| `cops-host-specialist` | Host Assessment Specialist | Offline Linux privilege-boundary export review with prerequisite and canary-report limits. |
+| `cops-host-specialist` | Host Assessment Specialist | Offline Linux and Windows privilege-boundary export review with prerequisite and canary-report limits. |
 | `cops-kubernetes-specialist` | Kubernetes Assessment Specialist | Offline approved-context, namespace, and surface comparison with live-evidence limits. |
 | `cops-redteam-operator` | Red Team Operations Specialist | Threat actor emulation planning, ATT&CK TTP mapping, defensive evasion analysis. |
 | `cops-attack-surface-planner` | Attack Surface Planner | Passive reconnaissance planning, domain mapping, in-scope vs. out-of-scope enforcement. |

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the synthetic Linux privilege-boundary import demonstration."""
+"""Run synthetic Linux and Windows privilege-boundary import demonstrations."""
 
 from __future__ import annotations
 
@@ -23,7 +23,22 @@ def main() -> int:
             "counts": report["counts"],
             "coverage": report["coverage"],
         }
-    print(json.dumps({"status": "passed", "mode": "offline_import", "cases": cases}, indent=2, sort_keys=True))
+    windows_cases = {}
+    for name in ("vulnerable", "protected", "remediated", "unsupported"):
+        fixture = PACKAGE / "fixtures" / "synthetic" / f"host_windows_{name}_v1.json"
+        report = load_report_bytes(fixture.read_bytes())
+        windows_cases[name] = {
+            "source_kind": report["source"]["kind"],
+            "counts": report["counts"],
+            "coverage": report["coverage"],
+        }
+    print(
+        json.dumps(
+            {"status": "passed", "mode": "offline_import", "cases": cases, "windows_cases": windows_cases},
+            indent=2,
+            sort_keys=True,
+        )
+    )
     return 0
 
 

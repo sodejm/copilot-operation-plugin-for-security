@@ -97,7 +97,7 @@
     },
     {
       "name": "host-assessment-workbench",
-      "description": "Offline import and evidence classification for Linux privilege-boundary assessments.",
+      "description": "Offline import and evidence classification for Linux and Windows privilege-boundary assessments.",
       "version": "0.1.0",
       "source": "./plugins/offensive-security/host-assessment-workbench"
     },

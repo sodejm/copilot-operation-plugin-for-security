@@ -70,7 +70,7 @@ python3 -m cops info host-assessment-workbench
 | **Verify telemetry pipelines and avoid SIEM blind spots** | `telemetry-proof-pack` | End-to-end health verification for Cribl Stream, Splunk, and Sentinel routes. |
 | **Rehearse incident containment with cryptographic execution receipts** | `incident-response-sandbox` | Approval-gated containment planning, blast-radius calculation, and receipts. |
 | **Plan and validate an authorized offensive engagement** | `offensive-engagement-workbench` | Offline engagement scope, scenario, and execution-authorization contracts. |
-| **Classify a local Linux host assessment export** | `host-assessment-workbench` | Eight-surface coverage and source-reported canary results from a versioned local export. |
+| **Classify a local Linux or Windows host assessment export** | `host-assessment-workbench` | Eight Linux or seven Windows surfaces and source-reported canary results from a versioned local export. |
 
 ---
 
