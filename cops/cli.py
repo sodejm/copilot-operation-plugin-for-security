@@ -25,6 +25,7 @@ from .coverage import (
     render_gap_report_markdown,
     review_coverage_freshness,
 )
+from .reporting.assessment import ReportError
 from .validation import ValidationError, generate_marketplaces, validate_repository
 
 
@@ -585,6 +586,8 @@ def build_parser() -> argparse.ArgumentParser:
             "action_plan",
             "run_result",
             "finding",
+            "assessment_input",
+            "assessment_report",
             "execution_authorization",
             "specialist_handoff",
             "laboratory_environment",
@@ -731,6 +734,11 @@ def build_parser() -> argparse.ArgumentParser:
     e_info = eng_sub.add_parser("info", help="display details of an engagement contract")
     e_info.add_argument("file", help="path to engagement JSON file")
     e_info.add_argument("--json", action="store_true", help="output structured JSON")
+
+    e_report = eng_sub.add_parser("report", help="build an offline evidence-aware assessment report")
+    e_report.add_argument("--input", required=True, type=Path, help="bounded assessment input JSON")
+    e_report.add_argument("--json-output", required=True, type=Path, help="new private report JSON file")
+    e_report.add_argument("--markdown-output", required=True, type=Path, help="new private Markdown report file")
 
     e_handoff = eng_sub.add_parser("handoff", help="specialist routing and bounded workflow handoffs")
     e_h_sub = e_handoff.add_subparsers(dest="handoff_command", required=True)
@@ -968,6 +976,10 @@ def main(argv: list[str] | None = None, *, root: Path = ROOT) -> int:
                 return command_engagement_info(args)
             if args.engagement_command == "handoff":
                 return command_engagement_handoff(args)
+            if args.engagement_command == "report":
+                from .reporting.cli import command_engagement_report
+
+                return command_engagement_report(args)
         if args.command == "lab":
             from .laboratory.cli import command_laboratory
 
@@ -1008,7 +1020,7 @@ def main(argv: list[str] | None = None, *, root: Path = ROOT) -> int:
             from .discovery.cli import command_legacy_discovery
 
             return command_legacy_discovery(args, root=root)
-    except (CatalogError, ValidationError, CoverageError) as error:
+    except (CatalogError, ValidationError, CoverageError, ReportError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
     parser.error(f"unsupported command: {args.command}")

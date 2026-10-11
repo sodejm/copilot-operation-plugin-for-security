@@ -6,6 +6,7 @@
 | `agents/` | Centralized specialist agent profiles (`profiles/*.agent.md`) and canonical registry (`registry.json`) |
 | `cops/` | Standard-library catalog, validation, command safety, demos, and checks |
 | `cops/contracts/` | Operational contracts runtime, lifecycle state machines, and evidence verification |
+| `cops/reporting/` | Offline engagement assessment joins and JSON/Markdown rendering |
 | `cops/scenarios/` | Scenario and provenance registry loaders, queries, and cross-validation |
 | `cops/capabilities/` | Capability reconciliation and truth-in-advertising auditor and matrix generator |
 | `cops/routing/` | Deterministic zero-token intent classifier and Triad execution plan generator |
@@ -20,6 +21,7 @@
 | `catalog/schemas/specialist-profile.schema.json` | Specialist agent profile contract |
 | `catalog/schemas/authorization-receipt.schema.json` | Tamper-evident authorization receipt contract |
 | `catalog/schemas/evidence-envelope.schema.json`, `catalog/schemas/acquisition-receipt.schema.json` | Shared evidence and acquisition receipt v1 contracts |
+| `catalog/schemas/assessment-input.schema.json`, `catalog/schemas/assessment-report.schema.json` | Offline assessment input and output contracts |
 | `catalog/schemas/*-contract.schema.json`, `catalog/schemas/*-registry.schema.json` | Operational contracts, scenario, capability, and provenance registry schemas |
 
 

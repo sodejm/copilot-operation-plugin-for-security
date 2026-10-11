@@ -122,6 +122,10 @@ python3 -m cops check
 - **Adversarial Perturbations**: In `sentinel-hunt-workbench`, the test suite runs 144 semantic mutations to ensure hunts catch real attacks and resist noise.
 - **Schema Contracts**: Ensures all JSON outputs and receipts conform strictly to published schemas.
 
+To assemble a scoped, evidence-aware assessment from existing local contracts,
+see the [offline engagement reporting guide](ENGAGEMENT_REPORTING.md). This
+workflow reports supplied coverage and does not run a security test.
+
 ---
 
 ## 5. Using Plugins in Your AI Assistant
