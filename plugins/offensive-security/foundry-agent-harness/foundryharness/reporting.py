@@ -106,13 +106,17 @@ def render_markdown_report(
         lines.append(f"- **Scenario Assessment**: {e.risk_assessment}")
 
         if e.attempted_tool:
-            lines.append(f"- **Attempted Tool Call**: `{e.attempted_tool.get('tool_name')}` with arguments: `{e.attempted_tool.get('arguments')}`")
+            lines.append(
+                f"- **Attempted Tool Call**: `{e.attempted_tool.get('tool_name')}` with arguments: `{e.attempted_tool.get('arguments')}`"
+            )
 
         if e.gate_denial_reason:
             lines.append(f"- **Gate Enforcement**: {e.gate_denial_reason}")
 
         if e.executed_side_effect:
-            lines.append(f"- **Executed Mock Effect**: `{e.executed_side_effect.get('action')}` on `{e.executed_side_effect.get('target')}` (reversible: `{e.executed_side_effect.get('reversible')}`)")
+            lines.append(
+                f"- **Executed Mock Effect**: `{e.executed_side_effect.get('action')}` on `{e.executed_side_effect.get('target')}` (reversible: `{e.executed_side_effect.get('reversible')}`)"
+            )
 
         lines.append("- **Evidence Citations**:")
         for ev in e.evidence_citations:

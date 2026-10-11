@@ -72,8 +72,12 @@ def build_parser() -> argparse.ArgumentParser:
     list_parser.add_argument("--scenarios-dir", type=Path, required=True, help="path to directory of scenarios")
 
     lab_parser = subparsers.add_parser("lab", help="run local synthetic agent and MCP fixture cases")
-    lab_parser.add_argument("--cases", type=Path, default=Path(__file__).resolve().parent.parent / "lab_cases",
-                            help="lab case JSON file or directory")
+    lab_parser.add_argument(
+        "--cases",
+        type=Path,
+        default=Path(__file__).resolve().parent.parent / "lab_cases",
+        help="lab case JSON file or directory",
+    )
     lab_parser.add_argument("--output", type=Path, help="write report output to file")
     lab_parser.add_argument("--json", action="store_true", help="output structured JSON instead of a concise summary")
 
@@ -130,12 +134,18 @@ def main(argv: list[str] | None = None) -> int:
             results = [run_lab_case(case) for case in cases]
             passed = all(result["expectation_met"] for result in results)
             if args.json:
-                out_str = json.dumps({
-                    "schema_version": "cops.agent-mcp-lab-run/v1",
-                    "environment": "local-synthetic-fixtures",
-                    "all_expectations_met": passed,
-                    "results": results,
-                }, indent=2) + "\n"
+                out_str = (
+                    json.dumps(
+                        {
+                            "schema_version": "cops.agent-mcp-lab-run/v1",
+                            "environment": "local-synthetic-fixtures",
+                            "all_expectations_met": passed,
+                            "results": results,
+                        },
+                        indent=2,
+                    )
+                    + "\n"
+                )
             else:
                 lines = [
                     "Local synthetic agent and MCP fixture laboratory",

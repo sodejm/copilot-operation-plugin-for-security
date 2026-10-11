@@ -16,18 +16,57 @@ from .validation import ValidationError, _skill_frontmatter, validate_agent_plug
 
 # Every new root entry must be deliberately classified before packaging.
 PORTABLE_ENTRIES = {
-    "plugin.json", "mcp.json", "skills", "scripts", "docs", "examples", "LICENSE", "README.md",
-    "CHANGELOG.md", "SECURITY.md", "SOURCE_PROVENANCE.md", "walkthrough.md",
-    "hunts", "profiles", "schemas", "fixtures", "evaluations", "huntwb",
-    "investigationwb", "attackpath", "attack_surface_planner", "entrawb", "exposuretriage",
-    "foundryharness", "scenarios", "lab_cases", "detectionquality", "rules", "proofpack", "routes",
-    "patchreview", "incident_response", "threat_intel", "offensive_engagement_workbench",
-    "agents", "com.github.copilot", "org.cops",
+    "plugin.json",
+    "mcp.json",
+    "skills",
+    "scripts",
+    "docs",
+    "examples",
+    "LICENSE",
+    "README.md",
+    "CHANGELOG.md",
+    "SECURITY.md",
+    "SOURCE_PROVENANCE.md",
+    "walkthrough.md",
+    "hunts",
+    "profiles",
+    "schemas",
+    "fixtures",
+    "evaluations",
+    "huntwb",
+    "investigationwb",
+    "attackpath",
+    "attack_surface_planner",
+    "entrawb",
+    "exposuretriage",
+    "foundryharness",
+    "scenarios",
+    "lab_cases",
+    "detectionquality",
+    "rules",
+    "proofpack",
+    "routes",
+    "patchreview",
+    "incident_response",
+    "threat_intel",
+    "offensive_engagement_workbench",
+    "agents",
+    "com.github.copilot",
+    "org.cops",
 }
 SOURCE_ONLY_ENTRIES = {
-    ".claude-plugin", ".codex-plugin", "commands", "adapters",
-    "package.json", ".gitignore", "Makefile", "task.md", "tests",
-    ".pytest_cache", "__pycache__", ".mypy_cache",
+    ".claude-plugin",
+    ".codex-plugin",
+    "commands",
+    "adapters",
+    "package.json",
+    ".gitignore",
+    "Makefile",
+    "task.md",
+    "tests",
+    ".pytest_cache",
+    "__pycache__",
+    ".mypy_cache",
 }
 NATIVE_ENTRIES = {".claude-plugin", ".codex-plugin", "commands", "adapters"}
 
@@ -46,7 +85,8 @@ def _tracked_files(source: Path) -> list[Path]:
 
     result = subprocess.run(
         ["git", "-C", str(source), "ls-files", "--cached", "-z", "--", "."],
-        capture_output=True, check=False,
+        capture_output=True,
+        check=False,
     )
     if result.returncode:
         raise ValidationError(f"portable export requires a Git checkout: {source}")
@@ -122,8 +162,7 @@ def export_portable_package(source: Path, destination: Path) -> None:
             if relative.parts[0] not in PORTABLE_ENTRIES:
                 continue
             entry = source / relative
-            for parent in (source / Path(*relative.parts[:index])
-                           for index in range(1, len(relative.parts))):
+            for parent in (source / Path(*relative.parts[:index]) for index in range(1, len(relative.parts))):
                 if parent.is_symlink():
                     raise ValidationError(f"portable export does not accept symlinks: {parent}")
             _reject_links(entry)

@@ -54,17 +54,27 @@ def main() -> int:
             elif not initialized:
                 raise ValueError("MCP client has not completed initialization")
             elif method == "tools/list":
-                result = {"tools": [
-                    {"name": name, "description": "Synthetic local fixture operation", "inputSchema": {"type": "object"}}
-                    for name in TOOLS
-                ]}
+                result = {
+                    "tools": [
+                        {
+                            "name": name,
+                            "description": "Synthetic local fixture operation",
+                            "inputSchema": {"type": "object"},
+                        }
+                        for name in TOOLS
+                    ]
+                }
             elif method == "tools/call":
                 params = request["params"]
                 name = params["name"]
                 arguments = params.get("arguments", {})
                 if name == "lab/configure":
-                    if (not isinstance(arguments, dict) or set(arguments) != {"note"}
-                            or not isinstance(arguments["note"], str) or len(arguments["note"]) > 2048):
+                    if (
+                        not isinstance(arguments, dict)
+                        or set(arguments) != {"note"}
+                        or not isinstance(arguments["note"], str)
+                        or len(arguments["note"]) > 2048
+                    ):
                         raise ValueError("Invalid synthetic tool response note")
                     state["tool_response"] = arguments["note"]
                     result = tool_result({"configured": True})
@@ -97,8 +107,11 @@ def main() -> int:
                 raise ValueError("Unknown MCP method")
             response = {"jsonrpc": "2.0", "id": request_id, "result": result}
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
-            response = {"jsonrpc": "2.0", "id": request.get("id") if isinstance(request, dict) else None,
-                        "error": {"code": -32602, "message": str(exc)}}
+            response = {
+                "jsonrpc": "2.0",
+                "id": request.get("id") if isinstance(request, dict) else None,
+                "error": {"code": -32602, "message": str(exc)},
+            }
         if response["id"] is not None:
             sys.stdout.write(json.dumps(response, separators=(",", ":")) + "\n")
             sys.stdout.flush()

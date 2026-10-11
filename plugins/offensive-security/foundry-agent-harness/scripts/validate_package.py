@@ -156,15 +156,23 @@ def validate() -> int:
     except LabError as exc:
         print(f"FAIL: Local laboratory: {exc}", file=sys.stderr)
         return 1
-    if not all(result["environment_verified"] and result["cleanup_verified"] and result["expectation_met"]
-               for result in lab_results.values()):
+    if not all(
+        result["environment_verified"] and result["cleanup_verified"] and result["expectation_met"]
+        for result in lab_results.values()
+    ):
         print("FAIL: Local laboratory environment, cleanup, or expectation check failed", file=sys.stderr)
         return 1
     baseline = lab_results.get("state-change-baseline")
     strict = lab_results.get("state-change-remediated")
-    if (not baseline or not strict or baseline["attempted_calls"] != strict["attempted_calls"]
-            or not baseline["executed_effects"] or not strict["denied_calls"]
-            or strict["executed_effects"] or strict["state_before"] != strict["state_after"]):
+    if (
+        not baseline
+        or not strict
+        or baseline["attempted_calls"] != strict["attempted_calls"]
+        or not baseline["executed_effects"]
+        or not strict["denied_calls"]
+        or strict["executed_effects"]
+        or strict["state_before"] != strict["state_after"]
+    ):
         print("FAIL: Paired state-change baseline and strict gate evidence mismatch", file=sys.stderr)
         return 1
     print(f"  OK: Verified {len(lab_results)} local synthetic agent and MCP laboratory cases.")

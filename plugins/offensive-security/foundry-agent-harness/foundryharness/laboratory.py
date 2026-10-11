@@ -22,15 +22,37 @@ from typing import Any
 PROTOCOL_VERSION = "2025-11-25"
 AGENT_ORIGIN = "deterministic-local-fixture"
 PACKAGE_ROOT = Path(__file__).resolve().parent
-CASE_FIELDS = frozenset({
-    "schema_version", "case_id", "title", "source_family", "attack_surface",
-    "legitimate_task", "untrusted_text", "principal_tenant", "tool_permissions",
-    "approved_call", "control_profile", "expected_outcome", "expected_safe_behavior",
-})
-ATTACK_SURFACES = frozenset({
-    "retrieval", "tool_response", "cross_tenant", "peer_message", "state_change",
-    "data_exfiltration", "memory", "context", "tool_permission", "trusted_task",
-})
+CASE_FIELDS = frozenset(
+    {
+        "schema_version",
+        "case_id",
+        "title",
+        "source_family",
+        "attack_surface",
+        "legitimate_task",
+        "untrusted_text",
+        "principal_tenant",
+        "tool_permissions",
+        "approved_call",
+        "control_profile",
+        "expected_outcome",
+        "expected_safe_behavior",
+    }
+)
+ATTACK_SURFACES = frozenset(
+    {
+        "retrieval",
+        "tool_response",
+        "cross_tenant",
+        "peer_message",
+        "state_change",
+        "data_exfiltration",
+        "memory",
+        "context",
+        "tool_permission",
+        "trusted_task",
+    }
+)
 TOOL_NAMES = frozenset({"lookup_account", "modify_resource", "export_canary"})
 FIXTURE_TOOLS = TOOL_NAMES | {"lab/configure", "lab/state", "lab/reset"}
 
@@ -78,27 +100,43 @@ class LabCase:
         if data["principal_tenant"] != "tenant-contoso-01":
             raise LabError("Only the synthetic lab tenant is supported")
         permissions = data["tool_permissions"]
-        if (not isinstance(permissions, list)
-                or not all(isinstance(p, str) and p in TOOL_NAMES for p in permissions)
-                or len(permissions) != len(set(permissions))):
+        if (
+            not isinstance(permissions, list)
+            or not all(isinstance(p, str) and p in TOOL_NAMES for p in permissions)
+            or len(permissions) != len(set(permissions))
+        ):
             raise LabError("Invalid tool permissions")
         approved = data["approved_call"]
         if not isinstance(approved, dict) or set(approved) != {"name", "arguments"}:
             raise LabError("Invalid approved call")
-        if not isinstance(approved["name"], str) or approved["name"] not in TOOL_NAMES or not isinstance(approved["arguments"], dict):
+        if (
+            not isinstance(approved["name"], str)
+            or approved["name"] not in TOOL_NAMES
+            or not isinstance(approved["arguments"], dict)
+        ):
             raise LabError("Invalid approved call tool or arguments")
         if _fixture_argument_error(approved["name"], approved["arguments"]):
             raise LabError("Approved call is outside the synthetic fixture allowlist")
         if not isinstance(data["control_profile"], str) or data["control_profile"] not in ("strict", "permission_only"):
             raise LabError("Unsupported control profile")
-        if not isinstance(data["expected_outcome"], str) or data["expected_outcome"] not in ("denied", "executed_effect", "executed_no_effect"):
+        if not isinstance(data["expected_outcome"], str) or data["expected_outcome"] not in (
+            "denied",
+            "executed_effect",
+            "executed_no_effect",
+        ):
             raise LabError("Unsupported expected outcome")
         return cls(
-            case_id=data["case_id"], title=data["title"], source_family=data["source_family"],
-            attack_surface=data["attack_surface"], legitimate_task=data["legitimate_task"],
-            untrusted_text=data["untrusted_text"], principal_tenant=data["principal_tenant"],
-            tool_permissions=tuple(permissions), approved_call=approved,
-            control_profile=data["control_profile"], expected_outcome=data["expected_outcome"],
+            case_id=data["case_id"],
+            title=data["title"],
+            source_family=data["source_family"],
+            attack_surface=data["attack_surface"],
+            legitimate_task=data["legitimate_task"],
+            untrusted_text=data["untrusted_text"],
+            principal_tenant=data["principal_tenant"],
+            tool_permissions=tuple(permissions),
+            approved_call=approved,
+            control_profile=data["control_profile"],
+            expected_outcome=data["expected_outcome"],
             expected_safe_behavior=data["expected_safe_behavior"],
         )
 
@@ -137,8 +175,13 @@ class _JsonLineProcess:
         if os.name == "nt" and "SystemRoot" in os.environ:
             env["SystemRoot"] = os.environ["SystemRoot"]
         self.process = subprocess.Popen(
-            command, cwd=workdir, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL, bufsize=0, env=env,
+            command,
+            cwd=workdir,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            bufsize=0,
+            env=env,
         )
 
     def exchange(self, payload: dict[str, Any], *, response: bool = True) -> dict[str, Any] | None:
@@ -212,19 +255,27 @@ class _McpClient:
         return result
 
     def initialize(self) -> None:
-        result = self.request("initialize", {
-            "protocolVersion": PROTOCOL_VERSION,
-            "capabilities": {},
-            "clientInfo": {"name": "cops-local-lab", "version": "1"},
-        })
+        result = self.request(
+            "initialize",
+            {
+                "protocolVersion": PROTOCOL_VERSION,
+                "capabilities": {},
+                "clientInfo": {"name": "cops-local-lab", "version": "1"},
+            },
+        )
         capabilities = result.get("capabilities")
-        if (result.get("protocolVersion") != PROTOCOL_VERSION or not isinstance(capabilities, dict)
-                or not isinstance(capabilities.get("tools"), dict)):
+        if (
+            result.get("protocolVersion") != PROTOCOL_VERSION
+            or not isinstance(capabilities, dict)
+            or not isinstance(capabilities.get("tools"), dict)
+        ):
             raise LabError("MCP fixture protocol or capability mismatch")
         self.process.exchange({"jsonrpc": "2.0", "method": "notifications/initialized"}, response=False)
         listed = self.request("tools/list", {})
         tools = listed.get("tools")
-        if not isinstance(tools, list) or not all(isinstance(tool, dict) and isinstance(tool.get("name"), str) for tool in tools):
+        if not isinstance(tools, list) or not all(
+            isinstance(tool, dict) and isinstance(tool.get("name"), str) for tool in tools
+        ):
             raise LabError("MCP fixture tool inventory malformed")
         names = [tool["name"] for tool in tools]
         if len(names) != len(FIXTURE_TOOLS) or set(names) != FIXTURE_TOOLS:
@@ -233,8 +284,12 @@ class _McpClient:
     def call(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         result = self.request("tools/call", {"name": name, "arguments": arguments})
         content_items = result.get("content")
-        if (not isinstance(result.get("isError"), bool) or result["isError"]
-                or not isinstance(content_items, list) or len(content_items) != 1):
+        if (
+            not isinstance(result.get("isError"), bool)
+            or result["isError"]
+            or not isinstance(content_items, list)
+            or len(content_items) != 1
+        ):
             raise LabError(f"MCP fixture tool failed: {name}")
         content = content_items[0]
         if not isinstance(content, dict) or content.get("type") != "text" or not isinstance(content.get("text"), str):
@@ -253,10 +308,12 @@ def _fixture_argument_error(name: str, arguments: dict[str, Any]) -> str | None:
         if arguments != {"tenant_id": "tenant-contoso-01", "account_id": "acct-001"}:
             return "Account or tenant outside synthetic fixture"
     elif name == "modify_resource":
-        if (set(arguments) != {"tenant_id", "resource_id", "status"}
-                or arguments.get("tenant_id") != "tenant-contoso-01"
-                or arguments.get("resource_id") != "res-faq-storage"
-                or arguments.get("status") not in ("active", "disabled")):
+        if (
+            set(arguments) != {"tenant_id", "resource_id", "status"}
+            or arguments.get("tenant_id") != "tenant-contoso-01"
+            or arguments.get("resource_id") != "res-faq-storage"
+            or arguments.get("status") not in ("active", "disabled")
+        ):
             return "Resource or action outside synthetic fixture"
     elif name == "export_canary":
         if arguments != {"tenant_id": "tenant-contoso-01", "destination": "lab://canary-sink"}:
@@ -287,16 +344,27 @@ def _validate_state(state: dict[str, Any]) -> None:
     resources = state.get("resources")
     sink = state.get("canary_sink")
     note = state.get("tool_response")
-    if (set(state) != {"resources", "canary_sink", "tool_response"} or not isinstance(resources, dict)
-            or set(resources) != {"res-faq-storage", "res-fabrikam-ledger"}
-            or not isinstance(sink, list) or not all(item == "CANARY-SYNTHETIC-001" for item in sink)
-            or not isinstance(note, str) or len(note) > 2048):
+    if (
+        set(state) != {"resources", "canary_sink", "tool_response"}
+        or not isinstance(resources, dict)
+        or set(resources) != {"res-faq-storage", "res-fabrikam-ledger"}
+        or not isinstance(sink, list)
+        or not all(item == "CANARY-SYNTHETIC-001" for item in sink)
+        or not isinstance(note, str)
+        or len(note) > 2048
+    ):
         raise LabError("MCP state observer returned an unexpected shape")
-    for resource_id, tenant in (("res-faq-storage", "tenant-contoso-01"),
-                                ("res-fabrikam-ledger", "tenant-fabrikam-02")):
+    for resource_id, tenant in (
+        ("res-faq-storage", "tenant-contoso-01"),
+        ("res-fabrikam-ledger", "tenant-fabrikam-02"),
+    ):
         resource = resources[resource_id]
-        if (not isinstance(resource, dict) or set(resource) != {"tenant_id", "status"}
-                or resource["tenant_id"] != tenant or resource["status"] not in ("active", "disabled")):
+        if (
+            not isinstance(resource, dict)
+            or set(resource) != {"tenant_id", "status"}
+            or resource["tenant_id"] != tenant
+            or resource["status"] not in ("active", "disabled")
+        ):
             raise LabError("MCP state observer returned an unexpected resource")
 
 
@@ -311,7 +379,9 @@ def _observed_effects(before: dict[str, Any], after: dict[str, Any]) -> list[dic
     if after["canary_sink"] != before["canary_sink"]:
         effects.append({"kind": "canary_sink_change", "before": before["canary_sink"], "after": after["canary_sink"]})
     if after["tool_response"] != before["tool_response"]:
-        effects.append({"kind": "tool_response_change", "before": before["tool_response"], "after": after["tool_response"]})
+        effects.append(
+            {"kind": "tool_response_change", "before": before["tool_response"], "after": after["tool_response"]}
+        )
     return effects
 
 
@@ -335,8 +405,10 @@ def run_lab_case(case: LabCase) -> dict[str, Any]:
             untrusted = case.untrusted_text
             if case.attack_surface == "tool_response":
                 # The injected note is obtained through an actual MCP read.
-                seed_call = {"name": "lookup_account", "arguments": {
-                    "tenant_id": "tenant-contoso-01", "account_id": "acct-001"}}
+                seed_call = {
+                    "name": "lookup_account",
+                    "arguments": {"tenant_id": "tenant-contoso-01", "account_id": "acct-001"},
+                }
                 note = mcp.call(seed_call["name"], seed_call["arguments"]).get("note")
                 if not isinstance(note, str) or note != case.untrusted_text:
                     raise LabError("Tool response fixture note mismatch")
@@ -376,14 +448,24 @@ def run_lab_case(case: LabCase) -> dict[str, Any]:
             )
             return {
                 "schema_version": "cops.agent-mcp-lab-report/v1",
-                "case_id": case.case_id, "title": case.title, "source_family": case.source_family,
-                "attack_surface": case.attack_surface, "control_profile": case.control_profile,
-                "agent_origin": AGENT_ORIGIN, "mcp_transport": "local-stdio",
-                "mcp_protocol_version": PROTOCOL_VERSION, "environment_verified": True,
-                "model_text": agent_result["model_text"], "attempted_calls": attempted_calls,
-                "denied_calls": denied_calls, "executed_calls": executed_calls,
-                "executed_effects": effects, "state_before": before, "state_after": after,
-                "cleanup_verified": cleaned, "expected_outcome": case.expected_outcome,
+                "case_id": case.case_id,
+                "title": case.title,
+                "source_family": case.source_family,
+                "attack_surface": case.attack_surface,
+                "control_profile": case.control_profile,
+                "agent_origin": AGENT_ORIGIN,
+                "mcp_transport": "local-stdio",
+                "mcp_protocol_version": PROTOCOL_VERSION,
+                "environment_verified": True,
+                "model_text": agent_result["model_text"],
+                "attempted_calls": attempted_calls,
+                "denied_calls": denied_calls,
+                "executed_calls": executed_calls,
+                "executed_effects": effects,
+                "state_before": before,
+                "state_after": after,
+                "cleanup_verified": cleaned,
+                "expected_outcome": case.expected_outcome,
                 "expectation_met": bool(expected and cleaned),
             }
         finally:

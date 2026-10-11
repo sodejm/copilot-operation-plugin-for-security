@@ -36,12 +36,15 @@ def test_bundled_cases_observe_denial_effect_and_cleanup():
     assert all(result["expectation_met"] for result in results.values())
     assert all(result["mcp_protocol_version"] == "2025-11-25" for result in results.values())
     assert all(result["agent_origin"] == "deterministic-local-fixture" for result in results.values())
-    jsonschema.validate({
-        "schema_version": "cops.agent-mcp-lab-run/v1",
-        "environment": "local-synthetic-fixtures",
-        "all_expectations_met": all(result["expectation_met"] for result in results.values()),
-        "results": list(results.values()),
-    }, report_schema)
+    jsonschema.validate(
+        {
+            "schema_version": "cops.agent-mcp-lab-run/v1",
+            "environment": "local-synthetic-fixtures",
+            "all_expectations_met": all(result["expectation_met"] for result in results.values()),
+            "results": list(results.values()),
+        },
+        report_schema,
+    )
 
     baseline = results["state-change-baseline"]
     remediated = results["state-change-remediated"]
