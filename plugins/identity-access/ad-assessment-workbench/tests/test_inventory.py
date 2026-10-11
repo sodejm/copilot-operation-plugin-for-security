@@ -26,8 +26,10 @@ class InventoryTests(unittest.TestCase):
         self.assertEqual(candidate["status"], "candidate_paths")
         self.assertEqual(len(candidate["paths"]), 1)
         self.assertEqual(candidate["paths"][0]["status"], "candidate_requires_validation")
-        self.assertEqual(candidate["paths"][0]["flags"], ["inferred_relationship", "partial_collection",
-                                                           "protected_identity", "trust_boundary"])
+        self.assertEqual(
+            candidate["paths"][0]["flags"],
+            ["inferred_relationship", "partial_collection", "protected_identity", "trust_boundary"],
+        )
         self.assertEqual(missing["status"], "not_found_in_collected_graph")
         self.assertEqual(missing["paths"], [])
 
@@ -53,13 +55,28 @@ class InventoryTests(unittest.TestCase):
     def test_depth_limited_search_does_not_claim_path_absence(self) -> None:
         export = copy.deepcopy(self.export)
         for index in range(8):
-            export["nodes"].append({"id": f"chain-{index}", "kind": "group", "forest": "forest-a",
-                                    "domain": "domain-a", "protected": False})
+            export["nodes"].append(
+                {
+                    "id": f"chain-{index}",
+                    "kind": "group",
+                    "forest": "forest-a",
+                    "domain": "domain-a",
+                    "protected": False,
+                }
+            )
             if index:
-                export["edges"].append({"id": f"chain-edge-{index}", "source": f"chain-{index-1}",
-                                        "target": f"chain-{index}", "kind": "member_of",
-                                        "collector_id": "directory-a", "collected_at": "2026-01-01T11:00:00Z",
-                                        "completeness": "complete", "support": "observed"})
+                export["edges"].append(
+                    {
+                        "id": f"chain-edge-{index}",
+                        "source": f"chain-{index - 1}",
+                        "target": f"chain-{index}",
+                        "kind": "member_of",
+                        "collector_id": "directory-a",
+                        "collected_at": "2026-01-01T11:00:00Z",
+                        "completeness": "complete",
+                        "support": "observed",
+                    }
+                )
         export["queries"] = [{"start": "chain-0", "goal": "chain-7"}]
         result = analyze(export)["queries"][0]
         self.assertEqual(result["status"], "search_incomplete")
@@ -80,6 +97,7 @@ class InventoryTests(unittest.TestCase):
 
     def test_symlink_input_rejected(self) -> None:
         import tempfile
+
         with tempfile.TemporaryDirectory() as directory:
             link = Path(directory) / "export.json"
             link.symlink_to(PACKAGE / "fixtures" / "synthetic-two-forest.json")

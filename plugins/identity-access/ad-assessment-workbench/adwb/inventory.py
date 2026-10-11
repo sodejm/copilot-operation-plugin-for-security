@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 from collections import defaultdict, deque
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 ID = re.compile(r"[a-z0-9][a-z0-9._:-]{0,63}\Z")
@@ -66,7 +66,7 @@ def _time(value: object) -> datetime:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError as error:
         raise InventoryError("invalid_timestamp") from error
-    if parsed.tzinfo != timezone.utc:
+    if parsed.tzinfo != UTC:
         raise InventoryError("invalid_timestamp")
     return parsed
 
@@ -86,8 +86,11 @@ def load_export(path: Path) -> dict:
 
 
 def _validate(export: object) -> tuple[dict, dict, dict, list, list, dict]:
-    data = _object(export, {"schema_version", "scope", "collections", "nodes", "edges", "queries"},
-                   {"schema_version", "scope", "collections", "nodes", "edges", "queries"})
+    data = _object(
+        export,
+        {"schema_version", "scope", "collections", "nodes", "edges", "queries"},
+        {"schema_version", "scope", "collections", "nodes", "edges", "queries"},
+    )
     if data["schema_version"] != "1.0":
         raise InventoryError("unsupported_schema")
     scope = _object(data["scope"], {"forests", "domains", "hosts"}, {"forests", "domains", "hosts"})
@@ -106,17 +109,26 @@ def _validate(export: object) -> tuple[dict, dict, dict, list, list, dict]:
             raise InventoryError("out_of_scope")
     collections = _unique(_items(data["collections"], 500), "collection")
     for collection in collections.values():
-        _object(collection, {"id", "source", "forest", "domain", "host", "collected_at", "completeness"},
-                {"id", "source", "forest", "collected_at", "completeness"})
-        if not isinstance(collection["source"], str) or collection["source"] not in SOURCES or (
-            not isinstance(collection["completeness"], str)
-            or collection["completeness"] not in {"complete", "partial"}
+        _object(
+            collection,
+            {"id", "source", "forest", "domain", "host", "collected_at", "completeness"},
+            {"id", "source", "forest", "collected_at", "completeness"},
+        )
+        if (
+            not isinstance(collection["source"], str)
+            or collection["source"] not in SOURCES
+            or (
+                not isinstance(collection["completeness"], str)
+                or collection["completeness"] not in {"complete", "partial"}
+            )
         ):
             raise InventoryError("invalid_collection")
         if _id(collection["forest"]) not in forests:
             raise InventoryError("out_of_scope")
         domain_id = collection.get("domain")
-        if domain_id is not None and (_id(domain_id) not in domains or domains[domain_id]["forest"] != collection["forest"]):
+        if domain_id is not None and (
+            _id(domain_id) not in domains or domains[domain_id]["forest"] != collection["forest"]
+        ):
             raise InventoryError("out_of_scope")
         host_id = collection.get("host")
         if host_id is not None and (_id(host_id) not in hosts or hosts[host_id]["domain"] != domain_id):
@@ -128,8 +140,7 @@ def _validate(export: object) -> tuple[dict, dict, dict, list, list, dict]:
         _time(collection["collected_at"])
     nodes = _unique(_items(data["nodes"], MAX_NODES), "identity")
     for node in nodes.values():
-        _object(node, {"id", "kind", "forest", "domain", "protected"},
-                {"id", "kind", "forest", "protected"})
+        _object(node, {"id", "kind", "forest", "domain", "protected"}, {"id", "kind", "forest", "protected"})
         if not isinstance(node["kind"], str) or node["kind"] not in KINDS or type(node["protected"]) is not bool:
             raise InventoryError("invalid_node")
         if _id(node["forest"]) not in forests:
@@ -148,13 +159,18 @@ def _validate(export: object) -> tuple[dict, dict, dict, list, list, dict]:
     edges = _items(data["edges"], MAX_EDGES)
     _unique(edges, "edge")
     for edge in edges:
-        _object(edge, {"id", "source", "target", "kind", "collector_id", "collected_at", "completeness", "support"},
-                {"id", "source", "target", "kind", "collector_id", "collected_at", "completeness", "support"})
+        _object(
+            edge,
+            {"id", "source", "target", "kind", "collector_id", "collected_at", "completeness", "support"},
+            {"id", "source", "target", "kind", "collector_id", "collected_at", "completeness", "support"},
+        )
         source, target, collector_id = _id(edge["source"]), _id(edge["target"]), _id(edge["collector_id"])
         if source not in nodes or target not in nodes or collector_id not in collections:
             raise InventoryError("missing_reference")
-        if not isinstance(edge["kind"], str) or edge["kind"] not in RELATIONS or (
-            not isinstance(edge["support"], str) or edge["support"] not in {"observed", "inferred"}
+        if (
+            not isinstance(edge["kind"], str)
+            or edge["kind"] not in RELATIONS
+            or (not isinstance(edge["support"], str) or edge["support"] not in {"observed", "inferred"})
         ):
             raise InventoryError("invalid_edge")
         collector = collections[collector_id]
@@ -171,8 +187,9 @@ def _validate(export: object) -> tuple[dict, dict, dict, list, list, dict]:
         if collector["source"] == "host" and collector["host"] not in {source, target}:
             raise InventoryError("collector_scope_mismatch")
         cross_forest = nodes[source]["forest"] != nodes[target]["forest"]
-        if cross_forest and (edge["kind"] != "trust" or nodes[source]["kind"] != "domain"
-                             or nodes[target]["kind"] != "domain"):
+        if cross_forest and (
+            edge["kind"] != "trust" or nodes[source]["kind"] != "domain" or nodes[target]["kind"] != "domain"
+        ):
             raise InventoryError("unapproved_forest_boundary")
         if edge["kind"] == "trust" and (nodes[source]["kind"] != "domain" or nodes[target]["kind"] != "domain"):
             raise InventoryError("invalid_edge")
@@ -190,8 +207,9 @@ def _coverage(scope: dict, collections: dict) -> dict:
         relevant = [c for c in collections.values() if c["source"] == "directory" and c["forest"] == forest]
         domains = [d["id"] for d in scope["domains"] if d["forest"] == forest]
         forest_wide = any(c.get("domain") is None and c["completeness"] == "complete" for c in relevant)
-        domains_covered = all(any(c.get("domain") == domain and c["completeness"] == "complete"
-                                  for c in relevant) for domain in domains)
+        domains_covered = all(
+            any(c.get("domain") == domain and c["completeness"] == "complete" for c in relevant) for domain in domains
+        )
         if not relevant:
             result["forests"][forest] = "unknown"
         elif any(c["completeness"] == "partial" for c in relevant) or not (forest_wide or domains_covered):
@@ -200,8 +218,11 @@ def _coverage(scope: dict, collections: dict) -> dict:
             result["forests"][forest] = "complete"
     for host in sorted(h["id"] for h in scope["hosts"]):
         relevant = [c for c in collections.values() if c.get("host") == host]
-        result["hosts"][host] = "unknown" if not relevant else (
-            "partial" if any(c["completeness"] == "partial" for c in relevant) else "complete")
+        result["hosts"][host] = (
+            "unknown"
+            if not relevant
+            else ("partial" if any(c["completeness"] == "partial" for c in relevant) else "complete")
+        )
     return result
 
 
@@ -231,10 +252,28 @@ def analyze(export: object) -> dict:
                         flags.add("trust_boundary")
                     if nodes[edge["source"]]["protected"] or nodes[edge["target"]]["protected"]:
                         flags.add("protected_identity")
-                found.append({"status": "candidate_requires_validation", "flags": sorted(flags),
-                              "edges": [{key: edge[key] for key in ("id", "source", "target", "kind", "collector_id",
-                                                                        "collected_at", "completeness", "support")}
-                                        for edge in path]})
+                found.append(
+                    {
+                        "status": "candidate_requires_validation",
+                        "flags": sorted(flags),
+                        "edges": [
+                            {
+                                key: edge[key]
+                                for key in (
+                                    "id",
+                                    "source",
+                                    "target",
+                                    "kind",
+                                    "collector_id",
+                                    "collected_at",
+                                    "completeness",
+                                    "support",
+                                )
+                            }
+                            for edge in path
+                        ],
+                    }
+                )
                 continue
             if len(path) >= MAX_DEPTH:
                 depth_limited |= bool(adjacency[current])
@@ -246,9 +285,13 @@ def analyze(export: object) -> dict:
                 if expansions >= MAX_EXPANSIONS:
                     break
         truncated = bool(queue) or expansions >= MAX_EXPANSIONS or depth_limited
-        status = "candidate_paths" if found else (
-            "search_incomplete" if truncated else "not_found_in_collected_graph")
-        results.append({"start": query["start"], "goal": query["goal"],
-                        "status": status, "paths": found, "truncated": truncated})
-    return {"schema_version": "1.0", "assessment": "offline_structural_only",
-            "coverage": _coverage(scope, collections), "queries": results}
+        status = "candidate_paths" if found else ("search_incomplete" if truncated else "not_found_in_collected_graph")
+        results.append(
+            {"start": query["start"], "goal": query["goal"], "status": status, "paths": found, "truncated": truncated}
+        )
+    return {
+        "schema_version": "1.0",
+        "assessment": "offline_structural_only",
+        "coverage": _coverage(scope, collections),
+        "queries": results,
+    }
