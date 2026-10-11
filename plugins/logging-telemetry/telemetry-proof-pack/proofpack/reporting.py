@@ -22,17 +22,17 @@ def render_markdown_report(report_data: dict[str, Any]) -> str:
     recs = report_data["next_recommended_checks"]
 
     status_badge = {
-        "HEALTHY": "**HEALTHY (END-TO-END VERIFIED)**",
-        "DEGRADED": "**DEGRADED (INDEXED BUT NO ALERT)**",
-        "BROKEN": "**BROKEN (PIPELINE INGESTION FAILURE)**",
+        "HEALTHY": "**HEALTHY (ALL STAGES OBSERVED)**",
+        "DEGRADED": "**DEGRADED (DESTINATION MARKER FOUND; TRACE INCOMPLETE)**",
+        "BROKEN": "**BROKEN (NO DESTINATION MARKER EVIDENCE)**",
     }.get(health, health)
 
     lines = [
         f"# Telemetry-to-Detection Proof Pack: {run_id}",
         "",
         "> [!IMPORTANT]",
-        f"> Traces synthetic test marker **`{marker}`** through every pipeline stage from source emission to alert creation.",
-        "> Proves whether the event survived collection, Cribl stream routing, SIEM indexing, and scheduled detection.",
+        f"> Compares supplied records for synthetic test marker **`{marker}`** across five expected stages.",
+        "> Correlates supplied evidence; missing records or ambiguous matches require operator investigation.",
         "",
         "## Pipeline Verification Summary",
         "",
@@ -40,14 +40,14 @@ def render_markdown_report(report_data: dict[str, Any]) -> str:
         f"- **Synthetic Test Marker**: `{marker}`",
         f"- **Pipeline Route**: `{report_data['route_type']}`",
         f"- **Pipeline Status**: {status_badge}",
-        f"- **Detection Fired**: `{'YES' if summary['detection_fired'] else 'NO'}`",
+        f"- **Alert Record Observed**: `{'YES' if summary['detection_fired'] else 'NO'}`",
         f"- **Observed Stages**: {summary['observed_stages_count']} / {summary['total_expected_stages']}",
-        f"- **Total Ingestion-to-Alert Latency**: {summary['total_latency_seconds']}s",
+        f"- **First-to-Last Observed Stage Interval**: {summary['total_latency_seconds']}s",
         "",
         "## Stage-by-Stage Proof Trace",
         "",
-        "| Stage | Status | Component | Timestamp | Evidence ID | Stage Details |",
-        "| :--- | :---: | :--- | :--- | :--- | :--- |",
+        "| Stage | Status | Component | Timestamp | Evidence ID | Evidence SHA-256 | Stage Details |",
+        "| :--- | :---: | :--- | :--- | :--- | :--- | :--- |",
     ]
 
     status_icons = {
@@ -60,9 +60,10 @@ def render_markdown_report(report_data: dict[str, Any]) -> str:
         st_lbl = status_icons.get(s["status"], s["status"])
         ts_str = s.get("timestamp", "—")
         ev_id = s.get("evidence_id", "—")
+        evidence_hash = s.get("raw_evidence_hash") or "—"
         detail_items = s.get("details", {})
-        det_str = "; ".join(f"{k}={v}" for k, v in detail_items.items()) if detail_items else "Verified"
-        lines.append(f"| `{s['stage_name']}` | {st_lbl} | {s['component']} | {ts_str} | `{ev_id}` | {det_str} |")
+        det_str = "; ".join(f"{k}={v}" for k, v in detail_items.items()) if detail_items else "No details supplied"
+        lines.append(f"| `{s['stage_name']}` | {st_lbl} | {s['component']} | {ts_str} | `{ev_id}` | `{evidence_hash}` | {det_str} |")
 
     lines.append("")
     lines.append("## Diagnostic Findings")

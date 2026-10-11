@@ -104,7 +104,7 @@ def test_hec_indexed_rule_missed_degraded_scenario(fixtures_dir: Path):
     report = correlate_pipeline_evidence(manifest, evidence)
     assert report["pipeline_health"] == "degraded"
     assert report["summary"]["detection_fired"] is False
-    assert any("Detection rule 'Suspicious PowerShell Execution' ran but did not match" in d for d in report["diagnostics"])
+    assert any("execution record for detection rule 'Suspicious PowerShell Execution' reports no marker match" in d for d in report["diagnostics"])
 
 
 def test_missing_cribl_stage_broken_scenario(fixtures_dir: Path):
@@ -117,7 +117,7 @@ def test_missing_cribl_stage_broken_scenario(fixtures_dir: Path):
     report = correlate_pipeline_evidence(manifest, evidence)
     assert report["pipeline_health"] == "broken"
     assert report["summary"]["observed_stages_count"] == 1
-    assert any("Cribl Stream pipeline dropped or filtered out" in d for d in report["diagnostics"])
+    assert any("Cribl route evidence marks the synthetic marker event as dropped or filtered" in d for d in report["diagnostics"])
 
 
 def test_cross_tenant_collision_scenario(fixtures_dir: Path):
@@ -131,6 +131,83 @@ def test_cross_tenant_collision_scenario(fixtures_dir: Path):
     assert report["stages_breakdown"][0]["status"] == "unresolved"
     assert "Cross-tenant collision" in report["stages_breakdown"][0]["details"]["reason"]
     assert report["pipeline_health"] == "broken"
+
+
+def test_duplicate_marker_fixture_preserves_other_stage_evidence(fixtures_dir: Path):
+    """Two matching records at one stage must not certify a unique trace."""
+    evidence_dir = fixtures_dir / "failures" / "duplicate-marker"
+    manifest = RunManifest.from_dict(json.loads((evidence_dir / "manifest.json").read_text(encoding="utf-8")))
+    evidence = load_evidence_files(evidence_dir)
+
+    report = correlate_pipeline_evidence(manifest, evidence)
+    stages = {stage["stage_name"]: stage for stage in report["stages_breakdown"]}
+
+    assert report["pipeline_health"] == "degraded"
+    assert report["summary"]["observed_stages_count"] == 4
+    assert report["summary"]["unresolved_stages_count"] == 1
+    assert report["summary"]["detection_fired"] is True
+    assert stages["destination_indexing"]["status"] == "unresolved"
+    assert stages["destination_indexing"]["details"]["matching_record_count"] == 2
+    assert stages["destination_indexing"]["details"]["matching_evidence_ids"] == [
+        "splunk-hec-rec-5001", "splunk-hec-rec-5002"
+    ]
+    assert stages["destination_indexing"]["raw_evidence_hash"]
+    assert stages["pipeline_routing"]["status"] == "observed"
+    assert stages["pipeline_routing"]["raw_evidence_hash"]
+    assert stages["query_evaluation"]["status"] == "observed"
+    assert stages["alert_creation"]["status"] == "observed"
+    assert any("duplicate" in diagnostic.lower() for diagnostic in report["diagnostics"])
+    assert "DEGRADED (DESTINATION MARKER FOUND; TRACE INCOMPLETE)" in render_markdown_report(report)
+    assert "Alert Record Observed**: `YES`" in render_markdown_report(report)
+
+
+def test_delayed_event_fixture_preserves_other_stage_evidence(fixtures_dir: Path):
+    """An indexed event outside the scoped window leaves its stage unresolved."""
+    evidence_dir = fixtures_dir / "failures" / "delayed-indexing"
+    manifest = RunManifest.from_dict(json.loads((evidence_dir / "manifest.json").read_text(encoding="utf-8")))
+    evidence = load_evidence_files(evidence_dir)
+
+    report = correlate_pipeline_evidence(manifest, evidence)
+    stages = {stage["stage_name"]: stage for stage in report["stages_breakdown"]}
+
+    assert report["pipeline_health"] == "degraded"
+    assert report["summary"]["observed_stages_count"] == 2
+    assert report["summary"]["unresolved_stages_count"] == 3
+    assert stages["destination_indexing"]["status"] == "unresolved"
+    assert stages["destination_indexing"]["timestamp"] == "2026-10-01T12:10:00Z"
+    assert "outside" in stages["destination_indexing"]["details"]["reason"]
+    assert stages["destination_indexing"]["raw_evidence_hash"]
+    assert stages["source_emission"]["status"] == "observed"
+    assert stages["source_emission"]["raw_evidence_hash"]
+    assert stages["query_evaluation"]["status"] == "unresolved"
+    assert stages["query_evaluation"]["timestamp"] == "2026-10-01T12:11:00Z"
+    assert stages["query_evaluation"]["raw_evidence_hash"]
+    assert stages["alert_creation"]["status"] == "unresolved"
+    assert stages["alert_creation"]["timestamp"] == "2026-10-01T12:12:00Z"
+    assert stages["alert_creation"]["raw_evidence_hash"]
+    assert any("outside" in diagnostic for diagnostic in report["diagnostics"])
+
+    evidence["destination_indexing"]["indexed_time"] = "2026-10-01T12:02:20Z"
+    evidence["query_evaluation"]["evaluation_time"] = "2026-10-01T12:02:25Z"
+    evidence["alert_creation"]["created_time"] = "2026-10-01T12:02:30Z"
+    boundary_report = correlate_pipeline_evidence(manifest, evidence)
+    assert boundary_report["pipeline_health"] == "healthy"
+    assert boundary_report["stages_breakdown"][2]["status"] == "observed"
+
+
+@pytest.mark.parametrize("matched_count", [True, "1", None, [], -1, 1.0])
+def test_invalid_query_count_cannot_certify_healthy_trace(fixtures_dir: Path, splunk_manifest: RunManifest, matched_count):
+    evidence = load_evidence_files(fixtures_dir / "routes" / "cribl-splunk-route")
+    evidence["query_evaluation"]["matched_count"] = matched_count
+
+    report = correlate_pipeline_evidence(splunk_manifest, evidence)
+
+    assert report["pipeline_health"] == "degraded"
+    assert report["summary"]["observed_stages_count"] == 4
+    assert report["summary"]["unresolved_stages_count"] == 1
+    assert report["stages_breakdown"][3]["status"] == "unresolved"
+    assert report["stages_breakdown"][3]["raw_evidence_hash"]
+    assert "invalid matched_count" in report["stages_breakdown"][3]["details"]["reason"]
 
 
 def test_redaction_utility():
@@ -158,8 +235,10 @@ def test_reporting_formatters(fixtures_dir: Path, splunk_manifest: RunManifest):
 
     md = render_markdown_report(report)
     assert "# Telemetry-to-Detection Proof Pack: RUN-SPLUNK-PROVE-01" in md
-    assert "HEALTHY (END-TO-END VERIFIED)" in md
+    assert "HEALTHY (ALL STAGES OBSERVED)" in md
     assert "| `source_emission` | OBSERVED |" in md
+    assert "Evidence SHA-256" in md
+    assert report["stages_breakdown"][0]["raw_evidence_hash"] in md
 
     json_str = render_json_report(report)
     parsed = json.loads(json_str)
