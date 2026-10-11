@@ -1,0 +1,12 @@
+{
+  "tenant": "00000000-0000-0000-0000-000000000001",
+  "principal_id": "00000000-0000-0000-0000-000000000002",
+  "identity_source": "signins",
+  "activity_source": "security-alerts",
+  "audit_source": "directory-audits",
+  "pages": {
+    "signins": {"value": [{"id": "endpoint-signin-1", "userId": "00000000-0000-0000-0000-000000000002", "createdDateTime": "2026-01-01T00:55:00Z"}]},
+    "security-alerts": {"value": [{"id": "endpoint-alert-1", "userId": "00000000-0000-0000-0000-000000000002", "createdDateTime": "2026-01-01T01:00:00Z", "severity": "high"}]},
+    "directory-audits": {"value": [{"id": "endpoint-audit-1", "initiatedBy": {"user": {"id": "00000000-0000-0000-0000-000000000002"}}, "activityDateTime": "2026-01-01T01:05:00Z", "activityDisplayName": "Update user"}]}
+  }
+}
