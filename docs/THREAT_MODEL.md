@@ -41,6 +41,7 @@ private payloads and real identifiers must never be copied into this document.
 | Operator canary policy → messaging collector → synthetic fixture or TCP endpoint | A canary route requires an explicit destination allowlist and, for mail, a recipient allowlist, active retention window and bounded message count. Synthetic fixture claims remain fixture evidence; TCP reachability proves no delivery or cleanup. |
 | Telemetry Proof Pack exports → offline correlator → Markdown/JSON report | Supplied marker records, timestamps and IDs remain untrusted. The report hashes content for comparison but cannot authenticate exports or enforce collection, access, or retention policy. |
 | Offline Entra export manifest and files → identity graph and exposure report → analyst | Export content and collector claims of completeness or collection time are untrusted. Hashes establish file integrity only; per-source coverage determines whether a path can support a current exposure claim. Reports can repeat private identifiers. |
+| Operator assessment budget → owner-controlled ledger → fixture assessment dispatcher | The controller must reserve before callback dispatch. Agent and provider content cannot expand the budget or release an uncertain attempt. Provider integration remains pending issue #150. |
 
 ```mermaid
 flowchart LR
@@ -264,6 +265,14 @@ validation before the affected release/capability expansion and schedule P2 with
 - Existing evidence / limitation: The offline workbench checks hashes, applies a 24-hour per-source freshness window, marks uncertain coverage and dependent paths unknown, and validates fresh graph/report claims against fresh source provenance. Synthetic tests exercise stale, missing, incomplete, and contradictory artifacts. A matching hash cannot prove tenant scope, pagination, collector timestamps, or that an export reflects live tenant state.
 - Proposed mitigation and validation: Require tenant-approved read-only collection, recorded completion times and completeness checks; review coverage and provenance before acting on a report. Keep negative tests and `make check` at the exact revision; obtain human review before accepting the control.
 - Residual risk / status: Collector assertions and live tenant state remain unverified by offline tests. Exact-revision human review and any authorized tenant validation are pending.
+
+### T21: Aggregate assessment budget bypass or double release
+
+- Attack path / prerequisite: Concurrent children or retries check separate counters; a crash, duplicate receipt, stale lease, cancellation, or forged usage report frees allowance for another call while the original remains in flight. Incorrect price assumptions or underestimated tokens/cost can also understate actual billing.
+- Inherent impact: High; likelihood: Medium; priority: P1.
+- Existing evidence / limitation: The issue #240 ledger is an owner-controlled, engagement-scoped local admission boundary with SQLite transactions, durable dispatch intent, idempotent receipts, and conservative unknown usage. Its first dispatcher is synthetic. It does not mediate the future provider adapters from issue #150 or independently attest provider usage and pricing.
+- Proposed mitigation and validation: Exercise concurrent admission, recursion/fanout, retries, receipt replay/conflict, late responses, restart, active callback cancellation, denied-action clock rollback, deadline and unavailable storage with deterministic fixtures. Record cancellation request, observed stop and final usage separately. Before live use, require each provider/tool path to reserve at its effective dispatch boundary, validate usage/price sources, independently reconcile unknown in-flight calls and actual billing, and obtain exact-revision security review.
+- Residual risk / status: A caller can bypass an opt-in wrapper; local accounting cannot prevent provider billing overage or prove remote cancellation. Same-authority ledger tampering, host clock manipulation, dishonest receipts, and real provider integration remain unverified.
 
 ## STRIDE and privacy coverage
 
