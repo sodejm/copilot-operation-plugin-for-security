@@ -1,4 +1,4 @@
-# Engineering checkpoints, documentation, and human review
+# Engineering checkpoints, documentation, and delivery approval
 
 ## Reversible operational checkpoints
 
@@ -37,24 +37,22 @@ recovery instructions, tests, and security assumptions. When documentation or th
 threat model needs no update, give a specific no-impact rationale in the PR.
 Keep examples synthetic and distinguish supported behavior from future plans.
 
-## Independent human approval
+## Owner-authorized merge
 
-Every change requires independent human review before merge or release. Automated
-reviews and agent self-review provide evidence but never constitute human approval.
-Use a draft PR until the required evidence and review are available. A human
-reviewer must inspect the actual diff and affected existing code, tests and
-negative cases, documentation, operational recovery, and threat-model changes.
-Security-sensitive changes require a reviewer competent in that domain.
+A repository owner may authorize merge of a named pull request or batch without
+independent human review. Record the authorization and its scope in the pull
+request or another durable delivery record. Before merging, refresh the exact
+head commit, required checks, unresolved review feedback, and mergeability.
+Resolve conflicts and rerun affected validation after changing a PR branch.
+Existing branch protection, signature, and CI requirements still apply.
 
-Record the reviewer's identity, date, exact reviewed commit SHA and scope,
-validation evidence, findings and their disposition in the PR or a durable review
-record. Changes after review require renewed review of the changed scope; approval
-of an earlier revision is not approval of the current head. Track unresolved
-findings with an owner and deadline. A blocking risk requires remediation or
-explicit, scoped human risk acceptance with rationale, compensating controls and
-expiry; an agent cannot accept risk on a human's behalf. Existing stricter merge,
-signature, CI and release gates continue to apply. Do not claim readiness while
-required human review is pending.
+Independent review remains available when an owner requests it or a separate
+release requirement calls for it. Record any completed review with its reviewer,
+date, scope, reviewed revision, validation, and findings. Track unresolved
+findings with an owner and deadline. A known blocking risk requires remediation
+or explicit, scoped human risk acceptance with rationale, compensating controls
+and expiry; an agent cannot accept risk on a human's behalf. Release review of
+critical paths and threat-model reconciliation remain separate obligations.
 
 ## Retroactive review of existing code
 
@@ -68,8 +66,8 @@ omitted files before claiming full coverage.
 Triage the inventory within 30 days of adopting this policy and assign human
 owners and dates for completing the first pass within 90 days. Before an affected
 release, review critical authentication, authorization, secrets, parsers, execution,
-publishing and supply-chain paths. A new change also requires review of the
-existing code on which its safety depends. Other legacy review can be scheduled
+publishing and supply-chain paths, including existing code on which a new
+change's safety depends. Other legacy review can be scheduled
 explicitly; do not imply that every PR re-audits the whole repository.
 
 For each completed scope, record file paths, baseline and reviewed SHA, reviewer,

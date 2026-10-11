@@ -147,5 +147,6 @@ Use the [project threat model](THREAT_MODEL.md) for component-specific boundarie
 implemented-control evidence, proposed mitigations and unresolved risks. Do not
 apply an offline-component claim to a live integration. Follow
 [Engineering review policy](ENGINEERING_REVIEW.md) and
-[Review coverage](security/REVIEW_COVERAGE.md) for independent human approval,
-retroactive review and maintenance.
+[Review coverage](security/REVIEW_COVERAGE.md) for retroactive review and
+maintenance. A repository owner can authorize merge under the engineering review
+policy; release review remains separate.
