@@ -1,0 +1,19 @@
+{
+  "name": "ad-assessment-workbench",
+  "version": "0.1.0",
+  "description": "Analyze scoped Active Directory inventory, provenance, and candidate privilege paths offline.",
+  "author": {"name": "Justin Soderberg", "url": "https://github.com/sodejm"},
+  "repository": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "keywords": ["active-directory", "ad", "cybersecurity", "identity", "offline-analysis", "privilege-paths"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "COPS AD Assessment Workbench",
+    "shortDescription": "Scoped offline AD inventory and path review.",
+    "longDescription": "Review explicit directory and host exports for evidence-linked AD relationships, candidate privilege paths, trust boundaries, and incomplete collection without live directory access.",
+    "developerName": "Justin Soderberg",
+    "category": "Developer Tools",
+    "capabilities": ["Offline AD relationship inventory", "Evidence-linked candidate path analysis", "Collection coverage and trust-boundary review"],
+    "defaultPrompt": ["Analyze this approved local AD export for candidate privilege paths, trust boundaries, and missing collection evidence."]
+  }
+}

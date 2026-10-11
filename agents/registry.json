@@ -411,6 +411,30 @@
     },
     {
       "schema_version": "1.0",
+      "id": "cops-ad-specialist",
+      "display_name": "COPS Active Directory Specialist",
+      "domain": "identity-exposure",
+      "criticality": "critical",
+      "interactive_authorization_required": true,
+      "description": "Reviews approved offline AD directory and host inventories for provenance-linked candidate privilege paths, trust boundaries, and collection gaps.",
+      "primary_plugin": "ad-assessment-workbench",
+      "skills": ["ad-inventory-and-paths"],
+      "tools": ["python3 plugins/identity-access/ad-assessment-workbench/scripts/analyze.py"],
+      "contract_file": "agents/profiles/cops-ad-specialist.agent.md",
+      "intent_keywords": [
+        "active directory inventory",
+        "ad privilege path",
+        "ad trust boundary",
+        "domain relationship analysis",
+        "forest trust review"
+      ],
+      "triad_defaults": {
+        "skeptic_profile_id": "cops-redteam-operator",
+        "auditor_profile_id": "cops-compliance-auditor"
+      }
+    },
+    {
+      "schema_version": "1.0",
       "id": "cops-identity-specialist",
       "display_name": "COPS Identity & Access Governance Specialist",
       "domain": "identity-exposure",

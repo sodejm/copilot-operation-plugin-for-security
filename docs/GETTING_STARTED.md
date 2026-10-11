@@ -16,7 +16,7 @@ python3 -m cops doctor
 
 ### What to look for
 - **Python version**: You should see your Python interpreter confirmed as 3.11 or newer.
-- **Catalog health**: Confirms that all fourteen security plugins and host marketplaces are synchronized.
+- **Catalog health**: Confirms that all fifteen security plugins and host marketplaces are synchronized.
 - **Offline status**: Confirms that local tools run without external network dependencies.
 
 If any check reports an issue, the output will give you clear, actionable instructions on how to resolve it.
@@ -25,7 +25,7 @@ If any check reports an issue, the output will give you clear, actionable instru
 
 ## 2. Choose the Right Tool for the Job
 
-COPS packages fourteen dedicated security plugins across defensive and offensive domains. To see the full catalog and current validation status, run:
+COPS packages fifteen dedicated security plugins across defensive and offensive domains. To see the full catalog and current validation status, run:
 
 ```bash
 python3 -m cops list
@@ -59,6 +59,7 @@ python3 -m cops info incident-response-sandbox
 | **Find lateral movement attack paths in cloud environments** | `attack-path-workbench` | Multi-hop IAM graph traversal, blast radius modeling, and choke-point remediation. |
 | **Plan an authorized, passive attack surface review** | `attack-surface-planner` | Scope boundary partitioning (in-scope vs. excluded) and passive test plan authoring. |
 | **Audit Entra ID role assignments, app registrations, and credentials** | `entra-identity-workbench` | Offline analysis of role grants, service principal keys, and account exposures. |
+| **Review scoped Active Directory relationships and candidate paths** | `ad-assessment-workbench` | Offline graph analysis with explicit forest and host collection coverage. |
 | **Prioritize vulnerability remediation with SBOM reachability** | `exposure-triage-workbench` | Multi-source CVE reachability correlation and exploit exposure prioritization. |
 | **Simulate adversarial prompt injection and test agent safety** | `foundry-agent-harness` | Offline red-team evaluation harness for LLM agent boundary robustness. |
 | **Validate detection query syntax and catch regressions** | `detection-quality-workbench` | Offline parser, syntax checker, and regression runner for Sentinel and Splunk. |
@@ -111,7 +112,7 @@ python3 -m cops validate sentinel-hunt-workbench
 python3 -m cops check sentinel-hunt-workbench
 ```
 
-To run offline checks across all fourteen plugins in sequence:
+To run offline checks across all fifteen plugins in sequence:
 
 ```bash
 python3 -m cops check

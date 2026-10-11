@@ -34,7 +34,7 @@ cd copilot-operation-plugin-for-security
 # 2. Check local environment health and catalog synchronization
 python3 -m cops doctor
 
-# 3. List all 14 plugins and their validation status
+# 3. List all 15 plugins and their validation status
 python3 -m cops list
 
 # 4. Inspect details and operational playbooks for a specific plugin
@@ -62,7 +62,7 @@ python3 -m cops doctor
 
 ### What `cops doctor` checks:
 1. **Python Interpreter**: Confirms that your active Python interpreter is version 3.11 or newer.
-2. **Catalog Integrity**: Verifies that all 14 package manifests match their catalog declarations.
+2. **Catalog Integrity**: Verifies that all 15 package manifests match their catalog declarations.
 3. **Marketplace Synchronization**: Ensures that generated host indexes (`.github/plugin/marketplace.json`, `.claude-plugin/marketplace.json`, `.agents/plugins/marketplace.json`) are in sync with `catalog/plugins.json`.
 4. **Offline Readiness**: Confirms that local tools execute without unverified external network requirements.
 
@@ -72,7 +72,7 @@ If any check reports an issue, the output provides clear, actionable instruction
 
 ## Step 2: Exploring the Plugin Catalog (`cops list` & `cops info`)
 
-COPS packages 14 dedicated security plugins across defensive and offensive domains. To view the full catalog:
+COPS packages 15 dedicated security plugins across defensive and offensive domains. To view the full catalog:
 
 ```bash
 python3 -m cops list
@@ -89,6 +89,7 @@ sentinel-hunt-workbench         detection-hunting         beta          validate
 attack-path-workbench           detection-hunting         experimental  validated  unverified  unverified    
 attack-surface-planner          offensive-security        experimental  validated  unverified  unverified    
 entra-identity-workbench        identity-access           beta          validated  unverified  unverified    
+ad-assessment-workbench         identity-access           experimental  validated  unverified  unverified
 exposure-triage-workbench       vulnerability-management  beta          validated  unverified  unverified    
 foundry-agent-harness           offensive-security        beta          validated  unverified  unverified    
 detection-quality-workbench     detection-hunting         beta          validated  unverified  unverified    
@@ -112,7 +113,7 @@ For recommendations on when to reach for each plugin, consult the [Plugin Select
 
 ## Step 3: Routing Tasks with Specialist Agents (`cops route`)
 
-COPS includes 18 specialist cybersecurity agent profiles. The deterministic, zero-token router matches any natural language task or security question to the most qualified specialist profile:
+COPS includes 19 specialist cybersecurity agent profiles. The deterministic, zero-token router matches any natural language task or security question to the most qualified specialist profile:
 
 ```bash
 # Example 1: Detection Engineering
@@ -125,7 +126,7 @@ python3 -m cops route "Audit Entra ID application registrations with high-privil
 python3 -m cops route "Rehearse containment of a compromised service principal with blast radius proof"
 ```
 
-To list all 18 specialist profiles and their domain specializations:
+To list all 19 specialist profiles and their domain specializations:
 
 ```bash
 python3 -m cops specialists
@@ -154,6 +155,9 @@ python3 -m cops demo attack-path-workbench
 
 # 5. Build an authorized, passive attack surface review plan
 python3 -m cops demo attack-surface-planner
+
+# 6. Map scoped Active Directory relationships from a synthetic export
+python3 -m cops demo ad-assessment-workbench
 ```
 
 ### Why these demos are safe:
@@ -171,7 +175,7 @@ To verify the code correctness, schemas, and regression tests of a plugin locall
 # Check a single package
 python3 -m cops check sentinel-hunt-workbench
 
-# Check all 14 packages
+# Check all 15 packages
 python3 -m cops check
 ```
 
@@ -182,7 +186,7 @@ Passing checks verify deterministic logic, contract schemas, and offline regress
 ## Next Steps
 
 - Consult the [Plugin Selection Guide](plugin-guide.md) to choose the right plugin for your operational needs.
-- Explore the [18 Specialist Agent Profiles](specialist-agents.md) and Triad orchestration.
+- Explore the [19 Specialist Agent Profiles](specialist-agents.md) and Triad orchestration.
 - Read the [ATT&CK Matrix (v18.0)](COVERAGE_MATRIX.md) for mapped defensive techniques.
 - Set up a contributor environment with the [Contributor Guide](contributing.md).
 - Resolve any environment questions with the [Troubleshooting Guide](troubleshooting.md).

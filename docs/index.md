@@ -1,19 +1,19 @@
 ---
 layout: documentation
 title: "COPS — Copilot Operations Plugins for Security"
-description: "Universal catalog of offline-first defensive cybersecurity plugins, 18 specialist AI agent profiles, and deterministic verification tools for GitHub Copilot, Claude Code, and Codex."
+description: "Universal catalog of offline-first defensive cybersecurity plugins, 19 specialist AI agent profiles, and deterministic verification tools for GitHub Copilot, Claude Code, and Codex."
 ---
 
 <div class="cops-hero">
   <img src="assets/cops-logo.png" alt="COPS Shield and Copilot Visor Logo">
   <h1 class="cops-hero-title">COPS</h1>
   <p class="cops-hero-tagline">
-    Copilot Operations Plugins for Security: an open-source, universal catalog of defensive cybersecurity plugins, 18 specialist agent profiles, and offline verification tools for AI coding assistants.
+    Copilot Operations Plugins for Security: an open-source, universal catalog of defensive cybersecurity plugins, 19 specialist agent profiles, and offline verification tools for AI coding assistants.
   </p>
   <div class="cops-cta-row">
     <a href="getting-started.html" class="cops-btn cops-btn-primary">5-Minute Quickstart</a>
-    <a href="plugin-guide.html" class="cops-btn cops-btn-secondary">Explore 14 Plugins</a>
-    <a href="specialist-agents.html" class="cops-btn cops-btn-secondary">18 Specialist Agents</a>
+    <a href="plugin-guide.html" class="cops-btn cops-btn-secondary">Explore 15 Plugins</a>
+    <a href="specialist-agents.html" class="cops-btn cops-btn-secondary">19 Specialist Agents</a>
     <a href="https://github.com/sodejm/copilot-operation-plugin-for-security" class="cops-btn cops-btn-secondary">GitHub Repository</a>
   </div>
 </div>
@@ -25,7 +25,7 @@ Whether your engineering and security teams operate in **GitHub Copilot**, **Cla
 - **100% Offline-First by Default**: Explore tools, run demos, and validate detection logic straight from your local terminal with standard Python. No cloud credentials, assistant installations, or live tenant connections required.
 - **Deterministic Script-First Tooling**: Offloads calculations, graph traversals, and schema validations to standard-library Python scripts. Fast, deterministic, and preserves model tokens.
 - **Universal Multi-Assistant Portability**: A single catalog in `catalog/plugins.json` powers GitHub Copilot, Claude Code, and Codex with zero configuration drift.
-- **18 Specialist Agent Profiles**: Pre-tuned security personas spanning detection engineering, threat hunting, DFIR, cloud IAM, and AppSec, with dynamic zero-token routing and Triad orchestration.
+- **19 Specialist Agent Profiles**: Pre-tuned security personas spanning detection engineering, threat hunting, DFIR, cloud IAM, and AppSec, with dynamic zero-token routing and Triad orchestration.
 - **Truth-in-Advertising & Evidence Standard**: Every capability is categorized into four explicit operational readiness modes (`planned`, `import`, `laboratory`, `live-validated`), preventing over-claiming.
 - **MITRE ATT&CK & Attack Flow Coverage**: Formally mapped against the pinned ATT&CK Enterprise Matrix (v18.0) and MITRE Attack Flow standards.
 
@@ -43,7 +43,7 @@ cd copilot-operation-plugin-for-security
 # 2. Check local environment health and catalog synchronization
 python3 -m cops doctor
 
-# 3. List all 14 plugins and their validation status
+# 3. List all 15 plugins and their validation status
 python3 -m cops list
 
 # 4. Route a natural language security task to the optimal specialist
@@ -62,7 +62,7 @@ Read the full [Getting Started Guide](getting-started.md) for detailed step-by-s
 
 ## Cybersecurity Capability Domains
 
-COPS organizes 14 dedicated security plugins across six cybersecurity disciplines:
+COPS organizes 15 dedicated security plugins across six cybersecurity disciplines:
 
 <div class="cops-grid">
   <div class="cops-card">
@@ -77,8 +77,8 @@ COPS organizes 14 dedicated security plugins across six cybersecurity discipline
   </div>
   <div class="cops-card">
     <h3>🔑 Identity &amp; Access</h3>
-    <p>Audit Microsoft Entra ID role assignments, app registrations, service principal credentials, and consent grants from offline JSON exports.</p>
-    <p><strong>Plugins:</strong> <a href="plugin-guide.html#entra-identity-workbench">Entra Identity Workbench</a> <span class="badge badge-beta">Beta</span></p>
+    <p>Audit Microsoft Entra ID exports and map scoped Active Directory relationships and candidate paths from offline evidence.</p>
+    <p><strong>Plugins:</strong> <a href="plugin-guide.html#entra-identity-workbench">Entra Identity Workbench</a> <span class="badge badge-beta">Beta</span>, <a href="plugin-guide.html#ad-assessment-workbench">AD Assessment Workbench</a> <span class="badge badge-experimental">Experimental</span></p>
   </div>
   <div class="cops-card">
     <h3>🛡️ Vulnerability Management</h3>
@@ -101,18 +101,18 @@ For a side-by-side comparison of problem statements and operational playbooks, s
 
 ---
 
-## 18 Specialist Agent Profiles & Dynamic Routing
+## 19 Specialist Agent Profiles & Dynamic Routing
 
-COPS centralizes 18 callable specialist profiles housed in [`agents/`](specialist-agents.md) across offensive, defensive, forensics, identity, and governance domains:
+COPS centralizes 19 callable specialist profiles housed in [`agents/`](specialist-agents.md) across offensive, defensive, forensics, identity, and governance domains:
 
 ```mermaid
 flowchart LR
     TASK["Incoming Security Task"] --> ROUTER["Zero-Token Router<br/>cops route"]
-    ROUTER --> SPEC["18 Specialist Profiles"]
+    ROUTER --> SPEC["19 Specialist Profiles"]
     SPEC --> OFF["Offensive Security<br/>Pentest, Red Team, AI Red Team"]
     SPEC --> DEF["Defensive & Detection<br/>Sentinel KQL, Threat Hunter, SOC"]
     SPEC --> DFIR["Incident Response & Forensics<br/>Blast Radius, Collector, Malware"]
-    SPEC --> IAM["Identity & AppSec<br/>Entra ID, Exposure, Code Review"]
+    SPEC --> IAM["Identity & AppSec<br/>Entra ID, AD, Exposure, Code Review"]
     SPEC --> GOV["Governance & Efficacy<br/>Purple Team, Logging Architect"]
 ```
 
@@ -126,7 +126,7 @@ Learn more in the [Specialist Agents Guide](specialist-agents.md).
 
 - [5-Minute Quickstart Guide](getting-started.md): Installation, diagnostics, and running your first demo.
 - [Plugin Selection Guide](plugin-guide.md): Clear criteria on when to reach for each plugin.
-- [18 Specialist Agents](specialist-agents.md): Agent catalog, zero-token routing, and Triad safety.
+- [19 Specialist Agents](specialist-agents.md): Agent catalog, zero-token routing, and Triad safety.
 - [ATT&CK Matrix (v18.0)](COVERAGE_MATRIX.md): Mappings and validation state across all capabilities.
 - [Universal Portability](PORTABILITY.md): Multi-assistant sync architecture.
 - [Contributor Guide](contributing.md): Development environment setup, adding plugins, and test gates.

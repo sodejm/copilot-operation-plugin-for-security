@@ -1,12 +1,12 @@
 ---
 layout: documentation
-title: "18 Specialist Cybersecurity Agents & Dynamic Routing"
+title: "19 Specialist Cybersecurity Agents & Dynamic Routing"
 description: "Centralized catalog of eighteen pre-tuned cybersecurity agent profiles, zero-token deterministic routing, and multi-agent Triad orchestration."
 ---
 
-# 18 Specialist Cybersecurity Agents & Dynamic Routing
+# 19 Specialist Cybersecurity Agents & Dynamic Routing
 
-COPS centralizes **18 specialist cybersecurity agent profiles** housed in `agents/`. Each profile defines a dedicated persona, tool allowlist, domain constraints, and evaluation criteria tailored to specific security disciplines.
+COPS centralizes **19 specialist cybersecurity agent profiles** housed in `agents/`. Each profile defines a dedicated persona, tool allowlist, domain constraints, and evaluation criteria tailored to specific security disciplines.
 
 Rather than relying on a generic assistant prompt, COPS routes tasks to the specialist profile with the highest domain precision.
 
@@ -27,7 +27,7 @@ python3 -m cops route "Rehearse containment of a compromised service principal w
 python3 -m cops route "Audit this Python codebase for missing audit logs and credential leaks"
 ```
 
-To list all 18 specialist profiles from your terminal:
+To list all 19 specialist profiles from your terminal:
 
 ```bash
 python3 -m cops specialists
@@ -74,6 +74,7 @@ python3 -m cops specialists
 | Agent Profile ID | Role | Key Capabilities |
 | :--- | :--- | :--- |
 | `cops-identity-specialist` | Cloud Identity & Access Specialist | Microsoft Entra ID role analysis, service principal credential hygiene, OAuth consent audits. |
+| `cops-ad-specialist` | Active Directory Assessment Specialist | Offline, scoped AD relationship inventory, evidence-linked candidate paths, and collection coverage review. |
 | `cops-exposure-analyst` | Vulnerability Exposure Analyst | SBOM correlation (CycloneDX/SPDX), CVE reachability analysis, exploit exposure scoring. |
 | `cops-appsec-engineer` | Application Security Engineer | Static code review, logging gap analysis, patch security review, CWE pattern detection. |
 | `cops-threat-intel-analyst` | Threat Intelligence Analyst | IOC enrichment, MITRE ATT&CK actor attribution, offline feed correlation. |

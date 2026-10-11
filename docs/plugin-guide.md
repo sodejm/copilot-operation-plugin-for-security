@@ -1,12 +1,12 @@
 ---
 layout: documentation
 title: "When to Use Each COPS Plugin"
-description: "A comprehensive guide to selecting, evaluating, and running each of the fourteen security plugins across defensive and offensive cybersecurity disciplines."
+description: "A comprehensive guide to selecting, evaluating, and running each of the fifteen security plugins across defensive and offensive cybersecurity disciplines."
 ---
 
 # When to Use Each COPS Plugin
 
-COPS packages **fourteen specialized cybersecurity plugins** across six core disciplines. Each plugin is self-contained under `plugins/<category>/<plugin-id>/` and includes deterministic Python tools, reusable AI skills, and a practitioner playbook.
+COPS packages **fifteen specialized cybersecurity plugins** across six core disciplines. Each plugin is self-contained under `plugins/<category>/<plugin-id>/` and includes deterministic Python tools, reusable AI skills, and a practitioner playbook.
 
 Use this guide to determine which plugin best matches your operational requirements.
 
@@ -24,6 +24,7 @@ Use this guide to determine which plugin best matches your operational requireme
 | **Validate detection query syntax & regressions** | `detection-quality-workbench` | Detection & Hunting | <span class="badge badge-beta">Beta</span> | `laboratory` | `python3 -m cops check detection-quality-workbench` |
 | **Enrich observables with threat intelligence feeds** | `threat-intelligence-enrichment` | Detection & Hunting | <span class="badge badge-experimental">Experimental</span> | `import` | `python3 -m cops check threat-intelligence-enrichment` |
 | **Audit Entra ID roles, apps, and credential hygiene** | `entra-identity-workbench` | Identity & Access | <span class="badge badge-beta">Beta</span> | `import` | `python3 -m cops check entra-identity-workbench` |
+| **Map scoped Active Directory relationships and candidate paths** | `ad-assessment-workbench` | Identity & Access | <span class="badge badge-experimental">Experimental</span> | `import` | `python3 -m cops demo ad-assessment-workbench` |
 | **Prioritize vulnerability triage with SBOM reachability** | `exposure-triage-workbench` | Vulnerability Management | <span class="badge badge-beta">Beta</span> | `import` | `python3 -m cops check exposure-triage-workbench` |
 | **Review code diffs and pull requests for security flaws** | `patch-security-review` | Vulnerability Management | <span class="badge badge-beta">Beta</span> | `import` | `python3 -m cops check patch-security-review` |
 | **Plan an authorized, passive attack surface review** | `attack-surface-planner` | Offensive Security | <span class="badge badge-experimental">Experimental</span> | `planned` | `python3 -m cops demo attack-surface-planner` |
@@ -101,6 +102,13 @@ Use this guide to determine which plugin best matches your operational requireme
 - **Boundaries**: Ingests offline JSON exports; makes zero Microsoft Graph mutations.
 - **Playbook**: `plugins/identity-access/entra-identity-workbench/docs/PLAYBOOK.md`
 
+#### AD Assessment Workbench
+- **Maturity**: <span class="badge badge-experimental">Experimental</span> | **Operational Mode**: `import`
+- **When to use**: When reviewing an approved, scoped Active Directory relationship export and the declared forest and host collection coverage.
+- **Key Capabilities**: Bounded offline graph validation, provenance-linked candidate paths, and explicit complete, partial, or unknown coverage.
+- **Boundaries**: Candidate paths require analyst validation. The package neither queries a domain controller nor verifies live privileges or missing relationships outside the collected graph.
+- **Playbook**: `plugins/identity-access/ad-assessment-workbench/skills/ad-inventory-and-paths/SKILL.md`
+
 ---
 
 ### 4. Vulnerability Management
@@ -166,7 +174,7 @@ To maintain absolute integrity and avoid capability over-claiming, COPS reconcil
 - **`laboratory`**: Controlled offline simulation, synthetic event replay, or sandbox rehearsal; zero external egress.
 - **`live-validated`**: Fully authorized, live-tested execution path against an authorized environment with cryptographic evidence receipt. Currently 0 capabilities claim live-validated, ensuring zero false claims.
 
-To audit all 69 capabilities across plugins, specialist profiles, and scenarios:
+To audit all 71 capabilities across plugins, specialist profiles, and scenarios:
 
 ```bash
 python3 -m cops capabilities audit --check
