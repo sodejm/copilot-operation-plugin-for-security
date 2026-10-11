@@ -16,7 +16,7 @@ from cops.contracts.models import ActionPlan, LaboratoryEnvironment, RunResult
 from cops.evidence.canonical import canonical, digest, utc_now
 from cops.execution.control import ApprovalConsumptionReceipt
 from cops.execution.ssh_execution import RemoteAuthorizedRun
-from cops.execution.ssh_transport import SSHRemoteEndpointInventory, SSH_ENDPOINT_INVENTORY_SCHEMA
+from cops.execution.ssh_transport import SSH_ENDPOINT_INVENTORY_SCHEMA, SSHRemoteEndpointInventory
 from cops.laboratory.models import LaboratoryObservation
 from cops.laboratory.receipts import LaboratoryCaseObservation, LaboratoryObservationTrustStore, LaboratoryResetReceipt
 
@@ -28,18 +28,27 @@ def observation_trust_store(root: Path, worker_identity: str = "lab-operator") -
     """Load only the test signer's public key into the controller trust store."""
     root.mkdir(parents=True, exist_ok=True)
     path = root / "lab-observation-trust.json"
-    path.write_text(json.dumps({
-        "schema_version": "cops.laboratory-observation-trust-store/v1",
-        "keys": [{
-            "worker_identity": worker_identity,
-            "key_id": _TEST_KEY_ID,
-            "algorithm": "ed25519",
-            "public_key_hex": _TEST_SIGNER.public_key().public_bytes(
-                encoding=serialization.Encoding.Raw,
-                format=serialization.PublicFormat.Raw,
-            ).hex(),
-        }],
-    }), encoding="utf-8")
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": "cops.laboratory-observation-trust-store/v1",
+                "keys": [
+                    {
+                        "worker_identity": worker_identity,
+                        "key_id": _TEST_KEY_ID,
+                        "algorithm": "ed25519",
+                        "public_key_hex": _TEST_SIGNER.public_key()
+                        .public_bytes(
+                            encoding=serialization.Encoding.Raw,
+                            format=serialization.PublicFormat.Raw,
+                        )
+                        .hex(),
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
     path.chmod(0o600)
     return LaboratoryObservationTrustStore.from_file(path)
 
@@ -54,19 +63,26 @@ def endpoint_inventory(root: Path, worker_identity: str = "lab-operator") -> SSH
     key.write_text("11" * 32, encoding="ascii")
     key.chmod(0o600)
     path = root / "ssh-endpoints.json"
-    path.write_text(json.dumps({
-        "schema_version": SSH_ENDPOINT_INVENTORY_SCHEMA,
-        "workers": [{
-            "host": "worker.example.test",
-            "attestation_key_id": "supervisor-key-01",
-            "attestation_key_path": str(key),
-            "known_hosts_path": str(known_hosts),
-            "port": 22,
-            "remote_command": ["python3", "-m", "cops.remote_worker"],
-            "username": "cops-worker",
-            "worker_id": worker_identity,
-        }],
-    }), encoding="utf-8")
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": SSH_ENDPOINT_INVENTORY_SCHEMA,
+                "workers": [
+                    {
+                        "host": "worker.example.test",
+                        "attestation_key_id": "supervisor-key-01",
+                        "attestation_key_path": str(key),
+                        "known_hosts_path": str(known_hosts),
+                        "port": 22,
+                        "remote_command": ["python3", "-m", "cops.remote_worker"],
+                        "username": "cops-worker",
+                        "worker_id": worker_identity,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
     path.chmod(0o600)
     return SSHRemoteEndpointInventory.from_file(path)
 
@@ -119,7 +135,15 @@ def reset_receipt(
     return sign_receipt(replace(receipt, **overrides), inventory)
 
 
-def remote_run(plan: ActionPlan, authorization_id: str, worker_identity: str, *, status: str = "success", exit_code: int = 0, cleanup_status: str = "completed") -> RemoteAuthorizedRun:
+def remote_run(
+    plan: ActionPlan,
+    authorization_id: str,
+    worker_identity: str,
+    *,
+    status: str = "success",
+    exit_code: int = 0,
+    cleanup_status: str = "completed",
+) -> RemoteAuthorizedRun:
     started = datetime.now(UTC) - timedelta(seconds=2)
     finished = started + timedelta(seconds=1)
     result = RunResult(

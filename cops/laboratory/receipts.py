@@ -6,11 +6,11 @@ import json
 import os
 import re
 import stat
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import MappingProxyType
-from typing import Mapping
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
@@ -100,20 +100,35 @@ class LaboratoryObservationTrustStore:
             document = json.loads(b"".join(chunks).decode("utf-8"), object_pairs_hook=_unique_pairs)
         except (UnicodeError, ValueError) as err:
             raise LaboratoryGateError("laboratory observation trust store is invalid JSON") from err
-        if not isinstance(document, dict) or set(document) != {"schema_version", "keys"} or document["schema_version"] != _TRUST_SCHEMA:
+        if (
+            not isinstance(document, dict)
+            or set(document) != {"schema_version", "keys"}
+            or document["schema_version"] != _TRUST_SCHEMA
+        ):
             raise LaboratoryGateError("laboratory observation trust store schema is invalid")
         entries = document["keys"]
         if not isinstance(entries, list) or not entries:
             raise LaboratoryGateError("laboratory observation trust store requires keys")
         keys: dict[tuple[str, str], bytes] = {}
         for entry in entries:
-            if not isinstance(entry, dict) or set(entry) != {"worker_identity", "key_id", "algorithm", "public_key_hex"}:
+            if not isinstance(entry, dict) or set(entry) != {
+                "worker_identity",
+                "key_id",
+                "algorithm",
+                "public_key_hex",
+            }:
                 raise LaboratoryGateError("laboratory observation trust-store key is invalid")
-            worker, key_id, algorithm, encoded = (entry[name] for name in ("worker_identity", "key_id", "algorithm", "public_key_hex"))
+            worker, key_id, algorithm, encoded = (
+                entry[name] for name in ("worker_identity", "key_id", "algorithm", "public_key_hex")
+            )
             if (
-                not isinstance(worker, str) or _IDENTIFIER.fullmatch(worker) is None
-                or not isinstance(key_id, str) or _IDENTIFIER.fullmatch(key_id) is None
-                or algorithm != "ed25519" or not isinstance(encoded, str) or _PUBLIC_KEY.fullmatch(encoded) is None
+                not isinstance(worker, str)
+                or _IDENTIFIER.fullmatch(worker) is None
+                or not isinstance(key_id, str)
+                or _IDENTIFIER.fullmatch(key_id) is None
+                or algorithm != "ed25519"
+                or not isinstance(encoded, str)
+                or _PUBLIC_KEY.fullmatch(encoded) is None
                 or (worker, key_id) in keys
             ):
                 raise LaboratoryGateError("laboratory observation trust-store key is invalid")
@@ -145,10 +160,21 @@ class LaboratoryResetReceipt:
     schema_version: str = _RESET_SCHEMA
 
     def unsigned(self) -> dict[str, object]:
-        return {name: getattr(self, name) for name in (
-            "schema_version", "algorithm", "environment_id", "worker_identity", "strategy",
-            "command_digest", "request_nonce", "completed_at", "succeeded", "key_id",
-        )}
+        return {
+            name: getattr(self, name)
+            for name in (
+                "schema_version",
+                "algorithm",
+                "environment_id",
+                "worker_identity",
+                "strategy",
+                "command_digest",
+                "request_nonce",
+                "completed_at",
+                "succeeded",
+                "key_id",
+            )
+        }
 
 
 @dataclass(frozen=True)
@@ -171,11 +197,24 @@ class LaboratoryCaseObservation:
     schema_version: str = _CASE_SCHEMA
 
     def unsigned(self) -> dict[str, object]:
-        return {name: getattr(self, name) for name in (
-            "schema_version", "algorithm", "environment_id", "worker_identity", "authorization_id",
-            "plan_digest", "result_id", "result_finished_at", "request_nonce", "observed_at",
-            "canary_token_detected", "control_blocked", "key_id",
-        )}
+        return {
+            name: getattr(self, name)
+            for name in (
+                "schema_version",
+                "algorithm",
+                "environment_id",
+                "worker_identity",
+                "authorization_id",
+                "plan_digest",
+                "result_id",
+                "result_finished_at",
+                "request_nonce",
+                "observed_at",
+                "canary_token_detected",
+                "control_blocked",
+                "key_id",
+            )
+        }
 
 
 LaboratoryReceipt = LaboratoryResetReceipt | LaboratoryCaseObservation | LaboratoryObservation
@@ -190,10 +229,17 @@ def verify_receipt_signature(
     if not isinstance(receipt, (LaboratoryResetReceipt, LaboratoryCaseObservation, LaboratoryObservation)):
         raise LaboratoryGateError("a typed operator-attested laboratory receipt is required")
     expected_schema = (
-        _RESET_SCHEMA if isinstance(receipt, LaboratoryResetReceipt) else
-        _CASE_SCHEMA if isinstance(receipt, LaboratoryCaseObservation) else _ENVIRONMENT_SCHEMA
+        _RESET_SCHEMA
+        if isinstance(receipt, LaboratoryResetReceipt)
+        else _CASE_SCHEMA
+        if isinstance(receipt, LaboratoryCaseObservation)
+        else _ENVIRONMENT_SCHEMA
     )
-    if receipt.schema_version != expected_schema or receipt.algorithm != "ed25519" or receipt.worker_identity != worker_identity:
+    if (
+        receipt.schema_version != expected_schema
+        or receipt.algorithm != "ed25519"
+        or receipt.worker_identity != worker_identity
+    ):
         raise LaboratoryGateError("laboratory receipt schema, algorithm, or worker identity mismatch")
     if not isinstance(receipt.signature, str) or _SIGNATURE.fullmatch(receipt.signature) is None:
         raise LaboratoryGateError("laboratory receipt signature is invalid")

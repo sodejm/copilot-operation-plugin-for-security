@@ -20,11 +20,11 @@ from cops.execution.ssh_execution import SSHExecutionError
 from cops.laboratory import (
     CanaryVerificationError,
     IsolationVerificationError,
+    LaboratoryCaseJournal,
+    LaboratoryCaseObservation,
     LaboratoryGateError,
     LaboratoryHarness,
-    LaboratoryCaseJournal,
     LaboratoryObservation,
-    LaboratoryCaseObservation,
     LaboratoryResetReceipt,
     PrerequisiteMismatchError,
     ResetError,
@@ -51,10 +51,14 @@ from tests.laboratory_testkit import (
 
 
 def _harness(inventory, provider=None):
-    return LaboratoryHarness(observation_provider=provider or (
-        lambda environment, nonce: environment_observation(environment, nonce, inventory)
-    ), observation_trust_store=observation_trust_store(inventory.resolve("lab-operator").known_hosts_path.parent),
-        case_journal=LaboratoryCaseJournal(inventory.resolve("lab-operator").known_hosts_path.parent / "case-journal.sqlite3"))
+    return LaboratoryHarness(
+        observation_provider=provider
+        or (lambda environment, nonce: environment_observation(environment, nonce, inventory)),
+        observation_trust_store=observation_trust_store(inventory.resolve("lab-operator").known_hosts_path.parent),
+        case_journal=LaboratoryCaseJournal(
+            inventory.resolve("lab-operator").known_hosts_path.parent / "case-journal.sqlite3"
+        ),
+    )
 
 
 def _ready_case(tmp_path: Path):
@@ -77,7 +81,9 @@ def test_matrix_and_registration() -> None:
     assert version_ge("1.24.0", "1.23.9")
     assert not version_ge("1.23.9", "1.24.0")
     with pytest.raises(PrerequisiteMismatchError):
-        verify_platform_matrix({"os": "solaris", "distribution": "solaris", "architecture": "x86_64", "runtime": "container"})
+        verify_platform_matrix(
+            {"os": "solaris", "distribution": "solaris", "architecture": "x86_64", "runtime": "container"}
+        )
     with pytest.raises(PrerequisiteMismatchError):
         verify_tool_prerequisites({"kubectl": "1.28.0"}, required_tools=["kube-bench"])
 
@@ -93,14 +99,17 @@ def test_verification_requires_attested_runtime_measurement(tmp_path: Path, fact
     assert environment.isolation["verification_timestamp"]
 
 
-@pytest.mark.parametrize("field,value,error", [
-    ("network_isolated", False, IsolationVerificationError),
-    ("egress_restricted", False, IsolationVerificationError),
-    ("canary_digest", "0" * 64, CanaryVerificationError),
-    ("baseline_digest", "0" * 64, IsolationVerificationError),
-    ("observed_at", (datetime.now(UTC) - timedelta(minutes=3)).isoformat(), IsolationVerificationError),
-    ("request_nonce", "wrong-nonce", IsolationVerificationError),
-])
+@pytest.mark.parametrize(
+    "field,value,error",
+    [
+        ("network_isolated", False, IsolationVerificationError),
+        ("egress_restricted", False, IsolationVerificationError),
+        ("canary_digest", "0" * 64, CanaryVerificationError),
+        ("baseline_digest", "0" * 64, IsolationVerificationError),
+        ("observed_at", (datetime.now(UTC) - timedelta(minutes=3)).isoformat(), IsolationVerificationError),
+        ("request_nonce", "wrong-nonce", IsolationVerificationError),
+    ],
+)
 def test_false_stale_or_mismatched_measurement_fails_closed(tmp_path: Path, field, value, error) -> None:
     inventory = endpoint_inventory(tmp_path)
     environment = make_inert_container_environment()
@@ -117,7 +126,9 @@ def test_untrusted_observation_and_missing_provider_fail_closed(tmp_path: Path) 
     with pytest.raises(IsolationVerificationError, match="provider"):
         LaboratoryHarness().verify_environment(environment, endpoint_inventory=inventory)
     environment = make_inert_container_environment()
-    harness = _harness(inventory, lambda env, nonce: replace(environment_observation(env, nonce, inventory), signature="0" * 128))
+    harness = _harness(
+        inventory, lambda env, nonce: replace(environment_observation(env, nonce, inventory), signature="0" * 128)
+    )
     with pytest.raises(IsolationVerificationError, match="attestation"):
         harness.verify_environment(environment, endpoint_inventory=inventory)
     assert environment.status == "failed"
@@ -176,17 +187,23 @@ def test_reset_requires_signed_receipt_and_new_clean_observation(tmp_path: Path)
     assert environment.status == "resetting"
     assert environment.canary["verified"] is False
     receipt = reset_receipt(environment, nonce, inventory)
-    assert harness.reproducible_reset(environment, reset_receipt=receipt, endpoint_inventory=inventory).status == "verified"
+    assert (
+        harness.reproducible_reset(environment, reset_receipt=receipt, endpoint_inventory=inventory).status
+        == "verified"
+    )
     assert environment.reset_configuration["last_reset_timestamp"]
     with pytest.raises(ResetError, match="no pending"):
         harness.reproducible_reset(environment, reset_receipt=receipt, endpoint_inventory=inventory)
 
 
-@pytest.mark.parametrize("overrides", [
-    {"succeeded": False},
-    {"request_nonce": "wrong-nonce"},
-    {"completed_at": (datetime.now(UTC) - timedelta(minutes=3)).isoformat()},
-])
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"succeeded": False},
+        {"request_nonce": "wrong-nonce"},
+        {"completed_at": (datetime.now(UTC) - timedelta(minutes=3)).isoformat()},
+    ],
+)
 def test_failed_reset_receipt_invalidates_environment(tmp_path: Path, overrides) -> None:
     inventory = endpoint_inventory(tmp_path)
     harness = _harness(inventory)
@@ -231,52 +248,108 @@ def test_reset_preconditions_do_not_destroy_verified_state(tmp_path: Path) -> No
     assert environment.canary["verified"] is True
 
 
-@pytest.mark.parametrize("case_type,status,exit_code,canary,blocked,expected", [
-    ("positive", "success", 0, True, False, "success"),
-    ("remediated", "success", 0, False, True, "remediated"),
-    ("negative", "failed", 1, False, True, "rejected"),
-    ("positive", "success", 0, False, False, "failed"),
-    ("remediated", "success", 0, True, True, "failed"),
-    ("negative", "failed", 1, True, True, "failed"),
-])
-def test_case_classification_uses_bound_worker_observation(tmp_path: Path, case_type, status, exit_code, canary, blocked, expected) -> None:
+@pytest.mark.parametrize(
+    "case_type,status,exit_code,canary,blocked,expected",
+    [
+        ("positive", "success", 0, True, False, "success"),
+        ("remediated", "success", 0, False, True, "remediated"),
+        ("negative", "failed", 1, False, True, "rejected"),
+        ("positive", "success", 0, False, False, "failed"),
+        ("remediated", "success", 0, True, True, "failed"),
+        ("negative", "failed", 1, True, True, "failed"),
+    ],
+)
+def test_case_classification_uses_bound_worker_observation(
+    tmp_path: Path, case_type, status, exit_code, canary, blocked, expected
+) -> None:
     harness, inventory, environment, plan, auth, trust, engagement, worker_inventory, guard = _ready_case(tmp_path)
     run = remote_run(plan, auth.authorization_id, environment.owner, status=status, exit_code=exit_code)
     with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute", return_value=run) as dispatch:
         dispatched = harness.execute_case(
-            environment, plan, auth, case_type,
-            trust_store=trust, engagement=engagement, worker_inventory=worker_inventory,
-            endpoint_inventory=inventory, scope_guard=guard,
+            environment,
+            plan,
+            auth,
+            case_type,
+            trust_store=trust,
+            engagement=engagement,
+            worker_inventory=worker_inventory,
+            endpoint_inventory=inventory,
+            scope_guard=guard,
         )
     dispatch.assert_called_once()
     observation = case_observation(
-        environment, plan, auth.authorization_id, dispatched, inventory,
+        environment,
+        plan,
+        auth.authorization_id,
+        dispatched,
+        inventory,
         request_nonce=harness.case_observation_challenge(dispatched),
-        canary_token_detected=canary, control_blocked=blocked,
+        canary_token_detected=canary,
+        control_blocked=blocked,
     )
     classified = harness.classify_case(
-        environment, plan, dispatched, auth.authorization_id, case_type,
-        case_observation=observation, endpoint_inventory=inventory,
+        environment,
+        plan,
+        dispatched,
+        auth.authorization_id,
+        case_type,
+        case_observation=observation,
+        endpoint_inventory=inventory,
     )
     assert classified.status == expected
     assert classified.cleanup_receipt is None
     assert classified.details["worker_cleanup_status"] == "completed"
-    record, = harness.recorded_cases()
+    (record,) = harness.recorded_cases()
     assert record["state"] == ("failed" if expected == "failed" else "classified")
     assert record["result"] == classified.to_dict()
     with pytest.raises(LaboratoryGateError, match="pending"):
-        harness.classify_case(environment, plan, dispatched, auth.authorization_id, case_type, case_observation=observation, endpoint_inventory=inventory)
+        harness.classify_case(
+            environment,
+            plan,
+            dispatched,
+            auth.authorization_id,
+            case_type,
+            case_observation=observation,
+            endpoint_inventory=inventory,
+        )
 
 
 def test_case_omitted_guard_or_worker_inventory_rejected_before_dispatch(tmp_path: Path) -> None:
     harness, inventory, environment, plan, auth, trust, engagement, worker_inventory, guard = _ready_case(tmp_path)
     with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute") as dispatch:
         with pytest.raises(LaboratoryGateError, match="scope guard"):
-            harness.execute_case(environment, plan, auth, trust_store=trust, engagement=engagement, worker_inventory=worker_inventory, endpoint_inventory=inventory, scope_guard=None)
+            harness.execute_case(
+                environment,
+                plan,
+                auth,
+                trust_store=trust,
+                engagement=engagement,
+                worker_inventory=worker_inventory,
+                endpoint_inventory=inventory,
+                scope_guard=None,
+            )
         with pytest.raises(LaboratoryGateError, match="capability inventory"):
-            harness.execute_case(environment, plan, auth, trust_store=trust, engagement=engagement, worker_inventory=None, endpoint_inventory=inventory, scope_guard=guard)
+            harness.execute_case(
+                environment,
+                plan,
+                auth,
+                trust_store=trust,
+                engagement=engagement,
+                worker_inventory=None,
+                endpoint_inventory=inventory,
+                scope_guard=guard,
+            )
         with pytest.raises(LaboratoryGateError, match="SSH endpoint inventory"):
-            harness.execute_case(environment, plan, auth, trust_store=trust, engagement=engagement, worker_inventory=worker_inventory, endpoint_inventory=None, scope_guard=guard)
+            harness.execute_case(
+                environment,
+                plan,
+                auth,
+                trust_store=trust,
+                engagement=engagement,
+                worker_inventory=worker_inventory,
+                endpoint_inventory=None,
+                scope_guard=guard,
+            )
         dispatch.assert_not_called()
 
 
@@ -298,12 +371,32 @@ def test_fresh_observation_and_egress_gate_precede_dispatch(tmp_path: Path) -> N
     )
     with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute") as dispatch:
         with pytest.raises(LaboratoryGateError, match="prohibit egress"):
-            harness.execute_case(environment, egress_plan, auth, trust_store=trust, engagement=engagement, worker_inventory=worker_inventory, endpoint_inventory=inventory, scope_guard=guard)
+            harness.execute_case(
+                environment,
+                egress_plan,
+                auth,
+                trust_store=trust,
+                engagement=engagement,
+                worker_inventory=worker_inventory,
+                endpoint_inventory=inventory,
+                scope_guard=guard,
+            )
         dispatch.assert_not_called()
-    harness.observation_provider = lambda env, nonce: environment_observation(env, nonce, inventory, egress_restricted=False)
+    harness.observation_provider = lambda env, nonce: environment_observation(
+        env, nonce, inventory, egress_restricted=False
+    )
     with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute") as dispatch:
         with pytest.raises(LaboratoryGateError, match="fresh runtime verification"):
-            harness.execute_case(environment, plan, auth, trust_store=trust, engagement=engagement, worker_inventory=worker_inventory, endpoint_inventory=inventory, scope_guard=guard)
+            harness.execute_case(
+                environment,
+                plan,
+                auth,
+                trust_store=trust,
+                engagement=engagement,
+                worker_inventory=worker_inventory,
+                endpoint_inventory=inventory,
+                scope_guard=guard,
+            )
         dispatch.assert_not_called()
     assert environment.status == "failed"
 
@@ -312,15 +405,68 @@ def test_invalid_case_observation_can_be_replaced_before_classification(tmp_path
     harness, inventory, environment, plan, auth, trust, engagement, worker_inventory, guard = _ready_case(tmp_path)
     run = remote_run(plan, auth.authorization_id, environment.owner)
     with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute", return_value=run):
-        harness.execute_case(environment, plan, auth, trust_store=trust, engagement=engagement, worker_inventory=worker_inventory, endpoint_inventory=inventory, scope_guard=guard)
-    valid = case_observation(environment, plan, auth.authorization_id, run, inventory, request_nonce=harness.case_observation_challenge(run), canary_token_detected=True, control_blocked=False)
+        harness.execute_case(
+            environment,
+            plan,
+            auth,
+            trust_store=trust,
+            engagement=engagement,
+            worker_inventory=worker_inventory,
+            endpoint_inventory=inventory,
+            scope_guard=guard,
+        )
+    valid = case_observation(
+        environment,
+        plan,
+        auth.authorization_id,
+        run,
+        inventory,
+        request_nonce=harness.case_observation_challenge(run),
+        canary_token_detected=True,
+        control_blocked=False,
+    )
     with pytest.raises(LaboratoryGateError, match="verification failed"):
-        harness.classify_case(environment, plan, run, auth.authorization_id, "positive", case_observation=replace(valid, signature="0" * 128), endpoint_inventory=inventory)
+        harness.classify_case(
+            environment,
+            plan,
+            run,
+            auth.authorization_id,
+            "positive",
+            case_observation=replace(valid, signature="0" * 128),
+            endpoint_inventory=inventory,
+        )
     with pytest.raises(LaboratoryGateError, match="does not match"):
-        harness.classify_case(environment, plan, run, auth.authorization_id, "positive", case_observation=sign_receipt(replace(valid, result_id="wrong-result"), inventory), endpoint_inventory=inventory)
+        harness.classify_case(
+            environment,
+            plan,
+            run,
+            auth.authorization_id,
+            "positive",
+            case_observation=sign_receipt(replace(valid, result_id="wrong-result"), inventory),
+            endpoint_inventory=inventory,
+        )
     with pytest.raises(LaboratoryGateError, match="does not match"):
-        harness.classify_case(environment, plan, run, auth.authorization_id, "positive", case_observation=sign_receipt(replace(valid, request_nonce="wrong-nonce"), inventory), endpoint_inventory=inventory)
-    assert harness.classify_case(environment, plan, run, auth.authorization_id, "positive", case_observation=valid, endpoint_inventory=inventory).status == "success"
+        harness.classify_case(
+            environment,
+            plan,
+            run,
+            auth.authorization_id,
+            "positive",
+            case_observation=sign_receipt(replace(valid, request_nonce="wrong-nonce"), inventory),
+            endpoint_inventory=inventory,
+        )
+    assert (
+        harness.classify_case(
+            environment,
+            plan,
+            run,
+            auth.authorization_id,
+            "positive",
+            case_observation=valid,
+            endpoint_inventory=inventory,
+        ).status
+        == "success"
+    )
 
 
 @pytest.mark.parametrize("transition", ["reset", "reverify"])
@@ -329,25 +475,42 @@ def test_environment_transition_invalidates_pending_case(tmp_path: Path, transit
     run = remote_run(plan, auth.authorization_id, environment.owner)
     with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute", return_value=run):
         harness.execute_case(
-            environment, plan, auth, trust_store=trust, engagement=engagement,
-            worker_inventory=worker_inventory, endpoint_inventory=inventory, scope_guard=guard,
+            environment,
+            plan,
+            auth,
+            trust_store=trust,
+            engagement=engagement,
+            worker_inventory=worker_inventory,
+            endpoint_inventory=inventory,
+            scope_guard=guard,
         )
     nonce = harness.case_observation_challenge(run)
     if transition == "reset":
         harness.begin_reset(environment)
     else:
         harness.verify_environment(environment, endpoint_inventory=inventory)
-    record, = harness.recorded_cases()
+    (record,) = harness.recorded_cases()
     assert record["state"] == "failed"
     assert "invalidated pending case" in record["result"]["details"]["failure_reason"]
     observation = case_observation(
-        environment, plan, auth.authorization_id, run, inventory,
-        request_nonce=nonce, canary_token_detected=True, control_blocked=False,
+        environment,
+        plan,
+        auth.authorization_id,
+        run,
+        inventory,
+        request_nonce=nonce,
+        canary_token_detected=True,
+        control_blocked=False,
     )
     with pytest.raises(LaboratoryGateError, match="pending"):
         harness.classify_case(
-            environment, plan, run, auth.authorization_id, "positive",
-            case_observation=observation, endpoint_inventory=inventory,
+            environment,
+            plan,
+            run,
+            auth.authorization_id,
+            "positive",
+            case_observation=observation,
+            endpoint_inventory=inventory,
         )
 
 
@@ -356,10 +519,16 @@ def test_pending_case_is_failed_on_controller_restart(tmp_path: Path) -> None:
     run = remote_run(plan, auth.authorization_id, environment.owner)
     with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute", return_value=run):
         harness.execute_case(
-            environment, plan, auth, trust_store=trust, engagement=engagement,
-            worker_inventory=worker_inventory, endpoint_inventory=inventory, scope_guard=guard,
+            environment,
+            plan,
+            auth,
+            trust_store=trust,
+            engagement=engagement,
+            worker_inventory=worker_inventory,
+            endpoint_inventory=inventory,
+            scope_guard=guard,
         )
-    record, = LaboratoryCaseJournal(harness.case_journal.path).records()
+    (record,) = LaboratoryCaseJournal(harness.case_journal.path).records()
     assert record["state"] == "failed"
     assert record["result"]["run_result"]["result_id"] == run.result.result_id
     assert "controller restart" in record["result"]["details"]["failure_reason"]
@@ -370,30 +539,46 @@ def test_missing_observation_expires_to_persisted_failure(tmp_path: Path) -> Non
     run = remote_run(plan, auth.authorization_id, environment.owner)
     with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute", return_value=run):
         harness.execute_case(
-            environment, plan, auth, trust_store=trust, engagement=engagement,
-            worker_inventory=worker_inventory, endpoint_inventory=inventory, scope_guard=guard,
+            environment,
+            plan,
+            auth,
+            trust_store=trust,
+            engagement=engagement,
+            worker_inventory=worker_inventory,
+            endpoint_inventory=inventory,
+            scope_guard=guard,
         )
     pending = harness._pending_cases[run.result.result_id]
     harness._pending_cases[run.result.result_id] = (
-        *pending[:6], (datetime.now(UTC) - timedelta(minutes=3)).isoformat().replace("+00:00", "Z"), pending[7],
+        *pending[:6],
+        (datetime.now(UTC) - timedelta(minutes=3)).isoformat().replace("+00:00", "Z"),
+        pending[7],
     )
     with pytest.raises(LaboratoryGateError, match="pending"):
         harness.case_observation_challenge(run)
-    record, = harness.recorded_cases()
+    (record,) = harness.recorded_cases()
     assert record["state"] == "failed"
     assert "before deadline" in record["result"]["details"]["failure_reason"]
 
 
-@pytest.mark.parametrize("dispatch_error", [SSHExecutionError("disconnected"), RuntimeError("unexpected dispatch failure")])
+@pytest.mark.parametrize(
+    "dispatch_error", [SSHExecutionError("disconnected"), RuntimeError("unexpected dispatch failure")]
+)
 def test_dispatch_failure_retains_unknown_attempt(tmp_path: Path, dispatch_error: Exception) -> None:
     harness, inventory, environment, plan, auth, trust, engagement, worker_inventory, guard = _ready_case(tmp_path)
     with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute", side_effect=dispatch_error) as dispatch:
         with pytest.raises(LaboratoryGateError, match="dispatch failed"):
             harness.execute_case(
-                environment, plan, auth, trust_store=trust, engagement=engagement,
-                worker_inventory=worker_inventory, endpoint_inventory=inventory, scope_guard=guard,
+                environment,
+                plan,
+                auth,
+                trust_store=trust,
+                engagement=engagement,
+                worker_inventory=worker_inventory,
+                endpoint_inventory=inventory,
+                scope_guard=guard,
             )
-    record, = harness.recorded_cases()
+    (record,) = harness.recorded_cases()
     assert record["state"] == "unknown"
     assert record["result"] is None
     assert record["payload"]["failure_reason"] == "trusted worker dispatch outcome unknown"
@@ -408,8 +593,14 @@ def test_case_journal_is_required_before_dispatch(tmp_path: Path) -> None:
     with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute") as dispatch:
         with pytest.raises(LaboratoryGateError, match="journal is required"):
             harness.execute_case(
-                environment, plan, auth, trust_store=trust, engagement=engagement,
-                worker_inventory=worker_inventory, endpoint_inventory=inventory, scope_guard=guard,
+                environment,
+                plan,
+                auth,
+                trust_store=trust,
+                engagement=engagement,
+                worker_inventory=worker_inventory,
+                endpoint_inventory=inventory,
+                scope_guard=guard,
             )
         dispatch.assert_not_called()
 
@@ -417,15 +608,40 @@ def test_case_journal_is_required_before_dispatch(tmp_path: Path) -> None:
 def test_saved_case_result_contains_offline_verifiable_operator_evidence(tmp_path: Path) -> None:
     harness, inventory, environment, plan, auth, trust, engagement, worker_inventory, guard = _ready_case(tmp_path)
     reset_nonce = harness.begin_reset(environment)
-    harness.reproducible_reset(environment, reset_receipt=reset_receipt(environment, reset_nonce, inventory), endpoint_inventory=inventory)
+    harness.reproducible_reset(
+        environment, reset_receipt=reset_receipt(environment, reset_nonce, inventory), endpoint_inventory=inventory
+    )
     run = remote_run(plan, auth.authorization_id, environment.owner)
     with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute", return_value=run):
-        harness.execute_case(environment, plan, auth, trust_store=trust, engagement=engagement, worker_inventory=worker_inventory, endpoint_inventory=inventory, scope_guard=guard)
+        harness.execute_case(
+            environment,
+            plan,
+            auth,
+            trust_store=trust,
+            engagement=engagement,
+            worker_inventory=worker_inventory,
+            endpoint_inventory=inventory,
+            scope_guard=guard,
+        )
     observation = case_observation(
-        environment, plan, auth.authorization_id, run, inventory,
-        request_nonce=harness.case_observation_challenge(run), canary_token_detected=True, control_blocked=False,
+        environment,
+        plan,
+        auth.authorization_id,
+        run,
+        inventory,
+        request_nonce=harness.case_observation_challenge(run),
+        canary_token_detected=True,
+        control_blocked=False,
     )
-    result = harness.classify_case(environment, plan, run, auth.authorization_id, "positive", case_observation=observation, endpoint_inventory=inventory)
+    result = harness.classify_case(
+        environment,
+        plan,
+        run,
+        auth.authorization_id,
+        "positive",
+        case_observation=observation,
+        endpoint_inventory=inventory,
+    )
     saved = result.to_dict()["details"]
     receipt_types = {
         "operator_case_observation": LaboratoryCaseObservation,
@@ -435,20 +651,51 @@ def test_saved_case_result_contains_offline_verifiable_operator_evidence(tmp_pat
     }
     for field, receipt_type in receipt_types.items():
         receipt = receipt_type(**saved[field])
-        verify_receipt_signature(receipt, trust_store=harness.observation_trust_store, worker_identity=environment.owner)
+        verify_receipt_signature(
+            receipt, trust_store=harness.observation_trust_store, worker_identity=environment.owner
+        )
     altered = replace(LaboratoryCaseObservation(**saved["operator_case_observation"]), canary_token_detected=False)
     with pytest.raises(LaboratoryGateError, match="signature"):
-        verify_receipt_signature(altered, trust_store=harness.observation_trust_store, worker_identity=environment.owner)
+        verify_receipt_signature(
+            altered, trust_store=harness.observation_trust_store, worker_identity=environment.owner
+        )
 
 
 def test_case_rejects_equal_result_timestamp(tmp_path: Path) -> None:
     harness, inventory, environment, plan, auth, trust, engagement, worker_inventory, guard = _ready_case(tmp_path)
     run = remote_run(plan, auth.authorization_id, environment.owner)
     with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute", return_value=run):
-        harness.execute_case(environment, plan, auth, trust_store=trust, engagement=engagement, worker_inventory=worker_inventory, endpoint_inventory=inventory, scope_guard=guard)
-    observation = case_observation(environment, plan, auth.authorization_id, run, inventory, request_nonce=harness.case_observation_challenge(run), canary_token_detected=True, control_blocked=False, observed_at=run.result.finished_at)
+        harness.execute_case(
+            environment,
+            plan,
+            auth,
+            trust_store=trust,
+            engagement=engagement,
+            worker_inventory=worker_inventory,
+            endpoint_inventory=inventory,
+            scope_guard=guard,
+        )
+    observation = case_observation(
+        environment,
+        plan,
+        auth.authorization_id,
+        run,
+        inventory,
+        request_nonce=harness.case_observation_challenge(run),
+        canary_token_detected=True,
+        control_blocked=False,
+        observed_at=run.result.finished_at,
+    )
     with pytest.raises(LaboratoryGateError, match="verification failed"):
-        harness.classify_case(environment, plan, run, auth.authorization_id, "positive", case_observation=observation, endpoint_inventory=inventory)
+        harness.classify_case(
+            environment,
+            plan,
+            run,
+            auth.authorization_id,
+            "positive",
+            case_observation=observation,
+            endpoint_inventory=inventory,
+        )
 
 
 def test_cli_reports_provenance_requirements(capsys) -> None:

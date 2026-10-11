@@ -10,9 +10,9 @@ from pytest_bdd import given, parsers, scenarios, then, when
 from cops.execution.scope_guard import ScopeDefinition, ScopeGuard
 from cops.execution.worker import WorkerCapabilityInventory
 from cops.laboratory import (
+    LaboratoryCaseJournal,
     LaboratoryGateError,
     LaboratoryHarness,
-    LaboratoryCaseJournal,
     PrerequisiteMismatchError,
     make_inert_action_plan,
     make_inert_container_environment,
@@ -34,9 +34,7 @@ scenarios("../../specs/features/scenario_laboratory_harness.feature")
 def lab_ctx(tmp_path):
     inventory = endpoint_inventory(tmp_path)
     harness = LaboratoryHarness(
-        observation_provider=lambda environment, nonce: environment_observation(
-            environment, nonce, inventory
-        ),
+        observation_provider=lambda environment, nonce: environment_observation(environment, nonce, inventory),
         observation_trust_store=observation_trust_store(tmp_path),
         case_journal=LaboratoryCaseJournal(tmp_path / "case-journal.sqlite3"),
     )
@@ -50,9 +48,7 @@ def given_inert_environment(lab_ctx):
 
 @when("the laboratory harness verifies signed isolation and canary observations")
 def when_verify_environment(lab_ctx):
-    lab_ctx["harness"].verify_environment(
-        lab_ctx["environment"], endpoint_inventory=lab_ctx["inventory"]
-    )
+    lab_ctx["harness"].verify_environment(lab_ctx["environment"], endpoint_inventory=lab_ctx["inventory"])
 
 
 @then(parsers.parse('the environment status is "{expected_status}"'))
@@ -80,9 +76,7 @@ def given_outdated_environment(lab_ctx):
 @when("the laboratory harness attempts to verify tool prerequisites")
 def when_verify_prerequisites(lab_ctx):
     with pytest.raises(PrerequisiteMismatchError) as error:
-        lab_ctx["harness"].verify_environment(
-            lab_ctx["environment"], endpoint_inventory=lab_ctx["inventory"]
-        )
+        lab_ctx["harness"].verify_environment(lab_ctx["environment"], endpoint_inventory=lab_ctx["inventory"])
     lab_ctx["error"] = error.value
 
 
@@ -99,9 +93,7 @@ def then_cannot_transition(lab_ctx):
 @given("a verified laboratory environment")
 def given_verified_environment(lab_ctx):
     environment = make_inert_container_environment()
-    lab_ctx["harness"].verify_environment(
-        environment, endpoint_inventory=lab_ctx["inventory"]
-    )
+    lab_ctx["harness"].verify_environment(environment, endpoint_inventory=lab_ctx["inventory"])
     lab_ctx["environment"] = environment
 
 
@@ -110,9 +102,7 @@ def when_reset(lab_ctx):
     environment = lab_ctx["environment"]
     nonce = lab_ctx["harness"].begin_reset(environment)
     receipt = reset_receipt(environment, nonce, lab_ctx["inventory"])
-    lab_ctx["harness"].reproducible_reset(
-        environment, reset_receipt=receipt, endpoint_inventory=lab_ctx["inventory"]
-    )
+    lab_ctx["harness"].reproducible_reset(environment, reset_receipt=receipt, endpoint_inventory=lab_ctx["inventory"])
 
 
 @then("a reset timestamp is recorded")
@@ -130,20 +120,14 @@ def given_verified_env_and_auth(lab_ctx):
     given_verified_environment(lab_ctx)
     environment = lab_ctx["environment"]
     plan = make_inert_action_plan()
-    authorization, trust_store, engagement = authorize_test_plan(
-        plan, worker_identity=environment.owner
-    )
+    authorization, trust_store, engagement = authorize_test_plan(plan, worker_identity=environment.owner)
     lab_ctx.update(
         plan=plan,
         authorization=authorization,
         trust_store=trust_store,
         engagement=engagement,
-        worker_inventory=worker_inventory_for_plan(
-            plan, worker_identity=environment.owner
-        ),
-        scope_guard=ScopeGuard(
-            ScopeDefinition.from_engagement_scope(engagement.scope)
-        ),
+        worker_inventory=worker_inventory_for_plan(plan, worker_identity=environment.owner),
+        scope_guard=ScopeGuard(ScopeDefinition.from_engagement_scope(engagement.scope)),
     )
 
 
@@ -158,12 +142,18 @@ def when_dispatch_and_classify(lab_ctx, case_type):
         "negative": ("failed", 1, False, True),
     }[case_type]
     run = remote_run(
-        plan, authorization.authorization_id, environment.owner,
-        status=status, exit_code=exit_code,
+        plan,
+        authorization.authorization_id,
+        environment.owner,
+        status=status,
+        exit_code=exit_code,
     )
     with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute", return_value=run):
         dispatched = lab_ctx["harness"].execute_case(
-            environment, plan, authorization, case_type,
+            environment,
+            plan,
+            authorization,
+            case_type,
             trust_store=lab_ctx["trust_store"],
             engagement=lab_ctx["engagement"],
             worker_inventory=lab_ctx["worker_inventory"],
@@ -171,13 +161,23 @@ def when_dispatch_and_classify(lab_ctx, case_type):
             scope_guard=lab_ctx["scope_guard"],
         )
     observation = case_observation(
-        environment, plan, authorization.authorization_id, dispatched,
-        lab_ctx["inventory"], request_nonce=lab_ctx["harness"].case_observation_challenge(dispatched),
-        canary_token_detected=canary, control_blocked=blocked,
+        environment,
+        plan,
+        authorization.authorization_id,
+        dispatched,
+        lab_ctx["inventory"],
+        request_nonce=lab_ctx["harness"].case_observation_challenge(dispatched),
+        canary_token_detected=canary,
+        control_blocked=blocked,
     )
     lab_ctx["case_result"] = lab_ctx["harness"].classify_case(
-        environment, plan, dispatched, authorization.authorization_id, case_type,
-        case_observation=observation, endpoint_inventory=lab_ctx["inventory"],
+        environment,
+        plan,
+        dispatched,
+        authorization.authorization_id,
+        case_type,
+        case_observation=observation,
+        endpoint_inventory=lab_ctx["inventory"],
     )
 
 
@@ -208,8 +208,11 @@ def when_unverified_inventory(lab_ctx, case_type):
     with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute") as dispatch:
         with pytest.raises(LaboratoryGateError) as error:
             lab_ctx["harness"].execute_case(
-                lab_ctx["environment"], lab_ctx["plan"], lab_ctx["authorization"],
-                case_type, trust_store=lab_ctx["trust_store"],
+                lab_ctx["environment"],
+                lab_ctx["plan"],
+                lab_ctx["authorization"],
+                case_type,
+                trust_store=lab_ctx["trust_store"],
                 engagement=lab_ctx["engagement"],
                 worker_inventory=lab_ctx["worker_inventory"],
                 endpoint_inventory=lab_ctx["inventory"],

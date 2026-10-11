@@ -8,8 +8,6 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from cops.contracts.models import LaboratoryEnvironment
-
 from .harness import LaboratoryHarness
 
 ROOT = Path(__file__).resolve().parents[2]

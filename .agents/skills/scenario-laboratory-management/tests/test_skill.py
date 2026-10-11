@@ -8,7 +8,12 @@ from pathlib import Path
 from unittest.mock import patch
 
 from cops.execution.scope_guard import ScopeDefinition, ScopeGuard
-from cops.laboratory import LaboratoryCaseJournal, LaboratoryHarness, make_inert_action_plan, make_inert_container_environment
+from cops.laboratory import (
+    LaboratoryCaseJournal,
+    LaboratoryHarness,
+    make_inert_action_plan,
+    make_inert_container_environment,
+)
 from tests.auth_testkit import authorize_test_plan, worker_inventory_for_plan
 from tests.laboratory_testkit import (
     case_observation,
@@ -52,13 +57,14 @@ class TestScenarioLaboratoryManagementSkill(unittest.TestCase):
         )
 
         plan = make_inert_action_plan()
-        authorization, trust_store, engagement = authorize_test_plan(
-            plan, worker_identity=environment.owner
-        )
+        authorization, trust_store, engagement = authorize_test_plan(plan, worker_identity=environment.owner)
         run = remote_run(plan, authorization.authorization_id, environment.owner)
         with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute", return_value=run):
             authorized_run = self.harness.execute_case(
-                environment, plan, authorization, "positive",
+                environment,
+                plan,
+                authorization,
+                "positive",
                 trust_store=trust_store,
                 engagement=engagement,
                 worker_inventory=worker_inventory_for_plan(plan, worker_identity=environment.owner),
@@ -66,13 +72,23 @@ class TestScenarioLaboratoryManagementSkill(unittest.TestCase):
                 scope_guard=ScopeGuard(ScopeDefinition.from_engagement_scope(engagement.scope)),
             )
         observation = case_observation(
-            environment, plan, authorization.authorization_id, authorized_run, self.inventory,
+            environment,
+            plan,
+            authorization.authorization_id,
+            authorized_run,
+            self.inventory,
             request_nonce=self.harness.case_observation_challenge(authorized_run),
-            canary_token_detected=True, control_blocked=False,
+            canary_token_detected=True,
+            control_blocked=False,
         )
         result = self.harness.classify_case(
-            environment, plan, authorized_run, authorization.authorization_id, "positive",
-            case_observation=observation, endpoint_inventory=self.inventory,
+            environment,
+            plan,
+            authorized_run,
+            authorization.authorization_id,
+            "positive",
+            case_observation=observation,
+            endpoint_inventory=self.inventory,
         )
         self.assertEqual(result.status, "success")
         self.assertTrue(result.canary_verified)
