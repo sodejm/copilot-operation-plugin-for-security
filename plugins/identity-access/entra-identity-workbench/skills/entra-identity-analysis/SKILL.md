@@ -12,6 +12,7 @@ Use this skill to model and audit identity relationships, privilege boundaries, 
 1. **Verify Export Manifest & Boundaries**:
    - Inspect the target tenant manifest (`manifest.json`) declaring snapshot timestamp, tenant ID, and relative JSON export paths.
    - Confirm each export file matches its declared SHA-256 checksum.
+   - Check every source's `completeness` and collection timestamp against the 24-hour freshness window. A missing, partial, invalid, future-dated, or stale source makes dependent paths unknown; preserve the source path and reason in the report.
    - Verify that data stays strictly bounded to the authorized tenant; never evaluate cross-tenant relationships as trusted unless explicitly configured as a verified multi-tenant trust.
 
 2. **Build Typed Identity Graph**:
@@ -33,10 +34,10 @@ Use this skill to model and audit identity relationships, privilege boundaries, 
 
 4. **Review and Export**:
    - Generate human-readable Markdown reports detailing supporting edges and missing evidence for each hypothesis.
-   - Where evidence is partial or timestamps differ, classify paths as *unknown* rather than asserting complete safety.
+   - Where evidence is missing, partial, or stale, classify dependent paths as *unknown* rather than asserting a current exposure or complete safety.
    - Export content-addressed JSON snapshots for downstream review or ingestion into the Attack Path Workbench.
 
 ## Operational Boundaries
 
 - **Read-Only Analysis**: This skill operates exclusively on offline export files. It makes zero live network calls to Microsoft Graph or Azure Resource Manager.
-- **Privacy & Redaction**: Tenant IDs and principal IDs are normalized; never expose raw credentials, certificates, or client secrets in prompts or generated reports.
+- **Privacy & Redaction**: Redact secrets and unnecessary personal data before ingestion; pseudonymize IDs consistently to preserve graph joins. Reports can repeat source fields, so protect both exports and reports.

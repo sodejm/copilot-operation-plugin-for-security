@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 # Add plugin root to sys.path so entrawb can be imported cleanly
@@ -28,6 +29,8 @@ from entrawb.reporting import (
     render_markdown_report,
 )
 
+FIXTURE_AS_OF = datetime(2026, 9, 30, 18, tzinfo=UTC)
+
 
 def main() -> int:
     manifest_path = PLUGIN_ROOT / "fixtures" / "tenants" / "contoso-corp" / "manifest.json"
@@ -37,14 +40,17 @@ def main() -> int:
 
     print("=== Entra Identity Workbench Demo ===")
     print(f"Loading tenant export from: {manifest_path.relative_to(REPO_ROOT)}")
+    print("Synthetic historical assessment as of 2026-09-30T18:00:00Z; not a current tenant review.")
 
     manifest, sources = ingest_tenant_export(manifest_path)
-    graph = build_identity_graph(manifest, sources)
+    graph = build_identity_graph(manifest, sources, as_of=FIXTURE_AS_OF)
     hypotheses = analyze_identity_graph(graph)
 
     report_md = render_markdown_report(graph, hypotheses)
     print("\n" + report_md)
-    print(f"\n[OK] Successfully analyzed {len(graph.nodes)} entities and identified {len(hypotheses)} exposure hypotheses.")
+    print(
+        f"\n[OK] Successfully analyzed {len(graph.nodes)} entities and identified {len(hypotheses)} exposure hypotheses."
+    )
     return 0
 
 
