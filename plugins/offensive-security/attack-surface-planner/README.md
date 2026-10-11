@@ -295,12 +295,32 @@ The package evaluates exposure, access control, and code execution risk across d
 6. **Developer Privilege Candidate Routing**:
    - Discovered misconfigurations (e.g. `docker_socket_rce`, `docker_registry_leak`, `rmi_code_execution`, `jdwp_code_execution`, `erlang_epmd_rce`, `adb_shell_rce`, `distcc_rce`, `svn_anonymous_checkout`, `ajp_ghostcat_rce`, `fastcgi_rce`) are structured as `DeveloperPrivilegeCandidate` records with cryptographic evidence hashes, auth prerequisites, and privilege impact ratings for handoff to offensive specialists (`cops-pentest-specialist`, `cops-redteam-operator`).
 
+Live collection requires an exact destination policy. `hosts` are checked before DNS and `resolved_ips` after DNS, before any socket connection. Repository, image, runtime, and cluster entries are checked when supplied to the offline handoff. Omitted entries grant no permission for a later action. Keep this policy separate from engagement authorization and update it when approved destinations change.
+
+```json
+{
+  "hosts": ["dev01.corp.internal", "api.lab.internal"],
+  "resolved_ips": ["198.51.100.50"],
+  "repositories": ["team/service"],
+  "images": ["registry.internal/team/service:v1"],
+  "runtimes": ["containerd"],
+  "clusters": ["lab-cluster"]
+}
+```
+
+The cluster handoff reads a JSON kubeconfig and requires its current context to select the allowed cluster and an HTTPS API server whose hostname is allowed. It does not connect to the cluster or validate credentials. Use a local kubeconfig file with appropriate access controls; the output contains only the selected context, namespace, and API hostname.
+
+The isolated CLI fixture in `tests/fixtures/developer_runtime_destinations.json` exercises an allowed handoff and negative controls for repository, image, runtime, cluster, Kubernetes context, and API hostname. Its test records rejection results in a temporary directory and verifies cleanup. This is offline process isolation, not a container or live-cluster check.
+
 ```bash
-# Assess developer and runtime interface services
-python3 -m cops developer-services assess --targets "198.51.100.50,dev01.corp.internal" --vantage internal --canary-id "canary_docker_probe" --output developer_assessment.json
+# Assess developer and runtime interface services with a live socket collector
+python3 -m cops developer-services assess --mode live --targets "dev01.corp.internal" --destination-policy destination-policy.json --vantage internal --canary-id "canary_docker_probe" --output developer_assessment.json
 
 # Assess with authorized code execution verification
-python3 -m cops developer-services assess --targets "198.51.100.50" --services "docker,jdwp,distcc" --allow-code-execution --output developer_assessment.json
+python3 -m cops developer-services assess --mode live --targets "dev01.corp.internal" --destination-policy destination-policy.json --services "docker,jdwp,distcc" --allow-code-execution --output developer_assessment.json
+
+# Prepare a scope-checked cluster handoff using a JSON kubeconfig
+python3 -m cops developer-services handoff --kind cluster --target-host dev01.corp.internal --destination-policy destination-policy.json --repository team/service --image registry.internal/team/service:v1 --runtime containerd --cluster lab-cluster --kubeconfig kubeconfig.json --output cluster_handoff.json
 
 # Extract developer privilege candidates for code execution or breakout workflows
 python3 -m cops developer-services candidates developer_assessment.json --output developer_candidates.json

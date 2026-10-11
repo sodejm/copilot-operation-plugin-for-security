@@ -4,8 +4,14 @@
 
 from __future__ import annotations
 
+import copy
+import json
+import os
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from pytest_bdd import given, scenarios, then, when
@@ -21,7 +27,13 @@ from cops.discovery import (
     DeveloperPrivilegeImpact,
     ExecutionEffect,
     OfflineSyntheticDeveloperCollector,
+    StandardSocketDeveloperCollector,
     assess_developer_services,
+)
+from cops.discovery.developer_destinations import (
+    DestinationScopeError,
+    DeveloperDestinationPolicy,
+    prepare_developer_handoff,
 )
 
 scenarios("../../specs/features/network_developer_services.feature")
@@ -33,7 +45,12 @@ def bdd_ctx():
         "targets": ["vulnerable-dev.corp.internal"],
         "targets_db": {
             "vulnerable-dev.corp.internal": {
-                "docker": {"socket_exposed": True, "tls_verify": False, "auth_required": False, "version": "Docker 20.10"},
+                "docker": {
+                    "socket_exposed": True,
+                    "tls_verify": False,
+                    "auth_required": False,
+                    "version": "Docker 20.10",
+                },
                 "docker_registry": {"catalog_accessible": True, "auth_required": False, "version": "Registry 2.8"},
                 "rmi": {"unauthenticated_registry": True, "codebase_only": False, "version": "Java RMI 11"},
                 "jdwp": {"debug_agent_exposed": True, "auth_required": False, "version": "JDWP 1.6"},
@@ -45,10 +62,33 @@ def bdd_ctx():
                 "fastcgi": {"exposed_external": True, "auth_required": False, "version": "PHP-FPM 7.4"},
             },
             "hardened-dev.corp.internal": {
-                "docker": {"protected": True, "tls_verify": True, "auth_required": True, "auth_prerequisite": "client_cert", "version": "Docker 24.0"},
-                "docker_registry": {"protected": True, "auth_required": True, "auth_prerequisite": "token_or_api_key", "version": "Registry 2.8.2"},
-                "jdwp": {"protected": True, "debug_agent_exposed": False, "auth_required": True, "auth_prerequisite": "user_password", "version": "JDWP Disabled"},
-                "ajp": {"protected": True, "secret_required": True, "auth_required": True, "auth_prerequisite": "user_password", "version": "Tomcat 9.0.31"},
+                "docker": {
+                    "protected": True,
+                    "tls_verify": True,
+                    "auth_required": True,
+                    "auth_prerequisite": "client_cert",
+                    "version": "Docker 24.0",
+                },
+                "docker_registry": {
+                    "protected": True,
+                    "auth_required": True,
+                    "auth_prerequisite": "token_or_api_key",
+                    "version": "Registry 2.8.2",
+                },
+                "jdwp": {
+                    "protected": True,
+                    "debug_agent_exposed": False,
+                    "auth_required": True,
+                    "auth_prerequisite": "user_password",
+                    "version": "JDWP Disabled",
+                },
+                "ajp": {
+                    "protected": True,
+                    "secret_required": True,
+                    "auth_required": True,
+                    "auth_prerequisite": "user_password",
+                    "version": "Tomcat 9.0.31",
+                },
             },
             "filtered-dev.corp.internal": {
                 "docker": {"state": "filtered"},
@@ -64,7 +104,9 @@ def bdd_ctx():
 
 
 # Scenario 1: Assessing developer and runtime interface services
-@given("an approved target host exposing Docker, Docker Registry, RMI, JDWP, Erlang EPMD, ADB, distcc, SVN, AJP, and FastCGI")
+@given(
+    "an approved target host exposing Docker, Docker Registry, RMI, JDWP, Erlang EPMD, ADB, distcc, SVN, AJP, and FastCGI"
+)
 def setup_multi_protocol_target(bdd_ctx):
     bdd_ctx["collector"] = OfflineSyntheticDeveloperCollector(
         targets=bdd_ctx["targets_db"],
@@ -84,7 +126,9 @@ def execute_multi_protocol_probes(bdd_ctx):
     )
 
 
-@then("discrete assessments are recorded across container orchestration, language debug, distributed build SCM, and application gateway categories")
+@then(
+    "discrete assessments are recorded across container orchestration, language debug, distributed build SCM, and application gateway categories"
+)
 def verify_discrete_categories(bdd_ctx):
     report = bdd_ctx["report"]
     categories = {a.category for a in report.assessments}
@@ -231,7 +275,9 @@ def extract_candidates(bdd_ctx):
     bdd_ctx["candidates"] = candidates
 
 
-@then('actionable candidates for "docker_socket_rce", "jdwp_code_execution", "distcc_rce", and "fastcgi_rce" are generated')
+@then(
+    'actionable candidates for "docker_socket_rce", "jdwp_code_execution", "distcc_rce", and "fastcgi_rce" are generated'
+)
 def verify_expected_candidates(bdd_ctx):
     types = [c.finding_type for c in bdd_ctx["candidates"]]
     assert "docker_socket_rce" in types
@@ -240,7 +286,9 @@ def verify_expected_candidates(bdd_ctx):
     assert "fastcgi_rce" in types
 
 
-@then("each candidate contains service type, target host, port, execution effect, privilege impact, SHA-256 evidence hash, and remediation guidance")
+@then(
+    "each candidate contains service type, target host, port, execution effect, privilege impact, SHA-256 evidence hash, and remediation guidance"
+)
 def verify_candidate_integrity(bdd_ctx):
     for c in bdd_ctx["candidates"]:
         assert c.service_type
@@ -291,3 +339,175 @@ def verify_auth_prerequisites(bdd_ctx):
 @then("zero unauthenticated developer privilege candidates are generated")
 def verify_zero_candidates(bdd_ctx):
     assert bdd_ctx["report"].candidates_count == 0
+
+
+@given("an exact developer destination policy for a lab host and resolved address")
+def setup_live_destination_policy(bdd_ctx):
+    bdd_ctx["destination_policy"] = DeveloperDestinationPolicy.from_dict(
+        {
+            "hosts": ["dev.corp.internal"],
+            "resolved_ips": ["198.51.100.50"],
+        }
+    )
+
+
+@when("the live collector receives an unlisted host and an unlisted resolved address")
+def try_unlisted_live_destinations(bdd_ctx):
+    collector = StandardSocketDeveloperCollector(destination_policy=bdd_ctx["destination_policy"])
+    with patch("socket.gethostbyname") as dns, patch("socket.create_connection") as connect:
+        with pytest.raises(DestinationScopeError):
+            collector.resolve_target("outside.corp.internal")
+        bdd_ctx["host_blocked_before_dns"] = dns.call_count == 0
+        dns.return_value = "203.0.113.99"
+        with pytest.raises(DestinationScopeError):
+            collector.assess_docker("dev.corp.internal")
+        bdd_ctx["address_blocked_before_socket"] = not connect.called
+
+
+@then("the host is rejected before DNS and the address before a socket opens")
+def verify_live_destination_gate(bdd_ctx):
+    assert bdd_ctx["host_blocked_before_dns"]
+    assert bdd_ctx["address_blocked_before_socket"]
+
+
+@given("an exact developer destination policy and Kubernetes context for a lab cluster")
+def setup_cluster_destination_policy(bdd_ctx):
+    fixture = json.loads((ROOT / "tests/fixtures/developer_runtime_destinations.json").read_text(encoding="utf-8"))
+    bdd_ctx["runtime_fixture"] = fixture
+    bdd_ctx["destination_policy"] = DeveloperDestinationPolicy.from_dict(fixture["policy"])
+
+
+@when("the approved cluster handoff and out-of-scope variants are prepared offline")
+def prepare_cluster_variants(bdd_ctx):
+    fixture = bdd_ctx["runtime_fixture"]
+    base = {
+        "kind": "cluster",
+        "target_host": "dev.corp.internal",
+        "policy": bdd_ctx["destination_policy"],
+        "kubeconfig": fixture["kubeconfig"],
+        **fixture["allowed_destinations"],
+    }
+    bdd_ctx["approved_handoff"] = prepare_developer_handoff(**base)
+    rejected = set()
+    for control in fixture["negative_controls"]:
+        changed = dict(base)
+        changed[control["option"].removeprefix("--")] = control["value"]
+        with pytest.raises(DestinationScopeError, match=control["error"]):
+            prepare_developer_handoff(**changed)
+        rejected.add(control["id"])
+
+    wrong_context = copy.deepcopy(fixture["kubeconfig"])
+    wrong_context["current-context"] = "wrong-context"
+    with pytest.raises(DestinationScopeError, match="Kubernetes context entry is missing"):
+        prepare_developer_handoff(**{**base, "kubeconfig": wrong_context})
+    rejected.add("kubernetes-context")
+
+    wrong_api = copy.deepcopy(fixture["kubeconfig"])
+    wrong_api["clusters"][0]["cluster"]["server"] = "https://outside.cluster.internal:6443"
+    with pytest.raises(DestinationScopeError, match="host is outside the destination allowlist"):
+        prepare_developer_handoff(**{**base, "kubeconfig": wrong_api})
+    rejected.add("kubernetes-api-host")
+    bdd_ctx["rejected_variants"] = rejected
+
+
+@then("the approved handoff routes to the cloud specialist without claiming connectivity")
+def verify_approved_cluster_handoff(bdd_ctx):
+    handoff = bdd_ctx["approved_handoff"]
+    assert handoff["specialist"] == "cops-cloud-specialist"
+    assert handoff["kubernetes_context"] == "lab-context"
+    assert handoff["kubernetes_api_host"] == "api.cluster.internal"
+    assert handoff["connectivity_verified"] is False
+
+
+@then("unlisted repositories, images, runtimes, clusters, contexts, and API hosts are rejected")
+def verify_rejected_cluster_variants(bdd_ctx):
+    assert bdd_ctx["rejected_variants"] == {
+        "repository",
+        "image",
+        "runtime",
+        "cluster",
+        "kubernetes-context",
+        "kubernetes-api-host",
+    }
+
+
+@given("an isolated offline developer runtime fixture")
+def setup_offline_runtime_fixture(bdd_ctx):
+    bdd_ctx["runtime_fixture"] = json.loads(
+        (ROOT / "tests/fixtures/developer_runtime_destinations.json").read_text(encoding="utf-8")
+    )
+
+
+@when("the fixture runs an approved handoff and an unlisted repository control")
+def run_offline_runtime_fixture(bdd_ctx):
+    fixture = bdd_ctx["runtime_fixture"]
+    with tempfile.TemporaryDirectory() as record_dir:
+        with tempfile.TemporaryDirectory(dir=record_dir) as work_dir:
+            work_path = Path(work_dir)
+            policy_file = work_path / "scope.json"
+            config_file = work_path / "kubeconfig.json"
+            output_file = work_path / "handoff.json"
+            policy_file.write_text(json.dumps(fixture["policy"]), encoding="utf-8")
+            config_file.write_text(json.dumps(fixture["kubeconfig"]), encoding="utf-8")
+            command = [
+                sys.executable,
+                "-m",
+                "cops",
+                "developer-services",
+                "handoff",
+                "--kind",
+                "cluster",
+                "--target-host",
+                "dev.corp.internal",
+                "--destination-policy",
+                str(policy_file),
+                "--kubeconfig",
+                str(config_file),
+                "--output",
+                str(output_file),
+            ]
+            allowed = [
+                item for option, value in fixture["allowed_destinations"].items() for item in (f"--{option}", value)
+            ]
+            child_env = {key: os.environ[key] for key in ("PATH", "SYSTEMROOT", "WINDIR") if key in os.environ}
+            child_env.update({"PYTHONPATH": str(ROOT), "HOME": work_dir, "TMPDIR": work_dir})
+
+            def run(arguments):
+                return subprocess.run(
+                    [*command, *arguments],
+                    cwd=work_path,
+                    env=child_env,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=15,
+                )
+
+            accepted = run(allowed)
+            assert accepted.returncode == 0, accepted.stderr
+            assert output_file.is_file()
+            output_file.unlink()
+            control = fixture["negative_controls"][0]
+            blocked_args = [
+                item
+                for option, value in fixture["allowed_destinations"].items()
+                if option != "repository"
+                for item in (f"--{option}", value)
+            ]
+            blocked = run([*blocked_args, control["option"], control["value"]])
+            bdd_ctx["runtime_record"] = {
+                "exit_code": blocked.returncode,
+                "reason": control["error"] if control["error"] in blocked.stderr else None,
+                "output_created": output_file.exists(),
+            }
+        bdd_ctx["runtime_record"]["cleanup_verified"] = not work_path.exists()
+
+
+@then("it records the rejection and verifies temporary fixture cleanup")
+def verify_offline_runtime_fixture(bdd_ctx):
+    assert bdd_ctx["runtime_record"] == {
+        "exit_code": 2,
+        "reason": "repositories destination is outside the allowlist",
+        "output_created": False,
+        "cleanup_verified": True,
+    }

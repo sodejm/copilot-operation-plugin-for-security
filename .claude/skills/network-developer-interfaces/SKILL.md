@@ -37,6 +37,7 @@ Execute authorized, bounded exposure and configuration assessments across develo
    - Application-layer findings (e.g. AJP servlet exposure, Docker registry manifest contents) route to web and application specialists (`cops-web-specialist`, `cops-appsec-engineer`).
    - Container cluster and cloud control-plane interfaces route to cloud infrastructure specialists (`cops-cloud-specialist`).
    - Host breakout and remote code execution findings route to penetration testing specialists (`cops-pentest-specialist`, `cops-redteam-operator`).
+   - Before cluster handoff, use `developer-services handoff --kind cluster` with exact destination allowlists and a JSON kubeconfig. The command validates context metadata offline and reports `connectivity_verified: false`.
 
 4. **Crucial Truth Boundary: Inaccessible != Secure**:
    - If an interface times out, is connection-refused, or is filtered by network controls, it is strictly recorded as `inaccessible` with `auth_prerequisite: unknown` and explicit uncertainty notes.
@@ -65,7 +66,9 @@ Execute authorized, bounded exposure and configuration assessments across develo
 ### 1. Assess Developer and Runtime Interface Services
 ```bash
 python3 -m cops developer-services assess \
-  --targets "198.51.100.50,dev-runner01.corp.internal" \
+  --mode live \
+  --targets "dev-runner01.corp.internal" \
+  --destination-policy destination-policy.json \
   --vantage internal \
   --canary-id "canary_debug_probe" \
   --output developer_assessment.json
@@ -74,7 +77,9 @@ python3 -m cops developer-services assess \
 With authorized non-destructive code execution verification:
 ```bash
 python3 -m cops developer-services assess \
-  --targets "198.51.100.50" \
+  --mode live \
+  --targets "dev-runner01.corp.internal" \
+  --destination-policy destination-policy.json \
   --services "docker,jdwp,distcc" \
   --allow-code-execution \
   --canary-id "canary_docker_probe" \
@@ -84,9 +89,24 @@ python3 -m cops developer-services assess \
 Or via the discovery namespace:
 ```bash
 python3 -m cops discovery developer assess \
-  --targets "198.51.100.50" \
+  --mode live \
+  --targets "dev-runner01.corp.internal" \
+  --destination-policy destination-policy.json \
   --output developer_assessment.json
 ```
+
+The policy JSON lists exact `hosts` and `resolved_ips` for live collection, plus any approved `repositories`, `images`, `runtimes`, and `clusters` for handoff. See the package README for the schema and example. The collector checks the host before DNS and the resolved IP before socket use.
+
+### Prepare a Cluster Handoff
+```bash
+python3 -m cops developer-services handoff \
+  --kind cluster --target-host dev-runner01.corp.internal \
+  --destination-policy destination-policy.json \
+  --cluster lab-cluster --kubeconfig kubeconfig.json \
+  --output cluster_handoff.json
+```
+
+The JSON kubeconfig must have a current context selecting `lab-cluster` and an allowed HTTPS API server hostname. This offline command does not verify connectivity or credentials.
 
 ### 2. Export Developer Privilege Candidates
 ```bash
