@@ -37,6 +37,28 @@
       ]
     },
     {
+      "case_id": "CASE-SPL-BND-NO-SUPPRESSION",
+      "description": "Boundary case: A prior alert for the same host does not suppress the tenantless PowerShell source",
+      "label": "boundary",
+      "expected_match": true,
+      "tags": ["prior_alert", "suppression_disabled"],
+      "prior_alerts": [
+        {
+          "timestamp": "2026-10-01T13:30:00Z",
+          "identity": "WORKSTATION-09.corp.internal"
+        }
+      ],
+      "events": [
+        {
+          "_time": "2026-10-01T14:00:00Z",
+          "EventCode": 4104,
+          "ScriptBlockText": "powershell.exe -EncodedCommand SQBFAFgA...",
+          "Computer": "WORKSTATION-09.corp.internal",
+          "User": "CORP\\\\alice"
+        }
+      ]
+    },
+    {
       "case_id": "CASE-SPL-NEG-01",
       "description": "True negative: Benign administrative process listing",
       "label": "negative",
