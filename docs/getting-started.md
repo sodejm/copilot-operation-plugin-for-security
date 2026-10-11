@@ -33,7 +33,7 @@ cd copilot-operation-plugin-for-security
 # 2. Check local environment health and catalog synchronization
 python3 -m cops doctor
 
-# 3. List all 13 plugins and their validation status
+# 3. List all 14 plugins and their validation status
 python3 -m cops list
 
 # 4. Inspect details and operational playbooks for a specific plugin
@@ -61,7 +61,7 @@ python3 -m cops doctor
 
 ### What `cops doctor` checks:
 1. **Python Interpreter**: Confirms that your active Python interpreter is version 3.11 or newer.
-2. **Catalog Integrity**: Verifies that all 13 package manifests match their catalog declarations.
+2. **Catalog Integrity**: Verifies that all 14 package manifests match their catalog declarations.
 3. **Marketplace Synchronization**: Ensures that generated host indexes (`.github/plugin/marketplace.json`, `.claude-plugin/marketplace.json`, `.agents/plugins/marketplace.json`) are in sync with `catalog/plugins.json`.
 4. **Offline Readiness**: Confirms that local tools execute without unverified external network requirements.
 
@@ -71,7 +71,7 @@ If any check reports an issue, the output provides clear, actionable instruction
 
 ## Step 2: Exploring the Plugin Catalog (`cops list` & `cops info`)
 
-COPS packages 13 dedicated security plugins across defensive and offensive domains. To view the full catalog:
+COPS packages 14 dedicated security plugins across defensive and offensive domains. To view the full catalog:
 
 ```bash
 python3 -m cops list
@@ -170,7 +170,7 @@ To verify the code correctness, schemas, and regression tests of a plugin locall
 # Check a single package
 python3 -m cops check sentinel-hunt-workbench
 
-# Check all 13 packages
+# Check all 14 packages
 python3 -m cops check
 ```
 

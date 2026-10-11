@@ -16,7 +16,7 @@ python3 -m cops doctor
 
 ### What to look for
 - **Python version**: You should see your Python interpreter confirmed as 3.11 or newer.
-- **Catalog health**: Confirms that all thirteen security plugins and host marketplaces are synchronized.
+- **Catalog health**: Confirms that all fourteen security plugins and host marketplaces are synchronized.
 - **Offline status**: Confirms that local tools run without external network dependencies.
 
 If any check reports an issue, the output will give you clear, actionable instructions on how to resolve it.
@@ -25,7 +25,7 @@ If any check reports an issue, the output will give you clear, actionable instru
 
 ## 2. Choose the Right Tool for the Job
 
-COPS packages thirteen dedicated security plugins across defensive and offensive domains. To see the full catalog and current validation status, run:
+COPS packages fourteen dedicated security plugins across defensive and offensive domains. To see the full catalog and current validation status, run:
 
 ```bash
 python3 -m cops list
@@ -111,7 +111,7 @@ python3 -m cops validate sentinel-hunt-workbench
 python3 -m cops check sentinel-hunt-workbench
 ```
 
-To run offline checks across all thirteen plugins in sequence:
+To run offline checks across all fourteen plugins in sequence:
 
 ```bash
 python3 -m cops check
