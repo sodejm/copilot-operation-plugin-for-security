@@ -59,6 +59,16 @@ Portable plugins must explicitly declare and distribute a compatible SDK before
 adoption. See the [SDK specification](../specs/shared-evidence-sdk.spec.md) and
 [guide](../docs/EVIDENCE_SDK.md) for raw/normalized evidence, security and migration.
 
+## Assessment budget fixture
+
+`cops.assessment_budget` is an opt-in, engagement-scoped SQLite admission ledger
+with a synthetic dispatcher. It atomically charges child attempts and retries,
+keeps uncertain dispatches reserved across cancellation and restart, signals
+active fixture callbacks on cancellation, and binds
+the operator's price assumptions to the policy. It is not wired to a provider;
+that integration depends on issue #150. See the [budget specification](../specs/aggregate-assessment-budgets.spec.md)
+and [operator guide](../docs/ASSESSMENT_BUDGETS.md).
+
 ## Authenticated execution boundary
 
 High-consequence execution requires an authorization signed over the complete
