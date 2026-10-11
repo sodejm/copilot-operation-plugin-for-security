@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from .export import export_diagnostic_report
 from .models import (
     DiagnosticCheck,
     DiagnosticReport,
@@ -26,5 +27,6 @@ __all__ = [
     "diagnose_packages",
     "diagnose_plugin_package",
     "diagnose_tool",
+    "export_diagnostic_report",
     "run_diagnostics",
 ]

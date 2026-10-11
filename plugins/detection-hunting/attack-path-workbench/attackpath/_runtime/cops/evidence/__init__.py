@@ -1,4 +1,4 @@
-"""Shared evidence contracts; portable consumers use the generated approved subset."""
+"""Evidence contracts, validation, inventory, and controlled export boundaries."""
 
 from .ai_components import (
     ComponentVerificationError,
@@ -15,12 +15,48 @@ from .ai_inventory import (
     import_inventory,
     inventory_report,
 )
-from .assessment import assess, report
+from .assessment import (
+    assess,
+    export_assessment_report,
+    export_assessment_telemetry,
+    export_provider_assessment,
+    report,
+)
 from .canonical import EvidenceError, canonical, decode_json
 from .contract import build_envelope
+from .export_policy import (
+    POLICY_SCHEMA_VERSION,
+    Attachment,
+    Classification,
+    DestinationRule,
+    ExportAction,
+    ExportAudit,
+    ExportBoundary,
+    ExportPolicy,
+    ExportRefused,
+    FieldRule,
+    SanitizedAttachment,
+    SanitizedExport,
+    SinkDescriptor,
+    evaluate_privacy_corpus,
+)
 from .validation import validate_envelope, validate_receipt
 
 __all__ = [
+    "POLICY_SCHEMA_VERSION",
+    "Attachment",
+    "Classification",
+    "DestinationRule",
+    "ExportAction",
+    "ExportAudit",
+    "ExportBoundary",
+    "ExportPolicy",
+    "ExportRefused",
+    "FieldRule",
+    "SanitizedAttachment",
+    "SanitizedExport",
+    "SinkDescriptor",
+    "evaluate_privacy_corpus",
     "EvidenceError",
     "canonical",
     "decode_json",
@@ -29,8 +65,9 @@ __all__ = [
     "validate_receipt",
     "assess",
     "report",
-]
-__all__ += [
+    "export_assessment_report",
+    "export_assessment_telemetry",
+    "export_provider_assessment",
     "InventoryError",
     "InventoryRegistry",
     "import_inventory",
