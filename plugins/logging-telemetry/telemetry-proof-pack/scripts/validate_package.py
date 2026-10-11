@@ -133,7 +133,10 @@ def validate() -> int:
             or not destination_stage.get("raw_evidence_hash")
             or expected_reason not in destination_stage["details"]["reason"]
         ):
-            print(f"FAIL: {scenario} did not preserve the expected stage evidence and unresolved destination", file=sys.stderr)
+            print(
+                f"FAIL: {scenario} did not preserve the expected stage evidence and unresolved destination",
+                file=sys.stderr,
+            )
             return 1
 
     print("  OK: Validated degraded, broken, tenant, duplicate, and delayed failure modes.")

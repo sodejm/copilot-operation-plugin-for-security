@@ -63,9 +63,10 @@ def correlate_pipeline_evidence(manifest: RunManifest, evidence_files: dict[str,
     diagnostics: list[str] = []
     next_checks: list[str] = []
     window_start, window_end = _capture_window(manifest)
-    matches = {name: _matching_records(evidence_files.get(name), marker) for name in (
-        "source_event", "cribl_route", "destination_indexing", "query_evaluation", "alert_creation"
-    )}
+    matches = {
+        name: _matching_records(evidence_files.get(name), marker)
+        for name in ("source_event", "cribl_route", "destination_indexing", "query_evaluation", "alert_creation")
+    }
 
     # 1. Source Emission Stage
     src_data = matches["source_event"][0] if matches["source_event"] else None
@@ -76,34 +77,44 @@ def correlate_pipeline_evidence(manifest: RunManifest, evidence_files: dict[str,
         # Check tenant isolation
         evt_tenant = src_data.get("tenant_id", expected_tenant)
         if expected_tenant and evt_tenant != expected_tenant:
-            stages.append(StageObservation(
-                stage_name="source_emission",
-                status="unresolved",
-                component="Source Provider",
-                evidence_id=ev_id,
-                timestamp=ts,
-                raw_evidence_hash=_compute_hash(src_data),
-                details={"reason": f"Cross-tenant collision: event tenant '{evt_tenant}' != expected '{expected_tenant}'"},
-            ))
-            diagnostics.append(f"Source event tenant '{evt_tenant}' conflicts with expected tenant '{expected_tenant}'.")
+            stages.append(
+                StageObservation(
+                    stage_name="source_emission",
+                    status="unresolved",
+                    component="Source Provider",
+                    evidence_id=ev_id,
+                    timestamp=ts,
+                    raw_evidence_hash=_compute_hash(src_data),
+                    details={
+                        "reason": f"Cross-tenant collision: event tenant '{evt_tenant}' != expected '{expected_tenant}'"
+                    },
+                )
+            )
+            diagnostics.append(
+                f"Source event tenant '{evt_tenant}' conflicts with expected tenant '{expected_tenant}'."
+            )
         else:
-            stages.append(StageObservation(
-                stage_name="source_emission",
-                status="observed",
-                component="Source Telemetry Provider",
-                evidence_id=ev_id,
-                timestamp=ts,
-                raw_evidence_hash=_compute_hash(src_data),
-                details={"marker": marker, "event_type": manifest.source_event_type},
-            ))
+            stages.append(
+                StageObservation(
+                    stage_name="source_emission",
+                    status="observed",
+                    component="Source Telemetry Provider",
+                    evidence_id=ev_id,
+                    timestamp=ts,
+                    raw_evidence_hash=_compute_hash(src_data),
+                    details={"marker": marker, "event_type": manifest.source_event_type},
+                )
+            )
     else:
-        stages.append(StageObservation(
-            stage_name="source_emission",
-            status="missing",
-            component="Source Telemetry Provider",
-            evidence_id="MISSING",
-            details={"reason": f"Synthetic marker '{marker}' was not found in source event records."},
-        ))
+        stages.append(
+            StageObservation(
+                stage_name="source_emission",
+                status="missing",
+                component="Source Telemetry Provider",
+                evidence_id="MISSING",
+                details={"reason": f"Synthetic marker '{marker}' was not found in source event records."},
+            )
+        )
         diagnostics.append(f"No source evidence record contains synthetic marker '{marker}'.")
         next_checks.append("Verify source audit logging configuration and test event generator.")
 
@@ -113,62 +124,74 @@ def correlate_pipeline_evidence(manifest: RunManifest, evidence_files: dict[str,
         c_status = cribl_data.get("status", "routed")
         ts = cribl_data.get("timestamp", "")
         if c_status == "dropped" or cribl_data.get("filtered_out"):
-            stages.append(StageObservation(
-                stage_name="pipeline_routing",
-                status="unresolved",
-                component="Cribl Stream Worker",
-                evidence_id=cribl_data.get("route_id", "cribl-route-01"),
-                timestamp=ts,
-                raw_evidence_hash=_compute_hash(cribl_data),
-                details={"reason": "Supplied Cribl route record marks this event as filtered or dropped."},
-            ))
+            stages.append(
+                StageObservation(
+                    stage_name="pipeline_routing",
+                    status="unresolved",
+                    component="Cribl Stream Worker",
+                    evidence_id=cribl_data.get("route_id", "cribl-route-01"),
+                    timestamp=ts,
+                    raw_evidence_hash=_compute_hash(cribl_data),
+                    details={"reason": "Supplied Cribl route record marks this event as filtered or dropped."},
+                )
+            )
             diagnostics.append("Supplied Cribl route evidence marks the synthetic marker event as dropped or filtered.")
             next_checks.append("Inspect Cribl route filter rules and pipeline regex expressions.")
         else:
-            stages.append(StageObservation(
-                stage_name="pipeline_routing",
-                status="observed",
-                component="Cribl Stream Worker",
-                evidence_id=cribl_data.get("route_id", "cribl-route-01"),
-                timestamp=ts,
-                raw_evidence_hash=_compute_hash(cribl_data),
-                details=redact_dict(cribl_data.get("metrics", {})),
-            ))
+            stages.append(
+                StageObservation(
+                    stage_name="pipeline_routing",
+                    status="observed",
+                    component="Cribl Stream Worker",
+                    evidence_id=cribl_data.get("route_id", "cribl-route-01"),
+                    timestamp=ts,
+                    raw_evidence_hash=_compute_hash(cribl_data),
+                    details=redact_dict(cribl_data.get("metrics", {})),
+                )
+            )
     else:
-        stages.append(StageObservation(
-            stage_name="pipeline_routing",
-            status="missing",
-            component="Cribl Stream Worker",
-            evidence_id="MISSING",
-            details={"reason": f"No supplied Cribl route record contains marker '{marker}'."},
-        ))
+        stages.append(
+            StageObservation(
+                stage_name="pipeline_routing",
+                status="missing",
+                component="Cribl Stream Worker",
+                evidence_id="MISSING",
+                details={"reason": f"No supplied Cribl route record contains marker '{marker}'."},
+            )
+        )
         diagnostics.append("No Cribl Stream evidence record contains the synthetic marker.")
         next_checks.append("Check Cribl Stream receiver health and worker node connectivity.")
 
     # 3. Destination Indexing Stage (Splunk Index or Sentinel Table)
     dest_data = matches["destination_indexing"][0] if matches["destination_indexing"] else None
-    dest_component = "Splunk HEC / Indexer" if manifest.pipeline_route == "cribl_to_splunk" else "Log Analytics Workspace"
+    dest_component = (
+        "Splunk HEC / Indexer" if manifest.pipeline_route == "cribl_to_splunk" else "Log Analytics Workspace"
+    )
     dest_indexed = False
     if dest_data:
         dest_indexed = True
         ts = dest_data.get("indexed_time", dest_data.get("TimeGenerated", dest_data.get("_time", "")))
-        stages.append(StageObservation(
-            stage_name="destination_indexing",
-            status="observed",
-            component=dest_component,
-            evidence_id=dest_data.get("record_id", f"idx-{marker}"),
-            timestamp=ts,
-            raw_evidence_hash=_compute_hash(dest_data),
-            details={"target_container": manifest.destination.get("target_container")},
-        ))
+        stages.append(
+            StageObservation(
+                stage_name="destination_indexing",
+                status="observed",
+                component=dest_component,
+                evidence_id=dest_data.get("record_id", f"idx-{marker}"),
+                timestamp=ts,
+                raw_evidence_hash=_compute_hash(dest_data),
+                details={"target_container": manifest.destination.get("target_container")},
+            )
+        )
     else:
-        stages.append(StageObservation(
-            stage_name="destination_indexing",
-            status="missing",
-            component=dest_component,
-            evidence_id="MISSING",
-            details={"reason": f"No supplied destination record contains marker '{marker}'."},
-        ))
+        stages.append(
+            StageObservation(
+                stage_name="destination_indexing",
+                status="missing",
+                component=dest_component,
+                evidence_id="MISSING",
+                details={"reason": f"No supplied destination record contains marker '{marker}'."},
+            )
+        )
         diagnostics.append(f"No {dest_component} evidence record contains the synthetic marker.")
         next_checks.append("Verify destination credentials, HEC token, or Data Collection Rule permissions.")
 
@@ -179,47 +202,57 @@ def correlate_pipeline_evidence(manifest: RunManifest, evidence_files: dict[str,
         matched_count = query_data.get("matched_count")
         ts = query_data.get("evaluation_time", "")
         if type(matched_count) is not int or matched_count < 0:
-            stages.append(StageObservation(
-                stage_name="query_evaluation",
-                status="unresolved",
-                component=f"{rule_name} (Scheduled Query)",
-                evidence_id=query_data.get("execution_id", "exec-01"),
-                timestamp=ts,
-                raw_evidence_hash=_compute_hash(query_data),
-                details={"reason": "Supplied rule execution record has invalid matched_count; expected a nonnegative integer."},
-            ))
+            stages.append(
+                StageObservation(
+                    stage_name="query_evaluation",
+                    status="unresolved",
+                    component=f"{rule_name} (Scheduled Query)",
+                    evidence_id=query_data.get("execution_id", "exec-01"),
+                    timestamp=ts,
+                    raw_evidence_hash=_compute_hash(query_data),
+                    details={
+                        "reason": "Supplied rule execution record has invalid matched_count; expected a nonnegative integer."
+                    },
+                )
+            )
             diagnostics.append(f"Supplied execution record for detection rule '{rule_name}' has invalid matched_count.")
             next_checks.append("Verify the scheduled query export includes a nonnegative integer matched_count.")
         elif matched_count > 0:
-            stages.append(StageObservation(
-                stage_name="query_evaluation",
-                status="observed",
-                component=f"{rule_name} (Scheduled Query)",
-                evidence_id=query_data.get("execution_id", "exec-01"),
-                timestamp=ts,
-                raw_evidence_hash=_compute_hash(query_data),
-                details={"matched_count": matched_count, "rule_id": manifest.detection_rule.get("rule_id")},
-            ))
+            stages.append(
+                StageObservation(
+                    stage_name="query_evaluation",
+                    status="observed",
+                    component=f"{rule_name} (Scheduled Query)",
+                    evidence_id=query_data.get("execution_id", "exec-01"),
+                    timestamp=ts,
+                    raw_evidence_hash=_compute_hash(query_data),
+                    details={"matched_count": matched_count, "rule_id": manifest.detection_rule.get("rule_id")},
+                )
+            )
         else:
-            stages.append(StageObservation(
-                stage_name="query_evaluation",
-                status="unresolved",
-                component=f"{rule_name} (Scheduled Query)",
-                evidence_id=query_data.get("execution_id", "exec-01"),
-                timestamp=ts,
-                raw_evidence_hash=_compute_hash(query_data),
-                details={"reason": "Supplied rule execution record reports zero matching rows."},
-            ))
+            stages.append(
+                StageObservation(
+                    stage_name="query_evaluation",
+                    status="unresolved",
+                    component=f"{rule_name} (Scheduled Query)",
+                    evidence_id=query_data.get("execution_id", "exec-01"),
+                    timestamp=ts,
+                    raw_evidence_hash=_compute_hash(query_data),
+                    details={"reason": "Supplied rule execution record reports zero matching rows."},
+                )
+            )
             diagnostics.append(f"Supplied execution record for detection rule '{rule_name}' reports no marker match.")
             next_checks.append("Review detection rule KQL/SPL query logic, time bounds, and threshold settings.")
     else:
-        stages.append(StageObservation(
-            stage_name="query_evaluation",
-            status="missing",
-            component=f"{rule_name} (Scheduled Query)",
-            evidence_id="MISSING",
-            details={"reason": "No supplied execution record contains the marker."},
-        ))
+        stages.append(
+            StageObservation(
+                stage_name="query_evaluation",
+                status="missing",
+                component=f"{rule_name} (Scheduled Query)",
+                evidence_id="MISSING",
+                details={"reason": "No supplied execution record contains the marker."},
+            )
+        )
         diagnostics.append(f"No execution evidence record was found for scheduled detection query '{rule_name}'.")
         next_checks.append("Check SIEM scheduled search / analytics rule status and schedule interval.")
 
@@ -230,23 +263,27 @@ def correlate_pipeline_evidence(manifest: RunManifest, evidence_files: dict[str,
     if alert_data:
         alert_created = True
         ts = alert_data.get("created_time", alert_data.get("TimeGenerated", ""))
-        stages.append(StageObservation(
-            stage_name="alert_creation",
-            status="observed",
-            component=alert_component,
-            evidence_id=alert_data.get("alert_id", "alert-01"),
-            timestamp=ts,
-            raw_evidence_hash=_compute_hash(alert_data),
-            details={"severity": alert_data.get("severity", "high")},
-        ))
+        stages.append(
+            StageObservation(
+                stage_name="alert_creation",
+                status="observed",
+                component=alert_component,
+                evidence_id=alert_data.get("alert_id", "alert-01"),
+                timestamp=ts,
+                raw_evidence_hash=_compute_hash(alert_data),
+                details={"severity": alert_data.get("severity", "high")},
+            )
+        )
     else:
-        stages.append(StageObservation(
-            stage_name="alert_creation",
-            status="missing",
-            component=alert_component,
-            evidence_id="MISSING",
-            details={"reason": "No supplied alert or incident evidence record contains the marker."},
-        ))
+        stages.append(
+            StageObservation(
+                stage_name="alert_creation",
+                status="missing",
+                component=alert_component,
+                evidence_id="MISSING",
+                details={"reason": "No supplied alert or incident evidence record contains the marker."},
+            )
+        )
         if dest_indexed and not alert_created:
             diagnostics.append("A destination marker record was supplied, but no matching alert evidence was supplied.")
             next_checks.append("Check alert creation suppression rules, throttling window, and grouping settings.")
@@ -332,7 +369,9 @@ def correlate_pipeline_evidence(manifest: RunManifest, evidence_files: dict[str,
         },
         "stages_breakdown": [s.to_dict() for s in stages],
         "diagnostics": diagnostics if diagnostics else ["All five supplied stage records passed correlation checks."],
-        "next_recommended_checks": next_checks if next_checks else ["Review the source systems and continue scoped synthetic monitoring."],
+        "next_recommended_checks": next_checks
+        if next_checks
+        else ["Review the source systems and continue scoped synthetic monitoring."],
         "privacy_statement": (
             "Use synthetic markers and sanitize source evidence before running this offline tool. "
             "Only Cribl metrics in the stage details receive built-in redaction; IDs and other details can appear in reports. "

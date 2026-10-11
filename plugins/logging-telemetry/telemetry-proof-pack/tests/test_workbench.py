@@ -104,7 +104,10 @@ def test_hec_indexed_rule_missed_degraded_scenario(fixtures_dir: Path):
     report = correlate_pipeline_evidence(manifest, evidence)
     assert report["pipeline_health"] == "degraded"
     assert report["summary"]["detection_fired"] is False
-    assert any("execution record for detection rule 'Suspicious PowerShell Execution' reports no marker match" in d for d in report["diagnostics"])
+    assert any(
+        "execution record for detection rule 'Suspicious PowerShell Execution' reports no marker match" in d
+        for d in report["diagnostics"]
+    )
 
 
 def test_missing_cribl_stage_broken_scenario(fixtures_dir: Path):
@@ -117,7 +120,10 @@ def test_missing_cribl_stage_broken_scenario(fixtures_dir: Path):
     report = correlate_pipeline_evidence(manifest, evidence)
     assert report["pipeline_health"] == "broken"
     assert report["summary"]["observed_stages_count"] == 1
-    assert any("Cribl route evidence marks the synthetic marker event as dropped or filtered" in d for d in report["diagnostics"])
+    assert any(
+        "Cribl route evidence marks the synthetic marker event as dropped or filtered" in d
+        for d in report["diagnostics"]
+    )
 
 
 def test_cross_tenant_collision_scenario(fixtures_dir: Path):
@@ -149,7 +155,8 @@ def test_duplicate_marker_fixture_preserves_other_stage_evidence(fixtures_dir: P
     assert stages["destination_indexing"]["status"] == "unresolved"
     assert stages["destination_indexing"]["details"]["matching_record_count"] == 2
     assert stages["destination_indexing"]["details"]["matching_evidence_ids"] == [
-        "splunk-hec-rec-5001", "splunk-hec-rec-5002"
+        "splunk-hec-rec-5001",
+        "splunk-hec-rec-5002",
     ]
     assert stages["destination_indexing"]["raw_evidence_hash"]
     assert stages["pipeline_routing"]["status"] == "observed"
@@ -196,7 +203,9 @@ def test_delayed_event_fixture_preserves_other_stage_evidence(fixtures_dir: Path
 
 
 @pytest.mark.parametrize("matched_count", [True, "1", None, [], -1, 1.0])
-def test_invalid_query_count_cannot_certify_healthy_trace(fixtures_dir: Path, splunk_manifest: RunManifest, matched_count):
+def test_invalid_query_count_cannot_certify_healthy_trace(
+    fixtures_dir: Path, splunk_manifest: RunManifest, matched_count
+):
     evidence = load_evidence_files(fixtures_dir / "routes" / "cribl-splunk-route")
     evidence["query_evaluation"]["matched_count"] = matched_count
 

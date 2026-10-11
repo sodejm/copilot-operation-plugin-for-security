@@ -63,7 +63,9 @@ def render_markdown_report(report_data: dict[str, Any]) -> str:
         evidence_hash = s.get("raw_evidence_hash") or "—"
         detail_items = s.get("details", {})
         det_str = "; ".join(f"{k}={v}" for k, v in detail_items.items()) if detail_items else "No details supplied"
-        lines.append(f"| `{s['stage_name']}` | {st_lbl} | {s['component']} | {ts_str} | `{ev_id}` | `{evidence_hash}` | {det_str} |")
+        lines.append(
+            f"| `{s['stage_name']}` | {st_lbl} | {s['component']} | {ts_str} | `{ev_id}` | `{evidence_hash}` | {det_str} |"
+        )
 
     lines.append("")
     lines.append("## Diagnostic Findings")
