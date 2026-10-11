@@ -28,7 +28,7 @@ Use this guide to determine which plugin best matches your operational requireme
 | **Review code diffs and pull requests for security flaws** | `patch-security-review` | Vulnerability Management | <span class="badge badge-beta">Beta</span> | `import` | `python3 -m cops check patch-security-review` |
 | **Plan an authorized, passive attack surface review** | `attack-surface-planner` | Offensive Security | <span class="badge badge-experimental">Experimental</span> | `planned` | `python3 -m cops demo attack-surface-planner` |
 | **Intake engagement scope and compile action plans** | `offensive-engagement-workbench` | Offensive Security | <span class="badge badge-experimental">Experimental</span> | `planned` | `python3 -m cops demo offensive-engagement-workbench` |
-| **Test AI agent prompt injection resistance** | `foundry-agent-harness` | Offensive Security | <span class="badge badge-beta">Beta</span> | `laboratory` | `python3 -m cops check foundry-agent-harness` |
+| **Rehearse synthetic agent tool authorization** | `foundry-agent-harness` | Offensive Security | <span class="badge badge-beta">Beta</span> | `laboratory` | `python3 -m cops check foundry-agent-harness` |
 | **Rehearse containment with cryptographic receipts** | `incident-response-sandbox` | Incident Response | <span class="badge badge-beta">Beta</span> | `laboratory` | `python3 -m cops check incident-response-sandbox` |
 
 ---
@@ -139,9 +139,9 @@ Use this guide to determine which plugin best matches your operational requireme
 
 #### Foundry Agent Harness
 - **Maturity**: <span class="badge badge-beta">Beta</span> | **Operational Mode**: `laboratory`
-- **When to use**: When evaluating an autonomous AI agent's robustness against adversarial prompt injection, jailbreak attempts, and unauthorized tool invocation.
-- **Key Capabilities**: Simulated agent sandbox, adversarial payload replay, safety boundary scoring.
-- **Boundaries**: Mock runtime sandbox; isolates testing without sending data to third-party inference APIs.
+- **When to use**: When rehearsing how an independent authorization gate handles synthetic agent tool proposals from untrusted content.
+- **Key Capabilities**: Versioned local agent and MCP fixture cases, observed gate denials and mock effects, paired permissive and strict controls.
+- **Boundaries**: No hosted model, deployed agent, or live MCP integration. Fixture subprocesses are not an operating-system network sandbox.
 - **Playbook**: `plugins/offensive-security/foundry-agent-harness/docs/PLAYBOOK.md`
 
 ---

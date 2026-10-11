@@ -10,12 +10,14 @@ from pathlib import Path
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     from foundryharness.gate import IndependentAuthorizationGate
+    from foundryharness.laboratory import LabError, load_lab_cases, run_lab_case
     from foundryharness.mock_sandbox import MockSandbox
     from foundryharness.models import HarnessError, Scenario
     from foundryharness.reporting import render_json_report, render_markdown_report
     from foundryharness.simulator import evaluate_scenario
 else:
     from .gate import IndependentAuthorizationGate
+    from .laboratory import LabError, load_lab_cases, run_lab_case
     from .mock_sandbox import MockSandbox
     from .models import HarnessError, Scenario
     from .reporting import render_json_report, render_markdown_report
@@ -52,7 +54,7 @@ def load_scenarios(scenario_path: Path | None, scenarios_dir: Path | None) -> li
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="foundryharness",
-        description="Offline adversarial agent review harness for Microsoft Foundry agents.",
+        description="Offline synthetic agent authorization scenarios and local MCP fixtures.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -62,12 +64,18 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--scenarios-dir", type=Path, help="path to directory of scenario JSON files")
     run_parser.add_argument("--output", type=Path, help="write report output to file")
     run_parser.add_argument("--json", action="store_true", help="output structured JSON instead of Markdown")
-    run_parser.add_argument("--agent-name", default="Foundry-Ops-Support-Agent", help="target agent name")
-    run_parser.add_argument("--agent-version", default="1.0.0", help="target agent version")
+    run_parser.add_argument("--agent-name", default="Synthetic-Scenario-Fixture", help="scenario report label")
+    run_parser.add_argument("--agent-version", default="1.0.0", help="scenario report version label")
 
     # list command
     list_parser = subparsers.add_parser("list", help="list available scenario definitions")
     list_parser.add_argument("--scenarios-dir", type=Path, required=True, help="path to directory of scenarios")
+
+    lab_parser = subparsers.add_parser("lab", help="run local synthetic agent and MCP fixture cases")
+    lab_parser.add_argument("--cases", type=Path, default=Path(__file__).resolve().parent.parent / "lab_cases",
+                            help="lab case JSON file or directory")
+    lab_parser.add_argument("--output", type=Path, help="write report output to file")
+    lab_parser.add_argument("--json", action="store_true", help="output structured JSON instead of a concise summary")
 
     return parser
 
@@ -90,7 +98,7 @@ def main(argv: list[str] | None = None) -> int:
             target_agent = {
                 "agent_name": args.agent_name,
                 "agent_version": args.agent_version,
-                "framework": "Microsoft Foundry / Semantic Kernel",
+                "framework": "Deterministic scenario simulator",
             }
             environment = "mock-sandbox-offline"
 
@@ -117,7 +125,39 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"{sc.scenario_id:<15} {sc.attacker_controlled_surface:<25} {sc.title}")
             return 0
 
-    except HarnessError as exc:
+        elif args.command == "lab":
+            cases = load_lab_cases(args.cases)
+            results = [run_lab_case(case) for case in cases]
+            passed = all(result["expectation_met"] for result in results)
+            if args.json:
+                out_str = json.dumps({
+                    "schema_version": "cops.agent-mcp-lab-run/v1",
+                    "environment": "local-synthetic-fixtures",
+                    "all_expectations_met": passed,
+                    "results": results,
+                }, indent=2) + "\n"
+            else:
+                lines = [
+                    "Local synthetic agent and MCP fixture laboratory",
+                    f"Cases: {len(results)}; expectations met: {sum(result['expectation_met'] for result in results)}",
+                ]
+                for result in results:
+                    lines.append(
+                        f"{result['case_id']}: denied={len(result['denied_calls'])} "
+                        f"effects={len(result['executed_effects'])} "
+                        f"cleanup={result['cleanup_verified']} "
+                        f"expectation_met={result['expectation_met']}"
+                    )
+                out_str = "\n".join(lines) + "\n"
+            if args.output:
+                args.output.parent.mkdir(parents=True, exist_ok=True)
+                args.output.write_text(out_str, encoding="utf-8")
+                print(f"Wrote report to {args.output}")
+            else:
+                print(out_str, end="")
+            return 0 if passed else 1
+
+    except (HarnessError, LabError, OSError, json.JSONDecodeError) as exc:
         print(f"foundryharness error: {exc}", file=sys.stderr)
         return 2
 

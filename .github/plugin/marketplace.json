@@ -49,7 +49,7 @@
     },
     {
       "name": "foundry-agent-harness",
-      "description": "Author adversarial scenarios and evaluate Microsoft Foundry and Semantic Kernel agents against deterministic mock sandboxes.",
+      "description": "Rehearse synthetic agent tool authorization with deterministic scenarios and local MCP fixtures.",
       "version": "0.1.0",
       "source": "./plugins/offensive-security/foundry-agent-harness"
     },

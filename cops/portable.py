@@ -20,7 +20,7 @@ PORTABLE_ENTRIES = {
     "CHANGELOG.md", "SECURITY.md", "SOURCE_PROVENANCE.md", "walkthrough.md",
     "hunts", "profiles", "schemas", "fixtures", "evaluations", "huntwb",
     "investigationwb", "attackpath", "attack_surface_planner", "entrawb", "exposuretriage",
-    "foundryharness", "scenarios", "detectionquality", "rules", "proofpack", "routes",
+    "foundryharness", "scenarios", "lab_cases", "detectionquality", "rules", "proofpack", "routes",
     "patchreview", "incident_response", "threat_intel", "offensive_engagement_workbench",
     "agents", "com.github.copilot", "org.cops",
 }

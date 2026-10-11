@@ -238,7 +238,7 @@ def test_cli_list_and_evaluate(scenarios_dir: Path, tmp_path: Path):
     assert exit_code == 0
     assert md_out.exists()
     content = md_out.read_text(encoding="utf-8")
-    assert "# Microsoft Foundry Adversarial Agent Review Report" in content
+    assert "# Foundry Agent Harness Synthetic Scenario Report" in content
     assert "SCN-RAG-POISON-01" in content
 
     # Evaluate JSON
