@@ -1,5 +1,12 @@
 """Evidence contracts, validation, inventory, and controlled export boundaries."""
 
+from .ai_components import (
+    ComponentVerificationError,
+    assess_component_baselines,
+    canonical_component_identity,
+    validate_component_manifest,
+    verify_component_manifest,
+)
 from .ai_inventory import (
     InventoryError,
     InventoryRegistry,
@@ -67,4 +74,11 @@ __all__ = [
     "compare_inventories",
     "inventory_report",
     "adapt_entra_service_principals",
+]
+__all__ += [
+    "ComponentVerificationError",
+    "canonical_component_identity",
+    "validate_component_manifest",
+    "verify_component_manifest",
+    "assess_component_baselines",
 ]

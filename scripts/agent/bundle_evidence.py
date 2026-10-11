@@ -17,6 +17,7 @@ SOURCES = tuple(
         "validation",
         "assessment",
         "ai_inventory",
+        "ai_components",
         "export_policy",
     )
 ) + (
