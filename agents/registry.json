@@ -95,6 +95,35 @@
     },
     {
       "schema_version": "1.0",
+      "id": "cops-host-specialist",
+      "display_name": "COPS Host Assessment Specialist",
+      "domain": "offensive-security",
+      "criticality": "critical",
+      "interactive_authorization_required": true,
+      "description": "Offline review of Linux privilege-boundary exports with explicit prerequisites and canary evidence limits.",
+      "primary_plugin": "host-assessment-workbench",
+      "skills": ["host-linux-privilege-boundaries"],
+      "tools": [
+        "python3 -m cops check host-assessment-workbench",
+        "plugins/offensive-security/host-assessment-workbench/scripts/assess.py"
+      ],
+      "contract_file": "agents/profiles/cops-host-specialist.agent.md",
+      "intent_keywords": [
+        "linux privilege boundary",
+        "linux privilege escalation",
+        "host privilege assessment",
+        "sudo configuration",
+        "suid binary",
+        "linux capabilities",
+        "host assessment"
+      ],
+      "triad_defaults": {
+        "skeptic_profile_id": "cops-detection-engineer",
+        "auditor_profile_id": "cops-compliance-auditor"
+      }
+    },
+    {
+      "schema_version": "1.0",
       "id": "cops-redteam-operator",
       "display_name": "COPS Red Team Operator",
       "domain": "offensive-security",

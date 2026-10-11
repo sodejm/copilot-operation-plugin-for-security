@@ -217,6 +217,23 @@
       ]
     },
     {
+      "id": "host-assessment-workbench",
+      "name": "COPS Host Assessment Workbench",
+      "version": "0.1.0",
+      "primary_category": "offensive-security",
+      "path": "plugins/offensive-security/host-assessment-workbench",
+      "tags": [
+        "claude",
+        "codex",
+        "github-copilot",
+        "host-assessment",
+        "linux",
+        "offline-import",
+        "offensive-security",
+        "privilege-boundaries"
+      ]
+    },
+    {
       "id": "offensive-engagement-workbench",
       "name": "COPS Offensive Engagement Workbench",
       "version": "0.1.0",

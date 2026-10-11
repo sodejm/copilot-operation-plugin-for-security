@@ -84,7 +84,7 @@ def test_diagnose_packages_all():
     """Verify package diagnosis across all plugins in repository."""
     plugins_dir = ROOT / "plugins"
     packages = diagnose_packages(plugins_dir)
-    assert len(packages) >= 15
+    assert len(packages) >= 16
     pkg_ids = [p.package_id for p in packages]
     assert "offensive-engagement-workbench" in pkg_ids
     assert "security-logging-advisor" in pkg_ids
@@ -96,14 +96,14 @@ def test_run_diagnostics_report():
     assert isinstance(report, DiagnosticReport)
     assert report.system.is_supported is True
     assert report.capability_truth_passed is True
-    assert report.capability_count == 71
-    assert len(report.packages) >= 15
+    assert report.capability_count == 73
+    assert len(report.packages) >= 16
     assert report.all_ready is True
 
     # Test serialization
     as_dict = report.to_dict()
     assert as_dict["capability_truth_passed"] is True
-    assert as_dict["capability_count"] == 71
+    assert as_dict["capability_count"] == 73
     assert "system" in as_dict
     assert "tools" in as_dict
     assert "packages" in as_dict
@@ -143,7 +143,7 @@ def test_command_diagnostics_cli(capsys):
     assert "Tool Prerequisites Matrix" in captured
     assert "Plugin Package Workflows" in captured
     assert "Capability Reconciliation" in captured
-    assert "Total Audited Capabilities: 71" in captured
+    assert "Total Audited Capabilities: 73" in captured
 
     # JSON execution
     code_json = command_diagnostics(root=ROOT, as_json=True)
@@ -151,7 +151,7 @@ def test_command_diagnostics_cli(capsys):
     captured_json = capsys.readouterr().out
     data = json.loads(captured_json)
     assert data["capability_truth_passed"] is True
-    assert data["capability_count"] == 71
+    assert data["capability_count"] == 73
 
     # Scoped package execution
     code_pkg = command_diagnostics(root=ROOT, package="offensive-engagement-workbench")

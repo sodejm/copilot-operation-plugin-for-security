@@ -16,7 +16,7 @@ python3 -m cops doctor
 
 ### What to look for
 - **Python version**: You should see your Python interpreter confirmed as 3.11 or newer.
-- **Catalog health**: Confirms that all fifteen security plugins and host marketplaces are synchronized.
+- **Catalog health**: Confirms that all sixteen security plugins and host marketplaces are synchronized.
 - **Offline status**: Confirms that local tools run without external network dependencies.
 
 If any check reports an issue, the output will give you clear, actionable instructions on how to resolve it.
@@ -25,7 +25,7 @@ If any check reports an issue, the output will give you clear, actionable instru
 
 ## 2. Choose the Right Tool for the Job
 
-COPS packages fifteen dedicated security plugins across defensive and offensive domains. To see the full catalog and current validation status, run:
+COPS packages sixteen dedicated security plugins across defensive and offensive domains. To see the full catalog and current validation status, run:
 
 ```bash
 python3 -m cops list
@@ -47,6 +47,8 @@ python3 -m cops info patch-security-review
 python3 -m cops info threat-intelligence-enrichment
 python3 -m cops info telemetry-proof-pack
 python3 -m cops info incident-response-sandbox
+python3 -m cops info offensive-engagement-workbench
+python3 -m cops info host-assessment-workbench
 ```
 
 ### Quick Selection Matrix
@@ -67,6 +69,8 @@ python3 -m cops info incident-response-sandbox
 | **Enrich observable indicators with threat intelligence** | `threat-intelligence-enrichment` | Provenance-tracked indicator correlation against MISP/TAXII offline feeds. |
 | **Verify telemetry pipelines and avoid SIEM blind spots** | `telemetry-proof-pack` | End-to-end health verification for Cribl Stream, Splunk, and Sentinel routes. |
 | **Rehearse incident containment with cryptographic execution receipts** | `incident-response-sandbox` | Approval-gated containment planning, blast-radius calculation, and receipts. |
+| **Plan and validate an authorized offensive engagement** | `offensive-engagement-workbench` | Offline engagement scope, scenario, and execution-authorization contracts. |
+| **Classify a local Linux host assessment export** | `host-assessment-workbench` | Eight-surface coverage and source-reported canary results from a versioned local export. |
 
 ---
 
@@ -112,7 +116,7 @@ python3 -m cops validate sentinel-hunt-workbench
 python3 -m cops check sentinel-hunt-workbench
 ```
 
-To run offline checks across all fifteen plugins in sequence:
+To run offline checks across all sixteen plugins in sequence:
 
 ```bash
 python3 -m cops check

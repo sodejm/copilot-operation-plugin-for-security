@@ -42,6 +42,7 @@ private payloads and real identifiers must never be copied into this document.
 | Telemetry Proof Pack exports → offline correlator → Markdown/JSON report | Supplied marker records, timestamps and IDs remain untrusted. The report hashes content for comparison but cannot authenticate exports or enforce collection, access, or retention policy. |
 | Offline Entra export manifest and files → identity graph and exposure report → analyst | Export content and collector claims of completeness or collection time are untrusted. Hashes establish file integrity only; per-source coverage determines whether a path can support a current exposure claim. Reports can repeat private identifiers. |
 | Scoped offline Active Directory export → bounded relationship graph → analyst | Collector identity, scope, completeness, collection time, and relationship support are untrusted input. Candidate paths are structural observations; reports can contain sensitive relationship identifiers and do not establish current privilege. |
+| Local Linux host export → host-assessment-workbench importer → operator | The importer reads a bounded local JSON file and returns classifications from untrusted source assertions. It does not collect host state or verify canary execution, cleanup, or the source's identity. Opaque IDs must be kept free of secrets by the exporter. |
 
 ```mermaid
 flowchart LR
@@ -81,6 +82,8 @@ account and credential recipient rather than only their user-supplied labels.
 - `tests/test_export_policy.py`: synthetic field, stream, attachment, sink-failure, retry/cancellation, adapter, and corpus-metric checks.
 - `plugins/identity-access/entra-identity-workbench/entrawb/ingestion.py`, `validation.py`, and `tests/test_workbench.py`: per-source freshness decisions, cross-field evidence checks, and synthetic negative tests for offline Entra artifacts; proposed issue #197 controls pending exact-revision human review.
 - `plugins/identity-access/ad-assessment-workbench/adwb/inventory.py` and `tests/test_inventory.py`: strict bounded offline input validation, scoped provenance-linked path analysis, coverage labels, and synthetic negative tests; live directory state and collector assertions remain unverified.
+- `plugins/offensive-security/host-assessment-workbench/host_assessment_workbench/core.py`: bounded, exact-schema local import, prerequisite matching, coverage and reported-canary classification; no host collector or executor.
+- `tests/test_host_assessment_workbench.py`: synthetic positive, negative and fixed canaries, plus malformed-import and mismatch tests. These do not establish live privilege-boundary behavior.
 
 ## Threat register and prioritization
 
@@ -267,7 +270,15 @@ validation before the affected release/capability expansion and schedule P2 with
 - Proposed mitigation and validation: Require tenant-approved read-only collection, recorded completion times and completeness checks; review coverage and provenance before acting on a report. Keep negative tests and `make check` at the exact revision; obtain human review before accepting the control.
 - Residual risk / status: Collector assertions and live tenant state remain unverified by offline tests. Exact-revision human review and any authorized tenant validation are pending.
 
-### T21: Active Directory collection or path overclaim
+### T21: Host import false crossing or sensitive identifier disclosure
+
+- Attack path / prerequisite: An exporter supplies false host context, coverage, canary access, or cleanup assertions; an operator treats a reported positive as independently demonstrated. An exporter may also put sensitive information in an ID that the report echoes.
+- Inherent impact: High; likelihood: Medium; priority: P1.
+- Existing evidence / limitation: The importer rejects unknown fields, duplicate keys, oversized or deeply nested input, invalid prerequisites, and contradictory canary sequences. It distinguishes configuration candidates, unselected observations, and reported canary results. Its strict opaque-ID syntax reduces exposure but cannot determine whether an allowed token is sensitive or whether an assertion is true.
+- Proposed mitigation and validation: Keep synthetic positive, negative, fixed, mismatch, and malformed-input tests; require a separately approved disposable-host collector with source authentication, canary privileges, independently recorded before/after access, and ownership-aware cleanup receipts before live claims. Review that integration and its exact revision with a human security reviewer.
+- Residual risk / status: The offline importer cannot establish a real privilege crossing, completeness of host coverage, or cleanup. No live integration or disposable-host validation is present; human review remains pending.
+
+### T22: Active Directory collection or path overclaim
 
 - Attack path / prerequisite: A spoofed, partial, or stale collector record is presented as complete; an inferred or cross-forest relationship is treated as current privilege; or private identity relationships are shared beyond the approved review scope.
 - Inherent impact: Medium; likelihood: Medium; priority: P2.

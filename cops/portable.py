@@ -50,6 +50,7 @@ PORTABLE_ENTRIES = {
     "threat_intel",
     "offensive_engagement_workbench",
     "adwb",
+    "host_assessment_workbench",
     "agents",
     "com.github.copilot",
     "org.cops",
