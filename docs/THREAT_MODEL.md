@@ -32,6 +32,7 @@ private payloads and real identifiers must never be copied into this document.
 | Operator decision → approval store → tool execution | Approval must be bound to action, effective resource and current revision, atomically consumed. |
 | Cloud integration → remote API / telemetry → agent | Credentials go only to intended recipients; telemetry remains untrusted even from authenticated services. |
 | Canonical hunt skills → generated host adapters | Hashes and deterministic generation establish consistency, not trust in malicious canonical content. |
+| Handoff proposal → specialist acceptance → auditor completion | A proposed skill ID and capability must resolve to the recipient's registered specialist profile and local skill file; acceptance records the resolved target and checksum. Skeptic review and audit re-resolve the current target. Completion is a reviewed handoff record, not tool execution. |
 | Attack Path input → descriptor-anchored report writer → operator-selected output directory | Output paths and concurrent filesystem names remain untrusted; a report set is complete only when the completion marker and recorded hashes validate. |
 | Laboratory operator observation → signed receipt → controller case classification | An independently provisioned observation key attests isolation, canary and control measurements. The worker result alone cannot establish case success; a protected local journal records dispatch intent and terminal outcomes. |
 | AI inventory import → bounded evidence graph/report → authorized operator | Imported provider records remain untrusted; strict projection rejects raw trace content, canonical source/tenant identities and engagement-bound references prevent cross-engagement conflation, and bounded traversal reports coverage limits. |
@@ -227,6 +228,14 @@ validation before the affected release/capability expansion and schedule P2 with
 - Existing evidence / limitation: The harness checks owner-provisioned Ed25519 observation receipts against operation nonces and result identity, rejects missing or contradictory case observations, and records dispatch intent in an owner-only SQLite journal before SSH dispatch. It marks uncertain dispatches separately and fails pending cases after restart, reset, reverification, or a bounded deadline. These are local software controls; synthetic tests do not prove host isolation, key custody, an independent observer, or remote cleanup.
 - Proposed mitigation and validation: On the intended host, verify observation-key custody, observer separation from the worker and controller, effective network isolation and egress denial, canary baseline and reset behavior, and reconciliation of unknown dispatches against worker audit evidence. Test crash and storage-failure recovery with the actual filesystem and supervisor before enabling live cases.
 - Residual risk / status: live operating evidence and exact-revision human security review are pending. Journal integrity assumes an owner-controlled host and one controller process; a same-authority actor or unavailable journal storage can disrupt accounting.
+
+### T17: Specialist handoff target confusion
+
+- Attack path / prerequisite: A proposal names a nonexistent, mismatched or changed workflow skill and is treated as connected or completed; a completed handoff is mistaken for proof of execution.
+- Inherent impact: Medium; likelihood: Medium; priority: P2.
+- Existing evidence / limitation: Acceptance checks the recipient profile, registered specialist capability and local skill file, then records the target and a checksum. Skeptic review and audit re-resolve the current target and compare it with the record. These checks depend on a trusted local checkout and do not inspect skill behavior or run the skill. The JSON checksum detects partial record edits but cannot authenticate a coordinated rewrite of the target and checksum.
+- Proposed mitigation and validation: Test missing, mismatched and modified targets and keep handoff status separate from execution evidence. Review the selected skill content and any later execution contract at its exact revision before use.
+- Residual risk / status: The handoff JSON is operator-controlled input; independent human review and execution-path evidence are pending. A complete record rewrite requires an external trust anchor to detect and is outside this contract.
 
 ## STRIDE and privacy coverage
 
