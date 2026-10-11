@@ -1,0 +1,30 @@
+{
+  "schema_version": "1.0",
+  "scope": {
+    "forests": ["forest-a", "forest-b"],
+    "domains": [{"id": "domain-a", "forest": "forest-a"}, {"id": "domain-b", "forest": "forest-b"}],
+    "hosts": [{"id": "host-a", "domain": "domain-a"}, {"id": "host-b", "domain": "domain-b"}]
+  },
+  "collections": [
+    {"id": "directory-a", "source": "directory", "forest": "forest-a", "domain": "domain-a", "collected_at": "2026-01-01T12:00:00Z", "completeness": "complete"},
+    {"id": "directory-b", "source": "directory", "forest": "forest-b", "domain": "domain-b", "collected_at": "2026-01-01T12:00:00Z", "completeness": "partial"},
+    {"id": "host-collection-a", "source": "host", "forest": "forest-a", "domain": "domain-a", "host": "host-a", "collected_at": "2026-01-01T12:00:00Z", "completeness": "partial"}
+  ],
+  "nodes": [
+    {"id": "user-a", "kind": "principal", "forest": "forest-a", "domain": "domain-a", "protected": false},
+    {"id": "group-a", "kind": "group", "forest": "forest-a", "domain": "domain-a", "protected": false},
+    {"id": "domain-a", "kind": "domain", "forest": "forest-a", "domain": "domain-a", "protected": false},
+    {"id": "domain-b", "kind": "domain", "forest": "forest-b", "domain": "domain-b", "protected": false},
+    {"id": "admin-b", "kind": "principal", "forest": "forest-b", "domain": "domain-b", "protected": true},
+    {"id": "host-a", "kind": "host", "forest": "forest-a", "domain": "domain-a", "protected": false},
+    {"id": "host-b", "kind": "host", "forest": "forest-b", "domain": "domain-b", "protected": false}
+  ],
+  "edges": [
+    {"id": "membership-a", "source": "user-a", "target": "group-a", "kind": "member_of", "collector_id": "directory-a", "collected_at": "2026-01-01T11:00:00Z", "completeness": "complete", "support": "observed"},
+    {"id": "privilege-a", "source": "group-a", "target": "domain-a", "kind": "privilege", "collector_id": "directory-a", "collected_at": "2026-01-01T11:00:00Z", "completeness": "complete", "support": "inferred"},
+    {"id": "trust-a-b", "source": "domain-a", "target": "domain-b", "kind": "trust", "collector_id": "directory-a", "collected_at": "2026-01-01T11:00:00Z", "completeness": "complete", "support": "observed"},
+    {"id": "privilege-b", "source": "domain-b", "target": "admin-b", "kind": "privilege", "collector_id": "directory-b", "collected_at": "2026-01-01T11:00:00Z", "completeness": "partial", "support": "inferred"},
+    {"id": "session-a", "source": "host-a", "target": "user-a", "kind": "session", "collector_id": "host-collection-a", "collected_at": "2026-01-01T11:00:00Z", "completeness": "partial", "support": "observed"}
+  ],
+  "queries": [{"start": "user-a", "goal": "admin-b"}, {"start": "user-a", "goal": "host-b"}]
+}

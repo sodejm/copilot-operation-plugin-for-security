@@ -1,16 +1,16 @@
 {
   "schema_version": "cops.capabilities/v1",
-  "updated_at": "2026-10-11T19:14:40.123851Z",
+  "updated_at": "2026-10-11T19:28:55.248226Z",
   "summary": {
-    "total_capabilities": 73,
+    "total_capabilities": 75,
     "by_kind": {
-      "plugin": 16,
-      "specialist": 20,
+      "plugin": 17,
+      "specialist": 21,
       "scenario": 37
     },
     "by_mode": {
-      "planned": 38,
-      "import": 17,
+      "planned": 39,
+      "import": 18,
       "laboratory": 18,
       "live-validated": 0
     }
@@ -98,6 +98,21 @@
       "domain": "offensive-security",
       "validation_status": "validated",
       "truth_boundaries": "Approval, context selection, cluster facts, and access observations are operator assertions, not independently verified.; A Namespace UID is an object identity anchor and does not prove a universal cluster identity.; No kubeconfig, kubectl, cluster API, node, control-plane, or admission-controller integration is exercised.; The report never authorizes live execution or establishes security posture, exploitability, or complete coverage.",
+      "evidence_requirements": [
+        "Local static file/manifest parsing",
+        "Deterministic AST/schema validation",
+        "Zero live service mutation"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "ad-assessment-workbench",
+      "name": "COPS AD Assessment Workbench",
+      "kind": "plugin",
+      "mode": "import",
+      "domain": "identity-access",
+      "validation_status": "validated",
+      "truth_boundaries": "Only accepts an approved, opaque, local JSON export; does not collect from AD, hosts, LDAP, or Kerberos.; Observed relationships and candidate paths do not prove the privilege can be exercised or that exploitation is possible.; Missing paths and incomplete collection never establish environmental absence or safety; host installation and live integration are unverified.",
       "evidence_requirements": [
         "Local static file/manifest parsing",
         "Deterministic AST/schema validation",
@@ -440,6 +455,21 @@
       "kind": "specialist",
       "mode": "planned",
       "domain": "incident-forensics",
+      "validation_status": "validated",
+      "truth_boundaries": "Advisory, reasoning, and planning profile; requires human-signed ActionPlan and authorization receipt for active execution.",
+      "evidence_requirements": [
+        "Specialist profile frontmatter validation",
+        "Intent routing keyword mapping",
+        "Contract file presence"
+      ],
+      "live_evidence_verified": false
+    },
+    {
+      "id": "cops-ad-specialist",
+      "name": "COPS Active Directory Specialist",
+      "kind": "specialist",
+      "mode": "planned",
+      "domain": "identity-exposure",
       "validation_status": "validated",
       "truth_boundaries": "Advisory, reasoning, and planning profile; requires human-signed ActionPlan and authorization receipt for active execution.",
       "evidence_requirements": [
