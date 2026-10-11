@@ -19,6 +19,7 @@ from foundryharness.cli import load_scenarios
 from foundryharness.gate import (
     IndependentAuthorizationGate,
 )
+from foundryharness.laboratory import LabError, load_lab_cases, run_lab_case
 from foundryharness.mock_sandbox import (
     MockSandbox,
 )
@@ -44,6 +45,8 @@ def validate() -> int:
         PLUGIN_ROOT / "org.cops" / "prerequisites.json",
         PLUGIN_ROOT / "schemas" / "scenario.schema.json",
         PLUGIN_ROOT / "schemas" / "report.schema.json",
+        PLUGIN_ROOT / "schemas" / "lab-case.schema.json",
+        PLUGIN_ROOT / "schemas" / "lab-report.schema.json",
     ]
 
     for p in json_files:
@@ -58,15 +61,16 @@ def validate() -> int:
     print(f"  OK: Validated {len(json_files)} package configuration and schema files.")
 
     # 2. Check skill frontmatter
-    skill_file = PLUGIN_ROOT / "skills" / "foundry-agent-review" / "SKILL.md"
-    if not skill_file.is_file():
-        print(f"FAIL: Missing skill file {skill_file.relative_to(REPO_ROOT)}", file=sys.stderr)
-        return 1
-    content = skill_file.read_text(encoding="utf-8")
-    if not content.startswith("---\nname: foundry-agent-review\n"):
-        print(f"FAIL: Skill file missing expected name frontmatter: {skill_file}", file=sys.stderr)
-        return 1
-    print("  OK: Validated skill definition and frontmatter.")
+    for name in ("foundry-agent-review", "ai-agent-mcp-laboratories"):
+        skill_file = PLUGIN_ROOT / "skills" / name / "SKILL.md"
+        if not skill_file.is_file():
+            print(f"FAIL: Missing skill file {skill_file.relative_to(REPO_ROOT)}", file=sys.stderr)
+            return 1
+        content = skill_file.read_text(encoding="utf-8")
+        if not content.startswith(f"---\nname: {name}\n"):
+            print(f"FAIL: Skill file missing expected name frontmatter: {skill_file}", file=sys.stderr)
+            return 1
+    print("  OK: Validated skill definitions and frontmatter.")
 
     # 3. Check scenario loading and parsing
     scenarios_dir = PLUGIN_ROOT / "scenarios"
@@ -138,10 +142,40 @@ def validate() -> int:
         return 1
 
     report_md = render_markdown_report(scenarios, events, target_agent, "mock-offline")
-    if "# Microsoft Foundry Adversarial Agent Review Report" not in report_md:
+    if "# Foundry Agent Harness Synthetic Scenario Report" not in report_md:
         print("FAIL: Report markdown header missing", file=sys.stderr)
         return 1
     print(f"  OK: Report generation validated ({len(events)} findings generated).")
+
+    # 7. Local process-backed agent and MCP laboratory contract.
+    try:
+        lab_cases = load_lab_cases(PLUGIN_ROOT / "lab_cases")
+        if len(lab_cases) < 10:
+            raise LabError("Expected at least 10 local laboratory cases")
+        lab_results = {case.case_id: run_lab_case(case) for case in lab_cases}
+    except LabError as exc:
+        print(f"FAIL: Local laboratory: {exc}", file=sys.stderr)
+        return 1
+    if not all(
+        result["environment_verified"] and result["cleanup_verified"] and result["expectation_met"]
+        for result in lab_results.values()
+    ):
+        print("FAIL: Local laboratory environment, cleanup, or expectation check failed", file=sys.stderr)
+        return 1
+    baseline = lab_results.get("state-change-baseline")
+    strict = lab_results.get("state-change-remediated")
+    if (
+        not baseline
+        or not strict
+        or baseline["attempted_calls"] != strict["attempted_calls"]
+        or not baseline["executed_effects"]
+        or not strict["denied_calls"]
+        or strict["executed_effects"]
+        or strict["state_before"] != strict["state_after"]
+    ):
+        print("FAIL: Paired state-change baseline and strict gate evidence mismatch", file=sys.stderr)
+        return 1
+    print(f"  OK: Verified {len(lab_results)} local synthetic agent and MCP laboratory cases.")
 
     print("[validate_package] All checks passed successfully.")
     return 0

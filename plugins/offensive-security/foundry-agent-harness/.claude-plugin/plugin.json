@@ -1,1 +1,1 @@
-{"name":"foundry-agent-harness","version":"0.1.0","description":"Author adversarial scenarios and evaluate Microsoft Foundry and Semantic Kernel agents against deterministic mock sandboxes.","author":{"name":"Justin Soderberg"},"license":"PolyForm-Noncommercial-1.0.0"}
+{"name":"foundry-agent-harness","version":"0.1.0","description":"Rehearse synthetic agent tool authorization with deterministic scenarios and local MCP fixtures.","author":{"name":"Justin Soderberg"},"license":"PolyForm-Noncommercial-1.0.0"}

@@ -3,22 +3,22 @@
     "name": "Justin Soderberg",
     "url": "https://github.com/sodejm"
   },
-  "description": "Author adversarial scenarios and evaluate Microsoft Foundry and Semantic Kernel agents against deterministic mock sandboxes.",
+  "description": "Rehearse synthetic agent tool authorization with deterministic scenarios and local MCP fixtures.",
   "homepage": "https://github.com/sodejm/copilot-operation-plugin-for-security",
   "interface": {
     "displayName": "COPS Microsoft Foundry Adversarial Agent Review Harness",
-    "shortDescription": "Adversarial evaluation harness for Microsoft Foundry agents.",
-    "longDescription": "Author structured adversarial scenarios, simulate indirect prompt injection and privilege escalation against Microsoft Foundry agents, and verify independent authorization gating outside model control.",
+    "shortDescription": "Synthetic agent and MCP authorization laboratory.",
+    "longDescription": "Run deterministic prompt-injection proposals through local agent and MCP fixtures, and observe independent authorization decisions and synthetic state effects.",
     "developerName": "Justin Soderberg",
     "category": "Developer Tools",
     "capabilities": [
-      "Author structured adversarial evaluation scenarios",
-      "Deterministic mock tool and sandbox simulation",
-      "Distinguish model output from executed tool effects",
-      "Independent authorization gate verification"
+      "Run versioned synthetic local agent and MCP cases",
+      "Simulate legacy scenarios in an in-memory mock sandbox",
+      "Separate fixture text and proposals from executed tool effects",
+      "Verify independent authorization gate decisions"
     ],
     "defaultPrompt": [
-      "Evaluate this Microsoft Foundry agent against adversarial scenarios for prompt injection and authorization gating."
+      "Run the bundled synthetic agent and MCP laboratory cases and report observed fixture effects and gate decisions."
     ]
   },
   "keywords": [

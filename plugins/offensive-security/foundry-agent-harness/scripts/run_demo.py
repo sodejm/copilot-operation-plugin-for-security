@@ -36,7 +36,7 @@ def main() -> int:
         print(f"Error: Scenarios directory not found at {scenarios_dir}", file=sys.stderr)
         return 1
 
-    print("=== Microsoft Foundry Adversarial Agent Review Demo ===")
+    print("=== Foundry Agent Harness Synthetic Scenario Demo ===")
     print(f"Loading evaluation scenarios from: {scenarios_dir.relative_to(REPO_ROOT)}")
 
     scenarios = load_scenarios(None, scenarios_dir)
@@ -49,9 +49,9 @@ def main() -> int:
         events.append(event)
 
     target_agent = {
-        "agent_name": "Contoso-Enterprise-Foundry-Agent",
+        "agent_name": "Synthetic-Scenario-Fixture",
         "agent_version": "1.0.0",
-        "framework": "Microsoft Foundry / Semantic Kernel",
+        "framework": "Deterministic scenario simulator",
     }
     environment = "mock-sandbox-offline"
 
