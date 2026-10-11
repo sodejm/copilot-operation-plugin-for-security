@@ -3,17 +3,10 @@
 from __future__ import annotations
 
 import argparse
-import ipaddress
 import json
 import sys
 from pathlib import Path
 from typing import Any
-
-from cops.contracts.models import ActionPlan, Engagement, LaboratoryEnvironment
-from cops.execution.authorization import AuthorizationTrustStore
-from cops.execution.scope_guard import ScopeDefinition, ScopeGuard
-from cops.execution.store import ApprovalStore
-from cops.execution.worker import WorkerCapabilityInventory
 
 from .harness import LaboratoryHarness
 
@@ -56,19 +49,17 @@ def command_laboratory(args: argparse.Namespace, root: Path = ROOT) -> int:
             output_data = env.to_dict()
 
         elif cmd == "verify":
-            doc = _load_json_or_file(args.environment)
-            env = LaboratoryEnvironment.from_dict(doc)
-            req_tools = None
-            if getattr(args, "tools", None):
-                req_tools = [t.strip() for t in args.tools.split(",") if t.strip()]
-            env = harness.verify_environment(env, required_tools=req_tools, mock_checks=getattr(args, "mock", True))
-            output_data = env.to_dict()
+            raise ValueError(
+                "laboratory verification requires an operator-owned observation provider "
+                "and a verified SSH endpoint inventory; use the Python harness API"
+            )
 
         elif cmd == "reset":
-            doc = _load_json_or_file(args.environment)
-            env = LaboratoryEnvironment.from_dict(doc)
-            env = harness.reproducible_reset(env, mock_reset=getattr(args, "mock", True))
-            output_data = env.to_dict()
+            raise ValueError(
+                "laboratory reset requires an operator-owned observation provider, "
+                "a challenged worker reset receipt, and a verified SSH endpoint inventory; "
+                "use the Python harness API"
+            )
 
         elif cmd == "matrix":
             output_data = {
@@ -80,58 +71,10 @@ def command_laboratory(args: argparse.Namespace, root: Path = ROOT) -> int:
             }
 
         elif cmd == "run":
-            env_doc = _load_json_or_file(args.environment)
-            plan_doc = _load_json_or_file(args.plan)
-            auth_doc = _load_json_or_file(args.authorization)
-            env = LaboratoryEnvironment.from_dict(env_doc)
-            plan = ActionPlan.from_dict(plan_doc)
-            engagement = Engagement.from_dict(_load_json_or_file(args.engagement))
-            trust_store = AuthorizationTrustStore.from_file(args.authorization_trust_store)
-            worker_inventory = WorkerCapabilityInventory.from_file(
-                args.worker_inventory,
-                expected_worker_identity=getattr(args, "worker_id", None) or env.owner,
+            raise ValueError(
+                "laboratory execution requires live observations, verified worker inventories, "
+                "and an explicit scope guard; use the Python harness API"
             )
-
-            case_type = getattr(args, "case_type", "positive")
-            store = ApprovalStore(Path(args.store)) if getattr(args, "store", None) else None
-
-            scope_definition = ScopeDefinition.from_engagement_scope(engagement.scope)
-            if getattr(args, "allowed_cidr", None):
-                from cops.execution.scope_guard import parse_ip_or_network
-
-                net = parse_ip_or_network(args.allowed_cidr)
-                if not isinstance(net, (ipaddress.IPv4Network, ipaddress.IPv6Network)):
-                    raise ValueError("--allowed-cidr must be an IPv4 or IPv6 network")
-                if not any(
-                    net.version == approved.version and net.subnet_of(approved)
-                    for approved in scope_definition.included_networks
-                ):
-                    raise ValueError("--allowed-cidr must be contained within the engagement scope")
-                if any(
-                    net.version == excluded.version and net.overlaps(excluded)
-                    for excluded in scope_definition.excluded_networks
-                ) or any(address in net for address in scope_definition.excluded_ips):
-                    raise ValueError("--allowed-cidr overlaps an engagement exclusion")
-                # The override narrows the engagement's network scope. It must not retain
-                # independently approved IP, domain, or cloud-resource destinations.
-                scope_definition.included_networks = [net]
-                scope_definition.included_ips.clear()
-                scope_definition.included_domains.clear()
-                scope_definition.included_cloud_resources.clear()
-            guard = ScopeGuard(scope_definition)
-
-            result = harness.execute_case(
-                environment=env,
-                action_plan=plan,
-                authorization=auth_doc,
-                case_type=case_type,
-                trust_store=trust_store,
-                engagement=engagement,
-                worker_inventory=worker_inventory,
-                store=store,
-                scope_guard=guard,
-            )
-            output_data = result.to_dict()
 
         else:
             print(f"Unknown laboratory command: {cmd}", file=sys.stderr)

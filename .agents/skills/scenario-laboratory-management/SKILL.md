@@ -1,115 +1,63 @@
 ---
 name: scenario-laboratory-management
-description: Manage scenario laboratory environments with canary validation, isolation enforcement, reproducible reset, and verified case execution.
+description: Manage scenario laboratory contracts with measured isolation, canary, reset, scope, and case outcome gates.
 ---
 
 # Scenario Laboratory Management
 
-Manage operator-controlled container and VM laboratory environments for offensive and defensive security operations. Enforces tested platform matrices, tool prerequisites, network and process isolation, canary verification, and reproducible resets with cleanup receipts.
+Manage operator-controlled container and VM laboratories for security scenarios. The harness validates tested platforms and tools, verifies independently signed operator observations, and dispatches authorized cases to an SSH endpoint pinned in an owner-provisioned inventory. The operator supplies the actual runtime isolation, measurement, reset, and worker services; the contract alone does not establish those controls.
 
 ## Core Responsibilities
 
-1. **Environment Verification & Matrix Check**:
-   - Verify operator VM/container environments against tested OS, runtime, and tool version matrices.
-   - Enforce network isolation, egress restrictions, and canary token placement.
-2. **Reproducible Baseline Reset**:
-   - Execute deterministic rollback scripts or snapshot reverts to restore pristine verified states.
-   - Confirm canary token presence post-reset.
-3. **Controlled Case Execution**:
-   - Enforce execution authorization, worker identity binding, and scope guard gates prior to launching scenario runs.
-   - Execute positive, negative (controlled rejection), and remediated (defensive mitigation) cases.
-   - Produce structured `RunResult` records and verified `CleanupReceipt` side-effect rollbacks.
+1. **Verify the environment**: Check the platform and tool matrix. Require an operator-owned `observation_provider(environment, nonce)` that measures the runtime boundary, egress restriction, canary digest, and clean baseline. The `LaboratoryObservation` must be signed by an independent operator adapter whose public Ed25519 key is pinned in a verified `LaboratoryObservationTrustStore`; it must match the fresh challenge. Keep the private signer outside the controller and SSH dispatch inventory.
+2. **Verify a reset**: Call `begin_reset(environment)` to invalidate the earlier verification and obtain a single-use nonce. Have the operator's worker perform the configured reset. Pass the adapter's signed `LaboratoryResetReceipt` to `reproducible_reset`, which also requires a fresh signed post-reset observation. The harness does not run the reset command.
+3. **Run and classify a case**: Supply a signed authorization, engagement, verified worker capability and SSH endpoint inventories, an explicit `ScopeGuard`, and an owner-only `LaboratoryCaseJournal` used by one controller process. `execute_case` records intent before SSH dispatch and returns a `RemoteAuthorizedRun`. Call `case_observation_challenge` to obtain a fresh nonce and get a signed `LaboratoryCaseObservation` from the independent adapter after completion. Call `classify_case` with that observation and the bound result. Classification checks the worker's `RunResult.cleanup_status`; it retains complete signed observation receipts in result details and does not issue a separate laboratory cleanup receipt. Call `expire_pending_cases` after the two-minute deadline; challenge, classification, and `recorded_cases` also check it. Controller restart, reset, or reverification fails cases lacking valid observations.
 
 ## CLI Usage
 
-### Check Tested Matrix
-
 ```bash
 python3 -m cops lab matrix
-```
-
-### Register an Environment
-
-```bash
 python3 -m cops lab register path/to/env.json
 ```
 
-### Verify Isolation and Canary
+Registration records a contract; it does not verify a running environment. The bundled `lab verify`, `lab reset`, and `lab run` commands fail closed until an operator integration supplies the live observation, worker reset, and case result flows through the Python API.
 
-```bash
-python3 -m cops lab verify path/to/env.json
-```
-
-### Reproducible Reset
-
-```bash
-python3 -m cops lab reset path/to/env.json
-```
-
-### Execute a Laboratory Case
-
-```bash
-python3 -m cops lab run \
-  --environment path/to/env.json \
-  --plan path/to/action-plan.json \
-  --authorization path/to/authorization.json \
-  --worker-inventory path/to/worker-inventory.json \
-  --authorization-trust-store path/to/authorization-trust.json \
-  --engagement path/to/engagement.json \
-  --case-type positive
-```
-
-## Python API
+## Python API Sequence
 
 ```python
-from cops.laboratory import (
-    LaboratoryHarness,
-    make_inert_container_environment,
-    make_inert_action_plan,
-    make_inert_engagement,
-    make_inert_execution_authorization,
+from cops.laboratory import LaboratoryCaseJournal, LaboratoryHarness, LaboratoryObservationTrustStore
+
+# The adapter signs measured observations with a private key unavailable to this process.
+observation_trust_store = LaboratoryObservationTrustStore.from_file(observation_trust_path)
+harness = LaboratoryHarness(
+    observation_provider=operator_observe,
+    observation_trust_store=observation_trust_store,
+    case_journal=LaboratoryCaseJournal(case_journal_path),
 )
-from cops.execution import (
-    AuthorizationSigner,
-    AuthorizationTrustStore,
-    WorkerCapabilityInventory,
+environment = harness.verify_environment(environment, endpoint_inventory=endpoint_inventory)
+
+nonce = harness.begin_reset(environment)
+reset_receipt = operator_reset(environment, nonce)  # independently signed receipt
+environment = harness.reproducible_reset(
+    environment, reset_receipt=reset_receipt, endpoint_inventory=endpoint_inventory
 )
 
-harness = LaboratoryHarness()
-env = make_inert_container_environment()
-verified_env = harness.verify_environment(env)
-
-engagement = make_inert_engagement()
-plan = make_inert_action_plan(engagement_id=engagement.engagement_id)
-# Load this secret from the operator's secret store. The independently
-# provisioned verifier trust store must contain the matching key identifier.
-signer = AuthorizationSigner(
-    key_id="lab-key-2026-10",
-    operator=engagement.operator,
-    secret=operator_signing_secret,
-)
-auth = make_inert_execution_authorization(
-    plan,
-    signer=signer,
-    engagement=engagement,
-    worker_identity=env.owner,
-)
-trust_store = AuthorizationTrustStore.from_file("path/to/authorization-trust.json")
-inventory = WorkerCapabilityInventory.from_file(
-    "path/to/worker-inventory.json",
-    expected_worker_identity=env.owner,
-)
-
-result = harness.execute_case(
-    environment=verified_env,
-    action_plan=plan,
-    authorization=auth,
+# trust_store, engagement, and worker_inventory are independently provisioned.
+authorized_run = harness.execute_case(
+    environment, plan, authorization, "positive",
     trust_store=trust_store,
     engagement=engagement,
-    worker_inventory=inventory,
-    case_type="positive",
+    worker_inventory=worker_inventory,
+    endpoint_inventory=endpoint_inventory,
+    scope_guard=scope_guard,
 )
-assert result.status == "success"
-assert result.canary_verified is True
-assert result.cleanup_receipt.status == "completed"
+case_nonce = harness.case_observation_challenge(authorized_run)
+case_observation = operator_observe_case(environment, plan, authorized_run, case_nonce)
+result = harness.classify_case(
+    environment, plan, authorized_run, authorization.authorization_id, "positive",
+    case_observation=case_observation,
+    endpoint_inventory=endpoint_inventory,
+)
 ```
+
+Load `WorkerCapabilityInventory`, `SSHRemoteEndpointInventory`, and `LaboratoryObservationTrustStore` with their protected `from_file` constructors. The observation store contains public keys; the independent adapter retains private signing keys. The operator remains responsible for whether the adapter measures the actual runtime correctly. Offline synthetic receipts exercise the contract only; they do not prove live isolation or egress enforcement.

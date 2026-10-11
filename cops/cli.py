@@ -784,12 +784,10 @@ def build_parser() -> argparse.ArgumentParser:
     l_ver = lab_sub.add_parser("verify", help="verify laboratory environment isolation, prerequisites, and canary")
     l_ver.add_argument("environment", help="path to laboratory environment JSON")
     l_ver.add_argument("--tools", help="comma-separated list of required tools")
-    l_ver.add_argument("--mock", action="store_true", default=True, help="use mock checks for offline testing")
     l_ver.add_argument("--output", help="output path for verified environment JSON")
 
     l_res = lab_sub.add_parser("reset", help="reproducible reset of laboratory environment")
     l_res.add_argument("environment", help="path to laboratory environment JSON")
-    l_res.add_argument("--mock", action="store_true", default=True, help="use mock reset")
     l_res.add_argument("--output", help="output path for reset environment JSON")
 
     l_mat = lab_sub.add_parser("matrix", help="display tested platform and tool matrix")

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+
 from cops.contracts.models import (
     ActionPlan,
     Engagement,
@@ -56,6 +58,7 @@ def make_inert_container_environment(
             "strategy": "container_recreate",
             "reproducible": True,
             "command": "echo 'container recreated'",
+            "expected_baseline_digest": hashlib.sha256(b"inert-container-baseline-v1").hexdigest(),
             "last_reset_timestamp": None,
         },
         owner=owner,
@@ -106,6 +109,7 @@ def make_inert_vm_environment(
             "strategy": "snapshot_rollback",
             "reproducible": True,
             "command": "echo 'snapshot reverted'",
+            "expected_baseline_digest": hashlib.sha256(b"inert-vm-baseline-v1").hexdigest(),
             "last_reset_timestamp": None,
         },
         owner=owner,

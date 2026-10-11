@@ -1,48 +1,44 @@
-"""Step definitions for Scenario Laboratory Harness BDD scenarios."""
+"""Offline step definitions for signed laboratory observations and remote dispatch."""
 
 from __future__ import annotations
 
-import tempfile
-from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import patch
 
 import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
 
-from cops.execution.store import ApprovalStore
+from cops.execution.scope_guard import ScopeDefinition, ScopeGuard
 from cops.execution.worker import WorkerCapabilityInventory
 from cops.laboratory import (
+    LaboratoryCaseJournal,
     LaboratoryGateError,
     LaboratoryHarness,
     PrerequisiteMismatchError,
     make_inert_action_plan,
     make_inert_container_environment,
-    make_inert_execution_authorization,
 )
-from tests.auth_testkit import make_test_authorization_context, worker_inventory_for_plan
+from tests.auth_testkit import authorize_test_plan, worker_inventory_for_plan
+from tests.laboratory_testkit import (
+    case_observation,
+    endpoint_inventory,
+    environment_observation,
+    observation_trust_store,
+    remote_run,
+    reset_receipt,
+)
 
 scenarios("../../specs/features/scenario_laboratory_harness.feature")
 
 
 @pytest.fixture
-def lab_ctx():
-    tmp_dir = tempfile.TemporaryDirectory(prefix="cops-lab-bdd-")
-    tmp_path = Path(tmp_dir.name)
-    store = ApprovalStore(tmp_path / "approvals.sqlite3")
-    harness = LaboratoryHarness(store=store)
-    ctx = {
-        "tmp_dir": tmp_dir,
-        "store": store,
-        "harness": harness,
-        "environment": None,
-        "plan": None,
-        "authorization": None,
-        "worker_inventory": None,
-        "case_result": None,
-        "error": None,
-    }
-    yield ctx
-    tmp_dir.cleanup()
+def lab_ctx(tmp_path):
+    inventory = endpoint_inventory(tmp_path)
+    harness = LaboratoryHarness(
+        observation_provider=lambda environment, nonce: environment_observation(environment, nonce, inventory),
+        observation_trust_store=observation_trust_store(tmp_path),
+        case_journal=LaboratoryCaseJournal(tmp_path / "case-journal.sqlite3"),
+    )
+    return {"inventory": inventory, "harness": harness}
 
 
 @given("an inert operator laboratory environment contract")
@@ -50,12 +46,12 @@ def given_inert_environment(lab_ctx):
     lab_ctx["environment"] = make_inert_container_environment()
 
 
-@when("the laboratory harness verifies the environment isolation and canary data")
+@when("the laboratory harness verifies signed isolation and canary observations")
 def when_verify_environment(lab_ctx):
-    lab_ctx["environment"] = lab_ctx["harness"].verify_environment(lab_ctx["environment"])
+    lab_ctx["harness"].verify_environment(lab_ctx["environment"], endpoint_inventory=lab_ctx["inventory"])
 
 
-@then(parsers.parse('the environment status transitions to "{expected_status}"'))
+@then(parsers.parse('the environment status is "{expected_status}"'))
 def then_environment_status(lab_ctx, expected_status):
     assert lab_ctx["environment"].status == expected_status
 
@@ -72,22 +68,20 @@ def then_canary_confirmed(lab_ctx):
 
 @given("an operator laboratory environment with outdated tool versions")
 def given_outdated_environment(lab_ctx):
-    env = make_inert_container_environment()
-    env.tool_matrix["kubectl"] = "1.20.0"  # Requires >= 1.26.0
-    lab_ctx["environment"] = env
+    environment = make_inert_container_environment()
+    environment.tool_matrix["kubectl"] = "1.20.0"
+    lab_ctx["environment"] = environment
 
 
 @when("the laboratory harness attempts to verify tool prerequisites")
 def when_verify_prerequisites(lab_ctx):
-    try:
-        lab_ctx["harness"].verify_environment(lab_ctx["environment"])
-    except PrerequisiteMismatchError as err:
-        lab_ctx["error"] = err
+    with pytest.raises(PrerequisiteMismatchError) as error:
+        lab_ctx["harness"].verify_environment(lab_ctx["environment"], endpoint_inventory=lab_ctx["inventory"])
+    lab_ctx["error"] = error.value
 
 
 @then("verification fails with a prerequisite mismatch error")
 def then_prereq_mismatch(lab_ctx):
-    assert lab_ctx["error"] is not None
     assert isinstance(lab_ctx["error"], PrerequisiteMismatchError)
 
 
@@ -98,18 +92,22 @@ def then_cannot_transition(lab_ctx):
 
 @given("a verified laboratory environment")
 def given_verified_environment(lab_ctx):
-    env = make_inert_container_environment()
-    lab_ctx["environment"] = lab_ctx["harness"].verify_environment(env)
+    environment = make_inert_container_environment()
+    lab_ctx["harness"].verify_environment(environment, endpoint_inventory=lab_ctx["inventory"])
+    lab_ctx["environment"] = environment
 
 
-@when("the laboratory harness triggers a reproducible reset")
-def when_reproducible_reset(lab_ctx):
-    lab_ctx["environment"] = lab_ctx["harness"].reproducible_reset(lab_ctx["environment"])
+@when("the operator supplies a signed reset receipt for the pending challenge")
+def when_reset(lab_ctx):
+    environment = lab_ctx["environment"]
+    nonce = lab_ctx["harness"].begin_reset(environment)
+    receipt = reset_receipt(environment, nonce, lab_ctx["inventory"])
+    lab_ctx["harness"].reproducible_reset(environment, reset_receipt=receipt, endpoint_inventory=lab_ctx["inventory"])
 
 
 @then("a reset timestamp is recorded")
 def then_reset_timestamp_recorded(lab_ctx):
-    assert lab_ctx["environment"].reset_configuration.get("last_reset_timestamp") is not None
+    assert lab_ctx["environment"].reset_configuration["last_reset_timestamp"]
 
 
 @then("the canary is verified in the reset environment")
@@ -119,31 +117,67 @@ def then_canary_verified_in_reset(lab_ctx):
 
 @given("a verified laboratory environment and signed execution authorization")
 def given_verified_env_and_auth(lab_ctx):
-    env = make_inert_container_environment()
-    lab_ctx["environment"] = lab_ctx["harness"].verify_environment(env)
+    given_verified_environment(lab_ctx)
+    environment = lab_ctx["environment"]
     plan = make_inert_action_plan()
-    signer, trust_store, engagement = make_test_authorization_context(plan)
-    auth = make_inert_execution_authorization(plan, signer=signer, engagement=engagement)
-    lab_ctx["plan"] = plan
-    lab_ctx["authorization"] = auth
-    lab_ctx["trust_store"] = trust_store
-    lab_ctx["engagement"] = engagement
-    lab_ctx["worker_inventory"] = worker_inventory_for_plan(
-        plan,
-        worker_identity=lab_ctx["environment"].owner,
+    authorization, trust_store, engagement = authorize_test_plan(plan, worker_identity=environment.owner)
+    lab_ctx.update(
+        plan=plan,
+        authorization=authorization,
+        trust_store=trust_store,
+        engagement=engagement,
+        worker_inventory=worker_inventory_for_plan(plan, worker_identity=environment.owner),
+        scope_guard=ScopeGuard(ScopeDefinition.from_engagement_scope(engagement.scope)),
     )
 
 
-@when("the laboratory harness executes a positive case")
-def when_execute_positive(lab_ctx):
-    lab_ctx["case_result"] = lab_ctx["harness"].execute_case(
-        environment=lab_ctx["environment"],
-        action_plan=lab_ctx["plan"],
-        authorization=lab_ctx["authorization"],
-        case_type="positive",
-        trust_store=lab_ctx["trust_store"],
-        engagement=lab_ctx["engagement"],
-        worker_inventory=lab_ctx["worker_inventory"],
+@when(parsers.parse('the laboratory harness dispatches and classifies a "{case_type}" case'))
+def when_dispatch_and_classify(lab_ctx, case_type):
+    environment = lab_ctx["environment"]
+    plan = lab_ctx["plan"]
+    authorization = lab_ctx["authorization"]
+    status, exit_code, canary, blocked = {
+        "positive": ("success", 0, True, False),
+        "remediated": ("success", 0, False, True),
+        "negative": ("failed", 1, False, True),
+    }[case_type]
+    run = remote_run(
+        plan,
+        authorization.authorization_id,
+        environment.owner,
+        status=status,
+        exit_code=exit_code,
+    )
+    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute", return_value=run):
+        dispatched = lab_ctx["harness"].execute_case(
+            environment,
+            plan,
+            authorization,
+            case_type,
+            trust_store=lab_ctx["trust_store"],
+            engagement=lab_ctx["engagement"],
+            worker_inventory=lab_ctx["worker_inventory"],
+            endpoint_inventory=lab_ctx["inventory"],
+            scope_guard=lab_ctx["scope_guard"],
+        )
+    observation = case_observation(
+        environment,
+        plan,
+        authorization.authorization_id,
+        dispatched,
+        lab_ctx["inventory"],
+        request_nonce=lab_ctx["harness"].case_observation_challenge(dispatched),
+        canary_token_detected=canary,
+        control_blocked=blocked,
+    )
+    lab_ctx["case_result"] = lab_ctx["harness"].classify_case(
+        environment,
+        plan,
+        dispatched,
+        authorization.authorization_id,
+        case_type,
+        case_observation=observation,
+        endpoint_inventory=lab_ctx["inventory"],
     )
 
 
@@ -152,96 +186,47 @@ def then_case_result_status(lab_ctx, expected_status):
     assert lab_ctx["case_result"].status == expected_status
 
 
-@then("the canary verification succeeds")
-def then_canary_succeeds(lab_ctx):
-    assert lab_ctx["case_result"].canary_verified is True
+@then(parsers.parse('the worker cleanup status is "{expected_status}"'))
+def then_cleanup_status(lab_ctx, expected_status):
+    assert lab_ctx["case_result"].run_result.cleanup_status == expected_status
 
 
-@then(parsers.parse('a valid cleanup receipt with status "{expected_status}" is emitted'))
-def then_cleanup_receipt_status(lab_ctx, expected_status):
-    receipt = lab_ctx["case_result"].cleanup_receipt
-    assert receipt is not None
-    assert receipt.status == expected_status
-
-
-@when("the laboratory harness executes a remediated case")
-def when_execute_remediated(lab_ctx):
-    lab_ctx["case_result"] = lab_ctx["harness"].execute_case(
-        environment=lab_ctx["environment"],
-        action_plan=lab_ctx["plan"],
-        authorization=lab_ctx["authorization"],
-        case_type="remediated",
-        trust_store=lab_ctx["trust_store"],
-        engagement=lab_ctx["engagement"],
-        worker_inventory=lab_ctx["worker_inventory"],
-    )
-
-
-@then("the run result records that the attack was mitigated by active security controls")
-def then_run_result_mitigated(lab_ctx):
-    run_res = lab_ctx["case_result"].run_result
-    assert "mitigated" in run_res.status_details.get("reason", "").lower()
-
-
-@when("the laboratory harness executes a negative case")
-def when_execute_negative(lab_ctx):
-    lab_ctx["case_result"] = lab_ctx["harness"].execute_case(
-        environment=lab_ctx["environment"],
-        action_plan=lab_ctx["plan"],
-        authorization=lab_ctx["authorization"],
-        case_type="negative",
-        trust_store=lab_ctx["trust_store"],
-        engagement=lab_ctx["engagement"],
-        worker_inventory=lab_ctx["worker_inventory"],
-    )
-
-
-@then(parsers.parse('the run result status is "{expected_status}"'))
-def then_run_result_status(lab_ctx, expected_status):
-    assert lab_ctx["case_result"].run_result.status == expected_status
-
-
-@then("no positive compromise claims are made")
-def then_no_positive_claims(lab_ctx):
-    assert lab_ctx["case_result"].canary_verified is False
+@then(parsers.parse('positive canary verification is "{expected}"'))
+def then_canary_claim(lab_ctx, expected):
+    assert lab_ctx["case_result"].canary_verified is (expected == "true")
 
 
 @given("a directly constructed worker capability inventory")
 def given_unverified_inventory(lab_ctx):
-    lab_ctx["worker_inventory"] = WorkerCapabilityInventory(**lab_ctx["worker_inventory"].to_dict())
+    inventory = lab_ctx["worker_inventory"]
+    lab_ctx["worker_inventory"] = WorkerCapabilityInventory(**inventory.to_dict())
     assert not lab_ctx["worker_inventory"].is_verified
-    lab_ctx["adapter"] = Mock(return_value={})
 
 
 @when(parsers.parse('the laboratory harness attempts a "{case_type}" case with that inventory'))
-def when_execute_unverified_inventory(lab_ctx, case_type):
-    try:
-        lab_ctx["harness"].execute_case(
-            environment=lab_ctx["environment"],
-            action_plan=lab_ctx["plan"],
-            authorization=lab_ctx["authorization"],
-            case_type=case_type,
-            trust_store=lab_ctx["trust_store"],
-            engagement=lab_ctx["engagement"],
-            worker_inventory=lab_ctx["worker_inventory"],
-            fake_adapter=lab_ctx["adapter"],
-        )
-    except LaboratoryGateError as err:
-        lab_ctx["error"] = err
+def when_unverified_inventory(lab_ctx, case_type):
+    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute") as dispatch:
+        with pytest.raises(LaboratoryGateError) as error:
+            lab_ctx["harness"].execute_case(
+                lab_ctx["environment"],
+                lab_ctx["plan"],
+                lab_ctx["authorization"],
+                case_type,
+                trust_store=lab_ctx["trust_store"],
+                engagement=lab_ctx["engagement"],
+                worker_inventory=lab_ctx["worker_inventory"],
+                endpoint_inventory=lab_ctx["inventory"],
+                scope_guard=lab_ctx["scope_guard"],
+            )
+    lab_ctx["error"] = error.value
+    lab_ctx["dispatch"] = dispatch
 
 
 @then("the inventory gate rejects the laboratory case")
 def then_inventory_gate_rejects(lab_ctx):
-    assert isinstance(lab_ctx["error"], LaboratoryGateError)
     assert "verified owner-provisioned worker capability inventory" in str(lab_ctx["error"])
-    assert lab_ctx["environment"].status == "verified"
 
 
-@then("no authorization is registered or consumed")
-def then_no_authorization_persisted(lab_ctx):
-    assert lab_ctx["store"].list_approvals() == []
-
-
-@then("no laboratory adapter is invoked")
-def then_no_adapter_invoked(lab_ctx):
-    lab_ctx["adapter"].assert_not_called()
+@then("no remote dispatch occurs")
+def then_no_remote_dispatch(lab_ctx):
+    lab_ctx["dispatch"].assert_not_called()

@@ -13,7 +13,7 @@ COPS distributes security operations plugins and skills, local validation/market
 
 ## Assets, actors and assumptions
 
-Assets: Plugin package and marketplace integrity; approval/checkpoint records; cloud/Sentinel credentials; tenant/resource identifiers; security telemetry and hunt results; generated report-set integrity and completion evidence; agent execution authority; CI and distribution credentials.
+Assets: Plugin package and marketplace integrity; approval/checkpoint records; cloud/Sentinel credentials; tenant/resource identifiers; security telemetry and hunt results; generated report-set integrity and completion evidence; agent execution authority; laboratory observation signing keys, canary state and case journal; CI and distribution credentials.
 
 Actors: Authorized security operator; malicious telemetry/tool-output author; untrusted plugin contributor; compromised dependency/marketplace source; local user manipulating approval state; attacker controlling a configured API endpoint.
 
@@ -33,6 +33,7 @@ private payloads and real identifiers must never be copied into this document.
 | Cloud integration → remote API / telemetry → agent | Credentials go only to intended recipients; telemetry remains untrusted even from authenticated services. |
 | Canonical hunt skills → generated host adapters | Hashes and deterministic generation establish consistency, not trust in malicious canonical content. |
 | Attack Path input → descriptor-anchored report writer → operator-selected output directory | Output paths and concurrent filesystem names remain untrusted; a report set is complete only when the completion marker and recorded hashes validate. |
+| Laboratory operator observation → signed receipt → controller case classification | An independently provisioned observation key attests isolation, canary and control measurements. The worker result alone cannot establish case success; a protected local journal records dispatch intent and terminal outcomes. |
 
 ```mermaid
 flowchart LR
@@ -59,6 +60,7 @@ account and credential recipient rather than only their user-supplied labels.
 - `plugins/detection-hunting/attack-path-workbench/tests/test_workbench.py`: negative tests for output-path replacement, publication races, durability failures and cleanup behavior.
 - `docs/SECURITY_MODEL.md`: inspect at the baseline revision; evidence scope is limited to this component.
 - `scripts/agent/check.py`: inspect at the baseline revision; evidence scope is limited to this component.
+- `cops/laboratory/harness.py`, `receipts.py`, and `journal.py`: source and synthetic-test evidence for laboratory receipt binding, dispatch intent, and case classification; live host isolation and observer independence remain unverified.
 
 ## Threat register and prioritization
 
@@ -172,6 +174,14 @@ validation before the affected release/capability expansion and schedule P2 with
 - Existing evidence / limitation: The provenance schema requires review fields and the integrity validator rejects duplicate guidance or decision IDs, unregistered guidance or decision targets, and review records that do not match their enclosing source and license. Guidance must resolve to an exact local registry-table entry. These controls validate metadata consistency only.
 - Proposed mitigation and validation: Run the registry integrity tests and `make check` after source changes; maintainers must review changed source terms and intended reuse before accepting a disposition.
 - Residual risk / status: automated checks do not determine authorship, license compatibility, whether material was copied, or the sufficiency of authorization for a particular reuse. Human review remains required.
+
+### T12: Laboratory observation spoofing or incomplete dispatch accounting
+
+- Attack path / prerequisite: A worker-controlled result claims isolation, a clean reset, or canary detection without independent measurement; alternatively, a controller crash or lost dispatch response obscures whether a case ran.
+- Inherent impact: High; likelihood: Medium; priority: P1.
+- Existing evidence / limitation: The harness checks owner-provisioned Ed25519 observation receipts against operation nonces and result identity, rejects missing or contradictory case observations, and records dispatch intent in an owner-only SQLite journal before SSH dispatch. It marks uncertain dispatches separately and fails pending cases after restart, reset, reverification, or a bounded deadline. These are local software controls; synthetic tests do not prove host isolation, key custody, an independent observer, or remote cleanup.
+- Proposed mitigation and validation: On the intended host, verify observation-key custody, observer separation from the worker and controller, effective network isolation and egress denial, canary baseline and reset behavior, and reconciliation of unknown dispatches against worker audit evidence. Test crash and storage-failure recovery with the actual filesystem and supervisor before enabling live cases.
+- Residual risk / status: live operating evidence and exact-revision human security review are pending. Journal integrity assumes an owner-controlled host and one controller process; a same-authority actor or unavailable journal storage can disrupt accounting.
 
 ## STRIDE and privacy coverage
 
