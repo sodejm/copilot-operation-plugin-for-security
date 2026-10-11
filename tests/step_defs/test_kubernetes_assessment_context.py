@@ -34,9 +34,7 @@ def approved_record(context):
 @when("the observed context switches to another cluster")
 def switch_context(context):
     record = context["record"]
-    record["observation"]["current_context"] = {
-        "name": "other", "cluster": "other-cluster", "user": "reader"
-    }
+    record["observation"]["current_context"] = {"name": "other", "cluster": "other-cluster", "user": "reader"}
     record["observation"]["contexts"].append(copy.deepcopy(record["observation"]["current_context"]))
 
 
@@ -48,9 +46,9 @@ def reject_switch(context):
 
 @when("another context reuses the selected display name")
 def duplicate_name(context):
-    context["record"]["observation"]["contexts"].append({
-        "name": "lab-east", "cluster": "other-cluster", "user": "reader"
-    })
+    context["record"]["observation"]["contexts"].append(
+        {"name": "lab-east", "cluster": "other-cluster", "user": "reader"}
+    )
 
 
 @then("the importer rejects the duplicate name")
@@ -109,8 +107,10 @@ def visible_limits(context):
 
 @when("the record is assessed with network disabled")
 def offline(context):
-    with patch.object(socket, "socket", side_effect=AssertionError("network attempted")), \
-         patch.object(socket, "create_connection", side_effect=AssertionError("network attempted")):
+    with (
+        patch.object(socket, "socket", side_effect=AssertionError("network attempted")),
+        patch.object(socket, "create_connection", side_effect=AssertionError("network attempted")),
+    ):
         context["report"] = assess(context["record"])
 
 

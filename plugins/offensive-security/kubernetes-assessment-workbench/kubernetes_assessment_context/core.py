@@ -13,15 +13,38 @@ ACCESS = frozenset({"accessible", "denied", "unknown"})
 SURFACE_ACCESS = ACCESS | {"unavailable"}
 FACT_ACCESS = SURFACE_ACCESS | {"managed_unavailable"}
 FACT_FIELDS = (
-    "server_version", "distribution", "container_runtime", "node_os", "network_model",
-    "admission_controls", "control_plane_access", "node_access",
+    "server_version",
+    "distribution",
+    "container_runtime",
+    "node_os",
+    "network_model",
+    "admission_controls",
+    "control_plane_access",
+    "node_access",
 )
-SENSITIVE_KEYS = frozenset({
-    "token", "access_token", "refresh_token", "password", "secret", "secret_key",
-    "client_key", "client_key_data", "private_key", "certificate", "client_certificate",
-    "client_certificate_data", "certificate_authority_data", "kubeconfig", "server",
-    "server_url", "api_key", "auth_provider", "exec",
-})
+SENSITIVE_KEYS = frozenset(
+    {
+        "token",
+        "access_token",
+        "refresh_token",
+        "password",
+        "secret",
+        "secret_key",
+        "client_key",
+        "client_key_data",
+        "private_key",
+        "certificate",
+        "client_certificate",
+        "client_certificate_data",
+        "certificate_authority_data",
+        "kubeconfig",
+        "server",
+        "server_url",
+        "api_key",
+        "auth_provider",
+        "exec",
+    }
+)
 
 
 class GateError(ValueError):
@@ -173,7 +196,14 @@ def assess(record: dict[str, Any]) -> dict[str, Any]:
     observation = _mapping(record["observation"], "invalid_observation")
     if set(plan) - {"approval_reference", "context", "namespaces", "surfaces", "identity_anchor"}:
         raise GateError("invalid_plan")
-    if set(observation) - {"current_context", "contexts", "identity_anchor", "namespace_access", "surface_access", "cluster_facts"}:
+    if set(observation) - {
+        "current_context",
+        "contexts",
+        "identity_anchor",
+        "namespace_access",
+        "surface_access",
+        "cluster_facts",
+    }:
         raise GateError("invalid_observation")
     approval = _label(plan.get("approval_reference"), "missing_approval_reference")
     selected = _context(plan.get("context"))
@@ -197,10 +227,16 @@ def assess(record: dict[str, Any]) -> dict[str, Any]:
     if approved_anchor and observed_anchor and approved_anchor != observed_anchor:
         raise GateError("identity_anchor_mismatch")
     identity_status = "matched_sanitized_export" if approved_anchor and observed_anchor else "unresolved"
-    namespace_access = _access_rows(observation.get("namespace_access", []), "invalid_namespace_access", "namespace", ACCESS)
-    surface_access = _access_rows(observation.get("surface_access", []), "invalid_surface_access", "surface", SURFACE_ACCESS)
+    namespace_access = _access_rows(
+        observation.get("namespace_access", []), "invalid_namespace_access", "namespace", ACCESS
+    )
+    surface_access = _access_rows(
+        observation.get("surface_access", []), "invalid_surface_access", "surface", SURFACE_ACCESS
+    )
     facts = _facts(observation.get("cluster_facts", {}))
-    namespace_rows = [{"namespace": item, "status": namespace_access.get(item, "unknown")} for item in sorted(namespaces)]
+    namespace_rows = [
+        {"namespace": item, "status": namespace_access.get(item, "unknown")} for item in sorted(namespaces)
+    ]
     surface_rows = [{"surface": item, "status": surface_access.get(item, "unknown")} for item in sorted(surfaces)]
     blockers = []
     if identity_status == "unresolved":
@@ -215,14 +251,20 @@ def assess(record: dict[str, Any]) -> dict[str, Any]:
     if facts["node_access"] != "accessible":
         limitations.append("node_access_unavailable")
     return {
-        "schema_version": "1.0", "evidence_origin": "sanitized_offline_export",
-        "approval_reference": approval, "selected_context": selected,
+        "schema_version": "1.0",
+        "evidence_origin": "sanitized_offline_export",
+        "approval_reference": approval,
+        "selected_context": selected,
         "cluster_identity": {
             "method": "namespace_uid_anchor" if identity_status != "unresolved" else "unresolved",
             "status": identity_status,
             "anchor": approved_anchor if identity_status != "unresolved" else None,
         },
-        "namespaces": namespace_rows, "surfaces": surface_rows,
-        "cluster_facts": facts, "blockers": blockers, "limitations": limitations,
-        "live_execution_ready": False, "network_requests": 0,
+        "namespaces": namespace_rows,
+        "surfaces": surface_rows,
+        "cluster_facts": facts,
+        "blockers": blockers,
+        "limitations": limitations,
+        "live_execution_ready": False,
+        "network_requests": 0,
     }

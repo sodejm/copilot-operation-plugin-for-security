@@ -13,7 +13,9 @@ ROOT = PACKAGE.parents[2]
 
 def main() -> int:
     tests = PACKAGE / "tests"
-    result = subprocess.run([sys.executable, "-m", "unittest", "discover", "-s", str(tests), "-v"], cwd=ROOT, check=False)
+    result = subprocess.run(
+        [sys.executable, "-m", "unittest", "discover", "-s", str(tests), "-v"], cwd=ROOT, check=False
+    )
     return result.returncode
 
 
