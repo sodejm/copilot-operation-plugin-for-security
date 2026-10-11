@@ -120,24 +120,38 @@ def _evidence_ids(value: Any, where: str, *, minimum: int = 1) -> list[str]:
 
 
 def _host(value: Any) -> dict[str, Any]:
-    host = _exact_keys(value, {"kernel_release", "distribution_id", "distribution_version", "namespace", "protections"}, "host")
+    host = _exact_keys(
+        value, {"kernel_release", "distribution_id", "distribution_version", "namespace", "protections"}, "host"
+    )
     protections = _exact_keys(host["protections"], set(PROTECTIONS), "host.protections")
-    states = {name: _enum(protections[name], {"enabled", "disabled", "enforcing", "permissive", "unknown"}, f"host.protections.{name}") for name in PROTECTIONS}
+    states = {
+        name: _enum(
+            protections[name], {"enabled", "disabled", "enforcing", "permissive", "unknown"}, f"host.protections.{name}"
+        )
+        for name in PROTECTIONS
+    }
     return {
         "kernel_release": _token(host["kernel_release"], "host.kernel_release", version=True, unknown=True),
         "distribution_id": _token(host["distribution_id"], "host.distribution_id", unknown=True),
-        "distribution_version": _token(host["distribution_version"], "host.distribution_version", version=True, unknown=True),
+        "distribution_version": _token(
+            host["distribution_version"], "host.distribution_version", version=True, unknown=True
+        ),
         "namespace": _enum(host["namespace"], {"host", "container", "unknown"}, "host.namespace"),
         "protections": states,
     }
 
 
 def _requirements(value: Any) -> dict[str, Any]:
-    req = _exact_keys(value, {"kernel_release", "distribution_id", "distribution_version", "namespace", "protections"}, "requirements")
+    req = _exact_keys(
+        value, {"kernel_release", "distribution_id", "distribution_version", "namespace", "protections"}, "requirements"
+    )
     protections = req["protections"]
     if not isinstance(protections, dict) or set(protections) - set(PROTECTIONS):
         raise ContractError("requirements.protections has unsupported fields")
-    states = {name: _enum(state, {"enabled", "disabled", "enforcing", "permissive"}, f"requirements.protections.{name}") for name, state in sorted(protections.items())}
+    states = {
+        name: _enum(state, {"enabled", "disabled", "enforcing", "permissive"}, f"requirements.protections.{name}")
+        for name, state in sorted(protections.items())
+    }
     return {
         "kernel_release": _token(req["kernel_release"], "requirements.kernel_release", version=True),
         "distribution_id": _token(req["distribution_id"], "requirements.distribution_id"),
@@ -148,7 +162,16 @@ def _requirements(value: Any) -> dict[str, Any]:
 
 
 def _canary(value: Any) -> dict[str, Any]:
-    fields = {"case", "resource_id", "disposable_host", "assessment_owned", "before_access", "after_access", "evidence_ids", "cleanup_verified"}
+    fields = {
+        "case",
+        "resource_id",
+        "disposable_host",
+        "assessment_owned",
+        "before_access",
+        "after_access",
+        "evidence_ids",
+        "cleanup_verified",
+    }
     canary = _exact_keys(value, fields, "canary")
     case = _enum(canary["case"], {"positive", "negative", "fixed"}, "canary.case")
     for name in ("disposable_host", "assessment_owned", "cleanup_verified"):
@@ -179,14 +202,21 @@ def _decision(host: dict[str, Any], req: dict[str, Any]) -> str:
 
 def assess_document(payload: dict[str, Any]) -> dict[str, Any]:
     """Classify an export without treating imported claims as live verification."""
-    document = _exact_keys(payload, {"schema_version", "source_kind", "source_id", "host", "coverage", "observations"}, "document")
+    document = _exact_keys(
+        payload, {"schema_version", "source_kind", "source_id", "host", "coverage", "observations"}, "document"
+    )
     if document["schema_version"] != "1.0":
         raise ContractError("unsupported schema version")
     source_kind = _enum(document["source_kind"], {"synthetic_lab", "operator_export"}, "source_kind")
     source_id = _token(document["source_id"], "source_id")
     host = _host(document["host"])
     raw_coverage = _exact_keys(document["coverage"], set(SURFACES), "coverage")
-    coverage = {surface: _enum(raw_coverage[surface], {"assessed", "not_assessed", "unsupported", "access_denied"}, f"coverage.{surface}") for surface in SURFACES}
+    coverage = {
+        surface: _enum(
+            raw_coverage[surface], {"assessed", "not_assessed", "unsupported", "access_denied"}, f"coverage.{surface}"
+        )
+        for surface in SURFACES
+    }
     observations = document["observations"]
     if not isinstance(observations, list) or len(observations) > MAX_OBSERVATIONS:
         raise ContractError("observations must be a bounded list")
@@ -194,7 +224,9 @@ def assess_document(payload: dict[str, Any]) -> dict[str, Any]:
     results: list[dict[str, Any]] = []
     seen: set[str] = set()
     for raw in observations:
-        item = _exact_keys(raw, {"id", "surface", "configuration", "evidence_ids", "requirements"}, "observation", {"canary"})
+        item = _exact_keys(
+            raw, {"id", "surface", "configuration", "evidence_ids", "requirements"}, "observation", {"canary"}
+        )
         obs_id = _token(item["id"], "observation.id")
         if obs_id in seen:
             raise ContractError("duplicate observation ID")
@@ -212,7 +244,11 @@ def assess_document(payload: dict[str, Any]) -> dict[str, Any]:
         elif canary:
             classification = "reported_canary_crossing" if canary["case"] == "positive" else "reported_canary_blocked"
         else:
-            classification = {"interesting": "configuration_candidate", "ordinary": "ordinary_configuration", "unknown": "insufficient_evidence"}[config]
+            classification = {
+                "interesting": "configuration_candidate",
+                "ordinary": "ordinary_configuration",
+                "unknown": "insufficient_evidence",
+            }[config]
         result: dict[str, Any] = {
             "id": obs_id,
             "surface": surface,

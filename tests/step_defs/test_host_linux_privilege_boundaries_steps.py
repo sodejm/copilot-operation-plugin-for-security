@@ -78,13 +78,21 @@ def coverage(context):
 @then("the selected check records its kernel, distribution version, namespace, and protections")
 def prerequisites(context):
     requirements = context["report"]["observations"][0]["requirements"]
-    assert set(requirements) == {"kernel_release", "distribution_id", "distribution_version", "namespace", "protections"}
+    assert set(requirements) == {
+        "kernel_release",
+        "distribution_id",
+        "distribution_version",
+        "namespace",
+        "protections",
+    }
     assert requirements["distribution_version"] == "24.04"
 
 
 @then("both reports identify reported blocked canaries")
 def reported_blocked(context):
-    assert all(report["observations"][0]["classification"] == "reported_canary_blocked" for report in context["reports"])
+    assert all(
+        report["observations"][0]["classification"] == "reported_canary_blocked" for report in context["reports"]
+    )
 
 
 @then("the observation is inapplicable and has no success classification")

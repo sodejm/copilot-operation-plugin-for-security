@@ -257,13 +257,12 @@ def audit_capabilities(root: Path = ROOT, registry_data: dict[str, Any] | None =
     # Rule 3: Catalog descriptive drift check
     if summary["by_kind"]["plugin"] != 15:
         raise CapabilityTruthError(
-            "catalog_descriptive_drift",
-            f"Expected exactly 15 plugins, found {summary['by_kind']['plugin']}."
+            "catalog_descriptive_drift", f"Expected exactly 15 plugins, found {summary['by_kind']['plugin']}."
         )
     if summary["by_kind"]["specialist"] != 19:
         raise CapabilityTruthError(
             "catalog_descriptive_drift",
-            f"Expected exactly 19 specialist profiles, found {summary['by_kind']['specialist']}."
+            f"Expected exactly 19 specialist profiles, found {summary['by_kind']['specialist']}.",
         )
     if summary["by_kind"]["scenario"] != 37:
         raise CapabilityTruthError(

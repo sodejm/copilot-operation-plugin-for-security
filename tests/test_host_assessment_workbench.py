@@ -152,7 +152,7 @@ def test_deeply_nested_json_fails_closed_in_api_and_cli(tmp_path: Path) -> None:
 
 
 def test_json_depth_check_ignores_brackets_inside_strings() -> None:
-    quoted = b'{"source_id":"source\\\"' + b"[" * 1100 + b'"}'
+    quoted = b'{"source_id":"source\\"' + b"[" * 1100 + b'"}'
     with pytest.raises(ContractError, match="document has missing or unsupported fields"):
         load_report_bytes(quoted)
 
