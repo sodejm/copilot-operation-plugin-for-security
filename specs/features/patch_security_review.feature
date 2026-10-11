@@ -18,3 +18,8 @@ Feature: Offline patch security review
     Given a changed source file beyond the configured byte budget
     When the pinned commits are reviewed
     Then review stops before reading the full source
+
+  Scenario: PSR-05 records a directory role assignment change
+    Given a synthetic Python patch that adds a Microsoft Graph directory role assignment
+    When the pinned commits are reviewed
+    Then the report records a line-specific privilege candidate with impact and confidence
