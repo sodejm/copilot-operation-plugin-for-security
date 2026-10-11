@@ -7,7 +7,7 @@
   "sources": [
     {
       "path": "cops/evidence/__init__.py",
-      "sha256": "a270427396430d20d22751e74c11cc4fa84e081a59eb3f4c68022f8d19be944f"
+      "sha256": "5906aea1fd058eab5dcfabacd1c326e908e58d99fa17f3df6f1e7124da5950bf"
     },
     {
       "path": "cops/evidence/canonical.py",
@@ -24,6 +24,10 @@
     {
       "path": "cops/evidence/assessment.py",
       "sha256": "643db0ceab7701993ee6084e48a7a4f13f9173fcb51a59708156894f0717b5c5"
+    },
+    {
+      "path": "cops/evidence/ai_inventory.py",
+      "sha256": "ddae2f163e2dd0eb30ef30b91c05eec0534dff44bdbab4b2786266da76b50f2e"
     },
     {
       "path": "catalog/schemas/evidence-envelope.schema.json",
