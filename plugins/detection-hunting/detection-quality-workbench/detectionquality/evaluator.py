@@ -2,17 +2,88 @@
 
 from __future__ import annotations
 
+import re
+from datetime import datetime, timedelta
 from typing import Any
 
-from .models import CaseResult, FixtureCase, FixtureSuite, Rule
+from .models import CaseResult, FixtureCase, FixtureSuite, QualityError, Rule
 from .static_analysis import analyze_rule_dependencies
+
+
+def _timestamp(value: Any) -> datetime:
+    """Require an offset-aware ISO 8601 timestamp for deterministic comparisons."""
+    if not isinstance(value, str):
+        raise QualityError(f"Invalid timestamp: {value!r}")
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise QualityError(f"Invalid timestamp: {value!r}") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise QualityError(f"Timestamp must include a timezone: {value!r}")
+    return parsed
+
+
+def _duration(value: str) -> timedelta:
+    match = re.fullmatch(r"([0-9]+)([smhd])", value)
+    if match is None:
+        raise QualityError(f"Invalid duration: {value!r}")
+    units = {"s": 1, "m": 60, "h": 3600, "d": 86400}
+    return timedelta(seconds=int(match.group(1)) * units[match.group(2)])
+
+
+def _primary_events(case: FixtureCase, rule: Rule) -> tuple[dict[str, Any], ...]:
+    """Select primary rows and enforce every declared fixture-level join."""
+    primary_source = rule.source_data["primary_source"]
+    join_keys = rule.source_data.get("join_keys", [])
+    secondary_sources = set(rule.source_data.get("secondary_sources", []))
+    selected = []
+    for event in case.events:
+        source = event.get("source")
+        if source is not None and source != primary_source:
+            continue
+        if join_keys:
+            if not any(
+                secondary.get("source") in secondary_sources
+                and all(event.get(key) is not None and event.get(key) == secondary.get(key) for key in join_keys)
+                for secondary in case.events
+            ):
+                continue
+        selected.append(event)
+    return tuple(selected)
+
+
+def _is_suppressed(event: dict[str, Any], rule: Rule, case: FixtureCase) -> bool:
+    if not case.prior_alerts or rule.suppression_window == "none":
+        return False
+    if rule.identity_scope == "global":
+        identity_field = None
+    elif rule.identity_scope in ("user", "host"):
+        identity_field = {"user": "UserPrincipalName", "host": "Computer"}[rule.identity_scope]
+    else:
+        raise QualityError(f"Unsupported identity_scope: {rule.identity_scope!r}")
+    identity = event.get(identity_field) if identity_field else None
+    event_time_field = "TimeGenerated" if rule.platform == "sentinel_kql" else "_time"
+    event_time = _timestamp(event.get(event_time_field))
+    earliest = event_time - _duration(rule.suppression_window)
+    for alert in case.prior_alerts:
+        alert_time = _timestamp(alert.get("timestamp"))
+        if not isinstance(alert.get("identity"), str):
+            raise QualityError("Prior alert identity must be a string")
+        if identity_field is not None and identity != alert["identity"]:
+            continue
+        tenant_id = event.get("TenantId")
+        if not isinstance(tenant_id, str) or not tenant_id or tenant_id != alert.get("tenant_id"):
+            continue
+        if earliest <= alert_time <= event_time:
+            return True
+    return False
 
 
 def _evaluate_event_predicate(event: dict[str, Any], rule: Rule) -> bool:
     """Evaluate whether an event satisfies the rule logic predicate."""
-    # Check if any required field is completely missing
+    # Null required values are absent telemetry, even if a different predicate branch could match.
     for req in rule.required_fields:
-        if req not in event:
+        if event.get(req) is None:
             return False
 
     # 1. KQL evaluation
@@ -68,14 +139,29 @@ def _generic_evaluate(event: dict[str, Any], query: str) -> bool:
 
 def evaluate_fixture_case(case: FixtureCase, rule: Rule) -> CaseResult:
     """Evaluate all events in a single fixture case."""
+    primary_events = _primary_events(case, rule)
     missing_fields_in_case = set()
     for req in rule.required_fields:
         for ev in case.events:
-            if req not in ev:
+            if ev.get("source") not in (None, rule.source_data["primary_source"]):
+                continue
+            if ev.get(req) is None:
                 missing_fields_in_case.add(req)
 
-    # Check if any event matches the rule predicate
-    matched = any(_evaluate_event_predicate(ev, rule) for ev in case.events)
+    anchor = _timestamp(case.evaluation_time) if case.evaluation_time is not None else None
+    event_time_field = "TimeGenerated" if rule.platform == "sentinel_kql" else "_time"
+    window_start = anchor - _duration(rule.time_window) if anchor is not None else None
+    matched = False
+    for event in primary_events:
+        if not _evaluate_event_predicate(event, rule):
+            continue
+        if anchor is not None:
+            event_time = _timestamp(event.get(event_time_field))
+            if not window_start <= event_time <= anchor:
+                continue
+        if not _is_suppressed(event, rule, case):
+            matched = True
+            break
 
     # Classification
     if missing_fields_in_case:
@@ -106,20 +192,32 @@ def evaluate_fixture_case(case: FixtureCase, rule: Rule) -> CaseResult:
     )
 
 
-def evaluate_rule_suite(rule: Rule, suite: FixtureSuite, environment: str = "offline_reference_evaluator") -> dict[str, Any]:
+def evaluate_rule_suite(
+    rule: Rule, suite: FixtureSuite, environment: str = "offline_reference_evaluator"
+) -> dict[str, Any]:
     """Evaluate a complete fixture suite against a rule."""
     static_checks = analyze_rule_dependencies(rule, list(suite.cases))
 
     case_results = [evaluate_fixture_case(case, rule) for case in suite.cases]
 
     # Metrics
-    tp = sum(1 for r in case_results if r.outcome_classification in ("true_positive", "boundary_handled") and r.expected_match)
+    tp = sum(
+        1
+        for r in case_results
+        if r.outcome_classification in ("true_positive", "boundary_handled") and r.expected_match
+    )
     fp = sum(1 for r in case_results if r.outcome_classification == "false_positive")
-    tn = sum(1 for r in case_results if r.outcome_classification in ("true_negative", "boundary_handled") and not r.expected_match)
-    fn = sum(1 for r in case_results if r.outcome_classification == "false_negative" or (r.outcome_classification == "missing_field_error" and r.expected_match))
+    tn = sum(
+        1
+        for r in case_results
+        if r.outcome_classification in ("true_negative", "boundary_handled") and not r.expected_match
+    )
+    fn = sum(1 for r in case_results if r.outcome_classification == "false_negative")
+    schema_error_cases = sum(1 for r in case_results if r.outcome_classification == "missing_field_error")
+    evaluated_cases = len(case_results) - schema_error_cases
 
-    precision = round(tp / (tp + fp), 4) if (tp + fp) > 0 else 0.0
-    recall = round(tp / (tp + fn), 4) if (tp + fn) > 0 else 0.0
+    precision = None if schema_error_cases else (round(tp / (tp + fp), 4) if (tp + fp) > 0 else 0.0)
+    recall = None if schema_error_cases else (round(tp / (tp + fn), 4) if (tp + fn) > 0 else 0.0)
 
     recommendations: list[str] = []
     if fp > 0:
@@ -130,15 +228,21 @@ def evaluate_rule_suite(rule: Rule, suite: FixtureSuite, environment: str = "off
         recommendations.append(
             f"Rule missed {fn} target positive case(s). Review join conditions or required field assumptions."
         )
+    if schema_error_cases > 0:
+        recommendations.append(
+            f"{schema_error_cases} fixture case(s) could not be evaluated because required fields were missing; correct the telemetry before reporting precision and recall."
+        )
     if static_checks["missing_fields"]:
         recommendations.append(
             f"Telemetry schema drift: Missing required field(s) {static_checks['missing_fields']}. Update collection pipeline or declare fields optional."
         )
     if not recommendations:
-        recommendations.append("All labeled fixture cases evaluated cleanly. Rule is ready for staging deployment.")
+        recommendations.append(
+            "All labeled fixture cases evaluated cleanly. Validate the query in the target SIEM before staging."
+        )
 
     return {
-        "schema_version": "cops.detection-quality-report/v1",
+        "schema_version": "cops.detection-quality-report/v2",
         "report_id": f"REPORT-DQ-{rule.rule_id}",
         "evaluated_at": "2026-10-01T00:00:00Z",
         "rule": {
@@ -154,6 +258,8 @@ def evaluate_rule_suite(rule: Rule, suite: FixtureSuite, environment: str = "off
         ),
         "metrics": {
             "total_cases": len(case_results),
+            "evaluated_cases": evaluated_cases,
+            "schema_error_cases": schema_error_cases,
             "true_positives": tp,
             "false_positives": fp,
             "true_negatives": tn,

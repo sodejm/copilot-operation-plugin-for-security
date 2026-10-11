@@ -1,0 +1,30 @@
+{
+  "schema_version": "cops.detection-fixtures/v1",
+  "fixture_suite_id": "FIXTURE-SUITE-TEST-TENANT-JOIN",
+  "target_rule_id": "RULE-KQL-ENTRA-ANOMALOUS-SIGNIN",
+  "description": "Synthetic two-source join contract; does not describe the bundled Sentinel query.",
+  "cases": [
+    {
+      "case_id": "CASE-JOIN-CROSS-TENANT",
+      "description": "Matching correlation IDs from different tenants must not join",
+      "label": "negative",
+      "expected_match": false,
+      "tags": ["cross_tenant_join"],
+      "events": [
+        {"source": "SigninLogs", "TimeGenerated": "2026-10-01T12:00:00Z", "UserPrincipalName": "admin@example.test", "IPAddress": "198.51.100.45", "ResultType": 0, "AppDisplayName": "Azure Portal", "TenantId": "tenant-a", "CorrelationId": "corr-1"},
+        {"source": "IdentityRiskEvents", "TenantId": "tenant-b", "CorrelationId": "corr-1"}
+      ]
+    },
+    {
+      "case_id": "CASE-JOIN-SAME-TENANT",
+      "description": "Matching tenant and correlation IDs allow the reference join",
+      "label": "positive",
+      "expected_match": true,
+      "tags": ["same_tenant_join"],
+      "events": [
+        {"source": "SigninLogs", "TimeGenerated": "2026-10-01T12:00:00Z", "UserPrincipalName": "admin@example.test", "IPAddress": "198.51.100.45", "ResultType": 0, "AppDisplayName": "Azure Portal", "TenantId": "tenant-a", "CorrelationId": "corr-1"},
+        {"source": "IdentityRiskEvents", "TenantId": "tenant-a", "CorrelationId": "corr-1"}
+      ]
+    }
+  ]
+}

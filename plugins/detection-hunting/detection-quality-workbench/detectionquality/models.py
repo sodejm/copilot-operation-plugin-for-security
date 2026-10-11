@@ -34,12 +34,23 @@ class Rule:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Rule:
         required = [
-            "rule_id", "name", "version", "platform", "severity",
-            "source_data", "required_fields", "time_window", "logic", "owner"
+            "rule_id",
+            "name",
+            "version",
+            "platform",
+            "severity",
+            "source_data",
+            "required_fields",
+            "time_window",
+            "logic",
+            "owner",
         ]
         for f in required:
             if f not in data:
                 raise QualityError(f"Missing required rule field: {f}")
+        identity_scope = data.get("identity_scope", "global")
+        if identity_scope not in ("global", "user", "host"):
+            raise QualityError(f"Unsupported identity_scope: {identity_scope!r}")
         return cls(
             rule_id=data["rule_id"],
             name=data["name"],
@@ -54,7 +65,7 @@ class Rule:
             description=data.get("description", ""),
             optional_fields=tuple(data.get("optional_fields", [])),
             suppression_window=data.get("suppression_window", "none"),
-            identity_scope=data.get("identity_scope", "global"),
+            identity_scope=identity_scope,
             expected_signal=data.get("expected_signal", ""),
             mitre_attack=tuple(data.get("mitre_attack", [])),
         )
@@ -91,6 +102,8 @@ class FixtureCase:
     events: tuple[dict[str, Any], ...]
     description: str = ""
     tags: tuple[str, ...] = field(default_factory=tuple)
+    evaluation_time: str | None = None
+    prior_alerts: tuple[dict[str, Any], ...] = field(default_factory=tuple)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> FixtureCase:
@@ -105,10 +118,12 @@ class FixtureCase:
             events=tuple(dict(e) for e in data["events"]),
             description=data.get("description", ""),
             tags=tuple(data.get("tags", [])),
+            evaluation_time=data.get("evaluation_time"),
+            prior_alerts=tuple(dict(alert) for alert in data.get("prior_alerts", [])),
         )
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        result = {
             "case_id": self.case_id,
             "description": self.description,
             "label": self.label,
@@ -116,6 +131,11 @@ class FixtureCase:
             "tags": list(self.tags),
             "events": [dict(e) for e in self.events],
         }
+        if self.evaluation_time is not None:
+            result["evaluation_time"] = self.evaluation_time
+        if self.prior_alerts:
+            result["prior_alerts"] = [dict(alert) for alert in self.prior_alerts]
+        return result
 
 
 @dataclass(frozen=True)
