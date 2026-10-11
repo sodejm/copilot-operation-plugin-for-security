@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import copy
 import json
+import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -83,11 +85,92 @@ class InventoryTests(unittest.TestCase):
         self.assertTrue(result["truncated"])
         self.assertEqual(result["paths"], [])
 
+    def test_found_paths_still_report_incomplete_search(self) -> None:
+        export = copy.deepcopy(self.export)
+        for index in range(7):
+            export["nodes"].append(
+                {
+                    "id": f"branch-{index}",
+                    "kind": "group",
+                    "forest": "forest-a",
+                    "domain": "domain-a",
+                    "protected": False,
+                }
+            )
+            export["edges"].append(
+                {
+                    "id": f"branch-edge-{index}",
+                    "source": "user-a" if index == 0 else f"branch-{index - 1}",
+                    "target": f"branch-{index}",
+                    "kind": "member_of",
+                    "collector_id": "directory-a",
+                    "collected_at": "2026-01-01T11:00:00Z",
+                    "completeness": "complete",
+                    "support": "observed",
+                }
+            )
+        result = analyze(export)["queries"][0]
+        self.assertEqual(result["status"], "search_incomplete")
+        self.assertTrue(result["truncated"])
+        self.assertEqual(len(result["paths"]), 1)
+
     def test_edge_cannot_outlive_collector(self) -> None:
         bad = copy.deepcopy(self.export)
         bad["edges"][0]["collected_at"] = "2026-01-02T00:00:00Z"
         with self.assertRaisesRegex(InventoryError, "invalid_timestamp"):
             analyze(bad)
+
+    def test_timestamps_are_canonical_and_bounded(self) -> None:
+        accepted = copy.deepcopy(self.export)
+        accepted["edges"][0]["collected_at"] = "2026-01-01T11:00:00.123456Z"
+        analyze(accepted)
+        for timestamp in (
+            "2026-01-01T11:00:00.1234567Z",
+            "2026-01-01T11:00:00." + "1" * 100_000 + "Z",
+        ):
+            with self.subTest(length=len(timestamp)):
+                bad = copy.deepcopy(self.export)
+                bad["edges"][0]["collected_at"] = timestamp
+                with self.assertRaisesRegex(InventoryError, "invalid_timestamp"):
+                    analyze(bad)
+
+    def test_host_collector_requires_typed_host_endpoint(self) -> None:
+        bad = copy.deepcopy(self.export)
+        next(node for node in bad["nodes"] if node["id"] == "host-a")["kind"] = "principal"
+        with self.assertRaisesRegex(InventoryError, "collector_scope_mismatch"):
+            analyze(bad)
+
+    def test_duplicate_json_fields_fail_closed(self) -> None:
+        for raw in (
+            '{"schema_version":"0","schema_version":"1.0"}',
+            '{"scope":{"hosts":[],"hosts":[]}}',
+            '{"scope":NaN}',
+        ):
+            with self.subTest(raw=raw), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "export.json"
+                path.write_text(raw, encoding="utf-8")
+                with self.assertRaisesRegex(InventoryError, "invalid_json"):
+                    load_export(path)
+
+    def test_deep_json_fails_with_structured_error(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "export.json"
+            for depth in (65, 1200):
+                with self.subTest(depth=depth):
+                    path.write_text("[" * depth + "0" + "]" * depth, encoding="utf-8")
+                    with self.assertRaisesRegex(InventoryError, "invalid_json"):
+                        load_export(path)
+
+    def test_package_root_command_runs(self) -> None:
+        result = subprocess.run(
+            [sys.executable, "scripts/analyze.py", "fixtures/synthetic-two-forest.json"],
+            cwd=PACKAGE,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["queries"][0]["status"], "candidate_paths")
 
     def test_unknown_fields_rejected(self) -> None:
         bad = copy.deepcopy(self.export)
@@ -96,8 +179,6 @@ class InventoryTests(unittest.TestCase):
             analyze(bad)
 
     def test_symlink_input_rejected(self) -> None:
-        import tempfile
-
         with tempfile.TemporaryDirectory() as directory:
             link = Path(directory) / "export.json"
             link.symlink_to(PACKAGE / "fixtures" / "synthetic-two-forest.json")
