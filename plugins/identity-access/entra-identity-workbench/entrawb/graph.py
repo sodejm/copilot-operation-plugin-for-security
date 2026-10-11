@@ -2,13 +2,82 @@
 
 from __future__ import annotations
 
+import re
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from .models import IdentityEdge, IdentityGraph, IdentityNode
+from .models import EntraError, IdentityEdge, IdentityGraph, IdentityNode
+
+SOURCE_IDS = (
+    "users", "groups", "applications", "service_principals", "managed_identities",
+    "federated_credentials", "agent_blueprints", "agent_identities", "resources",
+    "directory_roles", "role_assignments", "oauth_grants",
+)
+MAX_AGE = timedelta(hours=24)
+TIMESTAMP_PATTERN = re.compile(
+    r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})\Z"
+)
 
 
-def build_identity_graph(manifest: dict[str, Any], sources: dict[str, Any]) -> IdentityGraph:
+def _source_coverage(
+    manifest: dict[str, Any], sources: dict[str, Any], as_of: datetime
+) -> dict[str, dict[str, Any]]:
+    """Classify each required export using its own or the manifest timestamp."""
+    entries = {entry["source_id"]: entry for entry in manifest.get("sources", [])}
+    coverage: dict[str, dict[str, Any]] = {}
+    for source_id in SOURCE_IDS:
+        entry = entries.get(source_id)
+        if entry is None:
+            coverage[source_id] = {
+                "status": "unknown", "reason": "not_listed", "path": None,
+                "sha256": None, "completeness": None, "exported_at": None,
+            }
+            continue
+        exported_at = entry.get("exported_at", manifest.get("exported_at"))
+        if exported_at is not None and not isinstance(exported_at, str):
+            exported_at = str(exported_at)
+        item = {
+            "status": "unknown", "reason": None, "path": entry.get("path"),
+            "sha256": entry.get("sha256"), "completeness": entry.get("completeness"),
+            "exported_at": exported_at,
+        }
+        if not sources.get(source_id, {}).get("available", True):
+            item["reason"] = "missing_file"
+        elif source_id not in sources:
+            item["reason"] = "missing_file"
+        elif item["completeness"] != "full":
+            item["reason"] = "incomplete"
+        else:
+            try:
+                if not TIMESTAMP_PATTERN.fullmatch(exported_at or ""):
+                    raise ValueError("timestamp must use RFC 3339 date-time syntax")
+                timestamp = datetime.fromisoformat(exported_at.replace("Z", "+00:00"))
+                if timestamp.tzinfo is None or timestamp.utcoffset() is None:
+                    raise ValueError("timestamp must include a timezone")
+            except (AttributeError, TypeError, ValueError):
+                item["reason"] = "invalid_timestamp"
+            else:
+                timestamp = timestamp.astimezone(UTC)
+                if timestamp > as_of:
+                    item["reason"] = "future_timestamp"
+                elif as_of - timestamp > MAX_AGE:
+                    item["reason"] = "stale"
+                else:
+                    item["status"] = "fresh"
+                    item["reason"] = None
+        coverage[source_id] = item
+    return coverage
+
+
+def build_identity_graph(
+    manifest: dict[str, Any], sources: dict[str, Any], *, as_of: datetime | None = None
+) -> IdentityGraph:
     """Construct a typed, directed identity graph from validated export sources."""
+    as_of = as_of or datetime.now(UTC)
+    if as_of.tzinfo is None or as_of.utcoffset() is None:
+        raise EntraError("Assessment time must include a timezone")
+    as_of = as_of.astimezone(UTC)
+    coverage = _source_coverage(manifest, sources, as_of)
     tenant_id = str(manifest["tenant_id"])
     nodes: dict[str, IdentityNode] = {}
     edges: list[IdentityEdge] = []
@@ -37,6 +106,7 @@ def build_identity_graph(manifest: dict[str, Any], sources: dict[str, Any]) -> I
                 "is_guest": bool(u.get("is_guest", False)),
                 "account_enabled": bool(u.get("account_enabled", True)),
             },
+            evidence_source="users",
         )
 
     # 2. Groups
@@ -52,6 +122,7 @@ def build_identity_graph(manifest: dict[str, Any], sources: dict[str, Any]) -> I
                 "is_role_assignable": bool(g.get("is_role_assignable", False)),
                 "security_enabled": bool(g.get("security_enabled", True)),
             },
+            evidence_source="groups",
         )
         for m_id in g.get("members", []):
             edges.append(
@@ -63,6 +134,7 @@ def build_identity_graph(manifest: dict[str, Any], sources: dict[str, Any]) -> I
                     grant_type="direct",
                     scope=f"group:{gid}",
                     provenance=f"groups.json:{gid}",
+                    evidence_sources=("groups",),
                 )
             )
 
@@ -81,6 +153,7 @@ def build_identity_graph(manifest: dict[str, Any], sources: dict[str, Any]) -> I
                 "has_credentials": bool(app.get("has_credentials", False)),
                 "credential_count": int(app.get("credential_count", 0)),
             },
+            evidence_source="applications",
         )
         for owner_id in app.get("owners", []):
             edges.append(
@@ -92,6 +165,7 @@ def build_identity_graph(manifest: dict[str, Any], sources: dict[str, Any]) -> I
                     grant_type="direct",
                     scope=f"app:{app_id}",
                     provenance=f"applications.json:{app_id}",
+                    evidence_sources=("applications",),
                 )
             )
 
@@ -111,6 +185,7 @@ def build_identity_graph(manifest: dict[str, Any], sources: dict[str, Any]) -> I
                 "account_enabled": bool(sp.get("account_enabled", True)),
                 "is_legacy_foundry_principal": bool(sp.get("is_legacy_foundry_principal", False)),
             },
+            evidence_source="service_principals",
         )
         for owner_id in sp.get("owners", []):
             edges.append(
@@ -122,6 +197,7 @@ def build_identity_graph(manifest: dict[str, Any], sources: dict[str, Any]) -> I
                     grant_type="direct",
                     scope=f"sp:{sp_id}",
                     provenance=f"service_principals.json:{sp_id}",
+                    evidence_sources=("service_principals",),
                 )
             )
 
@@ -139,6 +215,7 @@ def build_identity_graph(manifest: dict[str, Any], sources: dict[str, Any]) -> I
                 "associated_resource_id": mi.get("associated_resource_id"),
                 "client_id": mi.get("client_id"),
             },
+            evidence_source="managed_identities",
         )
 
     # 6. Federated Credentials
@@ -157,6 +234,7 @@ def build_identity_graph(manifest: dict[str, Any], sources: dict[str, Any]) -> I
                 "audiences": fed.get("audiences", []),
                 "is_wildcard": bool("*" in fed.get("subject", "")),
             },
+            evidence_source="federated_credentials",
         )
         edges.append(
             IdentityEdge(
@@ -167,6 +245,7 @@ def build_identity_graph(manifest: dict[str, Any], sources: dict[str, Any]) -> I
                 grant_type="direct",
                 scope=f"sp:{target_sp}",
                 provenance=f"federated_credentials.json:{fed_id}",
+                evidence_sources=("federated_credentials",),
             )
         )
 
@@ -186,6 +265,7 @@ def build_identity_graph(manifest: dict[str, Any], sources: dict[str, Any]) -> I
                 "declared_resources": bp.get("declared_resources", []),
                 "intended_privilege": bp.get("intended_privilege", "read_only"),
             },
+            evidence_source="agent_blueprints",
         )
 
     # 8. Agent Identities (Instantiated Entra Agent ID principals)
@@ -206,6 +286,7 @@ def build_identity_graph(manifest: dict[str, Any], sources: dict[str, Any]) -> I
                 "agent_type": "EntraAgentID",
                 "active_status": ai.get("active_status", "active"),
             },
+            evidence_source="agent_identities",
         )
 
         # Edge: Agent Identity instantiates Agent Blueprint
@@ -218,6 +299,7 @@ def build_identity_graph(manifest: dict[str, Any], sources: dict[str, Any]) -> I
                 grant_type="direct",
                 scope=f"blueprint:{bp_id}",
                 provenance=f"agent_identities.json:{agent_id}",
+                evidence_sources=("agent_identities",),
             )
         )
 
@@ -231,6 +313,7 @@ def build_identity_graph(manifest: dict[str, Any], sources: dict[str, Any]) -> I
                 grant_type="direct",
                 scope=f"sponsor:{sponsor_id}",
                 provenance=f"agent_identities.json:{agent_id}",
+                evidence_sources=("agent_identities",),
             )
         )
 
@@ -249,6 +332,7 @@ def build_identity_graph(manifest: dict[str, Any], sources: dict[str, Any]) -> I
                 "resource_group": r.get("resource_group"),
                 "is_critical": bool(r.get("is_critical", False)),
             },
+            evidence_source="resources",
         )
 
     # 10. Directory Roles (with PIM state: active vs eligible)
@@ -265,6 +349,7 @@ def build_identity_graph(manifest: dict[str, Any], sources: dict[str, Any]) -> I
                 "is_privileged": bool(dr.get("is_privileged", False)),
                 "description": dr.get("description", ""),
             },
+            evidence_source="directory_roles",
         )
         for assignment in dr.get("assignments", []):
             principal_id = str(assignment["principal_id"])
@@ -279,6 +364,7 @@ def build_identity_graph(manifest: dict[str, Any], sources: dict[str, Any]) -> I
                     pim_state=pim_state,
                     scope="tenant",
                     provenance=f"directory_roles.json:{role_id}",
+                    evidence_sources=("directory_roles",),
                 )
             )
 
@@ -302,6 +388,7 @@ def build_identity_graph(manifest: dict[str, Any], sources: dict[str, Any]) -> I
                 scope=f"{role_name} on {scope}",
                 provenance=f"role_assignments.json:{ra_id}",
                 pim_state=ra.get("pim_state", "none"),
+                evidence_sources=("role_assignments",),
             )
         )
 
@@ -321,6 +408,7 @@ def build_identity_graph(manifest: dict[str, Any], sources: dict[str, Any]) -> I
                 display_name=api_resource,
                 tenant_id=tenant_id,
                 properties={"resource_type": "api_resource"},
+                evidence_source="oauth_grants",
             )
 
         edges.append(
@@ -332,14 +420,15 @@ def build_identity_graph(manifest: dict[str, Any], sources: dict[str, Any]) -> I
                 grant_type=grant_type,
                 scope=permission,
                 provenance=f"oauth_grants.json:{og_id}",
+                evidence_sources=("oauth_grants",),
             )
         )
 
     # Transitive Group Inheritance: compute inherited edges for group members
-    group_memberships: dict[str, set[str]] = {}
+    group_memberships: dict[str, dict[str, IdentityEdge]] = {}
     for edge in edges:
         if edge.relation == "member_of":
-            group_memberships.setdefault(edge.source_id, set()).add(edge.target_id)
+            group_memberships.setdefault(edge.source_id, {})[edge.target_id] = edge
 
     # Propagate group direct assignments down to member principals
     inherited_edges: list[IdentityEdge] = []
@@ -348,6 +437,7 @@ def build_identity_graph(manifest: dict[str, Any], sources: dict[str, Any]) -> I
             target_group = edge.source_id
             for member_id, groups in group_memberships.items():
                 if target_group in groups:
+                    membership = groups[target_group]
                     inherited_edge_id = f"inherited-{edge.edge_id}-{member_id}"
                     inherited_edges.append(
                         IdentityEdge(
@@ -357,8 +447,9 @@ def build_identity_graph(manifest: dict[str, Any], sources: dict[str, Any]) -> I
                             relation=edge.relation,
                             grant_type="inherited",
                             scope=edge.scope,
-                            provenance=f"inherited_from:{target_group}",
+                            provenance=f"{edge.provenance};{membership.provenance};inherited_from:{target_group}",
                             pim_state=edge.pim_state,
+                            evidence_sources=tuple(sorted(set(edge.evidence_sources + membership.evidence_sources))),
                         )
                     )
 
@@ -369,4 +460,6 @@ def build_identity_graph(manifest: dict[str, Any], sources: dict[str, Any]) -> I
         nodes=nodes,
         edges=edges,
         sources=sources,
+        source_coverage=coverage,
+        assessed_at=as_of.strftime("%Y-%m-%dT%H:%M:%SZ"),
     )

@@ -19,6 +19,7 @@ class IdentityNode:
     display_name: str
     tenant_id: str
     properties: dict[str, Any] = field(default_factory=dict)
+    evidence_source: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -27,6 +28,7 @@ class IdentityNode:
             "display_name": self.display_name,
             "tenant_id": self.tenant_id,
             "properties": self.properties,
+            "evidence_source": self.evidence_source,
         }
 
 
@@ -42,6 +44,7 @@ class IdentityEdge:
     scope: str
     provenance: str
     pim_state: str = "none"
+    evidence_sources: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -53,6 +56,7 @@ class IdentityEdge:
             "scope": self.scope,
             "provenance": self.provenance,
             "pim_state": self.pim_state,
+            "evidence_sources": list(self.evidence_sources),
         }
 
 
@@ -94,11 +98,66 @@ class IdentityGraph:
     nodes: dict[str, IdentityNode]
     edges: list[IdentityEdge]
     sources: dict[str, Any] = field(default_factory=dict)
+    source_coverage: dict[str, dict[str, Any]] = field(default_factory=dict)
+    assessed_at: str | None = None
+    max_age_hours: int = 24
+
+    def node_evidence(self, node: IdentityNode) -> tuple[str, list[str]]:
+        """Return whether the source supporting a node is current and complete."""
+        if not self.source_coverage:
+            return "unknown", ["missing_coverage"]
+        if node.node_type == "tenant":
+            return "fresh", []
+        if not node.evidence_source:
+            return "unknown", ["unattributed_source"]
+        coverage = self.source_coverage.get(node.evidence_source)
+        if coverage is None:
+            return "unknown", ["not_listed"]
+        if coverage["status"] != "fresh":
+            return "unknown", [str(coverage["reason"])]
+        return "fresh", []
+
+    def edge_evidence(self, edge: IdentityEdge) -> tuple[str, list[str]]:
+        """Evaluate every source and endpoint needed for an entitlement path."""
+        if not self.source_coverage:
+            return "unknown", ["missing_coverage"]
+        reasons: list[str] = []
+        if not edge.evidence_sources:
+            reasons.append("unattributed_source")
+        for source_id in edge.evidence_sources:
+            coverage = self.source_coverage.get(source_id)
+            if coverage is None:
+                reasons.append("not_listed")
+            elif coverage["status"] != "fresh":
+                reasons.append(str(coverage["reason"]))
+        for node_id in (edge.source_id, edge.target_id):
+            node = self.nodes.get(node_id)
+            if node is None:
+                reasons.append("missing_endpoint")
+            else:
+                reasons.extend(self.node_evidence(node)[1])
+        unique_reasons = list(dict.fromkeys(reasons))
+        return ("unknown", unique_reasons) if unique_reasons else ("fresh", [])
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        nodes = []
+        for node in sorted(self.nodes.values(), key=lambda n: n.node_id):
+            status, reasons = self.node_evidence(node)
+            nodes.append({**node.to_dict(), "evidence_status": status, "evidence_reasons": reasons})
+        edges = []
+        for edge in sorted(self.edges, key=lambda e: e.edge_id):
+            status, reasons = self.edge_evidence(edge)
+            edges.append({**edge.to_dict(), "evidence_status": status, "evidence_reasons": reasons})
+        document = {
             "schema_version": "entra.identity-graph/v1",
             "tenant_id": self.tenant_id,
-            "nodes": [node.to_dict() for node in sorted(self.nodes.values(), key=lambda n: n.node_id)],
-            "edges": [edge.to_dict() for edge in sorted(self.edges, key=lambda e: e.edge_id)],
+            "assessed_at": self.assessed_at,
+            "max_age_hours": self.max_age_hours,
+            "source_coverage": self.source_coverage,
+            "nodes": nodes,
+            "edges": edges,
         }
+        from .validation import validate_graph_artifact
+
+        validate_graph_artifact(document)
+        return document

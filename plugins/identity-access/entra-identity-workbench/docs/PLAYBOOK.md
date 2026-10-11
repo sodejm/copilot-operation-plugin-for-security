@@ -25,13 +25,17 @@ flowchart TD
 ### Phase 1: Ingestion & Integrity Verification
 
 1. **Verify Export Manifest**:
-   Ensure the export bundle contains a valid `manifest.json` following schema `entra.export-manifest/v1`.
+   Ensure the export bundle contains a `manifest.json` following schema `entra.export-manifest/v1`. Collect the 12 supported sources with tenant-approved, read-only Microsoft Graph and Azure resource/RBAC permissions. The offline workbench needs local file read access only; it does not need cloud credentials or mutation permissions.
+   Mark a source `full` only after checking tenant scope and pagination. Use an empty JSON array for a complete source with no records, and record each source's collection-completion time in `exported_at` when it differs from the manifest timestamp.
+   Remove secrets and unnecessary personal data before calculating hashes. Pseudonymize join IDs consistently, then protect both exports and generated reports under the tenant's access and retention rules.
 2. **Execute Ingestion**:
    ```bash
    python3 -m entrawb.cli analyze --manifest path/to/tenant-export/manifest.json
    ```
 3. **Verify Checksums**:
-   The engine computes SHA-256 digests for each constituent data file (users, groups, apps, service principals, managed identities, federated credentials, agent blueprints, agent identities, resources, directory roles, role assignments, and OAuth grants). If any checksum fails or a file is missing, the tool halts immediately with an explicit error.
+   The engine computes SHA-256 digests for each present data file (users, groups, apps, service principals, managed identities, federated credentials, agent blueprints, agent identities, resources, directory roles, role assignments, and OAuth grants). A hash mismatch halts ingestion. A missing file or source is reported as unknown coverage with its manifest path and reason; it is never interpreted as an empty export.
+4. **Check Freshness and Coverage**:
+   Review the report's Evidence Coverage & Freshness table. Each source must be complete and no more than 24 hours old at assessment time. An invalid or future timestamp, partial export, or stale source makes dependent graph paths unknown. The CLI uses current UTC time; the synthetic demo deliberately uses a historical assessment time.
 
 ---
 
@@ -83,6 +87,8 @@ The workbench evaluates the normalized graph across six critical exposure patter
 
 Because graph relationships prove structural reachability rather than confirmed exploitation, correlate each finding with active telemetry:
 
+First resolve unknown source coverage. A missing hypothesis cannot clear an exposure when the required source is missing, incomplete, or stale. Use the graph's `evidence_sources`, `evidence_status`, and `evidence_reasons` to identify which export must be refreshed; keep the original path and checksum as provenance.
+
 1. **Check Sign-In Telemetry**:
    - Query Microsoft Entra `SignInLogs` and `ServicePrincipalSignInLogs` for the affected principal ID.
    - Verify whether authentication originates from expected IP ranges or managed infrastructure.
@@ -109,6 +115,8 @@ Follow least-privilege remediation steps based on the hypothesis findings:
 Before signing off on an Entra Identity exposure assessment:
 
 - [ ] All source file hashes match the manifest digests exactly.
+- [ ] Each required source is complete and within the 24-hour freshness window, or unknown coverage and its reason are documented.
+- [ ] Exports and reports are redacted, access-controlled, and retained under the tenant policy.
 - [ ] No entities have been classified based on heuristic naming patterns.
 - [ ] Group inheritance chains are resolved transitively.
 - [ ] Active and eligible PIM assignments are clearly distinguished.

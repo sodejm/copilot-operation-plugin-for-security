@@ -63,13 +63,22 @@ def ingest_tenant_export(manifest_path: Path) -> tuple[dict[str, Any], dict[str,
 
         if not source_id or not rel_path or not expected_sha:
             raise EntraError(f"Manifest source entry at index {idx} is missing required fields")
+        if source_id in loaded_sources:
+            raise EntraError(f"Duplicate manifest source entry: {source_id}")
 
         file_path = (manifest_dir / rel_path).resolve()
         if not file_path.is_relative_to(manifest_dir):
             raise EntraError(f"Source file {rel_path} escapes tenant directory")
 
         if not file_path.is_file():
-            raise EntraError(f"Source file does not exist: {file_path}")
+            loaded_sources[source_id] = {
+                "path": rel_path,
+                "sha256": expected_sha,
+                "completeness": entry.get("completeness", "unknown"),
+                "available": False,
+                "data": [],
+            }
+            continue
 
         actual_sha = compute_file_sha256(file_path)
         if actual_sha != expected_sha:
@@ -83,6 +92,7 @@ def ingest_tenant_export(manifest_path: Path) -> tuple[dict[str, Any], dict[str,
             "path": rel_path,
             "sha256": actual_sha,
             "completeness": entry.get("completeness", "unknown"),
+            "available": True,
             "data": data,
         }
 

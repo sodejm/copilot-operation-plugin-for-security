@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent
@@ -28,6 +29,8 @@ from entrawb.reporting import (
     render_json_report,
     render_markdown_report,
 )
+
+FIXTURE_AS_OF = datetime(2026, 9, 30, 18, tzinfo=UTC)
 
 
 def validate() -> int:
@@ -70,7 +73,8 @@ def validate() -> int:
     # 3. Ingestion and Graph Invariants
     manifest_path = PLUGIN_ROOT / "fixtures" / "tenants" / "contoso-corp" / "manifest.json"
     manifest, sources = ingest_tenant_export(manifest_path)
-    graph = build_identity_graph(manifest, sources)
+    # The synthetic export is historical; validate it at its documented fixture time.
+    graph = build_identity_graph(manifest, sources, as_of=FIXTURE_AS_OF)
 
     # Invariant: all edges connect existing nodes
     node_ids = set(graph.nodes.keys())

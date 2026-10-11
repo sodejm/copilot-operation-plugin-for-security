@@ -54,7 +54,8 @@ entra-identity-workbench/
 │   ├── graph.py                       # In-memory typed graph builder
 │   ├── ingestion.py                   # Manifest & SHA-256 hash validator
 │   ├── models.py                      # Frozen dataclasses & error hierarchy
-│   └── reporting.py                   # Markdown & JSON report formatters
+│   ├── reporting.py                   # Markdown & JSON report formatters
+│   └── validation.py                  # Cross-field artifact evidence checks
 ├── fixtures/                          # Synthetic multi-principal test tenant
 │   ├── generate_fixtures.py           # Deterministic fixture generator
 │   └── tenants/contoso-corp/          # Tenant export files and manifest
@@ -82,6 +83,8 @@ Run the end-to-end demo using the bundled Contoso synthetic tenant fixture:
 python3 plugins/identity-access/entra-identity-workbench/scripts/run_demo.py
 ```
 
+The demo assesses the synthetic export at `2026-09-30T18:00:00Z`, within its freshness window. It does not represent current tenant state.
+
 ### 2. Analyze a Tenant Export via CLI
 
 To inspect a tenant export manifest and generate a Markdown review report:
@@ -89,6 +92,8 @@ To inspect a tenant export manifest and generate a Markdown review report:
 ```bash
 python3 -m entrawb.cli analyze --manifest plugins/identity-access/entra-identity-workbench/fixtures/tenants/contoso-corp/manifest.json
 ```
+
+The CLI assesses freshness against the current UTC time. The bundled historical fixture will therefore report unknown current coverage once it is older than the policy window.
 
 To export structured JSON for automated ingestion into SOC or compliance pipelines:
 
@@ -102,8 +107,17 @@ To export the normalized identity graph:
 python3 -m entrawb.cli graph --manifest <path/to/manifest.json> --output graph.json
 ```
 
+## Evidence Requirements
+
+- **Collection permissions:** Collect exports separately using tenant-approved, read-only access to the required Microsoft Graph directory, application, consent, and role data and Azure resource and RBAC data. Grant only the read permissions needed for the selected sources. The workbench itself needs local read access to the manifest and export files, plus write access only when an output path is requested; it makes no cloud API calls.
+- **Integrity and completeness:** List each of the 12 supported sources in the manifest, with a relative JSON path, SHA-256 digest, and `completeness: "full"`. A complete export can be an empty JSON array. The collector must assert that pagination and the intended tenant scope are complete; a matching hash proves file integrity, not collection completeness.
+- **Freshness:** The policy window is 24 hours from each source's `exported_at` to assessment time. A source entry may override the manifest-level timestamp when exports were collected at different times. Timestamps must include a UTC offset and describe when collection completed; file modification time is not used. A missing, incomplete, invalid, future-dated, or older source has `unknown` coverage. Paths that depend on it carry the reason and source provenance, and the analyzer does not assert a current exposure from those paths.
+- **Privacy:** Redact credentials, certificates, tokens, email addresses, UPNs, and unnecessary display names before ingestion. Pseudonymize IDs consistently so graph joins still work, then compute hashes over the redacted files. Reports can repeat source values, so store exports and reports in access-controlled locations and follow the tenant's retention policy.
+
+Review `source_coverage` and path `evidence_status` in graph JSON, and each hypothesis's `evidence_status` and `evidence_sources` in report JSON. The workbench checks that fresh claims cite fresh coverage when producing either artifact; consumers validating saved JSON should run the JSON Schema and the corresponding `entrawb.validation` check. In Markdown, review the Evidence Coverage & Freshness table before interpreting hypotheses. An absent hypothesis while coverage is unknown is not evidence of safety.
+
 ## Limitations & Boundary Rules
 
 - **Offline Analysis Only**: The workbench analyzes offline exports. It does not initiate network calls to Microsoft Graph or Azure Resource Manager.
 - **Entitlement Potential vs. Exploitation**: Identified graph paths represent structural privilege reachability. They indicate exposure potential, not confirmed compromise.
-- **Strict Evidence Integrity**: All exports must include a `manifest.json` with matching SHA-256 hashes. Incomplete or altered exports are rejected rather than assumed safe.
+- **Strict Evidence Integrity**: A hash mismatch stops ingestion. Missing files and incomplete or stale sources remain visible as unknown evidence rather than being treated as empty, current exports.
