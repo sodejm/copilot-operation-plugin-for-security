@@ -32,6 +32,7 @@ private payloads and real identifiers must never be copied into this document.
 | Operator decision → approval store → tool execution | Approval must be bound to action, effective resource and current revision, atomically consumed. |
 | Cloud integration → remote API / telemetry → agent | Credentials go only to intended recipients; telemetry remains untrusted even from authenticated services. |
 | Canonical hunt skills → generated host adapters | Hashes and deterministic generation establish consistency, not trust in malicious canonical content. |
+| Handoff proposal → specialist acceptance → auditor completion | A proposed skill ID and capability must resolve to the recipient's registered specialist profile and local skill file; acceptance records the resolved target and checksum. Skeptic review and audit re-resolve the current target. Completion is a reviewed handoff record, not tool execution. |
 | Attack Path input → descriptor-anchored report writer → operator-selected output directory | Output paths and concurrent filesystem names remain untrusted; a report set is complete only when the completion marker and recorded hashes validate. |
 
 ```mermaid
@@ -172,6 +173,14 @@ validation before the affected release/capability expansion and schedule P2 with
 - Existing evidence / limitation: The provenance schema requires review fields and the integrity validator rejects duplicate guidance or decision IDs, unregistered guidance or decision targets, and review records that do not match their enclosing source and license. Guidance must resolve to an exact local registry-table entry. These controls validate metadata consistency only.
 - Proposed mitigation and validation: Run the registry integrity tests and `make check` after source changes; maintainers must review changed source terms and intended reuse before accepting a disposition.
 - Residual risk / status: automated checks do not determine authorship, license compatibility, whether material was copied, or the sufficiency of authorization for a particular reuse. Human review remains required.
+
+### T12: Specialist handoff target confusion
+
+- Attack path / prerequisite: A proposal names a nonexistent, mismatched or changed workflow skill and is treated as connected or completed; a completed handoff is mistaken for proof of execution.
+- Inherent impact: Medium; likelihood: Medium; priority: P2.
+- Existing evidence / limitation: Acceptance checks the recipient profile, registered specialist capability and local skill file, then records the target and a checksum. Skeptic review and audit re-resolve the current target and compare it with the record. These checks depend on a trusted local checkout and do not inspect skill behavior or run the skill. The JSON checksum detects partial record edits but cannot authenticate a coordinated rewrite of the target and checksum.
+- Proposed mitigation and validation: Test missing, mismatched and modified targets and keep handoff status separate from execution evidence. Review the selected skill content and any later execution contract at its exact revision before use.
+- Residual risk / status: The handoff JSON is operator-controlled input; independent human review and execution-path evidence are pending. A complete record rewrite requires an external trust anchor to detect and is outside this contract.
 
 ## STRIDE and privacy coverage
 

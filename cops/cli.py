@@ -741,6 +741,8 @@ def build_parser() -> argparse.ArgumentParser:
     h_propose.add_argument("--task", required=True, help="task description")
     h_propose.add_argument("--planner", default="secops-lead", help="planner identifier")
     h_propose.add_argument("--specialist", help="target specialist profile ID (default: auto-route)")
+    h_propose.add_argument("--workflow-skill", help="existing contributor skill ID for this handoff")
+    h_propose.add_argument("--capability", help="registered specialist capability ID for this handoff")
     h_propose.add_argument("--output", help="output path for handoff JSON")
     h_propose.add_argument("--json", action="store_true", help="output JSON")
 
@@ -771,6 +773,8 @@ def build_parser() -> argparse.ArgumentParser:
     h_workflow.add_argument("--task", required=True, help="task description")
     h_workflow.add_argument("--planner", default="secops-lead", help="planner identifier")
     h_workflow.add_argument("--specialist", help="target specialist profile ID (default: auto-route)")
+    h_workflow.add_argument("--workflow-skill", required=True, help="existing contributor skill ID for this handoff")
+    h_workflow.add_argument("--capability", required=True, help="registered specialist capability ID for this handoff")
     h_workflow.add_argument("--output", help="output path for completed handoff JSON")
     h_workflow.add_argument("--json", action="store_true", help="output JSON")
 
