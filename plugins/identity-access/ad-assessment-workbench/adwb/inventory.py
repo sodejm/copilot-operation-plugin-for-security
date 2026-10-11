@@ -245,8 +245,10 @@ def analyze(export: object) -> dict:
                     queue.append((edge["target"], path + [edge], visited | {edge["target"]}))
                 if expansions >= MAX_EXPANSIONS:
                     break
+        truncated = bool(queue) or expansions >= MAX_EXPANSIONS or depth_limited
+        status = "candidate_paths" if found else (
+            "search_incomplete" if truncated else "not_found_in_collected_graph")
         results.append({"start": query["start"], "goal": query["goal"],
-                        "status": "candidate_paths" if found else "not_found_in_collected_graph",
-                        "paths": found, "truncated": bool(queue) or expansions >= MAX_EXPANSIONS or depth_limited})
+                        "status": status, "paths": found, "truncated": truncated})
     return {"schema_version": "1.0", "assessment": "offline_structural_only",
             "coverage": _coverage(scope, collections), "queries": results}

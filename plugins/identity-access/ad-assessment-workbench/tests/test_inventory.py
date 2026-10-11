@@ -50,6 +50,22 @@ class InventoryTests(unittest.TestCase):
         expanded["scope"]["domains"].append({"id": "domain-c", "forest": "forest-a"})
         self.assertEqual(analyze(expanded)["coverage"]["forests"]["forest-a"], "partial")
 
+    def test_depth_limited_search_does_not_claim_path_absence(self) -> None:
+        export = copy.deepcopy(self.export)
+        for index in range(8):
+            export["nodes"].append({"id": f"chain-{index}", "kind": "group", "forest": "forest-a",
+                                    "domain": "domain-a", "protected": False})
+            if index:
+                export["edges"].append({"id": f"chain-edge-{index}", "source": f"chain-{index-1}",
+                                        "target": f"chain-{index}", "kind": "member_of",
+                                        "collector_id": "directory-a", "collected_at": "2026-01-01T11:00:00Z",
+                                        "completeness": "complete", "support": "observed"})
+        export["queries"] = [{"start": "chain-0", "goal": "chain-7"}]
+        result = analyze(export)["queries"][0]
+        self.assertEqual(result["status"], "search_incomplete")
+        self.assertTrue(result["truncated"])
+        self.assertEqual(result["paths"], [])
+
     def test_edge_cannot_outlive_collector(self) -> None:
         bad = copy.deepcopy(self.export)
         bad["edges"][0]["collected_at"] = "2026-01-02T00:00:00Z"

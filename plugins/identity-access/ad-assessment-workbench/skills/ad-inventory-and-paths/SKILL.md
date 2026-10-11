@@ -12,7 +12,8 @@ is in `specs/ad-inventory-and-paths.md` at the repository root.
 
 1. Run `python3 plugins/identity-access/ad-assessment-workbench/scripts/analyze.py <local-export.json>`.
 2. Review `coverage` first. `unknown` or `partial` means collection cannot support
-   a claim of absence. A missing path means only that the collected graph lacks it.
+   a claim of absence. A missing path means only that a completed search of the
+   collected graph lacks it; `search_incomplete` means the search hit a bound.
 3. Trace each candidate path's directed edges to collector ID, UTC time,
    completeness, and observed/inferred support. Treat trust, protected identities,
    partial collection, and inferred edges as validation questions.

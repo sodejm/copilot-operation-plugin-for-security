@@ -17,8 +17,9 @@ For every query, the analyzer returns bounded directed paths with edge evidence.
 An observed edge is evidence of a reported relationship, not evidence that an
 actor can exercise it. A path containing inference, partial collection, a
 protected identity, or a trust boundary is flagged for validation. A missing
-path means only `not_found_in_collected_graph`; it never means safe or absent in
-the environment. Forest and host coverage are reported as `complete`, `partial`,
+path is `not_found_in_collected_graph` only when the bounded search completes;
+`search_incomplete` means a depth, path, or expansion limit stopped it. Neither
+status means safe or absent in the environment. Forest and host coverage are reported as `complete`, `partial`,
 or `unknown` from the declared collectors. Forest coverage is complete only with
 a complete forest-wide directory collection or a complete collection for each
 scoped domain, and no partial directory records. The input and output are deterministic,

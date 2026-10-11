@@ -12,6 +12,7 @@ The input contract and limits are in `specs/ad-inventory-and-paths.md`.
 
 The report's paths are structural candidates requiring validation. Every edge
 shows collector ID, collection time, completeness, and observed/inferred support.
-Missing paths are reported as missing **from the collected graph**; incomplete
-or absent forest/host collection remains partial or unknown. Live integration,
+An exhausted search reports a path missing **from the collected graph**; a bounded
+search that stops early reports `search_incomplete`. Incomplete or absent
+forest/host collection remains partial or unknown. Live integration,
 host installation, and privilege exercise are unverified.
