@@ -9,19 +9,24 @@ from typing import Any
 from .models import EntraError, IdentityEdge, IdentityGraph, IdentityNode
 
 SOURCE_IDS = (
-    "users", "groups", "applications", "service_principals", "managed_identities",
-    "federated_credentials", "agent_blueprints", "agent_identities", "resources",
-    "directory_roles", "role_assignments", "oauth_grants",
+    "users",
+    "groups",
+    "applications",
+    "service_principals",
+    "managed_identities",
+    "federated_credentials",
+    "agent_blueprints",
+    "agent_identities",
+    "resources",
+    "directory_roles",
+    "role_assignments",
+    "oauth_grants",
 )
 MAX_AGE = timedelta(hours=24)
-TIMESTAMP_PATTERN = re.compile(
-    r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})\Z"
-)
+TIMESTAMP_PATTERN = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})\Z")
 
 
-def _source_coverage(
-    manifest: dict[str, Any], sources: dict[str, Any], as_of: datetime
-) -> dict[str, dict[str, Any]]:
+def _source_coverage(manifest: dict[str, Any], sources: dict[str, Any], as_of: datetime) -> dict[str, dict[str, Any]]:
     """Classify each required export using its own or the manifest timestamp."""
     entries = {entry["source_id"]: entry for entry in manifest.get("sources", [])}
     coverage: dict[str, dict[str, Any]] = {}
@@ -29,16 +34,23 @@ def _source_coverage(
         entry = entries.get(source_id)
         if entry is None:
             coverage[source_id] = {
-                "status": "unknown", "reason": "not_listed", "path": None,
-                "sha256": None, "completeness": None, "exported_at": None,
+                "status": "unknown",
+                "reason": "not_listed",
+                "path": None,
+                "sha256": None,
+                "completeness": None,
+                "exported_at": None,
             }
             continue
         exported_at = entry.get("exported_at", manifest.get("exported_at"))
         if exported_at is not None and not isinstance(exported_at, str):
             exported_at = str(exported_at)
         item = {
-            "status": "unknown", "reason": None, "path": entry.get("path"),
-            "sha256": entry.get("sha256"), "completeness": entry.get("completeness"),
+            "status": "unknown",
+            "reason": None,
+            "path": entry.get("path"),
+            "sha256": entry.get("sha256"),
+            "completeness": entry.get("completeness"),
             "exported_at": exported_at,
         }
         if not sources.get(source_id, {}).get("available", True):

@@ -54,20 +54,22 @@ def render_json_report(graph: IdentityGraph, hypotheses: list[ReviewHypothesis])
                 raise EntraError(f"hypothesis '{hypothesis.hypothesis_id}' has no fresh blueprint")
             if blueprint.evidence_source:
                 sources.add(blueprint.evidence_source)
-        report_hypotheses.append({
-            **hypothesis.to_dict(),
-            "evidence_status": "fresh",
-            "evidence_sources": sorted(sources),
-        })
+        report_hypotheses.append(
+            {
+                **hypothesis.to_dict(),
+                "evidence_status": "fresh",
+                "evidence_sources": sorted(sources),
+            }
+        )
     document = {
-      "schema_version": "entra.identity-report/v1",
-      "tenant_id": graph.tenant_id,
-      "analyzed_at": now_iso,
-      "assessed_at": graph.assessed_at,
-      "max_age_hours": graph.max_age_hours,
-      "source_coverage": graph.source_coverage,
-      "summary": summary,
-      "hypotheses": report_hypotheses,
+        "schema_version": "entra.identity-report/v1",
+        "tenant_id": graph.tenant_id,
+        "analyzed_at": now_iso,
+        "assessed_at": graph.assessed_at,
+        "max_age_hours": graph.max_age_hours,
+        "source_coverage": graph.source_coverage,
+        "summary": summary,
+        "hypotheses": report_hypotheses,
     }
     validate_report_artifact(document)
     return document
@@ -78,16 +80,11 @@ def render_markdown_report(graph: IdentityGraph, hypotheses: list[ReviewHypothes
     # Use the same freshness and provenance checks as the JSON artifact before
     # showing caller-supplied hypotheses as current review items.
     summary = render_json_report(graph, hypotheses)["summary"]
-    unknown_sources = [
-        source_id for source_id, item in graph.source_coverage.items()
-        if item["status"] != "fresh"
-    ]
+    unknown_sources = [source_id for source_id, item in graph.source_coverage.items() if item["status"] != "fresh"]
 
     def safe_text(value: Any) -> str:
         """Render export-derived text without Markdown structure or raw HTML."""
-        flattened = " ".join(
-            "".join(char if char.isprintable() else " " for char in str(value)).split()
-        )
+        flattened = " ".join("".join(char if char.isprintable() else " " for char in str(value)).split())
         special = r"\`*_{}[]()#+-.!|><&~"
         return "".join(f"&#{ord(char)};" if char in special else char for char in flattened)
 
@@ -115,10 +112,12 @@ def render_markdown_report(graph: IdentityGraph, hypotheses: list[ReviewHypothes
     ]
 
     if graph.source_coverage:
-        lines.extend([
-            "| Source | Status | Reason | Exported at | Completeness | Manifest path | SHA-256 |",
-            "| :--- | :--- | :--- | :--- | :--- | :--- | :--- |",
-        ])
+        lines.extend(
+            [
+                "| Source | Status | Reason | Exported at | Completeness | Manifest path | SHA-256 |",
+                "| :--- | :--- | :--- | :--- | :--- | :--- | :--- |",
+            ]
+        )
         for source_id, item in graph.source_coverage.items():
             lines.append(
                 f"| {cell(source_id)} | {cell(item['status'])} | {cell(item['reason'])} "
@@ -127,51 +126,61 @@ def render_markdown_report(graph: IdentityGraph, hypotheses: list[ReviewHypothes
             )
         lines.append("")
     if unknown_sources:
-        lines.extend([
-            "Evidence coverage is unknown for: " + ", ".join(cell(s) for s in unknown_sources) + ".",
-            "Refresh or complete those exports before interpreting their paths as current access.",
-            "",
-        ])
+        lines.extend(
+            [
+                "Evidence coverage is unknown for: " + ", ".join(cell(s) for s in unknown_sources) + ".",
+                "Refresh or complete those exports before interpreting their paths as current access.",
+                "",
+            ]
+        )
     elif not graph.source_coverage:
-        lines.extend([
-            "Evidence coverage is missing; modeled paths cannot support current access hypotheses.",
-            "",
-        ])
+        lines.extend(
+            [
+                "Evidence coverage is missing; modeled paths cannot support current access hypotheses.",
+                "",
+            ]
+        )
 
-    lines.extend([
-        "## Tenant & Identity Inventory",
-        "",
-        f"- **Tenant ID**: {safe_text(graph.tenant_id)}",
-        f"- **Total Modeled Entities**: {summary['total_nodes']}",
-        f"- **Total Relationships / Entitlements**: {summary['total_edges']}",
-        "- Counts include modeled records with unknown freshness; use the coverage table for current evidence.",
-        "",
-        "| Entity Type | Count | Description |",
-        "| :--- | :--- | :--- |",
-        f"| **Human Users** | {summary['human_users']} | Direct member and B2B guest accounts |",
-        f"| **Service Principals** | {summary['service_principals']} | Enterprise applications and API principals |",
-        f"| **Managed Identities** | {summary['managed_identities']} | Workload identities for Azure services |",
-        f"| **Agent Blueprints** | {summary['agent_blueprints']} | Declarative Foundry / Agent ID template specifications |",
-        f"| **Agent Identities** | {summary['agent_identities']} | Instantiated runtime Agent ID principals |",
-        "",
-        "## Prioritized Review Hypotheses",
-        "",
-        f"- **Critical Findings**: {summary['critical_hypotheses']}",
-        f"- **High Findings**: {summary['high_hypotheses']}",
-        f"- **Total Review Items**: {len(hypotheses)}",
-        "",
-    ])
+    lines.extend(
+        [
+            "## Tenant & Identity Inventory",
+            "",
+            f"- **Tenant ID**: {safe_text(graph.tenant_id)}",
+            f"- **Total Modeled Entities**: {summary['total_nodes']}",
+            f"- **Total Relationships / Entitlements**: {summary['total_edges']}",
+            "- Counts include modeled records with unknown freshness; use the coverage table for current evidence.",
+            "",
+            "| Entity Type | Count | Description |",
+            "| :--- | :--- | :--- |",
+            f"| **Human Users** | {summary['human_users']} | Direct member and B2B guest accounts |",
+            f"| **Service Principals** | {summary['service_principals']} | Enterprise applications and API principals |",
+            f"| **Managed Identities** | {summary['managed_identities']} | Workload identities for Azure services |",
+            f"| **Agent Blueprints** | {summary['agent_blueprints']} | Declarative Foundry / Agent ID template specifications |",
+            f"| **Agent Identities** | {summary['agent_identities']} | Instantiated runtime Agent ID principals |",
+            "",
+            "## Prioritized Review Hypotheses",
+            "",
+            f"- **Critical Findings**: {summary['critical_hypotheses']}",
+            f"- **High Findings**: {summary['high_hypotheses']}",
+            f"- **Total Review Items**: {len(hypotheses)}",
+            "",
+        ]
+    )
 
     if not hypotheses:
         if unknown_sources or not graph.source_coverage:
-            lines.append("No current exposure hypotheses are supported by the available fresh evidence; unknown paths still require review.\n")
+            lines.append(
+                "No current exposure hypotheses are supported by the available fresh evidence; unknown paths still require review.\n"
+            )
         else:
             lines.append("No exposure hypotheses identified in this export scope.\n")
     else:
-        lines.extend([
-            "| ID | Severity | Category | Principal | Description | Action |",
-            "| :--- | :--- | :--- | :--- | :--- | :--- |",
-        ])
+        lines.extend(
+            [
+                "| ID | Severity | Category | Principal | Description | Action |",
+                "| :--- | :--- | :--- | :--- | :--- | :--- |",
+            ]
+        )
         for h in hypotheses:
             severity = safe_text(h.severity.upper())
             sev_badge = f"**{severity}**" if h.severity in ("critical", "high") else severity.title()
@@ -184,15 +193,17 @@ def render_markdown_report(graph: IdentityGraph, hypotheses: list[ReviewHypothes
 
         lines.extend(["", "### Detailed Hypothesis Traces", ""])
         for h in hypotheses:
-            lines.extend([
-                f"#### [{safe_text(h.severity.upper())}] {safe_text(h.hypothesis_id)}: {safe_text(h.principal_name)}",
-                f"- **Category**: {safe_text(h.category)}",
-                f"- **Principal**: {safe_text(h.principal_id)} ({safe_text(h.principal_type)})",
-                f"- **Description**: {safe_text(h.description)}",
-                f"- **Supporting Edges**: {', '.join(safe_text(e) for e in h.supporting_edges) or 'None cited'}",
-                f"- **Missing Telemetry / Evidence**: {', '.join(safe_text(e) for e in h.missing_evidence) or 'None recorded'}",
-                f"- **Recommended Remediation**: {safe_text(h.recommended_action)}",
-                "",
-            ])
+            lines.extend(
+                [
+                    f"#### [{safe_text(h.severity.upper())}] {safe_text(h.hypothesis_id)}: {safe_text(h.principal_name)}",
+                    f"- **Category**: {safe_text(h.category)}",
+                    f"- **Principal**: {safe_text(h.principal_id)} ({safe_text(h.principal_type)})",
+                    f"- **Description**: {safe_text(h.description)}",
+                    f"- **Supporting Edges**: {', '.join(safe_text(e) for e in h.supporting_edges) or 'None cited'}",
+                    f"- **Missing Telemetry / Evidence**: {', '.join(safe_text(e) for e in h.missing_evidence) or 'None recorded'}",
+                    f"- **Recommended Remediation**: {safe_text(h.recommended_action)}",
+                    "",
+                ]
+            )
 
     return "\n".join(lines)

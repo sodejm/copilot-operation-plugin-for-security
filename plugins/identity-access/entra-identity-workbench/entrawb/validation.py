@@ -7,9 +7,7 @@ from typing import Any
 from .models import EntraError
 
 
-def _require_fresh_sources(
-    source_ids: list[str], coverage: dict[str, dict[str, Any]], claim: str
-) -> None:
+def _require_fresh_sources(source_ids: list[str], coverage: dict[str, dict[str, Any]], claim: str) -> None:
     if not source_ids:
         raise EntraError(f"{claim} has no evidence sources")
     for source_id in source_ids:
@@ -26,9 +24,7 @@ def validate_graph_artifact(document: dict[str, Any]) -> None:
     nodes = {node["node_id"]: node for node in document["nodes"]}
     for node in document["nodes"]:
         if node["evidence_status"] == "fresh" and node["node_type"] != "tenant":
-            _require_fresh_sources(
-                [node["evidence_source"]], coverage, f"node '{node['node_id']}'"
-            )
+            _require_fresh_sources([node["evidence_source"]], coverage, f"node '{node['node_id']}'")
     for edge in document["edges"]:
         if edge["evidence_status"] != "fresh":
             continue
@@ -47,9 +43,7 @@ def validate_report_artifact(document: dict[str, Any]) -> None:
     coverage = document["source_coverage"]
     for hypothesis in document["hypotheses"]:
         if hypothesis["evidence_status"] != "fresh":
-            raise EntraError(
-                f"hypothesis '{hypothesis['hypothesis_id']}' is not fresh"
-            )
+            raise EntraError(f"hypothesis '{hypothesis['hypothesis_id']}' is not fresh")
         _require_fresh_sources(
             hypothesis["evidence_sources"],
             coverage,

@@ -48,7 +48,9 @@ def main() -> int:
 
     report_md = render_markdown_report(graph, hypotheses)
     print("\n" + report_md)
-    print(f"\n[OK] Successfully analyzed {len(graph.nodes)} entities and identified {len(hypotheses)} exposure hypotheses.")
+    print(
+        f"\n[OK] Successfully analyzed {len(graph.nodes)} entities and identified {len(hypotheses)} exposure hypotheses."
+    )
     return 0
 
 

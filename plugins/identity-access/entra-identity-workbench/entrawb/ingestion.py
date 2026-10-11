@@ -39,9 +39,7 @@ def ingest_tenant_export(manifest_path: Path) -> tuple[dict[str, Any], dict[str,
         raise EntraError(f"Manifest at {manifest_path} must be a JSON object")
 
     if raw_manifest.get("schema_version") != "entra.export-manifest/v1":
-        raise EntraError(
-            f"Unsupported manifest schema_version: {raw_manifest.get('schema_version')}"
-        )
+        raise EntraError(f"Unsupported manifest schema_version: {raw_manifest.get('schema_version')}")
 
     tenant_id = str(raw_manifest.get("tenant_id", ""))
     if not tenant_id:

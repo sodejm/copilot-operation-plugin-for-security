@@ -32,10 +32,7 @@ PRIVILEGED_ROLES = {
 def analyze_identity_graph(graph: IdentityGraph) -> list[ReviewHypothesis]:
     """Inspect identity graph nodes and edges to generate prioritized review hypotheses."""
     hypotheses: list[ReviewHypothesis] = []
-    current_nodes = {
-        node_id: node for node_id, node in graph.nodes.items()
-        if graph.node_evidence(node)[0] == "fresh"
-    }
+    current_nodes = {node_id: node for node_id, node in graph.nodes.items() if graph.node_evidence(node)[0] == "fresh"}
     current_edges = [edge for edge in graph.edges if graph.edge_evidence(edge)[0] == "fresh"]
     owner_edges_by_target: dict[str, list[Any]] = {}
     for edge in graph.edges:
@@ -126,10 +123,7 @@ def analyze_identity_graph(graph: IdentityGraph) -> list[ReviewHypothesis]:
         if node.node_type == "federated_credential":
             is_wildcard = node.properties.get("is_wildcard", False)
             subject = str(node.properties.get("subject", ""))
-            fed_edges = [
-                e for e in edges_by_source.get(node.node_id, [])
-                if e.relation == "federated_with"
-            ]
+            fed_edges = [e for e in edges_by_source.get(node.node_id, []) if e.relation == "federated_with"]
             supp_edges = tuple(e.edge_id for e in fed_edges)
             if not fed_edges:
                 continue
@@ -171,7 +165,9 @@ def analyze_identity_graph(graph: IdentityGraph) -> list[ReviewHypothesis]:
                     target_name = target_res.display_name if target_res else e.target_id
                     role_or_scope = e.scope
 
-                    is_priv = any(r.lower() in role_or_scope.lower() or r.lower() in target_name.lower() for r in PRIVILEGED_ROLES)
+                    is_priv = any(
+                        r.lower() in role_or_scope.lower() or r.lower() in target_name.lower() for r in PRIVILEGED_ROLES
+                    )
                     if is_priv:
                         hypotheses.append(
                             ReviewHypothesis(
@@ -209,13 +205,15 @@ def analyze_identity_graph(graph: IdentityGraph) -> list[ReviewHypothesis]:
             outgoing = edges_by_source.get(node.node_id, [])
             for e in outgoing:
                 if e.relation in ("assigned_azure_role", "assigned_directory_role", "consented_api_permission"):
-                    target_name = current_nodes[e.target_id].display_name if e.target_id in current_nodes else e.target_id
+                    target_name = (
+                        current_nodes[e.target_id].display_name if e.target_id in current_nodes else e.target_id
+                    )
                     scope_or_role = e.scope
 
                     # Check if agent has write/admin privileges conflicting with read-only expectation
-                    has_conflict = (
-                        intended_privilege in ("read_only", "low") and
-                        any(priv.lower() in scope_or_role.lower() or priv.lower() in target_name.lower() for priv in PRIVILEGED_ROLES)
+                    has_conflict = intended_privilege in ("read_only", "low") and any(
+                        priv.lower() in scope_or_role.lower() or priv.lower() in target_name.lower()
+                        for priv in PRIVILEGED_ROLES
                     )
 
                     if has_conflict or e.relation == "assigned_directory_role":
@@ -251,7 +249,9 @@ def analyze_identity_graph(graph: IdentityGraph) -> list[ReviewHypothesis]:
             outgoing = edges_by_source.get(node.node_id, [])
             for e in outgoing:
                 if e.relation in ("assigned_azure_role", "assigned_directory_role", "member_of"):
-                    target_name = current_nodes[e.target_id].display_name if e.target_id in current_nodes else e.target_id
+                    target_name = (
+                        current_nodes[e.target_id].display_name if e.target_id in current_nodes else e.target_id
+                    )
                     hypotheses.append(
                         ReviewHypothesis(
                             hypothesis_id=f"HYP-CROSS-TENANT-{e.edge_id}",

@@ -116,9 +116,7 @@ def test_fresh_and_stale_snapshot_policy(contoso_manifest_path: Path):
     assert all(edge["evidence_status"] == "fresh" for edge in fresh_graph.to_dict()["edges"])
     assert analyze_identity_graph(fresh_graph)
 
-    stale_graph = build_identity_graph(
-        manifest, sources, as_of=datetime(2026, 10, 2, 12, tzinfo=UTC)
-    )
+    stale_graph = build_identity_graph(manifest, sources, as_of=datetime(2026, 10, 2, 12, tzinfo=UTC))
     assert all(item["reason"] == "stale" for item in stale_graph.source_coverage.values())
     assert not analyze_identity_graph(stale_graph)
     stale_edges = stale_graph.to_dict()["edges"]
@@ -136,9 +134,7 @@ def test_markdown_rejects_hypotheses_from_stale_snapshot(contoso_manifest_path: 
     prior_hypotheses = analyze_identity_graph(fresh_graph)
     assert prior_hypotheses
 
-    stale_graph = build_identity_graph(
-        manifest, sources, as_of=datetime(2026, 10, 11, 12, tzinfo=UTC)
-    )
+    stale_graph = build_identity_graph(manifest, sources, as_of=datetime(2026, 10, 11, 12, tzinfo=UTC))
     assert not analyze_identity_graph(stale_graph)
     with pytest.raises(EntraError, match="has no fresh principal"):
         render_markdown_report(stale_graph, prior_hypotheses)
@@ -249,16 +245,14 @@ def test_pim_state_and_grant_types(contoso_manifest_path: Path):
 
     # Alice has eligible Global Admin
     alice_role = next(
-        e for e in graph.edges
-        if e.source_id == "user-alice-01" and e.relation == "assigned_directory_role"
+        e for e in graph.edges if e.source_id == "user-alice-01" and e.relation == "assigned_directory_role"
     )
     assert alice_role.pim_state == "eligible"
     assert alice_role.grant_type == "direct"
 
     # Charlie has active Global Admin
     charlie_role = next(
-        e for e in graph.edges
-        if e.source_id == "user-guest-charlie-03" and e.relation == "assigned_directory_role"
+        e for e in graph.edges if e.source_id == "user-guest-charlie-03" and e.relation == "assigned_directory_role"
     )
     assert charlie_role.pim_state == "active"
     assert charlie_role.grant_type == "direct"
@@ -344,19 +338,19 @@ def test_cross_tenant_isolation():
         )
     ]
     without_coverage = IdentityGraph(tenant_id="local-tenant-uuid", nodes=nodes, edges=edges)
-    assert without_coverage.node_evidence(nodes["user-external-99"]) == (
-        "unknown", ["missing_coverage"]
-    )
+    assert without_coverage.node_evidence(nodes["user-external-99"]) == ("unknown", ["missing_coverage"])
     assert without_coverage.edge_evidence(edges[0])[0] == "unknown"
     assert not analyze_identity_graph(without_coverage)
 
     coverage = {
-        source_id: {"status": "fresh", "reason": None}
-        for source_id in ("users", "directory_roles", "role_assignments")
+        source_id: {"status": "fresh", "reason": None} for source_id in ("users", "directory_roles", "role_assignments")
     }
     graph = IdentityGraph(
-        tenant_id="local-tenant-uuid", nodes=nodes, edges=edges,
-        source_coverage=coverage, assessed_at=FIXTURE_AS_OF.isoformat(),
+        tenant_id="local-tenant-uuid",
+        nodes=nodes,
+        edges=edges,
+        source_coverage=coverage,
+        assessed_at=FIXTURE_AS_OF.isoformat(),
     )
     hypotheses = analyze_identity_graph(graph)
 
@@ -369,7 +363,9 @@ def test_cross_tenant_isolation():
 def test_unattributed_evidence_is_unknown_even_with_fresh_coverage():
     node = IdentityNode("user-1", "user", "User", "tenant-1")
     graph = IdentityGraph(
-        tenant_id="tenant-1", nodes={node.node_id: node}, edges=[],
+        tenant_id="tenant-1",
+        nodes={node.node_id: node},
+        edges=[],
         source_coverage={"users": {"status": "fresh", "reason": None}},
     )
     assert graph.node_evidence(node) == ("unknown", ["unattributed_source"])
@@ -452,29 +448,24 @@ def test_output_schemas_reject_untraceable_provenance(contoso_manifest_path: Pat
         validator = Draft202012Validator(schema, format_checker=FormatChecker())
         assert validator.is_valid(document)
         extra_coverage = deepcopy(document)
-        extra_coverage["source_coverage"]["invented_source"] = deepcopy(
-            extra_coverage["source_coverage"]["users"]
-        )
+        extra_coverage["source_coverage"]["invented_source"] = deepcopy(extra_coverage["source_coverage"]["users"])
         assert not validator.is_valid(extra_coverage), name
         if name == "graph":
             node_index = next(
-                index for index, node in enumerate(document["nodes"])
+                index
+                for index, node in enumerate(document["nodes"])
                 if node["node_type"] != "tenant" and node["evidence_status"] == "fresh"
             )
             for source_id in (None, "invented_source"):
                 bad_node = deepcopy(document)
                 bad_node["nodes"][node_index]["evidence_source"] = source_id
                 assert not validator.is_valid(bad_node), source_id
-            tenant_index = next(
-                index for index, node in enumerate(document["nodes"])
-                if node["node_type"] == "tenant"
-            )
+            tenant_index = next(index for index, node in enumerate(document["nodes"]) if node["node_type"] == "tenant")
             bad_tenant = deepcopy(document)
             bad_tenant["nodes"][tenant_index]["evidence_source"] = "users"
             assert not validator.is_valid(bad_tenant)
             edge_index = next(
-                index for index, edge in enumerate(document["edges"])
-                if edge["evidence_status"] == "fresh"
+                index for index, edge in enumerate(document["edges"]) if edge["evidence_status"] == "fresh"
             )
             bad_edge = deepcopy(document)
             bad_edge["edges"][edge_index]["evidence_sources"] = ["invented_source"]
@@ -494,13 +485,10 @@ def test_cross_object_validation_rejects_fresh_claims_from_unknown_sources(
     report_doc = render_json_report(graph, analyze_identity_graph(graph))
 
     node = next(
-        item for item in graph_doc["nodes"]
-        if item["node_type"] != "tenant" and item["evidence_status"] == "fresh"
+        item for item in graph_doc["nodes"] if item["node_type"] != "tenant" and item["evidence_status"] == "fresh"
     )
     bad_graph = deepcopy(graph_doc)
-    bad_graph["source_coverage"][node["evidence_source"]].update(
-        status="unknown", reason="stale"
-    )
+    bad_graph["source_coverage"][node["evidence_source"]].update(status="unknown", reason="stale")
     graph_schema = json.loads((PLUGIN_ROOT / "schemas" / "graph.schema.json").read_text())
     assert Draft202012Validator(graph_schema, format_checker=FormatChecker()).is_valid(bad_graph)
     with pytest.raises(EntraError, match="non-fresh source"):
