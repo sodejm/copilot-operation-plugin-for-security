@@ -62,7 +62,7 @@ python3 -m cops info host-assessment-workbench
 | **Plan an authorized, passive attack surface review** | `attack-surface-planner` | Scope boundary partitioning (in-scope vs. excluded) and passive test plan authoring. |
 | **Audit Entra ID role assignments, app registrations, and credentials** | `entra-identity-workbench` | Offline analysis of role grants, service principal keys, and account exposures. |
 | **Prioritize vulnerability remediation with SBOM reachability** | `exposure-triage-workbench` | Multi-source CVE reachability correlation and exploit exposure prioritization. |
-| **Simulate adversarial prompt injection and test agent safety** | `foundry-agent-harness` | Offline red-team evaluation harness for LLM agent boundary robustness. |
+| **Rehearse synthetic agent tool authorization** | `foundry-agent-harness` | Deterministic local agent and MCP fixtures with observed gate and mock state effects. |
 | **Validate detection query syntax and catch regressions** | `detection-quality-workbench` | Offline parser, syntax checker, and regression runner for Sentinel and Splunk. |
 | **Review code diffs and pull requests for security weaknesses** | `patch-security-review` | Static diff inspection for authorization flaws, injection, and security defects. |
 | **Enrich observable indicators with threat intelligence** | `threat-intelligence-enrichment` | Provenance-tracked indicator correlation against MISP/TAXII offline feeds. |

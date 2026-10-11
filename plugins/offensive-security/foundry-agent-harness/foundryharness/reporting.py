@@ -1,4 +1,4 @@
-"""Format JSON and Markdown review reports for Foundry adversarial agent testing."""
+"""Format JSON and Markdown reports for synthetic scenario simulation."""
 
 from __future__ import annotations
 
@@ -50,19 +50,19 @@ def render_markdown_report(
     executed = sum(1 for e in events if e.outcome_level == "executed_mock_effect")
 
     lines = [
-        "# Microsoft Foundry Adversarial Agent Review Report",
+        "# Foundry Agent Harness Synthetic Scenario Report",
         "",
         "> [!IMPORTANT]",
-        "> Adversarial evaluations test **model prompt-injection resistance and independent authorization enforcement**.",
-        "> A generated unsafe response is **not** an executed compromise. A secure architecture relies on",
-        "> independent policy gates preventing untrusted execution even when models are manipulated.",
+        "> This report records deterministic simulator behavior and mock authorization decisions.",
+        "> It does not test a model, deployed agent, or live Microsoft Foundry environment.",
+        "> Proposed calls, gate denials, and executed mock effects are distinct outcomes.",
         "",
         "## Evaluation Summary",
         "",
-        f"- **Target Agent**: `{target_agent.get('agent_name', 'Unknown')}` (version: `{target_agent.get('agent_version', '1.0')}`, framework: `{target_agent.get('framework', 'Foundry')}`)",
+        f"- **Scenario Label**: `{target_agent.get('agent_name', 'Unknown')}` (version: `{target_agent.get('agent_version', '1.0')}`, framework label: `{target_agent.get('framework', 'Synthetic fixture')}`)",
         f"- **Test Environment**: `{environment}` (offline mock sandbox)",
         f"- **Total Scenarios Evaluated**: {len(events)}",
-        f"- **Model Output Only (No Tool)**: {model_only}",
+        f"- **Simulator Text Only (No Tool)**: {model_only}",
         f"- **Attempted Tool Calls**: {attempted}",
         f"- **Denied by Independent Gate**: {denied}",
         f"- **Executed Permitted Effects**: {executed}",
@@ -74,7 +74,7 @@ def render_markdown_report(
     ]
 
     outcome_labels = {
-        "model_output_only": "Model Output Only",
+        "model_output_only": "Simulator Text Only",
         "attempted_tool_call": "Attempted Tool Call",
         "denied_tool_call": "**DENIED (BLOCKED)**",
         "executed_mock_effect": "*Executed Mock Effect*",
@@ -102,17 +102,21 @@ def render_markdown_report(
         lines.append(f"- **Attacker Surface**: `{e.surface}`")
         lines.append(f"- **Outcome Level**: `{e.outcome_level}`")
         lines.append(f"- **Gate Decision**: `{e.authorization_decision}`")
-        lines.append(f"- **Model Response Summary**: {e.model_response_summary}")
-        lines.append(f"- **Risk Assessment**: {e.risk_assessment}")
+        lines.append(f"- **Simulator Text**: {e.model_response_summary}")
+        lines.append(f"- **Scenario Assessment**: {e.risk_assessment}")
 
         if e.attempted_tool:
-            lines.append(f"- **Attempted Tool Call**: `{e.attempted_tool.get('tool_name')}` with arguments: `{e.attempted_tool.get('arguments')}`")
+            lines.append(
+                f"- **Attempted Tool Call**: `{e.attempted_tool.get('tool_name')}` with arguments: `{e.attempted_tool.get('arguments')}`"
+            )
 
         if e.gate_denial_reason:
             lines.append(f"- **Gate Enforcement**: {e.gate_denial_reason}")
 
         if e.executed_side_effect:
-            lines.append(f"- **Executed Mock Effect**: `{e.executed_side_effect.get('action')}` on `{e.executed_side_effect.get('target')}` (reversible: `{e.executed_side_effect.get('reversible')}`)")
+            lines.append(
+                f"- **Executed Mock Effect**: `{e.executed_side_effect.get('action')}` on `{e.executed_side_effect.get('target')}` (reversible: `{e.executed_side_effect.get('reversible')}`)"
+            )
 
         lines.append("- **Evidence Citations**:")
         for ev in e.evidence_citations:

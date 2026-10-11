@@ -94,9 +94,7 @@ def test_outcome_level_model_output_only():
 
 def test_outcome_level_denied_tool_call(scenarios_dir: Path):
     """Verify adversarial prompt attempting tool call is blocked by independent gate."""
-    sc = Scenario.from_dict(
-        json.loads((scenarios_dir / "rag_poisoning.json").read_text(encoding="utf-8"))
-    )
+    sc = Scenario.from_dict(json.loads((scenarios_dir / "rag_poisoning.json").read_text(encoding="utf-8")))
     sandbox = MockSandbox()
     gate = IndependentAuthorizationGate()
 
@@ -139,9 +137,7 @@ def test_outcome_level_executed_mock_effect():
 
 def test_cross_tenant_isolation(scenarios_dir: Path):
     """Verify cross-tenant lookup attempt is strictly blocked by independent gate."""
-    sc = Scenario.from_dict(
-        json.loads((scenarios_dir / "cross_tenant_access.json").read_text(encoding="utf-8"))
-    )
+    sc = Scenario.from_dict(json.loads((scenarios_dir / "cross_tenant_access.json").read_text(encoding="utf-8")))
     sandbox = MockSandbox()
     gate = IndependentAuthorizationGate()
 
@@ -154,9 +150,7 @@ def test_cross_tenant_isolation(scenarios_dir: Path):
 
 def test_egress_allowlist_enforcement(scenarios_dir: Path):
     """Verify data exfiltration to untrusted URL is blocked by independent gate."""
-    sc = Scenario.from_dict(
-        json.loads((scenarios_dir / "data_exfiltration.json").read_text(encoding="utf-8"))
-    )
+    sc = Scenario.from_dict(json.loads((scenarios_dir / "data_exfiltration.json").read_text(encoding="utf-8")))
     sandbox = MockSandbox()
     gate = IndependentAuthorizationGate()
 
@@ -238,7 +232,7 @@ def test_cli_list_and_evaluate(scenarios_dir: Path, tmp_path: Path):
     assert exit_code == 0
     assert md_out.exists()
     content = md_out.read_text(encoding="utf-8")
-    assert "# Microsoft Foundry Adversarial Agent Review Report" in content
+    assert "# Foundry Agent Harness Synthetic Scenario Report" in content
     assert "SCN-RAG-POISON-01" in content
 
     # Evaluate JSON

@@ -174,7 +174,7 @@ def evaluate_scenario(
                 outcome_level="executed_mock_effect",
                 authorization_decision="allow",
                 model_response_summary=redact_text(model_response),
-                risk_assessment=risk_assessment,
+                risk_assessment=f"Synthetic scenario: {risk_assessment}",
                 evidence_citations=(
                     f"Scenario: {scenario.scenario_id}",
                     f"Gate Decision: {gate_decision.reason}",
@@ -193,7 +193,7 @@ def evaluate_scenario(
                 outcome_level="denied_tool_call",
                 authorization_decision="deny",
                 model_response_summary=redact_text(model_response),
-                risk_assessment=risk_assessment,
+                risk_assessment=f"Synthetic scenario: {risk_assessment}",
                 evidence_citations=(
                     f"Scenario: {scenario.scenario_id}",
                     f"Independent Gate Block: {gate_decision.reason}",
@@ -211,9 +211,9 @@ def evaluate_scenario(
         outcome_level="model_output_only",
         authorization_decision="not_applicable",
         model_response_summary=redact_text(model_response),
-        risk_assessment=risk_assessment,
+        risk_assessment=f"Synthetic scenario: {risk_assessment}",
         evidence_citations=(
             f"Scenario: {scenario.scenario_id}",
-            "Model Response: pure text generation without tool call",
+            "Simulator Text: no tool call proposed",
         ),
     )

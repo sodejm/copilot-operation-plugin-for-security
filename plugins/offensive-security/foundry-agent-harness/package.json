@@ -3,7 +3,7 @@
   "id": "foundry-agent-harness",
   "display_name": "COPS Microsoft Foundry Adversarial Agent Review Harness",
   "maturity": "beta",
-  "summary": "Author adversarial scenarios and evaluate Microsoft Foundry and Semantic Kernel agents against deterministic mock sandboxes.",
+  "summary": "Rehearse synthetic agent tool authorization with deterministic scenarios and local MCP fixtures.",
   "support": {
     "structural_validation": "validated",
     "offline_workflow": "validated",
@@ -11,12 +11,12 @@
     "live_integration": "unverified"
   },
   "limitations": [
-    "Operates strictly in an offline mock sandbox environment; does not perform live network calls or production agent probing.",
-    "Evaluations assess model prompt-injection resistance and independent authorization gating; a blocked tool call indicates effective gating, not an executed compromise.",
-    "Side-effects in the mock sandbox are recorded in an in-memory ledger and can be rolled back; no actual cloud infrastructure is created or deleted."
+    "Runs bundled synthetic fixtures; does not connect to Microsoft Foundry, Semantic Kernel, a hosted model, or a live MCP server.",
+    "Results establish only local fixture and gate behavior, not a real agent's prompt-injection resistance or production authorization posture.",
+    "The MCP fixture uses subprocess isolation, not an operating-system network sandbox; use synthetic case data only."
   ],
   "demo": {
-    "description": "Run an offline adversarial evaluation of 6 attack scenarios against a Microsoft Foundry agent with independent authorization gating.",
+    "description": "Run six deterministic synthetic scenarios through the offline mock authorization gate.",
     "command": [
       "$PYTHON",
       "plugins/offensive-security/foundry-agent-harness/scripts/run_demo.py"
