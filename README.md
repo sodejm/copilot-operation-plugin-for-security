@@ -160,6 +160,10 @@ Before creating new plugins or modifying contracts, please review:
 
 ## Evidence & Safety Principles
 
+The opt-in [aggregate assessment budget fixture](docs/ASSESSMENT_BUDGETS.md)
+records admission and recovery for synthetic assessment calls. Real provider
+enforcement awaits provider adapter integration.
+
 In security engineering, confidence comes from verification:
 
 - **Offline Safety**: Demos and checks run against local synthetic test data. They never make unreviewed network calls or write to remote production services.

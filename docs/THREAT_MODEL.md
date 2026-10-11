@@ -42,6 +42,7 @@ private payloads and real identifiers must never be copied into this document.
 | Telemetry Proof Pack exports → offline correlator → Markdown/JSON report | Supplied marker records, timestamps and IDs remain untrusted. The report hashes content for comparison but cannot authenticate exports or enforce collection, access, or retention policy. |
 | Offline Entra export manifest and files → identity graph and exposure report → analyst | Export content and collector claims of completeness or collection time are untrusted. Hashes establish file integrity only; per-source coverage determines whether a path can support a current exposure claim. Reports can repeat private identifiers. |
 | Local Linux host export → host-assessment-workbench importer → operator | The importer reads a bounded local JSON file and returns classifications from untrusted source assertions. It does not collect host state or verify canary execution, cleanup, or the source's identity. Opaque IDs must be kept free of secrets by the exporter. |
+| Operator assessment budget → owner-controlled ledger → fixture assessment dispatcher | The controller must reserve before callback dispatch. Agent and provider content cannot expand the budget or release an uncertain attempt. Provider integration remains pending issue #150. |
 
 ```mermaid
 flowchart LR
@@ -275,6 +276,14 @@ validation before the affected release/capability expansion and schedule P2 with
 - Existing evidence / limitation: The importer rejects unknown fields, duplicate keys, oversized or deeply nested input, invalid prerequisites, and contradictory canary sequences. It distinguishes configuration candidates, unselected observations, and reported canary results. Its strict opaque-ID syntax reduces exposure but cannot determine whether an allowed token is sensitive or whether an assertion is true.
 - Proposed mitigation and validation: Keep synthetic positive, negative, fixed, mismatch, and malformed-input tests; require a separately approved disposable-host collector with source authentication, canary privileges, independently recorded before/after access, and ownership-aware cleanup receipts before live claims. Review that integration and its exact revision with a human security reviewer.
 - Residual risk / status: The offline importer cannot establish a real privilege crossing, completeness of host coverage, or cleanup. No live integration or disposable-host validation is present; human review remains pending.
+
+### T22: Aggregate assessment budget bypass or double release
+
+- Attack path / prerequisite: Concurrent children or retries check separate counters; a crash, duplicate receipt, stale lease, cancellation, or forged usage report frees allowance for another call while the original remains in flight. Incorrect price assumptions or underestimated tokens/cost can also understate actual billing.
+- Inherent impact: High; likelihood: Medium; priority: P1.
+- Existing evidence / limitation: The issue #240 ledger is an owner-controlled, engagement-scoped local admission boundary with SQLite transactions, durable dispatch intent, idempotent receipts, and conservative unknown usage. Its first dispatcher is synthetic. It does not mediate the future provider adapters from issue #150 or independently attest provider usage and pricing.
+- Proposed mitigation and validation: Exercise concurrent admission, recursion/fanout, retries, receipt replay/conflict, late responses, restart, active callback cancellation, denied-action clock rollback, deadline and unavailable storage with deterministic fixtures. Record cancellation request, observed stop and final usage separately. Before live use, require each provider/tool path to reserve at its effective dispatch boundary, validate usage/price sources, independently reconcile unknown in-flight calls and actual billing, and obtain exact-revision security review.
+- Residual risk / status: A caller can bypass an opt-in wrapper; local accounting cannot prevent provider billing overage or prove remote cancellation. Same-authority ledger tampering, host clock manipulation, dishonest receipts, and real provider integration remain unverified.
 
 ## STRIDE and privacy coverage
 
