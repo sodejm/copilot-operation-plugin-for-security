@@ -198,9 +198,7 @@ def test_partial_receipt_keeps_full_reservation_until_complete(tmp_path):
     partial = Receipt("partial", "attempt-a", "target_denied", 2, None, 1)
     assert store.reconcile(partial).state == "usage_unknown"
     snapshot = store.snapshot()
-    assert (snapshot.charged_tokens, snapshot.charged_cost_microunits, snapshot.charged_output_bytes) == (
-        10, 100, 10
-    )
+    assert (snapshot.charged_tokens, snapshot.charged_cost_microunits, snapshot.charged_output_bytes) == (10, 100, 10)
     with pytest.raises(BudgetDenied, match="conflict"):
         store.reconcile(Receipt("changed", "attempt-a", "runner_stopped", 2, 20, 1))
     with pytest.raises(BudgetDenied, match="conflict"):
@@ -343,7 +341,9 @@ def test_deadline_clock_rollback_and_missing_database_fail_closed(tmp_path):
 def test_fixture_exception_preserves_uncertain_intent(tmp_path):
     store = ledger(tmp_path, Clock())
     with pytest.raises(RuntimeError, match="provider fault"):
-        dispatch_fixture(store, request("attempt-a"), lambda _attempt, _signal: (_ for _ in ()).throw(RuntimeError("provider fault")))
+        dispatch_fixture(
+            store, request("attempt-a"), lambda _attempt, _signal: (_ for _ in ()).throw(RuntimeError("provider fault"))
+        )
     assert store.get_attempt("attempt-a").state == "uncertain"
     assert store.snapshot().active_concurrency == 1
 
@@ -377,9 +377,7 @@ def test_versioned_json_schema_matches_policy_request_and_receipt():
     schema_path = Path(__file__).resolve().parents[1] / "catalog/schemas/assessment-budget.schema.json"
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
     jsonschema.Draft202012Validator.check_schema(schema)
-    policy_validator = jsonschema.Draft202012Validator(
-        schema, format_checker=jsonschema.FormatChecker()
-    )
+    policy_validator = jsonschema.Draft202012Validator(schema, format_checker=jsonschema.FormatChecker())
     policy_validator.validate(asdict(policy()))
     with pytest.raises(jsonschema.ValidationError):
         policy_validator.validate({**asdict(policy()), "price_effective_date": "2026-02-30"})
@@ -387,22 +385,17 @@ def test_versioned_json_schema_matches_policy_request_and_receipt():
         policy_validator.validate({**asdict(policy()), "limits": {**asdict(policy().limits), "max_attempts": True}})
 
     def validator_for(definition: str) -> jsonschema.Draft202012Validator:
-        return jsonschema.Draft202012Validator(
-            {"$defs": schema["$defs"], "$ref": f"#/$defs/{definition}"}
-        )
+        return jsonschema.Draft202012Validator({"$defs": schema["$defs"], "$ref": f"#/$defs/{definition}"})
 
     request_validator = validator_for("attemptRequest")
-    request_validator.validate(
-        {**asdict(request("attempt-a")), "child_limits": asdict(policy().limits)}
-    )
+    request_validator.validate({**asdict(request("attempt-a")), "child_limits": asdict(policy().limits)})
     with pytest.raises(jsonschema.ValidationError):
         request_validator.validate({**asdict(request("attempt-a")), "estimated_tokens": -1})
     receipt_validator = validator_for("receipt")
     receipt_validator.validate(asdict(Receipt("receipt-a", "attempt-a", "completed", None, 10, 0)))
     with pytest.raises(jsonschema.ValidationError):
         receipt_validator.validate(
-            asdict(Receipt("receipt-a", "attempt-a", "completed", None, 10, 0))
-            | {"outcome": "denied"}
+            asdict(Receipt("receipt-a", "attempt-a", "completed", None, 10, 0)) | {"outcome": "denied"}
         )
     cancellation_validator = validator_for("cancellationReport")
     cancellation_validator.validate(

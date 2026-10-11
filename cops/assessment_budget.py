@@ -12,12 +12,11 @@ import re
 import sqlite3
 import stat
 import time
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from datetime import date
 from pathlib import Path
-from typing import Callable, Iterator
-
 
 _ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 _ACTIVE = frozenset({"reserved", "dispatched", "uncertain"})
@@ -95,9 +94,10 @@ class BudgetPolicy:
             raise ValueError("invalid currency")
         for field in ("price_source", "price_version"):
             _identifier(getattr(self, field), field)
-        if not isinstance(self.price_effective_date, str) or re.fullmatch(
-            r"\d{4}-\d{2}-\d{2}", self.price_effective_date
-        ) is None:
+        if (
+            not isinstance(self.price_effective_date, str)
+            or re.fullmatch(r"\d{4}-\d{2}-\d{2}", self.price_effective_date) is None
+        ):
             raise ValueError("invalid price_effective_date")
         try:
             date.fromisoformat(self.price_effective_date)
@@ -209,9 +209,7 @@ CREATE TABLE IF NOT EXISTS receipts (
 class AssessmentBudgetLedger:
     """SQLite ledger with one immediate transaction per state transition."""
 
-    def __init__(
-        self, db_path: Path | str, policy: BudgetPolicy, *, clock: Callable[[], int] | None = None
-    ) -> None:
+    def __init__(self, db_path: Path | str, policy: BudgetPolicy, *, clock: Callable[[], int] | None = None) -> None:
         if not isinstance(policy, BudgetPolicy):
             raise ValueError("policy must be a BudgetPolicy")
         source = Path(db_path).expanduser()
@@ -285,9 +283,7 @@ class AssessmentBudgetLedger:
     def _connect(self) -> Iterator[sqlite3.Connection]:
         self._check_file()
         try:
-            db = sqlite3.connect(
-                self.db_path.as_uri() + "?mode=rw", uri=True, timeout=30, isolation_level=None
-            )
+            db = sqlite3.connect(self.db_path.as_uri() + "?mode=rw", uri=True, timeout=30, isolation_level=None)
             db.row_factory = sqlite3.Row
             db.execute("PRAGMA foreign_keys = ON")
             db.execute("PRAGMA journal_mode = DELETE")
@@ -347,9 +343,7 @@ class AssessmentBudgetLedger:
             charged_cost_microunits=sum(
                 usage(row, "actual_cost_microunits", "estimated_cost_microunits") for row in charged
             ),
-            charged_output_bytes=sum(
-                usage(row, "actual_output_bytes", "reserved_output_bytes") for row in charged
-            ),
+            charged_output_bytes=sum(usage(row, "actual_output_bytes", "reserved_output_bytes") for row in charged),
             active_concurrency=sum(row["state"] in _ACTIVE for row in rows),
             over_budget=False,
         )
@@ -381,9 +375,9 @@ class AssessmentBudgetLedger:
                     if parent_row is None:
                         raise BudgetStoreError("attempt parent missing")
                     inherited = BudgetLimits(**json.loads(parent_row["limits_json"]))
-                if existing["request_json"] != _canonical(asdict(request)) or existing[
-                    "limits_json"
-                ] != _canonical(asdict(child_limits or inherited)):
+                if existing["request_json"] != _canonical(asdict(request)) or existing["limits_json"] != _canonical(
+                    asdict(child_limits or inherited)
+                ):
                     raise BudgetDenied("conflicting attempt id reuse")
                 return self._attempt(existing)
             if engagement["cancelled"]:
@@ -446,12 +440,8 @@ class AssessmentBudgetLedger:
                 raise BudgetDenied("aggregate budget exceeded")
             by_id = {row["attempt_id"]: row for row in rows}
             for ancestor in ancestors:
-                subtree = [
-                    row for row in rows if self._descends_from(row, ancestor["attempt_id"], by_id)
-                ]
-                if not self._within(
-                    self._charged(subtree), BudgetLimits(**json.loads(ancestor["limits_json"]))
-                ):
+                subtree = [row for row in rows if self._descends_from(row, ancestor["attempt_id"], by_id)]
+                if not self._within(self._charged(subtree), BudgetLimits(**json.loads(ancestor["limits_json"]))):
                     raise BudgetDenied("subtree budget exceeded")
             own = self._charged([by_id[request.attempt_id]])
             if not self._within(own, effective):
@@ -552,8 +542,7 @@ class AssessmentBudgetLedger:
             ):
                 raise BudgetDenied("retained output exceeds reservation")
             known = all(
-                value is not None
-                for value in (receipt.tokens, receipt.cost_microunits, receipt.retained_output_bytes)
+                value is not None for value in (receipt.tokens, receipt.cost_microunits, receipt.retained_output_bytes)
             )
             state = "settled" if known else "usage_unknown"
             db.execute(
@@ -579,8 +568,7 @@ class AssessmentBudgetLedger:
             db.execute("UPDATE engagement SET cancelled = 1 WHERE singleton = 1")
             # Every active descendant shares this ledger and receives the request.
             db.execute(
-                "UPDATE attempts SET cancel_requested = 1 "
-                "WHERE state IN ('reserved', 'dispatched', 'uncertain')"
+                "UPDATE attempts SET cancel_requested = 1 WHERE state IN ('reserved', 'dispatched', 'uncertain')"
             )
             db.execute("UPDATE attempts SET state = 'released' WHERE state = 'reserved'")
 
@@ -593,9 +581,7 @@ class AssessmentBudgetLedger:
                 raise BudgetDenied("attempt not found")
             requested = bool(row["cancel_requested"])
             final = row["state"] in {"released", "settled"}
-            confirmed = requested and (
-                row["state"] == "released" or row["outcome"] in {"runner_stopped", "cancelled"}
-            )
+            confirmed = requested and (row["state"] == "released" or row["outcome"] in {"runner_stopped", "cancelled"})
             return CancellationReport(
                 attempt_id=attempt_id,
                 requested=requested,
@@ -608,9 +594,7 @@ class AssessmentBudgetLedger:
     def snapshot(self) -> BudgetSnapshot:
         with self._transaction() as (db, _, _now):
             snapshot = self._charged(list(db.execute("SELECT * FROM attempts")))
-            return BudgetSnapshot(
-                **{**asdict(snapshot), "over_budget": not self._within(snapshot, self.policy.limits)}
-            )
+            return BudgetSnapshot(**{**asdict(snapshot), "over_budget": not self._within(snapshot, self.policy.limits)})
 
 
 @dataclass(frozen=True)

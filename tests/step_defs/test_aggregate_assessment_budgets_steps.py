@@ -45,12 +45,8 @@ def setup(context, **limit_overrides):
         max_children_per_parent=3,
     )
     limits.update(limit_overrides)
-    context["policy"] = BudgetPolicy(
-        "eng-bdd-240", BudgetLimits(**limits), "USD", "fixture", "v1", "2026-10-01"
-    )
-    context["store"] = AssessmentBudgetLedger(
-        context["path"], context["policy"], clock=context["clock"]
-    )
+    context["policy"] = BudgetPolicy("eng-bdd-240", BudgetLimits(**limits), "USD", "fixture", "v1", "2026-10-01")
+    context["store"] = AssessmentBudgetLedger(context["path"], context["policy"], clock=context["clock"])
 
 
 def request(attempt_id, parent_id=None):
@@ -156,9 +152,7 @@ def settled_once(context):
 @when("the engagement is cancelled and the ledger is reopened")
 def cancel_reopen(context):
     context["store"].cancel()
-    context["store"] = AssessmentBudgetLedger(
-        context["path"], context["policy"], clock=context["clock"]
-    )
+    context["store"] = AssessmentBudgetLedger(context["path"], context["policy"], clock=context["clock"])
 
 
 @then("new attempts are denied")
@@ -199,7 +193,8 @@ def no_dispatch(context):
     called = []
     with pytest.raises(BudgetStoreError):
         dispatch_fixture(
-            context["store"], request("missing"),
+            context["store"],
+            request("missing"),
             lambda _attempt, _signal: called.append(True),
         )
     assert not called
