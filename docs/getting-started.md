@@ -62,7 +62,7 @@ python3 -m cops doctor
 
 ### What `cops doctor` checks:
 1. **Python Interpreter**: Confirms that your active Python interpreter is version 3.11 or newer.
-2. **Catalog Integrity**: Verifies that all 14 package manifests match their catalog declarations.
+2. **Catalog Integrity**: Verifies that all 15 package manifests match their catalog declarations.
 3. **Marketplace Synchronization**: Ensures that generated host indexes (`.github/plugin/marketplace.json`, `.claude-plugin/marketplace.json`, `.agents/plugins/marketplace.json`) are in sync with `catalog/plugins.json`.
 4. **Offline Readiness**: Confirms that local tools execute without unverified external network requirements.
 
@@ -72,7 +72,7 @@ If any check reports an issue, the output provides clear, actionable instruction
 
 ## Step 2: Exploring the Plugin Catalog (`cops list` & `cops info`)
 
-COPS packages 14 dedicated security plugins across defensive and offensive domains. To view the full catalog:
+COPS packages 15 dedicated security plugins across defensive and offensive domains. To view the full catalog:
 
 ```bash
 python3 -m cops list
@@ -96,6 +96,8 @@ patch-security-review           vulnerability-management  beta          validate
 threat-intelligence-enrichment  detection-hunting         experimental  validated  unverified  unverified    
 telemetry-proof-pack            logging-telemetry         beta          validated  unverified  unverified    
 incident-response-sandbox       incident-response         experimental  validated  unverified  unverified    
+host-assessment-workbench       offensive-security        experimental  validated  unverified  unverified
+offensive-engagement-workbench  offensive-security        experimental  validated  unverified  unverified
 ```
 
 To view in-depth details, operational playbooks, and limitations for any specific plugin:
@@ -171,7 +173,7 @@ To verify the code correctness, schemas, and regression tests of a plugin locall
 # Check a single package
 python3 -m cops check sentinel-hunt-workbench
 
-# Check all 14 packages
+# Check all 15 packages
 python3 -m cops check
 ```
 

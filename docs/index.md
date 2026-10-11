@@ -62,7 +62,7 @@ Read the full [Getting Started Guide](getting-started.md) for detailed step-by-s
 
 ## Cybersecurity Capability Domains
 
-COPS organizes 14 dedicated security plugins across six cybersecurity disciplines:
+COPS organizes 15 dedicated security plugins across six cybersecurity disciplines:
 
 <div class="cops-grid">
   <div class="cops-card">
@@ -87,8 +87,8 @@ COPS organizes 14 dedicated security plugins across six cybersecurity discipline
   </div>
   <div class="cops-card">
     <h3>⚔️ Offensive Security</h3>
-    <p>Plan bounded reviews, validate authorized engagement scope, and evaluate AI agent prompt injection resistance in a sandbox.</p>
-    <p><strong>Plugins:</strong> <a href="plugin-guide.html#attack-surface-planner">Attack Surface Planner</a> <span class="badge badge-experimental">Experimental</span>, <a href="plugin-guide.html#offensive-engagement-workbench">Offensive Engagement Workbench</a> <span class="badge badge-experimental">Experimental</span>, <a href="plugin-guide.html#foundry-agent-harness">Foundry Agent Harness</a> <span class="badge badge-beta">Beta</span></p>
+    <p>Plan bounded reviews, validate authorized engagement scope, classify imported Linux privilege-boundary observations, and evaluate AI agent prompt injection resistance in a sandbox.</p>
+    <p><strong>Plugins:</strong> <a href="plugin-guide.html#attack-surface-planner">Attack Surface Planner</a> <span class="badge badge-experimental">Experimental</span>, <a href="plugin-guide.html#host-assessment-workbench">Host Assessment Workbench</a> <span class="badge badge-experimental">Experimental</span>, <a href="plugin-guide.html#offensive-engagement-workbench">Offensive Engagement Workbench</a> <span class="badge badge-experimental">Experimental</span>, <a href="plugin-guide.html#foundry-agent-harness">Foundry Agent Harness</a> <span class="badge badge-beta">Beta</span></p>
   </div>
   <div class="cops-card">
     <h3>🚨 Incident Response</h3>
