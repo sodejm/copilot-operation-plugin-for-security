@@ -149,7 +149,7 @@ class ActionPlan:
     _immutable_fields = frozenset({
         "schema_version", "plan_id", "engagement_id", "scenario_id", "target",
         "specialist_id", "operations", "limits", "credential_references",
-        "plan_digest", "created_at", "platform_prerequisites", "batch",
+        "plan_digest", "created_at", "platform_prerequisites", "batch", "offline_research",
     })
 
     def __setattr__(self, name: str, value: Any) -> None:
@@ -168,7 +168,8 @@ class ActionPlan:
                  operations: list[dict[str, Any]], limits: dict[str, Any],
                  credential_references: list[str], plan_digest: str, created_at: str,
                  platform_prerequisites: list[str] | None = None,
-                 batch: dict[str, Any] | None = None) -> None:
+                 batch: dict[str, Any] | None = None,
+                 offline_research: dict[str, Any] | None = None) -> None:
         self.schema_version = schema_version
         self.plan_id = plan_id
         self.engagement_id = engagement_id
@@ -184,6 +185,7 @@ class ActionPlan:
         self.batch = _freeze(batch or {
             "mode": "sequential", "max_operations": len(operations), "fail_fast": True
         })
+        self.offline_research = _freeze(offline_research) if offline_research is not None else None
         self._lifecycle = _Lifecycle(status)
 
     @property
@@ -207,6 +209,8 @@ class ActionPlan:
             "platform_prerequisites": _thaw(self.platform_prerequisites),
             "batch": _thaw(self.batch),
         }
+        if self.offline_research is not None:
+            result["offline_research"] = _thaw(self.offline_research)
         if include_digest:
             result["plan_digest"] = self.plan_digest
         return result
@@ -228,6 +232,8 @@ class ActionPlan:
         }
         result["platform_prerequisites"] = _thaw(self.platform_prerequisites)
         result["batch"] = _thaw(self.batch)
+        if self.offline_research is not None:
+            result["offline_research"] = _thaw(self.offline_research)
         return result
 
     @classmethod
@@ -246,6 +252,7 @@ class ActionPlan:
         status: str = "draft",
         platform_prerequisites: list[str] | None = None,
         batch: dict[str, Any] | None = None,
+        offline_research: dict[str, Any] | None = None,
     ) -> ActionPlan:
         batch = batch or {"mode": "sequential", "max_operations": len(operations), "fail_fast": True}
         snapshot = {"schema_version": "cops.action-plan/v1", "plan_id": plan_id,
@@ -254,6 +261,8 @@ class ActionPlan:
                     "operations": operations, "limits": limits,
                     "credential_references": credential_references, "created_at": created_at,
                     "platform_prerequisites": platform_prerequisites or [], "batch": batch}
+        if offline_research is not None:
+            snapshot["offline_research"] = offline_research
         computed_digest = build_action_plan_digest(snapshot=snapshot)
         plan = cls(
             schema_version="cops.action-plan/v1",
@@ -270,6 +279,7 @@ class ActionPlan:
             created_at=created_at,
             platform_prerequisites=platform_prerequisites,
             batch=batch,
+            offline_research=offline_research,
         )
         validate_contract(plan.to_dict(), "action_plan")
         return plan
@@ -292,6 +302,7 @@ class ActionPlan:
             created_at=data["created_at"],
             platform_prerequisites=data.get("platform_prerequisites"),
             batch=data.get("batch"),
+            offline_research=data.get("offline_research"),
         )
 
 
@@ -457,13 +468,14 @@ class RunResult:
     cleanup_status: str
     worker_identity: str
     exit_code: int | None = None
+    offline_research: dict[str, Any] | None = None
 
     def is_successful(self) -> bool:
         """Return True only if status is strictly 'success'."""
         return evaluate_run_result(self.to_dict())
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        result = {
             "schema_version": self.schema_version,
             "result_id": self.result_id,
             "plan_id": self.plan_id,
@@ -478,6 +490,9 @@ class RunResult:
             "cleanup_status": self.cleanup_status,
             "worker_identity": self.worker_identity,
         }
+        if self.offline_research is not None:
+            result["offline_research"] = self.offline_research
+        return result
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> RunResult:
@@ -496,6 +511,7 @@ class RunResult:
             artifacts=data["artifacts"],
             cleanup_status=data["cleanup_status"],
             worker_identity=data["worker_identity"],
+            offline_research=data.get("offline_research"),
         )
 
 

@@ -29,7 +29,7 @@ from typing import Any
 from cops.adapters import AdapterError, ToolAdapterRegistry
 from cops.contracts.models import ActionPlan, CleanupReceipt, RunResult
 from cops.contracts.validation import validate_contract
-from cops.evidence.canonical import utc_now
+from cops.evidence.canonical import digest, utc_now
 
 from .cleanup import (
     PLAN_DECLARED_PROVENANCE_KEY,
@@ -56,7 +56,14 @@ from .filesystem import (
     open_directory_no_symlinks,
     same_directory_identity,
 )
-from .sandbox import ExecutionSandbox, LinuxBubblewrapSandbox
+from .offline_research import (
+    OfflineResearchError,
+    validate_offline_cat_adapter,
+    validate_offline_request,
+    stage_corpora,
+    verify_isolation_observation,
+)
+from .sandbox import ExecutionSandbox, LinuxBubblewrapSandbox, OfflineIsolationViolation
 
 
 class WorkerError(RuntimeError):
@@ -474,6 +481,9 @@ class IsolatedWorker:
             plan_model = ActionPlan.from_dict(action_plan)
         else:
             plan_model = action_plan
+            # Directly constructed models bypass the validating factory methods.
+            # Recheck the full signed snapshot before profile indexing or approval use.
+            validate_contract(plan_model.to_dict(), "action_plan")
 
         if self.expected_engagement_id is not None and plan_model.engagement_id != self.expected_engagement_id:
             raise WorkerExecutionError("action plan engagement does not match the provisioned engagement")
@@ -498,6 +508,31 @@ class IsolatedWorker:
         if plan_model.credential_references and self.credential_resolver is None:
             raise WorkerIsolationError("credential-bearing plan requires a scoped credential resolver")
 
+        cat_pin = None
+        if plan_model.offline_research is not None and any(
+            operation["tool"] == "cat" for operation in plan_model.operations
+        ):
+            try:
+                cat_adapter = self.adapter_registry.get_adapter("cat")
+            except AdapterError as err:
+                raise WorkerExecutionError("offline research cat adapter is unavailable") from err
+            validate_offline_cat_adapter(
+                cat_adapter,
+                expected_pin=plan_model.offline_research.get("cat_executable_sha256", ""),
+            )
+            verification = cat_adapter.executable_verification
+            cat_pin = verification.sha256 if verification is not None else None
+        offline_profile = validate_offline_request(
+            plan_model,
+            worker_identity=self.config.worker_id,
+            worker_inventory=self.worker_inventory.to_dict(),
+            cat_executable_sha256=cat_pin,
+            sandbox=self.sandbox,
+            workspace_dir=workspace_dir,
+            scope_guard=self.scope_guard,
+            credential_resolver=self.credential_resolver,
+            egress_identity_verifier=self._egress_identity_verifier,
+        )
         operation_egress_policies = self._preflight_execution_request(plan_model, cancel_requested=cancel_requested)
 
         # Compatibility and workspace safety are part of the pre-consumption gate.
@@ -539,6 +574,9 @@ class IsolatedWorker:
 
         receipt: ApprovalConsumptionReceipt | None = None
         cleanup_manager: CleanupManager | None = None
+        staged_corpora: list[dict[str, str]] = []
+        isolation_observation: dict[str, Any] | None = None
+        isolation_invocations: list[dict[str, Any]] = []
         try:
             ledger = SideEffectLedger(
                 plan_id=plan_model.plan_id,
@@ -582,6 +620,27 @@ class IsolatedWorker:
             self.approval_control.assert_ready(self.config.worker_id)
             self.sandbox.assert_ready(self.config.worker_id, cwd=target_workspace, expected_workspace_fd=workspace_fd)
             self._verify_plan_compatibility(plan_model)
+            if offline_profile is not None:
+                staged_corpora = stage_corpora(
+                    offline_profile, workspace=target_workspace, workspace_fd=workspace_fd, ledger=ledger
+                )
+                isolation_observation = verify_isolation_observation(
+                    offline_profile,
+                    sandbox=self.sandbox,
+                    workspace=target_workspace,
+                    workspace_fd=workspace_fd,
+                )
+                validate_offline_request(
+                    plan_model,
+                    worker_identity=self.config.worker_id,
+                    worker_inventory=self.worker_inventory.to_dict(),
+                    cat_executable_sha256=cat_pin,
+                    sandbox=self.sandbox,
+                    workspace_dir=workspace_dir,
+                    scope_guard=self.scope_guard,
+                    credential_resolver=self.credential_resolver,
+                    egress_identity_verifier=self._egress_identity_verifier,
+                )
             if self.cleanup_journal is not None:
                 self.cleanup_journal.record_run_event(
                     authorization_id,
@@ -816,6 +875,10 @@ class IsolatedWorker:
                                 overall_exit_code = 127
                                 break
                             adapter = self.adapter_registry.get_adapter(tool)
+                            if offline_profile is not None and tool == "cat":
+                                validate_offline_cat_adapter(
+                                    adapter, expected_pin=offline_profile["cat_executable_sha256"]
+                                )
                             if adapter.version != op["tool_version"]:
                                 status = "failed"
                                 status_reason = (
@@ -825,6 +888,12 @@ class IsolatedWorker:
                                 overall_exit_code = 126
                                 break
                             cmd = adapter.assemble_command(action, op.get("arguments"))
+                            if offline_profile is not None and tool == "cat" and cmd != [
+                                "cat", "--", op["arguments"]["filename"]
+                            ]:
+                                raise OfflineResearchError(
+                                    "offline research cat command differs from the approved profile"
+                                )
 
                             def run_bound_probe(
                                 command: Any,
@@ -832,8 +901,20 @@ class IsolatedWorker:
                                 _operation_workspace_fd: int = operation_workspace_fd,
                                 **kwargs: Any,
                             ) -> Any:
+                                offline_arguments = (
+                                    {
+                                        "expected_isolation_digest": offline_profile["isolation_attestation"]["digest"],
+                                        "isolation_observer": lambda observation: isolation_invocations.append(
+                                            {"step_id": step_id, "phase": "version_probe", "observation": observation,
+                                             "matches_approved": observation["digest"] == offline_profile["isolation_attestation"]["digest"]
+                                             and LinuxBubblewrapSandbox._offline_network_boundary_restricted(observation["measured"])}
+                                        ),
+                                    }
+                                    if offline_profile is not None else {}
+                                )
                                 return self.sandbox.run(
-                                    command, expected_workspace_fd=_operation_workspace_fd, **kwargs
+                                    command, expected_workspace_fd=_operation_workspace_fd,
+                                    **offline_arguments, **kwargs,
                                 )
 
                             prepared = prepare_executable(
@@ -880,6 +961,17 @@ class IsolatedWorker:
                                     if invocation_timeout <= 0:
                                         return None
                                     adapter_dispatched = True
+                                    offline_arguments = (
+                                        {
+                                            "expected_isolation_digest": offline_profile["isolation_attestation"]["digest"],
+                                            "isolation_observer": lambda observation: isolation_invocations.append(
+                                                {"step_id": step_id, "phase": "adapter", "observation": observation,
+                                                 "matches_approved": observation["digest"] == offline_profile["isolation_attestation"]["digest"]
+                                                 and LinuxBubblewrapSandbox._offline_network_boundary_restricted(observation["measured"])}
+                                            ),
+                                        }
+                                        if offline_profile is not None else {}
+                                    )
                                     return self.sandbox.run(
                                         [_prepared.invocation_path, *_cmd[1:]],
                                         cwd=_operation_workspace,
@@ -888,6 +980,7 @@ class IsolatedWorker:
                                         max_output_bytes=_remaining_capture,
                                         pass_fds=_prepared.pass_fds,
                                         expected_workspace_fd=_operation_workspace_fd,
+                                        **offline_arguments,
                                         **extra_arguments,
                                     )
 
@@ -944,6 +1037,16 @@ class IsolatedWorker:
                         redacted_err = redactor.redact_string(str(err))
                         status = "failed"
                         status_reason = f"adapter execution verification failed: {redacted_err}"
+                        overall_exit_code = 126
+                        break
+                    except OfflineIsolationViolation as err:
+                        status = "failed"
+                        status_reason = str(err)
+                        overall_exit_code = 126
+                        break
+                    except OfflineResearchError as err:
+                        status = "failed"
+                        status_reason = str(err)
                         overall_exit_code = 126
                         break
                     except KeyboardInterrupt:
@@ -1154,6 +1257,22 @@ class IsolatedWorker:
         evidence_hashes.extend(evidence_recorder.get_evidence_hashes())
         evidence_hashes.append(cleanup_receipt.evidence_hash)
 
+        offline_evidence = None
+        if offline_profile is not None:
+            assert isolation_observation is not None
+            offline_evidence = {
+                "profile": offline_profile["profile"],
+                "version": offline_profile["version"],
+                "worker_inventory_sha256": offline_profile["worker_inventory_sha256"],
+                "approved_isolation_attestation": offline_profile["isolation_attestation"]["digest"],
+                "corpora": staged_corpora,
+                "isolation_observation": isolation_observation,
+                "isolation_invocations": isolation_invocations,
+            }
+            if cat_pin is not None:
+                offline_evidence["cat_executable_sha256"] = cat_pin
+            evidence_hashes.append(digest(offline_evidence))
+
         result_doc = {
             "schema_version": "cops.run-result/v1",
             "result_id": result_id,
@@ -1169,6 +1288,8 @@ class IsolatedWorker:
             "cleanup_status": cleanup_status,
             "worker_identity": self.config.worker_id,
         }
+        if offline_evidence is not None:
+            result_doc["offline_research"] = offline_evidence
 
         validate_contract(result_doc, "run_result")
         return AuthorizedExecution(RunResult.from_dict(result_doc), receipt)

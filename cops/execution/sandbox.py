@@ -2,16 +2,21 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
+import select
 import socket
 import stat
 import sys
-from collections.abc import Iterator, Mapping, Sequence
+import time
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
+
+from cops.evidence.canonical import digest, utc_now
 
 from .filesystem import SecureDirectoryError, open_directory_no_symlinks, same_directory_identity
 from .process import BoundedProcessResult, ProcessResourceLimits, run_bounded_process
@@ -19,6 +24,10 @@ from .process import BoundedProcessResult, ProcessResourceLimits, run_bounded_pr
 
 class SandboxReadinessError(RuntimeError):
     """A required operating-system execution boundary is unavailable."""
+
+
+class OfflineIsolationViolation(SandboxReadinessError):
+    """A started offline process did not have the approved isolation boundary."""
 
 
 class ExecutionSandbox(Protocol):
@@ -36,6 +45,8 @@ class ExecutionSandbox(Protocol):
         operation_env: Mapping[str, str] | None = None,
         capability_fds: tuple[int, ...] = (),
         expected_workspace_fd: int | None = None,
+        expected_isolation_digest: str | None = None,
+        isolation_observer: Callable[[dict[str, Any]], None] | None = None,
     ) -> BoundedProcessResult: ...
 
 
@@ -271,6 +282,124 @@ class LinuxBubblewrapSandbox:
             detail = diagnostic or f"exit status {probe.returncode}"
             raise SandboxReadinessError(f"bubblewrap namespace readiness probe failed: {detail}")
 
+    def observe_offline_isolation(self, *, cwd: Path, expected_workspace_fd: int) -> dict[str, Any]:
+        """Observe a gated fresh sandbox before approval consumption."""
+        observations: list[dict[str, Any]] = []
+        with self._held_root_executable(Path("/usr/bin/true"), "offline isolation probe") as executable_fd:
+            result = self.run(
+                [f"/proc/self/fd/{executable_fd}"],
+                cwd=cwd,
+                env={},
+                timeout_seconds=5.0,
+                max_output_bytes=4096,
+                pass_fds=(executable_fd,),
+                expected_workspace_fd=expected_workspace_fd,
+                isolation_observer=observations.append,
+            )
+        if result.timed_out or result.output_limit_exceeded or result.returncode != 0 or len(observations) != 1:
+            raise SandboxReadinessError("offline isolation observation failed")
+        return observations[0]
+
+    @staticmethod
+    def _read_proc_lines(path: Path) -> list[str]:
+        try:
+            with path.open("rb") as stream:
+                content = stream.read(65_537)
+        except OSError as err:
+            raise SandboxReadinessError("offline sandbox process observation is unavailable") from err
+        if len(content) > 65_536:
+            raise SandboxReadinessError("offline sandbox process observation exceeds its limit")
+        try:
+            return content.decode("ascii").splitlines()
+        except UnicodeDecodeError as err:
+            raise SandboxReadinessError("offline sandbox process observation is invalid") from err
+
+    @classmethod
+    def _measure_network_boundary(cls, child_pid: int) -> dict[str, Any]:
+        proc = Path("/proc") / str(child_pid)
+        try:
+            separate = os.readlink(proc / "ns/net") != os.readlink("/proc/self/ns/net")
+            socket_fds = 0
+            for fd in (proc / "fd").iterdir():
+                try:
+                    socket_fds += os.readlink(fd).startswith("socket:[")
+                except FileNotFoundError:
+                    # The metadata descriptor may close while /proc is listed.
+                    continue
+        except OSError as err:
+            raise SandboxReadinessError("offline sandbox process observation is unavailable") from err
+        interfaces = sorted(
+            line.split(":", 1)[0].strip()
+            for line in cls._read_proc_lines(proc / "net/dev")[2:]
+            if ":" in line
+        )
+        routes = [line.split()[0] for line in cls._read_proc_lines(proc / "net/route")[1:] if line.split()]
+        ipv6_routes = [line.split()[-1] for line in cls._read_proc_lines(proc / "net/ipv6_route") if line.split()]
+        measured = {
+            "interfaces": interfaces,
+            "routes": routes,
+            "ipv6_routes": ipv6_routes,
+            "socket_fds": socket_fds,
+            "separate_network_namespace": separate,
+        }
+        return measured
+
+    @staticmethod
+    def _offline_network_boundary_restricted(measured: Mapping[str, Any]) -> bool:
+        return (
+            measured["separate_network_namespace"] is True
+            and measured["interfaces"] == ["lo"]
+            and all(route == "lo" for route in measured["routes"])
+            and all(route == "lo" for route in measured["ipv6_routes"])
+            and measured["socket_fds"] == 0
+        )
+
+    @classmethod
+    def _authorize_offline_observation(
+        cls,
+        observation: dict[str, Any],
+        expected_digest: str | None,
+        observer: Callable[[dict[str, Any]], None] | None,
+    ) -> None:
+        # Record the actual blocked child before denying release. The worker's
+        # result can then distinguish a rejected observation from no observation.
+        if observer is not None:
+            observer(observation)
+        if not cls._offline_network_boundary_restricted(observation["measured"]):
+            raise OfflineIsolationViolation("offline sandbox process has a network channel")
+        if expected_digest is not None and observation["digest"] != expected_digest:
+            raise OfflineIsolationViolation("offline sandbox process differs from approved isolation")
+
+    @classmethod
+    def _observe_blocked_child(cls, info_fd: int, deadline: float) -> dict[str, Any]:
+        os.set_blocking(info_fd, False)
+        content = bytearray()
+        while time.monotonic() < deadline:
+            readable, _, _ = select.select([info_fd], [], [], max(0.0, min(0.05, deadline - time.monotonic())))
+            if not readable:
+                continue
+            chunk = os.read(info_fd, 4096)
+            if not chunk:
+                break
+            content.extend(chunk)
+            if len(content) > 4096:
+                raise SandboxReadinessError("offline sandbox process metadata exceeds its limit")
+            try:
+                metadata = json.loads(content)
+            except (ValueError, UnicodeDecodeError):
+                continue
+            child_pid = metadata.get("child-pid") if isinstance(metadata, dict) else None
+            if type(child_pid) is not int or child_pid <= 0:
+                raise SandboxReadinessError("offline sandbox process metadata is invalid")
+            measured = cls._measure_network_boundary(child_pid)
+            return {
+                "digest": digest(measured),
+                "observed_at": utc_now(),
+                "observation_scope": "pre_exec_actual_sandbox",
+                "measured": measured,
+            }
+        raise SandboxReadinessError("offline sandbox process metadata is unavailable")
+
     def run(
         self,
         command: Sequence[str],
@@ -283,6 +412,8 @@ class LinuxBubblewrapSandbox:
         operation_env: Mapping[str, str] | None = None,
         capability_fds: tuple[int, ...] = (),
         expected_workspace_fd: int | None = None,
+        expected_isolation_digest: str | None = None,
+        isolation_observer: Callable[[dict[str, Any]], None] | None = None,
     ) -> BoundedProcessResult:
         self._validate_host()
         if not command or len(pass_fds) != 1:
@@ -326,6 +457,17 @@ class LinuxBubblewrapSandbox:
                     "/work",
                 ]
                 with self._environment_arguments(sandbox_env) as argument_fd:
+                    offline_gate = expected_isolation_digest is not None or isolation_observer is not None
+                    info_read = info_write = gate_read = gate_write = -1
+                    if offline_gate:
+                        info_read, info_write = os.pipe2(os.O_CLOEXEC)
+                        try:
+                            gate_read, gate_write = os.pipe2(os.O_CLOEXEC)
+                        except OSError:
+                            os.close(info_read)
+                            os.close(info_write)
+                            raise
+                        wrapped.extend(("--info-fd", str(info_write), "--block-fd", str(gate_read)))
                     wrapped.extend(("--args", str(argument_fd)))
                     wrapped.extend(
                         (
@@ -337,15 +479,36 @@ class LinuxBubblewrapSandbox:
                             *command[1:],
                         )
                     )
-                    return run_bounded_process(
-                        wrapped,
-                        cwd=Path("/"),
-                        env={},
-                        timeout_seconds=timeout_seconds,
-                        max_output_bytes=max_output_bytes,
-                        pass_fds=(bubblewrap_fd, prlimit_fd, workspace_fd, executable_fd, argument_fd, *capability_fds),
-                        resource_limits=self.resources.as_process_limits(),
-                        defer_process_limit=True,
-                    )
+                    def release_observed_child(_process: Any, deadline: float) -> None:
+                        nonlocal info_write, gate_read, gate_write
+                        os.close(info_write)
+                        info_write = -1
+                        os.close(gate_read)
+                        gate_read = -1
+                        observation = self._observe_blocked_child(info_read, deadline)
+                        self._authorize_offline_observation(
+                            observation, expected_isolation_digest, isolation_observer
+                        )
+                        os.write(gate_write, b"1")
+                        os.close(gate_write)
+                        gate_write = -1
+
+                    try:
+                        return run_bounded_process(
+                            wrapped,
+                            cwd=Path("/"),
+                            env={},
+                            timeout_seconds=timeout_seconds,
+                            max_output_bytes=max_output_bytes,
+                            pass_fds=(bubblewrap_fd, prlimit_fd, workspace_fd, executable_fd, argument_fd,
+                                      *capability_fds, *((info_write, gate_read) if offline_gate else ())),
+                            resource_limits=self.resources.as_process_limits(),
+                            defer_process_limit=True,
+                            on_started=release_observed_child if offline_gate else None,
+                        )
+                    finally:
+                        for descriptor in (info_read, info_write, gate_read, gate_write):
+                            if descriptor >= 0:
+                                os.close(descriptor)
         finally:
             os.close(workspace_fd)
