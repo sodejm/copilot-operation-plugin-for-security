@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import replace
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from math import isfinite
 from typing import Any
 
@@ -320,7 +320,7 @@ def correlate_pipeline_evidence(manifest: RunManifest, evidence_files: dict[str,
         "run_id": manifest.run_id,
         "synthetic_marker": marker,
         "route_type": manifest.pipeline_route,
-        "evaluated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "evaluated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         "pipeline_health": health,
         "summary": {
             "total_expected_stages": len(stages),
