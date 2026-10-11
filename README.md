@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/badge/assistants-Copilot%20%7C%20Claude%20%7C%20Codex-purple.svg" alt="Universal Portability">
 </p>
 
-Welcome to **COPS (Copilot Operations Plugins for Security)**! COPS is an open-source, universal catalog of defensive cybersecurity plugins, 20 specialist agent profiles, and deterministic offline verification tools.
+Welcome to **COPS (Copilot Operations Plugins for Security)**! COPS is an open-source, universal catalog of defensive cybersecurity plugins, 21 specialist agent profiles, and deterministic offline verification tools.
 
 The [AI asset inventory](docs/AI_ASSET_INVENTORY.md) documents the bounded, offline evidence graph contract.
 
@@ -35,7 +35,7 @@ cd copilot-operation-plugin-for-security
 # 2. Check your local environment health
 python3 -m cops doctor
 
-# 3. List all 16 available security plugins and their status
+# 3. List all 17 available security plugins and their status
 python3 -m cops list
 
 # 4. Route any natural language task to the best specialist agent
@@ -53,14 +53,14 @@ python3 -m cops check sentinel-hunt-workbench
 
 ### What these commands do for you
 - `cops doctor`: Quickly checks that your Python environment is ready and your package catalogs are in sync.
-- `cops list`: Displays the sixteen available security plugins, their maturity stage, and their validation status.
+- `cops list`: Displays the seventeen available security plugins, their maturity stage, and their validation status.
 - `cops route`: Deterministically routes any natural language task to the optimal specialist profile with zero LLM token cost.
 - `cops demo`: Runs a self-contained, offline walkthrough using synthetic test data.
 - `cops check`: Executes deterministic verification suites (syntax checks, schema tests, mutation tests) right on your machine.
 
 ---
 
-## Available Security Plugins (16 Packages)
+## Available Security Plugins (17 Packages)
 
 Each package lives in its own self-contained directory under `plugins/<category>/<plugin-id>/` and includes a complete practitioner playbook:
 
@@ -74,6 +74,7 @@ Each package lives in its own self-contained directory under `plugins/<category>
 | **[Detection Quality Workbench](plugins/detection-hunting/detection-quality-workbench/README.md)** | Detection & Hunting | <span class="badge badge-beta">Beta</span> | Validates detection syntax, regressions, and quality metrics across Microsoft Sentinel KQL and Splunk SPL. | `python3 -m cops check detection-quality-workbench` |
 | **[Threat Intelligence Enrichment](plugins/detection-hunting/threat-intelligence-enrichment/README.md)** | Detection & Hunting | <span class="badge badge-experimental">Experimental</span> | Enriches network, host, and hash indicators with provenance-tracked threat intelligence metadata. | `python3 -m cops check threat-intelligence-enrichment` |
 | **[Entra Identity Workbench](plugins/identity-access/entra-identity-workbench/README.md)** | Identity & Access | <span class="badge badge-beta">Beta</span> | Evaluates Entra ID role assignments, service principals, consent grants, and credential exposures. | `python3 -m cops check entra-identity-workbench` |
+| **[AD Assessment Workbench](plugins/identity-access/ad-assessment-workbench/README.md)** | Identity & Access | <span class="badge badge-experimental">Experimental</span> | Maps scoped Active Directory relationships and candidate paths from offline exports with explicit collection coverage. | `python3 -m cops demo ad-assessment-workbench` |
 | **[Exposure Triage Workbench](plugins/vulnerability-management/exposure-triage-workbench/README.md)** | Vulnerability Management | <span class="badge badge-beta">Beta</span> | Prioritizes vulnerability triage by correlating advisory CVEs, SBOM components, and call graph reachability. | `python3 -m cops check exposure-triage-workbench` |
 | **[Patch Security Review](plugins/vulnerability-management/patch-security-review/README.md)** | Vulnerability Management | <span class="badge badge-beta">Beta</span> | Analyzes code patches and pull request diffs for dangerous patterns, authorization flaws, and regression risks. | `python3 -m cops check patch-security-review` |
 | **[Attack Surface Planner](plugins/offensive-security/attack-surface-planner/README.md)** | Offensive Security | <span class="badge badge-experimental">Experimental</span> | Translates authorized rules of engagement into bounded, passive review plans from local export manifests. | `python3 -m cops demo attack-surface-planner` |
@@ -87,15 +88,15 @@ For in-depth guidance on choosing the right plugin for your operational scenario
 
 ---
 
-## 20 Specialist Cybersecurity Agent Profiles & Dynamic Routing
+## 21 Specialist Cybersecurity Agent Profiles & Dynamic Routing
 
-COPS centralizes **20 specialist cybersecurity agent profiles** in [`agents/`](agents/README.md) across offensive, defensive, forensics, identity, and governance disciplines. The deterministic zero-token router dynamically matches incoming tasks to the best specialist profile:
+COPS centralizes **21 specialist cybersecurity agent profiles** in [`agents/`](agents/README.md) across offensive, defensive, forensics, identity, and governance disciplines. The deterministic zero-token router dynamically matches incoming tasks to the best specialist profile:
 
 ```bash
 # Route any security request or natural language task:
 python3 -m cops route "Optimize this Sentinel KQL query for low ingestion cost"
 
-# List all 20 specialist profiles:
+# List all 21 specialist profiles:
 python3 -m cops specialists
 ```
 

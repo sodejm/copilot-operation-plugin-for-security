@@ -19,7 +19,7 @@ Feature: Workflow Capability and Package Diagnostics
   Scenario: Diagnosing package workflow structures
     Given registered plugin packages in the repository
     When the diagnostic runner inspects plugin package workflows
-    Then at least 14 plugin packages are evaluated
+    Then at least 17 plugin packages are evaluated
     And "offensive-engagement-workbench" is diagnosed as "ready" or "degraded"
     And all package manifests are validated
 
@@ -27,7 +27,7 @@ Feature: Workflow Capability and Package Diagnostics
     Given the reconciled capability registry
     When capability diagnostics are executed
     Then the capability truth audit passes
-    And exactly 73 total capabilities are verified
+    And exactly 75 total capabilities are verified
     And exactly 0 capabilities claim unverified "live-validated" execution
 
   Scenario: Evaluating strict diagnostic enforcement

@@ -50,6 +50,7 @@ PORTABLE_ENTRIES = {
     "incident_response",
     "threat_intel",
     "offensive_engagement_workbench",
+    "adwb",
     "host_assessment_workbench",
     "kubernetes_assessment_context",
     "agents",
