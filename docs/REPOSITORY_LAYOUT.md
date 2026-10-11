@@ -15,6 +15,7 @@
 | `catalog/plugins.json` | Single canonical package inventory |
 | `catalog/scenarios.json` | Canonical operational cybersecurity scenario registry |
 | `catalog/provenance.json` | Pinned external research and tool provenance registry |
+| `catalog/protocol-topics.json` | Pinned 70-topic protocol coverage and environment-limit inventory |
 | `catalog/capabilities.json` | Reconciled four-mode capability truth-in-advertising registry |
 | `catalog/schemas/package.schema.json` | Documented package governance contract |
 | `catalog/schemas/specialist-profile.schema.json` | Specialist agent profile contract |

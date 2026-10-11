@@ -34,7 +34,11 @@ def bdd_ctx():
         "targets_db": {
             "vulnerable-legacy.corp.internal": {
                 "ndmp": {"auth_required": False, "version": "NDMPv4"},
-                "iscsi": {"chap_enforced": False, "targets": ["iqn.2026-10.corp.storage:lun01"], "version": "iSCSI Target 2.1"},
+                "iscsi": {
+                    "chap_enforced": False,
+                    "targets": ["iqn.2026-10.corp.storage:lun01"],
+                    "version": "iSCSI Target 2.1",
+                },
                 "ipmi": {"cipher_zero": True, "rakp_dumpable": True, "version": "IPMI 2.0"},
                 "cisco_smart_install": {"smi_active": True, "auth_required": False, "version": "Cisco IOS 15.2"},
                 "tacacs": {"auth_required": False, "single_connect": True, "version": "TACACS+ 13.0"},
@@ -44,15 +48,64 @@ def bdd_ctx():
                 "squid": {"open_proxy": True, "egress_restricted": False, "version": "Squid 4.13"},
             },
             "hardened-legacy.corp.internal": {
-                "ndmp": {"protected": True, "auth_required": True, "auth_prerequisite": "user_password", "version": "NDMPv4"},
-                "iscsi": {"protected": True, "chap_enforced": True, "auth_prerequisite": "chap", "version": "iSCSI Target 2.1"},
-                "ipmi": {"protected": True, "cipher_zero_disabled": True, "rakp_auth_enforced": True, "auth_prerequisite": "rakp_hash", "version": "IPMI 2.0"},
-                "cisco_smart_install": {"protected": True, "no_vstack": True, "auth_prerequisite": "user_password", "version": "Cisco IOS 15.2"},
-                "tacacs": {"protected": True, "shared_key_enforced": True, "tls_enabled": True, "auth_prerequisite": "shared_key", "version": "TACACS+ 13.0"},
-                "ike": {"protected": True, "ikev2_only": True, "auth_prerequisite": "user_password", "version": "StrongSwan 5.9"},
-                "pptp": {"protected": True, "decommissioned": True, "auth_prerequisite": "user_password", "version": "Decommissioned"},
-                "socks": {"protected": True, "auth_required": True, "egress_restricted": True, "auth_prerequisite": "user_password", "version": "Dante 1.4"},
-                "squid": {"protected": True, "acl_enforced": True, "egress_restricted": True, "auth_prerequisite": "acl_restricted", "version": "Squid 5.7"},
+                "ndmp": {
+                    "protected": True,
+                    "auth_required": True,
+                    "auth_prerequisite": "user_password",
+                    "version": "NDMPv4",
+                },
+                "iscsi": {
+                    "protected": True,
+                    "chap_enforced": True,
+                    "auth_prerequisite": "chap",
+                    "version": "iSCSI Target 2.1",
+                },
+                "ipmi": {
+                    "protected": True,
+                    "cipher_zero_disabled": True,
+                    "rakp_auth_enforced": True,
+                    "auth_prerequisite": "rakp_hash",
+                    "version": "IPMI 2.0",
+                },
+                "cisco_smart_install": {
+                    "protected": True,
+                    "no_vstack": True,
+                    "auth_prerequisite": "user_password",
+                    "version": "Cisco IOS 15.2",
+                },
+                "tacacs": {
+                    "protected": True,
+                    "shared_key_enforced": True,
+                    "tls_enabled": True,
+                    "auth_prerequisite": "shared_key",
+                    "version": "TACACS+ 13.0",
+                },
+                "ike": {
+                    "protected": True,
+                    "ikev2_only": True,
+                    "auth_prerequisite": "user_password",
+                    "version": "StrongSwan 5.9",
+                },
+                "pptp": {
+                    "protected": True,
+                    "decommissioned": True,
+                    "auth_prerequisite": "user_password",
+                    "version": "Decommissioned",
+                },
+                "socks": {
+                    "protected": True,
+                    "auth_required": True,
+                    "egress_restricted": True,
+                    "auth_prerequisite": "user_password",
+                    "version": "Dante 1.4",
+                },
+                "squid": {
+                    "protected": True,
+                    "acl_enforced": True,
+                    "egress_restricted": True,
+                    "auth_prerequisite": "acl_restricted",
+                    "version": "Squid 5.7",
+                },
             },
             "filtered-legacy.corp.internal": {
                 "ndmp": {"state": "filtered"},
@@ -77,7 +130,7 @@ def setup_multi_protocol_target(bdd_ctx):
     )
 
 
-@when("the legacy services assessment engine executes protocol-specific probes")
+@when("the legacy services assessment engine evaluates offline fixtures")
 def execute_multi_protocol_probes(bdd_ctx):
     bdd_ctx["report"] = assess_legacy_services(
         targets=["vulnerable-legacy.corp.internal"],
@@ -88,7 +141,9 @@ def execute_multi_protocol_probes(bdd_ctx):
     )
 
 
-@then("discrete assessments are recorded across enterprise storage, hardware out-of-band management, network device appliance, VPN tunneling, and proxy egress categories")
+@then(
+    "discrete assessments are recorded across enterprise storage, hardware out-of-band management, network device appliance, VPN tunneling, and proxy egress categories"
+)
 def verify_discrete_categories(bdd_ctx):
     report = bdd_ctx["report"]
     categories = {a.category for a in report.assessments}
@@ -99,7 +154,7 @@ def verify_discrete_categories(bdd_ctx):
     assert LegacyCategory.PROXY_EGRESS_SERVICES.value in categories
 
 
-@then("observed configurations, authentication prerequisites, and versions are recorded for each legacy service")
+@then("fixture configurations, authentication prerequisites, and versions are recorded for each legacy service")
 def verify_observed_metadata(bdd_ctx):
     report = bdd_ctx["report"]
     for ass in report.assessments:
@@ -118,7 +173,7 @@ def setup_proxy_service(bdd_ctx):
     )
 
 
-@when("the proxy egress verification probe executes")
+@when("the offline proxy egress fixture is assessed")
 def execute_proxy_egress_probe(bdd_ctx):
     bdd_ctx["report"] = assess_legacy_services(
         targets=["vulnerable-legacy.corp.internal"],
@@ -127,7 +182,7 @@ def execute_proxy_egress_probe(bdd_ctx):
     )
 
 
-@then("proxy egress testing is recorded as tested")
+@then("proxy egress testing is recorded as modeled by the fixture")
 def verify_proxy_egress_tested(bdd_ctx):
     for ass in bdd_ctx["report"].assessments:
         assert ass.proxy_egress_tested is True
@@ -139,7 +194,7 @@ def verify_open_proxy_not_restricted(bdd_ctx):
         assert ass.proxy_egress_restricted is False
 
 
-@when("a hardened proxy enforces client subnet allowlists and restricts loopback metadata egress")
+@when("a protected proxy fixture enforces client subnet allowlists and restricts loopback metadata egress")
 def execute_hardened_proxy_probe(bdd_ctx):
     bdd_ctx["report_hardened"] = assess_legacy_services(
         targets=["hardened-legacy.corp.internal"],
@@ -208,10 +263,10 @@ def execute_without_code_exec_auth(bdd_ctx):
     )
 
 
-@then("code execution verification is skipped and recorded in uncertainty notes")
+@then("the fixture code execution case is omitted and recorded in uncertainty notes")
 def verify_code_exec_skipped(bdd_ctx):
     for ass in bdd_ctx["report_no_exec"].assessments:
-        assert any("Code execution verification skipped" in u for u in ass.uncertainty_notes)
+        assert any("Fixture code execution case omitted" in u for u in ass.uncertainty_notes)
 
 
 @then("the assessment can_execute_code flag is strictly False")
@@ -220,7 +275,7 @@ def verify_flag_strictly_false(bdd_ctx):
         assert ass.can_execute_code is False
 
 
-@when("explicit code execution authorization is granted in the plan")
+@when("code execution is enabled for the offline fixture")
 def execute_with_code_exec_auth(bdd_ctx):
     collector = OfflineSyntheticLegacyCollector(
         targets=bdd_ctx["targets_db"],
@@ -234,7 +289,7 @@ def execute_with_code_exec_auth(bdd_ctx):
     )
 
 
-@then("code execution capability is verified and bound to the approved plan")
+@then("code execution capability is modeled and bound to the test plan")
 def verify_code_exec_bound(bdd_ctx):
     for ass in bdd_ctx["report_with_exec"].assessments:
         assert ass.can_execute_code is True
@@ -248,7 +303,7 @@ def setup_canary_config(bdd_ctx, canary_id):
     bdd_ctx["collector"] = OfflineSyntheticLegacyCollector(targets=bdd_ctx["targets_db"])
 
 
-@when("the legacy services assessment executes canary validation probes")
+@when("the legacy services assessment evaluates the canary fixture")
 def execute_canary_probes(bdd_ctx):
     bdd_ctx["report"] = assess_legacy_services(
         targets=["vulnerable-legacy.corp.internal"],
@@ -258,14 +313,14 @@ def execute_canary_probes(bdd_ctx):
     )
 
 
-@then("canary validation status is confirmed in the assessment record")
+@then("fixture canary status is recorded in the assessment record")
 def verify_canary_confirmed(bdd_ctx):
     for ass in bdd_ctx["report"].assessments:
         assert ass.canary_validated is True
         assert ass.canary_identifier == bdd_ctx["canary_id"]
 
 
-@then('a verified cleanup receipt with "verified_removed" status and receipt hash is emitted')
+@then('a synthetic cleanup receipt with "verified_removed" status and receipt hash is emitted')
 def verify_cleanup_receipt_emitted(bdd_ctx):
     for ass in bdd_ctx["report"].assessments:
         assert len(ass.cleanup_receipts) > 0
@@ -276,7 +331,9 @@ def verify_cleanup_receipt_emitted(bdd_ctx):
 
 
 # Scenario 6: Extracting legacy privilege candidates
-@given("an evaluated target exhibiting exposed NDMP, open iSCSI, IPMI Cipher 0, Cisco Smart Install, open SOCKS, and open Squid")
+@given(
+    "an evaluated target exhibiting exposed NDMP, open iSCSI, IPMI Cipher 0, Cisco Smart Install, open SOCKS, and open Squid"
+)
 def setup_evaluated_target(bdd_ctx):
     collector = OfflineSyntheticLegacyCollector(
         targets=bdd_ctx["targets_db"],
@@ -298,14 +355,16 @@ def extract_privilege_candidates(bdd_ctx):
         bdd_ctx["candidates"].extend(ass.privilege_candidates)
 
 
-@then(parsers.parse('actionable candidates for "{c1}", "{c2}", "{c3}", "{c4}", "{c5}", and "{c6}" are generated'))
+@then(parsers.parse('fixture-derived candidates for "{c1}", "{c2}", "{c3}", "{c4}", "{c5}", and "{c6}" are generated'))
 def verify_expected_candidates(bdd_ctx, c1, c2, c3, c4, c5, c6):
     types = {c.finding_type for c in bdd_ctx["candidates"]}
     for expected in (c1, c2, c3, c4, c5, c6):
         assert expected in types
 
 
-@then("each candidate contains service type, target host, port, execution effect, privilege impact, SHA-256 evidence hash, and remediation guidance")
+@then(
+    "each candidate contains service type, target host, port, execution effect, privilege impact, SHA-256 evidence hash, and remediation guidance"
+)
 def verify_candidate_schema(bdd_ctx):
     for c in bdd_ctx["candidates"]:
         assert c.service_type
@@ -318,12 +377,14 @@ def verify_candidate_schema(bdd_ctx):
 
 
 # Scenario 7: Reporting properly authenticated and hardened legacy services
-@given("a hardened server enforcing NDMP auth, iSCSI CHAP, disabled IPMI Cipher 0, disabled Cisco Smart Install, and restricted proxy ACLs")
+@given(
+    "a hardened server enforcing NDMP auth, iSCSI CHAP, disabled IPMI Cipher 0, disabled Cisco Smart Install, and restricted proxy ACLs"
+)
 def setup_hardened_server(bdd_ctx):
     bdd_ctx["collector"] = OfflineSyntheticLegacyCollector(targets=bdd_ctx["targets_db"])
 
 
-@when("the legacy services assessment evaluates access controls")
+@when("the legacy services assessment evaluates fixture access controls")
 def evaluate_hardened_access_controls(bdd_ctx):
     bdd_ctx["report"] = assess_legacy_services(
         targets=["hardened-legacy.corp.internal"],
@@ -341,7 +402,11 @@ def verify_protected_exposure_status(bdd_ctx):
 def verify_auth_prereqs(bdd_ctx, p1, p2, p3, p4):
     allowed = {p1, p2, p3, p4}
     for ass in bdd_ctx["report"].assessments:
-        assert ass.auth_prerequisite in allowed or ass.auth_prerequisite == "user_password" or ass.auth_prerequisite == "shared_key"
+        assert (
+            ass.auth_prerequisite in allowed
+            or ass.auth_prerequisite == "user_password"
+            or ass.auth_prerequisite == "shared_key"
+        )
 
 
 @then("zero unauthenticated legacy privilege candidates are generated")
