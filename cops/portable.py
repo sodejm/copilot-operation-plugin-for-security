@@ -22,6 +22,7 @@ PORTABLE_ENTRIES = {
     "investigationwb", "attackpath", "attack_surface_planner", "entrawb", "exposuretriage",
     "foundryharness", "scenarios", "detectionquality", "rules", "proofpack", "routes",
     "patchreview", "incident_response", "threat_intel", "offensive_engagement_workbench",
+    "host_assessment_workbench",
     "agents", "com.github.copilot", "org.cops",
 }
 SOURCE_ONLY_ENTRIES = {

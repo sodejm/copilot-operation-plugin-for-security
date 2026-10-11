@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/badge/assistants-Copilot%20%7C%20Claude%20%7C%20Codex-purple.svg" alt="Universal Portability">
 </p>
 
-Welcome to **COPS (Copilot Operations Plugins for Security)**! COPS is an open-source, universal catalog of defensive cybersecurity plugins, 18 specialist agent profiles, and deterministic offline verification tools.
+Welcome to **COPS (Copilot Operations Plugins for Security)**! COPS is an open-source, universal catalog of defensive cybersecurity plugins, 19 specialist agent profiles, and deterministic offline verification tools.
 
 The [AI asset inventory](docs/AI_ASSET_INVENTORY.md) documents the bounded, offline evidence graph contract.
 
@@ -35,7 +35,7 @@ cd copilot-operation-plugin-for-security
 # 2. Check your local environment health
 python3 -m cops doctor
 
-# 3. List all 14 available security plugins and their status
+# 3. List all 15 available security plugins and their status
 python3 -m cops list
 
 # 4. Route any natural language task to the best specialist agent
@@ -53,14 +53,14 @@ python3 -m cops check sentinel-hunt-workbench
 
 ### What these commands do for you
 - `cops doctor`: Quickly checks that your Python environment is ready and your package catalogs are in sync.
-- `cops list`: Displays the fourteen available security plugins, their maturity stage, and their validation status.
+- `cops list`: Displays the fifteen available security plugins, their maturity stage, and their validation status.
 - `cops route`: Deterministically routes any natural language task to the optimal specialist profile with zero LLM token cost.
 - `cops demo`: Runs a self-contained, offline walkthrough using synthetic test data.
 - `cops check`: Executes deterministic verification suites (syntax checks, schema tests, mutation tests) right on your machine.
 
 ---
 
-## Available Security Plugins (14 Packages)
+## Available Security Plugins (15 Packages)
 
 Each package lives in its own self-contained directory under `plugins/<category>/<plugin-id>/` and includes a complete practitioner playbook:
 
@@ -78,6 +78,7 @@ Each package lives in its own self-contained directory under `plugins/<category>
 | **[Patch Security Review](plugins/vulnerability-management/patch-security-review/README.md)** | Vulnerability Management | <span class="badge badge-beta">Beta</span> | Analyzes code patches and pull request diffs for dangerous patterns, authorization flaws, and regression risks. | `python3 -m cops check patch-security-review` |
 | **[Attack Surface Planner](plugins/offensive-security/attack-surface-planner/README.md)** | Offensive Security | <span class="badge badge-experimental">Experimental</span> | Translates authorized rules of engagement into bounded, passive review plans from local export manifests. | `python3 -m cops demo attack-surface-planner` |
 | **[Offensive Engagement Workbench](plugins/offensive-security/offensive-engagement-workbench/README.md)** | Offensive Security | <span class="badge badge-experimental">Experimental</span> | Validates authorized engagement scope and prepares reviewable action plans from local inputs. | `python3 -m cops check offensive-engagement-workbench` |
+| **[Host Assessment Workbench](plugins/offensive-security/host-assessment-workbench/README.md)** | Offensive Security | <span class="badge badge-experimental">Experimental</span> | Classifies local Linux privilege-boundary exports and imported canary reports without host execution. | `python3 -m cops demo host-assessment-workbench` |
 | **[Foundry Agent Harness](plugins/offensive-security/foundry-agent-harness/README.md)** | Offensive Security | <span class="badge badge-beta">Beta</span> | Evaluates AI agent behavior, prompt injection resistance, and safety boundaries in a simulated sandbox. | `python3 -m cops check foundry-agent-harness` |
 | **[Incident Response Sandbox](plugins/incident-response/incident-response-sandbox/README.md)** | Incident Response | <span class="badge badge-beta">Beta</span> | Rehearses containment workflows, calculates blast radius, and generates cryptographic execution receipts. | `python3 -m cops check incident-response-sandbox` |
 
@@ -85,15 +86,15 @@ For in-depth guidance on choosing the right plugin for your operational scenario
 
 ---
 
-## 18 Specialist Cybersecurity Agent Profiles & Dynamic Routing
+## 19 Specialist Cybersecurity Agent Profiles & Dynamic Routing
 
-COPS centralizes **18 specialist cybersecurity agent profiles** in [`agents/`](agents/README.md) across offensive, defensive, forensics, identity, and governance disciplines. The deterministic zero-token router dynamically matches incoming tasks to the best specialist profile:
+COPS centralizes **19 specialist cybersecurity agent profiles** in [`agents/`](agents/README.md) across offensive, defensive, forensics, identity, and governance disciplines. The deterministic zero-token router dynamically matches incoming tasks to the best specialist profile:
 
 ```bash
 # Route any security request or natural language task:
 python3 -m cops route "Optimize this Sentinel KQL query for low ingestion cost"
 
-# List all 18 specialist profiles:
+# List all 19 specialist profiles:
 python3 -m cops specialists
 ```
 

@@ -210,7 +210,7 @@ def audit_capabilities(root: Path = ROOT, registry_data: dict[str, Any] | None =
     1. Unverified Live Claims: No capability may claim 'live-validated' mode or 'live_integration: validated'
        without verified live evidence records.
     2. Truth Boundaries: Every capability must specify non-empty truth boundaries.
-    3. Descriptive Drift: Total counts must match expected counts (14 plugins, 18 specialists, 37 scenarios).
+    3. Descriptive Drift: Total counts must match expected counts (15 plugins, 19 specialists, 37 scenarios).
     4. Specialist Advisory Constraints: Specialists cannot claim direct execution without an ActionPlan contract.
     """
     if registry_data is None:
@@ -255,14 +255,15 @@ def audit_capabilities(root: Path = ROOT, registry_data: dict[str, Any] | None =
                         )
 
     # Rule 3: Catalog descriptive drift check
-    if summary["by_kind"]["plugin"] != 14:
-        raise CapabilityTruthError(
-            "catalog_descriptive_drift", f"Expected exactly 14 plugins, found {summary['by_kind']['plugin']}."
-        )
-    if summary["by_kind"]["specialist"] != 18:
+    if summary["by_kind"]["plugin"] != 15:
         raise CapabilityTruthError(
             "catalog_descriptive_drift",
-            f"Expected exactly 18 specialist profiles, found {summary['by_kind']['specialist']}.",
+            f"Expected exactly 15 plugins, found {summary['by_kind']['plugin']}."
+        )
+    if summary["by_kind"]["specialist"] != 19:
+        raise CapabilityTruthError(
+            "catalog_descriptive_drift",
+            f"Expected exactly 19 specialist profiles, found {summary['by_kind']['specialist']}."
         )
     if summary["by_kind"]["scenario"] != 37:
         raise CapabilityTruthError(

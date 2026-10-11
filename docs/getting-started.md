@@ -34,7 +34,7 @@ cd copilot-operation-plugin-for-security
 # 2. Check local environment health and catalog synchronization
 python3 -m cops doctor
 
-# 3. List all 14 plugins and their validation status
+# 3. List all 15 plugins and their validation status
 python3 -m cops list
 
 # 4. Inspect details and operational playbooks for a specific plugin
@@ -112,7 +112,7 @@ For recommendations on when to reach for each plugin, consult the [Plugin Select
 
 ## Step 3: Routing Tasks with Specialist Agents (`cops route`)
 
-COPS includes 18 specialist cybersecurity agent profiles. The deterministic, zero-token router matches any natural language task or security question to the most qualified specialist profile:
+COPS includes 19 specialist cybersecurity agent profiles. The deterministic, zero-token router matches any natural language task or security question to the most qualified specialist profile:
 
 ```bash
 # Example 1: Detection Engineering
@@ -125,7 +125,7 @@ python3 -m cops route "Audit Entra ID application registrations with high-privil
 python3 -m cops route "Rehearse containment of a compromised service principal with blast radius proof"
 ```
 
-To list all 18 specialist profiles and their domain specializations:
+To list all 19 specialist profiles and their domain specializations:
 
 ```bash
 python3 -m cops specialists
@@ -182,7 +182,7 @@ Passing checks verify deterministic logic, contract schemas, and offline regress
 ## Next Steps
 
 - Consult the [Plugin Selection Guide](plugin-guide.md) to choose the right plugin for your operational needs.
-- Explore the [18 Specialist Agent Profiles](specialist-agents.md) and Triad orchestration.
+- Explore the [19 Specialist Agent Profiles](specialist-agents.md) and Triad orchestration.
 - Read the [ATT&CK Matrix (v18.0)](COVERAGE_MATRIX.md) for mapped defensive techniques.
 - Set up a contributor environment with the [Contributor Guide](contributing.md).
 - Resolve any environment questions with the [Troubleshooting Guide](troubleshooting.md).

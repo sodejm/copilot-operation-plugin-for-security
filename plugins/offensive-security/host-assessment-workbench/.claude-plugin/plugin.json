@@ -1,0 +1,7 @@
+{
+  "name": "host-assessment-workbench",
+  "version": "0.1.0",
+  "description": "Offline import and evidence classification for Linux privilege-boundary assessments.",
+  "author": {"name": "Justin Soderberg"},
+  "license": "PolyForm-Noncommercial-1.0.0"
+}
