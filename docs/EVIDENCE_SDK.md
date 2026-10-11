@@ -158,9 +158,13 @@ method and path. It does not follow redirects or decompress responses. Continuat
 destinations are checked before every credential lookup. A credential provider
 returns only an ephemeral `Authorization: Bearer ...` header; it must resolve and
 refresh credentials without logging them. The runner refreshes once per
-acquisition, applies bounded retry/backoff, and never serializes auth headers into
-plans, envelopes, receipts or checkpoints. Keep credentials out of fixture and
-provider exceptions too; fixed diagnostics are not a substitute for safe providers.
+acquisition when a page returns 401, then retries that same page within the retry
+and attempt budgets. A failed refresh or another 401 ends with a partial
+`authentication` receipt; accepted pages remain available and the rejected page
+is not committed. The runner applies bounded retry/backoff and never serializes
+auth headers into plans, envelopes, receipts or checkpoints. Keep credentials out
+of fixture and provider exceptions too; fixed diagnostics are not a substitute
+for safe providers.
 
 The built-in transport applies one deadline across connection, headers and body,
 with socket cancellation and automatic reconnection disabled after the explicit
