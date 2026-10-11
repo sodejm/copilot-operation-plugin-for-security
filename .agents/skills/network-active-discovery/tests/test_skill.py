@@ -15,6 +15,7 @@ if str(ROOT) not in sys.path:
 from cops.discovery import (
     ActiveScanner,
     ActiveScanSession,
+    ActiveServiceAssessment,
     OfflineSyntheticDispatcher,
     ScanBudget,
     ScanVantage,
@@ -104,14 +105,22 @@ class TestNetworkActiveDiscoverySkill(unittest.TestCase):
         # Pre-mark port 80 as already completed
         key_80 = ActiveScanSession.make_probe_key(ScanVantage.EXTERNAL.value, "tcp", "app.corp.internal", 80)
         session.completed_probe_keys.add(key_80)
+        session.assessments.append(
+            ActiveServiceAssessment(
+                probe_id="prior-80",
+                target_host="app.corp.internal",
+                resolved_ip=self.dns_map["app.corp.internal"],
+                port=80,
+                vantage=ScanVantage.EXTERNAL.value,
+            )
+        )
 
         scanner = ActiveScanner(session=session, dispatcher=dispatcher, scope=self.scope)
         resumed = scanner.run()
 
         # Should only dispatch remaining ports (443 and 22)
         self.assertEqual(dispatcher.side_effect_count, 2)
-        self.assertEqual(len(resumed.assessments), 2)
-        self.assertNotIn(80, {a.port for a in resumed.assessments})
+        self.assertEqual([a.port for a in resumed.assessments], [80, 443, 22])
 
     def test_scope_shift_and_dns_rebind_quarantine(self):
         session = ActiveScanSession(
