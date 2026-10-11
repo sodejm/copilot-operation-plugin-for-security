@@ -10,7 +10,7 @@ forest, domain, and host scope with the requester before handling real data. Do
 not request credentials or query AD, LDAP, Kerberos, or hosts. The input contract
 is in `specs/ad-inventory-and-paths.md` at the repository root.
 
-1. Run `python3 plugins/identity-access/ad-assessment-workbench/scripts/analyze.py <local-export.json>`.
+1. From the installed package root, run `python3 scripts/analyze.py <local-export.json>`.
 2. Review `coverage` first. `unknown` or `partial` means collection cannot support
    a claim of absence. A missing path means only that a completed search of the
    collected graph lacks it; `search_incomplete` means the search hit a bound.

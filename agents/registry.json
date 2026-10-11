@@ -478,6 +478,8 @@
         "active directory inventory",
         "ad privilege path",
         "ad trust boundary",
+        "active directory privilege path",
+        "active directory trust boundary",
         "domain relationship analysis",
         "forest trust review"
       ],

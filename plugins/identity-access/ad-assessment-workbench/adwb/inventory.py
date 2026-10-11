@@ -9,10 +9,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 ID = re.compile(r"[a-z0-9][a-z0-9._:-]{0,63}\Z")
+TIMESTAMP = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,6})?Z\Z")
 KINDS = {"principal", "group", "host", "domain", "forest", "privilege"}
 RELATIONS = {"member_of", "privilege", "trust", "session"}
 SOURCES = {"directory", "host"}
 MAX_BYTES = 1_048_576
+MAX_JSON_DEPTH = 64
 MAX_NODES = 500
 MAX_EDGES = 2_000
 MAX_QUERIES = 20
@@ -60,15 +62,40 @@ def _unique(items: list, name: str) -> dict[str, dict]:
 
 
 def _time(value: object) -> datetime:
-    if not isinstance(value, str) or not value.endswith("Z"):
+    if not isinstance(value, str) or not TIMESTAMP.fullmatch(value):
         raise InventoryError("invalid_timestamp")
     try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(value[:-1] + "+00:00")
     except ValueError as error:
         raise InventoryError("invalid_timestamp") from error
     if parsed.tzinfo != UTC:
         raise InventoryError("invalid_timestamp")
     return parsed
+
+
+def _unique_json_fields(pairs: list[tuple[str, object]]) -> dict:
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise InventoryError("invalid_json")
+        result[key] = value
+    return result
+
+
+def _reject_json_constant(_value: str) -> None:
+    raise InventoryError("invalid_json")
+
+
+def _check_json_depth(document: object) -> None:
+    stack = [(document, 0)]
+    while stack:
+        value, depth = stack.pop()
+        if depth > MAX_JSON_DEPTH:
+            raise InventoryError("invalid_json")
+        if isinstance(value, dict):
+            stack.extend((child, depth + 1) for child in value.values())
+        elif isinstance(value, list):
+            stack.extend((child, depth + 1) for child in value)
 
 
 def load_export(path: Path) -> dict:
@@ -80,8 +107,10 @@ def load_export(path: Path) -> dict:
             raw = handle.read(MAX_BYTES + 1)
         if len(raw) > MAX_BYTES:
             raise InventoryError("invalid_file")
-        return json.loads(raw)
-    except (UnicodeError, json.JSONDecodeError) as error:
+        document = json.loads(raw, object_pairs_hook=_unique_json_fields, parse_constant=_reject_json_constant)
+        _check_json_depth(document)
+        return document
+    except (UnicodeError, json.JSONDecodeError, RecursionError) as error:
         raise InventoryError("invalid_json") from error
 
 
@@ -184,7 +213,9 @@ def _validate(export: object) -> tuple[dict, dict, dict, list, list, dict]:
             raise InventoryError("collector_scope_mismatch")
         if collector["source"] == "host" and edge["kind"] != "session":
             raise InventoryError("collector_scope_mismatch")
-        if collector["source"] == "host" and collector["host"] not in {source, target}:
+        if collector["source"] == "host" and not any(
+            endpoint == collector["host"] and nodes[endpoint]["kind"] == "host" for endpoint in (source, target)
+        ):
             raise InventoryError("collector_scope_mismatch")
         cross_forest = nodes[source]["forest"] != nodes[target]["forest"]
         if cross_forest and (
@@ -285,7 +316,7 @@ def analyze(export: object) -> dict:
                 if expansions >= MAX_EXPANSIONS:
                     break
         truncated = bool(queue) or expansions >= MAX_EXPANSIONS or depth_limited
-        status = "candidate_paths" if found else ("search_incomplete" if truncated else "not_found_in_collected_graph")
+        status = "search_incomplete" if truncated else ("candidate_paths" if found else "not_found_in_collected_graph")
         results.append(
             {"start": query["start"], "goal": query["goal"], "status": status, "paths": found, "truncated": truncated}
         )
