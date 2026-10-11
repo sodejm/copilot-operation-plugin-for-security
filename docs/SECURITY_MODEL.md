@@ -87,7 +87,7 @@ flowchart TD
 ### Threat 4: Supply Chain Poisoning & Adapter Drift
 - **The Risk**: A malicious dependency or a drifted host manifest quietly introduces altered behavior into one assistant while passing tests in another.
 - **Our Defense**:
-  - Core tools use Python standard library only—no third-party dependencies required for normal operations.
+  - Core tools use Python standard library only—no third-party dependencies required for normal operations. The optional laboratory receipt verifier loads `cryptography` only when checking signed observations.
   - Manifests for Copilot, Claude Code, and Codex are generated from a single canonical catalog and validated for byte-for-byte agreement in CI (`python3 -m cops generate --check`).
 
 ### Threat 5: False Assurance & Hallucinated Proof

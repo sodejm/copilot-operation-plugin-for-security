@@ -326,34 +326,68 @@ mode applies. They do not replace an external retention job or encryption contro
 
 ## Validate in the scenario laboratory
 
-The laboratory uses the same verifier trust and engagement inputs:
+The laboratory uses the same execution authorization and engagement inputs. Its
+Python API also requires an operator-owned observation adapter that measures the
+actual runtime boundary, egress restriction, canary digest, and clean baseline.
+It must return a fresh, challenge-bound `LaboratoryObservation` signed with an
+independent Ed25519 operator key during verification, after reset, and immediately
+before each case. Load the public key with
+`LaboratoryObservationTrustStore.from_file` from an owner-only JSON file using
+the `cops.laboratory-observation-trust-store/v1` schema. Each key entry contains
+`worker_identity`, `key_id`, `algorithm: "ed25519"`, and `public_key_hex`.
+Keep the private signing key outside the controller and SSH dispatch inventory.
+The signature authenticates the adapter's claim; the operator must ensure that
+the adapter actually measures the runtime and does not sign caller-supplied flags.
 
-Library callers must provide an existing workspace when they set `workspace_dir`;
-the laboratory treats it as caller-owned and leaves it in place. When no workspace
-is supplied, the laboratory uses process-local `TemporaryDirectory` cleanup. That
-laboratory convenience does not provide the worker's durable crash-recovery
-guarantee. The harness emits a `completed` cleanup receipt only after that
-synchronous temporary-directory cleanup succeeds; the receipt does not register
-the directory as a durable worker-owned effect.
+Call `begin_reset` before an operator-controlled worker reset. The harness
+invalidates earlier verification and issues a single-use nonce; it does not
+execute the configured reset command. `reproducible_reset` requires a signed
+operator `LaboratoryResetReceipt` bound to that challenge and a fresh post-reset
+observation matching the expected clean baseline and canary. A reset command's
+exit status alone does not establish a clean baseline.
 
-```bash
-python3 -m cops lab run \
-  --environment lab-environment.json \
-  --plan action-plan.json \
-  --authorization execution-authorization.json \
-  --authorization-trust-store authorization-trust-store.json \
-  --engagement engagement.json \
-  --worker-inventory worker-capability-inventory.json \
-  --case-type positive \
-  --store approvals.sqlite3 \
-  --output result.json
-```
+Case execution requires an explicit `ScopeGuard`, verified worker capability
+and SSH endpoint inventories, and an action plan that prohibits egress.
+Supply a `LaboratoryCaseJournal` in an owner-only directory, with one controller
+process responsible for that journal. `execute_case`
+records dispatch intent in that journal before sending the authorized plan to
+the pinned worker over SSH, then returns a `RemoteAuthorizedRun`. Call
+`case_observation_challenge` to obtain a fresh nonce, then have the independent
+adapter measure and sign a `LaboratoryCaseObservation` bound to the result, its
+finish time, and that nonce.
+`classify_case` verifies the observation, the worker `RunResult`, and its cleanup
+status before classifying the case. The result retains the full signed case,
+pre-execution, and, when used, reset and post-reset receipts in `details`.
+`verify_receipt_signature` can authenticate a saved receipt against the public
+trust store without a live freshness check. Install the optional `laboratory`
+extra (`python -m pip install '.[laboratory]'`) in the operator environment for
+Ed25519 signature verification. Missing or contradictory observations
+fail the case. An invalid observation may be replaced before the two-minute
+deadline. Call `expire_pending_cases` after that deadline; challenge,
+classification, and `recorded_cases` also check it. Controller restart, reset,
+or reverification records a terminal failed case if no valid observation arrived.
+An uncertain dispatch is recorded as `unknown` for operator reconciliation.
+Match its journal `dispatch_request_id` to the worker audit request ID when
+determining whether the worker accepted or ran the plan.
+Use `recorded_cases` to retrieve persisted outcomes. The harness does not issue
+a separate laboratory cleanup receipt.
 
-Library callers must load `WorkerCapabilityInventory` with `from_file`. The laboratory rejects directly constructed inventories before registering or consuming authorization or invoking an adapter, for every case type.
+The bundled CLI supports `lab matrix` and `lab register`. Its `verify`,
+`reset`, and `run` commands fail closed because the CLI has no live observer,
+worker reset, or case result integration. Configure those integrations in an
+operator-controlled Python caller before using the laboratory for live cases.
+The laboratory requires inventories loaded with the protected
+`WorkerCapabilityInventory.from_file` and `SSHRemoteEndpointInventory.from_file`
+constructors, plus a separately provisioned observation trust store, and binds
+all three to the environment owner. An explicit scope guard
+may narrow the engagement scope but cannot expand it or include an excluded
+destination.
 
-The laboratory asserts the environment owner as the worker identity unless `--worker-id` supplies an explicit assertion. Optional `--allowed-cidr` values can narrow the Engagement scope, but cannot expand it or include an excluded destination.
-
-Use synthetic engagements and keys for laboratory evidence. A successful laboratory case proves contract, signature, compatibility, and one-time-consumption behavior for that fixture. It does not prove operating-system process isolation, live target authorization, or network egress enforcement.
+Use synthetic engagements and keys for offline laboratory tests. Those tests
+exercise contract, receipt, signature, compatibility, and classification gates.
+Their synthetic observations and mocked dispatch do not prove operating-system
+process isolation, live target authorization, network egress enforcement, or
+worker cleanup. Those claims require evidence from the operator's actual runtime.
 
 ## Failure handling
 

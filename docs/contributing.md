@@ -15,7 +15,7 @@ Thank you for contributing to COPS! Whether you are fixing a bug, improving docu
 All contributions adhere to the canonical [Repository Contract (AGENTS.md)](../AGENTS.md):
 
 1. **Offline-First & Deterministic**: Offload data parsing, schema checks, and evidence evaluations to standard-library Python scripts. Reserve LLM context for reasoning and synthesis.
-2. **Standard-Library Core**: The core runner, CLI, scanner, and plugin validator must use only the Python standard library. External dependencies are strictly reserved for testing (`requirements.txt`).
+2. **Standard-Library Core**: The core runner, CLI, scanner, and plugin validator must use only the Python standard library. Signed laboratory receipt verification uses the optional `laboratory` extra; contributor test dependencies are in `requirements.txt`.
 3. **Dedicated Branches**: Always implement changes on a dedicated task branch based on a fresh fetch of `origin/main`.
 4. **Honest Evidence Reporting**: Never claim a check passed unless it ran in the local checkout. Clearly distinguish between offline validated tests, unverified cloud claims, and live-tested results.
 5. **No Secrets or Private Paths**: Never commit API keys, personal credentials, private tenant data, or machine-specific home paths.
