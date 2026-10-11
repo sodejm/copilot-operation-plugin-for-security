@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -155,7 +155,7 @@ def verify_zero_mass_relay(bdd_ctx):
 # Scenario 4: Canary validation and cleanup receipts
 @given(parsers.parse('an assessment configured with an allowed canary identifier "{canary_id}" and matching delivery and cleanup evidence'))
 def setup_canary_id(bdd_ctx, canary_id):
-    observed_at = datetime.now(timezone.utc).isoformat()
+    observed_at = datetime.now(UTC).isoformat()
     bdd_ctx["targets_db"]["vulnerable-msg.corp.internal"]["smtp"]["canary_evidence"] = {
         "identifier": canary_id,
         "recipient": "canary@example.test",
@@ -173,7 +173,7 @@ def setup_canary_id(bdd_ctx, canary_id):
         allowed_destinations=("mailbox:canary",),
         recipient="canary@example.test",
         allowed_recipients=("canary@example.test",),
-        created_at_utc=(datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat(),
+        created_at_utc=(datetime.now(UTC) - timedelta(minutes=1)).isoformat(),
     )
 
 
@@ -221,7 +221,7 @@ def execute_canary_probes(bdd_ctx):
             allowed_destinations=("mailbox:canary",),
             recipient="canary@example.test",
             allowed_recipients=("canary@example.test",),
-            created_at_utc=(datetime.now(timezone.utc) - timedelta(hours=2)).isoformat(),
+            created_at_utc=(datetime.now(UTC) - timedelta(hours=2)).isoformat(),
             retention_seconds=3600,
         )
         with pytest.raises(ValueError, match="retention"):

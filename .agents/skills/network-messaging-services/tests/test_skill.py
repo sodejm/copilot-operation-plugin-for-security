@@ -9,7 +9,7 @@ import json
 import sys
 import tempfile
 import unittest
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -122,11 +122,11 @@ class TestNetworkMessagingServicesSkill(unittest.TestCase):
             allowed_destinations=("mailbox:canary",),
             recipient="canary@example.test",
             allowed_recipients=("canary@example.test",),
-            created_at_utc=(datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat(),
+            created_at_utc=(datetime.now(UTC) - timedelta(minutes=1)).isoformat(),
         )
 
     def set_canary_evidence(self, host, identifier, messages_sent=1):
-        observed_at = datetime.now(timezone.utc).isoformat()
+        observed_at = datetime.now(UTC).isoformat()
         self.mock_services[host]["smtp"]["canary_evidence"] = {
             "identifier": identifier,
             "recipient": "canary@example.test",
@@ -257,7 +257,7 @@ class TestNetworkMessagingServicesSkill(unittest.TestCase):
                 vantage="internal",
                 scope_ref="test-scope",
                 canary_id="canary_run_probe",
-                canary_created_at_utc=(datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat(),
+                canary_created_at_utc=(datetime.now(UTC) - timedelta(minutes=1)).isoformat(),
                 canary_destination="mailbox:canary",
                 allow_canary_destination=["mailbox:canary"],
                 canary_recipient="canary@example.test",

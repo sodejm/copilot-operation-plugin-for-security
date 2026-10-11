@@ -10,7 +10,7 @@ import json
 import sys
 import tempfile
 import unittest
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -35,8 +35,8 @@ from cops.discovery import (
 from cops.discovery.cli import (
     command_messaging_discovery,
 )
-from cops.discovery.messaging_models import CleanupReceipt
 from cops.discovery.messaging_collector import MessagingServicesCollector
+from cops.discovery.messaging_models import CleanupReceipt
 
 
 class TestMessagingModelsAndSerialization(unittest.TestCase):
@@ -93,7 +93,7 @@ class TestMessagingModelsAndSerialization(unittest.TestCase):
                 CleanupReceipt.from_dict({**receipt, **change})
 
     def test_verified_synthetic_receipt_rejects_future_time_and_missing_identifier(self):
-        observed_at = datetime.now(timezone.utc).isoformat()
+        observed_at = datetime.now(UTC).isoformat()
         fields = {
             "receipt_id": "rec-synthetic",
             "target_host": "mail01.corp.internal",
@@ -111,10 +111,10 @@ class TestMessagingModelsAndSerialization(unittest.TestCase):
         for changes, error in (
             ({"artifact_identifier": None}, "canary identifier"),
             ({"artifact_identifier": "  "}, "canary identifier"),
-            ({"timestamp_utc": (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()}, "future"),
+            ({"timestamp_utc": (datetime.now(UTC) + timedelta(days=1)).isoformat()}, "future"),
             ({"retention_seconds": None}, "retention"),
             ({"retention_seconds": 86401}, "retention"),
-            ({"retention_started_at_utc": (datetime.now(timezone.utc) - timedelta(days=2)).isoformat()}, "retention"),
+            ({"retention_started_at_utc": (datetime.now(UTC) - timedelta(days=2)).isoformat()}, "retention"),
         ):
             with self.subTest(changes=changes), self.assertRaisesRegex(ValueError, error):
                 CleanupReceipt(**{**fields, **changes})
@@ -324,13 +324,13 @@ class TestOfflineSyntheticMessagingCollector(unittest.TestCase):
             "allowed_destinations": ("mailbox:canary",),
             "recipient": "canary@example.test",
             "allowed_recipients": ("canary@example.test",),
-            "created_at_utc": (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat(),
+            "created_at_utc": (datetime.now(UTC) - timedelta(minutes=1)).isoformat(),
         }
         fields.update(changes)
         return CanaryDeliveryPolicy(**fields)
 
     def set_canary_evidence(self, identifier="canary_mail_probe", count=2, cleanup=True):
-        observed_at = datetime.now(timezone.utc).isoformat()
+        observed_at = datetime.now(UTC).isoformat()
         self.mock_targets["vulnerable-messaging.corp.internal"]["smtp"]["canary_evidence"] = {
             "identifier": identifier,
             "recipient": "canary@example.test",
@@ -475,7 +475,7 @@ class TestOfflineSyntheticMessagingCollector(unittest.TestCase):
         self.assertEqual(self.collector.probes_recorded, [])
 
     def test_canary_policy_rejects_expired_or_unbounded_retention(self):
-        expired = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
+        expired = (datetime.now(UTC) - timedelta(hours=2)).isoformat()
         for changes in (
             {"created_at_utc": expired},
             {"retention_seconds": 0},
@@ -517,8 +517,8 @@ class TestOfflineSyntheticMessagingCollector(unittest.TestCase):
         self.set_canary_evidence()
         evidence = self.mock_targets["vulnerable-messaging.corp.internal"]["smtp"]["canary_evidence"]
         for delivered_at in (
-            (datetime.now(timezone.utc) - timedelta(minutes=2)).isoformat(),
-            (datetime.now(timezone.utc) + timedelta(minutes=1)).isoformat(),
+            (datetime.now(UTC) - timedelta(minutes=2)).isoformat(),
+            (datetime.now(UTC) + timedelta(minutes=1)).isoformat(),
             datetime.now().isoformat(),
         ):
             with self.subTest(delivered_at=delivered_at):
@@ -537,7 +537,7 @@ class TestOfflineSyntheticMessagingCollector(unittest.TestCase):
         delivered_at = evidence["delivered_at_utc"]
         for cleanup_at in (
             (datetime.fromisoformat(delivered_at) - timedelta(seconds=1)).isoformat(),
-            (datetime.now(timezone.utc) + timedelta(minutes=1)).isoformat(),
+            (datetime.now(UTC) + timedelta(minutes=1)).isoformat(),
             datetime.now().isoformat(),
         ):
             with self.subTest(cleanup_at=cleanup_at):
@@ -552,7 +552,7 @@ class TestOfflineSyntheticMessagingCollector(unittest.TestCase):
 
     def test_broker_canary_policy_does_not_require_mail_recipient(self):
         broker = self.mock_targets["vulnerable-messaging.corp.internal"]["kafka"]
-        observed_at = datetime.now(timezone.utc).isoformat()
+        observed_at = datetime.now(UTC).isoformat()
         broker["canary_evidence"] = {
             "identifier": "topic_probe",
             "destination": "topic:canary",
@@ -608,7 +608,7 @@ class TestOfflineSyntheticMessagingCollector(unittest.TestCase):
 
 class TestMessagingServicesCLI(unittest.TestCase):
     def setUp(self):
-        observed_at = datetime.now(timezone.utc).isoformat()
+        observed_at = datetime.now(UTC).isoformat()
         self.mock_targets = {
             "mail01.corp.internal": {
                 "smtp": {
@@ -654,7 +654,7 @@ class TestMessagingServicesCLI(unittest.TestCase):
                 allow_canary_destination=["mailbox:canary"],
                 canary_recipient="canary@example.test",
                 allow_canary_recipient=["canary@example.test"],
-                canary_created_at_utc=(datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat(),
+                canary_created_at_utc=(datetime.now(UTC) - timedelta(minutes=1)).isoformat(),
                 canary_retention_seconds=3600,
                 message_budget=5,
                 mode="synthetic",
@@ -702,7 +702,7 @@ class TestMessagingServicesCLI(unittest.TestCase):
             self.assertEqual(command_messaging_discovery(args_insp_text), 0)
 
     def test_cleanup_export_rejects_malformed_report_evidence(self):
-        delivered_at = datetime.now(timezone.utc).isoformat()
+        delivered_at = datetime.now(UTC).isoformat()
         receipt = CleanupReceipt(
             receipt_id="rec-cli",
             target_host="mail01.corp.internal",
@@ -750,9 +750,9 @@ class TestMessagingServicesCLI(unittest.TestCase):
                 updated["receipt_hash"] = hashlib.sha256(canonical).hexdigest()
                 return updated
 
-            future_time = (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()
-            stale_delivery = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat()
-            stale_cleanup = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+            future_time = (datetime.now(UTC) + timedelta(days=1)).isoformat()
+            stale_delivery = (datetime.now(UTC) - timedelta(days=3)).isoformat()
+            stale_cleanup = (datetime.now(UTC) - timedelta(days=1)).isoformat()
             for malformed in (
                 {**report, "assessments": [{**report["assessments"][0], "canary_validated": "false"}]},
                 {**report, "assessments": [{**report["assessments"][0], "cleanup_receipts": [{**receipt.to_dict(), "receipt_hash": "0" * 64}]}]},

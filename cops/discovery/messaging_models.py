@@ -6,7 +6,7 @@ import hashlib
 import hmac
 import json
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -147,7 +147,7 @@ class CanaryDeliveryPolicy:
             raise ValueError("Canary creation time is invalid") from exc
         if created.tzinfo is None:
             raise ValueError("Canary creation time must include a timezone")
-        current = now or datetime.now(timezone.utc)
+        current = now or datetime.now(UTC)
         if current.tzinfo is None:
             raise ValueError("Current time must include a timezone")
         if created > current or current >= created + timedelta(seconds=self.retention_seconds):
@@ -243,7 +243,7 @@ class CleanupReceipt:
     def __post_init__(self) -> None:
         _literal_bool(self.verified_clean, "verified_clean")
         cleanup_at = _aware_timestamp(self.timestamp_utc, "timestamp_utc")
-        if cleanup_at > datetime.now(timezone.utc):
+        if cleanup_at > datetime.now(UTC):
             raise ValueError("Cleanup timestamp cannot be in the future")
         delivered_at = None
         if self.delivered_at_utc is not None:

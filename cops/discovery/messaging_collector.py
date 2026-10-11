@@ -6,7 +6,7 @@ import hashlib
 import ipaddress
 import socket
 from abc import ABC, abstractmethod
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from .messaging_models import (
@@ -251,7 +251,7 @@ class OfflineSyntheticMessagingCollector(MessagingServicesCollector):
                 cleanup_at = _aware_timestamp(fixture_evidence.get("cleanup_at_utc"), "cleanup_at_utc")
             except ValueError:
                 pass
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         created_at = _aware_timestamp(canary_policy.created_at_utc, "created_at_utc") if canary_policy else None
         expires_at = created_at + timedelta(seconds=canary_policy.retention_seconds) if created_at and canary_policy else None
         delivery_in_window = bool(
