@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import builtins
 import hashlib
 import hmac
 import uuid
@@ -140,6 +141,28 @@ def test_untrusted_observation_and_missing_provider_fail_closed(tmp_path: Path) 
     environment = make_inert_container_environment()
     with pytest.raises(IsolationVerificationError, match="Mock checks"):
         _harness(inventory).verify_environment(environment, endpoint_inventory=inventory, mock_checks=True)
+
+
+@pytest.mark.parametrize(
+    "blocked_module",
+    ["cryptography.exceptions", "cryptography.hazmat.primitives.asymmetric.ed25519"],
+)
+def test_signed_observation_fails_closed_without_crypto(tmp_path: Path, monkeypatch, blocked_module: str) -> None:
+    inventory = endpoint_inventory(tmp_path)
+    environment = make_inert_container_environment()
+    receipt = environment_observation(environment, "test-nonce", inventory)
+    trust_store = observation_trust_store(tmp_path)
+    original_import = builtins.__import__
+
+    def deny_crypto_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == blocked_module:
+            raise ModuleNotFoundError(f"No module named {name!r}", name=name)
+        return original_import(name, globals, locals, fromlist, level)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(builtins, "__import__", deny_crypto_import)
+        with pytest.raises(LaboratoryGateError, match="requires the cryptography package"):
+            verify_receipt_signature(receipt, trust_store=trust_store, worker_identity=environment.owner)
 
 
 def test_ssh_dispatch_key_cannot_forge_operator_observation(tmp_path: Path) -> None:

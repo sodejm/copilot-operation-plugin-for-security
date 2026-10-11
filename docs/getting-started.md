@@ -18,6 +18,7 @@ COPS requires only **Python 3.11 or newer**. That's it!
 
 - No external pip dependencies are needed for running the CLI, doctor, demos, or offline plugin checks.
 - Optional contributor dependencies (for running the full repository test suite) are specified in `requirements.txt`.
+- Signed laboratory receipt verification requires the optional `laboratory` extra (`python -m pip install '.[laboratory]'`).
 
 ---
 

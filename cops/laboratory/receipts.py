@@ -11,14 +11,15 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import MappingProxyType
-
-from cryptography.exceptions import InvalidSignature
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+from typing import TYPE_CHECKING
 
 from cops.evidence.canonical import EvidenceError, canonical, timestamp
 from cops.execution.filesystem import SecureDirectoryError, open_directory_no_symlinks
 
 from .models import LaboratoryGateError, LaboratoryObservation, ResetError
+
+if TYPE_CHECKING:
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 _SIGNATURE = re.compile(r"[0-9a-f]{128}\Z")
 _PUBLIC_KEY = re.compile(r"[0-9a-f]{64}\Z")
@@ -140,6 +141,10 @@ class LaboratoryObservationTrustStore:
     def resolve(self, worker_identity: str, key_id: str) -> Ed25519PublicKey:
         if not self.is_verified or (worker_identity, key_id) not in self.keys:
             raise LaboratoryGateError("laboratory observation signing key is not trusted")
+        try:
+            from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+        except ImportError as err:
+            raise LaboratoryGateError("laboratory receipt verification requires the cryptography package") from err
         return Ed25519PublicKey.from_public_bytes(self.keys[(worker_identity, key_id)])
 
 
@@ -243,6 +248,10 @@ def verify_receipt_signature(
         raise LaboratoryGateError("laboratory receipt schema, algorithm, or worker identity mismatch")
     if not isinstance(receipt.signature, str) or _SIGNATURE.fullmatch(receipt.signature) is None:
         raise LaboratoryGateError("laboratory receipt signature is invalid")
+    try:
+        from cryptography.exceptions import InvalidSignature
+    except ImportError as err:
+        raise LaboratoryGateError("laboratory receipt verification requires the cryptography package") from err
     try:
         public_key = trust_store.resolve(worker_identity, receipt.key_id)
         public_key.verify(bytes.fromhex(receipt.signature), canonical(receipt.unsigned()))

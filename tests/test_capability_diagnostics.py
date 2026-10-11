@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 from cops.diagnostics import (
@@ -17,6 +19,19 @@ from cops.diagnostics import (
 from cops.diagnostics.cli import command_diagnostics
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_operator_cli_starts_without_site_packages():
+    """Keep the pre-install operator smoke path free of third-party imports."""
+    result = subprocess.run(
+        [sys.executable, "-S", "-m", "cops", "doctor"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_detect_system_platform():

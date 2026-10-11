@@ -359,7 +359,9 @@ finish time, and that nonce.
 status before classifying the case. The result retains the full signed case,
 pre-execution, and, when used, reset and post-reset receipts in `details`.
 `verify_receipt_signature` can authenticate a saved receipt against the public
-trust store without a live freshness check. Missing or contradictory observations
+trust store without a live freshness check. Install the optional `laboratory`
+extra (`python -m pip install '.[laboratory]'`) in the operator environment for
+Ed25519 signature verification. Missing or contradictory observations
 fail the case. An invalid observation may be replaced before the two-minute
 deadline. Call `expire_pending_cases` after that deadline; challenge,
 classification, and `recorded_cases` also check it. Controller restart, reset,
