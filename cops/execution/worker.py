@@ -58,9 +58,9 @@ from .filesystem import (
 )
 from .offline_research import (
     OfflineResearchError,
+    stage_corpora,
     validate_offline_cat_adapter,
     validate_offline_request,
-    stage_corpora,
     verify_isolation_observation,
 )
 from .sandbox import ExecutionSandbox, LinuxBubblewrapSandbox, OfflineIsolationViolation
@@ -898,6 +898,7 @@ class IsolatedWorker:
                             def run_bound_probe(
                                 command: Any,
                                 *,
+                                _step_id: str = step_id,
                                 _operation_workspace_fd: int = operation_workspace_fd,
                                 **kwargs: Any,
                             ) -> Any:
@@ -905,7 +906,7 @@ class IsolatedWorker:
                                     {
                                         "expected_isolation_digest": offline_profile["isolation_attestation"]["digest"],
                                         "isolation_observer": lambda observation: isolation_invocations.append(
-                                            {"step_id": step_id, "phase": "version_probe", "observation": observation,
+                                            {"step_id": _step_id, "phase": "version_probe", "observation": observation,
                                              "matches_approved": observation["digest"] == offline_profile["isolation_attestation"]["digest"]
                                              and LinuxBubblewrapSandbox._offline_network_boundary_restricted(observation["measured"])}
                                         ),
@@ -947,6 +948,7 @@ class IsolatedWorker:
 
                                 def run_prepared_adapter(
                                     *,
+                                    _step_id: str = step_id,
                                     _step_deadline: float = step_deadline,
                                     _prepared: Any = prepared,
                                     _cmd: tuple[str, ...] = tuple(cmd),
@@ -965,7 +967,7 @@ class IsolatedWorker:
                                         {
                                             "expected_isolation_digest": offline_profile["isolation_attestation"]["digest"],
                                             "isolation_observer": lambda observation: isolation_invocations.append(
-                                                {"step_id": step_id, "phase": "adapter", "observation": observation,
+                                                {"step_id": _step_id, "phase": "adapter", "observation": observation,
                                                  "matches_approved": observation["digest"] == offline_profile["isolation_attestation"]["digest"]
                                                  and LinuxBubblewrapSandbox._offline_network_boundary_restricted(observation["measured"])}
                                             ),

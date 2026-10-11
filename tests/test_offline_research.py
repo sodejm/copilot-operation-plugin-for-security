@@ -25,7 +25,6 @@ from cops.execution.offline_research import (
 )
 from cops.execution.sandbox import LinuxBubblewrapSandbox, OfflineIsolationViolation
 
-
 WORKER_ID = "worker-offline-test"
 INVENTORY = {"worker_identity": WORKER_ID, "tools": {"inert": "0.7.0"}}
 
