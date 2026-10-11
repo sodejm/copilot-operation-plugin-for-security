@@ -15,6 +15,7 @@ with the plugin and are separate from these contributor workflows.
 
 When changing this repository, follow the root [AGENTS.md](../AGENTS.md):
 checkpoint each substantial coherent change with operational commit messages,
-update documentation and the threat model, and require independent human review
-including affected existing code. Installed plugin execution does not gain Git
-write or publishing authority from these source-contribution instructions.
+update documentation and the threat model, and obtain repository-owner authorization
+for merge. Follow the separate release and existing-code review obligations.
+Installed plugin execution does not gain Git write or publishing authority from
+these source-contribution instructions.
