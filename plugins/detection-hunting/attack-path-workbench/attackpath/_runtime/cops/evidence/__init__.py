@@ -1,5 +1,13 @@
-"""Evidence contracts, validation, and controlled export boundaries."""
+"""Evidence contracts, validation, inventory, and controlled export boundaries."""
 
+from .ai_inventory import (
+    InventoryError,
+    InventoryRegistry,
+    adapt_entra_service_principals,
+    compare_inventories,
+    import_inventory,
+    inventory_report,
+)
 from .assessment import (
     assess,
     export_assessment_report,
@@ -53,4 +61,10 @@ __all__ = [
     "export_assessment_report",
     "export_assessment_telemetry",
     "export_provider_assessment",
+    "InventoryError",
+    "InventoryRegistry",
+    "import_inventory",
+    "compare_inventories",
+    "inventory_report",
+    "adapt_entra_service_principals",
 ]

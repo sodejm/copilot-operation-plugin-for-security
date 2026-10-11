@@ -10,7 +10,15 @@ ROOT = Path(__file__).resolve().parents[2]
 TARGET = Path("plugins/detection-hunting/attack-path-workbench/attackpath/_runtime")
 SOURCES = tuple(
     "cops/evidence/" + name + ".py"
-    for name in ("__init__", "canonical", "contract", "validation", "assessment", "export_policy")
+    for name in (
+        "__init__",
+        "canonical",
+        "contract",
+        "validation",
+        "assessment",
+        "ai_inventory",
+        "export_policy",
+    )
 ) + (
     "cops/execution/redaction.py",
     "catalog/schemas/evidence-envelope.schema.json",
