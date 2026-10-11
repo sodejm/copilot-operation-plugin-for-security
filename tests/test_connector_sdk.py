@@ -275,9 +275,7 @@ def test_expired_credential_refreshes_same_page_once(tmp_path, name, capsys):
 def test_expired_credential_failure_preserves_accepted_page(tmp_path, failure, capsys):
     adapter, pages = fixture()
     credentials = ExpiringCredentials(fail_refresh=failure == "provider")
-    transport = RecordingTransport(
-        [pages[0], Response(401, CANARY.encode()), Response(401, CANARY.encode())]
-    )
+    transport = RecordingTransport([pages[0], Response(401, CANARY.encode()), Response(401, CANARY.encode())])
     with Checkpoint(tmp_path / "private") as checkpoint:
         result = collect(adapter, checkpoint, credentials, transport, limits=Limits(retries=1))
 
