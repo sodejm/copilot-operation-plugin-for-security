@@ -40,7 +40,8 @@ def validate_offline_cat_adapter(adapter: ToolAdapter, *, expected_pin: str) -> 
         adapter.tool == "cat"
         and adapter.version == "coreutils-9.4"
         and adapter.binary == "cat"
-        and adapter.provenance == {
+        and adapter.provenance
+        == {
             "source": "https://www.gnu.org/software/coreutils/",
             "license": "GPL-3.0",
             "pinned_revision": "9.4",
@@ -104,10 +105,7 @@ def validate_offline_request(
         raise OfflineResearchError("offline research corpus names must be unique")
     allowed_files = {f"corpus-{name}" for name in names}
     has_cat = any(operation["tool"] == "cat" for operation in plan.operations)
-    if has_cat and (
-        cat_executable_sha256 is None
-        or profile.get("cat_executable_sha256") != cat_executable_sha256
-    ):
+    if has_cat and (cat_executable_sha256 is None or profile.get("cat_executable_sha256") != cat_executable_sha256):
         raise OfflineResearchError("offline research cat executable pin mismatch")
     if not has_cat and "cat_executable_sha256" in profile:
         raise OfflineResearchError("offline research cannot claim an unused cat executable")
@@ -207,8 +205,11 @@ def stage_corpora(
 
 
 def verify_isolation_observation(
-    profile: Mapping[str, Any], *, sandbox: LinuxBubblewrapSandbox,
-    workspace: Path, workspace_fd: int,
+    profile: Mapping[str, Any],
+    *,
+    sandbox: LinuxBubblewrapSandbox,
+    workspace: Path,
+    workspace_fd: int,
 ) -> dict[str, Any]:
     """Measure a fresh sandbox and compare it with the approval-bound observation."""
     observation = sandbox.observe_offline_isolation(cwd=workspace, expected_workspace_fd=workspace_fd)

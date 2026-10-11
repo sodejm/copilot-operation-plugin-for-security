@@ -35,27 +35,42 @@ def _profile(source: Path) -> dict:
         "version": "v1",
         "worker_identity": WORKER_ID,
         "worker_inventory_sha256": digest(INVENTORY),
-        "corpora": [{
-            "name": "sample",
-            "path": str(source),
-            "sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
-        }],
+        "corpora": [
+            {
+                "name": "sample",
+                "path": str(source),
+                "sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+            }
+        ],
         "isolation_attestation": {"digest": "a" * 64, "observed_at": utc_now()},
     }
 
 
-def _plan(profile: dict, *, target: str = "local:sample", operations: list[dict] | None = None,
-          credentials: list[str] | None = None, egress: bool = False) -> ActionPlan:
+def _plan(
+    profile: dict,
+    *,
+    target: str = "local:sample",
+    operations: list[dict] | None = None,
+    credentials: list[str] | None = None,
+    egress: bool = False,
+) -> ActionPlan:
     return ActionPlan.create(
         plan_id="plan-offline-test",
         engagement_id="eng-offline-test",
         scenario_id="scen-offline-test",
         target=target,
         specialist_id="cops-offline-specialist",
-        operations=operations or [{
-            "step_id": "step-1", "tool": "inert", "tool_version": "0.7.0",
-            "action": "print_status", "arguments": {}, "timeout_seconds": 10,
-        }],
+        operations=operations
+        or [
+            {
+                "step_id": "step-1",
+                "tool": "inert",
+                "tool_version": "0.7.0",
+                "action": "print_status",
+                "arguments": {},
+                "timeout_seconds": 10,
+            }
+        ],
         limits={"max_duration_seconds": 30, "max_output_bytes": 4096, "egress_allowed": egress},
         credential_references=credentials or [],
         created_at=utc_now(),
@@ -106,20 +121,31 @@ def test_profile_rejects_out_of_scope_requests(tmp_path, violation):
     elif violation == "credentials":
         options["credentials"] = ["credential-ref"]
     elif violation == "proxy":
-        options["operations"] = [{
-            "step_id": "step-1", "tool": "inert", "tool_version": "0.7.0",
-            "action": "print_status", "arguments": {"proxy": "http://example.invalid"},
-            "timeout_seconds": 10,
-        }]
+        options["operations"] = [
+            {
+                "step_id": "step-1",
+                "tool": "inert",
+                "tool_version": "0.7.0",
+                "action": "print_status",
+                "arguments": {"proxy": "http://example.invalid"},
+                "timeout_seconds": 10,
+            }
+        ]
     elif violation == "adapter":
-        options["operations"] = [{
-            "step_id": "step-1", "tool": "curl", "tool_version": "8.0.0",
-            "action": "fetch", "arguments": {}, "timeout_seconds": 10,
-        }]
+        options["operations"] = [
+            {
+                "step_id": "step-1",
+                "tool": "curl",
+                "tool_version": "8.0.0",
+                "action": "fetch",
+                "arguments": {},
+                "timeout_seconds": 10,
+            }
+        ]
     elif violation == "stale":
         profile["isolation_attestation"]["observed_at"] = (
-            datetime.now(UTC) - timedelta(minutes=6)
-        ).isoformat(timespec="microseconds").replace("+00:00", "Z")
+            (datetime.now(UTC) - timedelta(minutes=6)).isoformat(timespec="microseconds").replace("+00:00", "Z")
+        )
     with pytest.raises(OfflineResearchError):
         _validate(_plan(profile, **options))
 
@@ -128,9 +154,13 @@ def test_profile_rejects_mediators_and_untrusted_sandbox(tmp_path):
     source = tmp_path.resolve() / "sample.txt"
     source.write_text("fixture", encoding="utf-8")
     plan = _plan(_profile(source))
-    for override in ({"scope_guard": object()}, {"credential_resolver": object()},
-                     {"egress_identity_verifier": object()}, {"sandbox": object()},
-                     {"workspace_dir": tmp_path.resolve()}):
+    for override in (
+        {"scope_guard": object()},
+        {"credential_resolver": object()},
+        {"egress_identity_verifier": object()},
+        {"sandbox": object()},
+        {"workspace_dir": tmp_path.resolve()},
+    ):
         with pytest.raises(OfflineResearchError):
             _validate(plan, **override)
 
@@ -141,16 +171,21 @@ def test_cat_adapter_requires_exact_pinned_executable_and_corpus_name(tmp_path):
     profile = _profile(source)
     profile["cat_executable_sha256"] = "b" * 64
     operation = {
-        "step_id": "step-1", "tool": "cat", "tool_version": "coreutils-9.4",
-        "action": "read_local_corpus", "arguments": {"filename": "corpus-sample"},
+        "step_id": "step-1",
+        "tool": "cat",
+        "tool_version": "coreutils-9.4",
+        "action": "read_local_corpus",
+        "arguments": {"filename": "corpus-sample"},
         "timeout_seconds": 10,
     }
     _validate(_plan(profile, operations=[operation]), cat_executable_sha256="b" * 64)
     with pytest.raises(OfflineResearchError, match="pin mismatch"):
         _validate(_plan(profile, operations=[operation]), cat_executable_sha256="c" * 64)
     with pytest.raises(OfflineResearchError, match="outside the approved adapter profile"):
-        _validate(_plan(profile, operations=[{**operation, "arguments": {"filename": "corpus-other"}}]),
-                  cat_executable_sha256="b" * 64)
+        _validate(
+            _plan(profile, operations=[{**operation, "arguments": {"filename": "corpus-other"}}]),
+            cat_executable_sha256="b" * 64,
+        )
 
 
 def test_cat_adapter_definition_cannot_change_after_executable_pin():
@@ -173,8 +208,11 @@ def test_cat_adapter_definition_cannot_change_after_executable_pin():
 def test_rejected_started_process_observation_is_retained_before_release():
     approved = "a" * 64
     measured = {
-        "interfaces": ["lo"], "routes": [], "ipv6_routes": [],
-        "socket_fds": 0, "separate_network_namespace": True,
+        "interfaces": ["lo"],
+        "routes": [],
+        "ipv6_routes": [],
+        "socket_fds": 0,
+        "separate_network_namespace": True,
     }
     rejected = {"digest": "b" * 64, "measured": measured}
     recorded = []
@@ -196,12 +234,12 @@ def test_corpus_staging_requires_approved_regular_file_and_digest(tmp_path):
     workspace = root / "workspace"
     workspace.mkdir(mode=0o700)
     workspace_fd = open_directory_no_symlinks(workspace)
-    ledger = SideEffectLedger("plan-offline-test", "eng-offline-test", WORKER_ID,
-                              workspace_dir=workspace)
+    ledger = SideEffectLedger("plan-offline-test", "eng-offline-test", WORKER_ID, workspace_dir=workspace)
     try:
         profile = _profile(source)
-        assert stage_corpora(profile, workspace=workspace, workspace_fd=workspace_fd,
-                             ledger=ledger) == [{"name": "sample", "sha256": profile["corpora"][0]["sha256"]}]
+        assert stage_corpora(profile, workspace=workspace, workspace_fd=workspace_fd, ledger=ledger) == [
+            {"name": "sample", "sha256": profile["corpora"][0]["sha256"]}
+        ]
         assert (workspace / "corpus-sample").read_bytes() == source.read_bytes()
         assert (workspace / "corpus-sample").stat().st_mode & 0o777 == 0o600
 
@@ -222,8 +260,7 @@ def test_corpus_staging_rejects_symlink_and_oversized_file(tmp_path):
     workspace = root / "workspace"
     workspace.mkdir(mode=0o700)
     workspace_fd = open_directory_no_symlinks(workspace)
-    ledger = SideEffectLedger("plan-offline-test", "eng-offline-test", WORKER_ID,
-                              workspace_dir=workspace)
+    ledger = SideEffectLedger("plan-offline-test", "eng-offline-test", WORKER_ID, workspace_dir=workspace)
     try:
         profile = _profile(source)
         profile["corpora"][0]["path"] = str(link)
@@ -246,5 +283,4 @@ def test_configuration_alone_does_not_satisfy_isolation_attestation(tmp_path):
     source.write_bytes(b"fixture")
     profile = _profile(source)
     with pytest.raises(OfflineResearchError, match="does not match"):
-        verify_isolation_observation(profile, sandbox=ObservedSandbox(),
-                                     workspace=tmp_path.resolve(), workspace_fd=-1)
+        verify_isolation_observation(profile, sandbox=ObservedSandbox(), workspace=tmp_path.resolve(), workspace_fd=-1)

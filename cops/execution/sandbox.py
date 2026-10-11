@@ -329,9 +329,7 @@ class LinuxBubblewrapSandbox:
         except OSError as err:
             raise SandboxReadinessError("offline sandbox process observation is unavailable") from err
         interfaces = sorted(
-            line.split(":", 1)[0].strip()
-            for line in cls._read_proc_lines(proc / "net/dev")[2:]
-            if ":" in line
+            line.split(":", 1)[0].strip() for line in cls._read_proc_lines(proc / "net/dev")[2:] if ":" in line
         )
         routes = [line.split()[0] for line in cls._read_proc_lines(proc / "net/route")[1:] if line.split()]
         ipv6_routes = [line.split()[-1] for line in cls._read_proc_lines(proc / "net/ipv6_route") if line.split()]
@@ -479,6 +477,7 @@ class LinuxBubblewrapSandbox:
                             *command[1:],
                         )
                     )
+
                     def release_observed_child(_process: Any, deadline: float) -> None:
                         nonlocal info_write, gate_read, gate_write
                         os.close(info_write)
@@ -486,9 +485,7 @@ class LinuxBubblewrapSandbox:
                         os.close(gate_read)
                         gate_read = -1
                         observation = self._observe_blocked_child(info_read, deadline)
-                        self._authorize_offline_observation(
-                            observation, expected_isolation_digest, isolation_observer
-                        )
+                        self._authorize_offline_observation(observation, expected_isolation_digest, isolation_observer)
                         os.write(gate_write, b"1")
                         os.close(gate_write)
                         gate_write = -1
@@ -500,8 +497,15 @@ class LinuxBubblewrapSandbox:
                             env={},
                             timeout_seconds=timeout_seconds,
                             max_output_bytes=max_output_bytes,
-                            pass_fds=(bubblewrap_fd, prlimit_fd, workspace_fd, executable_fd, argument_fd,
-                                      *capability_fds, *((info_write, gate_read) if offline_gate else ())),
+                            pass_fds=(
+                                bubblewrap_fd,
+                                prlimit_fd,
+                                workspace_fd,
+                                executable_fd,
+                                argument_fd,
+                                *capability_fds,
+                                *((info_write, gate_read) if offline_gate else ()),
+                            ),
                             resource_limits=self.resources.as_process_limits(),
                             defer_process_limit=True,
                             on_started=release_observed_child if offline_gate else None,

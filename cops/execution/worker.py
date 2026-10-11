@@ -888,9 +888,11 @@ class IsolatedWorker:
                                 overall_exit_code = 126
                                 break
                             cmd = adapter.assemble_command(action, op.get("arguments"))
-                            if offline_profile is not None and tool == "cat" and cmd != [
-                                "cat", "--", op["arguments"]["filename"]
-                            ]:
+                            if (
+                                offline_profile is not None
+                                and tool == "cat"
+                                and cmd != ["cat", "--", op["arguments"]["filename"]]
+                            ):
                                 raise OfflineResearchError(
                                     "offline research cat command differs from the approved profile"
                                 )
@@ -906,16 +908,26 @@ class IsolatedWorker:
                                     {
                                         "expected_isolation_digest": offline_profile["isolation_attestation"]["digest"],
                                         "isolation_observer": lambda observation: isolation_invocations.append(
-                                            {"step_id": _step_id, "phase": "version_probe", "observation": observation,
-                                             "matches_approved": observation["digest"] == offline_profile["isolation_attestation"]["digest"]
-                                             and LinuxBubblewrapSandbox._offline_network_boundary_restricted(observation["measured"])}
+                                            {
+                                                "step_id": _step_id,
+                                                "phase": "version_probe",
+                                                "observation": observation,
+                                                "matches_approved": observation["digest"]
+                                                == offline_profile["isolation_attestation"]["digest"]
+                                                and LinuxBubblewrapSandbox._offline_network_boundary_restricted(
+                                                    observation["measured"]
+                                                ),
+                                            }
                                         ),
                                     }
-                                    if offline_profile is not None else {}
+                                    if offline_profile is not None
+                                    else {}
                                 )
                                 return self.sandbox.run(
-                                    command, expected_workspace_fd=_operation_workspace_fd,
-                                    **offline_arguments, **kwargs,
+                                    command,
+                                    expected_workspace_fd=_operation_workspace_fd,
+                                    **offline_arguments,
+                                    **kwargs,
                                 )
 
                             prepared = prepare_executable(
@@ -965,14 +977,24 @@ class IsolatedWorker:
                                     adapter_dispatched = True
                                     offline_arguments = (
                                         {
-                                            "expected_isolation_digest": offline_profile["isolation_attestation"]["digest"],
+                                            "expected_isolation_digest": offline_profile["isolation_attestation"][
+                                                "digest"
+                                            ],
                                             "isolation_observer": lambda observation: isolation_invocations.append(
-                                                {"step_id": _step_id, "phase": "adapter", "observation": observation,
-                                                 "matches_approved": observation["digest"] == offline_profile["isolation_attestation"]["digest"]
-                                                 and LinuxBubblewrapSandbox._offline_network_boundary_restricted(observation["measured"])}
+                                                {
+                                                    "step_id": _step_id,
+                                                    "phase": "adapter",
+                                                    "observation": observation,
+                                                    "matches_approved": observation["digest"]
+                                                    == offline_profile["isolation_attestation"]["digest"]
+                                                    and LinuxBubblewrapSandbox._offline_network_boundary_restricted(
+                                                        observation["measured"]
+                                                    ),
+                                                }
                                             ),
                                         }
-                                        if offline_profile is not None else {}
+                                        if offline_profile is not None
+                                        else {}
                                     )
                                     return self.sandbox.run(
                                         [_prepared.invocation_path, *_cmd[1:]],
