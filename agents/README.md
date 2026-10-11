@@ -2,7 +2,7 @@
 
 Welcome to the centralized catalog of **Specialist Cybersecurity Agent Profiles** for COPS (Copilot Operations Plugins for Security).
 
-In high-maturity cybersecurity organizations, no single analyst or engineer handles every task. Instead, specialized practitioners collaborate through well-defined roles, explicit handoffs, and strict Rules of Engagement (RoE). COPS structures this expertise into **19 callable agent profiles** across five operational domains:
+In high-maturity cybersecurity organizations, no single analyst or engineer handles every task. Instead, specialized practitioners collaborate through well-defined roles, explicit handoffs, and strict Rules of Engagement (RoE). COPS structures this expertise into **20 callable agent profiles** across five operational domains:
 
 1. **Offensive Security & Adversarial Emulation**: Ethical penetration testing, red team kill-chain modeling, perimeter attack surface planning, and AI prompt injection assessments.
 2. **Defensive Operations & Detection Engineering**: Microsoft Sentinel KQL query engineering, hypothesis-driven threat hunting, SOC alert triage, and detection-as-code regression testing.
@@ -59,7 +59,7 @@ In interactive environments, the operator is prompted with exact scope, target p
 
 ---
 
-## Inventory of 19 Specialist Profiles
+## Inventory of 20 Specialist Profiles
 
 | Profile ID | Domain | Criticality | Interactive Auth | Primary Plugin |
 | :--- | :--- | :--- | :--- | :--- |
@@ -67,6 +67,7 @@ In interactive environments, the operator is prompted with exact scope, target p
 | [`cops-host-specialist`](profiles/cops-host-specialist.agent.md) | Offensive | Critical | Required | `host-assessment-workbench` |
 | [`cops-redteam-operator`](profiles/cops-redteam-operator.agent.md) | Offensive | Critical | Required | `attack-path-workbench` |
 | [`cops-attack-surface-planner`](profiles/cops-attack-surface-planner.agent.md) | Offensive | Normal | No | `attack-surface-planner` |
+| [`cops-kubernetes-specialist`](profiles/cops-kubernetes-specialist.agent.md) | Offensive | Normal | No | `kubernetes-assessment-workbench` |
 | [`cops-ai-adversary-specialist`](profiles/cops-ai-adversary-specialist.agent.md) | Offensive | Normal | No | `foundry-agent-harness` |
 | [`cops-sentinel-kql-engineer`](profiles/cops-sentinel-kql-engineer.agent.md) | Defensive | Normal | No | `sentinel-hunt-workbench` |
 | [`cops-threat-hunter`](profiles/cops-threat-hunter.agent.md) | Defensive | Normal | No | `sentinel-hunt-workbench` |

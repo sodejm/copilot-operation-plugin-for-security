@@ -44,8 +44,8 @@ class TestWorkflowCapabilityDiagnosticsSkill(unittest.TestCase):
         self.assertIsNotNone(report.timestamp)
         self.assertTrue(report.system.is_supported)
         self.assertTrue(report.capability_truth_passed)
-        self.assertEqual(report.capability_count, 71)
-        self.assertTrue(len(report.packages) >= 15)
+        self.assertEqual(report.capability_count, 73)
+        self.assertTrue(len(report.packages) >= 16)
 
 
 if __name__ == "__main__":

@@ -7,8 +7,8 @@ Feature: Capability Reconciliation and Truth-in-Advertising
     Given the current COPS repository catalog
     When the capability truth-in-advertising auditor is executed
     Then the audit succeeds with status "valid"
-    And exactly 15 plugins are reconciled
-    And exactly 19 specialist profiles are reconciled
+    And exactly 16 plugins are reconciled
+    And exactly 20 specialist profiles are reconciled
     And exactly 37 scenarios are reconciled
     And exactly 0 capabilities claim "live-validated" mode
 

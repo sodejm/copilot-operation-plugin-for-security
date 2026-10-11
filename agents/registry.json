@@ -235,6 +235,30 @@
     },
     {
       "schema_version": "1.0",
+      "id": "cops-kubernetes-specialist",
+      "display_name": "COPS Kubernetes Assessment Specialist",
+      "domain": "offensive-security",
+      "criticality": "normal",
+      "interactive_authorization_required": false,
+      "description": "Offline Kubernetes context and scope specialist reconciling an approved plan with a sanitized local export without cluster access.",
+      "primary_plugin": "kubernetes-assessment-workbench",
+      "skills": ["kubernetes-assessment-context"],
+      "tools": [
+        "python3 -m cops check kubernetes-assessment-workbench",
+        "scripts/assess.py"
+      ],
+      "contract_file": "agents/profiles/cops-kubernetes-specialist.agent.md",
+      "intent_keywords": [
+        "kubernetes context",
+        "cluster identity",
+        "namespace scope",
+        "namespace uid",
+        "kubernetes assessment",
+        "managed control plane"
+      ]
+    },
+    {
+      "schema_version": "1.0",
       "id": "cops-ai-adversary-specialist",
       "display_name": "COPS AI Adversarial Assessment Specialist",
       "domain": "offensive-security",
