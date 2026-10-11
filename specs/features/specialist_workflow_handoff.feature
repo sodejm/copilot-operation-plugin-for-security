@@ -1,7 +1,7 @@
 Feature: Specialist Routing and Bounded Workflow Handoffs
   As a cybersecurity operations lead
   I need structured task and evidence handoffs between Planner, Specialist, Skeptic, and Auditor
-  So that specialists have accountable execution ownership, capabilities are verified, evidence is challenged, and authorization cannot expand
+  So that proposed workflows resolve to real skills, capabilities are verified, evidence is challenged, and authorization cannot expand
 
   Scenario: Orchestrating a successful Triad specialist handoff workflow
     Given a valid active engagement and approved action plan
@@ -9,6 +9,19 @@ Feature: Specialist Routing and Bounded Workflow Handoffs
     Then the handoff reaches status "completed" with approval status "approved"
     And the transition log records 4 lifecycle transitions
     And the handoff satisfies the specialist handoff contract schema
+    And the completed handoff contains no execution result
+
+  Scenario: Rejecting a proposal without a workflow target at acceptance
+    Given a proposed handoff without a workflow target
+    When the specialist attempts to accept the handoff
+    Then the acceptance fails with "MissingCapabilityError"
+    And the handoff status is "rejected"
+
+  Scenario: Rejecting a nonexistent workflow skill at acceptance
+    Given a proposed handoff with a nonexistent workflow skill
+    When the specialist attempts to accept the handoff
+    Then the acceptance fails with "MissingCapabilityError"
+    And the handoff status is "rejected"
 
   Scenario: Rejecting handoff when specialist lacks required capability
     Given a proposed handoff requiring unsupported capabilities

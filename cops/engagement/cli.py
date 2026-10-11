@@ -23,13 +23,9 @@ def _parse_tool_versions(values: list[str]) -> dict[str, str]:
         tool = tool.strip()
         version = version.strip()
         if not separator or not tool or not version:
-            raise EngagementIntakeError(
-                "tool versions must use TOOL=VERSION with non-empty values"
-            )
+            raise EngagementIntakeError("tool versions must use TOOL=VERSION with non-empty values")
         if tool in parsed and parsed[tool] != version:
-            raise EngagementIntakeError(
-                f"conflicting exact versions supplied for tool '{tool}'"
-            )
+            raise EngagementIntakeError(f"conflicting exact versions supplied for tool '{tool}'")
         parsed[tool] = version
     return parsed
 
@@ -100,10 +96,21 @@ def command_engagement_validate(args: argparse.Namespace) -> int:
         return 1
 
     if args.json:
-        print(json.dumps({"status": "valid", "engagement_id": validated["engagement_id"], "mode": validated.get("mode", "planning")}, indent=2))
+        print(
+            json.dumps(
+                {
+                    "status": "valid",
+                    "engagement_id": validated["engagement_id"],
+                    "mode": validated.get("mode", "planning"),
+                },
+                indent=2,
+            )
+        )
     else:
         print(f"Engagement '{validated['engagement_id']}' is valid ({validated.get('mode', 'planning')} mode).")
-        print(f"  Targets: {len(validated['scope']['included_targets'])} included, {len(validated['scope'].get('excluded_targets', []))} excluded")
+        print(
+            f"  Targets: {len(validated['scope']['included_targets'])} included, {len(validated['scope'].get('excluded_targets', []))} excluded"
+        )
         print(f"  Operator: {validated['operator']}")
         print(f"  Window: {validated['window']['started_at']} -> {validated['window']['authorized_until_utc']}")
 
@@ -187,8 +194,10 @@ def command_engagement_info(args: argparse.Namespace) -> int:
         print(f"  Operator: {summary['operator']}")
         print(f"  Window: {summary['window']['started_at']} to {summary['window']['authorized_until_utc']}")
         print(f"  Targets: {summary['targets_count']} in scope, {summary['exclusions_count']} excluded")
-        if summary['budget']:
-            print(f"  Budget: {summary['budget']['max_duration_seconds']}s, {summary['budget']['max_output_bytes']} bytes")
+        if summary["budget"]:
+            print(
+                f"  Budget: {summary['budget']['max_duration_seconds']}s, {summary['budget']['max_output_bytes']} bytes"
+            )
 
     return 0
 
@@ -248,6 +257,8 @@ def command_engagement_handoff(args: argparse.Namespace, root: Path = ROOT) -> i
                 task_description=args.task,
                 sender_id=getattr(args, "planner", None) or getattr(args, "sender", "secops-lead"),
                 specialist_id=args.specialist,
+                workflow_skill_id=getattr(args, "workflow_skill", None),
+                capability_id=getattr(args, "capability", None),
                 required_capabilities=req_caps,
                 registry_path=agents_reg_path,
             )
@@ -292,6 +303,8 @@ def command_engagement_handoff(args: argparse.Namespace, root: Path = ROOT) -> i
                 task_description=args.task,
                 planner_id=getattr(args, "planner", None) or getattr(args, "sender", "secops-lead"),
                 specialist_id=args.specialist,
+                workflow_skill_id=getattr(args, "workflow_skill", None),
+                capability_id=getattr(args, "capability", None),
                 registry_path=agents_reg_path,
             )
             result_doc = handoff.to_dict()
@@ -315,7 +328,9 @@ def command_engagement_handoff(args: argparse.Namespace, root: Path = ROOT) -> i
     elif getattr(args, "json", False):
         print(rendered)
     else:
-        print(f"Handoff {result_doc['handoff_id']} status: {result_doc['status']} (Approval: {result_doc['approval_status']})")
+        print(
+            f"Handoff {result_doc['handoff_id']} status: {result_doc['status']} (Approval: {result_doc['approval_status']})"
+        )
         print(f"  Sender:    {result_doc['sender']['role']} [{result_doc['sender']['identifier']}]")
         print(f"  Recipient: {result_doc['recipient']['role']} [{result_doc['recipient']['specialist_id']}]")
         print(f"  Task:      {result_doc['task']['task_description']}")
