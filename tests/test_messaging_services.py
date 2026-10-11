@@ -5,18 +5,21 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 import tempfile
 import unittest
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from cops.discovery import (
-    CleanupReceipt,
+    CanaryDeliveryPolicy,
     MessagingAuthPrerequisite,
     MessagingCategory,
     MessagingExposureStatus,
@@ -26,11 +29,14 @@ from cops.discovery import (
     MessagingServicesReport,
     MessagingServiceType,
     OfflineSyntheticMessagingCollector,
+    StandardSocketMessagingCollector,
     assess_messaging_services,
 )
 from cops.discovery.cli import (
     command_messaging_discovery,
 )
+from cops.discovery.messaging_collector import MessagingServicesCollector
+from cops.discovery.messaging_models import CleanupReceipt
 
 
 class TestMessagingModelsAndSerialization(unittest.TestCase):
@@ -71,6 +77,59 @@ class TestMessagingModelsAndSerialization(unittest.TestCase):
         self.assertEqual(reconstructed.receipt_id, receipt.receipt_id)
         self.assertEqual(reconstructed.receipt_hash, receipt.receipt_hash)
         self.assertTrue(reconstructed.verified_clean)
+
+    def test_cleanup_receipt_rejects_changed_contents_and_non_boolean_flags(self):
+        receipt = CleanupReceipt(
+            receipt_id="rec-msg-002",
+            target_host="mail01.corp.internal",
+            service_type="smtp",
+            artifact_type="canary_message",
+            artifact_identifier="canary_mail_probe",
+            action_taken="verified_removed",
+            verified_clean=True,
+        ).to_dict()
+        for change in ({"verified_clean": "false"}, {"artifact_identifier": "other"}, {"receipt_hash": "0" * 64}):
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                CleanupReceipt.from_dict({**receipt, **change})
+
+    def test_verified_synthetic_receipt_rejects_future_time_and_missing_identifier(self):
+        observed_at = datetime.now(UTC).isoformat()
+        fields = {
+            "receipt_id": "rec-synthetic",
+            "target_host": "mail01.corp.internal",
+            "service_type": "smtp",
+            "artifact_type": "canary_message",
+            "artifact_identifier": "canary_mail_probe",
+            "action_taken": "synthetic_fixture_cleanup_confirmed",
+            "verified_clean": True,
+            "evidence_source": "synthetic_fixture",
+            "timestamp_utc": observed_at,
+            "delivered_at_utc": observed_at,
+            "retention_started_at_utc": observed_at,
+            "retention_seconds": 3600,
+        }
+        for changes, error in (
+            ({"artifact_identifier": None}, "canary identifier"),
+            ({"artifact_identifier": "  "}, "canary identifier"),
+            ({"timestamp_utc": (datetime.now(UTC) + timedelta(days=1)).isoformat()}, "future"),
+            ({"retention_seconds": None}, "retention"),
+            ({"retention_seconds": 86401}, "retention"),
+            ({"retention_started_at_utc": (datetime.now(UTC) - timedelta(days=2)).isoformat()}, "retention"),
+        ):
+            with self.subTest(changes=changes), self.assertRaisesRegex(ValueError, error):
+                CleanupReceipt(**{**fields, **changes})
+
+    def test_assessment_rejects_string_boolean_flags(self):
+        assessment = MessagingServiceAssessment(
+            target_host="mail01.corp.internal",
+            resolved_ip="192.0.2.1",
+            service_type="smtp",
+            category="mail_transfer_retrieval",
+            port=25,
+        ).to_dict()
+        for field_name in ("canary_validated", "relay_tested", "relay_permitted", "tls_enforced"):
+            with self.subTest(field=field_name), self.assertRaises(ValueError):
+                MessagingServiceAssessment.from_dict({**assessment, field_name: "false"})
 
     def test_messaging_service_assessment_serialization_roundtrip(self):
         cand = MessagingPrivilegeCandidate(
@@ -146,6 +205,46 @@ class TestMessagingModelsAndSerialization(unittest.TestCase):
             loaded = MessagingServicesReport.load(file_path)
             self.assertEqual(loaded.report_id, report.report_id)
             self.assertEqual(loaded.target_scope, report.target_scope)
+
+
+class TestLegacyCollectorCompatibility(unittest.TestCase):
+    def test_collector_without_policy_parameter_keeps_existing_probe_calls(self):
+        class LegacyCollector(MessagingServicesCollector):
+            def resolve_target(self, target_host):
+                return "192.0.2.1"
+
+            def probe_service(
+                self,
+                target_host,
+                resolved_ip,
+                service_type,
+                port,
+                protocol="tcp",
+                category=MessagingCategory.MAIL_TRANSFER_RETRIEVAL.value,
+                vantage="external",
+                canary_artifact=None,
+                message_budget=5,
+                timeout=2.0,
+            ):
+                return MessagingServiceAssessment(
+                    target_host=target_host,
+                    resolved_ip=resolved_ip,
+                    service_type=service_type,
+                    category=category,
+                    port=port,
+                )
+
+        collector = LegacyCollector()
+        for service_type in ("smtp", "pop3", "imap", "irc", "rabbitmq", "nats", "ibmmq", "kafka", "mqtt"):
+            with self.subTest(service_type=service_type):
+                assessment = getattr(collector, f"assess_{service_type}")("mail.example.test")
+                self.assertEqual(assessment.service_type, service_type)
+        report = assess_messaging_services(
+            ["mail.example.test"],
+            service_types=["smtp"],
+            collector=collector,
+        )
+        self.assertEqual(len(report.assessments), 1)
 
 
 class TestOfflineSyntheticMessagingCollector(unittest.TestCase):
@@ -231,8 +330,39 @@ class TestOfflineSyntheticMessagingCollector(unittest.TestCase):
         }
         self.collector = OfflineSyntheticMessagingCollector(targets=self.mock_targets)
 
+    @staticmethod
+    def canary_policy(**changes):
+        fields = {
+            "destination": "mailbox:canary",
+            "allowed_destinations": ("mailbox:canary",),
+            "recipient": "canary@example.test",
+            "allowed_recipients": ("canary@example.test",),
+            "created_at_utc": (datetime.now(UTC) - timedelta(minutes=1)).isoformat(),
+        }
+        fields.update(changes)
+        return CanaryDeliveryPolicy(**fields)
+
+    def set_canary_evidence(self, identifier="canary_mail_probe", count=2, cleanup=True):
+        observed_at = datetime.now(UTC).isoformat()
+        self.mock_targets["vulnerable-messaging.corp.internal"]["smtp"]["canary_evidence"] = {
+            "identifier": identifier,
+            "recipient": "canary@example.test",
+            "destination": "mailbox:canary",
+            "delivery_observed": True,
+            "messages_sent": count,
+            "cleanup_confirmed": cleanup,
+            "delivered_at_utc": observed_at,
+            "cleanup_at_utc": observed_at,
+        }
+
     def test_assess_smtp_open_relay_and_enum(self):
-        assessment = self.collector.assess_smtp("vulnerable-messaging.corp.internal", canary_artifact="canary_mail_probe")
+        self.set_canary_evidence()
+        policy = self.canary_policy()
+        assessment = self.collector.assess_smtp(
+            "vulnerable-messaging.corp.internal",
+            canary_artifact="canary_mail_probe",
+            canary_policy=policy,
+        )
         self.assertEqual(assessment.exposure_status, MessagingExposureStatus.EXPOSED.value)
         self.assertTrue(assessment.canary_validated)
         self.assertEqual(assessment.canary_identifier, "canary_mail_probe")
@@ -241,6 +371,13 @@ class TestOfflineSyntheticMessagingCollector(unittest.TestCase):
         self.assertIn("smtp_open_relay", findings)
         self.assertIn("smtp_user_enumeration", findings)
         self.assertEqual(len(assessment.cleanup_receipts), 1)
+        receipt = assessment.cleanup_receipts[0]
+        self.assertEqual(receipt.evidence_source, "synthetic_fixture")
+        self.assertEqual(receipt.retention_seconds, 3600)
+        self.assertEqual(receipt.retention_started_at_utc, policy.created_at_utc)
+        self.assertEqual(CleanupReceipt.from_dict(receipt.to_dict()).receipt_hash, receipt.receipt_hash)
+        with self.assertRaisesRegex(ValueError, "hash"):
+            CleanupReceipt.from_dict({**receipt.to_dict(), "retention_seconds": 7200})
 
     def test_assess_pop3_and_imap(self):
         pop3_res = self.collector.assess_pop3("vulnerable-messaging.corp.internal")
@@ -275,13 +412,18 @@ class TestOfflineSyntheticMessagingCollector(unittest.TestCase):
         mqtt_res = self.collector.assess_mqtt("vulnerable-messaging.corp.internal")
         self.assertTrue(any(c.finding_type == "mqtt_anonymous_read_write" for c in mqtt_res.privilege_candidates))
 
-    def test_protected_service_and_receipt(self):
-        smtp_res = self.collector.assess_smtp("hardened-messaging.corp.internal", canary_artifact="canary_probe")
+    def test_protected_service_without_canary_evidence(self):
+        smtp_res = self.collector.assess_smtp(
+            "hardened-messaging.corp.internal",
+            canary_artifact="canary_probe",
+            canary_policy=self.canary_policy(),
+        )
         self.assertEqual(smtp_res.exposure_status, MessagingExposureStatus.PROTECTED.value)
         self.assertTrue(smtp_res.tls_enforced)
         self.assertFalse(smtp_res.relay_permitted)
         self.assertEqual(len(smtp_res.privilege_candidates), 0)
-        self.assertEqual(len(smtp_res.cleanup_receipts), 1)
+        self.assertFalse(smtp_res.canary_validated)
+        self.assertEqual(len(smtp_res.cleanup_receipts), 0)
 
         kafka_res = self.collector.assess_kafka("hardened-messaging.corp.internal")
         self.assertEqual(kafka_res.exposure_status, MessagingExposureStatus.PROTECTED.value)
@@ -297,20 +439,171 @@ class TestOfflineSyntheticMessagingCollector(unittest.TestCase):
         self.assertEqual(res.exposure_status, MessagingExposureStatus.INACCESSIBLE.value)
         self.assertEqual(res.auth_prerequisite, MessagingAuthPrerequisite.UNKNOWN.value)
         self.assertFalse(res.canary_validated)
-        self.assertIn("Service was inaccessible from probe vantage; this cannot be reported as secure or hardened", res.uncertainty_notes[0])
+        self.assertIn(
+            "Service was inaccessible from probe vantage; this cannot be reported as secure or hardened",
+            res.uncertainty_notes[0],
+        )
 
     def test_message_budget_enforcement(self):
-        res = self.collector.assess_smtp("vulnerable-messaging.corp.internal", message_budget=1)
+        self.set_canary_evidence(count=2)
+        res = self.collector.assess_smtp(
+            "vulnerable-messaging.corp.internal",
+            canary_artifact="canary_mail_probe",
+            canary_policy=self.canary_policy(),
+            message_budget=1,
+        )
         self.assertEqual(res.message_budget_limit, 1)
-        self.assertEqual(res.messages_sent_or_observed, 1)
+        self.assertEqual(res.messages_sent_or_observed, 2)
+        self.assertFalse(res.canary_validated)
+        self.assertEqual(res.cleanup_receipts, [])
+        self.assertTrue(any("more messages" in note for note in res.uncertainty_notes))
+
+    def test_canary_policy_rejects_unauthorized_route_before_probe(self):
+        for changes in (
+            {"destination": "topic:outside"},
+            {"recipient": "outside@example.test"},
+        ):
+            with self.subTest(changes=changes), patch.object(self.collector, "resolve_target") as resolve:
+                with self.assertRaisesRegex(ValueError, "not explicitly allowed"):
+                    self.collector.assess_smtp(
+                        "vulnerable-messaging.corp.internal",
+                        canary_artifact="canary_mail_probe",
+                        canary_policy=self.canary_policy(**changes),
+                    )
+                resolve.assert_not_called()
+        self.assertEqual(self.collector.probes_recorded, [])
+
+    def test_canary_policy_rejects_string_and_malformed_allowlists_before_probe(self):
+        for changes in (
+            {"destination": "canary", "allowed_destinations": "mailbox:canary"},
+            {"recipient": "canary", "allowed_recipients": "canary@example.test"},
+            {"allowed_destinations": ("mailbox:canary", "")},
+            {"allowed_recipients": ("canary@example.test", None)},
+        ):
+            with self.subTest(changes=changes), patch.object(self.collector, "resolve_target") as resolve:
+                with self.assertRaises(ValueError):
+                    self.collector.assess_smtp(
+                        "vulnerable-messaging.corp.internal",
+                        canary_artifact="canary_mail_probe",
+                        canary_policy=self.canary_policy(**changes),
+                    )
+                resolve.assert_not_called()
+        self.assertEqual(self.collector.probes_recorded, [])
+
+    def test_canary_policy_rejects_expired_or_unbounded_retention(self):
+        expired = (datetime.now(UTC) - timedelta(hours=2)).isoformat()
+        for changes in (
+            {"created_at_utc": expired},
+            {"retention_seconds": 0},
+            {"retention_seconds": 86401},
+        ):
+            with self.subTest(changes=changes):
+                with self.assertRaisesRegex(ValueError, "retention"):
+                    self.collector.assess_smtp(
+                        "vulnerable-messaging.corp.internal",
+                        canary_artifact="canary_mail_probe",
+                        canary_policy=self.canary_policy(**changes),
+                    )
+        self.assertEqual(self.collector.probes_recorded, [])
+
+    def test_canary_requires_policy_and_positive_bounded_budget(self):
+        for policy, budget in ((None, 5), (self.canary_policy(), 0), (self.canary_policy(), 6)):
+            with self.subTest(policy=policy, budget=budget):
+                with self.assertRaises(ValueError):
+                    self.collector.assess_smtp(
+                        "vulnerable-messaging.corp.internal",
+                        canary_artifact="canary_mail_probe",
+                        canary_policy=policy,
+                        message_budget=budget,
+                    )
+        self.assertEqual(self.collector.probes_recorded, [])
+
+    def test_delivery_without_cleanup_confirmation_has_no_receipt(self):
+        self.set_canary_evidence(cleanup=False)
+        res = self.collector.assess_smtp(
+            "vulnerable-messaging.corp.internal",
+            canary_artifact="canary_mail_probe",
+            canary_policy=self.canary_policy(),
+        )
+        self.assertTrue(res.canary_validated)
+        self.assertEqual(res.cleanup_receipts, [])
+        self.assertTrue(any("cleanup" in note for note in res.uncertainty_notes))
+
+    def test_delivery_timestamp_must_be_in_authorized_window(self):
+        self.set_canary_evidence()
+        evidence = self.mock_targets["vulnerable-messaging.corp.internal"]["smtp"]["canary_evidence"]
+        for delivered_at in (
+            (datetime.now(UTC) - timedelta(minutes=2)).isoformat(),
+            (datetime.now(UTC) + timedelta(minutes=1)).isoformat(),
+            datetime.now().isoformat(),
+        ):
+            with self.subTest(delivered_at=delivered_at):
+                evidence["delivered_at_utc"] = delivered_at
+                result = self.collector.assess_smtp(
+                    "vulnerable-messaging.corp.internal",
+                    canary_artifact="canary_mail_probe",
+                    canary_policy=self.canary_policy(),
+                )
+                self.assertFalse(result.canary_validated)
+                self.assertEqual(result.cleanup_receipts, [])
+
+    def test_cleanup_timestamp_must_follow_delivery_within_retention(self):
+        self.set_canary_evidence()
+        evidence = self.mock_targets["vulnerable-messaging.corp.internal"]["smtp"]["canary_evidence"]
+        delivered_at = evidence["delivered_at_utc"]
+        for cleanup_at in (
+            (datetime.fromisoformat(delivered_at) - timedelta(seconds=1)).isoformat(),
+            (datetime.now(UTC) + timedelta(minutes=1)).isoformat(),
+            datetime.now().isoformat(),
+        ):
+            with self.subTest(cleanup_at=cleanup_at):
+                evidence["cleanup_at_utc"] = cleanup_at
+                result = self.collector.assess_smtp(
+                    "vulnerable-messaging.corp.internal",
+                    canary_artifact="canary_mail_probe",
+                    canary_policy=self.canary_policy(),
+                )
+                self.assertTrue(result.canary_validated)
+                self.assertEqual(result.cleanup_receipts, [])
+
+    def test_broker_canary_policy_does_not_require_mail_recipient(self):
+        broker = self.mock_targets["vulnerable-messaging.corp.internal"]["kafka"]
+        observed_at = datetime.now(UTC).isoformat()
+        broker["canary_evidence"] = {
+            "identifier": "topic_probe",
+            "destination": "topic:canary",
+            "delivery_observed": True,
+            "messages_sent": 1,
+            "cleanup_confirmed": True,
+            "delivered_at_utc": observed_at,
+            "cleanup_at_utc": observed_at,
+        }
+        result = self.collector.assess_kafka(
+            "vulnerable-messaging.corp.internal",
+            canary_artifact="topic_probe",
+            canary_policy=self.canary_policy(
+                destination="topic:canary",
+                allowed_destinations=("topic:canary",),
+                recipient=None,
+                allowed_recipients=(),
+            ),
+        )
+        self.assertTrue(result.canary_validated)
+        self.assertEqual(len(result.cleanup_receipts), 1)
 
     def test_assess_messaging_services_runner_counts(self):
+        self.set_canary_evidence(identifier="canary_batch")
         report = assess_messaging_services(
-            targets=["vulnerable-messaging.corp.internal", "hardened-messaging.corp.internal", "unreachable.corp.internal"],
+            targets=[
+                "vulnerable-messaging.corp.internal",
+                "hardened-messaging.corp.internal",
+                "unreachable.corp.internal",
+            ],
             service_types=["smtp", "kafka"],
             collector=self.collector,
             vantage="external",
             canary_id="canary_batch",
+            canary_policy=self.canary_policy(),
         )
         self.assertEqual(report.total_probed, 6)
         self.assertGreater(report.total_exposed, 0)
@@ -319,14 +612,44 @@ class TestOfflineSyntheticMessagingCollector(unittest.TestCase):
         self.assertGreater(report.candidates_count, 0)
         self.assertGreater(report.cleanup_receipts_count, 0)
 
+    def test_socket_collector_does_not_send_or_claim_canary_delivery(self):
+        collector = StandardSocketMessagingCollector()
+        connection = MagicMock()
+        connection.__enter__.return_value = connection
+        with patch("cops.discovery.messaging_collector.socket.create_connection", return_value=connection):
+            result = collector.probe_service(
+                "mail.example.test",
+                "192.0.2.10",
+                "smtp",
+                25,
+                canary_artifact="canary_mail_probe",
+                canary_policy=self.canary_policy(),
+            )
+        connection.send.assert_not_called()
+        connection.sendall.assert_not_called()
+        self.assertFalse(result.canary_validated)
+        self.assertEqual(result.messages_sent_or_observed, 0)
+        self.assertEqual(result.cleanup_receipts, [])
+
 
 class TestMessagingServicesCLI(unittest.TestCase):
     def setUp(self):
+        observed_at = datetime.now(UTC).isoformat()
         self.mock_targets = {
             "mail01.corp.internal": {
                 "smtp": {
                     "relay_allowed": True,
                     "version": "Postfix 3.5",
+                    "canary_evidence": {
+                        "identifier": "canary_cli_probe",
+                        "recipient": "canary@example.test",
+                        "destination": "mailbox:canary",
+                        "delivery_observed": True,
+                        "messages_sent": 1,
+                        "cleanup_confirmed": True,
+                        "delivered_at_utc": observed_at,
+                        "cleanup_at_utc": observed_at,
+                    },
                 },
                 "rabbitmq": {
                     "guest_enabled": True,
@@ -353,6 +676,12 @@ class TestMessagingServicesCLI(unittest.TestCase):
                 vantage="internal",
                 scope_ref="test-scope",
                 canary_id="canary_cli_probe",
+                canary_destination="mailbox:canary",
+                allow_canary_destination=["mailbox:canary"],
+                canary_recipient="canary@example.test",
+                allow_canary_recipient=["canary@example.test"],
+                canary_created_at_utc=(datetime.now(UTC) - timedelta(minutes=1)).isoformat(),
+                canary_retention_seconds=3600,
                 message_budget=5,
                 mode="synthetic",
                 offline_targets=str(targets_file),
@@ -397,6 +726,128 @@ class TestMessagingServicesCLI(unittest.TestCase):
                 json=False,
             )
             self.assertEqual(command_messaging_discovery(args_insp_text), 0)
+
+    def test_cleanup_export_rejects_malformed_report_evidence(self):
+        delivered_at = datetime.now(UTC).isoformat()
+        receipt = CleanupReceipt(
+            receipt_id="rec-cli",
+            target_host="mail01.corp.internal",
+            service_type="smtp",
+            artifact_type="canary_message",
+            artifact_identifier="canary_cli_probe",
+            action_taken="synthetic_fixture_cleanup_confirmed",
+            verified_clean=True,
+            evidence_source="synthetic_fixture",
+            timestamp_utc=delivered_at,
+            delivered_at_utc=delivered_at,
+            retention_started_at_utc=delivered_at,
+            retention_seconds=3600,
+        )
+        assessment = MessagingServiceAssessment(
+            target_host="mail01.corp.internal",
+            resolved_ip="192.0.2.1",
+            service_type="smtp",
+            category="mail_transfer_retrieval",
+            port=25,
+            canary_validated=True,
+            canary_identifier="canary_cli_probe",
+            messages_sent_or_observed=1,
+            cleanup_receipts=[receipt],
+        )
+        report = MessagingServicesReport(
+            report_id="report-cli",
+            target_scope=["mail01.corp.internal"],
+            assessments=[assessment],
+        ).to_dict()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            report_path = Path(tmpdir) / "report.json"
+            output_path = Path(tmpdir) / "receipts.json"
+            args = argparse.Namespace(messaging_command="cleanup", report=str(report_path), output=str(output_path))
+            report_path.write_text(json.dumps(report), encoding="utf-8")
+            self.assertEqual(command_messaging_discovery(args), 0)
+            self.assertEqual(len(json.loads(output_path.read_text(encoding="utf-8"))), 1)
+            output_path.unlink()
+            assessment_data = report["assessments"][0]
+
+            def changed_receipt(**changes):
+                updated = {**receipt.to_dict(), **changes}
+                updated.pop("receipt_hash")
+                canonical = json.dumps(updated, sort_keys=True, separators=(",", ":")).encode()
+                updated["receipt_hash"] = hashlib.sha256(canonical).hexdigest()
+                return updated
+
+            future_time = (datetime.now(UTC) + timedelta(days=1)).isoformat()
+            stale_delivery = (datetime.now(UTC) - timedelta(days=3)).isoformat()
+            stale_cleanup = (datetime.now(UTC) - timedelta(days=1)).isoformat()
+            for malformed in (
+                {**report, "assessments": [{**report["assessments"][0], "canary_validated": "false"}]},
+                {
+                    **report,
+                    "assessments": [
+                        {
+                            **report["assessments"][0],
+                            "cleanup_receipts": [{**receipt.to_dict(), "receipt_hash": "0" * 64}],
+                        }
+                    ],
+                },
+                {
+                    **report,
+                    "assessments": [
+                        {
+                            **assessment_data,
+                            "canary_identifier": None,
+                            "cleanup_receipts": [changed_receipt(artifact_identifier=None)],
+                        }
+                    ],
+                },
+                {
+                    **report,
+                    "assessments": [
+                        {
+                            **assessment_data,
+                            "cleanup_receipts": [
+                                changed_receipt(timestamp_utc=future_time, delivered_at_utc=future_time)
+                            ],
+                        }
+                    ],
+                },
+                {
+                    **report,
+                    "assessments": [
+                        {
+                            **assessment_data,
+                            "cleanup_receipts": [
+                                changed_receipt(
+                                    timestamp_utc=stale_cleanup,
+                                    delivered_at_utc=stale_delivery,
+                                    retention_started_at_utc=stale_delivery,
+                                    retention_seconds=86400,
+                                )
+                            ],
+                        }
+                    ],
+                },
+                *(
+                    {**report, "assessments": [{**assessment_data, field: value}]}
+                    for field, value in (
+                        ("canary_identifier", ""),
+                        ("canary_identifier", "  "),
+                        ("message_budget_limit", 0),
+                        ("message_budget_limit", 6),
+                        ("message_budget_limit", False),
+                        ("messages_sent_or_observed", 0),
+                        ("messages_sent_or_observed", -1),
+                        ("messages_sent_or_observed", 6),
+                        ("messages_sent_or_observed", "1"),
+                        ("messages_sent_or_observed", True),
+                    )
+                ),
+                [],
+            ):
+                with self.subTest(malformed=malformed):
+                    report_path.write_text(json.dumps(malformed), encoding="utf-8")
+                    self.assertEqual(command_messaging_discovery(args), 2)
+                    self.assertFalse(output_path.exists())
 
 
 if __name__ == "__main__":

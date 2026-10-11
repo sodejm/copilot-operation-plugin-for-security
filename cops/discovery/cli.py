@@ -59,6 +59,7 @@ from .messaging_collector import (
     assess_messaging_services,
 )
 from .messaging_models import (
+    CanaryDeliveryPolicy,
     MessagingServicesReport,
 )
 from .models import DiscoveredAsset, DiscoveryInventory, EvidenceProvenance
@@ -90,18 +91,32 @@ def build_active_parser(parser: argparse.ArgumentParser) -> None:
     plan_p = active_subs.add_parser("plan", help="Create an active scanning session plan with budgets and targets.")
     plan_p.add_argument("--targets", "-t", required=True, help="Comma-separated target hosts/IPs or path to JSON.")
     plan_p.add_argument("--ports", "-p", default="80,443,22", help="Comma-separated ports (default: 80,443,22).")
-    plan_p.add_argument("--vantage", default="external", choices=["external", "internal", "egress_point", "cloud_tenant"], help="Scan vantage point.")
+    plan_p.add_argument(
+        "--vantage",
+        default="external",
+        choices=["external", "internal", "egress_point", "cloud_tenant"],
+        help="Scan vantage point.",
+    )
     plan_p.add_argument("--rate-limit", type=float, default=10.0, help="Max probes per second (default: 10.0).")
     plan_p.add_argument("--timeout", type=float, default=2.0, help="Per-probe timeout in seconds (default: 2.0).")
-    plan_p.add_argument("--max-total-seconds", type=float, default=None, help="Maximum total execution budget in seconds.")
+    plan_p.add_argument(
+        "--max-total-seconds", type=float, default=None, help="Maximum total execution budget in seconds."
+    )
     plan_p.add_argument("--scope-ref", default="authorized-scope", help="Reference identifier of authorized scope.")
     plan_p.add_argument("--output", "-o", default=None, help="Output path for session JSON.")
 
     # 2. scan
     scan_p = active_subs.add_parser("scan", help="Run bounded active assessment against planned session.")
     scan_p.add_argument("session", help="Path to ActiveScanSession plan JSON.")
-    scan_p.add_argument("--scope", "-s", default=None, help="Path to scope boundaries JSON (for DNS rebind/exclusion enforcement).")
-    scan_p.add_argument("--mode", choices=["synthetic", "live"], default="synthetic", help="Execution mode (default: synthetic offline).")
+    scan_p.add_argument(
+        "--scope", "-s", default=None, help="Path to scope boundaries JSON (for DNS rebind/exclusion enforcement)."
+    )
+    scan_p.add_argument(
+        "--mode",
+        choices=["synthetic", "live"],
+        default="synthetic",
+        help="Execution mode (default: synthetic offline).",
+    )
     scan_p.add_argument("--offline-targets", default=None, help="Path to mock targets JSON for synthetic dispatcher.")
     scan_p.add_argument("--checkpoint", "-c", default=None, help="Path to save execution checkpoint.")
     scan_p.add_argument("--output", "-o", default=None, help="Output path for completed session JSON.")
@@ -116,7 +131,9 @@ def build_active_parser(parser: argparse.ArgumentParser) -> None:
     res_p.add_argument("--output", "-o", default=None, help="Output path for completed session JSON.")
 
     # 4. diff
-    diff_p = active_subs.add_parser("diff", help="Compare baseline and current active scan sessions for remediated exposures.")
+    diff_p = active_subs.add_parser(
+        "diff", help="Compare baseline and current active scan sessions for remediated exposures."
+    )
     diff_p.add_argument("baseline", help="Path to baseline session JSON.")
     diff_p.add_argument("current", help="Path to current/re-test session JSON.")
     diff_p.add_argument("--output", "-o", default=None, help="Output path for scan delta JSON.")
@@ -137,8 +154,18 @@ def build_infra_parser(parser: argparse.ArgumentParser) -> None:
     # 1. assess
     ass_p = infra_subs.add_parser("assess", help="Assess infrastructure and identity-facing services.")
     ass_p.add_argument("--targets", "-t", required=True, help="Comma-separated targets or path to JSON.")
-    ass_p.add_argument("--services", "-s", default=None, help="Comma-separated service types (dns,mdns,snmp,ntp,rpc,ldap,kerberos,discovery).")
-    ass_p.add_argument("--vantage", default="external", choices=["external", "internal", "egress_point", "cloud_tenant"], help="Probe vantage.")
+    ass_p.add_argument(
+        "--services",
+        "-s",
+        default=None,
+        help="Comma-separated service types (dns,mdns,snmp,ntp,rpc,ldap,kerberos,discovery).",
+    )
+    ass_p.add_argument(
+        "--vantage",
+        default="external",
+        choices=["external", "internal", "egress_point", "cloud_tenant"],
+        help="Probe vantage.",
+    )
     ass_p.add_argument("--scope-ref", default="authorized-scope", help="Scope reference.")
     ass_p.add_argument("--canary-id", default=None, help="Canary record / controlled identity identifier.")
     ass_p.add_argument("--mode", choices=["synthetic", "live"], default="synthetic", help="Collector mode.")
@@ -146,7 +173,9 @@ def build_infra_parser(parser: argparse.ArgumentParser) -> None:
     ass_p.add_argument("--output", "-o", default=None, help="Output JSON path.")
 
     # 2. candidates
-    cand_p = infra_subs.add_parser("candidates", help="Export identity attack-path candidates for AD inventory handoff.")
+    cand_p = infra_subs.add_parser(
+        "candidates", help="Export identity attack-path candidates for AD inventory handoff."
+    )
     cand_p.add_argument("report", help="Path to InfraAssessmentReport JSON.")
     cand_p.add_argument("--output", "-o", default=None, help="Output JSON path.")
 
@@ -163,16 +192,32 @@ def build_remote_parser(parser: argparse.ArgumentParser) -> None:
     # 1. assess
     ass_p = remote_subs.add_parser("assess", help="Assess remote administration, file sharing, and printing services.")
     ass_p.add_argument("--targets", "-t", required=True, help="Comma-separated targets or path to JSON.")
-    ass_p.add_argument("--services", "-s", default=None, help="Comma-separated service types (ssh,telnet,rdp,vnc,winrm,x11,smb,nfs,ftp,tftp,rsync,afp,lpd,ipp,raw_print).")
-    ass_p.add_argument("--vantage", default="external", choices=["external", "internal", "egress_point", "cloud_tenant"], help="Probe vantage.")
+    ass_p.add_argument(
+        "--services",
+        "-s",
+        default=None,
+        help="Comma-separated service types (ssh,telnet,rdp,vnc,winrm,x11,smb,nfs,ftp,tftp,rsync,afp,lpd,ipp,raw_print).",
+    )
+    ass_p.add_argument(
+        "--vantage",
+        default="external",
+        choices=["external", "internal", "egress_point", "cloud_tenant"],
+        help="Probe vantage.",
+    )
     ass_p.add_argument("--scope-ref", default="authorized-scope", help="Scope reference.")
-    ass_p.add_argument("--canary-id", default=None, help="Canary record / controlled identity / canary file / canary print job identifier.")
+    ass_p.add_argument(
+        "--canary-id",
+        default=None,
+        help="Canary record / controlled identity / canary file / canary print job identifier.",
+    )
     ass_p.add_argument("--mode", choices=["synthetic", "live"], default="synthetic", help="Collector mode.")
     ass_p.add_argument("--offline-targets", default=None, help="Path to mock targets JSON.")
     ass_p.add_argument("--output", "-o", default=None, help="Output JSON path.")
 
     # 2. candidates
-    cand_p = remote_subs.add_parser("candidates", help="Export host privilege candidates for lateral movement specialists.")
+    cand_p = remote_subs.add_parser(
+        "candidates", help="Export host privilege candidates for lateral movement specialists."
+    )
     cand_p.add_argument("report", help="Path to RemoteServicesReport JSON.")
     cand_p.add_argument("--output", "-o", default=None, help="Output JSON path.")
 
@@ -194,17 +239,34 @@ def build_data_parser(parser: argparse.ArgumentParser) -> None:
     # 1. assess
     ass_p = data_subs.add_parser("assess", help="Assess databases, caches, and search/analytics services.")
     ass_p.add_argument("--targets", "-t", required=True, help="Comma-separated targets or path to JSON.")
-    ass_p.add_argument("--services", "-s", default=None, help="Comma-separated service types (mysql,postgres,mssql,oracle,mongodb,couchdb,cassandra,redis,memcached,elasticsearch,influxdb,kibana,splunk).")
-    ass_p.add_argument("--vantage", default="external", choices=["external", "internal", "egress_point", "cloud_tenant"], help="Probe vantage.")
+    ass_p.add_argument(
+        "--services",
+        "-s",
+        default=None,
+        help="Comma-separated service types (mysql,postgres,mssql,oracle,mongodb,couchdb,cassandra,redis,memcached,elasticsearch,influxdb,kibana,splunk).",
+    )
+    ass_p.add_argument(
+        "--vantage",
+        default="external",
+        choices=["external", "internal", "egress_point", "cloud_tenant"],
+        help="Probe vantage.",
+    )
     ass_p.add_argument("--scope-ref", default="authorized-scope", help="Scope reference.")
     ass_p.add_argument("--canary-id", default=None, help="Canary record / query / key / index identifier.")
-    ass_p.add_argument("--query-budget", type=int, default=5, help="Maximum sample rows/documents to inspect without bulk extraction (default: 5).")
+    ass_p.add_argument(
+        "--query-budget",
+        type=int,
+        default=5,
+        help="Maximum sample rows/documents to inspect without bulk extraction (default: 5).",
+    )
     ass_p.add_argument("--mode", choices=["synthetic", "live"], default="synthetic", help="Collector mode.")
     ass_p.add_argument("--offline-targets", default=None, help="Path to mock targets JSON.")
     ass_p.add_argument("--output", "-o", default=None, help="Output JSON path.")
 
     # 2. candidates
-    cand_p = data_subs.add_parser("candidates", help="Export data privilege candidates for database takeover or lateral movement workflows.")
+    cand_p = data_subs.add_parser(
+        "candidates", help="Export data privilege candidates for database takeover or lateral movement workflows."
+    )
     cand_p.add_argument("report", help="Path to DataServicesReport JSON.")
     cand_p.add_argument("--output", "-o", default=None, help="Output JSON path.")
 
@@ -214,7 +276,9 @@ def build_data_parser(parser: argparse.ArgumentParser) -> None:
     clean_p.add_argument("--output", "-o", default=None, help="Output JSON path.")
 
     # 4. inspect
-    insp_p = data_subs.add_parser("inspect", help="Inspect and summarize database, cache, and search assessment report.")
+    insp_p = data_subs.add_parser(
+        "inspect", help="Inspect and summarize database, cache, and search assessment report."
+    )
     insp_p.add_argument("report", help="Path to DataServicesReport JSON.")
     insp_p.add_argument("--json", action="store_true", help="Emit JSON output.")
 
@@ -226,17 +290,63 @@ def build_messaging_parser(parser: argparse.ArgumentParser) -> None:
     # 1. assess
     ass_p = msg_subs.add_parser("assess", help="Assess mail, chat, and message broker services.")
     ass_p.add_argument("--targets", "-t", required=True, help="Comma-separated targets or path to JSON.")
-    ass_p.add_argument("--services", "-s", default=None, help="Comma-separated service types (smtp,pop3,imap,irc,rabbitmq,nats,ibmmq,kafka,mqtt).")
-    ass_p.add_argument("--vantage", default="external", choices=["external", "internal", "egress_point", "cloud_tenant"], help="Probe vantage.")
+    ass_p.add_argument(
+        "--services",
+        "-s",
+        default=None,
+        help="Comma-separated service types (smtp,pop3,imap,irc,rabbitmq,nats,ibmmq,kafka,mqtt).",
+    )
+    ass_p.add_argument(
+        "--vantage",
+        default="external",
+        choices=["external", "internal", "egress_point", "cloud_tenant"],
+        help="Probe vantage.",
+    )
     ass_p.add_argument("--scope-ref", default="authorized-scope", help="Scope reference.")
-    ass_p.add_argument("--canary-id", default=None, help="Canary message / queue / mailbox / topic identifier.")
-    ass_p.add_argument("--message-budget", type=int, default=5, help="Maximum sample messages to transmit or inspect (default: 5).")
+    ass_p.add_argument(
+        "--canary-id", default=None, help="Synthetic canary message / queue / mailbox / topic identifier."
+    )
+    ass_p.add_argument(
+        "--canary-destination", default=None, help="Approved synthetic delivery destination (mailbox, queue, or topic)."
+    )
+    ass_p.add_argument(
+        "--allow-canary-destination",
+        action="append",
+        default=[],
+        help="Explicitly allowed destination; repeat for each route.",
+    )
+    ass_p.add_argument(
+        "--canary-recipient", default=None, help="Approved synthetic recipient; required for mail services."
+    )
+    ass_p.add_argument(
+        "--allow-canary-recipient",
+        action="append",
+        default=[],
+        help="Explicitly allowed recipient; repeat for each address.",
+    )
+    ass_p.add_argument(
+        "--canary-created-at-utc", default=None, help="Canary creation time with timezone (defaults to now)."
+    )
+    ass_p.add_argument(
+        "--canary-retention-seconds",
+        type=int,
+        default=3600,
+        help="Canary retention window, 1 through 86400 seconds (default: 3600).",
+    )
+    ass_p.add_argument(
+        "--message-budget",
+        type=int,
+        default=5,
+        help="Maximum matching synthetic messages accepted as evidence, 0 through 5 (default: 5).",
+    )
     ass_p.add_argument("--mode", choices=["synthetic", "live"], default="synthetic", help="Collector mode.")
     ass_p.add_argument("--offline-targets", default=None, help="Path to mock targets JSON.")
     ass_p.add_argument("--output", "-o", default=None, help="Output JSON path.")
 
     # 2. candidates
-    cand_p = msg_subs.add_parser("candidates", help="Export messaging privilege candidates for unauthorized relay or broker takeover.")
+    cand_p = msg_subs.add_parser(
+        "candidates", help="Export messaging privilege candidates for unauthorized relay or broker takeover."
+    )
     cand_p.add_argument("report", help="Path to MessagingServicesReport JSON.")
     cand_p.add_argument("--output", "-o", default=None, help="Output JSON path.")
 
@@ -246,7 +356,9 @@ def build_messaging_parser(parser: argparse.ArgumentParser) -> None:
     clean_p.add_argument("--output", "-o", default=None, help="Output JSON path.")
 
     # 4. inspect
-    insp_p = msg_subs.add_parser("inspect", help="Inspect and summarize mail, chat, and message broker assessment report.")
+    insp_p = msg_subs.add_parser(
+        "inspect", help="Inspect and summarize mail, chat, and message broker assessment report."
+    )
     insp_p.add_argument("report", help="Path to MessagingServicesReport JSON.")
     insp_p.add_argument("--json", action="store_true", help="Emit JSON output.")
 
@@ -258,18 +370,42 @@ def build_developer_parser(parser: argparse.ArgumentParser) -> None:
     # 1. assess
     ass_p = dev_subs.add_parser("assess", help="Assess developer and runtime interface services.")
     ass_p.add_argument("--targets", "-t", required=True, help="Comma-separated targets or path to JSON.")
-    ass_p.add_argument("--services", "-s", default=None, help="Comma-separated service types (docker,docker_registry,rmi,jdwp,erlang_epmd,adb,distcc,svn,ajp,fastcgi).")
-    ass_p.add_argument("--vantage", default="external", choices=["external", "internal", "egress_point", "cloud_tenant"], help="Probe vantage.")
+    ass_p.add_argument(
+        "--services",
+        "-s",
+        default=None,
+        help="Comma-separated service types (docker,docker_registry,rmi,jdwp,erlang_epmd,adb,distcc,svn,ajp,fastcgi).",
+    )
+    ass_p.add_argument(
+        "--vantage",
+        default="external",
+        choices=["external", "internal", "egress_point", "cloud_tenant"],
+        help="Probe vantage.",
+    )
     ass_p.add_argument("--scope-ref", default="authorized-scope", help="Scope reference.")
-    ass_p.add_argument("--canary-id", default=None, help="Canary record / container / debug session / code artifact identifier.")
-    ass_p.add_argument("--allow-code-execution", action="store_true", default=False, help="Explicitly authorize code execution probes bound to the approved plan.")
-    ass_p.add_argument("--allow-state-change", action="store_true", default=False, help="Explicitly authorize state change probes bound to the approved plan.")
+    ass_p.add_argument(
+        "--canary-id", default=None, help="Canary record / container / debug session / code artifact identifier."
+    )
+    ass_p.add_argument(
+        "--allow-code-execution",
+        action="store_true",
+        default=False,
+        help="Explicitly authorize code execution probes bound to the approved plan.",
+    )
+    ass_p.add_argument(
+        "--allow-state-change",
+        action="store_true",
+        default=False,
+        help="Explicitly authorize state change probes bound to the approved plan.",
+    )
     ass_p.add_argument("--mode", choices=["synthetic", "live"], default="synthetic", help="Collector mode.")
     ass_p.add_argument("--offline-targets", default=None, help="Path to mock targets JSON.")
     ass_p.add_argument("--output", "-o", default=None, help="Output JSON path.")
 
     # 2. candidates
-    cand_p = dev_subs.add_parser("candidates", help="Export developer privilege candidates for code execution or breakout workflows.")
+    cand_p = dev_subs.add_parser(
+        "candidates", help="Export developer privilege candidates for code execution or breakout workflows."
+    )
     cand_p.add_argument("report", help="Path to DeveloperServicesReport JSON.")
     cand_p.add_argument("--output", "-o", default=None, help="Output JSON path.")
 
@@ -279,7 +415,9 @@ def build_developer_parser(parser: argparse.ArgumentParser) -> None:
     clean_p.add_argument("--output", "-o", default=None, help="Output JSON path.")
 
     # 4. inspect
-    insp_p = dev_subs.add_parser("inspect", help="Inspect and summarize developer and runtime interfaces assessment report.")
+    insp_p = dev_subs.add_parser(
+        "inspect", help="Inspect and summarize developer and runtime interfaces assessment report."
+    )
     insp_p.add_argument("report", help="Path to DeveloperServicesReport JSON.")
     insp_p.add_argument("--json", action="store_true", help="Emit JSON output.")
 
@@ -291,18 +429,42 @@ def build_legacy_parser(parser: argparse.ArgumentParser) -> None:
     # 1. assess
     ass_p = leg_subs.add_parser("assess", help="Assess legacy enterprise, management, and proxy services.")
     ass_p.add_argument("--targets", "-t", required=True, help="Comma-separated targets or path to JSON.")
-    ass_p.add_argument("--services", "-s", default=None, help="Comma-separated service types (ndmp,iscsi,ipmi,cisco_smart_install,tacacs,ike,pptp,socks,squid).")
-    ass_p.add_argument("--vantage", default="external", choices=["external", "internal", "egress_point", "cloud_tenant"], help="Probe vantage.")
+    ass_p.add_argument(
+        "--services",
+        "-s",
+        default=None,
+        help="Comma-separated service types (ndmp,iscsi,ipmi,cisco_smart_install,tacacs,ike,pptp,socks,squid).",
+    )
+    ass_p.add_argument(
+        "--vantage",
+        default="external",
+        choices=["external", "internal", "egress_point", "cloud_tenant"],
+        help="Probe vantage.",
+    )
     ass_p.add_argument("--scope-ref", default="authorized-scope", help="Scope reference.")
-    ass_p.add_argument("--canary-id", default=None, help="Canary record / container / debug session / code artifact identifier.")
-    ass_p.add_argument("--allow-code-execution", action="store_true", default=False, help="Explicitly authorize code execution probes bound to the approved plan.")
-    ass_p.add_argument("--allow-state-change", action="store_true", default=False, help="Explicitly authorize state change probes bound to the approved plan.")
+    ass_p.add_argument(
+        "--canary-id", default=None, help="Canary record / container / debug session / code artifact identifier."
+    )
+    ass_p.add_argument(
+        "--allow-code-execution",
+        action="store_true",
+        default=False,
+        help="Explicitly authorize code execution probes bound to the approved plan.",
+    )
+    ass_p.add_argument(
+        "--allow-state-change",
+        action="store_true",
+        default=False,
+        help="Explicitly authorize state change probes bound to the approved plan.",
+    )
     ass_p.add_argument("--mode", choices=["synthetic", "live"], default="synthetic", help="Collector mode.")
     ass_p.add_argument("--offline-targets", default=None, help="Path to mock targets JSON.")
     ass_p.add_argument("--output", "-o", default=None, help="Output JSON path.")
 
     # 2. candidates
-    cand_p = leg_subs.add_parser("candidates", help="Export legacy privilege candidates for takeover or proxy egress pivoting.")
+    cand_p = leg_subs.add_parser(
+        "candidates", help="Export legacy privilege candidates for takeover or proxy egress pivoting."
+    )
     cand_p.add_argument("report", help="Path to LegacyServicesReport JSON.")
     cand_p.add_argument("--output", "-o", default=None, help="Output JSON path.")
 
@@ -312,7 +474,9 @@ def build_legacy_parser(parser: argparse.ArgumentParser) -> None:
     clean_p.add_argument("--output", "-o", default=None, help="Output JSON path.")
 
     # 4. inspect
-    insp_p = leg_subs.add_parser("inspect", help="Inspect and summarize legacy enterprise and proxy services assessment report.")
+    insp_p = leg_subs.add_parser(
+        "inspect", help="Inspect and summarize legacy enterprise and proxy services assessment report."
+    )
     insp_p.add_argument("report", help="Path to LegacyServicesReport JSON.")
     insp_p.add_argument("--json", action="store_true", help="Emit JSON output.")
 
@@ -340,7 +504,9 @@ def build_discovery_parser(subparsers: argparse._SubParsersAction[Any]) -> argpa
     norm_p.add_argument("--output", "-o", default=None, help="Output JSON path (prints to stdout if omitted).")
 
     # Passive Subcommand: reconcile
-    rec_p = disc_subs.add_parser("reconcile", help="Reconcile inventory against approved scope and quarantine uncertain assets.")
+    rec_p = disc_subs.add_parser(
+        "reconcile", help="Reconcile inventory against approved scope and quarantine uncertain assets."
+    )
     rec_p.add_argument("inventory", help="Path to discovery inventory JSON.")
     rec_p.add_argument("--scope", "-s", required=True, help="Path to engagement scope or action plan JSON.")
     rec_p.add_argument("--output", "-o", default=None, help="Output JSON path (prints to stdout if omitted).")
@@ -448,7 +614,9 @@ def command_active_discovery(args: argparse.Namespace, root: Path | None = None)
         out_json = json.dumps(completed_session.to_dict(), indent=2)
         if args.output:
             Path(args.output).write_text(out_json, encoding="utf-8")
-            print(f"Active scan complete (status: {completed_session.status}, probes: {completed_session.total_probes_dispatched}) saved to {args.output}")
+            print(
+                f"Active scan complete (status: {completed_session.status}, probes: {completed_session.total_probes_dispatched}) saved to {args.output}"
+            )
         else:
             print(out_json)
         return 0
@@ -491,7 +659,9 @@ def command_active_discovery(args: argparse.Namespace, root: Path | None = None)
         out_json = json.dumps(delta.to_dict(), indent=2)
         if args.output:
             Path(args.output).write_text(out_json, encoding="utf-8")
-            print(f"Scan delta ({len(delta.remediated_exposures)} remediated, {delta.remediation_rate}% rate) saved to {args.output}")
+            print(
+                f"Scan delta ({len(delta.remediated_exposures)} remediated, {delta.remediation_rate}% rate) saved to {args.output}"
+            )
         else:
             print(out_json)
         return 0
@@ -551,7 +721,9 @@ def command_infra_discovery(args: argparse.Namespace, root: Path | None = None) 
         out_json = json.dumps(report.to_dict(), indent=2)
         if args.output:
             Path(args.output).write_text(out_json, encoding="utf-8")
-            print(f"Assessed {len(report.services_assessed)} infrastructure services ({len(report.attack_path_candidates)} candidates) saved to {args.output}")
+            print(
+                f"Assessed {len(report.services_assessed)} infrastructure services ({len(report.attack_path_candidates)} candidates) saved to {args.output}"
+            )
         else:
             print(out_json)
         return 0
@@ -588,9 +760,17 @@ def command_infra_discovery(args: argparse.Namespace, root: Path | None = None) 
         print(f"Attack Path Cand:  {report.summary.get('attack_path_candidates', len(report.attack_path_candidates))}")
         print()
         for s in report.services_assessed:
-            status_icon = "!" if s.exposure_status in ("exposed", "misconfigured") else ("✓" if s.exposure_status == "protected" else "?")
-            cand_marker = f" -> CANDIDATE: {s.attack_path_candidate.attack_path_type}" if s.attack_path_candidate else ""
-            print(f"  [{status_icon}] {s.service_type.upper():<10} {s.target_host}:{s.port:<5} {s.exposure_status:<14} (auth: {s.auth_prerequisite}){cand_marker}")
+            status_icon = (
+                "!"
+                if s.exposure_status in ("exposed", "misconfigured")
+                else ("✓" if s.exposure_status == "protected" else "?")
+            )
+            cand_marker = (
+                f" -> CANDIDATE: {s.attack_path_candidate.attack_path_type}" if s.attack_path_candidate else ""
+            )
+            print(
+                f"  [{status_icon}] {s.service_type.upper():<10} {s.target_host}:{s.port:<5} {s.exposure_status:<14} (auth: {s.auth_prerequisite}){cand_marker}"
+            )
         if report.summary.get("inaccessible", 0) > 0:
             print()
             print("Truth-in-Advertising Notice: Inaccessible services are NOT reported as secure or hardened.")
@@ -633,7 +813,9 @@ def command_remote_discovery(args: argparse.Namespace, root: Path | None = None)
         out_json = json.dumps(report.to_dict(), indent=2)
         if args.output:
             Path(args.output).write_text(out_json, encoding="utf-8")
-            print(f"Assessed {len(report.services_assessed)} remote/file/print services ({len(report.host_privilege_candidates)} candidates, {len(report.cleanup_receipts)} cleanup receipts) saved to {args.output}")
+            print(
+                f"Assessed {len(report.services_assessed)} remote/file/print services ({len(report.host_privilege_candidates)} candidates, {len(report.cleanup_receipts)} cleanup receipts) saved to {args.output}"
+            )
         else:
             print(out_json)
         return 0
@@ -680,18 +862,26 @@ def command_remote_discovery(args: argparse.Namespace, root: Path | None = None)
         print(f"Exposed:             {report.summary.get('exposed', 0)}")
         print(f"Protected:           {report.summary.get('protected', 0)}")
         print(f"Inaccessible:        {report.summary.get('inaccessible', 0)}")
-        print(f"Host Privilege Cand: {report.summary.get('host_privilege_candidates', len(report.host_privilege_candidates))}")
+        print(
+            f"Host Privilege Cand: {report.summary.get('host_privilege_candidates', len(report.host_privilege_candidates))}"
+        )
         print(f"Cleanup Receipts:    {report.summary.get('cleanup_receipts', len(report.cleanup_receipts))}")
         print()
         for s in report.services_assessed:
-            status_icon = "!" if s.exposure_status in ("exposed", "misconfigured") else ("✓" if s.exposure_status in ("protected", "remediated") else "?")
+            status_icon = (
+                "!"
+                if s.exposure_status in ("exposed", "misconfigured")
+                else ("✓" if s.exposure_status in ("protected", "remediated") else "?")
+            )
             cand_types = [c.finding_type for c in s.host_privilege_candidates]
             cand_marker = f" -> CANDIDATES: {', '.join(cand_types)}" if cand_types else ""
             cat_label = s.category.upper() if isinstance(s.category, str) else s.category.value.upper()
             stype = s.service_type if isinstance(s.service_type, str) else s.service_type.value
             auth_val = s.auth_prerequisite if isinstance(s.auth_prerequisite, str) else s.auth_prerequisite.value
             exp_val = s.exposure_status if isinstance(s.exposure_status, str) else s.exposure_status.value
-            print(f"  [{status_icon}] [{cat_label:<12}] {stype.upper():<10} {s.target_host}:{s.port:<5} {exp_val:<14} (auth: {auth_val}){cand_marker}")
+            print(
+                f"  [{status_icon}] [{cat_label:<12}] {stype.upper():<10} {s.target_host}:{s.port:<5} {exp_val:<14} (auth: {auth_val}){cand_marker}"
+            )
         if report.summary.get("inaccessible", 0) > 0:
             print()
             print("Truth-in-Advertising Notice: Inaccessible services are NOT reported as secure or hardened.")
@@ -735,7 +925,9 @@ def command_data_discovery(args: argparse.Namespace, root: Path | None = None) -
         out_json = json.dumps(report.to_dict(), indent=2)
         if args.output:
             Path(args.output).write_text(out_json, encoding="utf-8")
-            print(f"Assessed {len(report.services_assessed)} data services ({len(report.privilege_candidates)} candidates, {len(report.cleanup_receipts)} cleanup receipts) saved to {args.output}")
+            print(
+                f"Assessed {len(report.services_assessed)} data services ({len(report.privilege_candidates)} candidates, {len(report.cleanup_receipts)} cleanup receipts) saved to {args.output}"
+            )
         else:
             print(out_json)
         return 0
@@ -786,14 +978,20 @@ def command_data_discovery(args: argparse.Namespace, root: Path | None = None) -
         print(f"Cleanup Receipts:     {report.summary.get('cleanup_receipts', len(report.cleanup_receipts))}")
         print()
         for s in report.services_assessed:
-            status_icon = "!" if s.exposure_status in ("exposed", "misconfigured") else ("✓" if s.exposure_status in ("protected", "remediated") else "?")
+            status_icon = (
+                "!"
+                if s.exposure_status in ("exposed", "misconfigured")
+                else ("✓" if s.exposure_status in ("protected", "remediated") else "?")
+            )
             cand_types = [c.finding_type for c in s.privilege_candidates]
             cand_marker = f" -> CANDIDATES: {', '.join(cand_types)}" if cand_types else ""
             cat_label = s.category.upper() if isinstance(s.category, str) else s.category.value.upper()
             stype = s.service_type if isinstance(s.service_type, str) else s.service_type.value
             auth_val = s.auth_prerequisite if isinstance(s.auth_prerequisite, str) else s.auth_prerequisite.value
             exp_val = s.exposure_status if isinstance(s.exposure_status, str) else s.exposure_status.value
-            print(f"  [{status_icon}] [{cat_label:<15}] {stype.upper():<14} {s.target_host}:{s.port:<5} {exp_val:<14} (auth: {auth_val}, role: {s.assigned_role}){cand_marker}")
+            print(
+                f"  [{status_icon}] [{cat_label:<15}] {stype.upper():<14} {s.target_host}:{s.port:<5} {exp_val:<14} (auth: {auth_val}, role: {s.assigned_role}){cand_marker}"
+            )
         if report.summary.get("inaccessible", 0) > 0:
             print()
             print("Truth-in-Advertising Notice: Inaccessible services are NOT reported as secure or hardened.")
@@ -807,6 +1005,31 @@ def command_messaging_discovery(args: argparse.Namespace, root: Path | None = No
     msg_cmd = getattr(args, "messaging_command", None)
 
     if msg_cmd == "assess":
+        route_fields = (
+            getattr(args, "canary_destination", None),
+            getattr(args, "canary_recipient", None),
+            getattr(args, "allow_canary_destination", None),
+            getattr(args, "allow_canary_recipient", None),
+            getattr(args, "canary_created_at_utc", None),
+        )
+        has_route = any(route_fields)
+        policy = None
+        if has_route:
+            policy_args = {
+                "destination": getattr(args, "canary_destination", None),
+                "allowed_destinations": tuple(getattr(args, "allow_canary_destination", ()) or ()),
+                "recipient": getattr(args, "canary_recipient", None),
+                "allowed_recipients": tuple(getattr(args, "allow_canary_recipient", ()) or ()),
+                "retention_seconds": getattr(args, "canary_retention_seconds", 3600),
+            }
+            created_at = getattr(args, "canary_created_at_utc", None)
+            if created_at is not None:
+                policy_args["created_at_utc"] = created_at
+            policy = CanaryDeliveryPolicy(**policy_args)
+        elif getattr(args, "canary_retention_seconds", 3600) != 3600:
+            print("Canary retention requires a canary route and identifier", file=sys.stderr)
+            return 2
+
         raw_targets = args.targets
         if Path(raw_targets).is_file():
             t_data = json.loads(Path(raw_targets).read_text(encoding="utf-8"))
@@ -826,20 +1049,27 @@ def command_messaging_discovery(args: argparse.Namespace, root: Path | None = No
         else:
             collector = StandardSocketMessagingCollector()
 
-        report = assess_messaging_services(
-            targets=targets,
-            service_types=services,
-            collector=collector,
-            vantage=args.vantage,
-            scope_ref=args.scope_ref,
-            canary_id=args.canary_id,
-            message_budget=getattr(args, "message_budget", 5),
-        )
+        try:
+            report = assess_messaging_services(
+                targets=targets,
+                service_types=services,
+                collector=collector,
+                vantage=args.vantage,
+                scope_ref=args.scope_ref,
+                canary_id=args.canary_id,
+                message_budget=getattr(args, "message_budget", 5),
+                canary_policy=policy,
+            )
+        except ValueError as exc:
+            print(f"Messaging assessment rejected: {exc}", file=sys.stderr)
+            return 2
 
         out_json = json.dumps(report.to_dict(), indent=2)
         if args.output:
             Path(args.output).write_text(out_json, encoding="utf-8")
-            print(f"Assessed {len(report.assessments)} messaging services ({report.candidates_count} candidates, {report.cleanup_receipts_count} cleanup receipts) saved to {args.output}")
+            print(
+                f"Assessed {len(report.assessments)} messaging services ({report.candidates_count} candidates, {report.cleanup_receipts_count} cleanup receipts) saved to {args.output}"
+            )
         else:
             print(out_json)
         return 0
@@ -860,11 +1090,28 @@ def command_messaging_discovery(args: argparse.Namespace, root: Path | None = No
         return 0
 
     if msg_cmd == "cleanup":
-        report_path = Path(args.report)
-        report_data = json.loads(report_path.read_text(encoding="utf-8"))
-        receipts = []
-        for ass in report_data.get("assessments", []):
-            receipts.extend(ass.get("cleanup_receipts", []))
+        try:
+            report = MessagingServicesReport.load(args.report)
+        except (ValueError, KeyError, TypeError, AttributeError) as exc:
+            print(f"Messaging cleanup report rejected: {exc}", file=sys.stderr)
+            return 2
+        receipts = [
+            receipt.to_dict()
+            for assessment in report.assessments
+            for receipt in assessment.cleanup_receipts
+            if assessment.canary_validated is True
+            and isinstance(assessment.canary_identifier, str)
+            and bool(assessment.canary_identifier.strip())
+            and 0 < assessment.messages_sent_or_observed <= assessment.message_budget_limit <= 5
+            and receipt.target_host == assessment.target_host
+            and receipt.service_type == assessment.service_type
+            and receipt.artifact_identifier == assessment.canary_identifier
+            and receipt.verified_clean is True
+            and receipt.action_taken == "synthetic_fixture_cleanup_confirmed"
+            and receipt.evidence_source == "synthetic_fixture"
+            and receipt.artifact_type == "canary_message"
+            and receipt.delivered_at_utc is not None
+        ]
 
         out_json = json.dumps(receipts, indent=2)
         if args.output:
@@ -895,7 +1142,11 @@ def command_messaging_discovery(args: argparse.Namespace, root: Path | None = No
         print(f"Cleanup Receipts:     {report.cleanup_receipts_count}")
         print()
         for s in report.assessments:
-            status_icon = "!" if s.exposure_status in ("exposed", "misconfigured") else ("✓" if s.exposure_status in ("protected", "remediated") else "?")
+            status_icon = (
+                "!"
+                if s.exposure_status in ("exposed", "misconfigured")
+                else ("✓" if s.exposure_status in ("protected", "remediated") else "?")
+            )
             cand_types = [c.finding_type for c in s.privilege_candidates]
             cand_types_str = ", ".join(cand_types)
             cand_marker = f" -> CANDIDATES: {cand_types_str}" if cand_types else ""
@@ -903,7 +1154,9 @@ def command_messaging_discovery(args: argparse.Namespace, root: Path | None = No
             stype = s.service_type if isinstance(s.service_type, str) else s.service_type.value
             auth_val = s.auth_prerequisite if isinstance(s.auth_prerequisite, str) else s.auth_prerequisite.value
             exp_val = s.exposure_status if isinstance(s.exposure_status, str) else s.exposure_status.value
-            print(f"  [{status_icon}] [{cat_label:<25}] {stype.upper():<10} {s.target_host}:{s.port:<5} {exp_val:<14} (auth: {auth_val}, role: {s.assigned_role}){cand_marker}")
+            print(
+                f"  [{status_icon}] [{cat_label:<25}] {stype.upper():<10} {s.target_host}:{s.port:<5} {exp_val:<14} (auth: {auth_val}, role: {s.assigned_role}){cand_marker}"
+            )
         if report.total_inaccessible > 0:
             print()
             print("Truth-in-Advertising Notice: Inaccessible services are NOT reported as secure or hardened.")
@@ -958,7 +1211,9 @@ def command_developer_discovery(args: argparse.Namespace, root: Path | None = No
         out_json = json.dumps(report.to_dict(), indent=2)
         if args.output:
             Path(args.output).write_text(out_json, encoding="utf-8")
-            print(f"Assessed {len(report.assessments)} developer interface services ({report.candidates_count} candidates, {report.cleanup_receipts_count} receipts) saved to {args.output}")
+            print(
+                f"Assessed {len(report.assessments)} developer interface services ({report.candidates_count} candidates, {report.cleanup_receipts_count} receipts) saved to {args.output}"
+            )
         else:
             print(out_json)
         return 0
@@ -1014,7 +1269,11 @@ def command_developer_discovery(args: argparse.Namespace, root: Path | None = No
         print(f"Cleanup Receipts:     {report.cleanup_receipts_count}")
         print()
         for s in report.assessments:
-            status_icon = "!" if s.exposure_status in ("exposed", "misconfigured") else ("✓" if s.exposure_status in ("protected", "remediated") else "?")
+            status_icon = (
+                "!"
+                if s.exposure_status in ("exposed", "misconfigured")
+                else ("✓" if s.exposure_status in ("protected", "remediated") else "?")
+            )
             cand_types = [c.finding_type for c in s.privilege_candidates]
             cand_types_str = ", ".join(cand_types)
             cand_marker = f" -> CANDIDATES: {cand_types_str}" if cand_types else ""
@@ -1023,7 +1282,9 @@ def command_developer_discovery(args: argparse.Namespace, root: Path | None = No
             auth_val = s.auth_prerequisite if isinstance(s.auth_prerequisite, str) else s.auth_prerequisite.value
             exp_val = s.exposure_status if isinstance(s.exposure_status, str) else s.exposure_status.value
             exec_note = " [CODE-EXEC]" if s.can_execute_code else (" [STATE-CHANGE]" if s.can_change_state else "")
-            print(f"  [{status_icon}] [{cat_label:<32}] {stype.upper():<15} {s.target_host}:{s.port:<5} {exp_val:<14} (auth: {auth_val}, role: {s.assigned_role}){exec_note}{cand_marker}")
+            print(
+                f"  [{status_icon}] [{cat_label:<32}] {stype.upper():<15} {s.target_host}:{s.port:<5} {exp_val:<14} (auth: {auth_val}, role: {s.assigned_role}){exec_note}{cand_marker}"
+            )
         if report.total_inaccessible > 0:
             print()
             print("Truth-in-Advertising Notice: Inaccessible services are NOT reported as secure or hardened.")
@@ -1078,7 +1339,9 @@ def command_legacy_discovery(args: argparse.Namespace, root: Path | None = None)
         out_json = json.dumps(report.to_dict(), indent=2)
         if args.output:
             Path(args.output).write_text(out_json, encoding="utf-8")
-            print(f"Assessed {len(report.assessments)} legacy services ({report.candidates_count} candidates, {report.cleanup_receipts_count} receipts) saved to {args.output}")
+            print(
+                f"Assessed {len(report.assessments)} legacy services ({report.candidates_count} candidates, {report.cleanup_receipts_count} receipts) saved to {args.output}"
+            )
         else:
             print(out_json)
         return 0
@@ -1134,7 +1397,11 @@ def command_legacy_discovery(args: argparse.Namespace, root: Path | None = None)
         print(f"Cleanup Receipts:     {report.cleanup_receipts_count}")
         print()
         for s in report.assessments:
-            status_icon = "!" if s.exposure_status in ("exposed", "misconfigured") else ("✓" if s.exposure_status in ("protected", "remediated") else "?")
+            status_icon = (
+                "!"
+                if s.exposure_status in ("exposed", "misconfigured")
+                else ("✓" if s.exposure_status in ("protected", "remediated") else "?")
+            )
             cand_types = [c.finding_type for c in s.privilege_candidates]
             cand_types_str = ", ".join(cand_types)
             cand_marker = f" -> CANDIDATES: {cand_types_str}" if cand_types else ""
@@ -1146,7 +1413,9 @@ def command_legacy_discovery(args: argparse.Namespace, root: Path | None = None)
             proxy_note = ""
             if s.proxy_egress_tested:
                 proxy_note = " [EGRESS-RESTRICTED]" if s.proxy_egress_restricted else " [EGRESS-OPEN]"
-            print(f"  [{status_icon}] [{cat_label:<35}] {stype.upper():<20} {s.target_host}:{s.port:<5} {exp_val:<14} (auth: {auth_val}, role: {s.assigned_role}){exec_note}{proxy_note}{cand_marker}")
+            print(
+                f"  [{status_icon}] [{cat_label:<35}] {stype.upper():<20} {s.target_host}:{s.port:<5} {exp_val:<14} (auth: {auth_val}, role: {s.assigned_role}){exec_note}{proxy_note}{cand_marker}"
+            )
         if report.total_inaccessible > 0:
             print()
             print("Truth-in-Advertising Notice: Inaccessible services are NOT reported as secure or hardened.")

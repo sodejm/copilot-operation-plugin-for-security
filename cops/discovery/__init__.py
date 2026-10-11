@@ -106,6 +106,7 @@ from .messaging_collector import (
     assess_messaging_services,
 )
 from .messaging_models import (
+    CanaryDeliveryPolicy,
     MessagingAuthPrerequisite,
     MessagingCategory,
     MessagingExposureStatus,
@@ -205,6 +206,7 @@ __all__ = [
     "reconcile_inventory",
     "DEFAULT_REMOTE_PORTS",
     "CleanupReceipt",
+    "CanaryDeliveryPolicy",
     "HostPrivilegeCandidate",
     "LateralMovementImpact",
     "OfflineSyntheticRemoteCollector",
