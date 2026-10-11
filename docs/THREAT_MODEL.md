@@ -38,6 +38,7 @@ private payloads and real identifiers must never be copied into this document.
 | AI inventory import → bounded evidence graph/report → authorized operator | Imported provider records remain untrusted; strict projection rejects raw trace content, canonical source/tenant identities and engagement-bound references prevent cross-engagement conflation, and bounded traversal reports coverage limits. |
 | Offline LangSmith response → strict selected-field parser → AI inventory registry → `ExportBoundary` → caller sink | The parser accepts one versioned envelope, discards user-defined names and cursors, and never fetches provider data. A report reaches a registered report sink only after the concrete privacy boundary transforms it. |
 | Evidence copy → `ExportBoundary` → declared external/durable sink | `cops.evidence.assessment.export_provider_assessment`, `export_assessment_telemetry`, and `export_assessment_report` derive a local assessment; `cops.diagnostics.export_diagnostic_report` serializes a `DiagnosticReport`. Each transforms its copy then calls the caller-provided sink immediately afterward. The repository supplies no recipient backend. |
+| Operator canary policy → messaging collector → synthetic fixture or TCP endpoint | A canary route requires an explicit destination allowlist and, for mail, a recipient allowlist, active retention window and bounded message count. Synthetic fixture claims remain fixture evidence; TCP reachability proves no delivery or cleanup. |
 
 ```mermaid
 flowchart LR
@@ -236,6 +237,14 @@ validation before the affected release/capability expansion and schedule P2 with
 - Existing evidence / limitation: Acceptance checks the recipient profile, registered specialist capability and local skill file, then records the target and a checksum. Skeptic review and audit re-resolve the current target and compare it with the record. These checks depend on a trusted local checkout and do not inspect skill behavior or run the skill. The JSON checksum detects partial record edits but cannot authenticate a coordinated rewrite of the target and checksum.
 - Proposed mitigation and validation: Test missing, mismatched and modified targets and keep handoff status separate from execution evidence. Review the selected skill content and any later execution contract at its exact revision before use.
 - Residual risk / status: The handoff JSON is operator-controlled input; independent human review and execution-path evidence are pending. A complete record rewrite requires an external trust anchor to detect and is outside this contract.
+
+### T18: Messaging canary route or cleanup overclaim
+
+- Attack path / prerequisite: A canary targets an unintended mailbox, channel or queue; stale canary evidence or an inflated message count is accepted; or a synthetic cleanup flag is mistaken for a live purge.
+- Inherent impact: Medium; likelihood: Medium; priority: P2.
+- Existing evidence / limitation: The messaging collector requires explicit destination and mail-recipient allowlists, an active retention window of at most one day, and a positive canary message budget of at most five. Synthetic fixture evidence must match the requested identifier and route, stay within budget, and place delivery and cleanup timestamps inside the retention window. Imported validated canaries and verified synthetic cleanup receipts require a nonempty matching canary identifier; future-dated cleanup evidence is rejected. A cleanup receipt requires explicit fixture confirmation and hashes its retention start and duration with its delivery and cleanup timestamps. Report import rechecks those bounds. That hash detects changes to a report; it does not authenticate the fixture. The socket collector checks TCP reachability and sends no canary message.
+- Proposed mitigation and validation: Keep negative tests for unauthorized routes, expired, stale or future-dated evidence, budget exhaustion, missing cleanup confirmation, malformed receipt hashes, canary identifiers and boolean fields. Before any future live delivery capability, require separate authorization, effective recipient validation, retention/deletion verification and protocol-level cleanup evidence.
+- Residual risk / status: Local fixture checks do not establish live delivery, external retention or deletion. A fixture cleanup receipt is evidence about the fixture only; human review of this boundary is pending.
 
 ## STRIDE and privacy coverage
 
