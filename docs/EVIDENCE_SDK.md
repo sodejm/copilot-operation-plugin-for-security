@@ -7,6 +7,10 @@ acquisition lifecycle for reviewed, read-only adapters. Existing plugin evidence
 formats remain independent; portable exports do not automatically include this SDK.
 The Attack Path Workbench Azure profile explicitly distributes a generated,
 allowlisted contract/validation subset without collector transport or authentication.
+That subset also includes the local assessment export policy transformer and stream
+redactor because its caller-provided provider, telemetry, and report assessment
+adapters import them; it contains no provider transport, credential, or sink
+integration.
 `python3 scripts/agent/bundle_evidence.py --check` verifies this subset against the
 canonical sources and is part of `make check`.
 
@@ -77,6 +81,11 @@ whole envelope excluding that hash field, so provenance changes affect integrity
 Canonical JSON is sorted, compact UTF-8; duplicate keys, non-finite numbers,
 excessive size/depth and non-JSON values are rejected. Hashes support comparison
 and tamper detection against a trusted hash; they do not authenticate a source.
+
+The [offline engagement reporting guide](ENGAGEMENT_REPORTING.md) describes how
+validated evidence envelopes can be joined to Engagement, ActionPlan,
+RunResult, and Finding contracts. That report records evidence identifiers and
+strength without copying envelope payloads or source locators.
 
 Receipts carry acquisition identity, generation, query fingerprint, tenant/scope,
 interval, limits, consumed budgets and `complete`, `partial` or `unknown` status.
@@ -154,9 +163,13 @@ method and path. It does not follow redirects or decompress responses. Continuat
 destinations are checked before every credential lookup. A credential provider
 returns only an ephemeral `Authorization: Bearer ...` header; it must resolve and
 refresh credentials without logging them. The runner refreshes once per
-acquisition, applies bounded retry/backoff, and never serializes auth headers into
-plans, envelopes, receipts or checkpoints. Keep credentials out of fixture and
-provider exceptions too; fixed diagnostics are not a substitute for safe providers.
+acquisition when a page returns 401, then retries that same page within the retry
+and attempt budgets. A failed refresh or another 401 ends with a partial
+`authentication` receipt; accepted pages remain available and the rejected page
+is not committed. The runner applies bounded retry/backoff and never serializes
+auth headers into plans, envelopes, receipts or checkpoints. Keep credentials out
+of fixture and provider exceptions too; fixed diagnostics are not a substitute
+for safe providers.
 
 The built-in transport applies one deadline across connection, headers and body,
 with socket cancellation and automatic reconnection disabled after the explicit

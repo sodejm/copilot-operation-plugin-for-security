@@ -229,7 +229,7 @@ class TestNetworkLegacyAndProxyServicesSkill(unittest.TestCase):
 
         for ass in report.assessments:
             self.assertFalse(ass.can_execute_code)
-            self.assertTrue(any("Code execution verification skipped" in u for u in ass.uncertainty_notes))
+            self.assertTrue(any("Fixture code execution case omitted" in u for u in ass.uncertainty_notes))
 
     def test_offline_synthetic_hardened_assessment(self):
         """Test assessment of protected legacy services."""

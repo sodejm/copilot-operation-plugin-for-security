@@ -26,6 +26,22 @@ REQUIRED_PAGES = (
 )
 
 MARKDOWN_LINK = re.compile(r"!?\[[^\]]*\]\((?P<target><[^>]+>|[^)\s]+)")
+COUNT_WORDS = {
+    "thirteen": 13,
+    "fourteen": 14,
+    "eighteen": 18,
+    "thirty-two": 32,
+    "thirty-seven": 37,
+    "sixty-three": 63,
+    "sixty-nine": 69,
+}
+COUNT_CLAIM = re.compile(
+    r"\b(?P<count>[1-9]\d*|" + "|".join(COUNT_WORDS) + r")\s+"
+    r"(?:(?:distributed|available|dedicated|specialized|security|cybersecurity|"
+    r"specialist|canonical|callable|AI|agent|total)\s+)*"
+    r"(?P<kind>plugins?|packages?|specialists?|profiles?|scenarios?|capabilities?|agents?)\b",
+    re.IGNORECASE,
+)
 
 
 def validate_required_files(errors: list[str]) -> None:
@@ -44,15 +60,68 @@ def validate_plugin_coverage(errors: list[str]) -> None:
     data = json.loads(plugins_file.read_text(encoding="utf-8"))
     plugin_ids = {entry["id"] for entry in data.get("plugins", [])}
 
-    guide_file = DOCS_DIR / "plugin-guide.md"
-    if not guide_file.is_file():
-        errors.append("Missing docs/plugin-guide.md")
-        return
+    for relative in ("README.md", "docs/CAPABILITIES.md", "docs/plugin-guide.md", "docs/index.md"):
+        page = ROOT / relative
+        if not page.is_file():
+            errors.append(f"Missing {relative}")
+            continue
+        page_text = page.read_text(encoding="utf-8")
+        for plugin_id in sorted(plugin_ids):
+            if plugin_id not in page_text:
+                errors.append(f"{relative} does not document catalog plugin: {plugin_id}")
 
-    guide_text = guide_file.read_text(encoding="utf-8")
-    for plugin_id in sorted(plugin_ids):
-        if plugin_id not in guide_text:
-            errors.append(f"docs/plugin-guide.md does not document catalog plugin: {plugin_id}")
+
+def validate_catalog_counts(errors: list[str]) -> None:
+    """Compare advertised counts with the three canonical catalog registries."""
+    registries = (
+        ("plugin", "catalog/plugins.json", "plugins"),
+        ("specialist", "agents/registry.json", "specialists"),
+        ("scenario", "catalog/scenarios.json", "scenarios"),
+    )
+    counts: dict[str, int] = {}
+    for kind, relative, key in registries:
+        path = ROOT / relative
+        if not path.is_file():
+            errors.append(f"Missing {relative}")
+            return
+        entries = json.loads(path.read_text(encoding="utf-8")).get(key)
+        if not isinstance(entries, list):
+            errors.append(f"{relative} must contain a {key} list")
+            return
+        counts[kind] = len(entries)
+    counts["capability"] = sum(counts.values())
+
+    pages = [ROOT / "README.md", *sorted(DOCS_DIR.glob("*.md"))]
+    pages.extend(
+        (
+            ROOT / "specs/capability-reconciliation.spec.md",
+            ROOT / ".agents/skills/capability-coverage-audit/SKILL.md",
+            ROOT / "cops/capabilities/auditor.py",
+        )
+    )
+    for path in pages:
+        if not path.is_file():
+            continue
+        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            for claim in COUNT_CLAIM.finditer(line):
+                noun = claim["kind"].lower()
+                if noun.startswith(("plugin", "package")):
+                    kind = "plugin"
+                elif noun.startswith("scenario"):
+                    kind = "scenario"
+                elif noun.startswith("capabilit"):
+                    kind = "capability"
+                else:
+                    kind = "specialist"
+                token = claim["count"].lower()
+                advertised = int(token) if token.isdecimal() else COUNT_WORDS[token]
+                if advertised != counts[kind]:
+                    relative = path.relative_to(ROOT)
+                    label = "capabilities" if kind == "capability" else f"{kind}s"
+                    errors.append(
+                        f"{relative}:{line_number}: advertises {advertised} {label}; "
+                        f"canonical catalog has {counts[kind]}"
+                    )
 
 
 def validate_internal_links(errors: list[str]) -> None:
@@ -82,6 +151,7 @@ def main() -> int:
     errors: list[str] = []
     validate_required_files(errors)
     validate_plugin_coverage(errors)
+    validate_catalog_counts(errors)
     validate_internal_links(errors)
 
     if errors:
@@ -89,7 +159,10 @@ def main() -> int:
             print(f"docs-error: {error}", file=sys.stderr)
         return 1
 
-    print(f"Documentation site structure and links are valid ({len(list(DOCS_DIR.glob('*.md')))} pages verified).")
+    print(
+        "Documentation structure, catalog claims, and links are valid "
+        f"({len(list(DOCS_DIR.glob('*.md')))} pages verified)."
+    )
     return 0
 
 

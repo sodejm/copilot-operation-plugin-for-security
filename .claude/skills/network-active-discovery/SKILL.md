@@ -31,7 +31,7 @@ Execute authorized, bounded active network assessment across approved hosts, por
 
 5. **Remediated Exposure Verification (Scan Delta)**:
    - Compares baseline active assessment against subsequent re-test sessions.
-   - Computes remediated exposures, newly opened ports, persistent services, and version drift with an exact remediation percentage.
+   - Computes remediated exposures, newly opened ports, persistent services, and version drift with an exact remediation percentage. Only a confirmed closed retest counts as remediated; missing or inconclusive retests remain `unverified_exposures`.
 
 ## CLI Usage
 

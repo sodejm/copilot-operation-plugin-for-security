@@ -51,6 +51,11 @@ from .developer_collector import (
     StandardSocketDeveloperCollector,
     assess_developer_services,
 )
+from .developer_destinations import (
+    DestinationScopeError,
+    DeveloperDestinationPolicy,
+    prepare_developer_handoff,
+)
 from .developer_models import (
     DeveloperAuthPrerequisite,
     DeveloperCategory,
@@ -253,10 +258,13 @@ __all__ = [
     "DeveloperServicesReport",
     "DeveloperServiceType",
     "DeveloperServicesCollector",
+    "DeveloperDestinationPolicy",
+    "DestinationScopeError",
     "ExecutionEffect",
     "OfflineSyntheticDeveloperCollector",
     "StandardSocketDeveloperCollector",
     "assess_developer_services",
+    "prepare_developer_handoff",
     "DEFAULT_LEGACY_PORTS",
     "LegacyAuthPrerequisite",
     "LegacyCategory",

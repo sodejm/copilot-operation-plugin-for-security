@@ -5,7 +5,11 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
 import json
+import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -30,7 +34,13 @@ from cops.discovery import (
     assess_developer_services,
 )
 from cops.discovery.cli import (
+    build_developer_parser,
     command_developer_discovery,
+)
+from cops.discovery.developer_destinations import (
+    DestinationScopeError,
+    DeveloperDestinationPolicy,
+    prepare_developer_handoff,
 )
 
 
@@ -335,7 +345,9 @@ class TestOfflineSyntheticDeveloperCollector(unittest.TestCase):
         res = strict_collector.assess_docker("vulnerable-dev.corp.internal", canary_artifact="canary_docker")
         self.assertFalse(res.can_execute_code)
         self.assertFalse(res.can_change_state)
-        self.assertIn("Code execution verification skipped: not authorized in active action plan", res.uncertainty_notes)
+        self.assertIn(
+            "Code execution verification skipped: not authorized in active action plan", res.uncertainty_notes
+        )
         self.assertIn("State change verification skipped: not authorized in active action plan", res.uncertainty_notes)
 
     def test_protected_service_assessment(self):
@@ -381,7 +393,10 @@ class TestTruthBoundaryAndInaccessibleHandling(unittest.TestCase):
         self.assertEqual(res.exposure_status, DeveloperExposureStatus.INACCESSIBLE.value)
         self.assertEqual(res.auth_prerequisite, DeveloperAuthPrerequisite.UNKNOWN.value)
         self.assertFalse(res.canary_validated)
-        self.assertIn("Service was inaccessible from probe vantage; this cannot be reported as secure or hardened", res.uncertainty_notes[0])
+        self.assertIn(
+            "Service was inaccessible from probe vantage; this cannot be reported as secure or hardened",
+            res.uncertainty_notes[0],
+        )
         self.assertEqual(len(res.privilege_candidates), 0)
 
     def test_inaccessible_timeout_service(self):
@@ -520,6 +535,9 @@ class TestStandardSocketDeveloperCollectorMocked(unittest.TestCase):
         mock_conn.return_value.__enter__.return_value = MagicMock()
 
         collector = StandardSocketDeveloperCollector(
+            destination_policy=DeveloperDestinationPolicy.from_dict(
+                {"hosts": ["dev.corp.internal"], "resolved_ips": ["198.51.100.50"]}
+            ),
             allow_code_execution=True,
             allow_state_change=True,
         )
@@ -535,11 +553,382 @@ class TestStandardSocketDeveloperCollectorMocked(unittest.TestCase):
         mock_gethost.return_value = "198.51.100.50"
         mock_conn.side_effect = ConnectionRefusedError("Connection refused")
 
-        collector = StandardSocketDeveloperCollector()
+        collector = StandardSocketDeveloperCollector(
+            destination_policy=DeveloperDestinationPolicy.from_dict(
+                {"hosts": ["dev.corp.internal"], "resolved_ips": ["198.51.100.50"]}
+            ),
+        )
         res = collector.assess_docker("dev.corp.internal")
         self.assertEqual(res.exposure_status, DeveloperExposureStatus.INACCESSIBLE.value)
         self.assertEqual(res.auth_prerequisite, DeveloperAuthPrerequisite.UNKNOWN.value)
         self.assertIn("Connection refused", res.error_message)
+
+
+class TestDeveloperDestinationPolicy(unittest.TestCase):
+    def setUp(self):
+        self.policy = DeveloperDestinationPolicy.from_dict(
+            {
+                "hosts": ["dev.corp.internal", "api.cluster.internal"],
+                "resolved_ips": ["198.51.100.50"],
+                "repositories": ["team/service"],
+                "images": ["registry.internal/team/service:v1"],
+                "runtimes": ["containerd"],
+                "clusters": ["lab-cluster"],
+            }
+        )
+
+    def test_policy_rejects_unknown_keys_and_wildcards(self):
+        with self.assertRaises(ValueError):
+            DeveloperDestinationPolicy.from_dict({"host": ["dev.corp.internal"]})
+        with self.assertRaises(ValueError):
+            DeveloperDestinationPolicy.from_dict({"hosts": ["*.corp.internal"]})
+        with self.assertRaises(ValueError):
+            DeveloperDestinationPolicy.from_dict({"resolved_ips": ["198.51.100.0/24"]})
+
+    @patch("socket.create_connection")
+    @patch("socket.gethostbyname")
+    def test_live_rejects_host_before_dns_and_ip_before_socket(self, mock_gethost, mock_conn):
+        collector = StandardSocketDeveloperCollector(destination_policy=self.policy)
+        with self.assertRaises(DestinationScopeError):
+            collector.assess_docker("outside.corp.internal")
+        mock_gethost.assert_not_called()
+        mock_conn.assert_not_called()
+
+        mock_gethost.return_value = "203.0.113.99"
+        with self.assertRaises(DestinationScopeError):
+            collector.assess_docker("dev.corp.internal")
+        mock_conn.assert_not_called()
+
+        with self.assertRaises(DestinationScopeError):
+            collector.probe_service("dev.corp.internal", "203.0.113.99", "docker", 2375)
+        mock_conn.assert_not_called()
+
+    @patch("socket.gethostbyname")
+    def test_batch_rejects_out_of_scope_target_before_any_dns(self, mock_gethost):
+        collector = StandardSocketDeveloperCollector(destination_policy=self.policy)
+        with self.assertRaises(DestinationScopeError):
+            assess_developer_services(["dev.corp.internal", "outside.corp.internal"], collector=collector)
+        mock_gethost.assert_not_called()
+
+    def test_cluster_handoff_requires_matching_kubernetes_context(self):
+        config = {
+            "current-context": "lab-context",
+            "contexts": [{"name": "lab-context", "context": {"cluster": "lab-cluster", "namespace": "testing"}}],
+            "clusters": [{"name": "lab-cluster", "cluster": {"server": "https://api.cluster.internal:6443"}}],
+        }
+        handoff = prepare_developer_handoff(
+            kind="cluster",
+            target_host="dev.corp.internal",
+            policy=self.policy,
+            repository="team/service",
+            image="registry.internal/team/service:v1",
+            runtime="containerd",
+            cluster="lab-cluster",
+            kubeconfig=config,
+        )
+        self.assertEqual(handoff["specialist"], "cops-cloud-specialist")
+        self.assertEqual(handoff["kubernetes_context"], "lab-context")
+        self.assertFalse(handoff["connectivity_verified"])
+
+        config["contexts"][0]["context"]["cluster"] = "other-cluster"
+        with self.assertRaises(DestinationScopeError):
+            prepare_developer_handoff(
+                kind="cluster",
+                target_host="dev.corp.internal",
+                policy=self.policy,
+                runtime="containerd",
+                cluster="lab-cluster",
+                kubeconfig=config,
+            )
+
+    def test_handoff_rejects_unapproved_destinations_and_preserves_application_route(self):
+        for field, bad_value in (
+            ("repository", "other/repo"),
+            ("image", "registry.internal/other:v1"),
+            ("runtime", "docker"),
+            ("cluster", "production"),
+        ):
+            kwargs = {field: bad_value}
+            with self.subTest(field=field), self.assertRaises(DestinationScopeError):
+                prepare_developer_handoff(
+                    kind="application",
+                    target_host="dev.corp.internal",
+                    policy=self.policy,
+                    **kwargs,
+                )
+        handoff = prepare_developer_handoff(
+            kind="application",
+            target_host="dev.corp.internal",
+            policy=self.policy,
+        )
+        self.assertEqual(handoff["specialist"], "cops-web-specialist")
+        with self.assertRaises(DestinationScopeError):
+            prepare_developer_handoff(
+                kind="application",
+                target_host="dev.corp.internal",
+                policy=self.policy,
+                cluster="lab-cluster",
+            )
+
+    def test_policy_rejects_control_characters_and_bad_kubernetes_server(self):
+        with self.assertRaises(ValueError):
+            DeveloperDestinationPolicy.from_dict({"images": ["registry.internal/team\tservice:v1"]})
+        config = {
+            "current-context": "lab-context",
+            "contexts": [{"name": "lab-context", "context": {"cluster": "lab-cluster"}}],
+            "clusters": [{"name": "lab-cluster", "cluster": {"server": "https://[bad-host"}}],
+        }
+        with self.assertRaises(DestinationScopeError):
+            prepare_developer_handoff(
+                kind="cluster",
+                target_host="dev.corp.internal",
+                policy=self.policy,
+                cluster="lab-cluster",
+                kubeconfig=config,
+            )
+
+        config["clusters"][0]["cluster"]["server"] = "https://api.cluster.internal\n:6443"
+        with self.assertRaises(DestinationScopeError):
+            prepare_developer_handoff(
+                kind="cluster",
+                target_host="dev.corp.internal",
+                policy=self.policy,
+                cluster="lab-cluster",
+                kubeconfig=config,
+            )
+
+        config["clusters"][0]["cluster"]["server"] = "https://outside.cluster.internal:6443"
+        with self.assertRaisesRegex(DestinationScopeError, "host is outside the destination allowlist"):
+            prepare_developer_handoff(
+                kind="cluster",
+                target_host="dev.corp.internal",
+                policy=self.policy,
+                cluster="lab-cluster",
+                kubeconfig=config,
+            )
+
+
+class TestDeveloperDestinationCli(unittest.TestCase):
+    def setUp(self):
+        self.parser = argparse.ArgumentParser()
+        build_developer_parser(self.parser)
+
+    @patch("socket.gethostbyname")
+    def test_live_requires_policy_and_rejects_unapproved_host_before_dns(self, mock_gethost):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            policy_file = Path(tmpdir) / "scope.json"
+            policy_file.write_text(
+                json.dumps(
+                    {
+                        "hosts": ["dev.corp.internal"],
+                        "resolved_ips": ["198.51.100.50"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            missing = self.parser.parse_args(
+                [
+                    "assess",
+                    "--mode",
+                    "live",
+                    "--targets",
+                    "outside.corp.internal",
+                    "--services",
+                    "docker",
+                ]
+            )
+            self.assertEqual(command_developer_discovery(missing), 2)
+            blocked = self.parser.parse_args(
+                [
+                    "assess",
+                    "--mode",
+                    "live",
+                    "--targets",
+                    "outside.corp.internal",
+                    "--services",
+                    "docker",
+                    "--destination-policy",
+                    str(policy_file),
+                ]
+            )
+            self.assertEqual(command_developer_discovery(blocked), 2)
+            mock_gethost.assert_not_called()
+
+    def test_handoff_output_error_is_sanitized(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            policy_file = Path(tmpdir) / "scope.json"
+            policy_file.write_text(json.dumps({"hosts": ["dev.corp.internal"]}), encoding="utf-8")
+            args = self.parser.parse_args(
+                [
+                    "handoff",
+                    "--kind",
+                    "application",
+                    "--target-host",
+                    "dev.corp.internal",
+                    "--destination-policy",
+                    str(policy_file),
+                    "--output",
+                    tmpdir,
+                ]
+            )
+            error = io.StringIO()
+            with contextlib.redirect_stderr(error):
+                self.assertEqual(command_developer_discovery(args), 2)
+            self.assertEqual(error.getvalue().strip(), "Destination output error: unable to write handoff record")
+            self.assertNotIn(tmpdir, error.getvalue())
+
+    def test_live_policy_read_error_is_sanitized(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            missing_policy = Path(tmpdir) / "missing-policy.json"
+            args = self.parser.parse_args(
+                [
+                    "assess",
+                    "--mode",
+                    "live",
+                    "--targets",
+                    "dev.corp.internal",
+                    "--services",
+                    "docker",
+                    "--destination-policy",
+                    str(missing_policy),
+                ]
+            )
+            error = io.StringIO()
+            with contextlib.redirect_stderr(error):
+                self.assertEqual(command_developer_discovery(args), 2)
+            self.assertEqual(error.getvalue().strip(), "Destination scope error: unable to read destination policy")
+            self.assertNotIn(tmpdir, error.getvalue())
+
+    def test_isolated_runtime_destination_fixture_records_rejections_and_cleans_up(self):
+        fixture = json.loads((ROOT / "tests/fixtures/developer_runtime_destinations.json").read_text(encoding="utf-8"))
+        with tempfile.TemporaryDirectory() as record_dir:
+            evidence_file = Path(record_dir) / "runtime-evidence.json"
+            with tempfile.TemporaryDirectory(dir=record_dir) as tmpdir:
+                tmp_path = Path(tmpdir)
+                policy_file = tmp_path / "scope.json"
+                config_file = tmp_path / "kubeconfig.json"
+                output_file = tmp_path / "handoff.json"
+                policy_file.write_text(json.dumps(fixture["policy"]), encoding="utf-8")
+                config_file.write_text(json.dumps(fixture["kubeconfig"]), encoding="utf-8")
+
+                base_command = [
+                    sys.executable,
+                    "-m",
+                    "cops",
+                    "developer-services",
+                    "handoff",
+                    "--kind",
+                    "cluster",
+                    "--target-host",
+                    "dev.corp.internal",
+                    "--destination-policy",
+                    str(policy_file),
+                    "--kubeconfig",
+                    str(config_file),
+                    "--output",
+                    str(output_file),
+                ]
+                allowed_args = [
+                    item for option, value in fixture["allowed_destinations"].items() for item in (f"--{option}", value)
+                ]
+
+                def run_handoff(arguments):
+                    child_env = {key: os.environ[key] for key in ("PATH", "SYSTEMROOT", "WINDIR") if key in os.environ}
+                    child_env.update(
+                        {
+                            "PYTHONPATH": str(ROOT),
+                            "HOME": str(tmp_path),
+                            "XDG_CONFIG_HOME": str(tmp_path),
+                            "TMPDIR": str(tmp_path),
+                        }
+                    )
+                    return subprocess.run(
+                        [*base_command, *arguments],
+                        cwd=tmp_path,
+                        env=child_env,
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                        timeout=15,
+                    )
+
+                accepted = run_handoff(allowed_args)
+                self.assertEqual(accepted.returncode, 0, accepted.stderr)
+                result = json.loads(output_file.read_text(encoding="utf-8"))
+                self.assertEqual(result["specialist"], "cops-cloud-specialist")
+                self.assertEqual(result["kubernetes_context"], "lab-context")
+                self.assertFalse(result["connectivity_verified"])
+                output_file.unlink()
+
+                rejection_records = []
+                for control in fixture["negative_controls"]:
+                    blocked_args = [
+                        item
+                        for option, value in fixture["allowed_destinations"].items()
+                        if f"--{option}" != control["option"]
+                        for item in (f"--{option}", value)
+                    ]
+                    blocked = run_handoff([*blocked_args, control["option"], control["value"]])
+                    self.assertEqual(blocked.returncode, 2, control["id"])
+                    self.assertIn(control["error"], blocked.stderr)
+                    self.assertFalse(output_file.exists(), control["id"])
+                    rejection_records.append(
+                        {
+                            "id": control["id"],
+                            "exit_code": blocked.returncode,
+                            "reason": control["error"],
+                            "output_created": False,
+                        }
+                    )
+
+                bad_config = dict(fixture["kubeconfig"])
+                bad_config["current-context"] = "wrong-context"
+                config_file.write_text(json.dumps(bad_config), encoding="utf-8")
+                blocked_context = run_handoff(allowed_args)
+                self.assertEqual(blocked_context.returncode, 2)
+                context_error = "Kubernetes context entry is missing"
+                self.assertIn(context_error, blocked_context.stderr)
+                self.assertFalse(output_file.exists())
+                rejection_records.append(
+                    {
+                        "id": "kubernetes-context",
+                        "exit_code": blocked_context.returncode,
+                        "reason": context_error,
+                        "output_created": False,
+                    }
+                )
+
+                bad_config["current-context"] = fixture["kubeconfig"]["current-context"]
+                bad_config["clusters"][0]["cluster"]["server"] = "https://outside.cluster.internal:6443"
+                config_file.write_text(json.dumps(bad_config), encoding="utf-8")
+                blocked_api = run_handoff(allowed_args)
+                self.assertEqual(blocked_api.returncode, 2)
+                api_error = "host is outside the destination allowlist"
+                self.assertIn(api_error, blocked_api.stderr)
+                self.assertFalse(output_file.exists())
+                rejection_records.append(
+                    {
+                        "id": "kubernetes-api-host",
+                        "exit_code": blocked_api.returncode,
+                        "reason": api_error,
+                        "output_created": False,
+                    }
+                )
+
+            cleanup_verified = not tmp_path.exists()
+            self.assertTrue(cleanup_verified)
+            evidence = {
+                "fixture": "developer_runtime_destinations.json",
+                "allowed_handoff": {
+                    "exit_code": accepted.returncode,
+                    "connectivity_verified": result["connectivity_verified"],
+                },
+                "negative_controls": rejection_records,
+                "cleanup_verified": cleanup_verified,
+            }
+            evidence_file.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+            self.assertEqual(json.loads(evidence_file.read_text(encoding="utf-8")), evidence)
+            self.assertEqual(len(rejection_records), 6)
 
 
 if __name__ == "__main__":

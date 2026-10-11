@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 import argparse
+import errno
 import json
 import ssl
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from cops.discovery import (
     ActiveScanner,
     ActiveScanSession,
+    ActiveServiceAssessment,
     ConfidenceLevel,
     ObservedConfiguration,
     ObservedTLS,
@@ -25,7 +28,7 @@ from cops.discovery import (
     import_nmap_xml,
     infer_service_fingerprint,
 )
-from cops.discovery.active_scanner import _create_tls_context
+from cops.discovery.active_scanner import StandardSocketDispatcher, _create_tls_context
 from cops.discovery.cli import command_active_discovery
 
 
@@ -105,7 +108,29 @@ class TestActiveDiscoveryModelsAndFingerprinting(unittest.TestCase):
         fp = infer_service_fingerprint("198.51.100.10", 9999, "tcp", obs)
         self.assertEqual(fp.service_name, "unknown-9999")
         self.assertEqual(fp.confidence, ConfidenceLevel.UNCERTAIN.value)
-        self.assertTrue(any("Port accepted TCP connection but emitted no descriptive" in r for r in fp.uncertainty_reasons))
+        self.assertTrue(
+            any("Port accepted TCP connection but emitted no descriptive" in r for r in fp.uncertainty_reasons)
+        )
+
+
+class TestStandardSocketDispatcherErrors(unittest.TestCase):
+    def test_network_route_error_is_unreachable_and_refusal_is_closed(self):
+        dispatcher = StandardSocketDispatcher()
+        cases = (
+            (errno.ENETUNREACH, PortState.UNREACHABLE.value, ServiceReachability.UNREACHABLE.value),
+            (errno.EHOSTUNREACH, PortState.UNREACHABLE.value, ServiceReachability.UNREACHABLE.value),
+            (errno.ECONNREFUSED, PortState.CLOSED.value, ServiceReachability.REACHABLE.value),
+            (errno.EACCES, PortState.UNKNOWN.value, ServiceReachability.UNKNOWN.value),
+        )
+        for error_number, expected_state, expected_reachability in cases:
+            with self.subTest(error_number=error_number):
+                with patch(
+                    "cops.discovery.active_scanner.socket.create_connection",
+                    side_effect=OSError(error_number, "socket failure"),
+                ):
+                    assessment = dispatcher.dispatch_probe("127.0.0.1", "127.0.0.1", 12345)
+                self.assertEqual(assessment.port_state, expected_state)
+                self.assertEqual(assessment.reachability, expected_reachability)
 
 
 class TestActiveScannerExecutionAndBudgets(unittest.TestCase):
@@ -121,8 +146,16 @@ class TestActiveScannerExecutionAndBudgets(unittest.TestCase):
         self.mock_targets = {
             "app.corp.internal": {
                 "ports": {
-                    80: {"banner": "HTTP/1.1 200 OK\r\nServer: Apache/2.4.41 (Ubuntu)\r\n\r\n", "headers": {"Server": "Apache/2.4.41 (Ubuntu)"}, "http_status": 200},
-                    443: {"tls": {"version": "TLSv1.3", "subject_cn": "app.corp.internal", "sans": ["app.corp.internal"]}, "headers": {"Server": "Apache/2.4.41 (Ubuntu)"}, "http_status": 200},
+                    80: {
+                        "banner": "HTTP/1.1 200 OK\r\nServer: Apache/2.4.41 (Ubuntu)\r\n\r\n",
+                        "headers": {"Server": "Apache/2.4.41 (Ubuntu)"},
+                        "http_status": 200,
+                    },
+                    443: {
+                        "tls": {"version": "TLSv1.3", "subject_cn": "app.corp.internal", "sans": ["app.corp.internal"]},
+                        "headers": {"Server": "Apache/2.4.41 (Ubuntu)"},
+                        "http_status": 200,
+                    },
                     8080: {"state": "closed"},
                     9000: {"state": "filtered", "timeout": True},
                 }
@@ -187,18 +220,81 @@ class TestActiveScannerExecutionAndBudgets(unittest.TestCase):
         )
         dispatcher = OfflineSyntheticDispatcher(targets=self.mock_targets, dns_map=self.dns_map)
 
-        # Pre-mark port 80 and 443 as completed
+        # Restore completed probes and their pinned address from a checkpoint.
         key_80 = ActiveScanSession.make_probe_key(ScanVantage.EXTERNAL.value, "tcp", "app.corp.internal", 80)
         key_443 = ActiveScanSession.make_probe_key(ScanVantage.EXTERNAL.value, "tcp", "app.corp.internal", 443)
         session.completed_probe_keys.update([key_80, key_443])
+        session.assessments.extend(
+            ActiveServiceAssessment(
+                probe_id=f"prior-{port}",
+                target_host="app.corp.internal",
+                resolved_ip="198.51.100.10",
+                port=port,
+                vantage=ScanVantage.EXTERNAL.value,
+            )
+            for port in (80, 443)
+        )
 
         scanner = ActiveScanner(session=session, dispatcher=dispatcher, scope=self.scope)
         resumed = scanner.run()
 
         # Only port 8080 dispatched
         self.assertEqual(dispatcher.side_effect_count, 1)
-        self.assertEqual(len(resumed.assessments), 1)
-        self.assertEqual(resumed.assessments[0].port, 8080)
+        self.assertEqual(len(resumed.assessments), 3)
+        self.assertEqual(resumed.assessments[-1].port, 8080)
+
+    def test_resume_quarantines_in_scope_dns_shift(self):
+        session = ActiveScanSession(
+            session_id="sess-resume-rebind",
+            scope_reference="ROE-2026-001",
+            approved_targets=["app.corp.internal"],
+            approved_ports=[80, 8080],
+            budget=ScanBudget(rate_limit_pps=0),
+        )
+        first_dispatcher = OfflineSyntheticDispatcher(
+            targets=self.mock_targets,
+            dns_map={"app.corp.internal": "198.51.100.10"},
+        )
+        session.approved_ports = [80]
+        ActiveScanner(session=session, dispatcher=first_dispatcher, scope=self.scope).run()
+        checkpoint = ActiveScanSession.from_dict(session.to_dict())
+        checkpoint.approved_ports = [80, 8080]
+
+        shifted_dispatcher = OfflineSyntheticDispatcher(
+            targets=self.mock_targets,
+            dns_map={"app.corp.internal": "198.51.100.11"},
+        )
+        resumed = ActiveScanner(session=checkpoint, dispatcher=shifted_dispatcher, scope=self.scope).run()
+
+        self.assertEqual(shifted_dispatcher.side_effect_count, 0)
+        self.assertEqual([a.port for a in resumed.assessments], [80])
+        self.assertEqual(len(resumed.quarantined_targets), 1)
+        quarantine = resumed.quarantined_targets[0]
+        self.assertEqual(quarantine.reason, "dns_rebind_detected")
+        self.assertEqual(quarantine.original_ip, "198.51.100.10")
+        self.assertEqual(quarantine.new_ip, "198.51.100.11")
+
+    def test_resume_quarantines_completed_key_without_resolution_evidence(self):
+        session = ActiveScanSession(
+            session_id="sess-incomplete-checkpoint",
+            scope_reference="ROE-2026-001",
+            approved_targets=["app.corp.internal"],
+            approved_ports=[80, 8080],
+        )
+        session.completed_probe_keys.add(
+            ActiveScanSession.make_probe_key(session.vantage, "tcp", "app.corp.internal", 80)
+        )
+        dispatcher = OfflineSyntheticDispatcher(targets=self.mock_targets, dns_map=self.dns_map)
+        first = ActiveScanner(session=session, dispatcher=dispatcher, scope=self.scope).run()
+        self.assertEqual(dispatcher.side_effect_count, 0)
+        self.assertEqual(first.quarantined_targets[0].reason, "checkpoint_missing_resolution")
+
+        # A persisted quarantine must not be bypassed by another resume.
+        resumed = ActiveScanner(
+            session=ActiveScanSession.from_dict(first.to_dict()), dispatcher=dispatcher, scope=self.scope
+        ).run()
+        self.assertEqual(dispatcher.side_effect_count, 0)
+        self.assertEqual(len(resumed.quarantined_targets), 1)
 
     def test_dns_rebind_and_target_shift_detection(self):
         session = ActiveScanSession(
@@ -217,6 +313,28 @@ class TestActiveScannerExecutionAndBudgets(unittest.TestCase):
         self.assertEqual(len(completed.assessments), 0)
         self.assertEqual(len(completed.quarantined_targets), 1)
         self.assertEqual(completed.quarantined_targets[0].reason, "dns_rebind_detected")
+
+    def test_dns_shift_between_ports_quarantines_remaining_probe(self):
+        session = ActiveScanSession(
+            session_id="sess-mid-scan-rebind",
+            scope_reference="ROE-2026-001",
+            approved_targets=["app.corp.internal"],
+            approved_ports=[80, 8080],
+            budget=ScanBudget(rate_limit_pps=0),
+        )
+        dispatcher = OfflineSyntheticDispatcher(targets=self.mock_targets)
+        resolutions = iter(["198.51.100.10", "10.0.0.1"])
+        dispatcher.set_dns_hook("app.corp.internal", lambda: next(resolutions))
+
+        completed = ActiveScanner(session=session, dispatcher=dispatcher, scope=self.scope).run()
+
+        self.assertEqual([a.port for a in completed.assessments], [80])
+        self.assertEqual(dispatcher.side_effect_count, 1)
+        self.assertEqual(len(completed.quarantined_targets), 1)
+        quarantine = completed.quarantined_targets[0]
+        self.assertEqual(quarantine.reason, "dns_rebind_detected")
+        self.assertEqual(quarantine.original_ip, "198.51.100.10")
+        self.assertEqual(quarantine.new_ip, "10.0.0.1")
 
     def test_explicit_domain_exclusion_quarantine(self):
         session = ActiveScanSession(
@@ -269,11 +387,34 @@ class TestActiveScannerExecutionAndBudgets(unittest.TestCase):
 
 
 class TestRemediatedExposureVerification(unittest.TestCase):
+    def test_missing_or_inconclusive_retest_is_not_remediated(self):
+        baseline = ActiveScanner(
+            ActiveScanSession("baseline", "test-scope", ["127.0.0.1"], [18001, 18002]),
+            OfflineSyntheticDispatcher(),
+            sleeper=lambda _: None,
+        ).run()
+        current = ActiveScanner(
+            ActiveScanSession("partial", "test-scope", ["127.0.0.1"], [18001]),
+            OfflineSyntheticDispatcher(targets={"127.0.0.1": {"ports": {18001: {"state": "filtered"}}}}),
+            sleeper=lambda _: None,
+        ).run()
+
+        delta = compare_active_scans(baseline, current)
+        self.assertEqual(delta.remediated_exposures, [])
+        self.assertEqual(delta.remediation_rate, 0.0)
+        self.assertEqual(
+            {(item["port"], item["current_state"]) for item in delta.unverified_exposures},
+            {(18001, PortState.FILTERED.value), (18002, "not_probed")},
+        )
+
     def test_compare_active_scans_calculates_remediation_delta(self):
         mock_baseline = {
             "app.corp.internal": {
                 "ports": {
-                    80: {"banner": "HTTP/1.1 200 OK\r\nServer: Apache/2.4.41\r\n\r\n", "headers": {"Server": "Apache/2.4.41"}},
+                    80: {
+                        "banner": "HTTP/1.1 200 OK\r\nServer: Apache/2.4.41\r\n\r\n",
+                        "headers": {"Server": "Apache/2.4.41"},
+                    },
                     443: {"tls": {"version": "TLSv1.3", "subject_cn": "app.corp.internal"}},
                     22: {"banner": "SSH-2.0-OpenSSH_7.4\r\n"},
                 }
@@ -294,7 +435,10 @@ class TestRemediatedExposureVerification(unittest.TestCase):
         mock_current = {
             "app.corp.internal": {
                 "ports": {
-                    80: {"banner": "HTTP/1.1 200 OK\r\nServer: Apache/2.4.52\r\n\r\n", "headers": {"Server": "Apache/2.4.52"}},
+                    80: {
+                        "banner": "HTTP/1.1 200 OK\r\nServer: Apache/2.4.52\r\n\r\n",
+                        "headers": {"Server": "Apache/2.4.52"},
+                    },
                     443: {"tls": {"version": "TLSv1.3", "subject_cn": "app.corp.internal"}},
                     22: {"state": "closed"},
                     8443: {"tls": {"version": "TLSv1.3", "subject_cn": "app.corp.internal"}},
@@ -332,9 +476,21 @@ class TestToolOutputImporters(unittest.TestCase):
 
     def test_import_masscan_json(self):
         masscan_data = [
-            {"ip": "198.51.100.10", "timestamp": "1728130000", "ports": [{"port": 80, "proto": "tcp", "status": "open", "reason": "syn-ack", "ttl": 58}]},
-            {"ip": "198.51.100.10", "timestamp": "1728130005", "ports": [{"port": 443, "proto": "tcp", "status": "open", "reason": "syn-ack", "ttl": 58}]},
-            {"ip": "198.51.100.20", "timestamp": "1728130010", "ports": [{"port": 22, "proto": "tcp", "status": "open", "reason": "syn-ack", "ttl": 60}]},
+            {
+                "ip": "198.51.100.10",
+                "timestamp": "1728130000",
+                "ports": [{"port": 80, "proto": "tcp", "status": "open", "reason": "syn-ack", "ttl": 58}],
+            },
+            {
+                "ip": "198.51.100.10",
+                "timestamp": "1728130005",
+                "ports": [{"port": 443, "proto": "tcp", "status": "open", "reason": "syn-ack", "ttl": 58}],
+            },
+            {
+                "ip": "198.51.100.20",
+                "timestamp": "1728130010",
+                "ports": [{"port": 22, "proto": "tcp", "status": "open", "reason": "syn-ack", "ttl": 60}],
+            },
         ]
         file_path = self.root / "masscan.json"
         file_path.write_text(json.dumps(masscan_data), encoding="utf-8")

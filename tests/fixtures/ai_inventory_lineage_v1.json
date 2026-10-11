@@ -1,0 +1,18 @@
+{
+  "schema_version": "cops.ai-inventory/v1",
+  "source": {"provider": "entra", "tenant": "tenant-fixture", "collection_id": "lineage-fixture", "collected_at": "2026-10-10T00:00:00Z", "completeness": "partial"},
+  "assets": [
+    {"id": "agent/a", "kind": "agent", "external_id": "a", "owner": "security", "sensitivity": "restricted", "trust": "trusted", "provenance": {"record_id": "a", "reference": "fixture-a", "completeness": "partial"}},
+    {"id": "agent/b", "kind": "agent", "external_id": "b", "owner": "security", "sensitivity": "restricted", "trust": "trusted", "provenance": {"record_id": "b", "reference": "fixture-b", "completeness": "partial"}},
+    {"id": "agent/c", "kind": "agent", "external_id": "c", "owner": "security", "sensitivity": "restricted", "trust": "trusted", "provenance": {"record_id": "c", "reference": "fixture-c", "completeness": "partial"}},
+    {"id": "agent/d", "kind": "agent", "external_id": "d", "owner": "security", "sensitivity": "restricted", "trust": "trusted", "provenance": {"record_id": "d", "reference": "fixture-d", "completeness": "partial"}}
+  ],
+  "relationships": [],
+  "identity_links": [
+    {"asset": "agent/a", "identity": {"provider": "entra", "tenant": "tenant-fixture", "kind": "service_principal", "id": "sp-1"}, "reason": "sponsor", "provenance": {"record_id": "sponsor", "reference": "fixture", "completeness": "partial"}},
+    {"asset": "agent/b", "identity": {"provider": "entra", "tenant": "tenant-fixture", "kind": "service_principal", "id": "sp-2"}, "reason": "alias", "provenance": {"record_id": "alias", "reference": "fixture", "completeness": "partial"}},
+    {"asset": "agent/c", "identity": {"provider": "entra", "tenant": "tenant-fixture", "kind": "service_principal", "id": "sp-3"}, "reason": "merge", "provenance": {"record_id": "merge", "reference": "fixture", "completeness": "partial"}},
+    {"asset": "agent/d", "identity": {"provider": "entra", "tenant": "tenant-fixture", "kind": "service_principal", "id": "sp-4"}, "reason": "split", "provenance": {"record_id": "split", "reference": "fixture", "completeness": "partial"}}
+  ],
+  "unknowns": [{"subject": "unmatched legacy agent", "reason": "missing"}]
+}

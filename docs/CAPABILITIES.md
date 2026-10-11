@@ -6,7 +6,7 @@ COPS brings together practical, defensive cybersecurity tools and AI workflows i
 
 ## Available Security Packages
 
-COPS currently packages thirteen specialized security plugins across defensive and offensive domains:
+COPS currently packages fourteen specialized security plugins across defensive and offensive domains:
 
 | Package | Category | Maturity | What it solves | Practical boundaries |
 | :--- | :--- | :---: | :--- | :--- |
@@ -15,6 +15,7 @@ COPS currently packages thirteen specialized security plugins across defensive a
 | **[Sentinel Hunt Workbench](../plugins/detection-hunting/sentinel-hunt-workbench/README.md)** | Detection & Hunting | **Beta** | Authors, adapts, and stress-tests 12 defensive threat hunts across Microsoft Sentinel, Defender XDR, and Data Lake. | Evaluates query logic against synthetic event streams; does not connect to live customer tenants. |
 | **[Attack Path Workbench](../plugins/detection-hunting/attack-path-workbench/README.md)** | Detection & Hunting | **Experimental** | Traces multi-hop identity and lateral movement paths from cloud exports to high-value crown jewels. | Operates on offline export manifests; does not perform active network scanning or live exploitation. |
 | **[Attack Surface Planner](../plugins/offensive-security/attack-surface-planner/README.md)** | Offensive Security | **Experimental** | Reconciles authorized rules-of-engagement scopes with local exports to create passive, bounded review plans. | Planning only; makes zero network calls, runs zero exploits, and requires human-signed authorization. |
+| **[Offensive Engagement Workbench](../plugins/offensive-security/offensive-engagement-workbench/README.md)** | Offensive Security | **Experimental** | Validates authorized engagement scope and prepares reviewable action plans from local inputs. | Planning and intake only; no active engagement execution or live target testing. |
 | **[Entra Identity Workbench](../plugins/identity-access/entra-identity-workbench/README.md)** | Identity & Access | **Beta** | Evaluates Entra ID role assignments, service principals, consent grants, and credential exposures. | Operates on offline tenant JSON exports; does not perform live Microsoft Graph mutations. |
 | **[Exposure Triage Workbench](../plugins/vulnerability-management/exposure-triage-workbench/README.md)** | Vulnerability Management | **Beta** | Prioritizes vulnerability triage by correlating advisory CVEs, SBOM components, and network reachability. | Bounded offline correlation; reachability indicates exposure potential, not confirmed live exploitability. |
 | **[Foundry Agent Harness](../plugins/offensive-security/foundry-agent-harness/README.md)** | Offensive Security | **Beta** | Evaluates AI agent behavior, prompt injection resistance, and safety boundaries in a simulated sandbox. | Mock runtime sandbox; isolates testing without contacting third-party model inference APIs. |
@@ -41,7 +42,7 @@ To maintain absolute integrity and avoid capability over-claiming, COPS reconcil
 - **`laboratory`**: Controlled offline simulation, synthetic event replay, or sandbox rehearsal; zero external egress (e.g., `sentinel-hunt-workbench`, `foundry-agent-harness`, `incident-response-sandbox`).
 - **`live-validated`**: Fully authorized, live-tested execution path against an authorized environment with cryptographic evidence receipt. Currently 0 capabilities claim live-validated, ensuring zero false claims.
 
-To audit all 63 capabilities (13 plugins, 18 specialist profiles, 32 canonical scenarios) against truth-in-advertising rules:
+To audit all 69 capabilities (14 plugins, 18 specialist profiles, 37 canonical scenarios) against truth-in-advertising rules:
 
 ```bash
 python3 -m cops capabilities audit --check

@@ -2,7 +2,7 @@
   "schema_version": "cops.detection-rule/v1",
   "rule_id": "RULE-SPL-DEFENDER-POWERSHELL-EXEC",
   "name": "Suspicious PowerShell Encoded or Download Cradle Execution",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "platform": "splunk_spl",
   "severity": "high",
   "description": "Identifies PowerShell script block logging events containing obfuscated base64 encoded commands or web download cradles.",
@@ -21,8 +21,7 @@
     "Path"
   ],
   "time_window": "15m",
-  "suppression_window": "1h",
-  "identity_scope": "host",
+  "suppression_window": "none",
   "expected_signal": "Living-off-the-land execution of in-memory payloads or remote stage downloads.",
   "mitre_attack": [
     "T1059.001",

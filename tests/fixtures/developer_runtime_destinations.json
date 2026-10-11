@@ -1,0 +1,31 @@
+{
+  "policy": {
+    "hosts": ["dev.corp.internal", "api.cluster.internal"],
+    "resolved_ips": ["198.51.100.50"],
+    "repositories": ["team/service"],
+    "images": ["registry.internal/team/service:v1"],
+    "runtimes": ["containerd"],
+    "clusters": ["lab-cluster"]
+  },
+  "kubeconfig": {
+    "current-context": "lab-context",
+    "contexts": [
+      {"name": "lab-context", "context": {"cluster": "lab-cluster", "namespace": "testing"}}
+    ],
+    "clusters": [
+      {"name": "lab-cluster", "cluster": {"server": "https://api.cluster.internal:6443"}}
+    ]
+  },
+  "allowed_destinations": {
+    "repository": "team/service",
+    "image": "registry.internal/team/service:v1",
+    "runtime": "containerd",
+    "cluster": "lab-cluster"
+  },
+  "negative_controls": [
+    {"id": "repository", "option": "--repository", "value": "other/repo", "error": "repositories destination is outside the allowlist"},
+    {"id": "image", "option": "--image", "value": "registry.internal/other:v1", "error": "images destination is outside the allowlist"},
+    {"id": "runtime", "option": "--runtime", "value": "docker", "error": "runtimes destination is outside the allowlist"},
+    {"id": "cluster", "option": "--cluster", "value": "production", "error": "clusters destination is outside the allowlist"}
+  ]
+}

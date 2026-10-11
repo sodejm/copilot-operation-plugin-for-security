@@ -13,6 +13,36 @@
 - **Scenario Laboratory Harness**: Registers and verifies operator container and VM environments with canary detection, isolation verification, reproducible resets, and controlled positive, negative, and remediated test execution.
 - **Package Workflow and Capability Diagnostics**: Validates package manifests, skills, playbooks, host tool prerequisites, and capability truth-in-advertising diagnostics across all registered plugins and execution environments.
 
+## Installation and Runtime Availability
+
+Use the workbench from a COPS repository checkout with Python 3.11 or newer. The local CLI, demo, and offline package check use the Python standard library; they do not require an AI assistant, cloud credentials, or additional pip packages. Clone the repository, then run the commands from its root:
+
+```bash
+git clone https://github.com/sodejm/copilot-operation-plugin-for-security.git
+cd copilot-operation-plugin-for-security
+python3 -m cops doctor
+python3 -m cops info offensive-engagement-workbench
+python3 -m cops demo offensive-engagement-workbench
+python3 -m cops check offensive-engagement-workbench
+```
+
+Run the `python3 -m cops engagement`, `lab`, and `diagnostics` commands below from that same root. The package's `org.cops/prerequisites.json` declares no additional tools for package discovery and offline validation. Actual scenario operations can require separately provisioned and measured worker tools; the operator must supply their versions and authorization.
+
+### AI assistant hosts and portable export
+
+COPS publishes discovery metadata for these host surfaces. To install in an assistant, use that host's plugin or marketplace workflow to register the indicated marketplace and select `offensive-engagement-workbench`; grant only the filesystem and command permissions needed for the intended workflow. A host that invokes the local CLI also needs access to this checkout and Python 3.11 or newer.
+
+| Host surface | Repository discovery entry | Package entry | Host setup to verify |
+| --- | --- | --- | --- |
+| GitHub Copilot | `.github/plugin/marketplace.json` | `plugin.json` | Copilot in VS Code or CLI, GitHub sign-in, and an active chat model. |
+| Claude Code | `.claude-plugin/marketplace.json` | `.claude-plugin/plugin.json` | Plugin loading and permission prompts for the intended commands. |
+| OpenAI Codex | `.agents/plugins/marketplace.json` | `.codex-plugin/plugin.json` | Plugin loading in the workspace and access to the checkout. |
+| Agent Plugins v1.0.0 clients | Export with `python3 scripts/agent/export_portable.py --output dist/agent-plugins` | Exported `plugin.json` and `skills/` | Client support for Agent Plugins v1.0.0 and its runtime sandbox. |
+
+The adapters and portable package are structurally checked, and the local workflow is validated offline. The package remains **experimental**: `host_installation` and `live_integration` are **unverified** in the repository's `package.json` for this package. After registering it, verify discovery and run a safe offline demo in the specific host before relying on that installation. Host permissions and plugin loading differ; see repository docs `docs/PORTABILITY.md` and `docs/COMPATIBILITY.md`.
+
+Planning and inventory inspection are portable CLI workflows. Authenticated external adapter execution has narrower platform requirements: the worker requires Linux with executable `/proc/self/fd`, while inert execution requires POSIX secure directory descriptors. Unsupported workers fail closed. These runtime limits and separate deployment checks are detailed in repository docs `docs/COMPATIBILITY.md` and `docs/AUTHENTICATED_EXECUTION.md`. Offline validation does not establish host installation or live execution readiness.
+
 ## CLI Usage
 
 ```bash

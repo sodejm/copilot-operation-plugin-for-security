@@ -15,6 +15,7 @@ description: Assess developer and runtime interfaces (Docker, Docker Registry, R
 
 3. **Application vs Infrastructure Specialist Routing**:
    - Route application behavior to web/API workflows and cluster paths to Kubernetes context establishment (`cops-web-specialist`, `cops-cloud-specialist`, `cops-pentest-specialist`).
+   - Prepare cluster handoff with an exact destination policy and a JSON kubeconfig. The handoff validates the current context and allowed API hostname offline; it does not verify connectivity.
 
 4. **Inaccessible != Secure Truth Boundary**:
    - Strictly mark unreachable, filtered, or connection-refused services as `inaccessible` (with `auth_prerequisite: unknown`). Never claim unverified services are protected or secure.
@@ -25,7 +26,8 @@ description: Assess developer and runtime interfaces (Docker, Docker Registry, R
 
 6. **CLI Invocation**:
    ```bash
-   python3 -m cops developer-services assess --targets dev01.corp.internal --canary-id "canary_docker_probe" --output dev_report.json
+   python3 -m cops developer-services assess --mode live --targets dev01.corp.internal --destination-policy destination-policy.json --canary-id "canary_docker_probe" --output dev_report.json
+   python3 -m cops developer-services handoff --kind cluster --target-host dev01.corp.internal --destination-policy destination-policy.json --cluster lab-cluster --kubeconfig kubeconfig.json --output cluster_handoff.json
    python3 -m cops developer-services candidates dev_report.json --output dev_candidates.json
    python3 -m cops developer-services cleanup dev_report.json --output cleanup_receipts.json
    python3 -m cops developer-services inspect dev_report.json
