@@ -1,12 +1,12 @@
 ---
 layout: documentation
-title: "19 Specialist Cybersecurity Agents & Dynamic Routing"
-description: "Centralized catalog of nineteen pre-tuned cybersecurity agent profiles, zero-token deterministic routing, and multi-agent Triad orchestration."
+title: "20 Specialist Cybersecurity Agents & Dynamic Routing"
+description: "Centralized catalog of twenty pre-tuned cybersecurity agent profiles, zero-token deterministic routing, and multi-agent Triad orchestration."
 ---
 
-# 19 Specialist Cybersecurity Agents & Dynamic Routing
+# 20 Specialist Cybersecurity Agents & Dynamic Routing
 
-COPS centralizes **19 specialist cybersecurity agent profiles** housed in `agents/`. Each profile defines a dedicated persona, tool allowlist, domain constraints, and evaluation criteria tailored to specific security disciplines.
+COPS centralizes **20 specialist cybersecurity agent profiles** housed in `agents/`. Each profile defines a dedicated persona, tool allowlist, domain constraints, and evaluation criteria tailored to specific security disciplines.
 
 Rather than relying on a generic assistant prompt, COPS routes tasks to the specialist profile with the highest domain precision.
 
@@ -27,7 +27,7 @@ python3 -m cops route "Rehearse containment of a compromised service principal w
 python3 -m cops route "Audit this Python codebase for missing audit logs and credential leaks"
 ```
 
-To list all 19 specialist profiles from your terminal:
+To list all 20 specialist profiles from your terminal:
 
 ```bash
 python3 -m cops specialists
@@ -43,6 +43,7 @@ python3 -m cops specialists
 | :--- | :--- | :--- |
 | `cops-pentest-specialist` | Penetration Testing Specialist | Scoping validation, non-destructive methodology planning, vulnerability assessment. |
 | `cops-host-specialist` | Host Assessment Specialist | Offline Linux privilege-boundary export review with prerequisite and canary-report limits. |
+| `cops-kubernetes-specialist` | Kubernetes Assessment Specialist | Offline approved-context, namespace, and surface comparison with live-evidence limits. |
 | `cops-redteam-operator` | Red Team Operations Specialist | Threat actor emulation planning, ATT&CK TTP mapping, defensive evasion analysis. |
 | `cops-attack-surface-planner` | Attack Surface Planner | Passive reconnaissance planning, domain mapping, in-scope vs. out-of-scope enforcement. |
 | `cops-ai-adversary-specialist` | AI Adversary & Red Teamer | Prompt injection resistance testing, jailbreak evaluation, model safety boundaries. |

@@ -27,12 +27,12 @@ def test_build_and_audit_clean_pass():
     """Verify clean pass of capability building and auditing."""
     reg = build_capability_registry(ROOT)
     assert reg["schema_version"] == "cops.capabilities/v1"
-    assert len(reg["capabilities"]) == 71
+    assert len(reg["capabilities"]) == 73
 
     summary = audit_capabilities(ROOT, registry_data=reg)
     assert summary["status"] == "valid"
-    assert summary["total_capabilities"] == 71
-    assert summary["by_kind"] == {"plugin": 15, "specialist": 19, "scenario": 37}
+    assert summary["total_capabilities"] == 73
+    assert summary["by_kind"] == {"plugin": 16, "specialist": 20, "scenario": 37}
     assert summary["by_mode"]["live-validated"] == 0
 
 
@@ -74,7 +74,7 @@ def test_capability_cli_commands(capsys):
     """Verify CLI capabilities commands."""
     assert command_capabilities_list(root=ROOT) == 0
     captured = capsys.readouterr().out
-    assert "Reconciled Capabilities (71)" in captured
+    assert "Reconciled Capabilities (73)" in captured
     assert "security-logging-advisor" in captured
 
     assert command_capabilities_list(mode="laboratory", as_json=True, root=ROOT) == 0

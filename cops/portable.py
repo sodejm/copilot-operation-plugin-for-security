@@ -51,6 +51,7 @@ PORTABLE_ENTRIES = {
     "threat_intel",
     "offensive_engagement_workbench",
     "host_assessment_workbench",
+    "kubernetes_assessment_context",
     "agents",
     "com.github.copilot",
     "org.cops",

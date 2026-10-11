@@ -26,7 +26,7 @@ def test_specialist_registry_schema():
     registry = json.loads(registry_path.read_text(encoding="utf-8"))
 
     assert "specialists" in registry
-    assert len(registry["specialists"]) == 19
+    assert len(registry["specialists"]) == 20
 
     # Validate each entry against the schema
     for specialist in registry["specialists"]:
@@ -36,7 +36,7 @@ def test_specialist_registry_schema():
 def test_specialist_profiles_files_exist_and_match_frontmatter():
     """Verify that every profile has a corresponding markdown file with valid frontmatter."""
     profiles = load_specialists_registry()
-    assert len(profiles) == 19
+    assert len(profiles) == 20
 
     for profile in profiles:
         contract_path = ROOT / profile.contract_file

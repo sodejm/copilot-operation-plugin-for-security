@@ -6,7 +6,7 @@ COPS brings together practical, defensive cybersecurity tools and AI workflows i
 
 ## Available Security Packages
 
-COPS currently packages fifteen specialized security plugins across defensive and offensive domains:
+COPS currently packages sixteen specialized security plugins across defensive and offensive domains:
 
 | Package | Category | Maturity | What it solves | Practical boundaries |
 | :--- | :--- | :---: | :--- | :--- |
@@ -15,6 +15,7 @@ COPS currently packages fifteen specialized security plugins across defensive an
 | **[Sentinel Hunt Workbench](../plugins/detection-hunting/sentinel-hunt-workbench/README.md)** | Detection & Hunting | **Beta** | Authors, adapts, and stress-tests 12 defensive threat hunts across Microsoft Sentinel, Defender XDR, and Data Lake. | Evaluates query logic against synthetic event streams; does not connect to live customer tenants. |
 | **[Attack Path Workbench](../plugins/detection-hunting/attack-path-workbench/README.md)** | Detection & Hunting | **Experimental** | Traces multi-hop identity and lateral movement paths from cloud exports to high-value crown jewels. | Operates on offline export manifests; does not perform active network scanning or live exploitation. |
 | **[Attack Surface Planner](../plugins/offensive-security/attack-surface-planner/README.md)** | Offensive Security | **Experimental** | Reconciles authorized rules-of-engagement scopes with local exports to create passive, bounded review plans. | Planning only; makes zero network calls, runs zero exploits, and requires human-signed authorization. |
+| **[Kubernetes Assessment Workbench](../plugins/offensive-security/kubernetes-assessment-workbench/README.md)** | Offensive Security | **Experimental** | Reconciles an approved Kubernetes context, namespace scope, and selected surfaces with a sanitized local observation. | Local JSON only; reports uncertainty and cannot establish live cluster identity or authorize execution. |
 | **[Offensive Engagement Workbench](../plugins/offensive-security/offensive-engagement-workbench/README.md)** | Offensive Security | **Experimental** | Validates authorized engagement scope and prepares reviewable action plans from local inputs. | Planning and intake only; no active engagement execution or live target testing. |
 | **[Entra Identity Workbench](../plugins/identity-access/entra-identity-workbench/README.md)** | Identity & Access | **Beta** | Evaluates Entra ID role assignments, service principals, consent grants, and credential exposures. | Operates on offline tenant JSON exports; does not perform live Microsoft Graph mutations. |
 | **[Exposure Triage Workbench](../plugins/vulnerability-management/exposure-triage-workbench/README.md)** | Vulnerability Management | **Beta** | Prioritizes vulnerability triage by correlating advisory CVEs, SBOM components, and network reachability. | Bounded offline correlation; reachability indicates exposure potential, not confirmed live exploitability. |
@@ -24,7 +25,6 @@ COPS currently packages fifteen specialized security plugins across defensive an
 | **[Threat Intelligence Enrichment](../plugins/detection-hunting/threat-intelligence-enrichment/README.md)** | Detection & Hunting | **Beta** | Enriches network, host, and hash indicators with provenance-tracked threat intelligence metadata. | Local offline correlation against cached feeds; live threat intelligence API calls require separate opt-in. |
 | **[Telemetry Proof Pack](../plugins/logging-telemetry/telemetry-proof-pack/README.md)** | Logging & Telemetry | **Beta** | Verifies end-to-end telemetry routes and event delivery health from Cribl Stream to Splunk and Sentinel. | Validates pipeline topology models and synthetic health proofs; does not inspect live stream buffers. |
 | **[Incident Response Sandbox](../plugins/incident-response/incident-response-sandbox/README.md)** | Incident Response | **Beta** | Rehearses containment workflows, calculates blast radius, and generates cryptographic execution receipts. | Approval-gated rehearsal only; does not execute destructive containment actions on live infrastructure. |
-| **[Offensive Engagement Workbench](../plugins/offensive-security/offensive-engagement-workbench/README.md)** | Offensive Security | **Experimental** | Plans and validates bounded engagement contracts and scenario evidence. | Contract and local evidence workflows; no live assessment implied by package registration. |
 | **[Host Assessment Workbench](../plugins/offensive-security/host-assessment-workbench/README.md)** | Offensive Security | **Experimental** | Classifies imported Linux privilege-boundary observations and synthetic canary results. | Offline import only; reported crossings are not independently verified live execution evidence. |
 
 To inspect the real-time status of your local catalog from your terminal, run:
@@ -44,7 +44,7 @@ To maintain absolute integrity and avoid capability over-claiming, COPS reconcil
 - **`laboratory`**: Controlled offline simulation, synthetic event replay, or sandbox rehearsal without configured live-service access (e.g., `sentinel-hunt-workbench`, `foundry-agent-harness`, `incident-response-sandbox`). Individual packages document their isolation boundaries.
 - **`live-validated`**: Fully authorized, live-tested execution path against an authorized environment with cryptographic evidence receipt. Currently 0 capabilities claim live-validated, ensuring zero false claims.
 
-To audit all 71 capabilities (15 plugins, 19 specialist profiles, 37 canonical scenarios) against truth-in-advertising rules:
+To audit all 73 capabilities (16 plugins, 20 specialist profiles, 37 canonical scenarios) against truth-in-advertising rules:
 
 ```bash
 python3 -m cops capabilities audit --check
@@ -80,8 +80,8 @@ flowchart TD
 
 1. **Deterministic Tools**: Python scripts and strict JSON schemas that validate evidence, compute hashes, parse graphs, and check syntax deterministically. These do the heavy mathematical and data validation work without relying on LLM guesswork.
 2. **Reusable Skills**: Structured operational recipes (defined in `SKILL.md` files conforming to the `agentskills.io` standard). These teach AI assistants *when* to trigger specific actions and *how* to guide analysts through complex workflows.
-3. **Autonomous Specialist Agents**: 19 callable specialist profiles housed in [`agents/`](../agents/README.md) across offensive, defensive, forensics, identity, and governance domains, orchestrated dynamically via `python3 -m cops route`:
-   - **Offensive Security**: Penetration testing (`cops-pentest-specialist`), red team emulation (`cops-redteam-operator`), attack surface planning (`cops-attack-surface-planner`), AI red teaming (`cops-ai-adversary-specialist`), Linux host assessment (`cops-host-specialist`).
+3. **Autonomous Specialist Agents**: 20 callable specialist profiles housed in [`agents/`](../agents/README.md) across offensive, defensive, forensics, identity, and governance domains, orchestrated dynamically via `python3 -m cops route`:
+   - **Offensive Security**: Penetration testing (`cops-pentest-specialist`), red team emulation (`cops-redteam-operator`), attack surface planning (`cops-attack-surface-planner`), offline Kubernetes context review (`cops-kubernetes-specialist`), Linux host assessment (`cops-host-specialist`), AI red teaming (`cops-ai-adversary-specialist`).
    - **Defensive & Detection**: Microsoft Sentinel KQL engineering (`cops-sentinel-kql-engineer`), threat hunting (`cops-threat-hunter`), SOC alert triage (`cops-soc-analyst`), detection-as-code (`cops-detection-engineer`).
    - **Incident Response & Forensics**: Blast radius and containment rehearsal (`cops-incident-responder`), tamper-evident evidence capture (`cops-forensic-collector`), static malware triage (`cops-malware-analyst`).
    - **Identity & Exposure**: Entra ID and cloud IAM governance (`cops-identity-specialist`), SBOM CVE reachability (`cops-exposure-analyst`), secure code review (`cops-appsec-engineer`), cyber threat intelligence (`cops-threat-intel-analyst`).

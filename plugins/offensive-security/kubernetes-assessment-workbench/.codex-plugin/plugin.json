@@ -1,0 +1,20 @@
+{
+  "name": "kubernetes-assessment-workbench",
+  "version": "0.1.0",
+  "description": "Reconcile an approved Kubernetes context with a sanitized local observation without cluster access.",
+  "author": {"name": "Justin Soderberg", "url": "https://github.com/sodejm"},
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "COPS Kubernetes Assessment Workbench",
+    "shortDescription": "Offline Kubernetes context reconciliation",
+    "longDescription": "Check a selected context, approved namespaces, identity anchor, and access limits in a sanitized local JSON export. Reports uncertainty without contacting a cluster or granting live execution.",
+    "developerName": "Justin Soderberg",
+    "category": "Developer Tools",
+    "capabilities": ["Read"],
+    "defaultPrompt": ["Reconcile my approved Kubernetes context with a sanitized local observation and report scope and identity uncertainty."]
+  },
+  "repository": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "homepage": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "keywords": ["cybersecurity", "offensive-security", "kubernetes", "offline-assessment"]
+}

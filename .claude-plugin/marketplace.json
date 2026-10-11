@@ -36,6 +36,12 @@
       "source": "./plugins/offensive-security/attack-surface-planner"
     },
     {
+      "name": "kubernetes-assessment-workbench",
+      "description": "Reconcile an approved Kubernetes context with a sanitized local observation without cluster access.",
+      "version": "0.1.0",
+      "source": "./plugins/offensive-security/kubernetes-assessment-workbench"
+    },
+    {
       "name": "entra-identity-workbench",
       "description": "Model, analyze, and review Entra ID and AI Agent identity graphs, privilege boundaries, and exposure paths offline.",
       "version": "0.1.0",

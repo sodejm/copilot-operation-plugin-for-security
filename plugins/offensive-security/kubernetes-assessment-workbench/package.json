@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0",
+  "id": "kubernetes-assessment-workbench",
+  "display_name": "COPS Kubernetes Assessment Workbench",
+  "maturity": "experimental",
+  "summary": "Reconcile an approved Kubernetes context with a sanitized local observation and report identity and access limits.",
+  "support": {
+    "structural_validation": "validated",
+    "offline_workflow": "validated",
+    "host_installation": "unverified",
+    "live_integration": "unverified"
+  },
+  "limitations": [
+    "Approval, context selection, cluster facts, and access observations are operator assertions, not independently verified.",
+    "A Namespace UID is an object identity anchor and does not prove a universal cluster identity.",
+    "No kubeconfig, kubectl, cluster API, node, control-plane, or admission-controller integration is exercised.",
+    "The report never authorizes live execution or establishes security posture, exploitability, or complete coverage."
+  ],
+  "demo": {
+    "description": "Reconcile a synthetic approved Kubernetes context with a sanitized local observation.",
+    "command": ["$PYTHON", "plugins/offensive-security/kubernetes-assessment-workbench/scripts/assess.py", "plugins/offensive-security/kubernetes-assessment-workbench/fixtures/synthetic/context.json"],
+    "timeout_seconds": 30
+  },
+  "validation": [{
+    "name": "offline package gate",
+    "command": ["$PYTHON", "plugins/offensive-security/kubernetes-assessment-workbench/scripts/validate-package.py"],
+    "timeout_seconds": 120
+  }]
+}
