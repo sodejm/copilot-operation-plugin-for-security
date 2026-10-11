@@ -1,0 +1,70 @@
+# Offline engagement assessment reports
+
+`python3 -m cops engagement report` joins existing Engagement, ActionPlan,
+RunResult, Finding, and evidence-envelope contracts into one machine-readable
+assessment and one Markdown report. It reads a local JSON bundle and makes no
+network request or execution attempt. The provisional `COPS-E17.01` family
+identifies this reporting workflow; it does not assert a canonical scenario
+mapping or that a target was tested.
+
+## Build a report
+
+Prepare an input file that conforms to
+[`assessment-input.schema.json`](../catalog/schemas/assessment-input.schema.json).
+The bundle contains `schema_version` (`cops.assessment-input/v1`), `report_id`,
+`generated_at`, one `engagement`, and arrays named `action_plans`, `run_results`,
+`findings`, `evidence_envelopes`, `coverage`, `finding_contexts`, and `limitations`.
+Embedded objects must satisfy their own published contracts. `coverage` contains
+one row per scenario, target and mode, including a row for each RunResult. Each
+row records `scenario_id`, `target`, `mode` (`planning`, `import`, `laboratory`, or
+`live`), `access` (`available`, `unavailable`, or `unknown`), and a `result_id` or
+`null`. A RunResult has one provenance mode and cannot be attached to planning
+coverage. The [accepted bundle](../cops/contracts/fixtures/valid_assessment_input.json)
+and [rejected conflicting-mode bundle](../cops/contracts/fixtures/invalid_assessment_input_conflicting_mode.json)
+show that join rule. Every Finding needs a `finding_contexts` row with its `finding_id`, `kind`,
+`affected_assets`, `reproducibility`, `attack_path_dependencies`, and
+`limitations`. The four kinds are `configuration_observation`,
+`scanner_assertion`, `observed_behavior`, and `reproduced_attack_path`.
+
+Store the input and outputs in a private directory outside the repository:
+
+```bash
+python3 -m cops engagement report \
+  --input assessment.local.json \
+  --json-output assessment-report.local.json \
+  --markdown-output assessment-report.local.md
+python3 -m cops contract validate --type assessment_report assessment-report.local.json
+```
+
+The input is limited to 4 MiB. Both output paths must be new and distinct; the
+command refuses to overwrite files and creates each with owner-only permissions
+(`0600` on POSIX). It emits no report body to standard output. Keep the directory
+private; file permissions are not encryption or a guarantee against access by
+another process with the same account.
+
+## Read the assessment labels
+
+The report lists included and excluded targets, per-target coverage, findings,
+reproducibility, evidence record IDs and strength, attack path dependencies,
+remediation, and limitations. Scope joins use exact hostnames or IP addresses and
+CIDR containment; they do not infer related hosts. Missing access, a missing
+RunResult, absent validated evidence, and planning-only rows are `not_assessed`.
+Partial outcomes and historical imports cannot be promoted to a complete live
+assessment. A `reproduced_attack_path` requires repeatable, scoped laboratory or
+live evidence and declared dependencies. Contradicted findings remain unresolved.
+Every dependency must name another Finding included in the same report.
+
+`planned`, `imported`, `laboratory`, and `live_validated` are distinct provenance
+labels; a live row that does not meet assessment requirements is
+`live_unvalidated`. These labels describe the supplied, validated records. They
+do not independently prove that execution happened, that a source is authentic,
+or that an operator was authorized. Record hashes establish internal integrity
+only. Verify those claims separately before sharing or relying on a report.
+
+The renderer omits evidence payloads, credential references, source locators and
+artifact paths. It does carry scope identifiers and caller-authored title, claim,
+remediation, uncertainty and limitation text. Those fields can still contain
+secrets or private information; review and redact the input and both outputs
+before publishing. Historical data needs its own age and applicability assessment.
+The report does not establish exhaustive coverage when scenarios or targets are
+absent from the input.

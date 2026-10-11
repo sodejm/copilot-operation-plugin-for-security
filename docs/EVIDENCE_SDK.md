@@ -82,6 +82,11 @@ Canonical JSON is sorted, compact UTF-8; duplicate keys, non-finite numbers,
 excessive size/depth and non-JSON values are rejected. Hashes support comparison
 and tamper detection against a trusted hash; they do not authenticate a source.
 
+The [offline engagement reporting guide](ENGAGEMENT_REPORTING.md) describes how
+validated evidence envelopes can be joined to Engagement, ActionPlan,
+RunResult, and Finding contracts. That report records evidence identifiers and
+strength without copying envelope payloads or source locators.
+
 Receipts carry acquisition identity, generation, query fingerprint, tenant/scope,
 interval, limits, consumed budgets and `complete`, `partial` or `unknown` status.
 `complete` means the adapter exhausted this query. Source consistency remains

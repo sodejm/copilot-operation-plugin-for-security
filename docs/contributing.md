@@ -20,6 +20,11 @@ All contributions adhere to the canonical [Repository Contract (AGENTS.md)](../A
 4. **Honest Evidence Reporting**: Never claim a check passed unless it ran in the local checkout. Clearly distinguish between offline validated tests, unverified cloud claims, and live-tested results.
 5. **No Secrets or Private Paths**: Never commit API keys, personal credentials, private tenant data, or machine-specific home paths.
 
+The [offline engagement reporting guide](ENGAGEMENT_REPORTING.md) defines the
+input bundle, assessment labels, and privacy review for findings reports.
+Changes to its joins or claims need focused tests for missing evidence,
+partial outcomes, contradictory findings, and sensitive text.
+
 ---
 
 ## Authenticated Execution Changes

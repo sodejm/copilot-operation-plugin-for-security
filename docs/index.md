@@ -134,6 +134,8 @@ Learn more in the [Specialist Agents Guide](specialist-agents.md).
 - [Security Model](SECURITY_MODEL.md): Threat modeling, prompt injection resistance, and readiness modes.
 - [Authenticated Execution](AUTHENTICATED_EXECUTION.md): Verifier trust-store setup, one-time approval consumption, migration, and key rotation.
 - [Engagement Contracts Specification](../specs/engagement-contracts.spec.md): Schema contracts for engagements, scenarios, action plans, and findings.
+- [Offline Engagement Reporting](ENGAGEMENT_REPORTING.md): Build scoped JSON and Markdown assessments from local contracts and evidence.
+- [Engagement Findings and Reporting Specification](../specs/engagement-findings-and-reporting.spec.md): Assessment labels, evidence joins, and trust limits.
 - [Execution Authorization Specification](../specs/execution-authorization.spec.md): Cryptographically bound approval envelopes and legacy receipt rejection.
 - [Isolated Worker and Approval Store Specification](../specs/isolated-worker-approval-store.spec.md): Verifier inputs, worker capability attestation, SQLite approval state, and anti-replay execution.
 - [Execution Scope & Egress Specification](../specs/execution-scope-enforcement.spec.md): Execution-time destination verification, cloud metadata defense, and DNS pinning.

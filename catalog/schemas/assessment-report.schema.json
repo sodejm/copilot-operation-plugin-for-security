@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "COPS Offline Assessment Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "report_id", "engagement_id", "generated_at", "scope", "coverage", "findings", "limitations", "evidence_notice"],
+  "properties": {
+    "schema_version": {"const": "cops.assessment-report/v1"},
+    "report_id": {"type": "string", "pattern": "^report-[a-z0-9_-]{4,64}$"},
+    "engagement_id": {"type": "string", "pattern": "^eng-[a-z0-9_-]{4,64}$"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "scope": {
+      "type": "object", "additionalProperties": false,
+      "required": ["included_targets", "excluded_targets"],
+      "properties": {
+        "included_targets": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "excluded_targets": {"type": "array", "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "coverage": {
+      "type": "array", "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["scenario_id", "target", "mode", "provenance", "access", "status", "result_id", "evidence_records"],
+        "properties": {
+          "scenario_id": {"type": "string", "pattern": "^(scen-[a-z0-9_-]{4,64}|COPS-[A-Z0-9_.-]+)$"},
+          "target": {"type": "string", "minLength": 1},
+          "mode": {"enum": ["planning", "import", "laboratory", "live"]},
+          "provenance": {"enum": ["planned", "imported", "laboratory", "live_validated", "live_unvalidated"]},
+          "access": {"enum": ["available", "unavailable", "unknown"]},
+          "status": {"enum": ["assessed", "partial", "not_assessed"]},
+          "result_id": {"type": ["string", "null"]},
+          "evidence_records": {"type": "array", "items": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}
+        }
+      }
+    },
+    "findings": {
+      "type": "array", "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["finding_id", "scenario_id", "result_id", "title", "severity", "classification", "verification", "confidence", "kind", "claim", "affected_assets", "reproducibility", "attack_path_dependencies", "remediation", "uncertainty", "mitre_attack", "evidence_strength", "evidence_references", "assessment_status", "limitations"],
+        "properties": {
+          "finding_id": {"type": "string", "pattern": "^find-[a-z0-9_-]{4,64}$"},
+          "scenario_id": {"type": "string", "pattern": "^(scen-[a-z0-9_-]{4,64}|COPS-[A-Z0-9_.-]+)$"},
+          "result_id": {"type": "string", "pattern": "^res-[a-z0-9_-]{4,64}$"},
+          "title": {"type": "string", "minLength": 1, "maxLength": 256},
+          "severity": {"enum": ["critical", "high", "medium", "low", "informational"]},
+          "classification": {"enum": ["observation", "assessment", "unresolved"]},
+          "verification": {"enum": ["verified", "partially-verified", "unverified", "contradicted"]},
+          "confidence": {"enum": ["high", "limited", "unknown"]},
+          "kind": {"enum": ["configuration_observation", "scanner_assertion", "observed_behavior", "reproduced_attack_path"]},
+          "claim": {"type": "string", "minLength": 1},
+          "affected_assets": {"type": "array", "items": {"type": "string", "minLength": 1}},
+          "reproducibility": {"enum": ["repeatable", "limited", "historical_import", "unknown"]},
+          "attack_path_dependencies": {"type": "array", "items": {"type": "string", "pattern": "^find-[a-z0-9_-]{4,64}$"}},
+          "remediation": {"type": "string"},
+          "uncertainty": {"type": "string"},
+          "mitre_attack": {"type": "array", "items": {"type": "string"}},
+          "evidence_strength": {"enum": ["recorded", "limited", "missing", "contradicted"]},
+          "evidence_references": {"type": "array", "items": {"type": "string", "pattern": "^[a-f0-9]{64}$"}},
+          "assessment_status": {"enum": ["assessed", "partial", "not_assessed", "unresolved"]},
+          "limitations": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
+    "limitations": {"type": "array", "items": {"type": "string"}},
+    "evidence_notice": {"type": "string", "minLength": 1}
+  }
+}
