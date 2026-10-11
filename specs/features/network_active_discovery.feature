@@ -45,7 +45,7 @@ Feature: Network Active Discovery and Service Identification
     Given a baseline active scan session observing open vulnerable ports
     And a subsequent re-test session after security remediation
     When the active scan delta comparison is evaluated
-    Then closed or filtered ports are identified as remediated exposures
+    Then closed ports are remediated and filtered ports remain unverified
     And an exact remediation rate percentage is calculated
 
   Scenario: Excluding deprecated TLS versions from live probes

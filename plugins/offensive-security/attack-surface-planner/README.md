@@ -115,7 +115,12 @@ The package extends reconnaissance foundations with bounded, rate-limited active
 4. **Scope Quarantine & DNS Rebind Defense**:
    - Enforces scope CIDR and domain checks before each probe; halts probes and flags `dns_rebind_detected` if target resolution shifts.
 5. **Remediated Exposure Verification**:
-   - Compares baseline vs. re-test scans to compute remediated, new, and persistent exposures with exact remediation rate percentage.
+   - Compares baseline vs. re-test scans to compute remediated, new, and persistent exposures with exact remediation rate percentage. Only a confirmed closed retest counts as remediated; missing or inconclusive retests appear in `unverified_exposures`.
+
+The repository's `docs/ACTIVE_DISCOVERY_NETWORK_ACCEPTANCE.md` describes a
+disposable-network acceptance harness for real loopback socket behavior,
+including rate limits, no-route errors, DNS shifts, checkpoint resume, and a
+closed-port retest.
 
 ```bash
 # Plan active assessment

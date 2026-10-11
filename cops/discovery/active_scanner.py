@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import ipaddress
 import re
@@ -111,14 +112,16 @@ class OfflineSyntheticDispatcher(ProbeDispatcher):
         timestamp = utc_now()
         probe_id = hashlib.sha256(f"{probe_key}:{timestamp}".encode()).hexdigest()[:24]
 
-        self.dispatched_probes.append({
-            "probe_key": probe_key,
-            "target_host": target_host,
-            "resolved_ip": resolved_ip,
-            "port": port,
-            "protocol": protocol,
-            "timestamp": timestamp,
-        })
+        self.dispatched_probes.append(
+            {
+                "probe_key": probe_key,
+                "target_host": target_host,
+                "resolved_ip": resolved_ip,
+                "port": port,
+                "protocol": protocol,
+                "timestamp": timestamp,
+            }
+        )
 
         # Lookup configured mock behavior for (target_host or resolved_ip, port)
         target_info = self.targets.get(target_host) or self.targets.get(resolved_ip) or {}
@@ -300,7 +303,14 @@ class StandardSocketDispatcher(ProbeDispatcher):
                 timestamp_utc=timestamp,
                 error_message="Socket connection timed out",
             )
-        except (ConnectionRefusedError, OSError) as err:
+        except OSError as err:
+            refused = err.errno == errno.ECONNREFUSED
+            no_route = err.errno in {
+                errno.ENETUNREACH,
+                errno.EHOSTUNREACH,
+                errno.ENETDOWN,
+                errno.EHOSTDOWN,
+            }
             return ActiveServiceAssessment(
                 probe_id=probe_id,
                 target_host=target_host,
@@ -308,8 +318,20 @@ class StandardSocketDispatcher(ProbeDispatcher):
                 port=port,
                 protocol=protocol,
                 vantage=vantage,
-                port_state=PortState.CLOSED.value,
-                reachability=ServiceReachability.REACHABLE.value,
+                port_state=(
+                    PortState.CLOSED.value
+                    if refused
+                    else PortState.UNREACHABLE.value
+                    if no_route
+                    else PortState.UNKNOWN.value
+                ),
+                reachability=(
+                    ServiceReachability.REACHABLE.value
+                    if refused
+                    else ServiceReachability.UNREACHABLE.value
+                    if no_route
+                    else ServiceReachability.UNKNOWN.value
+                ),
                 observed_config=ObservedConfiguration(),
                 latency_ms=None,
                 timestamp_utc=timestamp,
@@ -399,6 +421,10 @@ class ActiveScanner:
         self.session.status = "in_progress"
 
         for target_host in self.session.approved_targets:
+            # A quarantined target stays halted across checkpoint resumes.
+            if any(q.target_host.lower() == target_host.lower() for q in self.session.quarantined_targets):
+                continue
+
             # Check target budget
             if budget.max_targets and targets_assessed >= budget.max_targets:
                 self.session.status = "budget_exhausted"
@@ -417,6 +443,27 @@ class ActiveScanner:
                 )
                 continue
 
+            # A resumed target remains pinned to the address used by its prior
+            # probes. Completed keys without assessment evidence cannot prove
+            # which address received those side effects.
+            prior_ips = {
+                a.resolved_ip for a in self.session.assessments if a.target_host.lower() == target_host.lower()
+            }
+            prior_ip = next(iter(prior_ips)) if len(prior_ips) == 1 else None
+            probe_prefix = f"{self.session.vantage}:{Protocol.TCP.value}:{target_host.lower()}:"
+            has_completed_probe = any(key.startswith(probe_prefix) for key in self.session.completed_probe_keys)
+            if len(prior_ips) > 1 or (has_completed_probe and prior_ip is None):
+                self.session.quarantined_targets.append(
+                    TargetShiftQuarantine(
+                        target_host=target_host,
+                        original_ip=prior_ip,
+                        new_ip="unresolved",
+                        reason="checkpoint_missing_resolution",
+                        timestamp_utc=utc_now(),
+                    )
+                )
+                continue
+
             # 2. Resolve target and check for DNS change / out-of-scope shift
             try:
                 resolved_ip = self.dispatcher.resolve_target(target_host)
@@ -424,9 +471,21 @@ class ActiveScanner:
                 self.session.quarantined_targets.append(
                     TargetShiftQuarantine(
                         target_host=target_host,
-                        original_ip=None,
+                        original_ip=prior_ip,
                         new_ip="unresolved",
                         reason=f"dns_resolution_failed: {err}",
+                        timestamp_utc=utc_now(),
+                    )
+                )
+                continue
+
+            if prior_ip is not None and resolved_ip != prior_ip:
+                self.session.quarantined_targets.append(
+                    TargetShiftQuarantine(
+                        target_host=target_host,
+                        original_ip=prior_ip,
+                        new_ip=resolved_ip,
+                        reason="dns_rebind_detected",
                         timestamp_utc=utc_now(),
                     )
                 )
@@ -437,7 +496,7 @@ class ActiveScanner:
                 self.session.quarantined_targets.append(
                     TargetShiftQuarantine(
                         target_host=target_host,
-                        original_ip=None,
+                        original_ip=prior_ip,
                         new_ip=resolved_ip,
                         reason="dns_rebind_detected",
                         timestamp_utc=utc_now(),
@@ -446,6 +505,7 @@ class ActiveScanner:
                 continue
 
             targets_assessed += 1
+            probes_for_target = 0
 
             for port in self.session.approved_ports:
                 # 3. Check time budget
@@ -463,7 +523,35 @@ class ActiveScanner:
                     # Idempotent skip: do not repeat side effect
                     continue
 
-                # 5. Dispatch probe
+                # 5. Confirm the target still resolves to the approved address before
+                # each additional side effect. Dispatch always uses the pinned IP.
+                if probes_for_target:
+                    try:
+                        current_ip = self.dispatcher.resolve_target(target_host)
+                    except Exception as err:
+                        self.session.quarantined_targets.append(
+                            TargetShiftQuarantine(
+                                target_host=target_host,
+                                original_ip=resolved_ip,
+                                new_ip="unresolved",
+                                reason=f"dns_resolution_failed: {err}",
+                                timestamp_utc=utc_now(),
+                            )
+                        )
+                        break
+                    if current_ip != resolved_ip or (self.scope and not self._is_ip_in_scope(current_ip)):
+                        self.session.quarantined_targets.append(
+                            TargetShiftQuarantine(
+                                target_host=target_host,
+                                original_ip=resolved_ip,
+                                new_ip=current_ip,
+                                reason="dns_rebind_detected",
+                                timestamp_utc=utc_now(),
+                            )
+                        )
+                        break
+
+                # 6. Dispatch probe
                 assessment = self.dispatcher.dispatch_probe(
                     target_host=target_host,
                     resolved_ip=resolved_ip,
@@ -478,8 +566,9 @@ class ActiveScanner:
                 self.session.assessments.append(assessment)
                 self.session.total_probes_dispatched += 1
                 self.session.total_side_effects += 1
+                probes_for_target += 1
 
-                # 6. Enforce rate limiting
+                # 7. Enforce rate limiting
                 if inter_probe_interval > 0:
                     self.sleeper(inter_probe_interval)
 
@@ -506,6 +595,7 @@ def compare_active_scans(baseline: ActiveScanSession, current: ActiveScanSession
             current_open[key] = a
 
     remediated: list[dict[str, Any]] = []
+    unverified: list[dict[str, Any]] = []
     persistent: list[dict[str, Any]] = []
     new_exp: list[dict[str, Any]] = []
     fingerprint_changes: list[dict[str, Any]] = []
@@ -513,41 +603,53 @@ def compare_active_scans(baseline: ActiveScanSession, current: ActiveScanSession
     for key, base_a in baseline_open.items():
         curr_a = current_all.get(key)
         if not curr_a or curr_a.port_state != PortState.OPEN.value:
-            remediated.append({
+            item = {
                 "target_host": base_a.target_host,
                 "port": base_a.port,
                 "previous_state": base_a.port_state,
                 "current_state": curr_a.port_state if curr_a else "not_probed",
                 "service": base_a.inferred_fingerprint.service_name if base_a.inferred_fingerprint else "unknown",
-            })
+            }
+            # Only a refusal confirms that the previously open port is closed.
+            # A missing, filtered, or unreachable retest cannot prove remediation.
+            if curr_a and curr_a.port_state == PortState.CLOSED.value:
+                remediated.append(item)
+            else:
+                unverified.append(item)
         else:
-            persistent.append({
-                "target_host": curr_a.target_host,
-                "port": curr_a.port,
-                "state": curr_a.port_state,
-                "service": curr_a.inferred_fingerprint.service_name if curr_a.inferred_fingerprint else "unknown",
-            })
+            persistent.append(
+                {
+                    "target_host": curr_a.target_host,
+                    "port": curr_a.port,
+                    "state": curr_a.port_state,
+                    "service": curr_a.inferred_fingerprint.service_name if curr_a.inferred_fingerprint else "unknown",
+                }
+            )
             # Check for version / fingerprint changes
             base_fp = base_a.inferred_fingerprint
             curr_fp = curr_a.inferred_fingerprint
             if base_fp and curr_fp and (base_fp.product != curr_fp.product or base_fp.version != curr_fp.version):
-                fingerprint_changes.append({
-                    "target_host": curr_a.target_host,
-                    "port": curr_a.port,
-                    "previous_product": base_fp.product,
-                    "previous_version": base_fp.version,
-                    "current_product": curr_fp.product,
-                    "current_version": curr_fp.version,
-                })
+                fingerprint_changes.append(
+                    {
+                        "target_host": curr_a.target_host,
+                        "port": curr_a.port,
+                        "previous_product": base_fp.product,
+                        "previous_version": base_fp.version,
+                        "current_product": curr_fp.product,
+                        "current_version": curr_fp.version,
+                    }
+                )
 
     for key, curr_a in current_open.items():
         if key not in baseline_open:
-            new_exp.append({
-                "target_host": curr_a.target_host,
-                "port": curr_a.port,
-                "state": curr_a.port_state,
-                "service": curr_a.inferred_fingerprint.service_name if curr_a.inferred_fingerprint else "unknown",
-            })
+            new_exp.append(
+                {
+                    "target_host": curr_a.target_host,
+                    "port": curr_a.port,
+                    "state": curr_a.port_state,
+                    "service": curr_a.inferred_fingerprint.service_name if curr_a.inferred_fingerprint else "unknown",
+                }
+            )
 
     total_baseline = len(baseline_open)
     remediation_rate = (len(remediated) / total_baseline) * 100.0 if total_baseline > 0 else 0.0
@@ -560,4 +662,5 @@ def compare_active_scans(baseline: ActiveScanSession, current: ActiveScanSession
         persistent_exposures=persistent,
         fingerprint_changes=fingerprint_changes,
         remediation_rate=round(remediation_rate, 2),
+        unverified_exposures=unverified,
     )
