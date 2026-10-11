@@ -16,10 +16,10 @@ if str(PLUGIN_ROOT) not in sys.path:
     sys.path.insert(0, str(PLUGIN_ROOT))
 
 from foundryharness.cli import load_scenarios
-from foundryharness.laboratory import LabError, load_lab_cases, run_lab_case
 from foundryharness.gate import (
     IndependentAuthorizationGate,
 )
+from foundryharness.laboratory import LabError, load_lab_cases, run_lab_case
 from foundryharness.mock_sandbox import (
     MockSandbox,
 )

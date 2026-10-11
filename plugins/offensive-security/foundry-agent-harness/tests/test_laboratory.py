@@ -6,14 +6,18 @@ import json
 import sys
 from pathlib import Path
 
-import pytest
 import jsonschema
+import pytest
 
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PLUGIN_ROOT))
 
 from foundryharness.laboratory import (  # noqa: E402
-    LabError, _JsonLineProcess, _McpClient, load_lab_cases, run_lab_case,
+    LabError,
+    _JsonLineProcess,
+    _McpClient,
+    load_lab_cases,
+    run_lab_case,
 )
 
 
