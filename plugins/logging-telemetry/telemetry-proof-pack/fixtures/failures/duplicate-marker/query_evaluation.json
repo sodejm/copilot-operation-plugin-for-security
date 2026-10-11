@@ -1,0 +1,9 @@
+{
+  "execution_id": "exec-splunk-search-881",
+  "rule_id": "RULE-SPL-DEFENDER-POWERSHELL-EXEC",
+  "evaluation_time": "2026-10-01T12:01:00Z",
+  "search_name": "Suspicious PowerShell Execution",
+  "marker": "SYN-SPLUNK-TRACE-101",
+  "matched_count": 1,
+  "execution_duration_sec": 1.45
+}

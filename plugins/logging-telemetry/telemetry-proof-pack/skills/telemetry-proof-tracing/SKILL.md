@@ -1,11 +1,11 @@
 ---
 name: telemetry-proof-tracing
-description: Trace synthetic test markers across source emission, Cribl Stream routing, SIEM indexing, and detection evaluation to prove pipeline health.
+description: Correlate supplied synthetic-marker evidence across source emission, Cribl Stream routing, SIEM indexing, and detection evaluation.
 ---
 
 # Telemetry-to-Detection Proof Tracing Workflow
 
-Use this skill to trace synthetic test markers across your entire security logging and detection pipeline—from initial cloud event generation through intermediate stream routing (Cribl Stream) to final SIEM indexing (Splunk or Microsoft Sentinel) and detection rule evaluation.
+Use this skill to correlate offline evidence for synthetic markers from source emission through Cribl Stream, Splunk or Microsoft Sentinel indexing, scheduled query evaluation, and alert creation. The tool does not collect live evidence.
 
 ## Architecture and Pipeline Lifecycle
 
@@ -20,18 +20,18 @@ flowchart LR
 ### Stage Definitions and Classifications
 
 Each lifecycle stage receives one of three clear classifications:
-- **`observed`**: The synthetic marker was positively identified in evidence records for this stage with valid timestamp and hash.
-- **`missing`**: The synthetic marker was not present in the evidence for this stage (e.g. event dropped upstream, rule search never executed, or alert suppressed).
-- **`unresolved`**: The event reached the stage but encountered an error condition, such as a cross-tenant collision, dropped route metric, or 0 query matches.
+- **`observed`**: One marker-bearing record was supplied with a valid timestamp inside the manifest capture window, and stage checks passed.
+- **`missing`**: No supplied record for this stage contained the marker. Investigate export coverage before inferring a service failure.
+- **`unresolved`**: The supplied records were ambiguous or failed a stage check, including duplicate markers, timestamp bounds, a tenant mismatch, a dropped route flag, or zero query matches.
 
 ### Pipeline Health States
 
-- **`healthy`**: All 5 stages are observed end-to-end. Telemetry flowed completely and the detection rule created an alert.
-- **`degraded`**: Telemetry was successfully indexed in the destination SIEM table or index, but the detection rule returned 0 matches or failed to trigger an alert.
-- **`broken`**: Telemetry was dropped in Cribl Stream or failed to reach destination indexing.
+- **`healthy`**: All five supplied stage records are observed.
+- **`degraded`**: A destination marker record was supplied, but the trace is incomplete or unresolved.
+- **`broken`**: No destination marker record was supplied.
 
 > [!IMPORTANT]
-> **Synthetic Markers Only**: All proof pack runs use dedicated non-sensitive markers (e.g. `SYN-SPLUNK-TRACE-101`). Live production secrets and tokens are automatically scrubbed by the built-in redaction engine.
+> Use authorized, non-sensitive markers (e.g. `SYN-SPLUNK-TRACE-101`) and sanitize exports before analysis. Only Cribl metric details receive built-in redaction; source evidence and report IDs may contain sensitive data. See the [operator playbook](../../docs/PLAYBOOK.md) for permissions, collection limits, and retention.
 
 ## Operator CLI Commands
 

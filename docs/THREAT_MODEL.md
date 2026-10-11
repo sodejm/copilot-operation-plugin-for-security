@@ -39,6 +39,7 @@ private payloads and real identifiers must never be copied into this document.
 | Offline LangSmith response → strict selected-field parser → AI inventory registry → `ExportBoundary` → caller sink | The parser accepts one versioned envelope, discards user-defined names and cursors, and never fetches provider data. A report reaches a registered report sink only after the concrete privacy boundary transforms it. |
 | Evidence copy → `ExportBoundary` → declared external/durable sink | `cops.evidence.assessment.export_provider_assessment`, `export_assessment_telemetry`, and `export_assessment_report` derive a local assessment; `cops.diagnostics.export_diagnostic_report` serializes a `DiagnosticReport`. Each transforms its copy then calls the caller-provided sink immediately afterward. The repository supplies no recipient backend. |
 | Operator canary policy → messaging collector → synthetic fixture or TCP endpoint | A canary route requires an explicit destination allowlist and, for mail, a recipient allowlist, active retention window and bounded message count. Synthetic fixture claims remain fixture evidence; TCP reachability proves no delivery or cleanup. |
+| Telemetry Proof Pack exports → offline correlator → Markdown/JSON report | Supplied marker records, timestamps and IDs remain untrusted. The report hashes content for comparison but cannot authenticate exports or enforce collection, access, or retention policy. |
 
 ```mermaid
 flowchart LR
@@ -245,6 +246,14 @@ validation before the affected release/capability expansion and schedule P2 with
 - Existing evidence / limitation: The messaging collector requires explicit destination and mail-recipient allowlists, an active retention window of at most one day, and a positive canary message budget of at most five. Synthetic fixture evidence must match the requested identifier and route, stay within budget, and place delivery and cleanup timestamps inside the retention window. Imported validated canaries and verified synthetic cleanup receipts require a nonempty matching canary identifier; future-dated cleanup evidence is rejected. A cleanup receipt requires explicit fixture confirmation and hashes its retention start and duration with its delivery and cleanup timestamps. Report import rechecks those bounds. That hash detects changes to a report; it does not authenticate the fixture. The socket collector checks TCP reachability and sends no canary message.
 - Proposed mitigation and validation: Keep negative tests for unauthorized routes, expired, stale or future-dated evidence, budget exhaustion, missing cleanup confirmation, malformed receipt hashes, canary identifiers and boolean fields. Before any future live delivery capability, require separate authorization, effective recipient validation, retention/deletion verification and protocol-level cleanup evidence.
 - Residual risk / status: Local fixture checks do not establish live delivery, external retention or deletion. A fixture cleanup receipt is evidence about the fixture only; human review of this boundary is pending.
+
+### T19: Telemetry proof ambiguity or report disclosure
+
+- Attack path / prerequisite: An incomplete export, duplicate marker, misleading timestamp, or sensitive value in a supplied record produces a false health conclusion or is copied into a report.
+- Inherent impact: Medium; likelihood: Medium; priority: P2.
+- Existing evidence / limitation: The offline correlator marks duplicate, invalid-time, and out-of-window stages unresolved and retains hashes and matching IDs. It redacts Cribl metric details only; the report does not authenticate source records or verify export completeness.
+- Proposed mitigation and validation: Keep synthetic duplicate/delay tests and package checks; collect all scoped matches using approved read rights, verify indexing timestamps and provenance separately, sanitize exports before use, and restrict report access and retention.
+- Residual risk / status: operator-supplied records and IDs can still be misleading or sensitive. Human review of the export and report is required before operational conclusions.
 
 ## STRIDE and privacy coverage
 
