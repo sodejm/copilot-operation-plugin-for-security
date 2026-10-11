@@ -6,9 +6,9 @@ description: Audit capability truth-in-advertising, reconcile operational readin
 # Capability coverage and truth-in-advertising audit
 
 Audit, reconcile, and enforce strict truthfulness regarding the operational readiness of all COPS capabilities across three domains:
-- **13 Distributed Plugins** (`plugins/*/*/package.json`)
+- **14 Distributed Plugins** (`plugins/*/*/package.json`)
 - **18 Specialist Agent Profiles** (`agents/registry.json`)
-- **32 Canonical Security Scenarios** (`catalog/scenarios.json`)
+- **37 Canonical Security Scenarios** (`catalog/scenarios.json`)
 
 ## Operational Readiness Modes
 
@@ -46,7 +46,7 @@ python3 -m cops capabilities audit --check
 List all capabilities with their verified operational modes and truth boundaries:
 
 ```bash
-# List all 63 capabilities
+# List all 69 capabilities
 python3 -m cops capabilities list
 
 # Filter by operational mode
@@ -97,4 +97,4 @@ md = generate_capability_matrix_markdown(registry)
 - `unverified_live_claim`: A capability or scenario claimed `live-validated` mode without verified live execution evidence.
 - `unverified_live_integration`: A plugin package claimed `live_integration: "validated"` without registered live evidence receipts.
 - `missing_truth_boundary`: A capability has empty or undefined truth boundaries.
-- `catalog_descriptive_drift`: Total audited count diverged from the canonical registry (expected 13 plugins, 18 specialists, 32 scenarios).
+- `catalog_descriptive_drift`: Total audited count diverged from the canonical registry (expected 14 plugins, 18 specialists, 37 scenarios).

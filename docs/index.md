@@ -12,7 +12,7 @@ description: "Universal catalog of offline-first defensive cybersecurity plugins
   </p>
   <div class="cops-cta-row">
     <a href="getting-started.html" class="cops-btn cops-btn-primary">5-Minute Quickstart</a>
-    <a href="plugin-guide.html" class="cops-btn cops-btn-secondary">Explore 13 Plugins</a>
+    <a href="plugin-guide.html" class="cops-btn cops-btn-secondary">Explore 14 Plugins</a>
     <a href="specialist-agents.html" class="cops-btn cops-btn-secondary">18 Specialist Agents</a>
     <a href="https://github.com/sodejm/copilot-operation-plugin-for-security" class="cops-btn cops-btn-secondary">GitHub Repository</a>
   </div>
@@ -43,7 +43,7 @@ cd copilot-operation-plugin-for-security
 # 2. Check local environment health and catalog synchronization
 python3 -m cops doctor
 
-# 3. List all 13 plugins and their validation status
+# 3. List all 14 plugins and their validation status
 python3 -m cops list
 
 # 4. Route a natural language security task to the optimal specialist
@@ -62,7 +62,7 @@ Read the full [Getting Started Guide](getting-started.md) for detailed step-by-s
 
 ## Cybersecurity Capability Domains
 
-COPS organizes 13 dedicated security plugins across six cybersecurity disciplines:
+COPS organizes 14 dedicated security plugins across six cybersecurity disciplines:
 
 <div class="cops-grid">
   <div class="cops-card">
@@ -87,8 +87,8 @@ COPS organizes 13 dedicated security plugins across six cybersecurity discipline
   </div>
   <div class="cops-card">
     <h3>⚔️ Offensive Security</h3>
-    <p>Translate authorized rules of engagement into bounded, passive review plans and evaluate AI agent prompt injection resistance in a sandbox.</p>
-    <p><strong>Plugins:</strong> <a href="plugin-guide.html#attack-surface-planner">Attack Surface Planner</a> <span class="badge badge-experimental">Experimental</span>, <a href="plugin-guide.html#foundry-agent-harness">Foundry Agent Harness</a> <span class="badge badge-beta">Beta</span></p>
+    <p>Plan bounded reviews, validate authorized engagement scope, and evaluate AI agent prompt injection resistance in a sandbox.</p>
+    <p><strong>Plugins:</strong> <a href="plugin-guide.html#attack-surface-planner">Attack Surface Planner</a> <span class="badge badge-experimental">Experimental</span>, <a href="plugin-guide.html#offensive-engagement-workbench">Offensive Engagement Workbench</a> <span class="badge badge-experimental">Experimental</span>, <a href="plugin-guide.html#foundry-agent-harness">Foundry Agent Harness</a> <span class="badge badge-beta">Beta</span></p>
   </div>
   <div class="cops-card">
     <h3>🚨 Incident Response</h3>

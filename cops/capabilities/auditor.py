@@ -201,7 +201,7 @@ def audit_capabilities(root: Path = ROOT, registry_data: dict[str, Any] | None =
     1. Unverified Live Claims: No capability may claim 'live-validated' mode or 'live_integration: validated'
        without verified live evidence records.
     2. Truth Boundaries: Every capability must specify non-empty truth boundaries.
-    3. Descriptive Drift: Total counts must match expected counts (13 plugins, 18 specialists, 32 scenarios).
+    3. Descriptive Drift: Total counts must match expected counts (14 plugins, 18 specialists, 37 scenarios).
     4. Specialist Advisory Constraints: Specialists cannot claim direct execution without an ActionPlan contract.
     """
     if registry_data is None:
