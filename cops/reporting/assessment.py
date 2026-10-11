@@ -17,16 +17,31 @@ class ReportError(ValueError):
 
 
 _INPUT_KEYS = {
-    "schema_version", "report_id", "generated_at", "engagement", "action_plans", "run_results",
-    "findings", "evidence_envelopes", "coverage", "finding_contexts", "limitations",
+    "schema_version",
+    "report_id",
+    "generated_at",
+    "engagement",
+    "action_plans",
+    "run_results",
+    "findings",
+    "evidence_envelopes",
+    "coverage",
+    "finding_contexts",
+    "limitations",
 }
 _COVERAGE_KEYS = {"scenario_id", "target", "mode", "access", "result_id"}
 _CONTEXT_KEYS = {
-    "finding_id", "kind", "affected_assets", "reproducibility",
-    "attack_path_dependencies", "limitations",
+    "finding_id",
+    "kind",
+    "affected_assets",
+    "reproducibility",
+    "attack_path_dependencies",
+    "limitations",
 }
 _KINDS = {
-    "configuration_observation", "scanner_assertion", "observed_behavior",
+    "configuration_observation",
+    "scanner_assertion",
+    "observed_behavior",
     "reproduced_attack_path",
 }
 _MODES = {"planning", "import", "laboratory", "live"}
@@ -62,7 +77,9 @@ def _valid_contract(item: Any, kind: str, *, max_bytes: int = 1024 * 1024) -> di
         raise ReportError(f"invalid {kind} contract") from error
 
 
-def _parse_target(target: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address | ipaddress.IPv4Network | ipaddress.IPv6Network | str:
+def _parse_target(
+    target: str,
+) -> ipaddress.IPv4Address | ipaddress.IPv6Address | ipaddress.IPv4Network | ipaddress.IPv6Network | str:
     try:
         return ipaddress.ip_network(target, strict=False) if "/" in target else ipaddress.ip_address(target)
     except ValueError:
@@ -85,12 +102,12 @@ def _contains(container: str, target: str) -> bool:
 def _in_scope(target: str, scope: dict[str, Any]) -> bool:
     if not any(_contains(included, target) for included in scope["included_targets"]):
         return False
-    return not any(_contains(excluded, target) or _contains(target, excluded)
-                   for excluded in scope["excluded_targets"])
+    return not any(_contains(excluded, target) or _contains(target, excluded) for excluded in scope["excluded_targets"])
 
 
-def _coverage_status(mode: str, access: str, result: dict[str, Any] | None,
-                     evidence_ids: list[str], plan: dict[str, Any] | None) -> str:
+def _coverage_status(
+    mode: str, access: str, result: dict[str, Any] | None, evidence_ids: list[str], plan: dict[str, Any] | None
+) -> str:
     if access != "available" or mode == "planning" or result is None or not evidence_ids:
         return "not_assessed"
     if mode == "import" or plan is None:
@@ -186,21 +203,27 @@ def build_assessment_report(bundle: dict[str, Any]) -> dict[str, Any]:
         plan = action_plans.get(result["plan_id"]) if result else None
         if result and plan is None and row["mode"] != "import":
             raise ReportError("non-imported run result requires its action plan")
-        if plan and (plan["scenario_id"] != row["scenario_id"]
-                     or not _contains(plan["target"], row["target"])):
+        if plan and (plan["scenario_id"] != row["scenario_id"] or not _contains(plan["target"], row["target"])):
             raise ReportError("coverage scenario or target does not match its action plan")
         validated_ids = sorted(
-            record_id for record_id in (result["evidence_records"] if result else [])
-            if record_id in evidence and any(_contains(source_target, row["target"])
-                                             for source_target in evidence[record_id]["source"]["scope"])
+            record_id
+            for record_id in (result["evidence_records"] if result else [])
+            if record_id in evidence
+            and any(_contains(source_target, row["target"]) for source_target in evidence[record_id]["source"]["scope"])
         )
         status = _coverage_status(row["mode"], row["access"], result, validated_ids, plan)
-        coverage.append({
-            "scenario_id": row["scenario_id"], "target": row["target"],
-            "mode": row["mode"], "provenance": _provenance(row["mode"], status),
-            "access": row["access"], "status": status, "result_id": result_id,
-            "evidence_records": validated_ids,
-        })
+        coverage.append(
+            {
+                "scenario_id": row["scenario_id"],
+                "target": row["target"],
+                "mode": row["mode"],
+                "provenance": _provenance(row["mode"], status),
+                "access": row["access"],
+                "status": status,
+                "result_id": result_id,
+                "evidence_records": validated_ids,
+            }
+        )
     if covered_result_ids != run_results.keys():
         raise ReportError("every run result requires a coverage entry")
 
@@ -239,20 +262,27 @@ def build_assessment_report(bundle: dict[str, Any]) -> dict[str, Any]:
         if finding["engagement_id"] != engagement_id or finding["result_id"] not in run_results:
             raise ReportError("finding references a different engagement or unknown run result")
         context = contexts[finding_id]
-        rows = [row for row in coverage if row["result_id"] == finding["result_id"]
-                and row["scenario_id"] == finding["scenario_id"]
-                and any(_contains(row["target"], asset) for asset in context["affected_assets"])]
+        rows = [
+            row
+            for row in coverage
+            if row["result_id"] == finding["result_id"]
+            and row["scenario_id"] == finding["scenario_id"]
+            and any(_contains(row["target"], asset) for asset in context["affected_assets"])
+        ]
         if not rows:
             raise ReportError("finding has no matching scoped coverage entry")
         record_ids = set(finding["evidence_references"])
         validated_ids = set().union(*(set(row["evidence_records"]) for row in rows))
         complete_evidence = bool(record_ids) and record_ids <= validated_ids
-        uncovered_assets = [asset for asset in context["affected_assets"] if not any(
-            row["status"] == "assessed" and _contains(row["target"], asset) for row in rows
-        )]
-        best_status = "assessed" if not uncovered_assets else (
-            "partial" if any(row["status"] in {"assessed", "partial"} for row in rows)
-            else "not_assessed"
+        uncovered_assets = [
+            asset
+            for asset in context["affected_assets"]
+            if not any(row["status"] == "assessed" and _contains(row["target"], asset) for row in rows)
+        ]
+        best_status = (
+            "assessed"
+            if not uncovered_assets
+            else ("partial" if any(row["status"] in {"assessed", "partial"} for row in rows) else "not_assessed")
         )
         finding_limitations = context["limitations"][:]
         if uncovered_assets:
@@ -269,8 +299,10 @@ def build_assessment_report(bundle: dict[str, Any]) -> dict[str, Any]:
             message = f"{finding_id}: missing validated evidence for one or more referenced records."
             if message not in limitations:
                 limitations.append(message)
-        elif best_status == "assessed" and finding["verification"] == "verified" and not any(
-            row["mode"] == "import" for row in rows
+        elif (
+            best_status == "assessed"
+            and finding["verification"] == "verified"
+            and not any(row["mode"] == "import" for row in rows)
         ):
             assessment_status, strength = "assessed", "recorded"
         elif best_status in {"assessed", "partial"}:
@@ -278,40 +310,54 @@ def build_assessment_report(bundle: dict[str, Any]) -> dict[str, Any]:
         else:
             assessment_status, strength = "not_assessed", "limited"
         if context["kind"] == "reproduced_attack_path" and (
-            assessment_status != "assessed" or context["reproducibility"] != "repeatable"
+            assessment_status != "assessed"
+            or context["reproducibility"] != "repeatable"
             or not any(row["mode"] in {"laboratory", "live"} for row in rows)
         ):
             raise ReportError("reproduced attack path requires repeatable validated laboratory or live evidence")
         if context["kind"] == "reproduced_attack_path" and not context["attack_path_dependencies"]:
             raise ReportError("reproduced attack path requires declared dependencies")
-        findings.append({
-            "finding_id": finding_id, "scenario_id": finding["scenario_id"],
-            "result_id": finding["result_id"], "title": finding["title"],
-            "severity": finding["severity"],
-            "classification": "unresolved" if finding["verification"] == "contradicted" else finding["classification"],
-            "verification": finding["verification"], "confidence": finding["confidence"],
-            "kind": context["kind"], "claim": finding["claim"],
-            "affected_assets": context["affected_assets"][:],
-            "reproducibility": context["reproducibility"],
-            "attack_path_dependencies": context["attack_path_dependencies"][:],
-            "remediation": finding["remediation"], "uncertainty": finding["uncertainty"],
-            "mitre_attack": finding["mitre_attack"][:], "evidence_strength": strength,
-            "evidence_references": sorted(record_ids & validated_ids),
-            "assessment_status": assessment_status, "limitations": finding_limitations,
-        })
+        findings.append(
+            {
+                "finding_id": finding_id,
+                "scenario_id": finding["scenario_id"],
+                "result_id": finding["result_id"],
+                "title": finding["title"],
+                "severity": finding["severity"],
+                "classification": "unresolved"
+                if finding["verification"] == "contradicted"
+                else finding["classification"],
+                "verification": finding["verification"],
+                "confidence": finding["confidence"],
+                "kind": context["kind"],
+                "claim": finding["claim"],
+                "affected_assets": context["affected_assets"][:],
+                "reproducibility": context["reproducibility"],
+                "attack_path_dependencies": context["attack_path_dependencies"][:],
+                "remediation": finding["remediation"],
+                "uncertainty": finding["uncertainty"],
+                "mitre_attack": finding["mitre_attack"][:],
+                "evidence_strength": strength,
+                "evidence_references": sorted(record_ids & validated_ids),
+                "assessment_status": assessment_status,
+                "limitations": finding_limitations,
+            }
+        )
     if finding_ids != contexts.keys():
         raise ReportError("orphan finding context")
     for finding in findings:
         dependencies = finding["attack_path_dependencies"]
-        if (finding["finding_id"] in dependencies
-                or any(dependency not in finding_ids for dependency in dependencies)):
+        if finding["finding_id"] in dependencies or any(dependency not in finding_ids for dependency in dependencies):
             raise ReportError("attack path dependency must reference a different included finding")
     report = {
-        "schema_version": "cops.assessment-report/v1", "report_id": bundle["report_id"],
-        "engagement_id": engagement_id, "generated_at": bundle["generated_at"],
-        "scope": {"included_targets": scope["included_targets"][:],
-                  "excluded_targets": scope["excluded_targets"][:]},
-        "coverage": coverage, "findings": findings, "limitations": limitations,
+        "schema_version": "cops.assessment-report/v1",
+        "report_id": bundle["report_id"],
+        "engagement_id": engagement_id,
+        "generated_at": bundle["generated_at"],
+        "scope": {"included_targets": scope["included_targets"][:], "excluded_targets": scope["excluded_targets"][:]},
+        "coverage": coverage,
+        "findings": findings,
+        "limitations": limitations,
         "evidence_notice": "Record hashes establish internal integrity only; source authenticity and authorization need separate validation.",
     }
     _valid_contract(report, "assessment_report")
@@ -329,35 +375,47 @@ def render_markdown(report: dict[str, Any]) -> str:
     """Render validated report fields as escaped, non-executable Markdown text."""
     _valid_contract(report, "assessment_report")
     lines = [
-        "# COPS engagement assessment", "",
+        "# COPS engagement assessment",
+        "",
         f"Report: {_safe(report['report_id'])}",
         f"Engagement: {_safe(report['engagement_id'])}",
-        f"Generated: {_safe(report['generated_at'])}", "",
-        "## Scope", "",
+        f"Generated: {_safe(report['generated_at'])}",
+        "",
+        "## Scope",
+        "",
         "Included: " + ", ".join(map(_safe, report["scope"]["included_targets"])),
-        "Excluded: " + ", ".join(map(_safe, report["scope"]["excluded_targets"])), "",
-        "## Coverage", "",
+        "Excluded: " + ", ".join(map(_safe, report["scope"]["excluded_targets"])),
+        "",
+        "## Coverage",
+        "",
         "| Scenario | Target | Provenance | Access | Assessment |",
         "| --- | --- | --- | --- | --- |",
     ]
     for row in report["coverage"]:
-        lines.append("| " + " | ".join(_safe(row[key]) for key in
-                                      ("scenario_id", "target", "provenance", "access", "status")) + " |")
+        lines.append(
+            "| "
+            + " | ".join(_safe(row[key]) for key in ("scenario_id", "target", "provenance", "access", "status"))
+            + " |"
+        )
     lines.extend(["", "## Findings", ""])
     for finding in report["findings"]:
-        lines.extend([
-            f"### {_safe(finding['finding_id'])}: {_safe(finding['title'])}", "",
-            f"Severity: {_safe(finding['severity'])}; kind: {_safe(finding['kind'])}; "
-            f"assessment: {_safe(finding['assessment_status'])}; verification: {_safe(finding['verification'].title())}",
-            f"Claim: {_safe(finding['claim'])}",
-            "Affected assets: " + ", ".join(map(_safe, finding["affected_assets"])),
-            f"Reproducibility: {_safe(finding['reproducibility'])}; evidence strength: {_safe(finding['evidence_strength'])}",
-            "Evidence records: " + ", ".join(map(_safe, finding["evidence_references"])),
-            "Attack path dependencies: " + ", ".join(map(_safe, finding["attack_path_dependencies"])),
-            f"Remediation: {_safe(finding['remediation'])}",
-            f"Uncertainty: {_safe(finding['uncertainty'])}",
-            "Limitations: " + "; ".join(map(_safe, finding["limitations"])), "",
-        ])
+        lines.extend(
+            [
+                f"### {_safe(finding['finding_id'])}: {_safe(finding['title'])}",
+                "",
+                f"Severity: {_safe(finding['severity'])}; kind: {_safe(finding['kind'])}; "
+                f"assessment: {_safe(finding['assessment_status'])}; verification: {_safe(finding['verification'].title())}",
+                f"Claim: {_safe(finding['claim'])}",
+                "Affected assets: " + ", ".join(map(_safe, finding["affected_assets"])),
+                f"Reproducibility: {_safe(finding['reproducibility'])}; evidence strength: {_safe(finding['evidence_strength'])}",
+                "Evidence records: " + ", ".join(map(_safe, finding["evidence_references"])),
+                "Attack path dependencies: " + ", ".join(map(_safe, finding["attack_path_dependencies"])),
+                f"Remediation: {_safe(finding['remediation'])}",
+                f"Uncertainty: {_safe(finding['uncertainty'])}",
+                "Limitations: " + "; ".join(map(_safe, finding["limitations"])),
+                "",
+            ]
+        )
     lines.extend(["## Assessment limitations", ""])
     lines.extend(f"- {_safe(item)}" for item in report["limitations"])
     lines.extend(["", _safe(report["evidence_notice"]), ""])

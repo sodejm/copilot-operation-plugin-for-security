@@ -22,11 +22,18 @@ def _fixture(name: str) -> dict:
 
 def _envelope() -> dict:
     return build_envelope(
-        acquisition_id="collection-1", product="offline-import", api="records/v1",
-        tenant="tenant-1", scope=["10.0.0.5"], identity="host-5", locator="private-locator",
+        acquisition_id="collection-1",
+        product="offline-import",
+        api="records/v1",
+        tenant="tenant-1",
+        scope=["10.0.0.5"],
+        identity="host-5",
+        locator="private-locator",
         payload={"secret": "DO_NOT_EXPORT", "observation": "HTTP service"},
-        acquired_at="2026-10-02T10:05:00Z", transformed_at="2026-10-02T10:05:00Z",
-        request_fingerprint="a" * 64, page=1,
+        acquired_at="2026-10-02T10:05:00Z",
+        transformed_at="2026-10-02T10:05:00Z",
+        request_fingerprint="a" * 64,
+        page=1,
         raw_reference={"store_id": "PRIVATE_STORE_ID", "sha256": "b" * 64},
     )
 
@@ -51,11 +58,25 @@ def _bundle(*, mode: str = "laboratory") -> dict:
         "run_results": [run],
         "findings": [finding],
         "evidence_envelopes": [evidence],
-        "coverage": [{"scenario_id": finding["scenario_id"], "target": "10.0.0.5",
-                      "mode": mode, "access": "available", "result_id": run["result_id"]}],
-        "finding_contexts": [{"finding_id": finding["finding_id"], "kind": "observed_behavior",
-                              "affected_assets": ["10.0.0.5"], "reproducibility": "repeatable",
-                              "attack_path_dependencies": [], "limitations": []}],
+        "coverage": [
+            {
+                "scenario_id": finding["scenario_id"],
+                "target": "10.0.0.5",
+                "mode": mode,
+                "access": "available",
+                "result_id": run["result_id"],
+            }
+        ],
+        "finding_contexts": [
+            {
+                "finding_id": finding["finding_id"],
+                "kind": "observed_behavior",
+                "affected_assets": ["10.0.0.5"],
+                "reproducibility": "repeatable",
+                "attack_path_dependencies": [],
+                "limitations": [],
+            }
+        ],
         "limitations": ["Only the selected service was reviewed."],
     }
 
@@ -88,8 +109,15 @@ def test_report_joins_evidence_and_excludes_sensitive_source_fields():
 
 def test_partial_and_missing_access_stay_not_assessed():
     bundle = _bundle()
-    bundle["coverage"].append({"scenario_id": "COPS-E17.01-S02", "target": "10.0.0.6",
-                                "mode": "planning", "access": "unavailable", "result_id": None})
+    bundle["coverage"].append(
+        {
+            "scenario_id": "COPS-E17.01-S02",
+            "target": "10.0.0.6",
+            "mode": "planning",
+            "access": "unavailable",
+            "result_id": None,
+        }
+    )
     bundle["run_results"][0]["status"] = "partial"
     bundle["run_results"][0]["status_details"]["reason"] = "collection incomplete"
     report = build_assessment_report(bundle)
@@ -102,9 +130,15 @@ def test_partial_and_missing_access_stay_not_assessed():
 def test_finding_with_unassessed_asset_is_partial_and_discloses_gap():
     bundle = _bundle()
     bundle["finding_contexts"][0]["affected_assets"].append("10.0.0.6")
-    bundle["coverage"].append({"scenario_id": bundle["findings"][0]["scenario_id"],
-                               "target": "10.0.0.6", "mode": "planning",
-                               "access": "unavailable", "result_id": None})
+    bundle["coverage"].append(
+        {
+            "scenario_id": bundle["findings"][0]["scenario_id"],
+            "target": "10.0.0.6",
+            "mode": "planning",
+            "access": "unavailable",
+            "result_id": None,
+        }
+    )
     report = build_assessment_report(bundle)
     finding = report["findings"][0]
     assert report["coverage"][1]["status"] == "not_assessed"
@@ -198,10 +232,13 @@ def test_rejects_conflicting_or_planned_result_provenance():
         build_assessment_report(bundle)
 
 
-@pytest.mark.parametrize("field,value", [
-    ("scenario_id", "COPS-E17.01-S99"),
-    ("target", "10.0.0.6"),
-])
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("scenario_id", "COPS-E17.01-S99"),
+        ("target", "10.0.0.6"),
+    ],
+)
 def test_rejects_action_plan_mismatch(field, value):
     bundle = _bundle()
     bundle["coverage"][0][field] = value
@@ -216,12 +253,15 @@ def test_cross_ip_version_scope_is_not_containment():
         build_assessment_report(bundle)
 
 
-@pytest.mark.parametrize("change", [
-    lambda b: b["findings"][0].__setitem__("engagement_id", "eng-other-1234"),
-    lambda b: b["finding_contexts"][0].__setitem__("affected_assets", ["10.0.0.1"]),
-    lambda b: b["coverage"][0].__setitem__("target", "10.0.1.5"),
-    lambda b: b["coverage"][0].__setitem__("result_id", "res-unknown-1234"),
-])
+@pytest.mark.parametrize(
+    "change",
+    [
+        lambda b: b["findings"][0].__setitem__("engagement_id", "eng-other-1234"),
+        lambda b: b["finding_contexts"][0].__setitem__("affected_assets", ["10.0.0.1"]),
+        lambda b: b["coverage"][0].__setitem__("target", "10.0.1.5"),
+        lambda b: b["coverage"][0].__setitem__("result_id", "res-unknown-1234"),
+    ],
+)
 def test_rejects_cross_engagement_or_out_of_scope_claims(change):
     bundle = _bundle()
     change(bundle)
@@ -238,8 +278,9 @@ def test_reproduced_attack_path_requires_reproduction_evidence():
     prerequisite["finding_id"] = "find-prerequisite-001"
     bundle["findings"].append(prerequisite)
     prerequisite_context = deepcopy(context)
-    prerequisite_context.update({"finding_id": "find-prerequisite-001", "kind": "observed_behavior",
-                                 "attack_path_dependencies": []})
+    prerequisite_context.update(
+        {"finding_id": "find-prerequisite-001", "kind": "observed_behavior", "attack_path_dependencies": []}
+    )
     bundle["finding_contexts"].append(prerequisite_context)
     report = build_assessment_report(bundle)
     assert report["findings"][0]["kind"] == "reproduced_attack_path"
