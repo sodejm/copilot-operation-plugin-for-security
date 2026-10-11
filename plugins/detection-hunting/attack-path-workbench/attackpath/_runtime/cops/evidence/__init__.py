@@ -40,6 +40,11 @@ from .export_policy import (
     SinkDescriptor,
     evaluate_privacy_corpus,
 )
+from .langsmith_inventory import (
+    adapt_langsmith_query_runs,
+    export_langsmith_inventory,
+    import_langsmith_query_runs,
+)
 from .validation import validate_envelope, validate_receipt
 
 __all__ = [
@@ -81,4 +86,9 @@ __all__ += [
     "validate_component_manifest",
     "verify_component_manifest",
     "assess_component_baselines",
+]
+__all__ += [
+    "adapt_langsmith_query_runs",
+    "export_langsmith_inventory",
+    "import_langsmith_query_runs",
 ]

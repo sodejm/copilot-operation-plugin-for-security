@@ -19,6 +19,7 @@ SOURCES = tuple(
         "ai_inventory",
         "ai_components",
         "export_policy",
+        "langsmith_inventory",
     )
 ) + (
     "cops/execution/redaction.py",
@@ -38,7 +39,7 @@ def generate(root=ROOT, *, check=False, destination=None):
     )
     manifest = {
         "schema_version": "attackpath.sdk-bundle/v1",
-        "contracts": ["cops.evidence/v1", "cops.acquisition/v1"],
+        "contracts": ["cops.evidence/v1", "cops.acquisition/v1", "cops.langsmith-query-runs/v2"],
         "sources": [{"path": name, "sha256": hashlib.sha256(expected[name]).hexdigest()} for name in SOURCES],
     }
     expected["source-manifest.json"] = (json.dumps(manifest, indent=2, sort_keys=True) + "\n").encode()
