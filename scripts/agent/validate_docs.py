@@ -92,11 +92,13 @@ def validate_catalog_counts(errors: list[str]) -> None:
     counts["capability"] = sum(counts.values())
 
     pages = [ROOT / "README.md", *sorted(DOCS_DIR.glob("*.md"))]
-    pages.extend((
-        ROOT / "specs/capability-reconciliation.spec.md",
-        ROOT / ".agents/skills/capability-coverage-audit/SKILL.md",
-        ROOT / "cops/capabilities/auditor.py",
-    ))
+    pages.extend(
+        (
+            ROOT / "specs/capability-reconciliation.spec.md",
+            ROOT / ".agents/skills/capability-coverage-audit/SKILL.md",
+            ROOT / "cops/capabilities/auditor.py",
+        )
+    )
     for path in pages:
         if not path.is_file():
             continue

@@ -73,9 +73,17 @@ def build_capability_registry(root: Path = ROOT) -> dict[str, Any]:
         if mode == "laboratory":
             ev_reqs = ["Deterministic offline test execution", "Synthetic fixture validation", "Zero network egress"]
         elif mode == "import":
-            ev_reqs = ["Local static file/manifest parsing", "Deterministic AST/schema validation", "Zero live service mutation"]
+            ev_reqs = [
+                "Local static file/manifest parsing",
+                "Deterministic AST/schema validation",
+                "Zero live service mutation",
+            ]
         elif mode == "live-validated":
-            ev_reqs = ["cops.evidence/v1 receipt bundle", "Operator authorization receipt", "Live environment execution log"]
+            ev_reqs = [
+                "cops.evidence/v1 receipt bundle",
+                "Operator authorization receipt",
+                "Live environment execution log",
+            ]
         else:
             ev_reqs = ["Scoping specification", "Human-approved rules of engagement"]
 
@@ -128,7 +136,7 @@ def build_capability_registry(root: Path = ROOT) -> dict[str, Any]:
     for s in scenarios_data["scenarios"]:
         safety = s.get("safety_profile", {})
         mode = s.get("coverage_mode", "planned")
-        live_verified = (mode == "live-validated")
+        live_verified = mode == "live-validated"
 
         bounds = (
             f"Impact: {safety.get('impact', 'unknown')}; "
@@ -140,7 +148,9 @@ def build_capability_registry(root: Path = ROOT) -> dict[str, Any]:
         ev_reqs = [
             f"Pinned research source {s.get('provenance', {}).get('source_id', 'unknown')}",
             "MITRE ATT&CK technique mapping",
-            "Isolated worker configuration" if s.get("environment", {}).get("isolated_worker_required") else "Standard runner",
+            "Isolated worker configuration"
+            if s.get("environment", {}).get("isolated_worker_required")
+            else "Standard runner",
         ]
 
         entry = CapabilityEntry(
@@ -173,7 +183,6 @@ def build_capability_registry(root: Path = ROOT) -> dict[str, Any]:
         "schema_version": "cops.capabilities/v1",
         "updated_at": utc_now(),
         "summary": {
-
             "total_capabilities": len(capabilities),
             "by_kind": by_kind,
             "by_mode": by_mode,
@@ -219,15 +228,12 @@ def audit_capabilities(root: Path = ROOT, registry_data: dict[str, Any] | None =
         if mode == "live-validated" and not live_verified:
             raise CapabilityTruthError(
                 "unverified_live_claim",
-                f"Capability '{cid}' claims 'live-validated' mode without verified live execution evidence."
+                f"Capability '{cid}' claims 'live-validated' mode without verified live execution evidence.",
             )
 
         # Check for empty boundaries
         if not cap.get("truth_boundaries", "").strip():
-            raise CapabilityTruthError(
-                "missing_truth_boundary",
-                f"Capability '{cid}' has empty truth_boundaries."
-            )
+            raise CapabilityTruthError("missing_truth_boundary", f"Capability '{cid}' has empty truth_boundaries.")
 
     # Rule 2: Check plugin package.json live_integration values directly
     plugins_index_path = root / "catalog" / "plugins.json"
@@ -245,24 +251,22 @@ def audit_capabilities(root: Path = ROOT, registry_data: dict[str, Any] | None =
                     if not evidence_dir.is_dir() or not any(evidence_dir.glob(f"{p['id']}-*.json")):
                         raise CapabilityTruthError(
                             "unverified_live_integration",
-                            f"Plugin '{p['id']}' claims live_integration: validated without verified evidence receipts."
+                            f"Plugin '{p['id']}' claims live_integration: validated without verified evidence receipts.",
                         )
 
     # Rule 3: Catalog descriptive drift check
     if summary["by_kind"]["plugin"] != 14:
         raise CapabilityTruthError(
-            "catalog_descriptive_drift",
-            f"Expected exactly 14 plugins, found {summary['by_kind']['plugin']}."
+            "catalog_descriptive_drift", f"Expected exactly 14 plugins, found {summary['by_kind']['plugin']}."
         )
     if summary["by_kind"]["specialist"] != 18:
         raise CapabilityTruthError(
             "catalog_descriptive_drift",
-            f"Expected exactly 18 specialist profiles, found {summary['by_kind']['specialist']}."
+            f"Expected exactly 18 specialist profiles, found {summary['by_kind']['specialist']}.",
         )
     if summary["by_kind"]["scenario"] != 37:
         raise CapabilityTruthError(
-            "catalog_descriptive_drift",
-            f"Expected exactly 37 scenarios, found {summary['by_kind']['scenario']}."
+            "catalog_descriptive_drift", f"Expected exactly 37 scenarios, found {summary['by_kind']['scenario']}."
         )
 
     return {
@@ -301,9 +305,7 @@ def generate_capability_matrix_markdown(registry_data: dict[str, Any]) -> str:
         # Truncate long descriptions if needed for clean table formatting
         if len(boundaries) > 120:
             boundaries = boundaries[:117] + "..."
-        lines.append(
-            f"| `{c['id']}` | **{c['name']}** | {c['kind']} | `{c['mode']}` | {boundaries} |"
-        )
+        lines.append(f"| `{c['id']}` | **{c['name']}** | {c['kind']} | `{c['mode']}` | {boundaries} |")
 
     lines.append("")
     return "\n".join(lines)
