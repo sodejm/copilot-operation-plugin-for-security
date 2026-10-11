@@ -7,6 +7,8 @@ description: Assess email services (SMTP, POP3, IMAP), chat (IRC), and message b
 
 Execute authorized, bounded exposure and configuration assessments across mail transfer and retrieval agents, real-time chat, and message queuing/streaming brokers under strict Rules of Engagement and operational boundaries.
 
+The synthetic collector evaluates supplied fixture data. The socket collector checks TCP reachability only; it does not send protocol messages or establish relay, authentication, delivery, or cleanup behavior.
+
 ## Core Capabilities
 
 1. **Protocol-Specific Coverage**:
@@ -24,16 +26,17 @@ Execute authorized, bounded exposure and configuration assessments across mail t
      - **MQTT (1883)**: Detects anonymous client connections (`allow_anonymous true`), wildcards (`#`) subscription, and unencrypted publish/subscribe streams.
 
 2. **Bounded Message Budgets & Zero Mass Outbound Relaying**:
-   - Technical probes strictly enforce a bounded message budget (default 5 messages/probes) to verify delivery, queue interaction, and boundary enforcement.
-   - **Zero Mass Outbound Relaying**: Bulk mail delivery, external domain spamming, and unconstrained queue flooding are strictly prohibited and architecturally blocked.
+   - A synthetic canary requires an explicit destination allowlist, and mail canaries also require an explicit recipient allowlist. The selected route must appear in the matching allowlist before a probe starts.
+   - The canary retention window must be active and no longer than 86400 seconds. The message budget is 0 through 5 (default 5); a canary requires a positive budget and fixture evidence exceeding it is rejected.
+   - Neither collector sends outbound messages. The budget bounds accepted synthetic evidence; it is not a live sending allowance.
 
 3. **Crucial Truth Boundary: Inaccessible != Secure**:
    - If a mail or message broker service is timed out, connection-refused, filtered, or unreachable from the probe vantage, it is strictly recorded as `inaccessible` with `auth_prerequisite: unknown` and explicit uncertainty notes.
    - A service is **NEVER** reported as `protected` or `hardened` merely because it failed to respond. Only positive verification of authentication enforcement or relay rejection warrants a `protected` status.
 
 4. **Canary Validation and Verifiable Cleanup Receipts**:
-   - Uses non-destructive canary identifiers (e.g. `canary_mail_probe`, `canary_queue_probe`) to verify message ingestion and delivery boundaries.
-   - Every assessment verifying canary artifacts generates a cryptographically hashed `CleanupReceipt` confirming that temporary test messages or queues were purged (`verified_removed`).
+   - A synthetic fixture validates a canary only when its identifier, applicable recipient, destination, delivery observation, message count, and timezone-aware `delivered_at_utc` match the authorized request and active retention window.
+   - A cryptographically hashed `CleanupReceipt` is emitted only when that matching fixture explicitly confirms cleanup with a timezone-aware `cleanup_at_utc` after delivery and within retention. The receipt binds the policy creation time and retention duration into its hash; report import checks both timestamps against that window. Its `synthetic_fixture` source confirms fixture evidence, not a live purge. The hash detects report changes but does not authenticate the fixture. Missing or stale cleanup evidence produces no receipt.
 
 5. **Messaging Privilege Candidate Routing**:
    - Discovered misconfigurations and open relays are structured as `MessagingPrivilegeCandidate` records:
@@ -55,9 +58,17 @@ Execute authorized, bounded exposure and configuration assessments across mail t
 ### 1. Assess Mail, Chat, and Message Broker Services
 ```bash
 python3 -m cops messaging-services assess \
-  --targets "198.51.100.40,mail01.corp.internal" \
+  --targets "mail01.corp.internal" \
+  --services smtp \
   --vantage internal \
+  --mode synthetic \
+  --offline-targets approved-fixtures.json \
   --canary-id "canary_mail_probe" \
+  --canary-destination "mailbox:canary" \
+  --allow-canary-destination "mailbox:canary" \
+  --canary-recipient "canary@example.test" \
+  --allow-canary-recipient "canary@example.test" \
+  --canary-retention-seconds 3600 \
   --message-budget 5 \
   --output messaging_assessment.json
 ```
@@ -76,7 +87,7 @@ python3 -m cops messaging-services candidates messaging_assessment.json \
   --output messaging_candidates.json
 ```
 
-### 3. Export Verified Cleanup Receipts
+### 3. Export Synthetic Cleanup Evidence Receipts
 ```bash
 python3 -m cops messaging-services cleanup messaging_assessment.json \
   --output cleanup_receipts.json

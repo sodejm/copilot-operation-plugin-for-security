@@ -238,31 +238,31 @@ python3 -m cops data-services inspect data_assessment.json
 
 ## Mail, Messaging, and Message Broker Services Assessment
 
-The package evaluates exposure, access control, and configuration security across mail transfer/retrieval agents, real-time chat, and message queuing/streaming brokers (`cops messaging-services` or `cops discovery messaging`):
+The package records exposure and configuration evidence for mail transfer/retrieval agents, real-time chat, and message queuing/streaming brokers (`cops messaging-services` or `cops discovery messaging`). The socket collector checks TCP reachability only. The synthetic collector evaluates supplied fixture data; neither sends protocol messages or establishes live relay, authentication, delivery, or cleanup behavior.
 
 1. **Protocol-Specific Coverage**:
-   - **Mail Transfer & Retrieval**: Probes SMTP (25, 587, 465) for open relaying and VRFY/EXPN/RCPT TO user enumeration; POP3 (110, 995) for plaintext USER/PASS authentication; and IMAP (143, 993) for anonymous mailbox login and cleartext SASL/PLAIN exposure.
-   - **Real-Time Chat**: Assesses IRC (6667, 6697) for unauthenticated operator (`OPER`) status and hardcoded administrative credentials.
-   - **Message Brokers & Streaming**: Probes RabbitMQ / AMQP (5672, 15672) for default `guest`/`guest` credentials and unauthenticated HTTP management; NATS (4222, 8222) for unauthenticated client pub/sub; IBM MQ (1414) for blank `MCAUSER` on SVRCONN channels; Apache Kafka (9092) for unauthenticated PLAINTEXT listeners without SASL/mTLS; and MQTT (1883) for anonymous pub/sub with wildcard subscriptions.
+   - **Mail Transfer & Retrieval**: Covers SMTP (25, 587, 465), POP3 (110, 995), and IMAP (143, 993).
+   - **Real-Time Chat**: Covers IRC (6667, 6697).
+   - **Message Brokers & Streaming**: Covers RabbitMQ / AMQP (5672, 15672), NATS (4222, 8222), IBM MQ (1414), Apache Kafka (9092), and MQTT (1883).
 2. **Bounded Message Budgets & Zero Mass Outbound Relaying**:
-   - Technical probes strictly enforce a bounded message budget (default 5 messages) to verify delivery, queue interaction, and boundary enforcement.
-   - Bulk mail delivery, external domain spamming, and unconstrained queue flooding are strictly prohibited and architecturally blocked.
+   - Synthetic canary evidence requires an allowlisted destination, an allowlisted recipient for mail, an active retention window of at most 86400 seconds, and a message budget of 1 through 5 (default 5).
+   - The budget bounds accepted fixture evidence. Neither collector sends outbound messages.
 3. **Crucial Truth Boundary: Inaccessible != Secure**:
    - If a mail or message broker service is timed out, connection-refused, filtered, or unreachable from the probe vantage, it is strictly recorded as `inaccessible` with `auth_prerequisite: unknown` and explicit uncertainty notes. It is **never** reported as secure or hardened.
 4. **Canary Validation and Verifiable Cleanup Receipts**:
-   - Non-destructive probes validate message ingestion and queue boundaries using canary identifiers (`canary_mail_probe`, `canary_queue_probe`).
-   - Assessments emit cryptographically hashed `CleanupReceipt` records confirming test messages or queues were purged (`verified_removed`).
+   - A synthetic canary is validated only when fixture evidence matches its identifier, route, recipient, delivery time, and message budget.
+   - `CleanupReceipt` records are emitted only for matching fixture evidence that confirms cleanup within retention. Their hashes bind the retention start and duration to the delivery and cleanup timestamps; report import checks those bounds and rejects older synthetic receipts that lack them. Hashes detect changes to report data; they do not authenticate the fixture or confirm a live purge.
 5. **Messaging Privilege Candidate Routing**:
    - Discovered misconfigurations (e.g. `smtp_open_relay`, `smtp_user_enumeration`, `pop3_plaintext_auth`, `imap_anonymous_login`, `irc_unauthenticated_operator`, `rabbitmq_guest_default_creds`, `rabbitmq_open_management`, `nats_unauthenticated_cluster`, `ibmmq_blank_channel`, `kafka_unauthenticated_broker`, `mqtt_anonymous_read_write`) are structured as `MessagingPrivilegeCandidate` records with cryptographic evidence hashes and privilege impact ratings (`unauthorized_relay`, `broker_takeover`, `credential_harvesting`, `data_exfiltration`, `message_tampering`, `remote_code_execution`) for handoff to offensive specialists (`cops-pentest-specialist`, `cops-redteam-operator`).
 
 ```bash
 # Assess mail, messaging, and message broker services
-python3 -m cops messaging-services assess --targets "198.51.100.40,mail01.corp.internal" --vantage internal --canary-id "canary_mail_probe" --output messaging_assessment.json
+python3 -m cops messaging-services assess --targets "198.51.100.40,mail01.corp.internal" --vantage internal --output messaging_assessment.json
 
 # Extract messaging privilege candidates for unauthorized relay or broker takeover
 python3 -m cops messaging-services candidates messaging_assessment.json --output messaging_candidates.json
 
-# Export verified cleanup receipts
+# Export synthetic fixture cleanup receipts, if present
 python3 -m cops messaging-services cleanup messaging_assessment.json --output cleanup_receipts.json
 
 # Inspect assessment summary, privilege candidates, and truth-in-advertising metrics

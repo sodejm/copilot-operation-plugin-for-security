@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 from dataclasses import asdict, dataclass, field
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -12,6 +14,34 @@ from typing import Any
 from cops.evidence.canonical import utc_now
 
 from .models import EvidenceProvenance
+
+
+def _literal_bool(value: Any, field_name: str) -> bool:
+    if type(value) is not bool:
+        raise ValueError(f"{field_name} must be a JSON boolean")
+    return value
+
+
+def _literal_int(value: Any, field_name: str) -> int:
+    if type(value) is not int:
+        raise ValueError(f"{field_name} must be a JSON integer")
+    return value
+
+
+def _optional_literal_bool(value: Any, field_name: str) -> bool | None:
+    return None if value is None else _literal_bool(value, field_name)
+
+
+def _aware_timestamp(value: Any, field_name: str) -> datetime:
+    if not isinstance(value, str):
+        raise ValueError(f"{field_name} must be a timezone-aware timestamp")
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(f"{field_name} must be a timezone-aware timestamp") from exc
+    if parsed.tzinfo is None:
+        raise ValueError(f"{field_name} must be a timezone-aware timestamp")
+    return parsed
 
 
 class MessagingCategory(str, Enum):
@@ -74,6 +104,54 @@ class MessagingPrivilegeImpact(str, Enum):
     MESSAGE_TAMPERING = "message_tampering"
     UNAUTHORIZED_RELAY = "unauthorized_relay"
     NONE = "none"
+
+
+@dataclass(frozen=True)
+class CanaryDeliveryPolicy:
+    """Explicit route and lifetime for a synthetic messaging canary."""
+
+    destination: str
+    allowed_destinations: tuple[str, ...]
+    recipient: str | None = None
+    allowed_recipients: tuple[str, ...] = ()
+    created_at_utc: str = field(default_factory=utc_now)
+    retention_seconds: int = 3600
+
+    def validate(self, service_type: str, now: datetime | None = None) -> None:
+        if (
+            not isinstance(self.allowed_destinations, (list, tuple))
+            or not self.allowed_destinations
+            or any(not isinstance(item, str) or not item.strip() for item in self.allowed_destinations)
+        ):
+            raise ValueError("Canary destinations must be an explicit list of nonempty strings")
+        if (
+            not isinstance(self.allowed_recipients, (list, tuple))
+            or any(not isinstance(item, str) or not item.strip() for item in self.allowed_recipients)
+        ):
+            raise ValueError("Canary recipients must be an explicit list of nonempty strings")
+        if not isinstance(self.destination, str) or not self.destination.strip() or self.destination not in self.allowed_destinations:
+            raise ValueError("Canary destination is not explicitly allowed")
+        if service_type in {"smtp", "pop3", "imap"} and not self.recipient:
+            raise ValueError("Mail canary requires an explicit recipient")
+        if self.recipient is not None and (
+            not isinstance(self.recipient, str)
+            or not self.recipient.strip()
+            or self.recipient not in self.allowed_recipients
+        ):
+            raise ValueError("Canary recipient is not explicitly allowed")
+        if type(self.retention_seconds) is not int or not 0 < self.retention_seconds <= 86400:
+            raise ValueError("Canary retention must be between 1 and 86400 seconds")
+        try:
+            created = datetime.fromisoformat(self.created_at_utc.replace("Z", "+00:00"))
+        except (AttributeError, TypeError, ValueError) as exc:
+            raise ValueError("Canary creation time is invalid") from exc
+        if created.tzinfo is None:
+            raise ValueError("Canary creation time must include a timezone")
+        current = now or datetime.now(timezone.utc)
+        if current.tzinfo is None:
+            raise ValueError("Current time must include a timezone")
+        if created > current or current >= created + timedelta(seconds=self.retention_seconds):
+            raise ValueError("Canary retention window is not active")
 
 
 @dataclass
@@ -146,38 +224,103 @@ class MessagingPrivilegeCandidate:
 
 @dataclass
 class CleanupReceipt:
-    """Verifiable proof of non-destructive canary test message or queue cleanup."""
+    """A record of cleanup evidence, with its source and verification status."""
 
     receipt_id: str
     target_host: str
     service_type: str
     artifact_type: str
     artifact_identifier: str
-    action_taken: str = "verified_removed"
-    verified_clean: bool = True
+    action_taken: str = "unverified"
+    verified_clean: bool = False
+    evidence_source: str = "unspecified"
     receipt_hash: str = ""
     timestamp_utc: str = field(default_factory=utc_now)
+    delivered_at_utc: str | None = None
+    retention_started_at_utc: str | None = None
+    retention_seconds: int | None = None
 
     def __post_init__(self) -> None:
-        if not self.receipt_hash:
-            canonical_blob = f"{self.receipt_id}:{self.target_host}:{self.service_type}:{self.artifact_identifier}:{self.action_taken}".encode()
-            self.receipt_hash = hashlib.sha256(canonical_blob).hexdigest()
+        _literal_bool(self.verified_clean, "verified_clean")
+        cleanup_at = _aware_timestamp(self.timestamp_utc, "timestamp_utc")
+        if cleanup_at > datetime.now(timezone.utc):
+            raise ValueError("Cleanup timestamp cannot be in the future")
+        delivered_at = None
+        if self.delivered_at_utc is not None:
+            delivered_at = _aware_timestamp(self.delivered_at_utc, "delivered_at_utc")
+            if delivered_at > cleanup_at:
+                raise ValueError("Cleanup cannot precede canary delivery")
+        if (self.retention_started_at_utc is None) != (self.retention_seconds is None):
+            raise ValueError("Cleanup retention start and duration must be supplied together")
+        if self.retention_started_at_utc is not None:
+            retention_start = _aware_timestamp(self.retention_started_at_utc, "retention_started_at_utc")
+            retention_seconds = _literal_int(self.retention_seconds, "retention_seconds")
+            if not 0 < retention_seconds <= 86400:
+                raise ValueError("Cleanup retention must be between 1 and 86400 seconds")
+            if (
+                delivered_at is None
+                or not retention_start <= delivered_at <= cleanup_at
+                or cleanup_at >= retention_start + timedelta(seconds=retention_seconds)
+            ):
+                raise ValueError("Cleanup must follow delivery within the retention window")
+        if self.action_taken == "synthetic_fixture_cleanup_confirmed" and self.verified_clean:
+            if (
+                self.evidence_source != "synthetic_fixture"
+                or delivered_at is None
+                or self.retention_started_at_utc is None
+            ):
+                raise ValueError("Verified synthetic cleanup requires timestamped, bounded fixture evidence")
+            if not isinstance(self.artifact_identifier, str) or not self.artifact_identifier.strip():
+                raise ValueError("Verified synthetic cleanup requires a canary identifier")
+        expected_hash = self._compute_hash()
+        if self.receipt_hash:
+            if not isinstance(self.receipt_hash, str) or not hmac.compare_digest(
+                self.receipt_hash, expected_hash
+            ):
+                raise ValueError("Cleanup receipt hash does not match its contents")
+        else:
+            self.receipt_hash = expected_hash
+
+    def _compute_hash(self) -> str:
+        payload = {
+            "receipt_id": self.receipt_id,
+            "target_host": self.target_host,
+            "service_type": self.service_type,
+            "artifact_type": self.artifact_type,
+            "artifact_identifier": self.artifact_identifier,
+            "action_taken": self.action_taken,
+            "verified_clean": self.verified_clean,
+            "evidence_source": self.evidence_source,
+            "timestamp_utc": self.timestamp_utc,
+            "delivered_at_utc": self.delivered_at_utc,
+        }
+        if self.retention_started_at_utc is not None:
+            payload["retention_started_at_utc"] = self.retention_started_at_utc
+            payload["retention_seconds"] = self.retention_seconds
+        canonical_blob = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+        return hashlib.sha256(canonical_blob).hexdigest()
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> CleanupReceipt:
+        if not isinstance(data, dict) or not data.get("receipt_hash"):
+            raise ValueError("Cleanup receipt must include an integrity hash")
         return cls(
             receipt_id=data["receipt_id"],
             target_host=data["target_host"],
             service_type=data["service_type"],
             artifact_type=data["artifact_type"],
             artifact_identifier=data["artifact_identifier"],
-            action_taken=data.get("action_taken", "verified_removed"),
-            verified_clean=bool(data.get("verified_clean", True)),
+            action_taken=data.get("action_taken", "unverified"),
+            verified_clean=_literal_bool(data.get("verified_clean", False), "verified_clean"),
+            evidence_source=data.get("evidence_source", "unspecified"),
             receipt_hash=data.get("receipt_hash", ""),
             timestamp_utc=data.get("timestamp_utc", utc_now()),
+            delivered_at_utc=data.get("delivered_at_utc"),
+            retention_started_at_utc=data.get("retention_started_at_utc"),
+            retention_seconds=data.get("retention_seconds"),
         )
 
 
@@ -226,6 +369,22 @@ class MessagingServiceAssessment:
         prov = EvidenceProvenance.from_dict(data["provenance"]) if data.get("provenance") else None
         candidates = [MessagingPrivilegeCandidate.from_dict(c) for c in data.get("privilege_candidates", [])]
         receipts = [CleanupReceipt.from_dict(r) for r in data.get("cleanup_receipts", [])]
+        canary_validated = _literal_bool(data.get("canary_validated", False), "canary_validated")
+        message_budget_limit = _literal_int(data.get("message_budget_limit", 5), "message_budget_limit")
+        messages_sent_or_observed = _literal_int(
+            data.get("messages_sent_or_observed", 0), "messages_sent_or_observed"
+        )
+        if not 0 <= message_budget_limit <= 5:
+            raise ValueError("message_budget_limit must be between 0 and 5")
+        if messages_sent_or_observed < 0:
+            raise ValueError("messages_sent_or_observed cannot be negative")
+        if canary_validated and not 0 < messages_sent_or_observed <= message_budget_limit:
+            raise ValueError("Validated canary exceeds or lacks its message budget")
+        if canary_validated and (
+            not isinstance(data.get("canary_identifier"), str)
+            or not data["canary_identifier"].strip()
+        ):
+            raise ValueError("Validated canary requires a canary identifier")
         return cls(
             target_host=data["target_host"],
             resolved_ip=data.get("resolved_ip", data["target_host"]),
@@ -235,16 +394,16 @@ class MessagingServiceAssessment:
             protocol=data.get("protocol", "tcp"),
             vantage=data.get("vantage", "external"),
             exposure_status=data.get("exposure_status", MessagingExposureStatus.INACCESSIBLE.value),
-            canary_validated=bool(data.get("canary_validated", False)),
+            canary_validated=canary_validated,
             canary_identifier=data.get("canary_identifier"),
-            authentication_required=data.get("authentication_required"),
+            authentication_required=_optional_literal_bool(data.get("authentication_required"), "authentication_required"),
             auth_prerequisite=data.get("auth_prerequisite", MessagingAuthPrerequisite.UNKNOWN.value),
             assigned_role=data.get("assigned_role", "unknown"),
-            message_budget_limit=int(data.get("message_budget_limit", 5)),
-            messages_sent_or_observed=int(data.get("messages_sent_or_observed", 0)),
-            tls_enforced=data.get("tls_enforced"),
-            relay_tested=bool(data.get("relay_tested", False)),
-            relay_permitted=bool(data.get("relay_permitted", False)),
+            message_budget_limit=message_budget_limit,
+            messages_sent_or_observed=messages_sent_or_observed,
+            tls_enforced=_optional_literal_bool(data.get("tls_enforced"), "tls_enforced"),
+            relay_tested=_literal_bool(data.get("relay_tested", False), "relay_tested"),
+            relay_permitted=_literal_bool(data.get("relay_permitted", False), "relay_permitted"),
             applicable_versions=list(data.get("applicable_versions", [])),
             configuration_details=dict(data.get("configuration_details", {})),
             observed_vulnerabilities=list(data.get("observed_vulnerabilities", [])),

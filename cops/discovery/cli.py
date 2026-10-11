@@ -59,6 +59,7 @@ from .messaging_collector import (
     assess_messaging_services,
 )
 from .messaging_models import (
+    CanaryDeliveryPolicy,
     MessagingServicesReport,
 )
 from .models import DiscoveredAsset, DiscoveryInventory, EvidenceProvenance
@@ -229,8 +230,14 @@ def build_messaging_parser(parser: argparse.ArgumentParser) -> None:
     ass_p.add_argument("--services", "-s", default=None, help="Comma-separated service types (smtp,pop3,imap,irc,rabbitmq,nats,ibmmq,kafka,mqtt).")
     ass_p.add_argument("--vantage", default="external", choices=["external", "internal", "egress_point", "cloud_tenant"], help="Probe vantage.")
     ass_p.add_argument("--scope-ref", default="authorized-scope", help="Scope reference.")
-    ass_p.add_argument("--canary-id", default=None, help="Canary message / queue / mailbox / topic identifier.")
-    ass_p.add_argument("--message-budget", type=int, default=5, help="Maximum sample messages to transmit or inspect (default: 5).")
+    ass_p.add_argument("--canary-id", default=None, help="Synthetic canary message / queue / mailbox / topic identifier.")
+    ass_p.add_argument("--canary-destination", default=None, help="Approved synthetic delivery destination (mailbox, queue, or topic).")
+    ass_p.add_argument("--allow-canary-destination", action="append", default=[], help="Explicitly allowed destination; repeat for each route.")
+    ass_p.add_argument("--canary-recipient", default=None, help="Approved synthetic recipient; required for mail services.")
+    ass_p.add_argument("--allow-canary-recipient", action="append", default=[], help="Explicitly allowed recipient; repeat for each address.")
+    ass_p.add_argument("--canary-created-at-utc", default=None, help="Canary creation time with timezone (defaults to now).")
+    ass_p.add_argument("--canary-retention-seconds", type=int, default=3600, help="Canary retention window, 1 through 86400 seconds (default: 3600).")
+    ass_p.add_argument("--message-budget", type=int, default=5, help="Maximum matching synthetic messages accepted as evidence, 0 through 5 (default: 5).")
     ass_p.add_argument("--mode", choices=["synthetic", "live"], default="synthetic", help="Collector mode.")
     ass_p.add_argument("--offline-targets", default=None, help="Path to mock targets JSON.")
     ass_p.add_argument("--output", "-o", default=None, help="Output JSON path.")
@@ -807,6 +814,31 @@ def command_messaging_discovery(args: argparse.Namespace, root: Path | None = No
     msg_cmd = getattr(args, "messaging_command", None)
 
     if msg_cmd == "assess":
+        route_fields = (
+            getattr(args, "canary_destination", None),
+            getattr(args, "canary_recipient", None),
+            getattr(args, "allow_canary_destination", None),
+            getattr(args, "allow_canary_recipient", None),
+            getattr(args, "canary_created_at_utc", None),
+        )
+        has_route = any(route_fields)
+        policy = None
+        if has_route:
+            policy_args = {
+                "destination": getattr(args, "canary_destination", None),
+                "allowed_destinations": tuple(getattr(args, "allow_canary_destination", ()) or ()),
+                "recipient": getattr(args, "canary_recipient", None),
+                "allowed_recipients": tuple(getattr(args, "allow_canary_recipient", ()) or ()),
+                "retention_seconds": getattr(args, "canary_retention_seconds", 3600),
+            }
+            created_at = getattr(args, "canary_created_at_utc", None)
+            if created_at is not None:
+                policy_args["created_at_utc"] = created_at
+            policy = CanaryDeliveryPolicy(**policy_args)
+        elif getattr(args, "canary_retention_seconds", 3600) != 3600:
+            print("Canary retention requires a canary route and identifier", file=sys.stderr)
+            return 2
+
         raw_targets = args.targets
         if Path(raw_targets).is_file():
             t_data = json.loads(Path(raw_targets).read_text(encoding="utf-8"))
@@ -826,15 +858,20 @@ def command_messaging_discovery(args: argparse.Namespace, root: Path | None = No
         else:
             collector = StandardSocketMessagingCollector()
 
-        report = assess_messaging_services(
-            targets=targets,
-            service_types=services,
-            collector=collector,
-            vantage=args.vantage,
-            scope_ref=args.scope_ref,
-            canary_id=args.canary_id,
-            message_budget=getattr(args, "message_budget", 5),
-        )
+        try:
+            report = assess_messaging_services(
+                targets=targets,
+                service_types=services,
+                collector=collector,
+                vantage=args.vantage,
+                scope_ref=args.scope_ref,
+                canary_id=args.canary_id,
+                message_budget=getattr(args, "message_budget", 5),
+                canary_policy=policy,
+            )
+        except ValueError as exc:
+            print(f"Messaging assessment rejected: {exc}", file=sys.stderr)
+            return 2
 
         out_json = json.dumps(report.to_dict(), indent=2)
         if args.output:
@@ -860,11 +897,28 @@ def command_messaging_discovery(args: argparse.Namespace, root: Path | None = No
         return 0
 
     if msg_cmd == "cleanup":
-        report_path = Path(args.report)
-        report_data = json.loads(report_path.read_text(encoding="utf-8"))
-        receipts = []
-        for ass in report_data.get("assessments", []):
-            receipts.extend(ass.get("cleanup_receipts", []))
+        try:
+            report = MessagingServicesReport.load(args.report)
+        except (ValueError, KeyError, TypeError, AttributeError) as exc:
+            print(f"Messaging cleanup report rejected: {exc}", file=sys.stderr)
+            return 2
+        receipts = [
+            receipt.to_dict()
+            for assessment in report.assessments
+            for receipt in assessment.cleanup_receipts
+            if assessment.canary_validated is True
+            and isinstance(assessment.canary_identifier, str)
+            and bool(assessment.canary_identifier.strip())
+            and 0 < assessment.messages_sent_or_observed <= assessment.message_budget_limit <= 5
+            and receipt.target_host == assessment.target_host
+            and receipt.service_type == assessment.service_type
+            and receipt.artifact_identifier == assessment.canary_identifier
+            and receipt.verified_clean is True
+            and receipt.action_taken == "synthetic_fixture_cleanup_confirmed"
+            and receipt.evidence_source == "synthetic_fixture"
+            and receipt.artifact_type == "canary_message"
+            and receipt.delivered_at_utc is not None
+        ]
 
         out_json = json.dumps(receipts, indent=2)
         if args.output:

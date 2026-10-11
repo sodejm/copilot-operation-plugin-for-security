@@ -9,6 +9,7 @@ import json
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -16,6 +17,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from cops.discovery import (
+    CanaryDeliveryPolicy,
     MessagingAuthPrerequisite,
     MessagingExposureStatus,
     MessagingServicesReport,
@@ -113,8 +115,36 @@ class TestNetworkMessagingServicesSkill(unittest.TestCase):
         }
         self.collector = OfflineSyntheticMessagingCollector(targets=self.mock_services)
 
+    @staticmethod
+    def canary_policy():
+        return CanaryDeliveryPolicy(
+            destination="mailbox:canary",
+            allowed_destinations=("mailbox:canary",),
+            recipient="canary@example.test",
+            allowed_recipients=("canary@example.test",),
+            created_at_utc=(datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat(),
+        )
+
+    def set_canary_evidence(self, host, identifier, messages_sent=1):
+        observed_at = datetime.now(timezone.utc).isoformat()
+        self.mock_services[host]["smtp"]["canary_evidence"] = {
+            "identifier": identifier,
+            "recipient": "canary@example.test",
+            "destination": "mailbox:canary",
+            "delivery_observed": True,
+            "messages_sent": messages_sent,
+            "cleanup_confirmed": True,
+            "delivered_at_utc": observed_at,
+            "cleanup_at_utc": observed_at,
+        }
+
     def test_assess_smtp_vulnerabilities(self):
-        result = self.collector.assess_smtp("vulnerable-mail.corp.internal", canary_artifact="canary_mail_probe")
+        self.set_canary_evidence("vulnerable-mail.corp.internal", "canary_mail_probe", messages_sent=2)
+        result = self.collector.assess_smtp(
+            "vulnerable-mail.corp.internal",
+            canary_artifact="canary_mail_probe",
+            canary_policy=self.canary_policy(),
+        )
         self.assertEqual(result.exposure_status, MessagingExposureStatus.EXPOSED.value)
         self.assertTrue(result.canary_validated)
         self.assertEqual(result.canary_identifier, "canary_mail_probe")
@@ -158,20 +188,26 @@ class TestNetworkMessagingServicesSkill(unittest.TestCase):
         self.assertTrue(any(c.finding_type == "mqtt_anonymous_read_write" for c in mqtt_res.privilege_candidates))
 
     def test_protected_service_assessment(self):
-        smtp_res = self.collector.assess_smtp("hardened-mail.corp.internal", canary_artifact="canary_smtp_test")
+        self.set_canary_evidence("hardened-mail.corp.internal", "canary_smtp_test")
+        smtp_res = self.collector.assess_smtp(
+            "hardened-mail.corp.internal",
+            canary_artifact="canary_smtp_test",
+            canary_policy=self.canary_policy(),
+        )
         self.assertEqual(smtp_res.exposure_status, MessagingExposureStatus.PROTECTED.value)
         self.assertTrue(smtp_res.tls_enforced)
         self.assertFalse(smtp_res.relay_permitted)
         self.assertEqual(len(smtp_res.privilege_candidates), 0)
         self.assertEqual(len(smtp_res.cleanup_receipts), 1)
-        self.assertEqual(smtp_res.cleanup_receipts[0].action_taken, "verified_removed")
+        self.assertEqual(smtp_res.cleanup_receipts[0].action_taken, "synthetic_fixture_cleanup_confirmed")
+        self.assertEqual(smtp_res.cleanup_receipts[0].evidence_source, "synthetic_fixture")
 
         rabbit_res = self.collector.assess_rabbitmq("hardened-mail.corp.internal")
         self.assertEqual(rabbit_res.exposure_status, MessagingExposureStatus.PROTECTED.value)
         self.assertEqual(len(rabbit_res.privilege_candidates), 0)
 
     def test_remediated_service_assessment(self):
-        kafka_res = self.collector.assess_kafka("remediated-broker.corp.internal", canary_artifact="canary_topic")
+        kafka_res = self.collector.assess_kafka("remediated-broker.corp.internal")
         self.assertEqual(kafka_res.exposure_status, MessagingExposureStatus.REMEDIATED.value)
         self.assertEqual(kafka_res.auth_prerequisite, MessagingAuthPrerequisite.SASL.value)
         self.assertEqual(len(kafka_res.privilege_candidates), 0)
@@ -188,12 +224,14 @@ class TestNetworkMessagingServicesSkill(unittest.TestCase):
         self.assertLessEqual(res.messages_sent_or_observed, 3)
 
     def test_assess_messaging_services_runner(self):
+        self.set_canary_evidence("vulnerable-mail.corp.internal", "canary_test_id")
         report = assess_messaging_services(
             targets=["vulnerable-mail.corp.internal", "hardened-mail.corp.internal"],
             service_types=["smtp", "rabbitmq"],
             collector=self.collector,
             vantage="internal",
             canary_id="canary_test_id",
+            canary_policy=self.canary_policy(),
         )
         self.assertIsInstance(report, MessagingServicesReport)
         self.assertEqual(report.total_probed, 4)
@@ -201,6 +239,7 @@ class TestNetworkMessagingServicesSkill(unittest.TestCase):
         self.assertGreater(report.cleanup_receipts_count, 0)
 
     def test_cli_messaging_discovery_lifecycle(self):
+        self.set_canary_evidence("vulnerable-mail.corp.internal", "canary_run_probe")
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp_path = Path(tmpdir)
             targets_file = tmp_path / "mock_targets.json"
@@ -218,6 +257,11 @@ class TestNetworkMessagingServicesSkill(unittest.TestCase):
                 vantage="internal",
                 scope_ref="test-scope",
                 canary_id="canary_run_probe",
+                canary_created_at_utc=(datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat(),
+                canary_destination="mailbox:canary",
+                allow_canary_destination=["mailbox:canary"],
+                canary_recipient="canary@example.test",
+                allow_canary_recipient=["canary@example.test"],
                 message_budget=5,
                 mode="synthetic",
                 offline_targets=str(targets_file),

@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from cops.discovery import (
+    CanaryDeliveryPolicy,
     MessagingAuthPrerequisite,
     MessagingCategory,
     MessagingExposureStatus,
@@ -57,6 +59,8 @@ def bdd_ctx():
         "candidates": [],
         "budget": 5,
         "canary_id": None,
+        "canary_policy": None,
+        "canary_mode": None,
     }
 
 
@@ -143,24 +147,100 @@ def verify_budget_enforcement(bdd_ctx):
         assert a.messages_sent_or_observed <= 5
 
 
-@then("mass outbound relaying is prohibited and unconstrained bulk mail transmission is blocked")
+@then("no outbound messages are sent by the synthetic or socket collectors")
 def verify_zero_mass_relay(bdd_ctx):
-    for a in bdd_ctx["report"].assessments:
-        assert a.messages_sent_or_observed <= 5
+    assert all(a.messages_sent_or_observed == 0 for a in bdd_ctx["report"].assessments)
 
 
 # Scenario 4: Canary validation and cleanup receipts
-@given(parsers.parse('an assessment configured with canary identifier "{canary_id}"'))
+@given(parsers.parse('an assessment configured with an allowed canary identifier "{canary_id}" and matching delivery and cleanup evidence'))
 def setup_canary_id(bdd_ctx, canary_id):
+    observed_at = datetime.now(timezone.utc).isoformat()
+    bdd_ctx["targets_db"]["vulnerable-msg.corp.internal"]["smtp"]["canary_evidence"] = {
+        "identifier": canary_id,
+        "recipient": "canary@example.test",
+        "destination": "mailbox:canary",
+        "delivery_observed": True,
+        "messages_sent": 1,
+        "cleanup_confirmed": True,
+        "delivered_at_utc": observed_at,
+        "cleanup_at_utc": observed_at,
+    }
     bdd_ctx["collector"] = OfflineSyntheticMessagingCollector(targets=bdd_ctx["targets_db"])
     bdd_ctx["canary_id"] = canary_id
+    bdd_ctx["canary_policy"] = CanaryDeliveryPolicy(
+        destination="mailbox:canary",
+        allowed_destinations=("mailbox:canary",),
+        recipient="canary@example.test",
+        allowed_recipients=("canary@example.test",),
+        created_at_utc=(datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat(),
+    )
+
+
+@given("a canary delivery policy with an unauthorized recipient or destination")
+def setup_unauthorized_canary(bdd_ctx):
+    bdd_ctx["collector"] = OfflineSyntheticMessagingCollector(targets=bdd_ctx["targets_db"])
+    bdd_ctx["canary_id"] = "canary_mail_probe"
+    bdd_ctx["canary_mode"] = "unauthorized"
+
+
+@given("an expired canary policy or a synthetic fixture exceeding its message budget")
+def setup_expired_or_overbudget_canary(bdd_ctx):
+    setup_canary_id(bdd_ctx, "canary_mail_probe")
+    bdd_ctx["canary_mode"] = "expired_or_overbudget"
+    bdd_ctx["targets_db"]["vulnerable-msg.corp.internal"]["smtp"]["canary_evidence"]["messages_sent"] = 2
 
 
 @when("the messaging services assessment executes canary validation probes")
 def execute_canary_probes(bdd_ctx):
+    if bdd_ctx["canary_mode"] == "unauthorized":
+        for policy in (
+            CanaryDeliveryPolicy(
+                destination="mailbox:other",
+                allowed_destinations=("mailbox:canary",),
+                recipient="canary@example.test",
+                allowed_recipients=("canary@example.test",),
+            ),
+            CanaryDeliveryPolicy(
+                destination="mailbox:canary",
+                allowed_destinations=("mailbox:canary",),
+                recipient="other@example.test",
+                allowed_recipients=("canary@example.test",),
+            ),
+        ):
+            with pytest.raises(ValueError, match="not explicitly allowed"):
+                bdd_ctx["collector"].assess_smtp(
+                    "vulnerable-msg.corp.internal",
+                    canary_artifact=bdd_ctx["canary_id"],
+                    canary_policy=policy,
+                )
+        return
+    if bdd_ctx["canary_mode"] == "expired_or_overbudget":
+        expired_policy = CanaryDeliveryPolicy(
+            destination="mailbox:canary",
+            allowed_destinations=("mailbox:canary",),
+            recipient="canary@example.test",
+            allowed_recipients=("canary@example.test",),
+            created_at_utc=(datetime.now(timezone.utc) - timedelta(hours=2)).isoformat(),
+            retention_seconds=3600,
+        )
+        with pytest.raises(ValueError, match="retention"):
+            bdd_ctx["collector"].assess_smtp(
+                "vulnerable-msg.corp.internal",
+                canary_artifact=bdd_ctx["canary_id"],
+                canary_policy=expired_policy,
+            )
+        bdd_ctx["assessment"] = bdd_ctx["collector"].assess_smtp(
+            "vulnerable-msg.corp.internal",
+            canary_artifact=bdd_ctx["canary_id"],
+            canary_policy=bdd_ctx["canary_policy"],
+            message_budget=1,
+        )
+        return
     bdd_ctx["assessment"] = bdd_ctx["collector"].assess_smtp(
         "vulnerable-msg.corp.internal",
         canary_artifact=bdd_ctx["canary_id"],
+        canary_policy=bdd_ctx["canary_policy"],
     )
 
 
@@ -170,14 +250,27 @@ def verify_canary_confirmed(bdd_ctx):
     assert bdd_ctx["assessment"].canary_identifier == bdd_ctx["canary_id"]
 
 
-@then(parsers.parse('a verified cleanup receipt with "{action_taken}" status and receipt hash is emitted'))
+@then(parsers.parse('a synthetic cleanup receipt with "{action_taken}" status and receipt hash is emitted'))
 def verify_cleanup_receipt_emitted(bdd_ctx, action_taken):
     receipts = bdd_ctx["assessment"].cleanup_receipts
     assert len(receipts) >= 1
     receipt = receipts[0]
     assert receipt.action_taken == action_taken
     assert receipt.verified_clean is True
+    assert receipt.evidence_source == "synthetic_fixture"
     assert len(receipt.receipt_hash) == 64
+
+
+@then("the canary request is rejected before any probe")
+def verify_unauthorized_canary_rejected(bdd_ctx):
+    assert bdd_ctx["collector"].probes_recorded == []
+
+
+@then("no canary is validated and no cleanup receipt is emitted")
+def verify_invalid_canary_not_validated(bdd_ctx):
+    assert len(bdd_ctx["collector"].probes_recorded) == 1
+    assert bdd_ctx["assessment"].canary_validated is False
+    assert bdd_ctx["assessment"].cleanup_receipts == []
 
 
 # Scenario 5: Extracting messaging privilege candidates

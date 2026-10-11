@@ -131,14 +131,14 @@ Invoke this planner under the following concrete triggers:
 **Skill**: [`network-messaging-services`](../skills/network-messaging-services/SKILL.md)
 
 1. **Protocol-Specific Mail, Chat, and Broker Probing**:
-   - Assess exposure of mail services (SMTP, POP3, IMAP), real-time chat (IRC), and message brokers/queues (RabbitMQ/AMQP, NATS, IBM MQ, Kafka, MQTT) across approved targets: `python3 -m cops messaging-services assess ...`.
+   - Assess TCP reachability for mail services (SMTP, POP3, IMAP), chat (IRC), and brokers (RabbitMQ/AMQP, NATS, IBM MQ, Kafka, MQTT) across approved targets: `python3 -m cops messaging-services assess ...`. Configuration findings require supplied synthetic fixture data; the socket collector does not send protocol messages.
 2. **Bounded Message Budgets & Zero Mass Outbound Relaying**:
-   - Enforce bounded message budgets (default 5 messages) to verify delivery, queue interaction, and boundary enforcement; prohibit and block bulk mail delivery, external domain spamming, and unconstrained queue flooding.
+   - Require allowlisted canary destinations and mail recipients, an active retention window of at most 86400 seconds, and a positive message budget of at most 5. This bounds accepted synthetic fixture evidence; neither collector sends messages.
 3. **Strict Inaccessible != Secure Grounding**:
    - Filtered, closed, or timed out services are strictly classified as `inaccessible` (with `auth_prerequisite: unknown`). Never assume an inaccessible service is secure or hardened.
 4. **Canary Validation and Verifiable Cleanup Receipts**:
-   - Validate access controls using benign canary identifiers (`canary_mail_probe`, `canary_queue_probe`).
-   - Emit verified `CleanupReceipt` records confirming rollback and artifact removal: `python3 -m cops messaging-services cleanup ...`.
+   - Validate synthetic fixture delivery only when identifier, route, recipient, time, and count match the authorized request.
+   - Export hashed `CleanupReceipt` records only for matching fixture cleanup evidence within retention: `python3 -m cops messaging-services cleanup ...`. Report import rechecks the hash-bound retention start, duration, delivery, and cleanup timestamps. A receipt does not confirm a live purge or authenticate the fixture.
 5. **Extract Messaging Privilege Candidates**:
    - Extract candidate findings (`smtp_open_relay`, `smtp_user_enumeration`, `pop3_plaintext_auth`, `imap_anonymous_login`, `irc_unauthenticated_operator`, `rabbitmq_guest_default_creds`, `rabbitmq_open_management`, `nats_unauthenticated_cluster`, `ibmmq_blank_channel`, `kafka_unauthenticated_broker`, `mqtt_anonymous_read_write`) for unauthorized relay or broker takeover handoff: `python3 -m cops messaging-services candidates ...`.
 
