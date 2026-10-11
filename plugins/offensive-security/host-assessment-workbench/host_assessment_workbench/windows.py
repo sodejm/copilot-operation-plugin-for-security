@@ -148,7 +148,9 @@ def _decision(host: dict[str, Any], req: dict[str, Any]) -> str:
 def assess_windows_document(payload: dict[str, Any]) -> dict[str, Any]:
     """Validate a Windows export and classify its source-reported evidence."""
     document = _exact_keys(
-        payload, {"schema_version", "source_kind", "source_id", "bridge", "host", "coverage", "observations"}, "document"
+        payload,
+        {"schema_version", "source_kind", "source_id", "bridge", "host", "coverage", "observations"},
+        "document",
     )
     if document["schema_version"] != "windows-1.0":
         raise ContractError("unsupported schema version")
@@ -181,7 +183,10 @@ def assess_windows_document(payload: dict[str, Any]) -> dict[str, Any]:
     results: list[dict[str, Any]] = []
     for raw in observations:
         item = _exact_keys(
-            raw, {"id", "surface", "configuration", "evidence_ids", "requirements"}, "observation", {"canary", "family_id"}
+            raw,
+            {"id", "surface", "configuration", "evidence_ids", "requirements"},
+            "observation",
+            {"canary", "family_id"},
         )
         obs_id = _token(item["id"], "observation.id")
         if obs_id in seen:
@@ -193,7 +198,9 @@ def assess_windows_document(payload: dict[str, Any]) -> dict[str, Any]:
         if (surface == "versioned_escalation_families") != ("family_id" in item):
             raise ContractError("family_id must occur only for versioned escalation families")
         family_id = _token(item["family_id"], "observation.family_id") if "family_id" in item else None
-        configuration = _enum(item["configuration"], {"interesting", "ordinary", "unknown"}, "observation.configuration")
+        configuration = _enum(
+            item["configuration"], {"interesting", "ordinary", "unknown"}, "observation.configuration"
+        )
         evidence_ids = _evidence_ids(item["evidence_ids"], "observation.evidence_ids")
         requirements = _requirements(item["requirements"])
         if "canary" in item and not canary_assertions:
