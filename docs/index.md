@@ -141,4 +141,5 @@ Learn more in the [Specialist Agents Guide](specialist-agents.md).
 - [Credential and Evidence Handling Specification](../specs/credential-evidence-handling.spec.md): Operation-scoped credential resolution, fail-closed redaction, validated execution evidence, and storage/retention boundaries.
 - [Execution Recovery and Cleanup Specification](../specs/execution-recovery-and-cleanup.spec.md): Ownership-aware side-effect ledgers, cancellation resilience, non-idempotent handling, and verifiable cleanup receipts.
 - [Pinned Scenario Registry](../specs/pinned-scenario-registry.spec.md): Pinned research sources and canonical scenario registry.
+- [Historical Protocol Topic Reconciliation](PROTOCOL_TOPIC_RECONCILIATION.md): Pinned 70-topic coverage, environment limits, and legacy model evidence boundaries.
 - [Capability Reconciliation](../specs/capability-reconciliation.spec.md): Operational readiness taxonomy and truth-in-advertising invariants.

@@ -51,6 +51,7 @@ class LegacyExposureStatus(str, Enum):
     """Reachability and exposure posture for legacy and proxy services."""
 
     EXPOSED = "exposed"
+    UNCONFIRMED = "unconfirmed"
     PROTECTED = "protected"
     INACCESSIBLE = "inaccessible"
     MISCONFIGURED = "misconfigured"
@@ -137,7 +138,7 @@ class LegacyPrivilegeCandidate:
         }
         return guidance_map.get(
             self.finding_type,
-            f"Harden authentication, access control, and network isolation for {self.service_type.upper()} legacy interface."
+            f"Harden authentication, access control, and network isolation for {self.service_type.upper()} legacy interface.",
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -166,7 +167,7 @@ class LegacyPrivilegeCandidate:
 
 @dataclass
 class CleanupReceipt:
-    """Verifiable proof of non-destructive canary test artifact cleanup."""
+    """Synthetic fixture record; no remote canary or cleanup is implied."""
 
     receipt_id: str
     target_host: str
@@ -287,6 +288,7 @@ class LegacyServicesReport:
     assessments: list[LegacyServiceAssessment] = field(default_factory=list)
     total_probed: int = 0
     total_exposed: int = 0
+    total_unconfirmed: int = 0
     total_protected: int = 0
     total_inaccessible: int = 0
     total_misconfigured: int = 0
@@ -301,6 +303,7 @@ class LegacyServicesReport:
             "vantage": self.vantage,
             "total_probed": self.total_probed,
             "total_exposed": self.total_exposed,
+            "total_unconfirmed": self.total_unconfirmed,
             "total_protected": self.total_protected,
             "total_inaccessible": self.total_inaccessible,
             "total_misconfigured": self.total_misconfigured,
@@ -316,6 +319,7 @@ class LegacyServicesReport:
             "vantage": self.vantage,
             "total_probed": self.total_probed,
             "total_exposed": self.total_exposed,
+            "total_unconfirmed": self.total_unconfirmed,
             "total_protected": self.total_protected,
             "total_inaccessible": self.total_inaccessible,
             "total_misconfigured": self.total_misconfigured,
@@ -335,6 +339,7 @@ class LegacyServicesReport:
             assessments=assessments,
             total_probed=data.get("total_probed", len(assessments)),
             total_exposed=data.get("total_exposed", 0),
+            total_unconfirmed=data.get("total_unconfirmed", 0),
             total_protected=data.get("total_protected", 0),
             total_inaccessible=data.get("total_inaccessible", 0),
             total_misconfigured=data.get("total_misconfigured", 0),
