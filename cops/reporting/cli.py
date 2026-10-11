@@ -10,7 +10,6 @@ from cops.evidence.canonical import EvidenceError, decode_json
 
 from .assessment import ReportError, build_assessment_report, render_markdown
 
-
 _MAX_INPUT_BYTES = 4 * 1024 * 1024
 
 
