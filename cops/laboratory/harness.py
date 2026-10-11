@@ -2,47 +2,55 @@
 
 from __future__ import annotations
 
-import json
-import os
-import shlex
-import subprocess
-import tempfile
+import hashlib
+import hmac
+import secrets
 import uuid
 from collections.abc import Callable
-from pathlib import Path
+from dataclasses import asdict
+from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
 from cops.contracts.models import (
     ActionPlan,
-    CleanupReceipt,
     ExecutionAuthorization,
     LaboratoryEnvironment,
-    RunResult,
 )
 from cops.contracts.validation import validate_contract
-from cops.evidence.canonical import digest, utc_now
+from cops.evidence.canonical import EvidenceError, timestamp, utc_now
 from cops.execution.authorization import (
     AuthorizationError,
     AuthorizationTrustStore,
     verify_execution_authorization,
 )
-from cops.execution.cleanup import CleanupManager, SideEffectLedger
-from cops.execution.filesystem import (
-    SecureDirectoryError,
-    open_directory_no_symlinks,
+from cops.execution.scope_guard import ScopeDefinition, ScopeGuard, ScopeViolationError
+from cops.execution.ssh_execution import (
+    RemoteAuthorizedRun,
+    SSHExecutionDispatcher,
+    SSHExecutionError,
+    validate_remote_authorized_run,
 )
-from cops.execution.scope_guard import ScopeGuard, ScopeViolationError
-from cops.execution.store import ApprovalStore, ApprovalStoreConflictError
+from cops.execution.ssh_transport import SSHRemoteEndpointInventory, SSHTransportError
 from cops.execution.worker import WorkerCapabilityInventory
 
+from .journal import LaboratoryCaseJournal
 from .matrix import verify_platform_matrix, verify_tool_prerequisites
 from .models import (
     CanaryVerificationError,
     IsolationVerificationError,
     LaboratoryCaseResult,
     LaboratoryGateError,
+    LaboratoryObservation,
+    PrerequisiteMismatchError,
     ResetError,
     TestedMatrix,
+)
+from .receipts import (
+    LaboratoryCaseObservation,
+    LaboratoryObservationTrustStore,
+    LaboratoryResetReceipt,
+    operation_timestamp,
+    verify_worker_receipt,
 )
 
 
@@ -52,10 +60,130 @@ class LaboratoryHarness:
     def __init__(
         self,
         tested_matrix: TestedMatrix | None = None,
-        store: ApprovalStore | None = None,
+        observation_provider: Callable[[LaboratoryEnvironment, str], LaboratoryObservation] | None = None,
+        observation_trust_store: LaboratoryObservationTrustStore | None = None,
+        case_journal: LaboratoryCaseJournal | None = None,
     ) -> None:
         self.matrix = tested_matrix or TestedMatrix()
-        self.store = store
+        self.observation_provider = observation_provider
+        self.observation_trust_store = observation_trust_store
+        self.case_journal = case_journal
+        self._pending_resets: dict[str, tuple[str, str, str, str]] = {}
+        self._pending_cases: dict[str, tuple[RemoteAuthorizedRun, str, str, str, str, str, str, LaboratoryObservation]] = {}
+        self._latest_environment_observations: dict[str, LaboratoryObservation] = {}
+        self._last_reset_receipts: dict[str, tuple[LaboratoryResetReceipt, LaboratoryObservation]] = {}
+
+    @staticmethod
+    def _invalidate_verification(environment: LaboratoryEnvironment) -> None:
+        environment.isolation["verification_status"] = "unverified"
+        environment.isolation["verification_timestamp"] = None
+        environment.canary["verified"] = False
+
+    def _discard_pending_cases(self, environment_id: str, reason: str) -> None:
+        for result_id, pending in tuple(self._pending_cases.items()):
+            if pending[1] == environment_id:
+                if self.case_journal is None:
+                    raise LaboratoryGateError("an owner-only laboratory case journal is required")
+                self.case_journal.fail(result_id, reason)
+                del self._pending_cases[result_id]
+
+    def expire_pending_cases(self) -> list[dict[str, Any]]:
+        """Fail cases that did not receive a signed observation within two minutes."""
+        expired: list[dict[str, Any]] = []
+        deadline = datetime.now(UTC) - timedelta(minutes=2)
+        for result_id, pending in tuple(self._pending_cases.items()):
+            if timestamp(pending[6]) < deadline:
+                if self.case_journal is None:
+                    raise LaboratoryGateError("an owner-only laboratory case journal is required")
+                expired.append(self.case_journal.fail(result_id, "operator case observation missing before deadline"))
+                del self._pending_cases[result_id]
+        return expired
+
+    def recorded_cases(self) -> list[dict[str, Any]]:
+        """Return journaled dispatch attempts and terminal case results."""
+        self.expire_pending_cases()
+        if self.case_journal is None:
+            raise LaboratoryGateError("an owner-only laboratory case journal is required")
+        return self.case_journal.records()
+
+    def _fail_verification(self, environment: LaboratoryEnvironment, reason: str) -> None:
+        self._invalidate_verification(environment)
+        self._discard_pending_cases(environment.environment_id, f"environment verification failed: {reason}")
+        self._latest_environment_observations.pop(environment.environment_id, None)
+        self._last_reset_receipts.pop(environment.environment_id, None)
+        environment.isolation["verification_status"] = "failed"
+        environment.isolation["verification_notes"] = reason
+        environment.canary["verified"] = False
+        if environment.status != "failed":
+            environment.transition_to("failed")
+
+    def _observe_environment(
+        self,
+        environment: LaboratoryEnvironment,
+        *,
+        endpoint_inventory: SSHRemoteEndpointInventory,
+        after: str | None = None,
+    ) -> LaboratoryObservation:
+        """Check owner-provided measurements; contract flags never count as measurements."""
+        if not isinstance(endpoint_inventory, SSHRemoteEndpointInventory) or not endpoint_inventory.is_verified:
+            raise IsolationVerificationError("A verified owner-provisioned SSH endpoint inventory is required.")
+        try:
+            endpoint_inventory.resolve(environment.owner)
+        except SSHTransportError as err:
+            raise IsolationVerificationError("Laboratory owner has no trusted worker endpoint.") from err
+        if self.observation_provider is None:
+            raise IsolationVerificationError("An operator-owned runtime observation provider is required.")
+        nonce = secrets.token_hex(32)
+        requested_at = utc_now()
+        try:
+            observation = self.observation_provider(environment, nonce)
+        except Exception as err:
+            raise IsolationVerificationError("Runtime observation provider failed.") from err
+        if not isinstance(observation, LaboratoryObservation):
+            raise IsolationVerificationError("Runtime observation provider returned no typed measurements.")
+        try:
+            verify_worker_receipt(
+                observation,
+                trust_store=self.observation_trust_store,
+                worker_identity=environment.owner,
+                after=requested_at,
+            )
+        except LaboratoryGateError as err:
+            raise IsolationVerificationError("Runtime observation attestation failed.") from err
+        if observation.request_nonce != nonce:
+            raise IsolationVerificationError("Runtime observation does not match the challenge.")
+        if observation.environment_id != environment.environment_id:
+            raise IsolationVerificationError("Runtime observation identifies a different environment.")
+        if observation.isolation_type != environment.isolation.get("isolation_type"):
+            raise IsolationVerificationError("Observed isolation type does not match the environment.")
+        if observation.network_isolated is not True or observation.egress_restricted is not True:
+            raise IsolationVerificationError("Runtime isolation or egress observation failed.")
+        try:
+            observed_at = timestamp(observation.observed_at)
+            reset_completed_at = timestamp(after) if after is not None else None
+        except EvidenceError as err:
+            raise IsolationVerificationError("Runtime observation timestamp is invalid.") from err
+        now = datetime.now(UTC)
+        if observed_at < now - timedelta(minutes=2) or observed_at > now + timedelta(seconds=5):
+            raise IsolationVerificationError("Runtime observation is stale or future dated.")
+        if reset_completed_at is not None and observed_at <= reset_completed_at:
+            raise IsolationVerificationError("Runtime observation predates the reset.")
+        token = environment.canary.get("canary_token")
+        if not isinstance(token, str) or not token or not environment.canary.get("location"):
+            raise CanaryVerificationError("Canary configuration requires a token and location.")
+        expected_canary = hashlib.sha256(token.encode("utf-8")).hexdigest()
+        if not isinstance(observation.canary_digest, str) or not hmac.compare_digest(
+            observation.canary_digest, expected_canary
+        ):
+            raise CanaryVerificationError("Observed canary does not match the configured canary.")
+        baseline = environment.reset_configuration.get("expected_baseline_digest")
+        if not isinstance(baseline, str) or len(baseline) != 64:
+            raise IsolationVerificationError("An expected baseline digest is required.")
+        if not isinstance(observation.baseline_digest, str) or not hmac.compare_digest(
+            observation.baseline_digest, baseline
+        ):
+            raise IsolationVerificationError("Observed baseline does not match the expected clean baseline.")
+        return observation
 
     def register_environment(
         self,
@@ -76,35 +204,42 @@ class LaboratoryHarness:
         self,
         environment: LaboratoryEnvironment,
         *,
+        endpoint_inventory: SSHRemoteEndpointInventory,
         required_tools: list[str] | tuple[str, ...] | None = None,
         mock_checks: bool = False,
     ) -> LaboratoryEnvironment:
         """Verify environment platform, tool prerequisites, isolation boundaries, and canary marker."""
-        # 1. Platform check
-        verify_platform_matrix(environment.platform, self.matrix)
+        self._invalidate_verification(environment)
+        self._discard_pending_cases(environment.environment_id, "environment reverification invalidated pending case")
+        self._latest_environment_observations.pop(environment.environment_id, None)
+        self._last_reset_receipts.pop(environment.environment_id, None)
+        if mock_checks:
+            self._fail_verification(environment, "Mock checks cannot verify a laboratory environment.")
+            raise IsolationVerificationError("Mock checks cannot verify a laboratory environment.")
 
-        # 2. Tool matrix check
-        verify_tool_prerequisites(environment.tool_matrix, required_tools=required_tools, matrix=self.matrix)
+        try:
+            verify_platform_matrix(environment.platform, self.matrix)
+            verify_tool_prerequisites(environment.tool_matrix, required_tools=required_tools, matrix=self.matrix)
+        except PrerequisiteMismatchError as err:
+            self._fail_verification(environment, str(err))
+            raise
 
         # 3. Isolation checks
         iso = environment.isolation
         if not iso.get("network_isolated"):
-            environment.isolation["verification_status"] = "failed"
-            environment.isolation["verification_notes"] = "Network isolation boundary is disabled or unconfigured."
-            environment.transition_to("failed")
+            self._fail_verification(environment, "Network isolation boundary is disabled or unconfigured.")
             raise IsolationVerificationError("Laboratory environment must have network isolation enabled.")
 
         if not iso.get("egress_restricted"):
-            environment.isolation["verification_status"] = "failed"
-            environment.isolation["verification_notes"] = "Egress restriction is disabled; potential data leak."
-            environment.transition_to("failed")
+            self._fail_verification(environment, "Egress restriction is disabled; potential data leak.")
             raise IsolationVerificationError("Laboratory environment must enforce strict egress restrictions.")
 
         iso_type = iso.get("isolation_type")
-        if iso_type not in ("container_unprivileged", "vm_hypervisor", "process_isolated"):
-            environment.isolation["verification_status"] = "failed"
-            environment.isolation["verification_notes"] = f"Unsupported isolation type: {iso_type}"
-            environment.transition_to("failed")
+        expected_type = {"container": "container_unprivileged", "vm": "vm_hypervisor"}.get(
+            environment.environment_type
+        )
+        if expected_type is None or iso_type != expected_type:
+            self._fail_verification(environment, f"Unsupported environment/isolation pair: {environment.environment_type}/{iso_type}")
             raise IsolationVerificationError(f"Unsupported isolation type '{iso_type}'.")
 
         # 4. Canary data verification
@@ -112,54 +247,96 @@ class LaboratoryHarness:
         token = canary.get("canary_token")
         location = canary.get("location")
         if not token or not location:
-            environment.transition_to("failed")
+            self._fail_verification(environment, "Canary configuration is incomplete.")
             raise CanaryVerificationError("Canary configuration must specify both 'canary_token' and 'location'.")
 
-        # Verify canary token
+        try:
+            observation = self._observe_environment(environment, endpoint_inventory=endpoint_inventory)
+        except (IsolationVerificationError, CanaryVerificationError) as err:
+            self._fail_verification(environment, str(err))
+            raise
+
         environment.canary["verified"] = True
         environment.isolation["verification_status"] = "verified"
-        environment.isolation["verification_timestamp"] = utc_now()
-        environment.isolation["verification_notes"] = "All platform, tool, isolation, and canary checks passed."
+        environment.isolation["verification_timestamp"] = observation.observed_at
+        environment.isolation["verification_notes"] = "Fresh runtime isolation, egress, canary, and baseline observations passed."
+        self._latest_environment_observations[environment.environment_id] = observation
 
         if environment.status != "verified":
             environment.transition_to("verified")
 
         return environment
 
+    def begin_reset(self, environment: LaboratoryEnvironment) -> str:
+        """Issue a single-use challenge for an operator-owned worker reset."""
+        reset_cfg = environment.reset_configuration
+        if environment.status not in ("verified", "active", "failed"):
+            raise ResetError("laboratory environment must be verified, active, or failed before reset")
+        if reset_cfg.get("reproducible") is not True:
+            raise ResetError("laboratory reset is not marked reproducible")
+        strategy = reset_cfg.get("strategy")
+        if strategy not in ("container_recreate", "snapshot_rollback", "script_revert"):
+            raise ResetError("unsupported reset strategy")
+        command = reset_cfg.get("command")
+        if not isinstance(command, str) or not command.strip():
+            raise ResetError("a reset command is required")
+        if self.observation_provider is None:
+            raise ResetError("an operator-owned runtime observation provider is required")
+        self._invalidate_verification(environment)
+        self._discard_pending_cases(environment.environment_id, "environment reset invalidated pending case")
+        self._latest_environment_observations.pop(environment.environment_id, None)
+        self._last_reset_receipts.pop(environment.environment_id, None)
+        self._pending_resets.pop(environment.environment_id, None)
+        environment.transition_to("resetting")
+        nonce = secrets.token_hex(32)
+        self._pending_resets[environment.environment_id] = (
+            nonce,
+            utc_now(),
+            strategy,
+            hashlib.sha256(command.encode("utf-8")).hexdigest(),
+        )
+        return nonce
+
     def reproducible_reset(
         self,
         environment: LaboratoryEnvironment,
         *,
-        mock_reset: bool = False,
+        reset_receipt: LaboratoryResetReceipt,
+        endpoint_inventory: SSHRemoteEndpointInventory,
     ) -> LaboratoryEnvironment:
-        """Perform reproducible reset of the laboratory environment to a pristine state."""
-        reset_cfg = environment.reset_configuration
-        if not reset_cfg.get("reproducible", False):
-            raise ResetError("Laboratory environment reset_configuration is not marked reproducible.")
-
-        strategy = reset_cfg.get("strategy")
-        if strategy not in ("container_recreate", "snapshot_rollback", "script_revert"):
-            raise ResetError(f"Unsupported reset strategy: '{strategy}'")
-
-        environment.transition_to("resetting")
-
-        # Execute reset procedure
-        cmd = reset_cfg.get("command")
-        if cmd and not mock_reset:
-            # Operator-provided reset command
-            try:
-                cmd_args = shlex.split(cmd) if isinstance(cmd, str) else list(cmd)
-                res = subprocess.run(cmd_args, check=False, capture_output=True, text=True, timeout=60)
-                if res.returncode != 0:
-                    environment.transition_to("failed")
-                    raise ResetError(f"Reset command failed (exit {res.returncode}): {res.stderr.strip()}")
-            except subprocess.TimeoutExpired as err:
-                environment.transition_to("failed")
-                raise ResetError(f"Reset command timed out: {err}") from err
-
-        # Verify clean baseline
-        environment.reset_configuration["last_reset_timestamp"] = utc_now()
+        """Verify a challenged worker reset and a fresh clean-baseline observation."""
+        pending = self._pending_resets.get(environment.environment_id)
+        if pending is None or environment.status != "resetting":
+            raise ResetError("no pending worker reset challenge exists for this environment")
+        self._pending_resets.pop(environment.environment_id)
+        nonce, requested_at, strategy, command_digest = pending
+        try:
+            verify_worker_receipt(
+                reset_receipt,
+                trust_store=self.observation_trust_store,
+                worker_identity=environment.owner,
+                after=requested_at,
+            )
+            if (
+                reset_receipt.environment_id != environment.environment_id
+                or reset_receipt.strategy != strategy
+                or reset_receipt.command_digest != command_digest
+                or reset_receipt.request_nonce != nonce
+            ):
+                raise ResetError("worker reset receipt does not match the pending challenge")
+            observation = self._observe_environment(
+                environment, endpoint_inventory=endpoint_inventory, after=reset_receipt.completed_at
+            )
+        except (LaboratoryGateError, ResetError, IsolationVerificationError, CanaryVerificationError) as err:
+            self._fail_verification(environment, "Worker reset or post-reset baseline verification failed.")
+            raise ResetError("worker reset or post-reset baseline verification failed") from err
+        environment.reset_configuration["last_reset_timestamp"] = observation.observed_at
         environment.canary["verified"] = True
+        environment.isolation["verification_status"] = "verified"
+        environment.isolation["verification_timestamp"] = observation.observed_at
+        environment.isolation["verification_notes"] = "Attested worker reset and post-reset observations passed."
+        self._latest_environment_observations[environment.environment_id] = observation
+        self._last_reset_receipts[environment.environment_id] = (reset_receipt, observation)
         environment.transition_to("verified")
         return environment
 
@@ -167,87 +344,75 @@ class LaboratoryHarness:
         self,
         environment: LaboratoryEnvironment,
         action_plan: ActionPlan | dict[str, Any],
-        authorization: ExecutionAuthorization | dict[str, Any] | str,
+        authorization: ExecutionAuthorization | dict[str, Any],
         case_type: Literal["positive", "negative", "remediated"] = "positive",
         *,
         trust_store: AuthorizationTrustStore,
         engagement: Any,
         worker_inventory: WorkerCapabilityInventory,
-        store: ApprovalStore | None = None,
-        scope_guard: ScopeGuard | None = None,
-        fake_adapter: Callable[[ActionPlan, Path], dict[str, Any]] | None = None,
-        workspace_dir: Path | None = None,
-    ) -> LaboratoryCaseResult:
-        """Execute a positive, negative, or remediated test case in the laboratory harness."""
+        endpoint_inventory: SSHRemoteEndpointInventory,
+        scope_guard: ScopeGuard,
+    ) -> RemoteAuthorizedRun:
+        """Dispatch one authorized plan to the pinned worker after laboratory gates."""
+        if case_type not in ("positive", "negative", "remediated"):
+            raise LaboratoryGateError("unsupported laboratory case type")
         if not isinstance(worker_inventory, WorkerCapabilityInventory) or not worker_inventory.is_verified:
             raise LaboratoryGateError("a verified owner-provisioned worker capability inventory is required")
-
-        # 1. Resolve models
+        if not isinstance(endpoint_inventory, SSHRemoteEndpointInventory) or not endpoint_inventory.is_verified:
+            raise LaboratoryGateError("a verified owner-provisioned SSH endpoint inventory is required")
+        try:
+            endpoint_inventory.resolve(environment.owner)
+        except SSHTransportError as err:
+            raise LaboratoryGateError("laboratory owner has no trusted worker endpoint") from err
         plan_model = ActionPlan.from_dict(action_plan) if isinstance(action_plan, dict) else action_plan
-        active_store = store or self.store
-        if active_store is None:
-            active_store = ApprovalStore(Path(tempfile.gettempdir()) / "cops-lab-approvals.sqlite3")
-
-        # GATE 1: Environment readiness gate
+        if not isinstance(plan_model, ActionPlan):
+            raise LaboratoryGateError("a typed action plan is required")
         if environment.status not in ("verified", "active"):
-            raise LaboratoryGateError(
-                f"Laboratory environment '{environment.environment_id}' status is '{environment.status}'; "
-                "must be 'verified' or 'active' before execution."
-            )
-
+            raise LaboratoryGateError("laboratory environment must be verified or active before execution")
         if worker_inventory.worker_identity != environment.owner:
             raise LaboratoryGateError("worker capability inventory identity does not match the laboratory owner")
 
         required_tools = {operation["tool"] for operation in plan_model.operations}
         try:
             verify_tool_prerequisites(
-                environment.tool_matrix,
-                required_tools=sorted(required_tools),
-                matrix=self.matrix,
+                environment.tool_matrix, required_tools=sorted(required_tools), matrix=self.matrix
             )
         except Exception as err:
-            raise LaboratoryGateError(f"approved tool prerequisite gate failed: {err}") from err
+            raise LaboratoryGateError("approved tool prerequisite gate failed") from err
         for operation in plan_model.operations:
             if worker_inventory.tool_versions.get(operation["tool"]) != operation["tool_version"]:
-                raise LaboratoryGateError(
-                    f"laboratory tool version for {operation['tool']!r} does not match "
-                    f"approved version {operation['tool_version']!r}"
-                )
-        missing_capabilities = set(plan_model.platform_prerequisites) - set(worker_inventory.platform_capabilities)
+                raise LaboratoryGateError("worker tool version does not match the approved plan")
+        missing_capabilities = set(plan_model.platform_prerequisites) - set(
+            worker_inventory.platform_capabilities
+        )
         if missing_capabilities:
             raise LaboratoryGateError(
                 f"worker inventory lacks approved platform prerequisites: {sorted(missing_capabilities)}"
             )
-
-        # Caller workspaces are caller-owned. Validate them before consuming the
-        # one-use authorization; the harness never creates or removes them.
-        if workspace_dir is None:
-            target_workspace = None
-        else:
-            if ".." in Path(workspace_dir).parts:
-                raise LaboratoryGateError("caller-supplied laboratory workspace must not contain parent traversal")
-            target_workspace = Path(os.path.abspath(os.fspath(workspace_dir)))
-            if not target_workspace.exists():
-                raise LaboratoryGateError("caller-supplied laboratory workspace must already exist")
-            workspace_fd = -1
-            try:
-                workspace_fd = open_directory_no_symlinks(target_workspace)
-            except SecureDirectoryError as err:
-                raise LaboratoryGateError(
-                    "caller-supplied laboratory workspace must contain no symbolic-link components"
-                ) from err
-            finally:
-                if workspace_fd >= 0:
-                    os.close(workspace_fd)
-
-        # GATE 2: Authorization envelope review & atomic consumption gate
-        if isinstance(authorization, str):
-            auth_model = active_store.get_authorization(authorization)
-        elif isinstance(authorization, dict):
+        if not isinstance(scope_guard, ScopeGuard):
+            raise LaboratoryGateError("an explicit laboratory scope guard is required")
+        if plan_model.limits.get("egress_allowed") is not False:
+            raise LaboratoryGateError("laboratory action plans must prohibit egress")
+        try:
+            ScopeGuard(ScopeDefinition.from_engagement_scope(engagement.scope)).check_destination(
+                plan_model.target
+            )
+            scope_guard.check_destination(plan_model.target)
+        except (AttributeError, TypeError, ValueError, ScopeViolationError) as err:
+            raise LaboratoryGateError("laboratory scope guard violation or invalid engagement scope") from err
+        if environment.isolation.get("verification_status") != "verified":
+            raise LaboratoryGateError("laboratory isolation has not been verified")
+        try:
+            pre_execution_observation = self._observe_environment(environment, endpoint_inventory=endpoint_inventory)
+        except (IsolationVerificationError, CanaryVerificationError) as err:
+            self._fail_verification(environment, "Fresh runtime verification failed before case execution.")
+            raise LaboratoryGateError("fresh runtime verification failed before case execution") from err
+        if isinstance(authorization, dict):
             auth_model = ExecutionAuthorization.from_dict(authorization)
-        else:
+        elif isinstance(authorization, ExecutionAuthorization):
             auth_model = authorization
-
+        else:
+            raise LaboratoryGateError("a signed execution authorization is required")
         try:
             auth_model = verify_execution_authorization(
                 auth_model,
@@ -257,257 +422,163 @@ class LaboratoryHarness:
                 worker_identity=environment.owner,
             )
         except AuthorizationError as err:
-            if case_type == "negative":
-                # Controlled negative test: authorization rejection expected
-                return self._build_negative_rejection_result(
-                    environment=environment,
-                    plan_model=plan_model,
-                    reason=f"authorization rejected: {err}",
-                )
-            raise LaboratoryGateError(f"Execution authorization gate failed: {err}") from err
-
-        if not isinstance(authorization, str):
-            try:
-                active_store.store_authorization(auth_model)
-            except ApprovalStoreConflictError:
-                pass
-
-        # Atomically consume authorization to prevent replay
+            raise LaboratoryGateError("execution authorization gate failed") from err
+        if self.case_journal is None:
+            raise LaboratoryGateError("an owner-only laboratory case journal is required")
+        attempt_id = secrets.token_hex(32)
+        dispatch_request_id = str(uuid.uuid4())
+        self.case_journal.begin(attempt_id, environment.environment_id, {
+            "plan_id": plan_model.plan_id,
+            "plan_digest": plan_model.plan_digest,
+            "authorization_id": auth_model.authorization_id,
+            "case_type": case_type,
+            "dispatch_request_id": dispatch_request_id,
+            "operator_pre_execution_observation": asdict(pre_execution_observation),
+        })
         try:
-            active_store.atomically_consume(
-                auth_model.authorization_id,
-                worker_identity=environment.owner,
-                expected_authorization=auth_model,
+            authorized_run = SSHExecutionDispatcher(endpoint_inventory).execute(
+                approved_worker_identity=environment.owner,
+                authorization_id=auth_model.authorization_id,
+                action_plan=plan_model,
+                request_id=dispatch_request_id,
             )
         except Exception as err:
-            if case_type == "negative":
-                return self._build_negative_rejection_result(
-                    environment=environment,
-                    plan_model=plan_model,
-                    reason=f"authorization consumption failed: {err}",
-                )
-            raise LaboratoryGateError(f"Approval store consumption failed: {err}") from err
-
-        # GATE 3: Egress & Scope Guard
-        if scope_guard is not None:
-            try:
-                scope_guard.check_destination(plan_model.target)
-            except ScopeViolationError as err:
-                if case_type == "negative":
-                    return self._build_negative_rejection_result(
-                        environment=environment,
-                        plan_model=plan_model,
-                        reason=f"scope guard violation: {err}",
-                    )
-                raise LaboratoryGateError(f"Laboratory scope guard violation: {err}") from err
-
-        # GATE 4: Isolation checks
-        if environment.isolation.get("verification_status") != "verified":
-            if case_type == "negative":
-                return self._build_negative_rejection_result(
-                    environment=environment,
-                    plan_model=plan_model,
-                    reason="isolation verification failed",
-                )
-            raise LaboratoryGateError("Environment isolation has not been verified.")
-
-        # Laboratory-owned workspaces remain process-local TemporaryDirectory
-        # resources. Durable crash recovery belongs to IsolatedWorker; the
-        # harness does not represent this temporary directory as a recoverable
-        # worker-owned effect.
-        temp_dir: tempfile.TemporaryDirectory[str] | None = None
-        if target_workspace is None:
-            temp_dir = tempfile.TemporaryDirectory(prefix=f"cops-lab-{plan_model.plan_id}-")
-            target_workspace = Path(temp_dir.name).resolve(strict=True)
-
-        ledger = SideEffectLedger(
-            plan_id=plan_model.plan_id,
-            engagement_id=plan_model.engagement_id,
-            default_owner=environment.owner,
-        )
-        cleanup_manager = CleanupManager(
-            ledger=ledger,
-            worker_identity=environment.owner,
-            workspace_dir=target_workspace,
-        )
-
-        started_at = utc_now()
-        evidence_records: list[str] = []
-        artifacts: list[dict[str, Any]] = []
-
-        try:
-            # Execute adapter or inert mock runner
-            adapter_output = {}
-            if fake_adapter is not None:
-                adapter_output = fake_adapter(plan_model, target_workspace)
-            else:
-                # Default inert runner
-                adapter_output = {
-                    "stdout": f"Executed scenario {plan_model.scenario_id} in {environment.environment_id}",
-                    "exit_code": 0,
-                }
-
-            # Evaluate outcome based on case_type
-            if case_type == "positive":
-                status = "success"
-                status_reason = "Vulnerable technique verified within laboratory boundaries."
-                canary_found = True
-                # Record evidence of successful probe within lab
-                ev_id = f"ev-lab-pos-{uuid.uuid4().hex[:8]}"
-                evidence_records.append(ev_id)
-                case_status = "success"
-
-            elif case_type == "remediated":
-                status = "success"
-                status_reason = "Technique blocked by active laboratory security control (mitigated)."
-                canary_found = False
-                ev_id = f"ev-lab-rem-{uuid.uuid4().hex[:8]}"
-                evidence_records.append(ev_id)
-                case_status = "remediated"
-
-            else:  # negative
-                status = "failed"
-                status_reason = "Negative case condition executed; attack path rejected."
-                canary_found = False
-                case_status = "rejected"
-
-            # Create evidence artifact
-            art_path = target_workspace / "evidence.json"
-            art_path.write_text(
-                json.dumps(
-                    {
-                        "case_type": case_type,
-                        "environment_id": environment.environment_id,
-                        "canary_token_detected": canary_found,
-                        "adapter_output": adapter_output,
-                    }
-                ),
-                encoding="utf-8",
-            )
-            artifacts.append(
-                {
-                    "name": "evidence.json",
-                    "path": str(art_path),
-                    "sha256": digest(art_path.read_text(encoding="utf-8")),
-                }
-            )
-
-            finished_at = utc_now()
-
-            # Execute cleanup
-            cleanup_receipt = cleanup_manager.rollback()
-            if temp_dir is not None:
-                cleanup_started_at = utc_now()
-                process_local_workspace = str(target_workspace)
-                temp_dir.cleanup()
-                temp_dir = None
-                cleanup_receipt = self._build_process_local_cleanup_receipt(
-                    plan=plan_model,
-                    worker_identity=environment.owner,
-                    workspace=process_local_workspace,
-                    created_at=cleanup_started_at,
-                )
-
-            run_result = RunResult(
-                schema_version="cops.run-result/v1",
-                result_id=f"res-{uuid.uuid4().hex[:8]}",
-                plan_id=plan_model.plan_id,
-                engagement_id=plan_model.engagement_id,
-                status=status,
-                started_at=started_at,
-                finished_at=finished_at,
-                status_details={"summary": f"Laboratory case {case_type} finished.", "reason": status_reason},
-                evidence_records=evidence_records,
-                artifacts=artifacts,
-                cleanup_status=cleanup_receipt.status,
-                worker_identity=environment.owner,
-                exit_code=0 if status == "success" else 1,
-            )
-
-            return LaboratoryCaseResult(
-                case_type=case_type,
-                status=case_status,
-                environment_id=environment.environment_id,
-                plan_id=plan_model.plan_id,
-                run_result=run_result,
-                canary_verified=canary_found,
-                evidence_records=evidence_records,
-                cleanup_receipt=cleanup_receipt,
-                details={"adapter_output": adapter_output},
-            )
-
-        finally:
-            if temp_dir is not None:
-                temp_dir.cleanup()
-
-    @staticmethod
-    def _build_process_local_cleanup_receipt(
-        *,
-        plan: ActionPlan,
-        worker_identity: str,
-        workspace: str,
-        created_at: str,
-    ) -> CleanupReceipt:
-        """Report successful synchronous cleanup of a harness temporary directory."""
-        receipt_id = f"cln-{uuid.uuid4().hex[:16]}"
-        cleaned_effects = [
-            {
-                "effect_id": f"effect-lab-workspace-{uuid.uuid4().hex[:8]}",
-                "resource_type": "directory",
-                "target": workspace,
-                "action_taken": "process_local_temporary_directory_cleanup",
-            }
-        ]
-        payload = {
-            "receipt_id": receipt_id,
-            "plan_id": plan.plan_id,
-            "engagement_id": plan.engagement_id,
-            "worker_identity": worker_identity,
-            "cleaned_effects": cleaned_effects,
-            "unresolved_effects": [],
-        }
-        return CleanupReceipt.from_dict(
-            {
-                "schema_version": "cops.cleanup-receipt/v1",
-                **payload,
-                "status": "completed",
-                "created_at": created_at,
-                "completed_at": utc_now(),
-                "evidence_hash": digest(payload),
-            }
-        )
-
-    def _build_negative_rejection_result(
-        self,
-        environment: LaboratoryEnvironment,
-        plan_model: ActionPlan,
-        reason: str,
-    ) -> LaboratoryCaseResult:
-        """Construct a controlled rejection result for a negative test case."""
-        now_iso = utc_now()
-        run_res = RunResult(
-            schema_version="cops.run-result/v1",
-            result_id=f"res-{uuid.uuid4().hex[:8]}",
-            plan_id=plan_model.plan_id,
-            engagement_id=plan_model.engagement_id,
+            self.case_journal.mark_unknown(attempt_id, "trusted worker dispatch outcome unknown")
+            raise LaboratoryGateError("trusted worker dispatch failed") from err
+        failure_result = LaboratoryCaseResult(
+            case_type=case_type,
             status="failed",
-            started_at=now_iso,
-            finished_at=now_iso,
-            status_details={"summary": "Controlled negative case rejection", "reason": reason},
-            evidence_records=[],
-            artifacts=[],
-            cleanup_status="not_required",
-            worker_identity=environment.owner,
-            exit_code=1,
-        )
-        return LaboratoryCaseResult(
-            case_type="negative",
-            status="rejected",
             environment_id=environment.environment_id,
             plan_id=plan_model.plan_id,
-            run_result=run_res,
+            run_result=authorized_run.result,
             canary_verified=False,
-            evidence_records=[],
+            evidence_records=list(authorized_run.result.evidence_records),
             cleanup_receipt=None,
-            details={"rejection_reason": reason},
+            details={
+                "operator_case_observation": None,
+                "operator_pre_execution_observation": asdict(pre_execution_observation),
+                "worker_cleanup_status": authorized_run.result.cleanup_status,
+                "failure_reason": "operator case observation missing",
+            },
         )
+        self.case_journal.bind(attempt_id, authorized_run.result.result_id, failure_result.to_dict())
+        self._pending_cases[authorized_run.result.result_id] = (
+            authorized_run,
+            environment.environment_id,
+            auth_model.authorization_id,
+            plan_model.plan_digest,
+            case_type,
+            secrets.token_hex(32),
+            utc_now(),
+            pre_execution_observation,
+        )
+        return authorized_run
+
+    def case_observation_challenge(self, authorized_run: RemoteAuthorizedRun) -> str:
+        """Return the fresh challenge to be sent to the independent operator adapter."""
+        self.expire_pending_cases()
+        if not isinstance(authorized_run, RemoteAuthorizedRun):
+            raise LaboratoryGateError("a trusted remote authorized run is required")
+        pending = self._pending_cases.get(authorized_run.result.result_id)
+        if pending is None or pending[0] != authorized_run:
+            raise LaboratoryGateError("laboratory result is not bound to a pending dispatch")
+        return pending[5]
+
+    def classify_case(
+        self,
+        environment: LaboratoryEnvironment,
+        action_plan: ActionPlan,
+        authorized_run: RemoteAuthorizedRun,
+        authorization_id: str,
+        case_type: Literal["positive", "negative", "remediated"],
+        *,
+        case_observation: LaboratoryCaseObservation,
+        endpoint_inventory: SSHRemoteEndpointInventory,
+    ) -> LaboratoryCaseResult:
+        """Classify only a worker result and observation bound to this dispatch."""
+        self.expire_pending_cases()
+        if not isinstance(authorized_run, RemoteAuthorizedRun):
+            raise LaboratoryGateError("a trusted remote authorized run is required")
+        result = authorized_run.result
+        pending = self._pending_cases.get(result.result_id)
+        if pending is None or pending[:5] != (
+            authorized_run,
+            environment.environment_id,
+            authorization_id,
+            action_plan.plan_digest,
+            case_type,
+        ):
+            raise LaboratoryGateError("laboratory result is not bound to a pending dispatch")
+        nonce, requested_at, pre_execution_observation = pending[5:]
+        try:
+            validate_remote_authorized_run(
+                authorized_run,
+                approved_worker_identity=environment.owner,
+                authorization_id=authorization_id,
+                action_plan=action_plan,
+            )
+            verify_worker_receipt(
+                case_observation,
+                trust_store=self.observation_trust_store,
+                worker_identity=environment.owner,
+                after=requested_at,
+            )
+        except (SSHExecutionError, LaboratoryGateError) as err:
+            raise LaboratoryGateError("worker result or case observation verification failed") from err
+        if (
+            case_observation.environment_id != environment.environment_id
+            or case_observation.authorization_id != authorization_id
+            or case_observation.plan_digest != action_plan.plan_digest
+            or case_observation.result_id != result.result_id
+            or case_observation.result_finished_at != result.finished_at
+            or case_observation.request_nonce != nonce
+        ):
+            raise LaboratoryGateError("worker case observation does not match the authorized result")
+        try:
+            if timestamp(case_observation.observed_at) <= operation_timestamp(result.finished_at):
+                raise LaboratoryGateError("worker case observation predates the authorized result")
+        except EvidenceError as err:
+            raise LaboratoryGateError("worker case observation timestamp is invalid") from err
+
+        canary_found = case_observation.canary_token_detected
+        blocked = case_observation.control_blocked
+        cleaned = result.cleanup_status in ("completed", "not_required")
+        if case_type == "positive" and result.status == "success" and result.exit_code == 0 and canary_found and not blocked and cleaned:
+            case_status = "success"
+        elif case_type == "remediated" and result.status == "success" and result.exit_code == 0 and not canary_found and blocked and cleaned:
+            case_status = "remediated"
+        elif case_type == "negative" and result.status == "failed" and type(result.exit_code) is int and result.exit_code != 0 and not canary_found and blocked and cleaned:
+            case_status = "rejected"
+        else:
+            case_status = "failed"
+        case_result = LaboratoryCaseResult(
+            case_type=case_type,
+            status=case_status,
+            environment_id=environment.environment_id,
+            plan_id=action_plan.plan_id,
+            run_result=result,
+            canary_verified=case_status == "success",
+            evidence_records=list(result.evidence_records),
+            cleanup_receipt=None,
+            details={
+                "operator_case_observation": asdict(case_observation),
+                "operator_pre_execution_observation": asdict(pre_execution_observation),
+                "operator_reset_receipt": (
+                    asdict(self._last_reset_receipts[environment.environment_id][0])
+                    if environment.environment_id in self._last_reset_receipts else None
+                ),
+                "operator_post_reset_observation": (
+                    asdict(self._last_reset_receipts[environment.environment_id][1])
+                    if environment.environment_id in self._last_reset_receipts else None
+                ),
+                "worker_cleanup_status": result.cleanup_status,
+            },
+        )
+        if self.case_journal is None:
+            raise LaboratoryGateError("an owner-only laboratory case journal is required")
+        self.case_journal.finish(
+            result.result_id, case_result.to_dict(),
+            state="failed" if case_status == "failed" else "classified",
+        )
+        self._pending_cases.pop(result.result_id)
+        return case_result

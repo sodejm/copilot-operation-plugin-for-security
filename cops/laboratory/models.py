@@ -33,6 +33,32 @@ class LaboratoryGateError(LaboratoryError):
 
 
 @dataclass(frozen=True)
+class LaboratoryObservation:
+    """Challenge-bound measurements signed by an independent operator adapter."""
+
+    environment_id: str
+    worker_identity: str
+    request_nonce: str
+    isolation_type: str
+    network_isolated: bool
+    egress_restricted: bool
+    canary_digest: str
+    baseline_digest: str
+    observed_at: str
+    key_id: str
+    signature: str
+    algorithm: str = "ed25519"
+    schema_version: str = "cops.laboratory-environment-observation/v2"
+
+    def unsigned(self) -> dict[str, object]:
+        return {name: getattr(self, name) for name in (
+            "schema_version", "algorithm", "environment_id", "worker_identity", "request_nonce",
+            "isolation_type", "network_isolated", "egress_restricted",
+            "canary_digest", "baseline_digest", "observed_at", "key_id",
+        )}
+
+
+@dataclass(frozen=True)
 class TestedMatrix:
     """Tested platforms, distributions, runtimes, and tool versions matrix."""
 

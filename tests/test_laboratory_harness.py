@@ -1,466 +1,458 @@
-"""Unit and contract tests for the scenario laboratory harness runtime."""
+"""Offline contract and gate tests for the scenario laboratory harness."""
 
 from __future__ import annotations
 
 import argparse
-import io
-import json
-import sys
-import tempfile
-import unittest
+import hashlib
+import hmac
+import uuid
+from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
+from cops.contracts.models import ActionPlan
+from cops.evidence.canonical import canonical
 from cops.execution.scope_guard import ScopeDefinition, ScopeGuard
-from cops.execution.store import ApprovalStore
+from cops.execution.ssh_execution import SSHExecutionError
 from cops.laboratory import (
     CanaryVerificationError,
     IsolationVerificationError,
     LaboratoryGateError,
     LaboratoryHarness,
+    LaboratoryCaseJournal,
+    LaboratoryObservation,
+    LaboratoryCaseObservation,
+    LaboratoryResetReceipt,
     PrerequisiteMismatchError,
     ResetError,
     make_inert_action_plan,
     make_inert_container_environment,
-    make_inert_execution_authorization,
     make_inert_vm_environment,
     parse_version_tuple,
     verify_platform_matrix,
+    verify_receipt_signature,
     verify_tool_prerequisites,
     version_ge,
 )
 from cops.laboratory.cli import command_laboratory
-from tests.auth_testkit import (
-    authorization_secret_environment,
-    make_test_authorization_context,
-    worker_inventory_for_plan,
-    write_test_authorization_trust_store,
-    write_test_worker_inventory,
+from tests.auth_testkit import authorize_test_plan, worker_inventory_for_plan
+from tests.laboratory_testkit import (
+    case_observation,
+    endpoint_inventory,
+    environment_observation,
+    observation_trust_store,
+    remote_run,
+    reset_receipt,
+    sign_receipt,
 )
 
-ROOT = Path(__file__).resolve().parents[1]
+
+def _harness(inventory, provider=None):
+    return LaboratoryHarness(observation_provider=provider or (
+        lambda environment, nonce: environment_observation(environment, nonce, inventory)
+    ), observation_trust_store=observation_trust_store(inventory.resolve("lab-operator").known_hosts_path.parent),
+        case_journal=LaboratoryCaseJournal(inventory.resolve("lab-operator").known_hosts_path.parent / "case-journal.sqlite3"))
 
 
-class TestLaboratoryHarness(unittest.TestCase):
-    """Test suite for laboratory environment management, verification, reset, and execution gates."""
+def _ready_case(tmp_path: Path):
+    inventory = endpoint_inventory(tmp_path)
+    harness = _harness(inventory)
+    environment = make_inert_container_environment()
+    harness.verify_environment(environment, endpoint_inventory=inventory)
+    plan = make_inert_action_plan()
+    auth, trust_store, engagement = authorize_test_plan(plan, worker_identity=environment.owner)
+    worker_inventory = worker_inventory_for_plan(plan, worker_identity=environment.owner)
+    guard = ScopeGuard(ScopeDefinition.from_engagement_scope(engagement.scope))
+    return harness, inventory, environment, plan, auth, trust_store, engagement, worker_inventory, guard
 
-    def setUp(self) -> None:
-        self.temp_dir = tempfile.TemporaryDirectory(prefix="cops-lab-test-")
-        self.temp_path = Path(self.temp_dir.name)
-        self.store = ApprovalStore(self.temp_path / "approvals.sqlite3")
-        self.harness = LaboratoryHarness(store=self.store)
 
-    def tearDown(self) -> None:
-        self.temp_dir.cleanup()
+def test_matrix_and_registration() -> None:
+    harness = LaboratoryHarness()
+    assert harness.register_environment(make_inert_container_environment()).status == "registered"
+    assert harness.register_environment(make_inert_vm_environment()).environment_type == "vm"
+    assert parse_version_tuple("v0.6.0-rc1") == (0, 6, 0)
+    assert version_ge("1.24.0", "1.23.9")
+    assert not version_ge("1.23.9", "1.24.0")
+    with pytest.raises(PrerequisiteMismatchError):
+        verify_platform_matrix({"os": "solaris", "distribution": "solaris", "architecture": "x86_64", "runtime": "container"})
+    with pytest.raises(PrerequisiteMismatchError):
+        verify_tool_prerequisites({"kubectl": "1.28.0"}, required_tools=["kube-bench"])
 
-    @staticmethod
-    def _authorization_context(plan):
-        signer, trust_store, engagement = make_test_authorization_context(plan)
-        authorization = make_inert_execution_authorization(
-            plan,
-            signer=signer,
-            engagement=engagement,
+
+@pytest.mark.parametrize("factory", [make_inert_container_environment, make_inert_vm_environment])
+def test_verification_requires_attested_runtime_measurement(tmp_path: Path, factory) -> None:
+    inventory = endpoint_inventory(tmp_path)
+    environment = factory()
+    harness = _harness(inventory)
+    assert harness.verify_environment(environment, endpoint_inventory=inventory).status == "verified"
+    assert environment.canary["verified"] is True
+    assert environment.isolation["verification_status"] == "verified"
+    assert environment.isolation["verification_timestamp"]
+
+
+@pytest.mark.parametrize("field,value,error", [
+    ("network_isolated", False, IsolationVerificationError),
+    ("egress_restricted", False, IsolationVerificationError),
+    ("canary_digest", "0" * 64, CanaryVerificationError),
+    ("baseline_digest", "0" * 64, IsolationVerificationError),
+    ("observed_at", (datetime.now(UTC) - timedelta(minutes=3)).isoformat(), IsolationVerificationError),
+    ("request_nonce", "wrong-nonce", IsolationVerificationError),
+])
+def test_false_stale_or_mismatched_measurement_fails_closed(tmp_path: Path, field, value, error) -> None:
+    inventory = endpoint_inventory(tmp_path)
+    environment = make_inert_container_environment()
+    harness = _harness(inventory, lambda env, nonce: environment_observation(env, nonce, inventory, **{field: value}))
+    with pytest.raises(error):
+        harness.verify_environment(environment, endpoint_inventory=inventory)
+    assert environment.status == "failed"
+    assert environment.canary["verified"] is False
+
+
+def test_untrusted_observation_and_missing_provider_fail_closed(tmp_path: Path) -> None:
+    inventory = endpoint_inventory(tmp_path)
+    environment = make_inert_container_environment()
+    with pytest.raises(IsolationVerificationError, match="provider"):
+        LaboratoryHarness().verify_environment(environment, endpoint_inventory=inventory)
+    environment = make_inert_container_environment()
+    harness = _harness(inventory, lambda env, nonce: replace(environment_observation(env, nonce, inventory), signature="0" * 128))
+    with pytest.raises(IsolationVerificationError, match="attestation"):
+        harness.verify_environment(environment, endpoint_inventory=inventory)
+    assert environment.status == "failed"
+    environment = make_inert_container_environment()
+    harness = LaboratoryHarness(observation_provider=lambda env, nonce: environment_observation(env, nonce, inventory))
+    with pytest.raises(IsolationVerificationError, match="attestation"):
+        harness.verify_environment(environment, endpoint_inventory=inventory)
+    assert environment.status == "failed"
+    environment = make_inert_container_environment()
+    with pytest.raises(IsolationVerificationError, match="Mock checks"):
+        _harness(inventory).verify_environment(environment, endpoint_inventory=inventory, mock_checks=True)
+
+
+def test_ssh_dispatch_key_cannot_forge_operator_observation(tmp_path: Path) -> None:
+    inventory = endpoint_inventory(tmp_path)
+    trust_store = observation_trust_store(tmp_path)
+    endpoint = inventory.resolve("lab-operator")
+    dispatch_key = endpoint.attestation_key
+
+    def forged_provider(environment, nonce):
+        observation = environment_observation(environment, nonce, inventory)
+        forged_signature = hmac.new(dispatch_key, canonical(observation.unsigned()), hashlib.sha512).hexdigest()
+        return replace(observation, signature=forged_signature)
+
+    environment = make_inert_container_environment()
+    harness = LaboratoryHarness(observation_provider=forged_provider, observation_trust_store=trust_store)
+    with pytest.raises(IsolationVerificationError, match="attestation"):
+        harness.verify_environment(environment, endpoint_inventory=inventory)
+    assert environment.status == "failed"
+
+
+@pytest.mark.parametrize("field", ["network_isolated", "egress_restricted"])
+def test_configuration_isolation_preconditions(tmp_path: Path, field: str) -> None:
+    inventory = endpoint_inventory(tmp_path)
+    environment = make_inert_container_environment()
+    environment.isolation[field] = False
+    with pytest.raises(IsolationVerificationError):
+        _harness(inventory).verify_environment(environment, endpoint_inventory=inventory)
+    assert environment.status == "failed"
+
+
+def test_canary_configuration_precondition(tmp_path: Path) -> None:
+    inventory = endpoint_inventory(tmp_path)
+    environment = make_inert_container_environment()
+    environment.canary["location"] = ""
+    with pytest.raises(CanaryVerificationError):
+        _harness(inventory).verify_environment(environment, endpoint_inventory=inventory)
+
+
+def test_reset_requires_signed_receipt_and_new_clean_observation(tmp_path: Path) -> None:
+    inventory = endpoint_inventory(tmp_path)
+    harness = _harness(inventory)
+    environment = make_inert_container_environment()
+    harness.verify_environment(environment, endpoint_inventory=inventory)
+    nonce = harness.begin_reset(environment)
+    assert environment.status == "resetting"
+    assert environment.canary["verified"] is False
+    receipt = reset_receipt(environment, nonce, inventory)
+    assert harness.reproducible_reset(environment, reset_receipt=receipt, endpoint_inventory=inventory).status == "verified"
+    assert environment.reset_configuration["last_reset_timestamp"]
+    with pytest.raises(ResetError, match="no pending"):
+        harness.reproducible_reset(environment, reset_receipt=receipt, endpoint_inventory=inventory)
+
+
+@pytest.mark.parametrize("overrides", [
+    {"succeeded": False},
+    {"request_nonce": "wrong-nonce"},
+    {"completed_at": (datetime.now(UTC) - timedelta(minutes=3)).isoformat()},
+])
+def test_failed_reset_receipt_invalidates_environment(tmp_path: Path, overrides) -> None:
+    inventory = endpoint_inventory(tmp_path)
+    harness = _harness(inventory)
+    environment = make_inert_container_environment()
+    harness.verify_environment(environment, endpoint_inventory=inventory)
+    nonce = harness.begin_reset(environment)
+    receipt = reset_receipt(environment, nonce, inventory, **overrides)
+    with pytest.raises(ResetError):
+        harness.reproducible_reset(environment, reset_receipt=receipt, endpoint_inventory=inventory)
+    assert environment.status == "failed"
+    assert environment.isolation["verification_status"] == "failed"
+
+
+def test_reset_fails_if_post_reset_baseline_is_dirty(tmp_path: Path) -> None:
+    inventory = endpoint_inventory(tmp_path)
+    dirty = False
+
+    def provider(environment, nonce):
+        baseline = "0" * 64 if dirty else environment.reset_configuration["expected_baseline_digest"]
+        return environment_observation(environment, nonce, inventory, baseline_digest=baseline)
+
+    harness = _harness(inventory, provider)
+    environment = make_inert_vm_environment()
+    harness.verify_environment(environment, endpoint_inventory=inventory)
+    nonce = harness.begin_reset(environment)
+    receipt = reset_receipt(environment, nonce, inventory)
+    dirty = True
+    with pytest.raises(ResetError):
+        harness.reproducible_reset(environment, reset_receipt=receipt, endpoint_inventory=inventory)
+    assert environment.status == "failed"
+
+
+def test_reset_preconditions_do_not_destroy_verified_state(tmp_path: Path) -> None:
+    inventory = endpoint_inventory(tmp_path)
+    harness = _harness(inventory)
+    environment = make_inert_container_environment()
+    harness.verify_environment(environment, endpoint_inventory=inventory)
+    environment.reset_configuration["reproducible"] = False
+    with pytest.raises(ResetError):
+        harness.begin_reset(environment)
+    assert environment.status == "verified"
+    assert environment.canary["verified"] is True
+
+
+@pytest.mark.parametrize("case_type,status,exit_code,canary,blocked,expected", [
+    ("positive", "success", 0, True, False, "success"),
+    ("remediated", "success", 0, False, True, "remediated"),
+    ("negative", "failed", 1, False, True, "rejected"),
+    ("positive", "success", 0, False, False, "failed"),
+    ("remediated", "success", 0, True, True, "failed"),
+    ("negative", "failed", 1, True, True, "failed"),
+])
+def test_case_classification_uses_bound_worker_observation(tmp_path: Path, case_type, status, exit_code, canary, blocked, expected) -> None:
+    harness, inventory, environment, plan, auth, trust, engagement, worker_inventory, guard = _ready_case(tmp_path)
+    run = remote_run(plan, auth.authorization_id, environment.owner, status=status, exit_code=exit_code)
+    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute", return_value=run) as dispatch:
+        dispatched = harness.execute_case(
+            environment, plan, auth, case_type,
+            trust_store=trust, engagement=engagement, worker_inventory=worker_inventory,
+            endpoint_inventory=inventory, scope_guard=guard,
         )
-        return authorization, trust_store, engagement
+    dispatch.assert_called_once()
+    observation = case_observation(
+        environment, plan, auth.authorization_id, dispatched, inventory,
+        request_nonce=harness.case_observation_challenge(dispatched),
+        canary_token_detected=canary, control_blocked=blocked,
+    )
+    classified = harness.classify_case(
+        environment, plan, dispatched, auth.authorization_id, case_type,
+        case_observation=observation, endpoint_inventory=inventory,
+    )
+    assert classified.status == expected
+    assert classified.cleanup_receipt is None
+    assert classified.details["worker_cleanup_status"] == "completed"
+    record, = harness.recorded_cases()
+    assert record["state"] == ("failed" if expected == "failed" else "classified")
+    assert record["result"] == classified.to_dict()
+    with pytest.raises(LaboratoryGateError, match="pending"):
+        harness.classify_case(environment, plan, dispatched, auth.authorization_id, case_type, case_observation=observation, endpoint_inventory=inventory)
 
-    def test_version_parsing_and_comparison(self) -> None:
-        """Verify semantic and dotted version comparison logic."""
-        self.assertEqual(parse_version_tuple("1.28.0"), (1, 28, 0))
-        self.assertEqual(parse_version_tuple("v0.6.0-rc1"), (0, 6, 0))
-        self.assertEqual(parse_version_tuple("7.80"), (7, 80, 0))
-        self.assertTrue(version_ge("1.28.0", "1.24.0"))
-        self.assertTrue(version_ge("1.24.0", "1.24.0"))
-        self.assertFalse(version_ge("1.23.9", "1.24.0"))
 
-    def test_register_valid_container_and_vm_environments(self) -> None:
-        """Verify registration of compliant container and VM laboratory environment contracts."""
-        c_env = make_inert_container_environment()
-        reg_c = self.harness.register_environment(c_env)
-        self.assertEqual(reg_c.environment_id, "env-lab-container-01")
-        self.assertEqual(reg_c.environment_type, "container")
-        self.assertEqual(reg_c.status, "registered")
+def test_case_omitted_guard_or_worker_inventory_rejected_before_dispatch(tmp_path: Path) -> None:
+    harness, inventory, environment, plan, auth, trust, engagement, worker_inventory, guard = _ready_case(tmp_path)
+    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute") as dispatch:
+        with pytest.raises(LaboratoryGateError, match="scope guard"):
+            harness.execute_case(environment, plan, auth, trust_store=trust, engagement=engagement, worker_inventory=worker_inventory, endpoint_inventory=inventory, scope_guard=None)
+        with pytest.raises(LaboratoryGateError, match="capability inventory"):
+            harness.execute_case(environment, plan, auth, trust_store=trust, engagement=engagement, worker_inventory=None, endpoint_inventory=inventory, scope_guard=guard)
+        with pytest.raises(LaboratoryGateError, match="SSH endpoint inventory"):
+            harness.execute_case(environment, plan, auth, trust_store=trust, engagement=engagement, worker_inventory=worker_inventory, endpoint_inventory=None, scope_guard=guard)
+        dispatch.assert_not_called()
 
-        vm_env = make_inert_vm_environment()
-        reg_vm = self.harness.register_environment(vm_env)
-        self.assertEqual(reg_vm.environment_id, "env-lab-vm-01")
-        self.assertEqual(reg_vm.environment_type, "vm")
-        self.assertEqual(reg_vm.status, "registered")
 
-    def test_platform_matrix_rejection(self) -> None:
-        """Verify rejection of platforms with unsupported OS, distribution, or runtime."""
-        # Unsupported OS
-        with self.assertRaises(PrerequisiteMismatchError) as ctx:
-            verify_platform_matrix(
-                {"os": "solaris", "distribution": "solaris", "architecture": "x86_64", "runtime": "container"}
+def test_fresh_observation_and_egress_gate_precede_dispatch(tmp_path: Path) -> None:
+    harness, inventory, environment, plan, auth, trust, engagement, worker_inventory, guard = _ready_case(tmp_path)
+    egress_plan = ActionPlan.create(
+        plan_id=plan.plan_id,
+        engagement_id=plan.engagement_id,
+        scenario_id=plan.scenario_id,
+        target=plan.target,
+        specialist_id=plan.specialist_id,
+        operations=[dict(operation) for operation in plan.to_dict()["operations"]],
+        limits={**plan.to_dict()["limits"], "egress_allowed": True},
+        credential_references=plan.to_dict()["credential_references"],
+        created_at=plan.created_at,
+        status=plan.status,
+        platform_prerequisites=plan.to_dict()["platform_prerequisites"],
+        batch=plan.to_dict()["batch"],
+    )
+    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute") as dispatch:
+        with pytest.raises(LaboratoryGateError, match="prohibit egress"):
+            harness.execute_case(environment, egress_plan, auth, trust_store=trust, engagement=engagement, worker_inventory=worker_inventory, endpoint_inventory=inventory, scope_guard=guard)
+        dispatch.assert_not_called()
+    harness.observation_provider = lambda env, nonce: environment_observation(env, nonce, inventory, egress_restricted=False)
+    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute") as dispatch:
+        with pytest.raises(LaboratoryGateError, match="fresh runtime verification"):
+            harness.execute_case(environment, plan, auth, trust_store=trust, engagement=engagement, worker_inventory=worker_inventory, endpoint_inventory=inventory, scope_guard=guard)
+        dispatch.assert_not_called()
+    assert environment.status == "failed"
+
+
+def test_invalid_case_observation_can_be_replaced_before_classification(tmp_path: Path) -> None:
+    harness, inventory, environment, plan, auth, trust, engagement, worker_inventory, guard = _ready_case(tmp_path)
+    run = remote_run(plan, auth.authorization_id, environment.owner)
+    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute", return_value=run):
+        harness.execute_case(environment, plan, auth, trust_store=trust, engagement=engagement, worker_inventory=worker_inventory, endpoint_inventory=inventory, scope_guard=guard)
+    valid = case_observation(environment, plan, auth.authorization_id, run, inventory, request_nonce=harness.case_observation_challenge(run), canary_token_detected=True, control_blocked=False)
+    with pytest.raises(LaboratoryGateError, match="verification failed"):
+        harness.classify_case(environment, plan, run, auth.authorization_id, "positive", case_observation=replace(valid, signature="0" * 128), endpoint_inventory=inventory)
+    with pytest.raises(LaboratoryGateError, match="does not match"):
+        harness.classify_case(environment, plan, run, auth.authorization_id, "positive", case_observation=sign_receipt(replace(valid, result_id="wrong-result"), inventory), endpoint_inventory=inventory)
+    with pytest.raises(LaboratoryGateError, match="does not match"):
+        harness.classify_case(environment, plan, run, auth.authorization_id, "positive", case_observation=sign_receipt(replace(valid, request_nonce="wrong-nonce"), inventory), endpoint_inventory=inventory)
+    assert harness.classify_case(environment, plan, run, auth.authorization_id, "positive", case_observation=valid, endpoint_inventory=inventory).status == "success"
+
+
+@pytest.mark.parametrize("transition", ["reset", "reverify"])
+def test_environment_transition_invalidates_pending_case(tmp_path: Path, transition: str) -> None:
+    harness, inventory, environment, plan, auth, trust, engagement, worker_inventory, guard = _ready_case(tmp_path)
+    run = remote_run(plan, auth.authorization_id, environment.owner)
+    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute", return_value=run):
+        harness.execute_case(
+            environment, plan, auth, trust_store=trust, engagement=engagement,
+            worker_inventory=worker_inventory, endpoint_inventory=inventory, scope_guard=guard,
+        )
+    nonce = harness.case_observation_challenge(run)
+    if transition == "reset":
+        harness.begin_reset(environment)
+    else:
+        harness.verify_environment(environment, endpoint_inventory=inventory)
+    record, = harness.recorded_cases()
+    assert record["state"] == "failed"
+    assert "invalidated pending case" in record["result"]["details"]["failure_reason"]
+    observation = case_observation(
+        environment, plan, auth.authorization_id, run, inventory,
+        request_nonce=nonce, canary_token_detected=True, control_blocked=False,
+    )
+    with pytest.raises(LaboratoryGateError, match="pending"):
+        harness.classify_case(
+            environment, plan, run, auth.authorization_id, "positive",
+            case_observation=observation, endpoint_inventory=inventory,
+        )
+
+
+def test_pending_case_is_failed_on_controller_restart(tmp_path: Path) -> None:
+    harness, inventory, environment, plan, auth, trust, engagement, worker_inventory, guard = _ready_case(tmp_path)
+    run = remote_run(plan, auth.authorization_id, environment.owner)
+    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute", return_value=run):
+        harness.execute_case(
+            environment, plan, auth, trust_store=trust, engagement=engagement,
+            worker_inventory=worker_inventory, endpoint_inventory=inventory, scope_guard=guard,
+        )
+    record, = LaboratoryCaseJournal(harness.case_journal.path).records()
+    assert record["state"] == "failed"
+    assert record["result"]["run_result"]["result_id"] == run.result.result_id
+    assert "controller restart" in record["result"]["details"]["failure_reason"]
+
+
+def test_missing_observation_expires_to_persisted_failure(tmp_path: Path) -> None:
+    harness, inventory, environment, plan, auth, trust, engagement, worker_inventory, guard = _ready_case(tmp_path)
+    run = remote_run(plan, auth.authorization_id, environment.owner)
+    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute", return_value=run):
+        harness.execute_case(
+            environment, plan, auth, trust_store=trust, engagement=engagement,
+            worker_inventory=worker_inventory, endpoint_inventory=inventory, scope_guard=guard,
+        )
+    pending = harness._pending_cases[run.result.result_id]
+    harness._pending_cases[run.result.result_id] = (
+        *pending[:6], (datetime.now(UTC) - timedelta(minutes=3)).isoformat().replace("+00:00", "Z"), pending[7],
+    )
+    with pytest.raises(LaboratoryGateError, match="pending"):
+        harness.case_observation_challenge(run)
+    record, = harness.recorded_cases()
+    assert record["state"] == "failed"
+    assert "before deadline" in record["result"]["details"]["failure_reason"]
+
+
+@pytest.mark.parametrize("dispatch_error", [SSHExecutionError("disconnected"), RuntimeError("unexpected dispatch failure")])
+def test_dispatch_failure_retains_unknown_attempt(tmp_path: Path, dispatch_error: Exception) -> None:
+    harness, inventory, environment, plan, auth, trust, engagement, worker_inventory, guard = _ready_case(tmp_path)
+    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute", side_effect=dispatch_error) as dispatch:
+        with pytest.raises(LaboratoryGateError, match="dispatch failed"):
+            harness.execute_case(
+                environment, plan, auth, trust_store=trust, engagement=engagement,
+                worker_inventory=worker_inventory, endpoint_inventory=inventory, scope_guard=guard,
             )
-        self.assertIn("Unsupported operating system 'solaris'", str(ctx.exception))
+    record, = harness.recorded_cases()
+    assert record["state"] == "unknown"
+    assert record["result"] is None
+    assert record["payload"]["failure_reason"] == "trusted worker dispatch outcome unknown"
+    request_id = record["payload"]["dispatch_request_id"]
+    assert uuid.UUID(request_id).version == 4
+    assert dispatch.call_args.kwargs["request_id"] == request_id
 
-        # Unsupported distribution
-        with self.assertRaises(PrerequisiteMismatchError) as ctx:
-            verify_platform_matrix(
-                {"os": "linux", "distribution": "archlinux", "architecture": "x86_64", "runtime": "container"}
+
+def test_case_journal_is_required_before_dispatch(tmp_path: Path) -> None:
+    harness, inventory, environment, plan, auth, trust, engagement, worker_inventory, guard = _ready_case(tmp_path)
+    harness.case_journal = None
+    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute") as dispatch:
+        with pytest.raises(LaboratoryGateError, match="journal is required"):
+            harness.execute_case(
+                environment, plan, auth, trust_store=trust, engagement=engagement,
+                worker_inventory=worker_inventory, endpoint_inventory=inventory, scope_guard=guard,
             )
-        self.assertIn("Unsupported distribution 'archlinux'", str(ctx.exception))
-
-        # Unsupported runtime
-        with self.assertRaises(PrerequisiteMismatchError) as ctx:
-            verify_platform_matrix(
-                {"os": "linux", "distribution": "ubuntu", "architecture": "x86_64", "runtime": "baremetal"}
-            )
-        self.assertIn("Unsupported laboratory runtime 'baremetal'", str(ctx.exception))
-
-    def test_tool_prerequisites_rejection(self) -> None:
-        """Verify rejection when tools are missing or versions fall below tested minimums."""
-        # Tool version mismatch
-        bad_tools = {"kubectl": "1.20.0"}  # requires >=1.24.0
-        with self.assertRaises(PrerequisiteMismatchError) as ctx:
-            verify_tool_prerequisites(bad_tools)
-        self.assertIn("below tested minimum '1.24.0'", str(ctx.exception))
-
-        # Missing required tool
-        with self.assertRaises(PrerequisiteMismatchError) as ctx:
-            verify_tool_prerequisites({"kubectl": "1.28.0"}, required_tools=["kube-bench"])
-        self.assertIn("Required tool 'kube-bench' is missing", str(ctx.exception))
-
-    def test_environment_verification_positive(self) -> None:
-        """Verify successful verification of compliant environment with isolation and canary."""
-        c_env = make_inert_container_environment()
-        self.assertEqual(c_env.status, "registered")
-        verified_env = self.harness.verify_environment(c_env, required_tools=["kubectl", "kube-bench"])
-        self.assertEqual(verified_env.status, "verified")
-        self.assertEqual(verified_env.isolation["verification_status"], "verified")
-        self.assertTrue(verified_env.canary["verified"])
-
-    def test_environment_verification_rejects_missing_isolation(self) -> None:
-        """Verify rejection when network isolation or egress restriction is disabled."""
-        c_env = make_inert_container_environment()
-        c_env.isolation["network_isolated"] = False
-        with self.assertRaises(IsolationVerificationError):
-            self.harness.verify_environment(c_env)
-        self.assertEqual(c_env.status, "failed")
-
-        c_env2 = make_inert_container_environment()
-        c_env2.isolation["egress_restricted"] = False
-        with self.assertRaises(IsolationVerificationError):
-            self.harness.verify_environment(c_env2)
-        self.assertEqual(c_env2.status, "failed")
-
-    def test_environment_verification_rejects_missing_canary(self) -> None:
-        """Verify rejection when canary token or location is missing."""
-        c_env = make_inert_container_environment()
-        c_env.canary["canary_token"] = ""
-        with self.assertRaises(CanaryVerificationError):
-            self.harness.verify_environment(c_env)
-        self.assertEqual(c_env.status, "failed")
-
-    def test_reproducible_reset(self) -> None:
-        """Verify reproducible reset restores verified state and updates timestamp."""
-        c_env = make_inert_container_environment()
-        verified_env = self.harness.verify_environment(c_env)
-        self.assertEqual(verified_env.status, "verified")
-
-        reset_env = self.harness.reproducible_reset(verified_env, mock_reset=True)
-        self.assertEqual(reset_env.status, "verified")
-        self.assertIsNotNone(reset_env.reset_configuration["last_reset_timestamp"])
-        self.assertTrue(reset_env.canary["verified"])
-
-    def test_reproducible_reset_rejects_non_reproducible(self) -> None:
-        """Verify rejection if reset configuration is not marked reproducible."""
-        c_env = make_inert_container_environment()
-        c_env.reset_configuration["reproducible"] = False
-        with self.assertRaises(ResetError):
-            self.harness.reproducible_reset(c_env)
-
-    def test_execution_gate_rejects_unverified_environment(self) -> None:
-        """Execution gate must reject environment that has not been verified."""
-        c_env = make_inert_container_environment()  # status: registered
-        plan = make_inert_action_plan()
-        auth, trust_store, engagement = self._authorization_context(plan)
-        worker_inventory = worker_inventory_for_plan(plan, worker_identity=c_env.owner)
-
-        with self.assertRaises(LaboratoryGateError) as ctx:
-            self.harness.execute_case(
-                c_env,
-                plan,
-                auth,
-                case_type="positive",
-                trust_store=trust_store,
-                engagement=engagement,
-                worker_inventory=worker_inventory,
-            )
-        self.assertIn("must be 'verified' or 'active' before execution", str(ctx.exception))
-
-    def test_positive_case_execution_and_cleanup(self) -> None:
-        """Verify end-to-end positive case execution, canary verification, and cleanup receipt."""
-        c_env = make_inert_container_environment()
-        self.harness.verify_environment(c_env)
-        plan = make_inert_action_plan()
-        auth, trust_store, engagement = self._authorization_context(plan)
-        worker_inventory = worker_inventory_for_plan(plan, worker_identity=c_env.owner)
-
-        result = self.harness.execute_case(
-            environment=c_env,
-            action_plan=plan,
-            authorization=auth,
-            case_type="positive",
-            trust_store=trust_store,
-            engagement=engagement,
-            worker_inventory=worker_inventory,
-        )
-        self.assertEqual(result.case_type, "positive")
-        self.assertEqual(result.status, "success")
-        self.assertTrue(result.canary_verified)
-        self.assertGreater(len(result.evidence_records), 0)
-        self.assertIsNotNone(result.cleanup_receipt)
-        self.assertEqual(result.cleanup_receipt.status, "completed")
-        self.assertEqual(result.run_result.status, "success")
-
-    def test_caller_workspace_is_preexisting_and_remains_caller_owned(self) -> None:
-        """The laboratory leaves a validated caller workspace and its artifacts in place."""
-        c_env = make_inert_container_environment()
-        self.harness.verify_environment(c_env)
-        plan = make_inert_action_plan()
-        auth, trust_store, engagement = self._authorization_context(plan)
-        worker_inventory = worker_inventory_for_plan(plan, worker_identity=c_env.owner)
-        workspace = self.temp_path.resolve(strict=True) / "caller-workspace"
-        workspace.mkdir()
-        marker = workspace / "owner-marker.txt"
-        marker.write_text("caller owned", encoding="utf-8")
-
-        result = self.harness.execute_case(
-            environment=c_env,
-            action_plan=plan,
-            authorization=auth,
-            case_type="positive",
-            trust_store=trust_store,
-            engagement=engagement,
-            worker_inventory=worker_inventory,
-            workspace_dir=workspace,
-        )
-
-        self.assertEqual(result.status, "success")
-        self.assertTrue(workspace.is_dir())
-        self.assertEqual(marker.read_text(encoding="utf-8"), "caller owned")
-        self.assertTrue((workspace / "evidence.json").is_file())
-
-    def test_missing_caller_workspace_is_rejected_before_authorization_storage(self) -> None:
-        """The laboratory never creates an untracked caller-supplied workspace."""
-        c_env = make_inert_container_environment()
-        self.harness.verify_environment(c_env)
-        plan = make_inert_action_plan()
-        auth, trust_store, engagement = self._authorization_context(plan)
-        worker_inventory = worker_inventory_for_plan(plan, worker_identity=c_env.owner)
-        workspace = self.temp_path / "missing-caller-workspace"
-
-        with self.assertRaisesRegex(LaboratoryGateError, "must already exist"):
-            self.harness.execute_case(
-                environment=c_env,
-                action_plan=plan,
-                authorization=auth,
-                case_type="positive",
-                trust_store=trust_store,
-                engagement=engagement,
-                worker_inventory=worker_inventory,
-                workspace_dir=workspace,
-            )
-
-        self.assertFalse(workspace.exists())
-        self.assertEqual(self.store.list_approvals(), [])
-
-    def test_remediated_case_execution(self) -> None:
-        """Verify remediated case execution confirming security control mitigated technique."""
-        c_env = make_inert_container_environment()
-        self.harness.verify_environment(c_env)
-        plan = make_inert_action_plan()
-        auth, trust_store, engagement = self._authorization_context(plan)
-        worker_inventory = worker_inventory_for_plan(plan, worker_identity=c_env.owner)
-
-        result = self.harness.execute_case(
-            environment=c_env,
-            action_plan=plan,
-            authorization=auth,
-            case_type="remediated",
-            trust_store=trust_store,
-            engagement=engagement,
-            worker_inventory=worker_inventory,
-        )
-        self.assertEqual(result.case_type, "remediated")
-        self.assertEqual(result.status, "remediated")
-        self.assertIn("mitigated", result.run_result.status_details["reason"].lower())
-        self.assertIsNotNone(result.cleanup_receipt)
-        self.assertEqual(result.cleanup_receipt.status, "completed")
-
-    def test_negative_case_controlled_rejection(self) -> None:
-        """Verify negative test case correctly produces a failed RunResult without false claims."""
-        c_env = make_inert_container_environment()
-        self.harness.verify_environment(c_env)
-        plan = make_inert_action_plan()
-        auth, trust_store, engagement = self._authorization_context(plan)
-        worker_inventory = worker_inventory_for_plan(plan, worker_identity=c_env.owner)
-
-        result = self.harness.execute_case(
-            environment=c_env,
-            action_plan=plan,
-            authorization=auth,
-            case_type="negative",
-            trust_store=trust_store,
-            engagement=engagement,
-            worker_inventory=worker_inventory,
-        )
-        self.assertEqual(result.case_type, "negative")
-        self.assertEqual(result.status, "rejected")
-        self.assertEqual(result.run_result.status, "failed")
-
-    def test_negative_case_does_not_persist_forged_authorization(self) -> None:
-        c_env = make_inert_container_environment()
-        self.harness.verify_environment(c_env)
-        plan = make_inert_action_plan()
-        auth, trust_store, engagement = self._authorization_context(plan)
-        forged = auth.to_dict()
-        forged["signature_digest"] = "0" * 64
-        worker_inventory = worker_inventory_for_plan(plan, worker_identity=c_env.owner)
-
-        result = self.harness.execute_case(
-            environment=c_env,
-            action_plan=plan,
-            authorization=forged,
-            case_type="negative",
-            trust_store=trust_store,
-            engagement=engagement,
-            worker_inventory=worker_inventory,
-            store=self.store,
-        )
-        self.assertEqual(result.status, "rejected")
-        self.assertEqual(self.store.list_approvals(), [])
-
-    def test_egress_and_scope_guard_enforcement(self) -> None:
-        """Verify scope guard prevents execution against unauthorized targets or metadata IMDS."""
-        c_env = make_inert_container_environment()
-        self.harness.verify_environment(c_env)
-
-        scope_def = ScopeDefinition()
-        from cops.execution.scope_guard import parse_ip_or_network
-
-        scope_def.included_networks.append(parse_ip_or_network("10.200.0.0/24"))
-        scope_def.excluded_networks.append(parse_ip_or_network("169.254.169.254/32"))
-        guard = ScopeGuard(scope_def)
-
-        # Unauthorized target
-        bad_plan = make_inert_action_plan(target="192.168.1.50")
-        bad_auth, trust_store, engagement = self._authorization_context(bad_plan)
-        worker_inventory = worker_inventory_for_plan(bad_plan, worker_identity=c_env.owner)
-
-        with self.assertRaises(LaboratoryGateError) as ctx:
-            self.harness.execute_case(
-                c_env,
-                bad_plan,
-                bad_auth,
-                case_type="positive",
-                scope_guard=guard,
-                trust_store=trust_store,
-                engagement=engagement,
-                worker_inventory=worker_inventory,
-            )
-        self.assertIn("scope guard violation", str(ctx.exception))
-
-    def test_cli_laboratory_commands(self) -> None:
-        """Verify CLI cops lab <register|verify|reset|matrix|run> subcommands."""
-        c_env = make_inert_container_environment()
-        env_json = json.dumps(c_env.to_dict())
-
-        # 1. Matrix command
-        matrix_args = argparse.Namespace(lab_command="matrix", output=None)
-        old_stdout = sys.stdout
-        sys.stdout = io.StringIO()
-        try:
-            rc = command_laboratory(matrix_args, root=ROOT)
-            out = sys.stdout.getvalue()
-        finally:
-            sys.stdout = old_stdout
-        self.assertEqual(rc, 0)
-        self.assertIn("supported_os", out)
-
-        # 2. Register command
-        reg_args = argparse.Namespace(lab_command="register", environment=env_json, output=None)
-        sys.stdout = io.StringIO()
-        try:
-            rc = command_laboratory(reg_args, root=ROOT)
-            out = sys.stdout.getvalue()
-        finally:
-            sys.stdout = old_stdout
-        self.assertEqual(rc, 0)
-        reg_doc = json.loads(out)
-        self.assertEqual(reg_doc["status"], "registered")
-
-        # 3. Verify command
-        ver_args = argparse.Namespace(
-            lab_command="verify",
-            environment=out,
-            tools="kubectl,nmap",
-            mock=True,
-            output=None,
-        )
-        sys.stdout = io.StringIO()
-        try:
-            rc = command_laboratory(ver_args, root=ROOT)
-            out = sys.stdout.getvalue()
-        finally:
-            sys.stdout = old_stdout
-        self.assertEqual(rc, 0)
-        ver_doc = json.loads(out)
-        self.assertEqual(ver_doc["status"], "verified")
-
-        # 4. Reset command
-        res_args = argparse.Namespace(lab_command="reset", environment=out, mock=True, output=None)
-        sys.stdout = io.StringIO()
-        try:
-            rc = command_laboratory(res_args, root=ROOT)
-            out = sys.stdout.getvalue()
-        finally:
-            sys.stdout = old_stdout
-        self.assertEqual(rc, 0)
-        res_doc = json.loads(out)
-        self.assertEqual(res_doc["status"], "verified")
-
-        # 5. Run command
-        plan = make_inert_action_plan()
-        auth, _, engagement = self._authorization_context(plan)
-        trust_path = write_test_authorization_trust_store(self.temp_path / "authorization-trust.json")
-        worker_inventory_path = write_test_worker_inventory(
-            self.temp_path / "worker-inventory.json",
-            worker_inventory_for_plan(plan, worker_identity=c_env.owner),
-        )
-        engagement_path = self.temp_path / "engagement.json"
-        engagement_path.write_text(json.dumps(engagement.to_dict()), encoding="utf-8")
-        run_args = argparse.Namespace(
-            lab_command="run",
-            environment=json.dumps(ver_doc),
-            plan=json.dumps(plan.to_dict()),
-            authorization=json.dumps(auth.to_dict()),
-            case_type="positive",
-            store=str(self.temp_path / "approvals.sqlite3"),
-            allowed_cidr=None,
-            authorization_trust_store=str(trust_path),
-            engagement=str(engagement_path),
-            worker_inventory=str(worker_inventory_path),
-            worker_id=None,
-            expectation=None,
-            case_id=None,
-            output=None,
-        )
-        sys.stdout = io.StringIO()
-        try:
-            with patch.dict("os.environ", authorization_secret_environment()):
-                rc = command_laboratory(run_args, root=ROOT)
-            out = sys.stdout.getvalue()
-        finally:
-            sys.stdout = old_stdout
-        self.assertEqual(rc, 0)
-        run_doc = json.loads(out)
-        self.assertEqual(run_doc["case_type"], "positive")
-        self.assertEqual(run_doc["status"], "success")
-        self.assertTrue(run_doc["canary_verified"])
+        dispatch.assert_not_called()
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_saved_case_result_contains_offline_verifiable_operator_evidence(tmp_path: Path) -> None:
+    harness, inventory, environment, plan, auth, trust, engagement, worker_inventory, guard = _ready_case(tmp_path)
+    reset_nonce = harness.begin_reset(environment)
+    harness.reproducible_reset(environment, reset_receipt=reset_receipt(environment, reset_nonce, inventory), endpoint_inventory=inventory)
+    run = remote_run(plan, auth.authorization_id, environment.owner)
+    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute", return_value=run):
+        harness.execute_case(environment, plan, auth, trust_store=trust, engagement=engagement, worker_inventory=worker_inventory, endpoint_inventory=inventory, scope_guard=guard)
+    observation = case_observation(
+        environment, plan, auth.authorization_id, run, inventory,
+        request_nonce=harness.case_observation_challenge(run), canary_token_detected=True, control_blocked=False,
+    )
+    result = harness.classify_case(environment, plan, run, auth.authorization_id, "positive", case_observation=observation, endpoint_inventory=inventory)
+    saved = result.to_dict()["details"]
+    receipt_types = {
+        "operator_case_observation": LaboratoryCaseObservation,
+        "operator_pre_execution_observation": LaboratoryObservation,
+        "operator_reset_receipt": LaboratoryResetReceipt,
+        "operator_post_reset_observation": LaboratoryObservation,
+    }
+    for field, receipt_type in receipt_types.items():
+        receipt = receipt_type(**saved[field])
+        verify_receipt_signature(receipt, trust_store=harness.observation_trust_store, worker_identity=environment.owner)
+    altered = replace(LaboratoryCaseObservation(**saved["operator_case_observation"]), canary_token_detected=False)
+    with pytest.raises(LaboratoryGateError, match="signature"):
+        verify_receipt_signature(altered, trust_store=harness.observation_trust_store, worker_identity=environment.owner)
+
+
+def test_case_rejects_equal_result_timestamp(tmp_path: Path) -> None:
+    harness, inventory, environment, plan, auth, trust, engagement, worker_inventory, guard = _ready_case(tmp_path)
+    run = remote_run(plan, auth.authorization_id, environment.owner)
+    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute", return_value=run):
+        harness.execute_case(environment, plan, auth, trust_store=trust, engagement=engagement, worker_inventory=worker_inventory, endpoint_inventory=inventory, scope_guard=guard)
+    observation = case_observation(environment, plan, auth.authorization_id, run, inventory, request_nonce=harness.case_observation_challenge(run), canary_token_detected=True, control_blocked=False, observed_at=run.result.finished_at)
+    with pytest.raises(LaboratoryGateError, match="verification failed"):
+        harness.classify_case(environment, plan, run, auth.authorization_id, "positive", case_observation=observation, endpoint_inventory=inventory)
+
+
+def test_cli_reports_provenance_requirements(capsys) -> None:
+    for command in ("verify", "reset", "run"):
+        args = argparse.Namespace(lab_command=command, environment="{}", output=None)
+        assert command_laboratory(args) == 1
+        assert "requires" in capsys.readouterr().err
