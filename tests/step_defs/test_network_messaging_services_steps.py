@@ -33,20 +33,54 @@ def bdd_ctx():
         "targets": ["vulnerable-msg.corp.internal"],
         "targets_db": {
             "vulnerable-msg.corp.internal": {
-                "smtp": {"relay_allowed": True, "user_enumeration_enabled": True, "vrfy_supported": True, "version": "Postfix 3.5"},
+                "smtp": {
+                    "relay_allowed": True,
+                    "user_enumeration_enabled": True,
+                    "vrfy_supported": True,
+                    "version": "Postfix 3.5",
+                },
                 "pop3": {"plaintext_auth_allowed": True, "tls_enforced": False, "version": "Dovecot 2.3"},
-                "imap": {"anonymous_allowed": True, "auth_required": False, "tls_enforced": False, "version": "Dovecot 2.3"},
+                "imap": {
+                    "anonymous_allowed": True,
+                    "auth_required": False,
+                    "tls_enforced": False,
+                    "version": "Dovecot 2.3",
+                },
                 "irc": {"unauthenticated_oper": True, "oper_password_required": False, "version": "UnrealIRCd 5.0"},
-                "rabbitmq": {"guest_enabled": True, "open_management": True, "auth_required": False, "version": "RabbitMQ 3.9"},
+                "rabbitmq": {
+                    "guest_enabled": True,
+                    "open_management": True,
+                    "auth_required": False,
+                    "version": "RabbitMQ 3.9",
+                },
                 "nats": {"auth_required": False, "version": "NATS 2.8"},
                 "ibmmq": {"blank_channel_enabled": True, "mcauser_enforced": False, "version": "IBM MQ 9.2"},
                 "kafka": {"sasl_enabled": False, "auth_required": False, "version": "Kafka 3.2"},
                 "mqtt": {"allow_anonymous": True, "auth_required": False, "version": "Mosquitto 2.0"},
             },
             "hardened-msg.corp.internal": {
-                "smtp": {"protected": True, "starttls_enforced": True, "relay_allowed": False, "auth_required": True, "auth_prerequisite": "user_password", "version": "Postfix 3.7"},
-                "rabbitmq": {"protected": True, "guest_enabled": False, "auth_required": True, "auth_prerequisite": "user_password", "version": "RabbitMQ 3.10"},
-                "kafka": {"protected": True, "sasl_enabled": True, "unauthenticated_listeners": False, "auth_prerequisite": "sasl", "version": "Kafka 3.4"},
+                "smtp": {
+                    "protected": True,
+                    "starttls_enforced": True,
+                    "relay_allowed": False,
+                    "auth_required": True,
+                    "auth_prerequisite": "user_password",
+                    "version": "Postfix 3.7",
+                },
+                "rabbitmq": {
+                    "protected": True,
+                    "guest_enabled": False,
+                    "auth_required": True,
+                    "auth_prerequisite": "user_password",
+                    "version": "RabbitMQ 3.10",
+                },
+                "kafka": {
+                    "protected": True,
+                    "sasl_enabled": True,
+                    "unauthenticated_listeners": False,
+                    "auth_prerequisite": "sasl",
+                    "version": "Kafka 3.4",
+                },
             },
             "filtered-msg.corp.internal": {
                 "smtp": {"state": "filtered"},
@@ -79,7 +113,9 @@ def execute_multi_protocol_probes(bdd_ctx):
     )
 
 
-@then("discrete assessments are recorded across mail transfer retrieval, realtime chat, and message broker streaming categories")
+@then(
+    "discrete assessments are recorded across mail transfer retrieval, realtime chat, and message broker streaming categories"
+)
 def verify_discrete_categories(bdd_ctx):
     report = bdd_ctx["report"]
     categories = {a.category for a in report.assessments}
@@ -153,7 +189,11 @@ def verify_zero_mass_relay(bdd_ctx):
 
 
 # Scenario 4: Canary validation and cleanup receipts
-@given(parsers.parse('an assessment configured with an allowed canary identifier "{canary_id}" and matching delivery and cleanup evidence'))
+@given(
+    parsers.parse(
+        'an assessment configured with an allowed canary identifier "{canary_id}" and matching delivery and cleanup evidence'
+    )
+)
 def setup_canary_id(bdd_ctx, canary_id):
     observed_at = datetime.now(UTC).isoformat()
     bdd_ctx["targets_db"]["vulnerable-msg.corp.internal"]["smtp"]["canary_evidence"] = {
@@ -274,7 +314,9 @@ def verify_invalid_canary_not_validated(bdd_ctx):
 
 
 # Scenario 5: Extracting messaging privilege candidates
-@given("an evaluated target exhibiting open relay SMTP, user enumeration, guest RabbitMQ, unauthenticated NATS, and unauthenticated Kafka")
+@given(
+    "an evaluated target exhibiting open relay SMTP, user enumeration, guest RabbitMQ, unauthenticated NATS, and unauthenticated Kafka"
+)
 def setup_vulnerable_candidates_target(bdd_ctx):
     bdd_ctx["collector"] = OfflineSyntheticMessagingCollector(targets=bdd_ctx["targets_db"])
     bdd_ctx["report"] = assess_messaging_services(
@@ -299,7 +341,9 @@ def verify_expected_candidates(bdd_ctx, c1, c2, c3, c4, c5):
         assert expected in found_types
 
 
-@then("each candidate contains service type, target host, port, privilege impact, SHA-256 evidence hash, and remediation guidance")
+@then(
+    "each candidate contains service type, target host, port, privilege impact, SHA-256 evidence hash, and remediation guidance"
+)
 def verify_candidate_structure(bdd_ctx):
     for c in bdd_ctx["candidates"]:
         assert c.service_type

@@ -214,13 +214,24 @@ class TestLegacyCollectorCompatibility(unittest.TestCase):
                 return "192.0.2.1"
 
             def probe_service(
-                self, target_host, resolved_ip, service_type, port, protocol="tcp",
+                self,
+                target_host,
+                resolved_ip,
+                service_type,
+                port,
+                protocol="tcp",
                 category=MessagingCategory.MAIL_TRANSFER_RETRIEVAL.value,
-                vantage="external", canary_artifact=None, message_budget=5, timeout=2.0,
+                vantage="external",
+                canary_artifact=None,
+                message_budget=5,
+                timeout=2.0,
             ):
                 return MessagingServiceAssessment(
-                    target_host=target_host, resolved_ip=resolved_ip,
-                    service_type=service_type, category=category, port=port,
+                    target_host=target_host,
+                    resolved_ip=resolved_ip,
+                    service_type=service_type,
+                    category=category,
+                    port=port,
                 )
 
         collector = LegacyCollector()
@@ -229,7 +240,9 @@ class TestLegacyCollectorCompatibility(unittest.TestCase):
                 assessment = getattr(collector, f"assess_{service_type}")("mail.example.test")
                 self.assertEqual(assessment.service_type, service_type)
         report = assess_messaging_services(
-            ["mail.example.test"], service_types=["smtp"], collector=collector,
+            ["mail.example.test"],
+            service_types=["smtp"],
+            collector=collector,
         )
         self.assertEqual(len(report.assessments), 1)
 
@@ -426,7 +439,10 @@ class TestOfflineSyntheticMessagingCollector(unittest.TestCase):
         self.assertEqual(res.exposure_status, MessagingExposureStatus.INACCESSIBLE.value)
         self.assertEqual(res.auth_prerequisite, MessagingAuthPrerequisite.UNKNOWN.value)
         self.assertFalse(res.canary_validated)
-        self.assertIn("Service was inaccessible from probe vantage; this cannot be reported as secure or hardened", res.uncertainty_notes[0])
+        self.assertIn(
+            "Service was inaccessible from probe vantage; this cannot be reported as secure or hardened",
+            res.uncertainty_notes[0],
+        )
 
     def test_message_budget_enforcement(self):
         self.set_canary_evidence(count=2)
@@ -566,8 +582,10 @@ class TestOfflineSyntheticMessagingCollector(unittest.TestCase):
             "vulnerable-messaging.corp.internal",
             canary_artifact="topic_probe",
             canary_policy=self.canary_policy(
-                destination="topic:canary", allowed_destinations=("topic:canary",),
-                recipient=None, allowed_recipients=(),
+                destination="topic:canary",
+                allowed_destinations=("topic:canary",),
+                recipient=None,
+                allowed_recipients=(),
             ),
         )
         self.assertTrue(result.canary_validated)
@@ -576,7 +594,11 @@ class TestOfflineSyntheticMessagingCollector(unittest.TestCase):
     def test_assess_messaging_services_runner_counts(self):
         self.set_canary_evidence(identifier="canary_batch")
         report = assess_messaging_services(
-            targets=["vulnerable-messaging.corp.internal", "hardened-messaging.corp.internal", "unreachable.corp.internal"],
+            targets=[
+                "vulnerable-messaging.corp.internal",
+                "hardened-messaging.corp.internal",
+                "unreachable.corp.internal",
+            ],
             service_types=["smtp", "kafka"],
             collector=self.collector,
             vantage="external",
@@ -596,8 +618,12 @@ class TestOfflineSyntheticMessagingCollector(unittest.TestCase):
         connection.__enter__.return_value = connection
         with patch("cops.discovery.messaging_collector.socket.create_connection", return_value=connection):
             result = collector.probe_service(
-                "mail.example.test", "192.0.2.10", "smtp", 25,
-                canary_artifact="canary_mail_probe", canary_policy=self.canary_policy(),
+                "mail.example.test",
+                "192.0.2.10",
+                "smtp",
+                25,
+                canary_artifact="canary_mail_probe",
+                canary_policy=self.canary_policy(),
             )
         connection.send.assert_not_called()
         connection.sendall.assert_not_called()
@@ -755,15 +781,52 @@ class TestMessagingServicesCLI(unittest.TestCase):
             stale_cleanup = (datetime.now(UTC) - timedelta(days=1)).isoformat()
             for malformed in (
                 {**report, "assessments": [{**report["assessments"][0], "canary_validated": "false"}]},
-                {**report, "assessments": [{**report["assessments"][0], "cleanup_receipts": [{**receipt.to_dict(), "receipt_hash": "0" * 64}]}]},
-                {**report, "assessments": [{**assessment_data, "canary_identifier": None, "cleanup_receipts": [changed_receipt(artifact_identifier=None)]}]},
-                {**report, "assessments": [{**assessment_data, "cleanup_receipts": [changed_receipt(timestamp_utc=future_time, delivered_at_utc=future_time)]}]},
-                {**report, "assessments": [{**assessment_data, "cleanup_receipts": [changed_receipt(
-                    timestamp_utc=stale_cleanup,
-                    delivered_at_utc=stale_delivery,
-                    retention_started_at_utc=stale_delivery,
-                    retention_seconds=86400,
-                )]}]},
+                {
+                    **report,
+                    "assessments": [
+                        {
+                            **report["assessments"][0],
+                            "cleanup_receipts": [{**receipt.to_dict(), "receipt_hash": "0" * 64}],
+                        }
+                    ],
+                },
+                {
+                    **report,
+                    "assessments": [
+                        {
+                            **assessment_data,
+                            "canary_identifier": None,
+                            "cleanup_receipts": [changed_receipt(artifact_identifier=None)],
+                        }
+                    ],
+                },
+                {
+                    **report,
+                    "assessments": [
+                        {
+                            **assessment_data,
+                            "cleanup_receipts": [
+                                changed_receipt(timestamp_utc=future_time, delivered_at_utc=future_time)
+                            ],
+                        }
+                    ],
+                },
+                {
+                    **report,
+                    "assessments": [
+                        {
+                            **assessment_data,
+                            "cleanup_receipts": [
+                                changed_receipt(
+                                    timestamp_utc=stale_cleanup,
+                                    delivered_at_utc=stale_delivery,
+                                    retention_started_at_utc=stale_delivery,
+                                    retention_seconds=86400,
+                                )
+                            ],
+                        }
+                    ],
+                },
                 *(
                     {**report, "assessments": [{**assessment_data, field: value}]}
                     for field, value in (

@@ -217,7 +217,10 @@ class TestNetworkMessagingServicesSkill(unittest.TestCase):
         self.assertEqual(res.exposure_status, MessagingExposureStatus.INACCESSIBLE.value)
         self.assertEqual(res.auth_prerequisite, MessagingAuthPrerequisite.UNKNOWN.value)
         self.assertFalse(res.canary_validated)
-        self.assertIn("Service was inaccessible from probe vantage; this cannot be reported as secure or hardened", res.uncertainty_notes[0])
+        self.assertIn(
+            "Service was inaccessible from probe vantage; this cannot be reported as secure or hardened",
+            res.uncertainty_notes[0],
+        )
 
     def test_bounded_message_budget(self):
         res = self.collector.assess_smtp("vulnerable-mail.corp.internal", message_budget=3)

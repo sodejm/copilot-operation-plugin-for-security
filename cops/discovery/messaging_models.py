@@ -124,12 +124,15 @@ class CanaryDeliveryPolicy:
             or any(not isinstance(item, str) or not item.strip() for item in self.allowed_destinations)
         ):
             raise ValueError("Canary destinations must be an explicit list of nonempty strings")
-        if (
-            not isinstance(self.allowed_recipients, (list, tuple))
-            or any(not isinstance(item, str) or not item.strip() for item in self.allowed_recipients)
+        if not isinstance(self.allowed_recipients, (list, tuple)) or any(
+            not isinstance(item, str) or not item.strip() for item in self.allowed_recipients
         ):
             raise ValueError("Canary recipients must be an explicit list of nonempty strings")
-        if not isinstance(self.destination, str) or not self.destination.strip() or self.destination not in self.allowed_destinations:
+        if (
+            not isinstance(self.destination, str)
+            or not self.destination.strip()
+            or self.destination not in self.allowed_destinations
+        ):
             raise ValueError("Canary destination is not explicitly allowed")
         if service_type in {"smtp", "pop3", "imap"} and not self.recipient:
             raise ValueError("Mail canary requires an explicit recipient")
@@ -196,7 +199,7 @@ class MessagingPrivilegeCandidate:
         }
         return guidance_map.get(
             self.finding_type,
-            f"Harden authentication and access boundaries for {self.service_type.upper()} messaging service."
+            f"Harden authentication and access boundaries for {self.service_type.upper()} messaging service.",
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -274,9 +277,7 @@ class CleanupReceipt:
                 raise ValueError("Verified synthetic cleanup requires a canary identifier")
         expected_hash = self._compute_hash()
         if self.receipt_hash:
-            if not isinstance(self.receipt_hash, str) or not hmac.compare_digest(
-                self.receipt_hash, expected_hash
-            ):
+            if not isinstance(self.receipt_hash, str) or not hmac.compare_digest(self.receipt_hash, expected_hash):
                 raise ValueError("Cleanup receipt hash does not match its contents")
         else:
             self.receipt_hash = expected_hash
@@ -371,9 +372,7 @@ class MessagingServiceAssessment:
         receipts = [CleanupReceipt.from_dict(r) for r in data.get("cleanup_receipts", [])]
         canary_validated = _literal_bool(data.get("canary_validated", False), "canary_validated")
         message_budget_limit = _literal_int(data.get("message_budget_limit", 5), "message_budget_limit")
-        messages_sent_or_observed = _literal_int(
-            data.get("messages_sent_or_observed", 0), "messages_sent_or_observed"
-        )
+        messages_sent_or_observed = _literal_int(data.get("messages_sent_or_observed", 0), "messages_sent_or_observed")
         if not 0 <= message_budget_limit <= 5:
             raise ValueError("message_budget_limit must be between 0 and 5")
         if messages_sent_or_observed < 0:
@@ -381,8 +380,7 @@ class MessagingServiceAssessment:
         if canary_validated and not 0 < messages_sent_or_observed <= message_budget_limit:
             raise ValueError("Validated canary exceeds or lacks its message budget")
         if canary_validated and (
-            not isinstance(data.get("canary_identifier"), str)
-            or not data["canary_identifier"].strip()
+            not isinstance(data.get("canary_identifier"), str) or not data["canary_identifier"].strip()
         ):
             raise ValueError("Validated canary requires a canary identifier")
         return cls(
@@ -396,7 +394,9 @@ class MessagingServiceAssessment:
             exposure_status=data.get("exposure_status", MessagingExposureStatus.INACCESSIBLE.value),
             canary_validated=canary_validated,
             canary_identifier=data.get("canary_identifier"),
-            authentication_required=_optional_literal_bool(data.get("authentication_required"), "authentication_required"),
+            authentication_required=_optional_literal_bool(
+                data.get("authentication_required"), "authentication_required"
+            ),
             auth_prerequisite=data.get("auth_prerequisite", MessagingAuthPrerequisite.UNKNOWN.value),
             assigned_role=data.get("assigned_role", "unknown"),
             message_budget_limit=message_budget_limit,
