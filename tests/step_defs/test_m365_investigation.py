@@ -1,15 +1,17 @@
 # Repository path setup precedes standalone entry point imports.
 # ruff: noqa: E402
 """Executable Microsoft 365 offline acquisition scenarios."""
+
+import json
 import sys
 from pathlib import Path
 
 import pytest
-from pytest_bdd import given, scenarios, then, when
+from pytest_bdd import given, parsers, scenarios, then, when
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / 'plugins/detection-hunting/soc-investigation-workbench'))
+sys.path.insert(0, str(ROOT / "plugins/detection-hunting/soc-investigation-workbench"))
 
 from investigationwb.m365 import correlate
 
@@ -19,18 +21,18 @@ from cops.connectors import (
     Response,
     collect,
 )
-from cops.evidence import canonical
+from cops.evidence import canonical, validate_envelope
 
-scenarios('../../specs/features/m365_investigation.feature')
+scenarios("../../specs/features/m365_investigation.feature")
 
-TENANT = '00000000-0000-0000-0000-000000000001'
-USER = '00000000-0000-0000-0000-000000000002'
-APP = '00000000-0000-0000-0000-000000000003'
+TENANT = "00000000-0000-0000-0000-000000000001"
+USER = "00000000-0000-0000-0000-000000000002"
+APP = "00000000-0000-0000-0000-000000000003"
 
 
 class Credentials:
     def headers(self, *, refresh=False):
-        return {'Authorization': 'Bearer synthetic'}
+        return {"Authorization": "Bearer synthetic"}
 
 
 class Transport:
@@ -45,112 +47,229 @@ class Transport:
 
 @pytest.fixture
 def state(tmp_path):
-    return {'root': Path(tmp_path)}
+    return {"root": Path(tmp_path)}
 
 
-def acquire(state, source, page):
-    with Checkpoint(state['root'] / source) as checkpoint:
-        return collect(GraphCollection(TENANT, source), checkpoint,
-                       Credentials(), Transport(page),
-                       now=lambda: '2026-01-02T00:00:00Z')
+def acquire(state, source, page, *, tenant=TENANT):
+    with Checkpoint(state["root"] / source) as checkpoint:
+        return collect(
+            GraphCollection(tenant, source),
+            checkpoint,
+            Credentials(),
+            Transport(page),
+            now=lambda: "2026-01-02T00:00:00Z",
+        )
 
 
-@given('a selected Microsoft 365 sign-in collection')
+@given("a selected Microsoft 365 sign-in collection")
 def selected(state):
-    state['adapter'] = GraphCollection(TENANT, 'signins')
+    state["adapter"] = GraphCollection(TENANT, "signins")
 
 
-@when('the provider supplies a next link on another origin')
+@when("the provider supplies a next link on another origin")
 def cross_origin(state):
-    state['transport'] = Transport({'value': [{'id': 'signin-1', 'userId': USER}],
-                                    '@odata.nextLink': 'https://example.invalid/v1.0/auditLogs/signIns?$top=100'})
-    with Checkpoint(state['root'] / 'cross-origin') as checkpoint:
-        state['result'] = collect(state['adapter'], checkpoint, Credentials(),
-                                  state['transport'], now=lambda: '2026-01-02T00:00:00Z')
+    state["transport"] = Transport(
+        {
+            "value": [{"id": "signin-1", "userId": USER}],
+            "@odata.nextLink": "https://example.invalid/v1.0/auditLogs/signIns?$top=100",
+        }
+    )
+    with Checkpoint(state["root"] / "cross-origin") as checkpoint:
+        state["result"] = collect(
+            state["adapter"], checkpoint, Credentials(), state["transport"], now=lambda: "2026-01-02T00:00:00Z"
+        )
 
 
-@then('collection is partial and the next link is not requested')
+@then("collection is partial and the next link is not requested")
 def partial(state):
-    assert state['result'].receipt['status'] == 'partial'
-    assert state['transport'].calls == 1
+    assert state["result"].receipt["status"] == "partial"
+    assert state["transport"].calls == 1
 
 
-@given('synthetic sign-in, audit, and service principal evidence')
+@given("synthetic sign-in, audit, and service principal evidence")
 def evidence(state):
-    state['sources'] = {
-        'm365-signins': acquire(state, 'signins', {'value': [
-            {'id': 'signin-1', 'userId': USER, 'appId': APP, 'ipAddress': '192.0.2.1'}]}),
-        'm365-directory-audits': acquire(state, 'directory-audits', {'value': [
-            {'id': 'audit-1', 'initiatedBy': {'user': {'id': USER}}}]}),
-        'm365-service-principals': acquire(state, 'service-principals', {'value': [
-            {'id': APP, 'appId': APP}]}),
+    state["sources"] = {
+        "m365-signins": acquire(
+            state, "signins", {"value": [{"id": "signin-1", "userId": USER, "appId": APP, "ipAddress": "192.0.2.1"}]}
+        ),
+        "m365-directory-audits": acquire(
+            state, "directory-audits", {"value": [{"id": "audit-1", "initiatedBy": {"user": {"id": USER}}}]}
+        ),
+        "m365-service-principals": acquire(state, "service-principals", {"value": [{"id": APP, "appId": APP}]}),
     }
-    state['sources'] = {name: (result.records, result.receipt)
-                        for name, result in state['sources'].items()}
+    state["sources"] = {name: (result.records, result.receipt) for name, result in state["sources"].items()}
 
 
-@when('the analyst correlates the three source records')
+@when("the analyst correlates the three source records")
 def correlate_sources(state):
-    state['report'] = correlate(state['sources'])
+    state["report"] = correlate(state["sources"])
 
 
-@then('the report preserves source provenance and a shared IP alone makes no identity match')
+@then("the report preserves source provenance and a shared IP alone makes no identity match")
 def leads(state):
-    assert len(state['report']['leads']) == 2
-    assert set(state['report']['coverage']) == set(state['sources'])
-    assert '192.0.2.1' not in str(state['report'])
+    assert len(state["report"]["leads"]) == 2
+    assert set(state["report"]["coverage"]) == set(state["sources"])
+    assert "192.0.2.1" not in str(state["report"])
 
 
-@given('synthetic OAuth grant, mail message, and service principal evidence')
+@given("synthetic OAuth grant, mail message, and service principal evidence")
 def cloud_app_evidence(state):
-    state['sources'] = {
-        'm365-oauth2-permission-grants': acquire(state, 'oauth2-permission-grants', {'value': [
-            {'id': 'grant-1', 'clientId': APP, 'consentType': 'Principal', 'principalId': USER, 'scope': 'Mail.Read'}]}),
-        'm365-mail-messages': acquire(state, 'mail-messages', {'value': [
-            {'id': 'msg-1', 'userId': USER, 'subject': 'Confidential memo'}]}),
-        'm365-service-principals': acquire(state, 'service-principals', {'value': [
-            {'id': APP, 'appId': APP, 'displayName': 'OAuth Client App'}]}),
+    state["sources"] = {
+        "m365-oauth2-permission-grants": acquire(
+            state,
+            "oauth2-permission-grants",
+            {
+                "value": [
+                    {
+                        "id": "grant-1",
+                        "clientId": APP,
+                        "consentType": "Principal",
+                        "principalId": USER,
+                        "scope": "Mail.Read",
+                    }
+                ]
+            },
+        ),
+        "m365-mail-messages": acquire(
+            state, "mail-messages", {"value": [{"id": "msg-1", "userId": USER, "subject": "Confidential memo"}]}
+        ),
+        "m365-service-principals": acquire(
+            state, "service-principals", {"value": [{"id": APP, "appId": APP, "displayName": "OAuth Client App"}]}
+        ),
     }
-    state['sources'] = {name: (result.records, result.receipt)
-                        for name, result in state['sources'].items()}
+    state["sources"] = {name: (result.records, result.receipt) for name, result in state["sources"].items()}
 
 
-@when('the analyst correlates the cloud app evidence')
+@when("the analyst correlates the cloud app evidence")
 def correlate_cloud_app(state):
-    state['report'] = correlate(state['sources'])
+    state["report"] = correlate(state["sources"])
 
 
-@then('the report correlates user and application entities without leaking tokens')
+@then("the report correlates user and application entities without leaking tokens")
 def cloud_app_leads(state):
-    assert len(state['report']['leads']) == 2
-    assert set(state['report']['coverage']) == set(state['sources'])
-    assert 'synthetic' not in str(state['report'])
-    assert 'Bearer' not in str(state['report'])
+    assert len(state["report"]["leads"]) == 2
+    assert set(state["report"]["coverage"]) == set(state["sources"])
+    assert "synthetic" not in str(state["report"])
+    assert "Bearer" not in str(state["report"])
 
 
-@given('synthetic Defender security alert and sign-in evidence')
+@given("synthetic Defender security alert and sign-in evidence")
 def defender_alert_evidence(state):
-    state['sources'] = {
-        'm365-security-alerts': acquire(state, 'security-alerts', {'value': [
-            {'id': 'alert-1', 'createdDateTime': '2026-01-01T01:00:00Z',
-             'userId': USER, 'appId': APP, 'severity': 'high'}]}),
-        'm365-signins': acquire(state, 'signins', {'value': [
-            {'id': 'signin-1', 'createdDateTime': '2026-01-01T00:55:00Z',
-             'userId': USER, 'appId': APP, 'ipAddress': '198.51.100.25'}]}),
+    state["sources"] = {
+        "m365-security-alerts": acquire(
+            state,
+            "security-alerts",
+            {
+                "value": [
+                    {
+                        "id": "alert-1",
+                        "createdDateTime": "2026-01-01T01:00:00Z",
+                        "userId": USER,
+                        "appId": APP,
+                        "severity": "high",
+                    }
+                ]
+            },
+        ),
+        "m365-signins": acquire(
+            state,
+            "signins",
+            {
+                "value": [
+                    {
+                        "id": "signin-1",
+                        "createdDateTime": "2026-01-01T00:55:00Z",
+                        "userId": USER,
+                        "appId": APP,
+                        "ipAddress": "198.51.100.25",
+                    }
+                ]
+            },
+        ),
     }
-    state['sources'] = {name: (result.records, result.receipt)
-                        for name, result in state['sources'].items()}
+    state["sources"] = {name: (result.records, result.receipt) for name, result in state["sources"].items()}
 
 
-@when('the analyst correlates the endpoint alert evidence')
+@when("the analyst correlates the endpoint alert evidence")
 def correlate_endpoint(state):
-    state['report'] = correlate(state['sources'])
+    state["report"] = correlate(state["sources"])
 
 
-@then('the report identifies matching entity leads while preserving alert severity')
+@then("the report identifies matching entity leads while preserving alert severity")
 def endpoint_leads(state):
-    assert len(state['report']['leads']) == 2
-    assert set(state['report']['coverage']) == {'m365-security-alerts', 'm365-signins'}
-    assert '198.51.100.25' not in str(state['report'])
-    records, receipt = state['sources']['m365-security-alerts']
-    assert records[0]['payload']['severity'] == 'high'
+    assert len(state["report"]["leads"]) == 2
+    assert set(state["report"]["coverage"]) == {"m365-security-alerts", "m365-signins"}
+    assert "198.51.100.25" not in str(state["report"])
+    records, receipt = state["sources"]["m365-security-alerts"]
+    assert records[0]["payload"]["severity"] == "high"
+
+
+COMPLETE_CASES = {"endpoint-alert", "oauth-consent", "mail-activity"}
+
+
+@given(parsers.parse('a complete "{case}" Microsoft 365 fixture'))
+def complete_fixture(state, case):
+    assert case in COMPLETE_CASES
+    path = ROOT / "tests/fixtures/m365" / f"{case}.json"
+    state["fixture"] = json.loads(path.read_text(encoding="utf-8"))
+
+
+@when("the analyst acquires and correlates every fixture source twice")
+def correlate_complete_fixture(state):
+    fixture = state["fixture"]
+    state["results"] = {
+        f"m365-{source}": acquire(state, source, page, tenant=fixture["tenant"])
+        for source, page in fixture["pages"].items()
+    }
+    repeat_root = state["root"] / "repeat"
+    repeat_root.mkdir(mode=0o700)
+    repeat_state = {"root": repeat_root}
+    state["repeat_results"] = {
+        f"m365-{source}": acquire(repeat_state, source, page, tenant=fixture["tenant"])
+        for source, page in fixture["pages"].items()
+    }
+    state["report"] = correlate({name: (result.records, result.receipt) for name, result in state["results"].items()})
+    state["repeat_report"] = correlate(
+        {name: (result.records, result.receipt) for name, result in state["repeat_results"].items()}
+    )
+
+
+@then("one tenant-bound lead links identity, activity, and audit records with stable provenance")
+def complete_lead(state):
+    fixture = state["fixture"]
+    expected = {f"m365-{fixture[role]}" for role in ("identity_source", "activity_source", "audit_source")}
+    assert len(expected) == len(fixture["pages"]) == 3
+    assert set(state["results"]) == expected
+    report = state["report"]
+    assert report == state["repeat_report"]
+    assert report["tenant"] == fixture["tenant"]
+    assert set(report["coverage"]) == expected
+    assert len(report["leads"]) == 1
+    lead = report["leads"][0]
+    assert set(lead["sources"]) == expected
+    assert set(lead["record_ids"]) == expected
+    assert fixture["principal_id"] not in str(report)
+
+    for source_name in expected:
+        result = state["results"][source_name]
+        repeat = state["repeat_results"][source_name]
+        (record,) = result.records
+        (repeat_record,) = repeat.records
+        source = source_name.removeprefix("m365-")
+        (row,) = fixture["pages"][source]["value"]
+        validate_envelope(record)
+        assert result.receipt["status"] == "complete"
+        assert result.receipt["reasons"] == []
+        assert report["coverage"][source_name] == {
+            "status": "complete",
+            "reasons": [],
+            "records": 1,
+        }
+        assert record["record_id"] == repeat_record["record_id"]
+        assert lead["record_ids"][source_name] == [record["record_id"]]
+        assert record["source"]["tenant"] == fixture["tenant"]
+        assert record["source"]["api"] == f"v1.0/{source}"
+        assert record["source"]["identity"] == row["id"]
+        assert record["acquisition_id"] == result.receipt["acquisition_id"]
+        assert record["request_fingerprint"] == result.receipt["request_fingerprint"]
+        assert record["acquisition_id"] != repeat_record["acquisition_id"]

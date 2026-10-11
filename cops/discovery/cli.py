@@ -32,6 +32,11 @@ from .developer_collector import (
     StandardSocketDeveloperCollector,
     assess_developer_services,
 )
+from .developer_destinations import (
+    DestinationScopeError,
+    DeveloperDestinationPolicy,
+    prepare_developer_handoff,
+)
 from .developer_models import (
     DeveloperServicesReport,
 )
@@ -400,6 +405,9 @@ def build_developer_parser(parser: argparse.ArgumentParser) -> None:
     )
     ass_p.add_argument("--mode", choices=["synthetic", "live"], default="synthetic", help="Collector mode.")
     ass_p.add_argument("--offline-targets", default=None, help="Path to mock targets JSON.")
+    ass_p.add_argument(
+        "--destination-policy", default=None, help="Exact destination allowlists JSON (required for live mode)."
+    )
     ass_p.add_argument("--output", "-o", default=None, help="Output JSON path.")
 
     # 2. candidates
@@ -420,6 +428,18 @@ def build_developer_parser(parser: argparse.ArgumentParser) -> None:
     )
     insp_p.add_argument("report", help="Path to DeveloperServicesReport JSON.")
     insp_p.add_argument("--json", action="store_true", help="Emit JSON output.")
+
+    # 5. handoff
+    hand_p = dev_subs.add_parser("handoff", help="Prepare an offline, scope-checked specialist handoff.")
+    hand_p.add_argument("--kind", required=True, choices=["application", "host", "cluster"])
+    hand_p.add_argument("--target-host", required=True)
+    hand_p.add_argument("--destination-policy", required=True, help="Exact destination allowlists JSON.")
+    hand_p.add_argument("--repository")
+    hand_p.add_argument("--image")
+    hand_p.add_argument("--runtime")
+    hand_p.add_argument("--cluster")
+    hand_p.add_argument("--kubeconfig", help="Kubernetes kubeconfig exported as JSON; required for cluster handoff.")
+    hand_p.add_argument("--output", "-o", help="Output JSON path.")
 
 
 def build_legacy_parser(parser: argparse.ArgumentParser) -> None:
@@ -1169,6 +1189,37 @@ def command_developer_discovery(args: argparse.Namespace, root: Path | None = No
     """Handle developer and runtime interface discovery CLI subcommands."""
     dev_cmd = getattr(args, "developer_command", None)
 
+    if dev_cmd == "handoff":
+        try:
+            policy = DeveloperDestinationPolicy.load(args.destination_policy)
+            kubeconfig = json.loads(Path(args.kubeconfig).read_text(encoding="utf-8")) if args.kubeconfig else None
+            handoff = prepare_developer_handoff(
+                kind=args.kind,
+                target_host=args.target_host,
+                policy=policy,
+                repository=args.repository,
+                image=args.image,
+                runtime=args.runtime,
+                cluster=args.cluster,
+                kubeconfig=kubeconfig,
+            )
+        except OSError:
+            print("Destination scope error: unable to read destination policy or Kubernetes context", file=sys.stderr)
+            return 2
+        except (DestinationScopeError, ValueError) as err:
+            print(f"Destination scope error: {err}", file=sys.stderr)
+            return 2
+        out_json = json.dumps(handoff, indent=2)
+        if args.output:
+            try:
+                Path(args.output).write_text(out_json, encoding="utf-8")
+            except OSError:
+                print("Destination output error: unable to write handoff record", file=sys.stderr)
+                return 2
+        else:
+            print(out_json)
+        return 0
+
     if dev_cmd == "assess":
         raw_targets = args.targets
         if Path(raw_targets).is_file():
@@ -1192,21 +1243,37 @@ def command_developer_discovery(args: argparse.Namespace, root: Path | None = No
                 allow_state_change=allow_state,
             )
         else:
-            collector = StandardSocketDeveloperCollector(
+            if not getattr(args, "destination_policy", None):
+                print("Destination scope error: --destination-policy is required for live mode", file=sys.stderr)
+                return 2
+            try:
+                policy = DeveloperDestinationPolicy.load(args.destination_policy)
+                collector = StandardSocketDeveloperCollector(
+                    destination_policy=policy,
+                    allow_code_execution=allow_exec,
+                    allow_state_change=allow_state,
+                )
+            except OSError:
+                print("Destination scope error: unable to read destination policy", file=sys.stderr)
+                return 2
+            except (DestinationScopeError, ValueError) as err:
+                print(f"Destination scope error: {err}", file=sys.stderr)
+                return 2
+
+        try:
+            report = assess_developer_services(
+                targets=targets,
+                service_types=services,
+                collector=collector,
+                vantage=args.vantage,
+                scope_ref=args.scope_ref,
+                canary_id=args.canary_id,
                 allow_code_execution=allow_exec,
                 allow_state_change=allow_state,
             )
-
-        report = assess_developer_services(
-            targets=targets,
-            service_types=services,
-            collector=collector,
-            vantage=args.vantage,
-            scope_ref=args.scope_ref,
-            canary_id=args.canary_id,
-            allow_code_execution=allow_exec,
-            allow_state_change=allow_state,
-        )
+        except (DestinationScopeError, ValueError) as err:
+            print(f"Destination scope error: {err}", file=sys.stderr)
+            return 2
 
         out_json = json.dumps(report.to_dict(), indent=2)
         if args.output:
@@ -1391,6 +1458,7 @@ def command_legacy_discovery(args: argparse.Namespace, root: Path | None = None)
         print(f"Probe Vantage:        {report.vantage}")
         print(f"Total Assessed:       {report.total_probed}")
         print(f"Exposed:              {report.total_exposed}")
+        print(f"Unconfirmed:          {report.total_unconfirmed}")
         print(f"Protected:            {report.total_protected}")
         print(f"Inaccessible:         {report.total_inaccessible}")
         print(f"Privilege Candidates: {report.candidates_count}")

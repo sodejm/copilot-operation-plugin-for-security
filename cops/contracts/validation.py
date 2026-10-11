@@ -24,6 +24,8 @@ IDENTIFIER_PATTERNS: dict[str, re.Pattern[str]] = {
     "cleanup_receipt": re.compile(r"^cln-[a-z0-9_-]{4,64}$"),
     "specialist_handoff": re.compile(r"^hnd-[a-z0-9_-]{4,64}$"),
     "laboratory_environment": re.compile(r"^env-lab-[a-z0-9_-]{4,64}$"),
+    "assessment_report": re.compile(r"^report-[a-z0-9_-]{4,64}$"),
+    "assessment_input": re.compile(r"^report-[a-z0-9_-]{4,64}$"),
 }
 
 SCHEMA_MAP: dict[str, str] = {
@@ -37,6 +39,8 @@ SCHEMA_MAP: dict[str, str] = {
     "cops.cleanup-receipt/v2": "cleanup-receipt-v2.schema.json",
     "cops.specialist-handoff/v1": "specialist-handoff.schema.json",
     "cops.laboratory-environment/v1": "laboratory-environment.schema.json",
+    "cops.assessment-report/v1": "assessment-report.schema.json",
+    "cops.assessment-input/v1": "assessment-input.schema.json",
 }
 
 TYPE_MAP: dict[str, str] = {
@@ -50,6 +54,8 @@ TYPE_MAP: dict[str, str] = {
     "cops.cleanup-receipt/v2": "cleanup_receipt",
     "cops.specialist-handoff/v1": "specialist_handoff",
     "cops.laboratory-environment/v1": "laboratory_environment",
+    "cops.assessment-report/v1": "assessment_report",
+    "cops.assessment-input/v1": "assessment_input",
 }
 
 
@@ -73,6 +79,11 @@ def build_action_plan_digest(
 ) -> str:
     """Calculate a deterministic digest over every approved plan field."""
     return digest(snapshot, max_bytes=max_bytes)
+
+
+def workflow_target_checksum(target: dict[str, Any]) -> str:
+    """Detect partial target edits within one handoff record; not authenticate it."""
+    return f"sha256:{digest(target)}"
 
 
 def evaluate_run_result(result: dict[str, Any]) -> bool:
@@ -128,6 +139,8 @@ def validate_contract(
         "cleanup_receipt": "receipt_id",
         "specialist_handoff": "handoff_id",
         "laboratory_environment": "environment_id",
+        "assessment_report": "report_id",
+        "assessment_input": "report_id",
     }
     primary_id_field = id_field_map.get(expected_type)
     if primary_id_field and primary_id_field in document:
@@ -246,6 +259,19 @@ def validate_contract(
         validate_identifier(document["handoff_id"], "specialist_handoff")
         validate_identifier(document["engagement_id"], "engagement")
         validate_identifier(document["action_plan_id"], "action_plan")
+        if document["status"] in {"accepted", "in_review", "completed"}:
+            target = document["task"].get("workflow_target")
+            if not isinstance(target, dict) or not {"implementation", "implementation_digest"} <= target.keys():
+                raise ContractError(
+                    "missing_workflow_target", "accepted specialist handoff requires a resolved workflow target"
+                )
+            accepted_entries = [entry for entry in document["transition_log"] if entry.get("to_status") == "accepted"]
+            if len(accepted_entries) != 1 or accepted_entries[0].get(
+                "workflow_target_checksum"
+            ) != workflow_target_checksum(target):
+                raise ContractError(
+                    "invalid_workflow_target_checksum", "accepted specialist handoff workflow target checksum differs"
+                )
 
     elif expected_type == "laboratory_environment":
         validate_identifier(document["environment_id"], "laboratory_environment")

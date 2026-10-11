@@ -151,7 +151,7 @@ Invoke this planner under the following concrete triggers:
    - Declare `ExecutionEffect`: `read_only`, `non_destructive`, `state_change`, `code_execution`.
    - Operations that execute code or modify state require explicit authorization (`--allow-code-execution`, `--allow-state-change`) bound to the active plan.
 3. **Application vs Infrastructure Specialist Routing**:
-   - Route application-layer findings to web specialists (`cops-web-specialist`), orchestrator paths to cloud specialists (`cops-cloud-specialist`), and code execution / breakout findings to pentest specialists (`cops-pentest-specialist`).
+   - Route application-layer findings to web specialists (`cops-web-specialist`), orchestrator paths to cloud specialists (`cops-cloud-specialist`), and code execution / breakout findings to pentest specialists (`cops-pentest-specialist`). Before a cluster handoff, validate the allowed cluster, current Kubernetes context, and API hostname with `python3 -m cops developer-services handoff --kind cluster ...`; this is an offline metadata check.
 4. **Strict Inaccessible != Secure Grounding**:
    - Filtered, closed, or timed-out endpoints are strictly classified as `inaccessible` (with `auth_prerequisite: unknown`). Never assume an inaccessible service is secure or hardened.
 5. **Canary Validation and Verifiable Cleanup Receipts**:
@@ -163,20 +163,20 @@ Invoke this planner under the following concrete triggers:
 ### Phase 2i: Legacy Enterprise, Management, and Proxy Services Assessment
 **Skill**: [`network-legacy-and-proxy-services`](../skills/network-legacy-and-proxy-services/SKILL.md)
 
-1. **Protocol-Specific Legacy Enterprise & Proxy Probing**:
-   - Assess exposure of enterprise storage (NDMP, iSCSI), hardware out-of-band management (IPMI 2.0 / RMCP+), network appliance management (Cisco Smart Install, TACACS+), legacy VPN tunneling (IKEv1 Aggressive Mode, PPTP), and proxy egress services (SOCKS, Squid) across approved targets: `python3 -m cops legacy-services assess ...`.
-2. **Proxy Egress Restriction Testing**:
-   - For all proxy and egress services (SOCKS, Squid), test and record whether outbound destinations are restricted (`proxy_egress_tested`, `proxy_egress_restricted`) to evaluate unauthorized internal pivoting and SSRF risks.
-3. **Execution Effect Classification & Plan Binding**:
-   - Declare `ExecutionEffect`: `read_only`, `non_destructive`, `state_change`, `code_execution`.
-   - Operations that execute code or modify state require explicit authorization (`--allow-code-execution`, `--allow-state-change`) bound to the active plan.
-4. **Strict Inaccessible != Secure Grounding**:
-   - Filtered, closed, or timed-out endpoints are strictly classified as `inaccessible` (with `auth_prerequisite: unknown`). Never assume an inaccessible service is secure or hardened.
-5. **Canary Validation and Verifiable Cleanup Receipts**:
-   - Validate access controls using benign canary identifiers (`canary_legacy_artifact`, `canary_proxy_probe`).
-   - Emit verified `CleanupReceipt` records confirming rollback and artifact removal: `python3 -m cops legacy-services cleanup ...`.
-6. **Extract Legacy Privilege Candidates**:
-   - Extract candidate findings (`ndmp_unauthenticated_access`, `iscsi_unauthenticated_target`, `ipmi_cipher_zero_bypass`, `ipmi_rakp_hash_dump`, `cisco_smart_install_rce`, `tacacs_unauthenticated_daemon`, `ike_aggressive_mode_psk`, `pptp_mschapv2_exposure`, `socks_open_proxy`, `squid_open_proxy`) for takeover or proxy egress pivoting handoff: `python3 -m cops legacy-services candidates ...`.
+1. **Nine offline service models**:
+   - The NDMP, iSCSI, IPMI, Cisco Smart Install, TACACS+, IKEv1, PPTP, SOCKS, and Squid models exercise fixture-defined conditions with the default `--mode synthetic` and supplied `--offline-targets`. `--mode live` uses the socket collector, which checks TCP connection or UDP send reachability only. A reachable socket is `unconfirmed`; it does not establish protocol behavior, authentication, or vulnerability.
+2. **Proxy egress boundary**:
+   - SOCKS and Squid fixtures can set `proxy_egress_tested` and `proxy_egress_restricted` from fixture data. The socket collector does not send traffic through a proxy or test destination restrictions.
+3. **Execution effect classification**:
+   - `ExecutionEffect` describes possible effects in a model. Authorization flags enable fixture branches; the socket collector does not execute code or modify remote state.
+4. **Inaccessible remains uncertain**:
+   - Filtered, closed, or timed-out endpoints are `inaccessible` with unknown authentication prerequisites. Do not treat that result as evidence of hardening.
+5. **Synthetic canary and cleanup data**:
+   - Offline fixtures can produce canary and `CleanupReceipt` records for serialization tests. They do not create or remove remote artifacts. The socket collector produces no such receipt; `python3 -m cops legacy-services cleanup ...` exports only records already in a report.
+6. **Fixture candidate routing**:
+   - `python3 -m cops legacy-services candidates ...` exports candidates derived from fixture conditions. Socket reachability alone yields no privilege candidates. Confirm any operational finding in an authorized environment before handoff.
+
+The repository's `docs/PROTOCOL_TOPIC_RECONCILIATION.md` records coverage and version or environment limits for all 70 historical topics.
 
 ### Phase 3: Scope Boundary Partitioning
 Systematically classify every discovered entity into one of three strict partitions:

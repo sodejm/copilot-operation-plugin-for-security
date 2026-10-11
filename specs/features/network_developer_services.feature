@@ -42,3 +42,19 @@ Feature: Developer and Runtime Interfaces Assessment
     Then the exposure status is reported as "protected"
     And authentication prerequisites reflect "client_cert", "token_or_api_key", or "user_password"
     And zero unauthenticated developer privilege candidates are generated
+
+  Scenario: Blocking unlisted live destinations before network access
+    Given an exact developer destination policy for a lab host and resolved address
+    When the live collector receives an unlisted host and an unlisted resolved address
+    Then the host is rejected before DNS and the address before a socket opens
+
+  Scenario: Checking Kubernetes context and all runtime destinations before cluster handoff
+    Given an exact developer destination policy and Kubernetes context for a lab cluster
+    When the approved cluster handoff and out-of-scope variants are prepared offline
+    Then the approved handoff routes to the cloud specialist without claiming connectivity
+    And unlisted repositories, images, runtimes, clusters, contexts, and API hosts are rejected
+
+  Scenario: Recording a rejected offline runtime handoff and cleanup
+    Given an isolated offline developer runtime fixture
+    When the fixture runs an approved handoff and an unlisted repository control
+    Then it records the rejection and verifies temporary fixture cleanup

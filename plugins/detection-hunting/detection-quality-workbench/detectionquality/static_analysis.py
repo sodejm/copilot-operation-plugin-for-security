@@ -16,7 +16,9 @@ def analyze_rule_dependencies(rule: Rule, cases: list[FixtureCase]) -> dict[str,
 
     for case in cases:
         for event in case.events:
-            present_keys = set(event.keys())
+            if event.get("source") not in (None, rule.source_data["primary_source"]):
+                continue
+            present_keys = {key for key, value in event.items() if value is not None}
             missing_in_event = required - present_keys
             if missing_in_event:
                 missing_fields_set.update(missing_in_event)

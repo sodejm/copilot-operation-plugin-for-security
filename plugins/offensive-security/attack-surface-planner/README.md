@@ -115,7 +115,12 @@ The package extends reconnaissance foundations with bounded, rate-limited active
 4. **Scope Quarantine & DNS Rebind Defense**:
    - Enforces scope CIDR and domain checks before each probe; halts probes and flags `dns_rebind_detected` if target resolution shifts.
 5. **Remediated Exposure Verification**:
-   - Compares baseline vs. re-test scans to compute remediated, new, and persistent exposures with exact remediation rate percentage.
+   - Compares baseline vs. re-test scans to compute remediated, new, and persistent exposures with exact remediation rate percentage. Only a confirmed closed retest counts as remediated; missing or inconclusive retests appear in `unverified_exposures`.
+
+The repository's `docs/ACTIVE_DISCOVERY_NETWORK_ACCEPTANCE.md` describes a
+disposable-network acceptance harness for real loopback socket behavior,
+including rate limits, no-route errors, DNS shifts, checkpoint resume, and a
+closed-port retest.
 
 ```bash
 # Plan active assessment
@@ -295,12 +300,32 @@ The package evaluates exposure, access control, and code execution risk across d
 6. **Developer Privilege Candidate Routing**:
    - Discovered misconfigurations (e.g. `docker_socket_rce`, `docker_registry_leak`, `rmi_code_execution`, `jdwp_code_execution`, `erlang_epmd_rce`, `adb_shell_rce`, `distcc_rce`, `svn_anonymous_checkout`, `ajp_ghostcat_rce`, `fastcgi_rce`) are structured as `DeveloperPrivilegeCandidate` records with cryptographic evidence hashes, auth prerequisites, and privilege impact ratings for handoff to offensive specialists (`cops-pentest-specialist`, `cops-redteam-operator`).
 
+Live collection requires an exact destination policy. `hosts` are checked before DNS and `resolved_ips` after DNS, before any socket connection. Repository, image, runtime, and cluster entries are checked when supplied to the offline handoff. Omitted entries grant no permission for a later action. Keep this policy separate from engagement authorization and update it when approved destinations change.
+
+```json
+{
+  "hosts": ["dev01.corp.internal", "api.lab.internal"],
+  "resolved_ips": ["198.51.100.50"],
+  "repositories": ["team/service"],
+  "images": ["registry.internal/team/service:v1"],
+  "runtimes": ["containerd"],
+  "clusters": ["lab-cluster"]
+}
+```
+
+The cluster handoff reads a JSON kubeconfig and requires its current context to select the allowed cluster and an HTTPS API server whose hostname is allowed. It does not connect to the cluster or validate credentials. Use a local kubeconfig file with appropriate access controls; the output contains only the selected context, namespace, and API hostname.
+
+The isolated CLI fixture in `tests/fixtures/developer_runtime_destinations.json` exercises an allowed handoff and negative controls for repository, image, runtime, cluster, Kubernetes context, and API hostname. Its test records rejection results in a temporary directory and verifies cleanup. This is offline process isolation, not a container or live-cluster check.
+
 ```bash
-# Assess developer and runtime interface services
-python3 -m cops developer-services assess --targets "198.51.100.50,dev01.corp.internal" --vantage internal --canary-id "canary_docker_probe" --output developer_assessment.json
+# Assess developer and runtime interface services with a live socket collector
+python3 -m cops developer-services assess --mode live --targets "dev01.corp.internal" --destination-policy destination-policy.json --vantage internal --canary-id "canary_docker_probe" --output developer_assessment.json
 
 # Assess with authorized code execution verification
-python3 -m cops developer-services assess --targets "198.51.100.50" --services "docker,jdwp,distcc" --allow-code-execution --output developer_assessment.json
+python3 -m cops developer-services assess --mode live --targets "dev01.corp.internal" --destination-policy destination-policy.json --services "docker,jdwp,distcc" --allow-code-execution --output developer_assessment.json
+
+# Prepare a scope-checked cluster handoff using a JSON kubeconfig
+python3 -m cops developer-services handoff --kind cluster --target-host dev01.corp.internal --destination-policy destination-policy.json --repository team/service --image registry.internal/team/service:v1 --runtime containerd --cluster lab-cluster --kubeconfig kubeconfig.json --output cluster_handoff.json
 
 # Extract developer privilege candidates for code execution or breakout workflows
 python3 -m cops developer-services candidates developer_assessment.json --output developer_candidates.json
@@ -316,42 +341,19 @@ python3 -m cops developer-services inspect developer_assessment.json
 
 ## Legacy Enterprise, Management, and Proxy Services Assessment
 
-The package evaluates exposure, access control, and proxy egress risk across legacy enterprise storage protocols, hardware out-of-band management interfaces, network device appliance management, legacy VPN tunneling protocols, and forward proxy egress services (`cops legacy-services` or `cops discovery legacy`):
+The `cops legacy-services` CLI has two modes for NDMP, iSCSI, IPMI, Cisco Smart Install, TACACS+, IKEv1, PPTP, SOCKS, and Squid:
 
-1. **Protocol-Specific Coverage**:
-   - **Enterprise Storage & Data Management**: Probes NDMP (10000) for unauthenticated backup stream traversal, directory browsing, and tape/disk storage takeover; evaluates iSCSI (3260) for unauthenticated SendTargets discovery and LUN volume attachment without mutual CHAP.
-   - **Out-of-Band & Hardware Management**: Assesses IPMI 2.0 / RMCP+ (623/udp) Baseboard Management Controller (BMC) interfaces for Cipher Suite 0 authentication bypass and unauthenticated RAKP HMAC-SHA1 password hash dumping for offline dictionary cracking.
-   - **Network Device & Appliance Management**: Detects active Cisco Smart Install client daemons (`vstack`, 4786) allowing unauthenticated configuration download/replacement and arbitrary code execution; and evaluates TACACS+ AAA (49) daemons exposed with weak/default shared secret keys and missing TLS encapsulation (RFC 8907).
-   - **VPN & Tunneling Services**: Evaluates IPsec / IKEv1 (500/udp) Aggressive Mode responses exposing pre-shared key (PSK) negotiation hashes to offline cracking; and assesses legacy PPTP VPN endpoints (1723) utilizing vulnerable MS-CHAPv2 challenge-response authentication.
-   - **Proxy & Egress Services**: Assesses SOCKS4/SOCKS5 proxies (1080) for open network relaying without RFC 1929 authentication; and evaluates Squid HTTP proxies (3128) for unrestricted client ACLs allowing internal/cloud metadata SSRF pivoting.
-2. **Proxy Egress Restriction Testing**:
-   - For all proxy and egress services (SOCKS, Squid), explicitly tests and records destination egress restriction policy (`proxy_egress_tested`, `proxy_egress_restricted`) to evaluate whether outbound access to internal loopback, cloud metadata (`169.254.169.254`), or arbitrary external subnets is denied.
-3. **Explicit Execution Effect Classification & Plan Binding**:
-   - Explicitly classifies every assessment effect via `ExecutionEffect`: `read_only`, `non_destructive`, `state_change`, `code_execution`.
-   - Operations that execute code (`can_execute_code`) or modify state (`can_change_state`) MUST be explicitly authorized via `--allow-code-execution` or `--allow-state-change` and bound to the active action plan.
-4. **Crucial Truth Boundary: Inaccessible != Secure**:
-   - If a legacy interface is timed out, connection-refused, filtered, or unreachable from the probe vantage, it is strictly recorded as `inaccessible` with `auth_prerequisite: unknown` and explicit uncertainty notes. It is **never** reported as secure or hardened.
-5. **Canary Validation and Verifiable Cleanup Receipts**:
-   - Non-destructive probes validate access boundaries using canary identifiers (`canary_legacy_artifact`, `canary_proxy_probe`).
-   - Assessments emit cryptographically hashed `CleanupReceipt` records confirming test artifacts were removed and the system state was restored (`action_taken="verified_removed"`).
-6. **Legacy Privilege Candidate Routing**:
-   - Discovered misconfigurations (e.g. `ndmp_unauthenticated_access`, `iscsi_unauthenticated_target`, `ipmi_cipher_zero_bypass`, `ipmi_rakp_hash_dump`, `cisco_smart_install_rce`, `tacacs_unauthenticated_daemon`, `ike_aggressive_mode_psk`, `pptp_mschapv2_exposure`, `socks_open_proxy`, `squid_open_proxy`) are structured as `LegacyPrivilegeCandidate` records with cryptographic evidence hashes, auth prerequisites, and privilege impact ratings for handoff to offensive specialists (`cops-pentest-specialist`, `cops-redteam-operator`).
+- `--mode synthetic` (the default) evaluates supplied `--offline-targets` fixture data. Conditions, canary records, privilege candidates, and cleanup receipts in these reports are simulated. They do not verify a real service or remote cleanup.
+- `--mode live` checks bounded TCP connection or UDP send reachability. A reachable socket is `unconfirmed`; an unreachable one is `inaccessible`, never secure. The live collector does not parse protocol responses, test authentication or proxy egress, validate canaries, execute code, change state, or produce candidates or cleanup receipts. Authorization flags do not add those probes.
+
+`candidates` and `cleanup` export records already present in a report. A fixture candidate requires independent confirmation before specialist handoff. See the [playbook](docs/PLAYBOOK.md) for the evidence boundaries. The source repository's `docs/PROTOCOL_TOPIC_RECONCILIATION.md` records coverage of all 70 historical protocol topics.
 
 ```bash
-# Assess legacy enterprise, management, and proxy services
-python3 -m cops legacy-services assess --targets "198.51.100.60,storage01.corp.internal" --vantage internal --canary-id "canary_legacy_probe" --output legacy_assessment.json
-
-# Assess with authorized code execution verification
-python3 -m cops legacy-services assess --targets "198.51.100.60" --services "ipmi,cisco_smart_install" --allow-code-execution --output legacy_assessment.json
-
-# Extract legacy privilege candidates for takeover or proxy egress pivoting
-python3 -m cops legacy-services candidates legacy_assessment.json --output legacy_candidates.json
-
-# Export verified cleanup receipts
-python3 -m cops legacy-services cleanup legacy_assessment.json --output cleanup_receipts.json
-
-# Inspect assessment summary, privilege candidates, and truth-in-advertising metrics
-python3 -m cops legacy-services inspect legacy_assessment.json
+python3 -m cops legacy-services assess --targets 198.51.100.60 --mode synthetic --offline-targets mock_targets.json --output legacy_fixture_report.json
+python3 -m cops legacy-services assess --targets 198.51.100.60 --mode live --services ndmp,iscsi --output legacy_socket_report.json
+python3 -m cops legacy-services inspect legacy_socket_report.json
+python3 -m cops legacy-services candidates legacy_fixture_report.json --output legacy_candidates.json
+python3 -m cops legacy-services cleanup legacy_fixture_report.json --output cleanup_receipts.json
 ```
 
 ---
@@ -359,7 +361,7 @@ python3 -m cops legacy-services inspect legacy_assessment.json
 ## Evidence & Ethical Boundaries
 
 The Attack Surface Planner is a **planning and compliance tool**, not an active exploitation framework:
-- It **never** authenticates to cloud tenants, crawls websites, queries live DNS/CT logs, or scans ports.
+- Its passive discovery workflow does not authenticate to cloud tenants, crawl websites, or query live DNS/CT logs. The opt-in `legacy-services --mode live` workflow sends bounded TCP/UDP socket probes as described above.
 - It **never** runs active penetration tests, harvests credentials, or establishes persistence.
 - Any finding, public endpoint, or permission name in an export is a hypothesis trigger for passive review, not proof of exploitability.
 

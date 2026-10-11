@@ -25,5 +25,7 @@ verdict. No live mutation is in scope.
 - [x] Read-only fixed adapters for Defender XDR, Purview, Exchange,
   SharePoint, Teams, authentication methods, and OAuth2 permission grants.
 - [x] Endpoint permissions, licenses, and retention documented for every source.
-- [x] Three cross-domain scenarios verified with tenant-bound offline fixtures.
+- [x] Three complete tenant-bound offline fixtures each correlate identity,
+  endpoint or cloud-app activity, and audit records into one lead with stable
+  record IDs and acquisition provenance.
 - [x] Shared connector SDK integration verified in tests and offline runners.

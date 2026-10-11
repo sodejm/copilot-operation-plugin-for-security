@@ -97,6 +97,8 @@ def execute_complete_workflow(triad_ctx, task):
         task_description=task,
         planner_id="secops-bdd",
         specialist_id="cops-pentest-specialist",
+        workflow_skill_id="network-active-discovery",
+        capability_id="cops-pentest-specialist",
         evidence_envelopes=evidence,
         findings=findings,
     )
@@ -119,6 +121,35 @@ def verify_transition_log_count(triad_ctx, count):
 def verify_handoff_schema(triad_ctx):
     handoff = triad_ctx["handoff"]
     validate_contract(handoff.to_dict(), "specialist_handoff")
+
+
+@then("the completed handoff contains no execution result")
+def verify_no_execution_result(triad_ctx):
+    assert "execution_result" not in triad_ctx["handoff"].to_dict()
+
+
+@given("a proposed handoff without a workflow target")
+def setup_handoff_without_workflow_target(triad_ctx):
+    triad_ctx["handoff"] = propose_specialist_handoff(
+        triad_ctx["engagement"],
+        triad_ctx["action_plan"],
+        "Review discovery plan",
+        "secops-bdd",
+        specialist_id="cops-pentest-specialist",
+    )
+
+
+@given("a proposed handoff with a nonexistent workflow skill")
+def setup_handoff_with_unknown_workflow_target(triad_ctx):
+    triad_ctx["handoff"] = propose_specialist_handoff(
+        triad_ctx["engagement"],
+        triad_ctx["action_plan"],
+        "Review discovery plan",
+        "secops-bdd",
+        specialist_id="cops-pentest-specialist",
+        workflow_skill_id="unknown-workflow",
+        capability_id="cops-pentest-specialist",
+    )
 
 
 @given("a proposed handoff requiring unsupported capabilities")
@@ -164,6 +195,8 @@ def setup_accepted_handoff_with_contradictions(triad_ctx):
         task_description="Telemetry inspection",
         sender_id="secops-bdd",
         specialist_id="cops-pentest-specialist",
+        workflow_skill_id="network-active-discovery",
+        capability_id="cops-pentest-specialist",
         required_capabilities=["reconnaissance", "port scan"],
     )
     accept_specialist_handoff(handoff, "cops-pentest-specialist")
@@ -202,6 +235,8 @@ def setup_handoff_in_review(triad_ctx):
         task_description="Target validation",
         sender_id="secops-bdd",
         specialist_id="cops-pentest-specialist",
+        workflow_skill_id="network-active-discovery",
+        capability_id="cops-pentest-specialist",
         required_capabilities=["reconnaissance", "port scan"],
     )
     accept_specialist_handoff(handoff, "cops-pentest-specialist")

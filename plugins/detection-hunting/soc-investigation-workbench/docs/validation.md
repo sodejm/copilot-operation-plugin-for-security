@@ -8,6 +8,7 @@ branching and ranking, DAG validity, budgets, resume/revision, vendor handoffs,
 untrusted prose, and private output snapshots.
 
 Additional tests exercise malformed input, historical evidence visibility,
+required hypothesis, entity, and evidence ID rejection before handoff export,
 reserved cost, deterministic ties, provenance collisions, exact vendor copying,
 inherited licensing, source drift, missing skills, and malformed hunt contracts.
 Regressions cover symlinked locks and inherited licenses, dangling vendor

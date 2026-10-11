@@ -79,6 +79,7 @@ def test_rule_loading_and_validation(kql_rule: Rule, spl_rule: Rule):
     assert spl_rule.rule_id == "RULE-SPL-DEFENDER-POWERSHELL-EXEC"
     assert spl_rule.platform == "splunk_spl"
     assert "ScriptBlockText" in spl_rule.required_fields
+    assert spl_rule.suppression_window == "none"
 
 
 def test_malformed_rule_raises_error():
@@ -99,26 +100,38 @@ def test_kql_evaluation_metrics(kql_rule: Rule, kql_fixtures: FixtureSuite):
     """Verify reference evaluation metrics on labeled KQL fixtures."""
     report = evaluate_rule_suite(kql_rule, kql_fixtures)
     metrics = report["metrics"]
-    assert metrics["total_cases"] == 6
-    assert metrics["true_positives"] == 2
-    assert metrics["true_negatives"] == 3
+    assert metrics["total_cases"] == 11
+    assert metrics["evaluated_cases"] == 9
+    assert metrics["schema_error_cases"] == 2
+    assert metrics["true_positives"] == 4
+    assert metrics["true_negatives"] == 5
     assert metrics["false_positives"] == 0
     assert metrics["false_negatives"] == 0
-    assert metrics["precision_on_labeled_fixtures"] == 1.0
-    assert metrics["recall_on_labeled_fixtures"] == 1.0
+    assert metrics["precision_on_labeled_fixtures"] is None
+    assert metrics["recall_on_labeled_fixtures"] is None
 
 
 def test_spl_evaluation_metrics(spl_rule: Rule, spl_fixtures: FixtureSuite):
     """Verify reference evaluation metrics on labeled SPL fixtures."""
     report = evaluate_rule_suite(spl_rule, spl_fixtures)
     metrics = report["metrics"]
-    assert metrics["total_cases"] == 6
-    assert metrics["true_positives"] == 2
+    assert metrics["total_cases"] == 7
+    assert metrics["evaluated_cases"] == 6
+    assert metrics["schema_error_cases"] == 1
+    assert metrics["true_positives"] == 3
     assert metrics["true_negatives"] == 3
     assert metrics["false_positives"] == 0
     assert metrics["false_negatives"] == 0
-    assert metrics["precision_on_labeled_fixtures"] == 1.0
-    assert metrics["recall_on_labeled_fixtures"] == 1.0
+    assert metrics["precision_on_labeled_fixtures"] is None
+    assert metrics["recall_on_labeled_fixtures"] is None
+    outcomes = {result["case_id"]: result["outcome_classification"] for result in report["case_results"]}
+    assert outcomes["CASE-SPL-BND-NO-SUPPRESSION"] == "boundary_handled"
+    assert (
+        next(result for result in report["case_results"] if result["case_id"] == "CASE-SPL-BND-NO-SUPPRESSION")[
+            "actual_match"
+        ]
+        is True
+    )
 
 
 def test_false_positive_and_negative_detection(kql_rule: Rule):
@@ -174,11 +187,12 @@ def test_markdown_and_json_reports(kql_rule: Rule, kql_fixtures: FixtureSuite):
     assert "# Detection Quality & Regression Report" in md
     assert "Reference-evaluator output indicates fixture precision/recall only" in md
     assert "RULE-KQL-ENTRA-ANOMALOUS-SIGNIN" in md
+    assert "N/A (schema errors)" in md
 
     # JSON
     js = render_json_report(report_data)
     parsed = json.loads(js)
-    assert parsed["schema_version"] == "cops.detection-quality-report/v1"
+    assert parsed["schema_version"] == "cops.detection-quality-report/v2"
     assert parsed["rule"]["rule_id"] == "RULE-KQL-ENTRA-ANOMALOUS-SIGNIN"
 
 
@@ -196,3 +210,34 @@ def test_cli_execution(rules_dir: Path, fixtures_dir: Path, tmp_path: Path):
 
     # 3. test-suite
     assert cli_main(["test-suite", "--rules-dir", str(rules_dir), "--fixtures-dir", str(fixtures_dir)]) == 0
+
+
+def test_cli_suite_requires_review_for_positive_case_with_missing_telemetry(kql_rule: Rule, tmp_path: Path):
+    """An expected alert cannot be treated as a passing schema-drift boundary case."""
+    rules_dir = tmp_path / "rules"
+    fixtures_dir = tmp_path / "fixtures"
+    rules_dir.mkdir()
+    fixtures_dir.mkdir()
+    (rules_dir / "rule.json").write_text(json.dumps(kql_rule.to_dict()), encoding="utf-8")
+    suite = FixtureSuite(
+        fixture_suite_id="positive-missing-telemetry",
+        target_rule_id=kql_rule.rule_id,
+        cases=(
+            FixtureCase(
+                case_id="missing-ip",
+                label="positive",
+                expected_match=True,
+                events=(
+                    {
+                        "TimeGenerated": "2026-10-01T12:00:00Z",
+                        "UserPrincipalName": "admin@example.test",
+                        "ResultType": 0,
+                        "AppDisplayName": "Azure Portal",
+                    },
+                ),
+            ),
+        ),
+    )
+    (fixtures_dir / "rule.json").write_text(json.dumps(suite.to_dict()), encoding="utf-8")
+
+    assert cli_main(["test-suite", "--rules-dir", str(rules_dir), "--fixtures-dir", str(fixtures_dir)]) == 1
