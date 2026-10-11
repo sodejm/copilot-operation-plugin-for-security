@@ -65,6 +65,18 @@ class Credentials:
         return {"Authorization": "Bearer " + CANARY}
 
 
+class ExpiringCredentials:
+    def __init__(self, fail_refresh=False):
+        self.calls = []
+        self.fail_refresh = fail_refresh
+
+    def headers(self, *, refresh=False):
+        self.calls.append(refresh)
+        if refresh and self.fail_refresh:
+            raise ValueError(CANARY)
+        return {"Authorization": "Bearer " + ("refreshed-" if refresh else "expired-") + CANARY}
+
+
 class Transport:
     def __init__(self, pages):
         self.pages, self.requests = list(pages), []
@@ -77,6 +89,16 @@ class Transport:
         if isinstance(page, Response):
             return page
         return Response(200, json.dumps(page).encode())
+
+
+class RecordingTransport(Transport):
+    def __init__(self, pages):
+        super().__init__(pages)
+        self.auth_headers = []
+
+    def send(self, request, headers, *, timeout, max_bytes):
+        self.auth_headers.append(headers["Authorization"])
+        return super().send(request, headers, timeout=timeout, max_bytes=max_bytes)
 
 
 class Crash(BaseException):
@@ -221,6 +243,58 @@ def test_auth_throttle_duplicates_and_secret_boundary(tmp_path, capsys):
     assert credentials.refreshes.count(True) == 1
     assert result.receipt["consumed"]["attempts"] == 4
     assert CANARY not in repr(result) + json.dumps(result.receipt) + str(capsys.readouterr())
+
+
+@pytest.mark.parametrize("name", ["graph", "arg"])
+def test_expired_credential_refreshes_same_page_once(tmp_path, name, capsys):
+    adapter, pages = fixture(name)
+    credentials = ExpiringCredentials()
+    transport = RecordingTransport([pages[0], Response(401, CANARY.encode()), pages[1]])
+    with Checkpoint(tmp_path / "private") as checkpoint:
+        result = collect(adapter, checkpoint, credentials, transport, limits=Limits(retries=1))
+
+    assert result.receipt["status"] == "complete"
+    assert result.receipt["consumed"]["pages"] == 2
+    assert result.receipt["consumed"]["attempts"] == 3
+    assert len({record["record_id"] for record in result.records}) == 2
+    assert [record["page"] for record in result.records] == [1, 2]
+    assert credentials.calls == [False, False, True]
+    assert transport.requests[1] == transport.requests[2]
+    assert transport.auth_headers == [
+        "Bearer expired-" + CANARY,
+        "Bearer expired-" + CANARY,
+        "Bearer refreshed-" + CANARY,
+    ]
+    assert CANARY not in (
+        repr(result) + json.dumps(result.records) + json.dumps(result.receipt) + str(capsys.readouterr())
+    )
+    assert CANARY.encode() not in (tmp_path / "private" / "checkpoint.sqlite3").read_bytes()
+
+
+@pytest.mark.parametrize("failure", ["provider", "rejected"])
+def test_expired_credential_failure_preserves_accepted_page(tmp_path, failure, capsys):
+    adapter, pages = fixture()
+    credentials = ExpiringCredentials(fail_refresh=failure == "provider")
+    transport = RecordingTransport(
+        [pages[0], Response(401, CANARY.encode()), Response(401, CANARY.encode())]
+    )
+    with Checkpoint(tmp_path / "private") as checkpoint:
+        result = collect(adapter, checkpoint, credentials, transport, limits=Limits(retries=1))
+
+    assert result.receipt["status"] == "partial"
+    assert result.receipt["reasons"] == ["authentication"]
+    assert result.receipt["consumed"]["pages"] == 1
+    assert result.receipt["consumed"]["attempts"] == (2 if failure == "provider" else 3)
+    assert len(result.records) == 1
+    assert result.records[0]["page"] == 1
+    assert credentials.calls == [False, False, True]
+    assert len(transport.requests) == result.receipt["consumed"]["attempts"]
+    if failure == "rejected":
+        assert transport.requests[1] == transport.requests[2]
+    assert CANARY not in (
+        repr(result) + json.dumps(result.records) + json.dumps(result.receipt) + str(capsys.readouterr())
+    )
+    assert CANARY.encode() not in (tmp_path / "private" / "checkpoint.sqlite3").read_bytes()
 
 
 @pytest.mark.parametrize(
