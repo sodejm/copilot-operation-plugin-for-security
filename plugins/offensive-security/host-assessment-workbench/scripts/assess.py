@@ -11,7 +11,7 @@ from pathlib import Path
 PACKAGE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PACKAGE))
 
-from host_assessment_workbench.core import ContractError, MAX_INPUT_BYTES, load_report_bytes  # noqa: E402
+from host_assessment_workbench.core import MAX_INPUT_BYTES, ContractError, load_report_bytes  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> int:
