@@ -69,7 +69,9 @@ class LaboratoryHarness:
         self.observation_trust_store = observation_trust_store
         self.case_journal = case_journal
         self._pending_resets: dict[str, tuple[str, str, str, str]] = {}
-        self._pending_cases: dict[str, tuple[RemoteAuthorizedRun, str, str, str, str, str, str, LaboratoryObservation]] = {}
+        self._pending_cases: dict[
+            str, tuple[RemoteAuthorizedRun, str, str, str, str, str, str, LaboratoryObservation]
+        ] = {}
         self._latest_environment_observations: dict[str, LaboratoryObservation] = {}
         self._last_reset_receipts: dict[str, tuple[LaboratoryResetReceipt, LaboratoryObservation]] = {}
 
@@ -235,11 +237,11 @@ class LaboratoryHarness:
             raise IsolationVerificationError("Laboratory environment must enforce strict egress restrictions.")
 
         iso_type = iso.get("isolation_type")
-        expected_type = {"container": "container_unprivileged", "vm": "vm_hypervisor"}.get(
-            environment.environment_type
-        )
+        expected_type = {"container": "container_unprivileged", "vm": "vm_hypervisor"}.get(environment.environment_type)
         if expected_type is None or iso_type != expected_type:
-            self._fail_verification(environment, f"Unsupported environment/isolation pair: {environment.environment_type}/{iso_type}")
+            self._fail_verification(
+                environment, f"Unsupported environment/isolation pair: {environment.environment_type}/{iso_type}"
+            )
             raise IsolationVerificationError(f"Unsupported isolation type '{iso_type}'.")
 
         # 4. Canary data verification
@@ -259,7 +261,9 @@ class LaboratoryHarness:
         environment.canary["verified"] = True
         environment.isolation["verification_status"] = "verified"
         environment.isolation["verification_timestamp"] = observation.observed_at
-        environment.isolation["verification_notes"] = "Fresh runtime isolation, egress, canary, and baseline observations passed."
+        environment.isolation["verification_notes"] = (
+            "Fresh runtime isolation, egress, canary, and baseline observations passed."
+        )
         self._latest_environment_observations[environment.environment_id] = observation
 
         if environment.status != "verified":
@@ -382,9 +386,7 @@ class LaboratoryHarness:
         for operation in plan_model.operations:
             if worker_inventory.tool_versions.get(operation["tool"]) != operation["tool_version"]:
                 raise LaboratoryGateError("worker tool version does not match the approved plan")
-        missing_capabilities = set(plan_model.platform_prerequisites) - set(
-            worker_inventory.platform_capabilities
-        )
+        missing_capabilities = set(plan_model.platform_prerequisites) - set(worker_inventory.platform_capabilities)
         if missing_capabilities:
             raise LaboratoryGateError(
                 f"worker inventory lacks approved platform prerequisites: {sorted(missing_capabilities)}"
@@ -394,9 +396,7 @@ class LaboratoryHarness:
         if plan_model.limits.get("egress_allowed") is not False:
             raise LaboratoryGateError("laboratory action plans must prohibit egress")
         try:
-            ScopeGuard(ScopeDefinition.from_engagement_scope(engagement.scope)).check_destination(
-                plan_model.target
-            )
+            ScopeGuard(ScopeDefinition.from_engagement_scope(engagement.scope)).check_destination(plan_model.target)
             scope_guard.check_destination(plan_model.target)
         except (AttributeError, TypeError, ValueError, ScopeViolationError) as err:
             raise LaboratoryGateError("laboratory scope guard violation or invalid engagement scope") from err
@@ -427,14 +427,18 @@ class LaboratoryHarness:
             raise LaboratoryGateError("an owner-only laboratory case journal is required")
         attempt_id = secrets.token_hex(32)
         dispatch_request_id = str(uuid.uuid4())
-        self.case_journal.begin(attempt_id, environment.environment_id, {
-            "plan_id": plan_model.plan_id,
-            "plan_digest": plan_model.plan_digest,
-            "authorization_id": auth_model.authorization_id,
-            "case_type": case_type,
-            "dispatch_request_id": dispatch_request_id,
-            "operator_pre_execution_observation": asdict(pre_execution_observation),
-        })
+        self.case_journal.begin(
+            attempt_id,
+            environment.environment_id,
+            {
+                "plan_id": plan_model.plan_id,
+                "plan_digest": plan_model.plan_digest,
+                "authorization_id": auth_model.authorization_id,
+                "case_type": case_type,
+                "dispatch_request_id": dispatch_request_id,
+                "operator_pre_execution_observation": asdict(pre_execution_observation),
+            },
+        )
         try:
             authorized_run = SSHExecutionDispatcher(endpoint_inventory).execute(
                 approved_worker_identity=environment.owner,
@@ -543,11 +547,33 @@ class LaboratoryHarness:
         canary_found = case_observation.canary_token_detected
         blocked = case_observation.control_blocked
         cleaned = result.cleanup_status in ("completed", "not_required")
-        if case_type == "positive" and result.status == "success" and result.exit_code == 0 and canary_found and not blocked and cleaned:
+        if (
+            case_type == "positive"
+            and result.status == "success"
+            and result.exit_code == 0
+            and canary_found
+            and not blocked
+            and cleaned
+        ):
             case_status = "success"
-        elif case_type == "remediated" and result.status == "success" and result.exit_code == 0 and not canary_found and blocked and cleaned:
+        elif (
+            case_type == "remediated"
+            and result.status == "success"
+            and result.exit_code == 0
+            and not canary_found
+            and blocked
+            and cleaned
+        ):
             case_status = "remediated"
-        elif case_type == "negative" and result.status == "failed" and type(result.exit_code) is int and result.exit_code != 0 and not canary_found and blocked and cleaned:
+        elif (
+            case_type == "negative"
+            and result.status == "failed"
+            and type(result.exit_code) is int
+            and result.exit_code != 0
+            and not canary_found
+            and blocked
+            and cleaned
+        ):
             case_status = "rejected"
         else:
             case_status = "failed"
@@ -565,11 +591,13 @@ class LaboratoryHarness:
                 "operator_pre_execution_observation": asdict(pre_execution_observation),
                 "operator_reset_receipt": (
                     asdict(self._last_reset_receipts[environment.environment_id][0])
-                    if environment.environment_id in self._last_reset_receipts else None
+                    if environment.environment_id in self._last_reset_receipts
+                    else None
                 ),
                 "operator_post_reset_observation": (
                     asdict(self._last_reset_receipts[environment.environment_id][1])
-                    if environment.environment_id in self._last_reset_receipts else None
+                    if environment.environment_id in self._last_reset_receipts
+                    else None
                 ),
                 "worker_cleanup_status": result.cleanup_status,
             },
@@ -577,7 +605,8 @@ class LaboratoryHarness:
         if self.case_journal is None:
             raise LaboratoryGateError("an owner-only laboratory case journal is required")
         self.case_journal.finish(
-            result.result_id, case_result.to_dict(),
+            result.result_id,
+            case_result.to_dict(),
             state="failed" if case_status == "failed" else "classified",
         )
         self._pending_cases.pop(result.result_id)

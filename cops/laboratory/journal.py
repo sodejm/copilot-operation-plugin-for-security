@@ -48,11 +48,15 @@ class LaboratoryCaseJournal:
                         result_json TEXT
                     )"""
                 )
-                for row in connection.execute("SELECT attempt_id, state, payload_json FROM cases WHERE state IN ('dispatching', 'pending')"):
+                for row in connection.execute(
+                    "SELECT attempt_id, state, payload_json FROM cases WHERE state IN ('dispatching', 'pending')"
+                ):
                     payload = json.loads(row["payload_json"])
                     if row["state"] == "pending":
                         result = payload["failure_result"]
-                        result["details"]["failure_reason"] = "operator case observation missing after controller restart"
+                        result["details"]["failure_reason"] = (
+                            "operator case observation missing after controller restart"
+                        )
                         connection.execute(
                             "UPDATE cases SET state = 'failed', result_json = ? WHERE attempt_id = ?",
                             (json.dumps(result, sort_keys=True), row["attempt_id"]),
