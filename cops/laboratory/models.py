@@ -33,21 +33,70 @@ class LaboratoryGateError(LaboratoryError):
 
 
 @dataclass(frozen=True)
+class LaboratoryObservation:
+    """Challenge-bound measurements signed by an independent operator adapter."""
+
+    environment_id: str
+    worker_identity: str
+    request_nonce: str
+    isolation_type: str
+    network_isolated: bool
+    egress_restricted: bool
+    canary_digest: str
+    baseline_digest: str
+    observed_at: str
+    key_id: str
+    signature: str
+    algorithm: str = "ed25519"
+    schema_version: str = "cops.laboratory-environment-observation/v2"
+
+    def unsigned(self) -> dict[str, object]:
+        return {
+            name: getattr(self, name)
+            for name in (
+                "schema_version",
+                "algorithm",
+                "environment_id",
+                "worker_identity",
+                "request_nonce",
+                "isolation_type",
+                "network_isolated",
+                "egress_restricted",
+                "canary_digest",
+                "baseline_digest",
+                "observed_at",
+                "key_id",
+            )
+        }
+
+
+@dataclass(frozen=True)
 class TestedMatrix:
     """Tested platforms, distributions, runtimes, and tool versions matrix."""
 
     supported_os: tuple[str, ...] = ("linux", "darwin")
     supported_distributions: tuple[str, ...] = ("ubuntu", "debian", "alpine", "darwin", "macos")
     supported_architectures: tuple[str, ...] = ("x86_64", "aarch64", "arm64")
-    supported_runtimes: tuple[str, ...] = ("container", "vm", "process_sandbox", "docker", "containerd", "podman", "qemu", "inert-lab-harness")
-    tool_minimum_versions: dict[str, str] = field(default_factory=lambda: {
-        "kubectl": "1.24.0",
-        "kube-bench": "0.6.0",
-        "kube-hunter": "0.6.0",
-        "kubescape": "2.0.0",
-        "nmap": "7.80",
-        "python3": "3.11.0",
-    })
+    supported_runtimes: tuple[str, ...] = (
+        "container",
+        "vm",
+        "process_sandbox",
+        "docker",
+        "containerd",
+        "podman",
+        "qemu",
+        "inert-lab-harness",
+    )
+    tool_minimum_versions: dict[str, str] = field(
+        default_factory=lambda: {
+            "kubectl": "1.24.0",
+            "kube-bench": "0.6.0",
+            "kube-hunter": "0.6.0",
+            "kubescape": "2.0.0",
+            "nmap": "7.80",
+            "python3": "3.11.0",
+        }
+    )
 
 
 @dataclass

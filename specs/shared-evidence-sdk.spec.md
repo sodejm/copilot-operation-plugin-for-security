@@ -62,16 +62,22 @@ same runner and demonstrate atomic interruption/resume in fixtures. Log Analytic
 Sentinel, Splunk and Cribl examples are request plans only. Live permissions,
 authentication, data residency and source consistency remain unverified offline.
 
-Throttling honors bounded Retry-After/backoff. Authentication refresh is limited
-to once per acquisition. Drift, expired cursors, cycles, exhausted budgets and
-transport failures preserve accepted evidence and end partial. New collections
-receive new acquisition IDs. No automatic raw-data storage, tenant actions or uploads.
+Throttling honors bounded Retry-After/backoff. A 401 retries the same page with
+one refreshed credential, within the retry and attempt budgets. Authentication
+refresh is limited to once per acquisition. A failed refresh or another 401 ends
+partial with an `authentication` reason. Rejected responses do not commit pages;
+previously accepted evidence remains available. Drift, expired cursors, cycles,
+exhausted budgets and transport failures also preserve accepted evidence and end
+partial. New collections receive new acquisition IDs. No automatic raw-data
+storage, tenant actions or uploads.
 
 ## Acceptance evidence
 
 Contract tests cover malformed provenance/timestamps/versions, canonical hashes,
 tenant isolation and exact boundaries. Runner tests cover partial/throttled/auth
-results, schema drift, duplicates, redaction, limits and hostile destinations.
+results, expired credential refresh and failure, schema drift, duplicates,
+redaction, limits and hostile destinations.
 Checkpoint tests inject failures before/after commits and during reserved requests.
-Executable scenarios cover adapter resume, bounded partial results, secret-safe
-dry runs and generic stale/incomplete assessment. Run focused tests and `make check`.
+Executable scenarios cover adapter resume, bounded partial results, credential
+expiration, secret-safe dry runs and generic stale/incomplete assessment. Run
+focused tests and `make check`.

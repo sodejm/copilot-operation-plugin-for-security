@@ -10,11 +10,7 @@ In modern enterprise security architectures, telemetry rarely travels directly f
 
 When an alert doesn't fire as expected, engineers often waste hours debugging detection queries when the data was never indexed in the first place. Conversely, engineers might assume a logging pipeline is working perfectly when subtle schema changes cause SIEM searches to return zero rows.
 
-The **Telemetry-to-Detection Proof Pack** provides:
-- **Deterministic Proof of Ingestion**: Verifies whether an event containing a synthetic marker traversed every hop.
-- **Stage Isolation**: Instantly isolates whether a failure occurred at the source, in Cribl routing, during SIEM indexing, or in scheduled search evaluation.
-- **Multi-Tenant Protection**: Prevents cross-tenant leaks and accidental cross-environment routing.
-- **Audit-Ready Evidence**: Produces tamper-evident proof reports linked by SHA-256 evidence hashes.
+The **Telemetry-to-Detection Proof Pack** correlates supplied records for a synthetic marker. It identifies missing or ambiguous stage evidence for investigation and records SHA-256 hashes so reviewers can compare exported content. A hash does not authenticate the export or prove that a live pipeline worked. The source tenant check flags a mismatch with the manifest; it does not enforce tenant isolation.
 
 ---
 
@@ -73,20 +69,26 @@ Create a `manifest.json` describing the run parameters, target destination, dete
 }
 ```
 
-### Step 2: Inject Non-Sensitive Synthetic Markers
+### Step 2: Prepare a Scoped Synthetic Run
 
 - Use standard marker prefixes: `SYN-[PLATFORM]-[PURPOSE]-[ID]`.
-- Inject the marker into non-sensitive metadata fields (such as `userPrincipalName`, `description`, or custom attributes).
-- **Never include production passwords, live tokens, or private secrets in test events.**
+- Use an approved test event and a non-sensitive field that reaches each intended stage. Do not alter an identity field such as `userPrincipalName` just to carry a marker.
+- Record the authorized environment, expected tenant or workspace, route, rule ID, time window, timezone, and allowed clock skew in the manifest.
+- Do not include passwords, live tokens, personal identifiers, or other private data in the marker or evidence export.
 
-### Step 3: Collect Evidence Files
+### Step 3: Collect and Sanitize Evidence Files
 
-Place stage logs into a dedicated run directory:
-- `source_event.json`: Cloud audit log or endpoint agent record.
-- `cribl_route.json`: Cribl worker stream metrics or route access log.
-- `destination_indexing.json`: Splunk HEC ingestion record or Sentinel `SigninLogs` query result.
-- `query_evaluation.json`: Scheduled search audit record or analytics execution log.
-- `alert_creation.json`: Notable event or security incident payload.
+Use approved read/export access for the relevant source logs, Cribl route or worker data, destination index or workspace, scheduled rule execution, and alert or incident records. Minimize each export to the authorized run and time window. Keep the original capture provenance separately, sanitize copies before giving them to this tool, and apply your access and retention controls to both exports and reports. The manifest's retention setting is descriptive; the tool does not delete files.
+
+Place sanitized stage records in a dedicated run directory. Each file may contain one JSON record or `{"records": [record, ...]}`; export **every** matching record in the scoped window so duplicate markers are visible:
+
+- `source_event.json`: An authorized source audit, sign-in, or endpoint event that actually contains the marker. Source log availability and export rights vary; an absent file is not proof that no event was emitted.
+- `cribl_route.json`: A marker-bearing route or worker record. Aggregate metrics without the marker cannot prove the route of one event, and drop/filter flags need operator review.
+- `destination_indexing.json`: A marker-bearing Splunk indexed search result or Sentinel Log Analytics table row. Splunk HEC acceptance alone does not prove indexing. Sentinel `TimeGenerated` may describe event time rather than indexing time, so use a verified `indexed_time` when measuring collection delay.
+- `query_evaluation.json`: A marker-bearing scheduled search or analytics execution record with `matched_count`. Confirm the rule ID, schedule, lookback, and any later run that could include a delayed event.
+- `alert_creation.json`: A marker-bearing notable event or incident record. Alert grouping, suppression, and incident creation can occur on a different schedule from the query.
+
+Collection may require separate rights for Microsoft Entra audit/sign-in exports, Cribl operational records, Splunk index/search/alert records, or Sentinel workspace/analytics/incident records. Use the least privilege available and record inaccessible stages as evidence gaps. This offline tool neither queries those services nor validates a user's permissions.
 
 ### Step 4: Run Multi-Stage Correlation
 
@@ -98,10 +100,12 @@ python3 plugins/logging-telemetry/telemetry-proof-pack/proofpack/cli.py trace \
   --evidence-dir path/to/evidence_dir
 ```
 
-Review the Markdown summary and check the overall status:
-- **`HEALTHY`**: Telemetry and detection verified end-to-end.
-- **`DEGRADED`**: Data indexed, but detection rule failed to match or alert.
-- **`BROKEN`**: Telemetry dropped before reaching destination SIEM.
+Review each stage alongside the overall status:
+- **`HEALTHY`**: One in-window marker record was supplied for every stage and all five stage checks passed.
+- **`DEGRADED`**: A destination marker record was supplied, but at least one stage is missing or unresolved.
+- **`BROKEN`**: No destination marker record was supplied. Check export coverage before diagnosing an outage.
+
+The capture window includes `clock_skew_seconds` on both ends. A stage with multiple matching records, an invalid or missing timestamp, or a timestamp outside that window is `UNRESOLVED`; its matching IDs and evidence hash remain in the report. Query `matched_count` must be a nonnegative integer; invalid values leave that stage unresolved. Other stages keep their own observations. See the `fixtures/failures/duplicate-marker` and `fixtures/failures/delayed-indexing` scenarios in the source repository.
 
 ---
 
@@ -147,9 +151,24 @@ Review the Markdown summary and check the overall status:
 
 ---
 
-## 5. Audit & Compliance Sign-Off
+### Case D: Duplicate Marker or Delayed Indexing
+
+**Symptoms**:
+- A stage is `UNRESOLVED` with multiple matching evidence IDs or an out-of-window timestamp.
+- Other stages may still be `OBSERVED`, and an alert record may be present.
+
+**Remediation Steps**:
+1. Inspect all matching records and their run IDs; repeat with a unique marker if multiple events cannot be attributed to one run.
+2. Compare source event time, actual indexing time, export time, query schedule, and the manifest window. Do not treat a source event timestamp as an indexing timestamp.
+3. After a documented collection delay, recollect within a justified window and rerun. Retain the original report for comparison.
+
+---
+
+## 5. Review and Retention
 
 Before promoting new detection rules or pipeline routes to production:
 1. Run `python3 plugins/logging-telemetry/telemetry-proof-pack/scripts/validate_package.py`.
 2. Generate a JSON proof report using `--json --output evidence/proof-report.json`.
-3. Archive the generated report alongside the detection pull request as proof of end-to-end validation.
+3. Review the stage evidence, collection gaps, source permissions, and capture window before using the report in a change review. Keep exports and reports only under your organization's access and retention controls.
+
+For rule behavior against labeled positive and negative fixtures, use the Detection Quality & Regression Workbench (`plugins/detection-hunting/detection-quality-workbench`). That workbench measures fixture precision and recall; this pack correlates supplied operational stage records. Neither alone measures production detection rates.

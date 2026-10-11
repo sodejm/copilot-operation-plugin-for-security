@@ -1,18 +1,18 @@
 # COPS Telemetry-to-Detection Proof Pack
 
-When a security alert fails to fire, the problem often isn't the detection rule itself. More often, the underlying logs never made it to the SIEM in the first place—silently dropped by an intermediate filter, held up in a pipeline queue, or delivered to the wrong index.
+When an expected alert is absent, inspect source, routing, indexing, rule execution, and alert evidence before assigning a cause.
 
-The **Telemetry-to-Detection Proof Pack** solves this problem. It lets detection engineers, pipeline operators, and security analysts trace synthetic test markers step by step through every stage of the logging lifecycle—from source event generation and Cribl Stream routing to destination SIEM indexing (Splunk or Microsoft Sentinel), scheduled search evaluation, and alert creation.
+The **Telemetry-to-Detection Proof Pack** correlates supplied, offline records for a synthetic marker across those five stages. It does not collect evidence or verify a live service by itself.
 
 ---
 
 ## When to Use This Plugin
 
 Use this plugin when you need to:
-- **Verify New Ingestion Routes**: Confirm that newly onboarded cloud services or log sources flow cleanly through Cribl Stream into your target SIEM before enabling detections.
-- **Diagnose Silent Detection Failures**: Quickly determine whether a missed alert was caused by broken telemetry ingestion (data never arrived) or a detection logic error (data arrived, but the query didn't match).
-- **Audit Multi-Tenant Pipelines**: Guard against cross-tenant collisions and ensure customer or environment boundaries are strictly maintained.
-- **Provide Audit Evidence**: Generate reproducible, evidence-linked Markdown and JSON reports proving that log pipelines and alert generation work as designed.
+- **Examine New Ingestion Routes**: Compare source, Cribl Stream, and destination records for the same synthetic run.
+- **Investigate Missing Alerts**: See which records were supplied and which stages still need collection or investigation.
+- **Flag Tenant Mismatches**: Compare the source record's tenant ID with the manifest's expected ID; review other boundaries separately.
+- **Retain Review Evidence**: Generate Markdown and JSON reports with hashes of the supplied stage records.
 
 ---
 
@@ -26,11 +26,11 @@ flowchart LR
     D --> E["5. Alert Creation<br/>(Notable Event / Incident)"]
 ```
 
-1. **Source Emission**: Verifies that the source service (such as Microsoft Entra ID or Azure Monitor) emitted the event containing your synthetic test marker (`SYN-...`).
-2. **Pipeline Routing**: Verifies that intermediate routing engines (such as Cribl Stream) received the event, applied enrichment pipelines, and routed it downstream without dropping or misrouting it.
-3. **Destination Indexing**: Verifies that the event arrived and was indexed in the target storage container (`index=endpoint` in Splunk or `SigninLogs` in Sentinel).
-4. **Query Evaluation**: Verifies that the scheduled detection rule executed across the index and returned a positive match for the marker.
-5. **Alert Creation**: Verifies that a high-fidelity incident or notable event was created and assigned an alert ID for SOC triage.
+1. **Source Emission**: Matches a supplied source record containing the marker (`SYN-...`).
+2. **Pipeline Routing**: Matches a supplied Cribl route record and checks its drop/filter flags.
+3. **Destination Indexing**: Matches a supplied Splunk index or Sentinel table record.
+4. **Query Evaluation**: Matches a supplied scheduled query execution record and checks its match count.
+5. **Alert Creation**: Matches a supplied notable event or incident record.
 
 ---
 
@@ -40,9 +40,13 @@ The correlation engine summarizes pipeline health into three clear states:
 
 | Health Status | Description | Action Required |
 | :--- | :--- | :--- |
-| **`healthy`** | All 5 stages observed. The event flowed completely and triggered an alert. | None. Maintain continuous synthetic heartbeat testing. |
-| **`degraded`** | Telemetry was indexed in the SIEM, but the detection rule returned 0 matches or failed to alert. | Inspect detection rule queries (KQL/SPL), time ranges, and alert suppression settings. |
-| **`broken`** | Telemetry was dropped in Cribl Stream or never reached destination indexing. | Check Cribl route regex filters, receiver health, destination HEC tokens, or workspace credentials. |
+| **`healthy`** | One in-window marker record was supplied for each stage and all five stage checks passed. | Review provenance and repeat collection as needed. |
+| **`degraded`** | A destination marker record was supplied, but at least one stage is missing or unresolved. | Inspect duplicate records, collection timing, query matches, and alert evidence. |
+| **`broken`** | No destination marker record was supplied. | Check export coverage and then investigate routing or indexing. |
+
+Each stage accepts one record object or a `{"records": [...]}` envelope. More than one matching record at a stage, an absent or invalid timestamp, or a timestamp outside the manifest window plus `clock_skew_seconds` makes that stage `unresolved`. The report retains its evidence ID, hash, details, and the other stages' observations. A missing export is a collection gap; it does not establish that the service failed. See the `fixtures/failures/duplicate-marker` and `fixtures/failures/delayed-indexing` scenarios in the source repository.
+
+For offline rule logic and labeled fixture precision/recall, use the Detection Quality & Regression Workbench (`plugins/detection-hunting/detection-quality-workbench`). Its fixture results and this pack's operational stage correlation answer different questions; neither alone establishes a production detection rate.
 
 ---
 
@@ -77,10 +81,10 @@ python3 plugins/logging-telemetry/telemetry-proof-pack/proofpack/cli.py validate
 
 ---
 
-## Safety, Privacy & Zero Network Overhead
+## Evidence and Privacy Boundaries
 
-- **Synthetic Markers Only**: All test traces use non-sensitive identifiers (such as `SYN-SPLUNK-TRACE-101`).
-- **Automatic Redaction**: Built-in scrubbing strips tokens, API keys, and passwords while keeping markers intact.
-- **Offline Determinism**: No live production network calls or active credentials are used; analysis runs purely on verified evidence artifacts.
+- Use authorized, non-sensitive synthetic identifiers and sanitize source exports before running the tool.
+- The offline correlator makes no live service calls. It redacts only Cribl metric details; other IDs and details can appear in reports. Operators must control evidence access and retention.
+- Confirm the manifest's tenant, destination, rule, capture window, and clock skew against the exports. See the playbook for collection permissions and platform limits.
 
 For full operational step-by-step procedures, refer to the [Operational Playbook](docs/PLAYBOOK.md).

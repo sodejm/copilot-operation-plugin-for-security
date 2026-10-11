@@ -12,7 +12,7 @@ description: "Universal catalog of offline-first defensive cybersecurity plugins
   </p>
   <div class="cops-cta-row">
     <a href="getting-started.html" class="cops-btn cops-btn-primary">5-Minute Quickstart</a>
-    <a href="plugin-guide.html" class="cops-btn cops-btn-secondary">Explore 13 Plugins</a>
+    <a href="plugin-guide.html" class="cops-btn cops-btn-secondary">Explore 14 Plugins</a>
     <a href="specialist-agents.html" class="cops-btn cops-btn-secondary">18 Specialist Agents</a>
     <a href="https://github.com/sodejm/copilot-operation-plugin-for-security" class="cops-btn cops-btn-secondary">GitHub Repository</a>
   </div>
@@ -43,7 +43,7 @@ cd copilot-operation-plugin-for-security
 # 2. Check local environment health and catalog synchronization
 python3 -m cops doctor
 
-# 3. List all 13 plugins and their validation status
+# 3. List all 14 plugins and their validation status
 python3 -m cops list
 
 # 4. Route a natural language security task to the optimal specialist
@@ -62,7 +62,7 @@ Read the full [Getting Started Guide](getting-started.md) for detailed step-by-s
 
 ## Cybersecurity Capability Domains
 
-COPS organizes 13 dedicated security plugins across six cybersecurity disciplines:
+COPS organizes 14 dedicated security plugins across six cybersecurity disciplines:
 
 <div class="cops-grid">
   <div class="cops-card">
@@ -87,8 +87,8 @@ COPS organizes 13 dedicated security plugins across six cybersecurity discipline
   </div>
   <div class="cops-card">
     <h3>⚔️ Offensive Security</h3>
-    <p>Translate authorized rules of engagement into bounded, passive review plans and evaluate AI agent prompt injection resistance in a sandbox.</p>
-    <p><strong>Plugins:</strong> <a href="plugin-guide.html#attack-surface-planner">Attack Surface Planner</a> <span class="badge badge-experimental">Experimental</span>, <a href="plugin-guide.html#foundry-agent-harness">Foundry Agent Harness</a> <span class="badge badge-beta">Beta</span></p>
+    <p>Plan bounded reviews, validate authorized engagement scope, and evaluate AI agent prompt injection resistance in a sandbox.</p>
+    <p><strong>Plugins:</strong> <a href="plugin-guide.html#attack-surface-planner">Attack Surface Planner</a> <span class="badge badge-experimental">Experimental</span>, <a href="plugin-guide.html#offensive-engagement-workbench">Offensive Engagement Workbench</a> <span class="badge badge-experimental">Experimental</span>, <a href="plugin-guide.html#foundry-agent-harness">Foundry Agent Harness</a> <span class="badge badge-beta">Beta</span></p>
   </div>
   <div class="cops-card">
     <h3>🚨 Incident Response</h3>
@@ -134,6 +134,8 @@ Learn more in the [Specialist Agents Guide](specialist-agents.md).
 - [Security Model](SECURITY_MODEL.md): Threat modeling, prompt injection resistance, and readiness modes.
 - [Authenticated Execution](AUTHENTICATED_EXECUTION.md): Verifier trust-store setup, one-time approval consumption, migration, and key rotation.
 - [Engagement Contracts Specification](../specs/engagement-contracts.spec.md): Schema contracts for engagements, scenarios, action plans, and findings.
+- [Offline Engagement Reporting](ENGAGEMENT_REPORTING.md): Build scoped JSON and Markdown assessments from local contracts and evidence.
+- [Engagement Findings and Reporting Specification](../specs/engagement-findings-and-reporting.spec.md): Assessment labels, evidence joins, and trust limits.
 - [Execution Authorization Specification](../specs/execution-authorization.spec.md): Cryptographically bound approval envelopes and legacy receipt rejection.
 - [Isolated Worker and Approval Store Specification](../specs/isolated-worker-approval-store.spec.md): Verifier inputs, worker capability attestation, SQLite approval state, and anti-replay execution.
 - [Execution Scope & Egress Specification](../specs/execution-scope-enforcement.spec.md): Execution-time destination verification, cloud metadata defense, and DNS pinning.
@@ -141,4 +143,5 @@ Learn more in the [Specialist Agents Guide](specialist-agents.md).
 - [Credential and Evidence Handling Specification](../specs/credential-evidence-handling.spec.md): Operation-scoped credential resolution, fail-closed redaction, validated execution evidence, and storage/retention boundaries.
 - [Execution Recovery and Cleanup Specification](../specs/execution-recovery-and-cleanup.spec.md): Ownership-aware side-effect ledgers, cancellation resilience, non-idempotent handling, and verifiable cleanup receipts.
 - [Pinned Scenario Registry](../specs/pinned-scenario-registry.spec.md): Pinned research sources and canonical scenario registry.
+- [Historical Protocol Topic Reconciliation](PROTOCOL_TOPIC_RECONCILIATION.md): Pinned 70-topic coverage, environment limits, and legacy model evidence boundaries.
 - [Capability Reconciliation](../specs/capability-reconciliation.spec.md): Operational readiness taxonomy and truth-in-advertising invariants.

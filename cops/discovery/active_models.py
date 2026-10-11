@@ -37,6 +37,7 @@ class PortState(str, Enum):
     FILTERED = "filtered"
     UNREACHABLE = "unreachable"
     TIMED_OUT = "timed_out"
+    UNKNOWN = "unknown"
 
 
 class ServiceReachability(str, Enum):
@@ -46,6 +47,7 @@ class ServiceReachability(str, Enum):
     UNREACHABLE = "unreachable"
     FILTERED = "filtered"
     INTERMITTENT = "intermittent"
+    UNKNOWN = "unknown"
 
 
 class ConfidenceLevel(str, Enum):
@@ -193,7 +195,9 @@ class ActiveServiceAssessment:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ActiveServiceAssessment:
         prov = EvidenceProvenance.from_dict(data["provenance"]) if data.get("provenance") else None
-        fingerprint = InferredFingerprint.from_dict(data["inferred_fingerprint"]) if data.get("inferred_fingerprint") else None
+        fingerprint = (
+            InferredFingerprint.from_dict(data["inferred_fingerprint"]) if data.get("inferred_fingerprint") else None
+        )
         return cls(
             probe_id=data["probe_id"],
             target_host=data["target_host"],
@@ -345,6 +349,7 @@ class ScanDelta:
     persistent_exposures: list[dict[str, Any]]
     fingerprint_changes: list[dict[str, Any]]
     remediation_rate: float
+    unverified_exposures: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

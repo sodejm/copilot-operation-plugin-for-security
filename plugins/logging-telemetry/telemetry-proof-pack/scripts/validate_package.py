@@ -116,7 +116,30 @@ def validate() -> int:
         print("FAIL: cross-tenant-collision did not set stage status to unresolved", file=sys.stderr)
         return 1
 
-    print("  OK: Validated failure modes (degraded, broken, cross-tenant collision).")
+    for scenario, expected_reason, observed_count, unresolved_count in (
+        ("duplicate-marker", "Duplicate marker", 4, 1),
+        ("delayed-indexing", "outside the manifest capture window", 2, 3),
+    ):
+        scenario_dir = failures_dir / scenario
+        scenario_man = RunManifest.from_dict(json.loads((scenario_dir / "manifest.json").read_text(encoding="utf-8")))
+        scenario_ev = load_evidence_files(scenario_dir)
+        scenario_rep = correlate_pipeline_evidence(scenario_man, scenario_ev)
+        destination_stage = scenario_rep["stages_breakdown"][2]
+        if (
+            scenario_rep["pipeline_health"] != "degraded"
+            or scenario_rep["summary"]["observed_stages_count"] != observed_count
+            or scenario_rep["summary"]["unresolved_stages_count"] != unresolved_count
+            or destination_stage["status"] != "unresolved"
+            or not destination_stage.get("raw_evidence_hash")
+            or expected_reason not in destination_stage["details"]["reason"]
+        ):
+            print(
+                f"FAIL: {scenario} did not preserve the expected stage evidence and unresolved destination",
+                file=sys.stderr,
+            )
+            return 1
+
+    print("  OK: Validated degraded, broken, tenant, duplicate, and delayed failure modes.")
     print("[validate_package] All checks passed successfully.")
     return 0
 

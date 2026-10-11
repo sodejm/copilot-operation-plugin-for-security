@@ -15,6 +15,8 @@
 
 Welcome to **COPS (Copilot Operations Plugins for Security)**! COPS is an open-source, universal catalog of defensive cybersecurity plugins, 18 specialist agent profiles, and deterministic offline verification tools.
 
+The [AI asset inventory](docs/AI_ASSET_INVENTORY.md) documents the bounded, offline evidence graph contract.
+
 Whether your team works in **GitHub Copilot**, **Claude Code**, or **Codex / ChatGPT**, COPS provides production-grade cybersecurity capabilities without ecosystem lock-in. Everything is designed **offline-first**: you can explore tools, run demos, and validate detection logic directly from your local terminal using standard Python—no cloud credentials, assistant installations, or live tenant connections required.
 
 📖 **Visit the complete [COPS Documentation Website](https://sodejm.github.io/copilot-operation-plugin-for-security/)** for interactive guides, playbooks, and reference architectures.
@@ -33,7 +35,7 @@ cd copilot-operation-plugin-for-security
 # 2. Check your local environment health
 python3 -m cops doctor
 
-# 3. List all 13 available security plugins and their status
+# 3. List all 14 available security plugins and their status
 python3 -m cops list
 
 # 4. Route any natural language task to the best specialist agent
@@ -51,14 +53,14 @@ python3 -m cops check sentinel-hunt-workbench
 
 ### What these commands do for you
 - `cops doctor`: Quickly checks that your Python environment is ready and your package catalogs are in sync.
-- `cops list`: Displays the thirteen available security plugins, their maturity stage, and their validation status.
+- `cops list`: Displays the fourteen available security plugins, their maturity stage, and their validation status.
 - `cops route`: Deterministically routes any natural language task to the optimal specialist profile with zero LLM token cost.
 - `cops demo`: Runs a self-contained, offline walkthrough using synthetic test data.
 - `cops check`: Executes deterministic verification suites (syntax checks, schema tests, mutation tests) right on your machine.
 
 ---
 
-## Available Security Plugins (13 Packages)
+## Available Security Plugins (14 Packages)
 
 Each package lives in its own self-contained directory under `plugins/<category>/<plugin-id>/` and includes a complete practitioner playbook:
 
@@ -75,6 +77,7 @@ Each package lives in its own self-contained directory under `plugins/<category>
 | **[Exposure Triage Workbench](plugins/vulnerability-management/exposure-triage-workbench/README.md)** | Vulnerability Management | <span class="badge badge-beta">Beta</span> | Prioritizes vulnerability triage by correlating advisory CVEs, SBOM components, and call graph reachability. | `python3 -m cops check exposure-triage-workbench` |
 | **[Patch Security Review](plugins/vulnerability-management/patch-security-review/README.md)** | Vulnerability Management | <span class="badge badge-beta">Beta</span> | Analyzes code patches and pull request diffs for dangerous patterns, authorization flaws, and regression risks. | `python3 -m cops check patch-security-review` |
 | **[Attack Surface Planner](plugins/offensive-security/attack-surface-planner/README.md)** | Offensive Security | <span class="badge badge-experimental">Experimental</span> | Translates authorized rules of engagement into bounded, passive review plans from local export manifests. | `python3 -m cops demo attack-surface-planner` |
+| **[Offensive Engagement Workbench](plugins/offensive-security/offensive-engagement-workbench/README.md)** | Offensive Security | <span class="badge badge-experimental">Experimental</span> | Validates authorized engagement scope and prepares reviewable action plans from local inputs. | `python3 -m cops check offensive-engagement-workbench` |
 | **[Foundry Agent Harness](plugins/offensive-security/foundry-agent-harness/README.md)** | Offensive Security | <span class="badge badge-beta">Beta</span> | Evaluates AI agent behavior, prompt injection resistance, and safety boundaries in a simulated sandbox. | `python3 -m cops check foundry-agent-harness` |
 | **[Incident Response Sandbox](plugins/incident-response/incident-response-sandbox/README.md)** | Incident Response | <span class="badge badge-beta">Beta</span> | Rehearses containment workflows, calculates blast radius, and generates cryptographic execution receipts. | `python3 -m cops check incident-response-sandbox` |
 
@@ -146,6 +149,7 @@ Before creating new plugins or modifying contracts, please review:
 - **[Documentation Site](https://sodejm.github.io/copilot-operation-plugin-for-security/)**: The official documentation website.
 - **[Getting Started Guide](docs/getting-started.md)**: Quickstart and command walkthroughs.
 - **[Authenticated Execution Guide](docs/AUTHENTICATED_EXECUTION.md)**: Configure verifier trust, immutable approval binding, one-time execution, migration, and key rotation.
+- **[AI Export Privacy Boundary](docs/AI_EXPORT_PRIVACY.md)**: Versioned, field-aware policy boundary and caller-provided offline provider, telemetry, report, and diagnostic export adapters.
 - **[Adding a Plugin](docs/ADDING_A_PLUGIN.md)**: Step-by-step instructions for contributing a new security capability.
 - **[Troubleshooting Guide](docs/troubleshooting.md)**: Solutions for common setup and dependency issues.
 - **[Repository Contract (AGENTS.md)](AGENTS.md)**: Coding conventions, git workflow, and branch rules.
@@ -162,6 +166,7 @@ In security engineering, confidence comes from verification:
 - **Data Privacy**: Tools treat all input code and logs as sensitive data. They do not store credentials or transmit telemetry to third parties.
 - **Truth-in-Advertising**: Capabilities are audited into four operational readiness modes (`planned`, `import`, `laboratory`, `live-validated`), with zero false live claims.
 - **Authenticated Execution Authority**: High-consequence execution requires a signed full-plan snapshot, the expected worker identity, an active engagement, an independent verifier trust store, and an owner-provisioned worker capability inventory. See the [Authenticated Execution Guide](docs/AUTHENTICATED_EXECUTION.md).
+- **AI Component Verification**: Offline component identity, provenance and review-state reporting is documented in the [AI Component Verification Guide](docs/AI_COMPONENT_VERIFICATION.md); it never executes or fetches a component.
 
 ---
 

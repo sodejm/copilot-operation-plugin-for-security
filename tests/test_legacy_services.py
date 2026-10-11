@@ -266,21 +266,54 @@ class TestOfflineSyntheticLegacyCollector(unittest.TestCase):
         self.assertEqual(report.total_inaccessible, 27)
         self.assertGreaterEqual(report.candidates_count, 9)
         self.assertEqual(report.cleanup_receipts_count, 9)
+        for assessment in report.assessments:
+            self.assertIn(collector.FIXTURE_NOTE, assessment.uncertainty_notes)
+        expected_effects = {
+            "ndmp": ExecutionEffect.READ_ONLY.value,
+            "iscsi": ExecutionEffect.READ_ONLY.value,
+            "ipmi": ExecutionEffect.CODE_EXECUTION.value,
+            "cisco_smart_install": ExecutionEffect.CODE_EXECUTION.value,
+            "tacacs": ExecutionEffect.NON_DESTRUCTIVE.value,
+            "ike": ExecutionEffect.READ_ONLY.value,
+            "pptp": ExecutionEffect.READ_ONLY.value,
+            "socks": ExecutionEffect.NON_DESTRUCTIVE.value,
+            "squid": ExecutionEffect.NON_DESTRUCTIVE.value,
+        }
+        exposed = [a for a in report.assessments if a.exposure_status == LegacyExposureStatus.EXPOSED.value]
+        self.assertEqual({a.service_type for a in exposed}, set(expected_effects))
+        for assessment in exposed:
+            with self.subTest(service=assessment.service_type):
+                self.assertEqual(len(assessment.privilege_candidates), 1)
+                self.assertEqual(
+                    assessment.privilege_candidates[0].execution_effect, expected_effects[assessment.service_type]
+                )
+                self.assertTrue(assessment.canary_validated)
+                self.assertEqual(len(assessment.cleanup_receipts), 1)
 
         # Verify proxy egress testing
-        socks_ass = next(a for a in report.assessments if a.service_type == "socks" and a.target_host == "proxy01.corp.internal")
+        socks_ass = next(
+            a for a in report.assessments if a.service_type == "socks" and a.target_host == "proxy01.corp.internal"
+        )
         self.assertTrue(socks_ass.proxy_egress_tested)
         self.assertFalse(socks_ass.proxy_egress_restricted)
 
-        squid_ass = next(a for a in report.assessments if a.service_type == "squid" and a.target_host == "proxy01.corp.internal")
+        squid_ass = next(
+            a for a in report.assessments if a.service_type == "squid" and a.target_host == "proxy01.corp.internal"
+        )
         self.assertTrue(squid_ass.proxy_egress_tested)
         self.assertFalse(squid_ass.proxy_egress_restricted)
 
         # Verify code execution
-        ipmi_ass = next(a for a in report.assessments if a.service_type == "ipmi" and a.target_host == "mgmt01.corp.internal")
+        ipmi_ass = next(
+            a for a in report.assessments if a.service_type == "ipmi" and a.target_host == "mgmt01.corp.internal"
+        )
         self.assertTrue(ipmi_ass.can_execute_code)
 
-        smi_ass = next(a for a in report.assessments if a.service_type == "cisco_smart_install" and a.target_host == "mgmt01.corp.internal")
+        smi_ass = next(
+            a
+            for a in report.assessments
+            if a.service_type == "cisco_smart_install" and a.target_host == "mgmt01.corp.internal"
+        )
         self.assertTrue(smi_ass.can_execute_code)
 
     def test_collector_helper_methods(self):
@@ -342,7 +375,7 @@ class TestOfflineSyntheticLegacyCollector(unittest.TestCase):
         )
         for ass in report.assessments:
             self.assertFalse(ass.can_execute_code)
-            self.assertTrue(any("Code execution verification skipped" in u for u in ass.uncertainty_notes))
+            self.assertTrue(any("Fixture code execution case omitted" in u for u in ass.uncertainty_notes))
 
     def test_protected_services(self):
         collector = OfflineSyntheticLegacyCollector(targets=self.mock_targets)
@@ -355,6 +388,13 @@ class TestOfflineSyntheticLegacyCollector(unittest.TestCase):
         self.assertEqual(report.total_protected, 9)
         self.assertEqual(report.candidates_count, 0)
         self.assertEqual(report.cleanup_receipts_count, 9)
+        for assessment in report.assessments:
+            with self.subTest(service=assessment.service_type):
+                self.assertEqual(assessment.exposure_status, LegacyExposureStatus.PROTECTED.value)
+                self.assertFalse(assessment.can_execute_code)
+                self.assertFalse(assessment.can_change_state)
+                self.assertEqual(assessment.privilege_candidates, [])
+                self.assertIn(collector.FIXTURE_NOTE, assessment.uncertainty_notes)
 
         socks_ass = next(a for a in report.assessments if a.service_type == "socks")
         self.assertTrue(socks_ass.proxy_egress_tested)
@@ -375,6 +415,9 @@ class TestOfflineSyntheticLegacyCollector(unittest.TestCase):
         self.assertEqual(report.total_probed, 2)
         self.assertEqual(report.assessments[0].exposure_status, LegacyExposureStatus.REMEDIATED.value)
         self.assertEqual(report.assessments[1].exposure_status, LegacyExposureStatus.REMEDIATED.value)
+        for assessment in report.assessments:
+            self.assertIn(collector.FIXTURE_NOTE, assessment.uncertainty_notes)
+            self.assertTrue(any("no live remediation verification" in note for note in assessment.uncertainty_notes))
 
     def test_truth_boundary_inaccessible_never_protected(self):
         collector = OfflineSyntheticLegacyCollector(targets=self.mock_targets)
@@ -390,6 +433,8 @@ class TestOfflineSyntheticLegacyCollector(unittest.TestCase):
             self.assertEqual(ass.exposure_status, LegacyExposureStatus.INACCESSIBLE.value)
             self.assertEqual(ass.auth_prerequisite, LegacyAuthPrerequisite.UNKNOWN.value)
             self.assertFalse(ass.canary_validated)
+            self.assertIn(collector.FIXTURE_NOTE, ass.uncertainty_notes)
+            self.assertIn("fixture", ass.error_message.lower())
             self.assertTrue(any("cannot be reported as secure" in u for u in ass.uncertainty_notes))
 
 
@@ -409,9 +454,10 @@ class TestStandardSocketLegacyCollector(unittest.TestCase):
             protocol="tcp",
             canary_artifact="canary_01",
         )
-        self.assertEqual(ass.exposure_status, LegacyExposureStatus.EXPOSED.value)
+        self.assertEqual(ass.exposure_status, LegacyExposureStatus.UNCONFIRMED.value)
         self.assertTrue(ass.configuration_details.get("socket_connected"))
-        self.assertTrue(ass.canary_validated)
+        self.assertFalse(ass.canary_validated)
+        self.assertEqual(ass.canary_identifier, "canary_01")
         self.assertEqual(ass.auth_prerequisite, LegacyAuthPrerequisite.UNKNOWN.value)
 
     @patch("socket.gethostbyname")
@@ -430,9 +476,42 @@ class TestStandardSocketLegacyCollector(unittest.TestCase):
             protocol="udp",
             canary_artifact="canary_01",
         )
-        self.assertEqual(ass.exposure_status, LegacyExposureStatus.EXPOSED.value)
+        self.assertEqual(ass.exposure_status, LegacyExposureStatus.UNCONFIRMED.value)
+        self.assertFalse(ass.canary_validated)
         self.assertTrue(ass.configuration_details.get("udp_datagram_sent"))
         mock_sock.sendto.assert_called_once_with(b"\x00", ("198.51.100.99", 623))
+
+    @patch("socket.create_connection")
+    def test_proxy_socket_connect_does_not_claim_egress_or_canary(self, mock_connect):
+        mock_connect.return_value.__enter__.return_value = MagicMock()
+        ass = StandardSocketLegacyCollector().probe_service(
+            target_host="proxy.corp.internal",
+            resolved_ip="198.51.100.70",
+            service_type="squid",
+            port=3128,
+            category=LegacyCategory.PROXY_EGRESS_SERVICES.value,
+            canary_artifact="requested_canary",
+        )
+        self.assertEqual(ass.exposure_status, LegacyExposureStatus.UNCONFIRMED.value)
+        self.assertFalse(ass.proxy_egress_tested)
+        self.assertIsNone(ass.proxy_egress_restricted)
+        self.assertFalse(ass.canary_validated)
+        self.assertEqual(ass.cleanup_receipts, [])
+
+    @patch("socket.create_connection")
+    @patch("socket.gethostbyname", return_value="198.51.100.70")
+    def test_socket_report_counts_unconfirmed(self, _mock_resolve, mock_connect):
+        mock_connect.return_value.__enter__.return_value = MagicMock()
+        report = assess_legacy_services(
+            targets=["proxy.corp.internal"],
+            service_types=["squid"],
+            collector=StandardSocketLegacyCollector(),
+            canary_id="requested_canary",
+        )
+        self.assertEqual(report.total_probed, 1)
+        self.assertEqual(report.total_unconfirmed, 1)
+        self.assertEqual(report.total_exposed, 0)
+        self.assertEqual(LegacyServicesReport.from_dict(report.to_dict()).total_unconfirmed, 1)
 
     @patch("socket.gethostbyname")
     @patch("socket.create_connection")

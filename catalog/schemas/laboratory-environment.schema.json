@@ -80,6 +80,7 @@
         "strategy": {"enum": ["container_recreate", "snapshot_rollback", "script_revert"]},
         "reproducible": {"type": "boolean"},
         "command": {"type": ["string", "null"]},
+        "expected_baseline_digest": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
         "last_reset_timestamp": {"type": ["string", "null"], "format": "date-time"}
       }
     },
