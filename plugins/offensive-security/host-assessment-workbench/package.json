@@ -1,0 +1,31 @@
+{
+  "schema_version": "1.0",
+  "id": "host-assessment-workbench",
+  "display_name": "COPS Host Assessment Workbench",
+  "maturity": "experimental",
+  "summary": "Offline import and bounded classification of Linux privilege-boundary assessment exports.",
+  "support": {
+    "structural_validation": "validated",
+    "offline_workflow": "validated",
+    "host_installation": "unverified",
+    "live_integration": "unverified"
+  },
+  "limitations": [
+    "The package imports local exports only; it has no live collector, shell execution, or host mutation.",
+    "Canary access and cleanup are assertions made by the source, not independently verified outcomes.",
+    "Imported identifiers must be synthetic or non-sensitive opaque IDs; do not provide raw credentials or paths.",
+    "E06.01 source sections remain unmapped pending the E01.1 source review."
+  ],
+  "demo": {
+    "description": "Classify synthetic positive, negative, and fixed canary exports entirely offline.",
+    "command": ["$PYTHON", "plugins/offensive-security/host-assessment-workbench/scripts/demo.py"],
+    "timeout_seconds": 30
+  },
+  "validation": [
+    {
+      "name": "offline package gate",
+      "command": ["$PYTHON", "plugins/offensive-security/host-assessment-workbench/scripts/validate-package.py"],
+      "timeout_seconds": 120
+    }
+  ]
+}

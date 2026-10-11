@@ -84,6 +84,12 @@
       "source": "./plugins/incident-response/incident-response-sandbox"
     },
     {
+      "name": "host-assessment-workbench",
+      "description": "Offline import and evidence classification for Linux privilege-boundary assessments.",
+      "version": "0.1.0",
+      "source": "./plugins/offensive-security/host-assessment-workbench"
+    },
+    {
       "name": "offensive-engagement-workbench",
       "description": "Authorized adversary engagement intake, scope validation, and execution planning.",
       "version": "0.1.0",

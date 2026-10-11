@@ -1,12 +1,12 @@
 ---
 layout: documentation
 title: "When to Use Each COPS Plugin"
-description: "A comprehensive guide to selecting, evaluating, and running each of the fourteen security plugins across defensive and offensive cybersecurity disciplines."
+description: "A comprehensive guide to selecting, evaluating, and running each of the fifteen security plugins across defensive and offensive cybersecurity disciplines."
 ---
 
 # When to Use Each COPS Plugin
 
-COPS packages **fourteen specialized cybersecurity plugins** across six core disciplines. Each plugin is self-contained under `plugins/<category>/<plugin-id>/` and includes deterministic Python tools, reusable AI skills, and a practitioner playbook.
+COPS packages **fifteen specialized cybersecurity plugins** across six core disciplines. Each plugin is self-contained under `plugins/<category>/<plugin-id>/` and includes deterministic Python tools, reusable AI skills, and a practitioner playbook.
 
 Use this guide to determine which plugin best matches your operational requirements.
 
@@ -28,6 +28,7 @@ Use this guide to determine which plugin best matches your operational requireme
 | **Review code diffs and pull requests for security flaws** | `patch-security-review` | Vulnerability Management | <span class="badge badge-beta">Beta</span> | `import` | `python3 -m cops check patch-security-review` |
 | **Plan an authorized, passive attack surface review** | `attack-surface-planner` | Offensive Security | <span class="badge badge-experimental">Experimental</span> | `planned` | `python3 -m cops demo attack-surface-planner` |
 | **Intake engagement scope and compile action plans** | `offensive-engagement-workbench` | Offensive Security | <span class="badge badge-experimental">Experimental</span> | `planned` | `python3 -m cops demo offensive-engagement-workbench` |
+| **Review Linux privilege-boundary exports** | `host-assessment-workbench` | Offensive Security | <span class="badge badge-experimental">Experimental</span> | `import` | `python3 -m cops demo host-assessment-workbench` |
 | **Test AI agent prompt injection resistance** | `foundry-agent-harness` | Offensive Security | <span class="badge badge-beta">Beta</span> | `laboratory` | `python3 -m cops check foundry-agent-harness` |
 | **Rehearse containment with cryptographic receipts** | `incident-response-sandbox` | Incident Response | <span class="badge badge-beta">Beta</span> | `laboratory` | `python3 -m cops check incident-response-sandbox` |
 
@@ -137,6 +138,13 @@ Use this guide to determine which plugin best matches your operational requireme
 - **Boundaries**: Scoping, planning, and isolated laboratory execution only; refuses incomplete live requests and does not execute network payloads outside verified lab boundaries.
 - **Playbook**: `plugins/offensive-security/offensive-engagement-workbench/docs/PLAYBOOK.md`
 
+#### Host Assessment Workbench
+- **Maturity**: <span class="badge badge-experimental">Experimental</span> | **Operational Mode**: `import`
+- **When to use**: When reviewing a bounded local export of Linux host configuration, prerequisite context, coverage, and canary outcomes.
+- **Key Capabilities**: Strict versioned import, eight privilege-boundary surfaces, prerequisite selection, and distinct configuration versus reported-canary classifications.
+- **Boundaries**: No host collection or execution; imported canary assertions are not independent proof of privilege crossing or cleanup.
+- **Playbook**: `plugins/offensive-security/host-assessment-workbench/README.md`
+
 #### Foundry Agent Harness
 - **Maturity**: <span class="badge badge-beta">Beta</span> | **Operational Mode**: `laboratory`
 - **When to use**: When evaluating an autonomous AI agent's robustness against adversarial prompt injection, jailbreak attempts, and unauthorized tool invocation.
@@ -166,7 +174,7 @@ To maintain absolute integrity and avoid capability over-claiming, COPS reconcil
 - **`laboratory`**: Controlled offline simulation, synthetic event replay, or sandbox rehearsal; zero external egress.
 - **`live-validated`**: Fully authorized, live-tested execution path against an authorized environment with cryptographic evidence receipt. Currently 0 capabilities claim live-validated, ensuring zero false claims.
 
-To audit all 69 capabilities across plugins, specialist profiles, and scenarios:
+To audit all 71 capabilities across plugins, specialist profiles, and scenarios:
 
 ```bash
 python3 -m cops capabilities audit --check

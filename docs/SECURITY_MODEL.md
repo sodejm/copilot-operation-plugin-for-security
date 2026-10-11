@@ -95,6 +95,7 @@ flowchart TD
 - **Our Defense**:
   - We clearly label test results: an offline demo verifies that the code runs against a fixture; it does not claim your production SIEM is configured correctly.
   - Every finding links directly to verifiable evidence.
+  - The Linux host assessment importer labels canary outcomes as source-reported, retains explicit prerequisite and coverage state, and cannot certify a live privilege crossing or cleanup from a local export.
 
 ### Threat 6: Unauthorized High-Consequence or Offensive Actions
 - **The Risk**: An autonomous agent or automated script executes unauthorized vulnerability scanning, adversary emulation, or disruptive containment actions without explicit human approval.

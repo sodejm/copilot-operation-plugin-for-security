@@ -1,0 +1,20 @@
+{
+  "name": "host-assessment-workbench",
+  "version": "0.1.0",
+  "description": "Offline import and evidence classification for Linux privilege-boundary assessments.",
+  "author": {"name": "Justin Soderberg", "url": "https://github.com/sodejm"},
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "COPS Host Assessment Workbench",
+    "shortDescription": "Review Linux privilege-boundary exports offline",
+    "longDescription": "Validate bounded local exports and separate reported canary crossings from configuration candidates and unknown coverage.",
+    "developerName": "Justin Soderberg",
+    "category": "Developer Tools",
+    "capabilities": ["Read"],
+    "defaultPrompt": ["Review a local Linux privilege-boundary assessment export and identify its evidence limits."]
+  },
+  "repository": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "homepage": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "keywords": ["cybersecurity", "offensive-security", "linux", "host-assessment", "privilege-boundaries", "offline-import"]
+}
