@@ -39,8 +39,10 @@ and Teams. A partial acquisition receipt must remain visible in any report.
 
 Permissions above are endpoint-level minima for these adapters; a real tenant
 requires administrative consent, license tiers, and retention checks. Cross-domain
-correlation scenarios (sign-in + directory audit, OAuth consent + mail access, and
-Defender alert + risky sign-in) are verified using tenant-bound offline test fixtures.
+correlation fixtures each join identity, activity, and directory audit evidence:
+Defender alert + sign-in + audit, OAuth grant + sign-in + audit, and mail message +
+authentication method + audit. Offline tests verify tenant binding, stable record
+IDs, and source acquisition provenance.
 
 ---
 

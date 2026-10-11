@@ -1,0 +1,12 @@
+{
+  "tenant": "00000000-0000-0000-0000-000000000021",
+  "principal_id": "00000000-0000-0000-0000-000000000022",
+  "identity_source": "auth-methods",
+  "activity_source": "mail-messages",
+  "audit_source": "directory-audits",
+  "pages": {
+    "auth-methods": {"value": [{"id": "mail-auth-1", "userId": "00000000-0000-0000-0000-000000000022", "authMethodStatus": "registered"}]},
+    "mail-messages": {"value": [{"id": "mail-message-1", "userId": "00000000-0000-0000-0000-000000000022", "receivedDateTime": "2026-01-01T03:00:00Z", "subject": "Synthetic case note"}]},
+    "directory-audits": {"value": [{"id": "mail-audit-1", "initiatedBy": {"user": {"id": "00000000-0000-0000-0000-000000000022"}}, "activityDateTime": "2026-01-01T03:05:00Z", "activityDisplayName": "Update user"}]}
+  }
+}
