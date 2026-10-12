@@ -59,6 +59,18 @@ Portable plugins must explicitly declare and distribute a compatible SDK before
 adoption. See the [SDK specification](../specs/shared-evidence-sdk.spec.md) and
 [guide](../docs/EVIDENCE_SDK.md) for raw/normalized evidence, security and migration.
 
+## Model and effort advice
+
+`cops.routing.model_advisor` classifies bounded tasks and ranks exact model/effort
+pairs from a fresh operator-supplied catalog. It validates catalog shape,
+availability, access, capabilities, tier, and supported effort, then emits
+`cops.model-advice/v1` through both route CLIs. Catalog records are assertions;
+the module does not probe providers, authenticate entitlement, dispatch work, or
+change settings. The workbench plugin exports the skill and guide while command
+execution requires a COPS checkout. See the
+[specification](../specs/model-effort-routing.spec.md) and
+[operator guide](../docs/model-effort-routing.md).
+
 ## Assessment budget fixture
 
 `cops.assessment_budget` is an opt-in, engagement-scoped SQLite admission ledger
