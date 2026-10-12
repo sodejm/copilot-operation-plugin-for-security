@@ -2,6 +2,9 @@
 
 `offensive-engagement-workbench` provides authorized adversarial assessment intake, scope boundary validation, execution mode classification, and reviewable immutable action planning for the Copilot Operations Plugin for Security (COPS) ecosystem.
 
+Follow the [end-to-end verification playbook](docs/VERIFICATION.md) to qualify this
+package's documented workflow and prepare evidence for a maturity review.
+
 ## Features
 
 - **Engagement Intake**: Enforces explicit operator ownership, valid authorized windows, unambiguous targets, non-colliding exclusions, execution budgets, and credential references.

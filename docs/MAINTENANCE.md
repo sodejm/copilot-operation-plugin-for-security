@@ -41,6 +41,20 @@ stops before repository checks if prerequisites are unavailable. See
 [Contributing](../CONTRIBUTING.md) for offline setup and interpreter selection.
 A green CI run establishes only the scopes named by those jobs.
 
+## Plugin qualification and maturity
+
+Maintain each package's [verification playbook](plugin-verification.md) when its
+workflow, dependencies, adapters, or supported scope changes. Retain dated,
+sanitized qualification records with the tested revision, inputs, expected and
+observed results, negative/recovery cases, host scope, cleanup, fresh repeat run,
+and independent review.
+
+After the reviewer accepts a maturity proposal, update the package manifest and
+all public status labels together and link the accepted record from the package
+README and verification page. Keep support flags and operational modes separate.
+Requalify after material changes or defects affecting the accepted scope; record
+the reason and lower maturity if the previous gate is no longer met.
+
 ## Generated content
 
 - Change `catalog/plugins.json`, then run `python3 -m cops generate`.

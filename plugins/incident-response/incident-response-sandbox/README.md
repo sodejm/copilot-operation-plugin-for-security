@@ -30,6 +30,9 @@ digests; do not replace them with credentials, bearer tokens, signed URLs, or
 other secret provider response data. These fields demonstrate the receipt
 shape against a local fixture; they are not evidence from a live provider.
 
+Follow the [end-to-end verification playbook](docs/VERIFICATION.md) to qualify this
+package's documented workflow and prepare evidence for a maturity review.
+
 ## Retention expectations
 
 Treat plans, receipts, and fixtures as incident records because their timing,

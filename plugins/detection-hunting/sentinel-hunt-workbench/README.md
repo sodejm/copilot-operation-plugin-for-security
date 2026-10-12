@@ -6,6 +6,9 @@ In enterprise security, running unoptimized or unverified queries across terabyt
 
 ---
 
+Follow the [end-to-end verification playbook](docs/VERIFICATION.md) to qualify this
+package's documented workflow and prepare evidence for a maturity review.
+
 ## Defensive-Use Boundary
 
 This package is intended exclusively for authorized defensive engineering, threat hunting, and security research on systems you own or have explicit permission to defend. It must never be used for unauthorized access, surveillance evasion, or disruptive activities. Log payloads, command lines, and query comments are treated strictly as untrusted data.

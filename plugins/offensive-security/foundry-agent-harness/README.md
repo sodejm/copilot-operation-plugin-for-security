@@ -9,6 +9,9 @@ The package has two workflows:
 | Scenario simulator | `evaluate` | A deterministic scenario decision, authorization decision, and in-memory mock ledger. This legacy workflow does not execute an agent process or model. |
 | Local agent and MCP laboratory | `lab` | A deterministic agent fixture proposes calls to a separate, fixed MCP stdio fixture. The runner records proposals, gate denials, calls actually forwarded, observed state effects, and reset verification. |
 
+Follow the [end-to-end verification playbook](docs/VERIFICATION.md) to qualify this
+package's documented workflow and prepare evidence for a maturity review.
+
 ## Run the local laboratory
 
 From the repository root:

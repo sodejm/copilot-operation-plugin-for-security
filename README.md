@@ -17,6 +17,10 @@ Welcome to **COPS (Copilot Operations Plugins for Security)**! COPS is an open-s
 
 The [AI asset inventory](docs/AI_ASSET_INVENTORY.md) documents the bounded, offline evidence graph contract.
 
+Use the [plugin verification playbooks](docs/plugin-verification.md) to test each
+package end to end, record qualification evidence, and update its maturity status
+after review.
+
 Whether your team works in **GitHub Copilot**, **Claude Code**, or **Codex / ChatGPT**, COPS provides production-grade cybersecurity capabilities without ecosystem lock-in. Everything is designed **offline-first**: you can explore tools, run demos, and validate detection logic directly from your local terminal using standard Python—no cloud credentials, assistant installations, or live tenant connections required.
 
 📖 **Visit the complete [COPS Documentation Website](https://sodejm.github.io/copilot-operation-plugin-for-security/)** for interactive guides, playbooks, and reference architectures.
@@ -82,7 +86,7 @@ Each package lives in its own self-contained directory under `plugins/<category>
 | **[Offensive Engagement Workbench](plugins/offensive-security/offensive-engagement-workbench/README.md)** | Offensive Security | <span class="badge badge-experimental">Experimental</span> | Validates authorized engagement scope and prepares reviewable action plans from local inputs. | `python3 -m cops check offensive-engagement-workbench` |
 | **[Host Assessment Workbench](plugins/offensive-security/host-assessment-workbench/README.md)** | Offensive Security | <span class="badge badge-experimental">Experimental</span> | Classifies local Linux privilege-boundary exports and imported canary reports without host execution. | `python3 -m cops demo host-assessment-workbench` |
 | **[Foundry Agent Harness](plugins/offensive-security/foundry-agent-harness/README.md)** | Offensive Security | <span class="badge badge-beta">Beta</span> | Rehearses synthetic agent and MCP authorization with deterministic local fixtures. | `python3 -m cops check foundry-agent-harness` |
-| **[Incident Response Sandbox](plugins/incident-response/incident-response-sandbox/README.md)** | Incident Response | <span class="badge badge-beta">Beta</span> | Rehearses containment workflows, calculates blast radius, and generates cryptographic execution receipts. | `python3 -m cops check incident-response-sandbox` |
+| **[Incident Response Sandbox](plugins/incident-response/incident-response-sandbox/README.md)** | Incident Response | <span class="badge badge-experimental">Experimental</span> | Rehearses containment workflows, calculates blast radius, and generates cryptographic execution receipts. | `python3 -m cops check incident-response-sandbox` |
 
 For in-depth guidance on choosing the right plugin for your operational scenario, see the **[When to Use Each Plugin Guide](docs/plugin-guide.md)**.
 

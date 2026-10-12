@@ -4,6 +4,9 @@ This experimental package reconciles a **selected** Kubernetes context and
 namespace scope against a sanitized local observation. It performs no network
 requests, reads no kubeconfig, and never authorizes cluster execution.
 
+Follow the [end-to-end verification playbook](docs/VERIFICATION.md) to qualify this
+package's documented workflow and prepare evidence for a maturity review.
+
 ## Local use
 
 ```bash
