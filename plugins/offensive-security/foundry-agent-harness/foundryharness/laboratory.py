@@ -181,16 +181,21 @@ class _JsonLineProcess:
         admission_check: Callable[[], None] | None = None,
         response_timeout_provider: Callable[[], float] | None = None,
         account_response: Callable[[bytes], None] | None = None,
+        response_bytes_remaining: Callable[[], int] | None = None,
+        source_root: Path | None = None,
+        on_spawn: Callable[[Any], None] | None = None,
     ) -> None:
         if not 0 < response_timeout_seconds <= 30:
             raise LabError("Fixture response timeout must be between zero and 30 seconds")
-        command = [sys.executable, "-I", "-u", str(PACKAGE_ROOT / script), *extra_args]
+        command = [sys.executable, "-I", "-B", "-u", str((source_root or PACKAGE_ROOT) / script), *extra_args]
         env = {"PATH": os.defpath, "PYTHONIOENCODING": "utf-8"}
         if os.name == "nt" and "SystemRoot" in os.environ:
             env["SystemRoot"] = os.environ["SystemRoot"]
         self.admission_check = admission_check
         self.response_timeout_provider = response_timeout_provider
         self.account_response = account_response
+        self.response_bytes_remaining = response_bytes_remaining
+        self.response_timeout_seconds = response_timeout_seconds
         if self.admission_check is not None:
             self.admission_check()
         self.process = subprocess.Popen(
@@ -202,13 +207,17 @@ class _JsonLineProcess:
             bufsize=0,
             env=env,
         )
-        self.response_timeout_seconds = response_timeout_seconds
+        if on_spawn is not None:
+            on_spawn(self)
 
     def exchange(self, payload: dict[str, Any], *, response: bool = True) -> dict[str, Any] | None:
         if self.admission_check is not None:
             self.admission_check()
         if self.process.stdin is None or self.process.stdout is None:
             raise LabError("Fixture pipes unavailable")
+        read_limit = 65537
+        if response and self.response_bytes_remaining is not None:
+            read_limit = min(read_limit, self.response_bytes_remaining())
         try:
             self.process.stdin.write((json.dumps(payload, separators=(",", ":")) + "\n").encode("utf-8"))
             self.process.stdin.flush()
@@ -221,7 +230,7 @@ class _JsonLineProcess:
 
         def read_line() -> None:
             try:
-                received.put(stdout.readline(65537))
+                received.put(stdout.readline(read_limit))
             except OSError as exc:
                 received.put(exc)
 
@@ -241,6 +250,8 @@ class _JsonLineProcess:
             self.account_response(line)
         if not line:
             raise LabError("Fixture exited without response")
+        if not line.endswith(b"\n") and len(line) == read_limit and self.response_bytes_remaining is not None:
+            self.response_bytes_remaining()
         if len(line) > 65536 or not line.endswith(b"\n"):
             raise LabError("Fixture response exceeded limit or lacked line terminator")
         try:

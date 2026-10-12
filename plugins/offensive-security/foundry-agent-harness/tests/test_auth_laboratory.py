@@ -34,7 +34,7 @@ def test_bundled_authorization_cases_have_independent_effect_evidence(tmp_path):
     for path in (PLUGIN_ROOT / "auth_cases").glob("*.json"):
         jsonschema.validate(json.loads(path.read_text()), schemas["case"])
     cases, context = authorized_batch(tmp_path, auth_laboratory.load_auth_cases(PLUGIN_ROOT / "auth_cases"))
-    assert len(cases) >= 16
+    assert len(cases) >= 22
     manifest = context["plan"].to_dict()["operations"][0]["arguments"]
     jsonschema.validate(manifest["adapter"], schemas["adapter"])
     report = auth_approval.run_auth_cases(cases, **context)
@@ -42,11 +42,14 @@ def test_bundled_authorization_cases_have_independent_effect_evidence(tmp_path):
     assert report["assessment_authorization"]["signed_receipt_verified"] is True
     assert report["assessment_authorization"]["consumed_once_for_batch"] is True
     assert report["all_expectations_met"] is True
+    assert report["security_pass"] is False  # The missing-context probe remains inconclusive.
     assert report["pending_case_ids"] == []
     assert report["budget"]["observed_output_bytes"] > 0
     results = {result["case_id"]: result for result in report["results"]}
     for case_id, result in results.items():
-        assert result["outcome"] == "pass"
+        assert result["outcome"] == ("inconclusive" if case_id == "peer-omit-tenant" else "pass")
+        assert result["evidence_complete"] is True
+        assert result["security_pass"] is (case_id != "peer-omit-tenant")
         assert result["environment_verified"] is True
         assert result["cleanup"] == {"process_exit_observed": True, "private_directory_removed": True}
         for index, row in enumerate(result["observations"], 1):
@@ -61,6 +64,11 @@ def test_bundled_authorization_cases_have_independent_effect_evidence(tmp_path):
     assert decisions("reusable-grant") == ["allowed", "allowed"]
     assert len(results["reusable-grant"]["observed_effects"]) == 2
     assert results["read-control"]["observed_effects"] == []
+    assert results["delegated-control-fabrikam"]["observed_effects"][0]["tenant"] == "tenant-fabrikam-02"
+    assert results["cross-tenant-reverse"]["observed_effects"] == []
+    for name in ("peer-mutate-tenant", "peer-omit-tenant", "peer-mutate-operation", "peer-substitute-receipt"):
+        assert results[name]["observations"][0]["peer"]["peer_identity"] == "hostile-forwarding-peer"
+        assert results[name]["observed_effects"] == []
     revocation = results["revoked-grant"]
     assert [row["target"]["reason"] for row in revocation["observations"]] == ["allowed", "revoked_grant"]
     assert revocation["revocation_window"] == {
@@ -123,6 +131,8 @@ def test_incomplete_runtime_evidence_is_inconclusive_with_cleanup(tmp_path, faul
     result = run_data(tmp_path, data)["results"][0]
     assert result["outcome"] == "inconclusive"
     assert result["expectation_met"] is False
+    assert result["security_pass"] is False
+    assert result["evidence_complete"] is False
     assert result["cleanup"] == {"process_exit_observed": True, "private_directory_removed": True}
 
 
@@ -163,6 +173,8 @@ def test_unsupported_surface_cannot_launch_fixture(tmp_path, monkeypatch):
     report = run_data(tmp_path, data)
     assert report["results"][0]["outcome"] == "unsupported"
     assert report["results"][0]["environment_verified"] is False
+    assert report["results"][0]["expectation_met"] is False
+    assert report["security_pass"] is False
 
 
 @pytest.mark.parametrize("field,value", [

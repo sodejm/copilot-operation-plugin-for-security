@@ -13,6 +13,7 @@ if __package__ in (None, ""):
         sys.path.insert(0, str(source_root))
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     from foundryharness.auth_laboratory import load_auth_cases
+    from foundryharness.bounded_json import JSONInputError, decode_json, read_regular_file
     from foundryharness.gate import IndependentAuthorizationGate
     from foundryharness.laboratory import LabError, load_lab_cases, run_lab_case
     from foundryharness.mock_sandbox import MockSandbox
@@ -21,6 +22,7 @@ if __package__ in (None, ""):
     from foundryharness.simulator import evaluate_scenario
 else:
     from .auth_laboratory import load_auth_cases
+    from .bounded_json import JSONInputError, decode_json, read_regular_file
     from .gate import IndependentAuthorizationGate
     from .laboratory import LabError, load_lab_cases, run_lab_case
     from .mock_sandbox import MockSandbox
@@ -56,12 +58,13 @@ def load_scenarios(scenario_path: Path | None, scenarios_dir: Path | None) -> li
 
 
 def _load_json_object(path: Path, label: str) -> dict:
-    if path.is_symlink() or not path.is_file():
-        raise LabError(f"{label} must be a regular file")
-    value = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(value, dict):
-        raise LabError(f"{label} must contain a JSON object")
-    return value
+    try:
+        value = decode_json(read_regular_file(path, max_bytes=1048576), max_bytes=1048576)
+        if not isinstance(value, dict):
+            raise JSONInputError("object_required")
+        return value
+    except JSONInputError:
+        raise LabError(f"{label} must be a bounded regular file containing strict JSON") from None
 
 
 def _emit(value: str, output: Path | None) -> None:
@@ -131,7 +134,6 @@ def build_parser() -> argparse.ArgumentParser:
     auth_parser.add_argument("--trust-store", type=Path, required=True, help="private verifier trust-store JSON")
     auth_parser.add_argument("--worker-identity", required=True, help="worker identity bound by the authorization")
     auth_parser.add_argument("--approval-store", type=Path, required=True, help="private COPS ApprovalStore database")
-    auth_parser.add_argument("--output", type=Path, help="write report output to file")
     auth_parser.add_argument("--json", action="store_true", help="output structured JSON instead of a concise summary")
 
     return parser
@@ -257,7 +259,7 @@ def main(argv: list[str] | None = None) -> int:
                 approval_store=approval_store,
             )
             results = report["results"]
-            passed = report["all_expectations_met"]
+            passed = report["security_pass"]
             if args.json:
                 out_str = json.dumps(report, indent=2) + "\n"
             else:
@@ -276,7 +278,7 @@ def main(argv: list[str] | None = None) -> int:
                         f"expectation_met={result['expectation_met']}"
                     )
                 out_str = "\n".join(lines) + "\n"
-            _emit(out_str, args.output)
+            _emit(out_str, None)
             return 0 if passed else 1
 
     except (HarnessError, LabError, OSError, ValueError, json.JSONDecodeError) as exc:

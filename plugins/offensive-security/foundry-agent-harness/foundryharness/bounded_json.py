@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
+import stat
+from pathlib import Path
 
 
 class JSONInputError(ValueError):
@@ -11,6 +14,31 @@ class JSONInputError(ValueError):
     def __init__(self, code: str):
         self.code = code
         super().__init__(code)
+
+
+def read_regular_file(path: Path, *, max_bytes: int) -> bytes:
+    """Read a bounded regular file from one descriptor, rejecting symlinks/FIFOs."""
+    if type(max_bytes) is not int or max_bytes <= 0:
+        raise JSONInputError("invalid_limit")
+    try:
+        before = path.lstat()
+        if not stat.S_ISREG(before.st_mode):
+            raise JSONInputError("file_unavailable")
+        descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0))
+        with os.fdopen(descriptor, "rb") as stream:
+            metadata = os.fstat(stream.fileno())
+            if (
+                not stat.S_ISREG(metadata.st_mode)
+                or (metadata.st_dev, metadata.st_ino) != (before.st_dev, before.st_ino)
+                or metadata.st_size > max_bytes
+            ):
+                raise JSONInputError("file_limit")
+            raw = stream.read(max_bytes + 1)
+        if len(raw) > max_bytes:
+            raise JSONInputError("file_limit")
+        return raw
+    except OSError:
+        raise JSONInputError("file_unavailable") from None
 
 
 def decode_json(raw: bytes, *, max_bytes: int = 65536, max_depth: int = 32):

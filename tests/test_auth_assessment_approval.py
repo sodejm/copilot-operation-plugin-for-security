@@ -137,7 +137,7 @@ def test_output_budget_counts_responses_and_new_bytes_across_ledgers(tmp_path: P
     assert budget.output_bytes == 7
     with pytest.raises(auth_approval._BatchBudgetStop, match="output_budget_exhausted"):
         budget.account_ledger(tmp_path / "second", b"5678")
-    assert budget.report()["observed_output_bytes"] == 11
+    assert budget.report()["observed_output_bytes"] == 7
     assert budget.report()["accounting_scope"] == "received_response_bytes_and_new_ledger_bytes"
 
 
@@ -212,26 +212,28 @@ def test_cli_runs_one_signed_batch_and_rejects_receipt_reuse(tmp_path: Path):
     store_path = tmp_path / "approval" / "authorization.sqlite3"
     ApprovalStore(store_path).store_authorization(authorization)
     trust_path = write_test_authorization_trust_store(tmp_path / "trust.json")
-    report_path = tmp_path / "report.json"
     arguments = cli + [
         "auth-lab", "--cases", str(cases_path), "--plan", str(plan_path),
         "--engagement", str(engagement_path), "--authorization", str(authorization_path),
         "--trust-store", str(trust_path), "--worker-identity", "fixture-worker",
-        "--approval-store", str(store_path), "--output", str(report_path), "--json",
+        "--approval-store", str(store_path), "--json",
     ]
     environment = {**os.environ, **authorization_secret_environment()}
     completed = subprocess.run(arguments, capture_output=True, text=True, env=environment, timeout=30)
     assert completed.returncode == 0, completed.stderr
-    report = json.loads(report_path.read_text())
+    report = json.loads(completed.stdout)
     assert report["all_expectations_met"] is True
+    assert report["security_pass"] is True
+    assert report["source_snapshot"] == {
+        "verified": True, "private_directory_removed": True, "reason": None,
+    }
     assert report["assessment_authorization"]["consumed_once_for_batch"] is True
     assert report["completed_case_count"] == 2
     outcomes = {result["case_id"]: result for result in report["results"]}
     assert len(outcomes["delegated-control"]["observed_effects"]) == 1
     assert outcomes["wrong-audience"]["observed_effects"] == []
-    first_report = report_path.read_bytes()
     rejected = subprocess.run(arguments, capture_output=True, text=True, env=environment, timeout=15)
     assert rejected.returncode == 2
     assert "consumed" in rejected.stderr
     assert "Traceback" not in rejected.stderr
-    assert report_path.read_bytes() == first_report
+    assert not (tmp_path / "report.json").exists()

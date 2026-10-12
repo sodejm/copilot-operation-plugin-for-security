@@ -3,20 +3,25 @@
   "environment": "local-synthetic-mcp-auth-fixture",
   "assessment_authorization": {
     "signed_receipt_verified": true,
-    "authorization_ref": "auth-3ada255d5ab34143",
+    "authorization_ref": "auth-bc9967822ad74646",
     "plan_id": "plan-auth-approval-test",
-    "plan_digest": "bf1adf4437e917cb93a11672958678b71f3e81d18650e10fdde74d39ba80766d",
+    "plan_digest": "0d3e4b034540ee3aec0e8a13bcd93b9f25ef9dd384319844d46c7bf537736656",
     "engagement_id": "eng-auth-approval-test",
     "worker_identity": "fixture-worker",
     "consumed_once_for_batch": true
   },
   "test_identity": "synthetic-fixture-runner",
+  "source_snapshot": {
+    "verified": true,
+    "private_directory_removed": true,
+    "reason": null
+  },
   "cancelled": false,
   "budget": {
     "max_duration_seconds": 120,
     "cleanup_reserve_seconds": 8,
-    "elapsed_seconds": 0.039,
-    "max_output_bytes": 1048576,
+    "elapsed_seconds": 0.042,
+    "max_observed_fixture_bytes": 1048576,
     "observed_output_bytes": 6065,
     "accounting_scope": "received_response_bytes_and_new_ledger_bytes",
     "stop_reason": null
@@ -26,17 +31,20 @@
   "planned_case_count": 1,
   "completed_case_count": 1,
   "all_expectations_met": true,
+  "security_pass": true,
   "results": [
     {
       "schema_version": "cops.agent-mcp-auth-result/v1",
       "case_id": "delegated-control",
-      "plan_digest": "bf1adf4437e917cb93a11672958678b71f3e81d18650e10fdde74d39ba80766d",
+      "plan_digest": "0d3e4b034540ee3aec0e8a13bcd93b9f25ef9dd384319844d46c7bf537736656",
       "test_identity": "synthetic-fixture-runner",
       "grant_alias": "delegated-write",
       "flow": "delegated",
       "outcome": "pass",
       "reason": "expectations_met",
       "environment_verified": true,
+      "evidence_complete": true,
+      "security_pass": true,
       "observations": [
         {
           "schema_version": "cops.agent-mcp-auth-observation/v1",
@@ -44,7 +52,7 @@
           "attempt_id": "delegated-control-1",
           "request_id": "request-delegated-control-1",
           "canary_id": "canary-delegated-control-1",
-          "plan_digest": "bf1adf4437e917cb93a11672958678b71f3e81d18650e10fdde74d39ba80766d",
+          "plan_digest": "0d3e4b034540ee3aec0e8a13bcd93b9f25ef9dd384319844d46c7bf537736656",
           "test_identity": "synthetic-fixture-runner",
           "tool": "canary/write",
           "peer": {
@@ -54,7 +62,7 @@
             "attempt_id": "delegated-control-1",
             "request_id": "request-delegated-control-1",
             "canary_id": "canary-delegated-control-1",
-            "plan_digest": "bf1adf4437e917cb93a11672958678b71f3e81d18650e10fdde74d39ba80766d",
+            "plan_digest": "0d3e4b034540ee3aec0e8a13bcd93b9f25ef9dd384319844d46c7bf537736656",
             "test_identity": "synthetic-fixture-runner",
             "forwarded_request": {
               "grant": "delegated-write",
@@ -74,11 +82,11 @@
               "attempt_id": "delegated-control-1",
               "request_id": "request-delegated-control-1",
               "canary_id": "canary-delegated-control-1",
-              "plan_digest": "bf1adf4437e917cb93a11672958678b71f3e81d18650e10fdde74d39ba80766d",
+              "plan_digest": "0d3e4b034540ee3aec0e8a13bcd93b9f25ef9dd384319844d46c7bf537736656",
               "test_identity": "synthetic-fixture-runner",
               "fault_mode": "none"
             },
-            "forwarded_request_digest": "30c1f9b893591ce262b3924fa3ba6d6cccb931b040a0b67e79c77ab3b8d37dd7",
+            "forwarded_request_digest": "e0a8609d0e33290a3a064f051cf2c7a08f8ad5d9574931b79a41eaee10eca373",
             "redacted": true
           },
           "target": {
@@ -86,7 +94,7 @@
             "canary_id": "canary-delegated-control-1",
             "decision": "allowed",
             "phase": "authorization",
-            "plan_digest": "bf1adf4437e917cb93a11672958678b71f3e81d18650e10fdde74d39ba80766d",
+            "plan_digest": "0d3e4b034540ee3aec0e8a13bcd93b9f25ef9dd384319844d46c7bf537736656",
             "reason": "allowed",
             "redacted": true,
             "request_id": "request-delegated-control-1",
@@ -107,7 +115,7 @@
           "attempt_id": "delegated-control-1",
           "request_id": "request-delegated-control-1",
           "canary_id": "canary-delegated-control-1",
-          "plan_digest": "bf1adf4437e917cb93a11672958678b71f3e81d18650e10fdde74d39ba80766d",
+          "plan_digest": "0d3e4b034540ee3aec0e8a13bcd93b9f25ef9dd384319844d46c7bf537736656",
           "test_identity": "synthetic-fixture-runner",
           "server_identity": "fixed-target-authorization-service",
           "kind": "canary_write",

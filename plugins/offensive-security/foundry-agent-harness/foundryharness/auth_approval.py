@@ -6,10 +6,13 @@ import hashlib
 import json
 import os
 import re
+import signal
 import stat
 import subprocess
 import tempfile
+import threading
 import time
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -37,6 +40,7 @@ from .auth_fixture_server import (
 )
 from .auth_laboratory import AUTHENTICATION_REASONS, DECISIONS, PHASES, REASONS, AuthCase
 from .laboratory import LabError, _JsonLineProcess, _McpClient
+from .bounded_json import JSONInputError, read_regular_file
 
 ADAPTER_ID = "local-synthetic-mcp-auth-fixture"
 SCENARIO_ID = "COPS-E16.01"
@@ -57,6 +61,7 @@ SOURCE_FILES = (
     "bounded_json.py",
     "laboratory.py",
 )
+MINIMUM_AUTHORIZATION_SECONDS = 9
 LEDGER_FIELDS = frozenset(
     {
         "schema_version",
@@ -143,9 +148,13 @@ class _BatchBudget:
         return max(0.001, min(1, self.deadline - time.monotonic()))
 
     def account_response(self, raw: bytes) -> None:
-        self.output_bytes += len(raw)
-        if self.output_bytes > self.output_limit:
+        if len(raw) > self.output_limit - self.output_bytes:
             self.stop("output_budget_exhausted")
+        self.output_bytes += len(raw)
+
+    def remaining_bytes(self) -> int:
+        self.admit()
+        return self.output_limit - self.output_bytes
 
     def account_ledger(self, ledger: Path, raw: bytes) -> None:
         previous = self.ledgers.get(ledger, b"")
@@ -159,7 +168,7 @@ class _BatchBudget:
             "max_duration_seconds": self.duration_limit,
             "cleanup_reserve_seconds": self.cleanup_reserve,
             "elapsed_seconds": round(time.monotonic() - self.started, 3),
-            "max_output_bytes": self.output_limit,
+            "max_observed_fixture_bytes": self.output_limit,
             "observed_output_bytes": self.output_bytes,
             "accounting_scope": "received_response_bytes_and_new_ledger_bytes",
             "stop_reason": self.stop_reason,
@@ -182,15 +191,58 @@ def _coerce_cases(cases: Iterable[AuthCase | dict[str, Any]]) -> tuple[AuthCase,
     return tuple(normalized)
 
 
-def _source_digests() -> dict[str, str]:
+def _capture_sources() -> dict[str, bytes]:
     root = Path(__file__).resolve().parent
-    values: dict[str, str] = {}
+    values: dict[str, bytes] = {}
     for name in SOURCE_FILES:
-        source = root / name
-        if source.is_symlink() or not source.is_file():
-            raise LabError(f"Authorization fixture source unavailable: {name}")
-        values[name] = hashlib.sha256(source.read_bytes()).hexdigest()
+        try:
+            values[name] = read_regular_file(root / name, max_bytes=1048576)
+        except JSONInputError:
+            raise LabError(f"Authorization fixture source unavailable: {name}") from None
     return values
+
+
+def _source_digests(sources: dict[str, bytes] | None = None) -> dict[str, str]:
+    return {name: hashlib.sha256(raw).hexdigest() for name, raw in (sources or _capture_sources()).items()}
+
+
+@contextmanager
+def _defer_sigint(interrupted: list[bool]):
+    """Keep process registration and cleanup atomic against ordinary SIGINT."""
+    if threading.current_thread() is not threading.main_thread():
+        yield
+        return
+    previous = signal.getsignal(signal.SIGINT)
+
+    def defer(_signum, _frame):
+        interrupted[0] = True
+
+    signal.signal(signal.SIGINT, defer)
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGINT, previous)
+
+
+@contextmanager
+def _private_directory(prefix: str, interrupted: list[bool]):
+    directory = None
+    try:
+        with _defer_sigint(interrupted):
+            directory = tempfile.TemporaryDirectory(prefix=prefix)
+        if interrupted[0]:
+            raise KeyboardInterrupt
+        yield Path(directory.name)
+    finally:
+        if directory is not None:
+            with _defer_sigint(interrupted):
+                # Staged source directories are read-only during execution.
+                os.chmod(directory.name, 0o700)
+                try:
+                    directory.cleanup()
+                except KeyboardInterrupt:
+                    interrupted[0] = True
+                    directory.cleanup()
 
 
 def _attempt_ids(case: AuthCase, index: int) -> dict[str, str]:
@@ -240,13 +292,13 @@ def _planned_cases(cases: tuple[AuthCase, ...]) -> list[dict[str, Any]]:
 
 
 
-def _manifest(cases: tuple[AuthCase, ...]) -> dict[str, Any]:
+def _manifest(cases: tuple[AuthCase, ...], sources: dict[str, bytes] | None = None) -> dict[str, Any]:
     return {
         "schema_version": "cops.agent-mcp-auth-manifest/v1",
         "test_identity": TEST_IDENTITY,
         "adapter": {
             "adapter_id": ADAPTER_ID,
-            "source_sha256": _source_digests(),
+            "source_sha256": _source_digests(sources),
             "protocol_version": PROTOCOL_VERSION,
             "server_info": SERVER_INFO,
             "transport": "stdio",
@@ -284,12 +336,13 @@ def build_auth_plan(
     plan_id: str,
     engagement_id: str,
     created_at: str,
+    _sources: dict[str, bytes] | None = None,
 ) -> ActionPlan:
     """Compile the exact fixed batch into the existing COPS signing lifecycle."""
     normalized = _coerce_cases(cases)
     if len(normalized) > 100:
         raise LabError("Authorization batch exceeds the fixed case limit")
-    manifest = _manifest(normalized)
+    manifest = _manifest(normalized, _sources)
     return ActionPlan.create(
         plan_id=plan_id,
         engagement_id=engagement_id,
@@ -313,7 +366,7 @@ def build_auth_plan(
                     "process exit observation",
                     "private directory removal observation",
                 ],
-                "side_effects": ["local synthetic canary ledger writes"],
+                "side_effects": ["private staged source and work directories", "local synthetic canary ledger writes"],
             }
         ],
         limits={
@@ -336,7 +389,13 @@ def _read_effects(ledger: Path, budget: _BatchBudget) -> list[dict[str, Any]]:
             metadata = os.fstat(stream.fileno())
             if not stat.S_ISREG(metadata.st_mode) or metadata.st_size > 65536:
                 raise LabError("Independent effect observer is unavailable or oversized")
-            raw = stream.read(65537)
+            previous = budget.ledgers.get(ledger, b"")
+            remaining = budget.remaining_bytes()
+            if metadata.st_size - len(previous) > remaining:
+                budget.stop("output_budget_exhausted")
+            raw = stream.read(min(65537, len(previous) + remaining))
+            if stream.read(1):
+                budget.stop("output_budget_exhausted")
         if len(raw) > 65536 or (raw and not raw.endswith(b"\n")):
             raise LabError("Independent effect observer is unavailable or oversized")
         budget.account_ledger(ledger, raw)
@@ -492,6 +551,8 @@ def _unsupported_result(case: AuthCase, plan_digest: str) -> dict[str, Any]:
         "outcome": "unsupported",
         "reason": "surface_not_supported_by_local_fixed_adapter",
         "environment_verified": False,
+        "evidence_complete": False,
+        "security_pass": False,
         "observations": [],
         "observed_effects": [],
         "cleanup": {
@@ -499,12 +560,12 @@ def _unsupported_result(case: AuthCase, plan_digest: str) -> dict[str, Any]:
             "private_directory_removed": None,
         },
         "redacted": True,
-        "expectation_met": case.expected_outcome == "unsupported",
+        "expectation_met": False,
         "revocation_window": None,
     }
 
 
-def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget) -> tuple[dict[str, Any], bool]:
+def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget, source_root: Path) -> tuple[dict[str, Any], bool]:
     if case.surface != "local_synthetic_fixture":
         return _unsupported_result(case, plan_digest), False
 
@@ -515,32 +576,36 @@ def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget) -> tu
     environment_verified = False
     process_exit_observed = False
     workdir_path: Path | None = None
+    interrupted = [False]
 
     try:
-        with tempfile.TemporaryDirectory(prefix="cops-auth-lab-") as workdir:
-            workdir_path = Path(workdir)
+        with _private_directory("cops-auth-lab-", interrupted) as workdir_path:
+            workdir = str(workdir_path)
             ledger = workdir_path / "effects.jsonl"
             ledger.touch(mode=0o600, exist_ok=False)
             server: _JsonLineProcess | None = None
             peer: _JsonLineProcess | None = None
             closed: list[bool] = []
+            spawned: list[_JsonLineProcess] = []
             try:
-                server = _JsonLineProcess(
-                    "auth_fixture_server.py",
-                    workdir,
-                    response_timeout_seconds=1,
-                    admission_check=budget.admit,
-                    response_timeout_provider=budget.response_timeout,
-                    account_response=budget.account_response,
-                )
-                peer = _JsonLineProcess(
-                    "auth_peer_fixture.py",
-                    workdir,
-                    response_timeout_seconds=1,
-                    admission_check=budget.admit,
-                    response_timeout_provider=budget.response_timeout,
-                    account_response=budget.account_response,
-                )
+                def start(script: str) -> _JsonLineProcess:
+                    with _defer_sigint(interrupted):
+                        process = _JsonLineProcess(
+                            script, workdir,
+                            response_timeout_seconds=1,
+                            admission_check=budget.admit,
+                            response_timeout_provider=budget.response_timeout,
+                            account_response=budget.account_response,
+                            response_bytes_remaining=budget.remaining_bytes,
+                            source_root=source_root,
+                            on_spawn=spawned.append,
+                        )
+                    if interrupted[0]:
+                        raise KeyboardInterrupt
+                    return process
+
+                server = start("auth_fixture_server.py")
+                peer = start("auth_peer_fixture.py")
                 mcp = _McpClient(
                     server,
                     expected_tools=frozenset(TOOLS),
@@ -641,15 +706,27 @@ def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget) -> tu
             except (OSError, ValueError, TypeError):
                 failure = "fixture_setup_or_observation_failure"
             finally:
-                for process in (peer, server):
-                    if process is not None:
+                with _defer_sigint(interrupted):
+                    for process in reversed(spawned):
                         try:
                             closed.append(process.close())
+                        except KeyboardInterrupt:
+                            interrupted[0] = True
+                            try:
+                                closed.append(process.close())
+                            except (OSError, ValueError, subprocess.SubprocessError, KeyboardInterrupt):
+                                closed.append(False)
                         except (OSError, ValueError, subprocess.SubprocessError):
                             closed.append(False)
-                process_exit_observed = len(closed) == 2 and all(closed)
+                process_exit_observed = bool(spawned) and len(closed) == len(spawned) and all(closed)
+    except KeyboardInterrupt:
+        interrupted[0] = True
     except (OSError, ValueError):
         failure = failure or "private_directory_setup_or_cleanup_failure"
+
+    if interrupted[0]:
+        cancelled = True
+        failure = "cancelled"
 
     private_directory_removed = workdir_path is not None and not workdir_path.exists()
     if not process_exit_observed:
@@ -710,6 +787,8 @@ def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget) -> tu
         "outcome": outcome,
         "reason": failure or ("missing_context" if missing_context else "expectations_met" if expectations_match else "expectation_mismatch"),
         "environment_verified": environment_verified,
+        "evidence_complete": evidence_complete,
+        "security_pass": outcome == "pass" and expectations_match,
         "observations": observations,
         "observed_effects": events,
         "cleanup": {
@@ -718,7 +797,7 @@ def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget) -> tu
         },
         "redacted": all(row.get("redacted") is True for row in observations)
         and all(event.get("redacted") is True for event in events),
-        "expectation_met": outcome == case.expected_outcome and (expectations_match or not evidence_complete),
+        "expectation_met": outcome == case.expected_outcome and expectations_match,
         "revocation_window": revocation_window,
     }
     return result, cancelled
@@ -739,11 +818,13 @@ def run_auth_cases(
     supplied_plan = ActionPlan.from_dict(plan) if isinstance(plan, dict) else plan
     if not isinstance(supplied_plan, ActionPlan):
         raise LabError("Authorization laboratory requires a COPS ActionPlan")
+    sources = _capture_sources()
     rebuilt = build_auth_plan(
         normalized,
         plan_id=supplied_plan.plan_id,
         engagement_id=supplied_plan.engagement_id,
         created_at=supplied_plan.created_at,
+        _sources=sources,
     )
     if supplied_plan.approved_snapshot(include_digest=True) != rebuilt.approved_snapshot(include_digest=True):
         raise LabError("Action plan does not exactly bind the current immutable authorization manifest")
@@ -768,29 +849,60 @@ def run_auth_cases(
         verified.authorization_id,
         expected_authorization=verified,
         worker_identity=worker_identity,
+        minimum_remaining_seconds=MINIMUM_AUTHORIZATION_SECONDS,
     )
     budget = _BatchBudget(supplied_plan, verified.authorized_until_utc)
 
     results: list[dict[str, Any]] = []
     cancelled = False
     interrupted_case: str | None = None
-    for case in normalized:
-        try:
-            budget.admit()
-        except _BatchBudgetStop:
-            break
-        result, case_cancelled = _run_auth_case(case, supplied_plan.plan_digest, budget)
-        results.append(result)
-        if case_cancelled:
-            cancelled = True
-            interrupted_case = case.case_id
-            break
-        if budget.stop_reason is not None:
-            interrupted_case = case.case_id
-            break
+    source_root: Path | None = None
+    snapshot_verified = False
+    snapshot_failure: str | None = None
+    interrupted = [False]
+    try:
+        with _private_directory("cops-auth-source-", interrupted) as source_root:
+            for name, raw in sources.items():
+                with (source_root / name).open("xb") as destination:
+                    destination.write(raw)
+                os.chmod(source_root / name, 0o400)
+            os.chmod(source_root, 0o500)
+            snapshot_verified = True
+            for case in normalized:
+                try:
+                    budget.admit()
+                except _BatchBudgetStop:
+                    break
+                result, case_cancelled = _run_auth_case(case, supplied_plan.plan_digest, budget, source_root)
+                results.append(result)
+                if case_cancelled:
+                    cancelled = True
+                    interrupted_case = case.case_id
+                    break
+                if budget.stop_reason is not None:
+                    interrupted_case = case.case_id
+                    break
+    except KeyboardInterrupt:
+        interrupted[0] = True
+    except (OSError, ValueError):
+        snapshot_failure = "source_snapshot_setup_or_cleanup_failure"
+    cancelled = cancelled or interrupted[0]
+    snapshot_removed = source_root is not None and not source_root.exists()
+    if not snapshot_removed:
+        snapshot_failure = snapshot_failure or "source_snapshot_removal_not_observed"
     pending = [case.case_id for case in normalized[len(results):]]
     if interrupted_case is not None:
         pending.insert(0, interrupted_case)
+    all_expectations_met = (
+        not cancelled and snapshot_verified and snapshot_removed and snapshot_failure is None
+        and budget.stop_reason is None and len(results) == len(normalized)
+        and all(result["expectation_met"] for result in results)
+    )
+    next_action = "approve_a_new_plan_for_pending_cases" if pending else None
+    if snapshot_failure is not None:
+        next_action = "inspect_source_snapshot_cleanup_before_new_approval"
+    elif cancelled and not pending:
+        next_action = "review_partial_run_evidence"
     return {
         "schema_version": "cops.agent-mcp-auth-run/v1",
         "environment": "local-synthetic-mcp-auth-fixture",
@@ -804,14 +916,19 @@ def run_auth_cases(
             "consumed_once_for_batch": True,
         },
         "test_identity": TEST_IDENTITY,
+        "source_snapshot": {
+            "verified": snapshot_verified,
+            "private_directory_removed": snapshot_removed,
+            "reason": snapshot_failure,
+        },
         "cancelled": cancelled,
         "budget": budget.report(),
         "pending_case_ids": pending,
-        "next_action": "approve_a_new_plan_for_pending_cases" if pending else None,
+        "next_action": next_action,
         "planned_case_count": len(normalized),
         "completed_case_count": len(results),
-        "all_expectations_met": not cancelled and budget.stop_reason is None and len(results) == len(normalized)
-        and all(result["expectation_met"] for result in results),
+        "all_expectations_met": all_expectations_met,
+        "security_pass": all_expectations_met and all(result["security_pass"] for result in results),
         "results": results,
         "redacted": all(result["redacted"] is True for result in results),
     }

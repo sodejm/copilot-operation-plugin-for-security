@@ -18,7 +18,7 @@ from typing import Any
 from cops.contracts.lifecycle import ContractError
 from cops.contracts.models import ActionPlan, ExecutionAuthorization
 from cops.contracts.validation import validate_contract
-from cops.evidence.canonical import canonical, timestamp, utc_now
+from cops.evidence.canonical import EvidenceError, canonical, decode_json, timestamp, utc_now
 
 
 class AuthorizationError(ValueError):
@@ -95,25 +95,29 @@ class AuthorizationTrustStore:
         flags = os.O_RDONLY
         if hasattr(os, "O_NOFOLLOW"):
             flags |= os.O_NOFOLLOW
+        if hasattr(os, "O_NONBLOCK"):
+            flags |= os.O_NONBLOCK
         try:
             fd = os.open(source, flags)
-        except OSError as err:
-            raise AuthorizationError(f"cannot open authorization trust store: {err}") from err
+        except OSError:
+            raise AuthorizationError("cannot open authorization trust store") from None
         try:
             file_stat = os.fstat(fd)
             if not stat.S_ISREG(file_stat.st_mode):
                 raise AuthorizationError("authorization trust store must be a regular file")
+            if file_stat.st_size > 1048576:
+                raise AuthorizationError("authorization trust store exceeds its byte limit")
             if hasattr(os, "geteuid") and file_stat.st_uid != os.geteuid():
                 raise AuthorizationError("authorization trust store must be owned by the current verifier account")
             if stat.S_IMODE(file_stat.st_mode) & 0o077:
                 raise AuthorizationError(
                     "authorization trust store permissions must not allow group or other access"
                 )
-            with os.fdopen(fd, encoding="utf-8") as handle:
+            with os.fdopen(fd, "rb") as handle:
                 fd = -1
-                doc = json.load(handle)
-        except (OSError, json.JSONDecodeError) as err:
-            raise AuthorizationError(f"invalid authorization trust store: {err}") from err
+                doc = decode_json(handle.read(1048577), max_bytes=1048576, max_depth=32)
+        except (OSError, EvidenceError):
+            raise AuthorizationError("invalid or oversized authorization trust store") from None
         finally:
             if fd >= 0:
                 os.close(fd)
@@ -128,15 +132,20 @@ class AuthorizationTrustStore:
         for item in doc.get("keys", []):
             if not isinstance(item, dict):
                 raise AuthorizationError("authorization trust-store key entries must be objects")
+            if any(not isinstance(item.get(field), str) or not item[field]
+                   for field in ("key_id", "operator_identity")):
+                raise AuthorizationError("trusted keys require string key and operator identities")
             if item.get("algorithm") != "hmac-sha256":
                 raise AuthorizationError(
                     f"trusted key {item.get('key_id')!r} uses an unsupported algorithm"
                 )
             status = item.get("status", "active")
+            if not isinstance(status, str) or status not in {"active", "revoked"}:
+                raise AuthorizationError("unsupported trusted key status")
             secret = b""
             if status == "active":
                 secret_env = item.get("secret_env")
-                if not secret_env or secret_env not in environment:
+                if not isinstance(secret_env, str) or not secret_env or secret_env not in environment:
                     raise AuthorizationError(
                         f"trusted key {item.get('key_id')!r} secret environment variable is unavailable"
                     )

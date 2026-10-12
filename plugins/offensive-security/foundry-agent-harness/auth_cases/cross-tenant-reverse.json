@@ -1,0 +1,32 @@
+{
+  "schema_version": "cops.agent-mcp-auth-case/v1",
+  "case_id": "cross-tenant-reverse",
+  "title": "Second-tenant authority cannot write in the first tenant",
+  "grant": "delegated-write-fabrikam",
+  "flow": "delegated",
+  "attempts": [
+    {
+      "principal": "principal-bob",
+      "agent": "agent-worker",
+      "downstream_service": "service-canary",
+      "audience": "mcp://auth-fixture",
+      "tenant": "tenant-contoso-01",
+      "resource": "res-canary",
+      "operation": "write",
+      "scopes": [
+        "canary:write"
+      ],
+      "depth": 1,
+      "tick": 1,
+      "tool": "canary/write"
+    }
+  ],
+  "expected_decisions": [
+    "denied"
+  ],
+  "expected_effect_count": 0,
+  "expected_reasons": [
+    "tenant_mismatch"
+  ],
+  "expected_outcome": "pass"
+}

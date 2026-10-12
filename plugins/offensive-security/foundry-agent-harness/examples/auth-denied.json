@@ -3,20 +3,25 @@
   "environment": "local-synthetic-mcp-auth-fixture",
   "assessment_authorization": {
     "signed_receipt_verified": true,
-    "authorization_ref": "auth-abc449b8ff9246d5",
+    "authorization_ref": "auth-1483554a8859453f",
     "plan_id": "plan-auth-approval-test",
-    "plan_digest": "af73456c4f5b488e35ab0c45fa25520aec1d4f4f0055c4090efbea07b9f69a4b",
+    "plan_digest": "c502a7b05481e819aca7dbfd452cccdab16f386565b6f8dcc55c1732a904c679",
     "engagement_id": "eng-auth-approval-test",
     "worker_identity": "fixture-worker",
     "consumed_once_for_batch": true
   },
   "test_identity": "synthetic-fixture-runner",
+  "source_snapshot": {
+    "verified": true,
+    "private_directory_removed": true,
+    "reason": null
+  },
   "cancelled": false,
   "budget": {
     "max_duration_seconds": 120,
     "cleanup_reserve_seconds": 8,
-    "elapsed_seconds": 0.039,
-    "max_output_bytes": 1048576,
+    "elapsed_seconds": 0.042,
+    "max_observed_fixture_bytes": 1048576,
     "observed_output_bytes": 5575,
     "accounting_scope": "received_response_bytes_and_new_ledger_bytes",
     "stop_reason": null
@@ -26,17 +31,20 @@
   "planned_case_count": 1,
   "completed_case_count": 1,
   "all_expectations_met": true,
+  "security_pass": true,
   "results": [
     {
       "schema_version": "cops.agent-mcp-auth-result/v1",
       "case_id": "wrong-audience",
-      "plan_digest": "af73456c4f5b488e35ab0c45fa25520aec1d4f4f0055c4090efbea07b9f69a4b",
+      "plan_digest": "c502a7b05481e819aca7dbfd452cccdab16f386565b6f8dcc55c1732a904c679",
       "test_identity": "synthetic-fixture-runner",
       "grant_alias": "delegated-write",
       "flow": "delegated",
       "outcome": "pass",
       "reason": "expectations_met",
       "environment_verified": true,
+      "evidence_complete": true,
+      "security_pass": true,
       "observations": [
         {
           "schema_version": "cops.agent-mcp-auth-observation/v1",
@@ -44,7 +52,7 @@
           "attempt_id": "wrong-audience-1",
           "request_id": "request-wrong-audience-1",
           "canary_id": "canary-wrong-audience-1",
-          "plan_digest": "af73456c4f5b488e35ab0c45fa25520aec1d4f4f0055c4090efbea07b9f69a4b",
+          "plan_digest": "c502a7b05481e819aca7dbfd452cccdab16f386565b6f8dcc55c1732a904c679",
           "test_identity": "synthetic-fixture-runner",
           "tool": "canary/write",
           "peer": {
@@ -54,7 +62,7 @@
             "attempt_id": "wrong-audience-1",
             "request_id": "request-wrong-audience-1",
             "canary_id": "canary-wrong-audience-1",
-            "plan_digest": "af73456c4f5b488e35ab0c45fa25520aec1d4f4f0055c4090efbea07b9f69a4b",
+            "plan_digest": "c502a7b05481e819aca7dbfd452cccdab16f386565b6f8dcc55c1732a904c679",
             "test_identity": "synthetic-fixture-runner",
             "forwarded_request": {
               "grant": "delegated-write",
@@ -74,11 +82,11 @@
               "attempt_id": "wrong-audience-1",
               "request_id": "request-wrong-audience-1",
               "canary_id": "canary-wrong-audience-1",
-              "plan_digest": "af73456c4f5b488e35ab0c45fa25520aec1d4f4f0055c4090efbea07b9f69a4b",
+              "plan_digest": "c502a7b05481e819aca7dbfd452cccdab16f386565b6f8dcc55c1732a904c679",
               "test_identity": "synthetic-fixture-runner",
               "fault_mode": "none"
             },
-            "forwarded_request_digest": "4cceddc20ae63db39969f5afdae18b874171018f8652995ab04477c65f8e9497",
+            "forwarded_request_digest": "3f35f00557bb103d9781bd78387848ea935dc110f761a518494d77079ecf4f79",
             "redacted": true
           },
           "target": {
@@ -86,7 +94,7 @@
             "canary_id": "canary-wrong-audience-1",
             "decision": "denied",
             "phase": "authorization",
-            "plan_digest": "af73456c4f5b488e35ab0c45fa25520aec1d4f4f0055c4090efbea07b9f69a4b",
+            "plan_digest": "c502a7b05481e819aca7dbfd452cccdab16f386565b6f8dcc55c1732a904c679",
             "reason": "audience_mismatch",
             "redacted": true,
             "request_id": "request-wrong-audience-1",

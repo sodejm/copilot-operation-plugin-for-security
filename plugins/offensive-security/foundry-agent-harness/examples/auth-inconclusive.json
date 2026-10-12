@@ -3,20 +3,25 @@
   "environment": "local-synthetic-mcp-auth-fixture",
   "assessment_authorization": {
     "signed_receipt_verified": true,
-    "authorization_ref": "auth-5ce43ddfbeca44ec",
+    "authorization_ref": "auth-88cc0cb36c864c9e",
     "plan_id": "plan-auth-approval-test",
-    "plan_digest": "42eb92728b9ba23d6d5a7a6900322f5cc0913dbd11c0737eb3712fc7e9f337f7",
+    "plan_digest": "1f4073483276d49425a26e0a5d13d2973bc4b8856e15bf4de31a7b41515f417b",
     "engagement_id": "eng-auth-approval-test",
     "worker_identity": "fixture-worker",
     "consumed_once_for_batch": true
   },
   "test_identity": "synthetic-fixture-runner",
+  "source_snapshot": {
+    "verified": true,
+    "private_directory_removed": true,
+    "reason": null
+  },
   "cancelled": false,
   "budget": {
     "max_duration_seconds": 120,
     "cleanup_reserve_seconds": 8,
-    "elapsed_seconds": 0.038,
-    "max_output_bytes": 1048576,
+    "elapsed_seconds": 0.041,
+    "max_observed_fixture_bytes": 1048576,
     "observed_output_bytes": 5571,
     "accounting_scope": "received_response_bytes_and_new_ledger_bytes",
     "stop_reason": null
@@ -26,17 +31,20 @@
   "planned_case_count": 1,
   "completed_case_count": 1,
   "all_expectations_met": true,
+  "security_pass": false,
   "results": [
     {
       "schema_version": "cops.agent-mcp-auth-result/v1",
       "case_id": "delegated-control",
-      "plan_digest": "42eb92728b9ba23d6d5a7a6900322f5cc0913dbd11c0737eb3712fc7e9f337f7",
+      "plan_digest": "1f4073483276d49425a26e0a5d13d2973bc4b8856e15bf4de31a7b41515f417b",
       "test_identity": "synthetic-fixture-runner",
       "grant_alias": "delegated-write",
       "flow": "delegated",
       "outcome": "inconclusive",
       "reason": "missing_context",
       "environment_verified": true,
+      "evidence_complete": true,
+      "security_pass": false,
       "observations": [
         {
           "schema_version": "cops.agent-mcp-auth-observation/v1",
@@ -44,7 +52,7 @@
           "attempt_id": "delegated-control-1",
           "request_id": "request-delegated-control-1",
           "canary_id": "canary-delegated-control-1",
-          "plan_digest": "42eb92728b9ba23d6d5a7a6900322f5cc0913dbd11c0737eb3712fc7e9f337f7",
+          "plan_digest": "1f4073483276d49425a26e0a5d13d2973bc4b8856e15bf4de31a7b41515f417b",
           "test_identity": "synthetic-fixture-runner",
           "tool": "canary/write",
           "peer": {
@@ -54,7 +62,7 @@
             "attempt_id": "delegated-control-1",
             "request_id": "request-delegated-control-1",
             "canary_id": "canary-delegated-control-1",
-            "plan_digest": "42eb92728b9ba23d6d5a7a6900322f5cc0913dbd11c0737eb3712fc7e9f337f7",
+            "plan_digest": "1f4073483276d49425a26e0a5d13d2973bc4b8856e15bf4de31a7b41515f417b",
             "test_identity": "synthetic-fixture-runner",
             "forwarded_request": {
               "grant": "delegated-write",
@@ -73,11 +81,11 @@
               "attempt_id": "delegated-control-1",
               "request_id": "request-delegated-control-1",
               "canary_id": "canary-delegated-control-1",
-              "plan_digest": "42eb92728b9ba23d6d5a7a6900322f5cc0913dbd11c0737eb3712fc7e9f337f7",
+              "plan_digest": "1f4073483276d49425a26e0a5d13d2973bc4b8856e15bf4de31a7b41515f417b",
               "test_identity": "synthetic-fixture-runner",
               "fault_mode": "none"
             },
-            "forwarded_request_digest": "f3f94ac9a257b7ed29475162385c4c22c0807468a748dc4b63c21b17abe46562",
+            "forwarded_request_digest": "2bfe36087dabedf4ee5d88e08f6eb0213c875f00ad83a6448837464cd712c8c6",
             "redacted": true
           },
           "target": {
@@ -85,7 +93,7 @@
             "canary_id": "canary-delegated-control-1",
             "decision": "inconclusive",
             "phase": "setup",
-            "plan_digest": "42eb92728b9ba23d6d5a7a6900322f5cc0913dbd11c0737eb3712fc7e9f337f7",
+            "plan_digest": "1f4073483276d49425a26e0a5d13d2973bc4b8856e15bf4de31a7b41515f417b",
             "reason": "missing_context",
             "redacted": true,
             "request_id": "request-delegated-control-1",

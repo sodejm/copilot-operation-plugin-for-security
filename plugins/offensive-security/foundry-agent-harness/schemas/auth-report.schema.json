@@ -9,12 +9,14 @@
     "assessment_authorization",
     "test_identity",
     "cancelled",
+    "source_snapshot",
     "budget",
     "pending_case_ids",
     "next_action",
     "planned_case_count",
     "completed_case_count",
     "all_expectations_met",
+    "security_pass",
     "results",
     "redacted"
   ],
@@ -76,6 +78,37 @@
     "cancelled": {
       "type": "boolean"
     },
+    "source_snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "verified",
+        "private_directory_removed",
+        "reason"
+      ],
+      "properties": {
+        "verified": {
+          "type": "boolean"
+        },
+        "private_directory_removed": {
+          "type": "boolean"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "source_snapshot_removal_not_observed",
+                "source_snapshot_setup_or_cleanup_failure"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
     "budget": {
       "type": "object",
       "additionalProperties": false,
@@ -83,7 +116,7 @@
         "max_duration_seconds",
         "cleanup_reserve_seconds",
         "elapsed_seconds",
-        "max_output_bytes",
+        "max_observed_fixture_bytes",
         "observed_output_bytes",
         "accounting_scope",
         "stop_reason"
@@ -99,7 +132,7 @@
           "type": "number",
           "minimum": 0
         },
-        "max_output_bytes": {
+        "max_observed_fixture_bytes": {
           "const": 1048576
         },
         "observed_output_bytes": {
@@ -139,7 +172,12 @@
     "next_action": {
       "anyOf": [
         {
-          "const": "approve_a_new_plan_for_pending_cases"
+          "type": "string",
+          "enum": [
+            "approve_a_new_plan_for_pending_cases",
+            "inspect_source_snapshot_cleanup_before_new_approval",
+            "review_partial_run_evidence"
+          ]
         },
         {
           "type": "null"
@@ -157,6 +195,9 @@
       "maximum": 100
     },
     "all_expectations_met": {
+      "type": "boolean"
+    },
+    "security_pass": {
       "type": "boolean"
     },
     "results": {
@@ -682,6 +723,8 @@
         "cleanup",
         "redacted",
         "expectation_met",
+        "evidence_complete",
+        "security_pass",
         "revocation_window"
       ],
       "properties": {
@@ -804,6 +847,12 @@
           "const": true
         },
         "expectation_met": {
+          "type": "boolean"
+        },
+        "evidence_complete": {
+          "type": "boolean"
+        },
+        "security_pass": {
           "type": "boolean"
         },
         "revocation_window": {

@@ -15,7 +15,7 @@ REPO_ROOT = PLUGIN_ROOT.parents[2]
 if str(PLUGIN_ROOT) not in sys.path:
     sys.path.insert(0, str(PLUGIN_ROOT))
 
-from foundryharness.auth_laboratory import load_auth_cases
+from foundryharness.auth_laboratory import load_auth_cases, validate_default_auth_coverage
 from foundryharness.cli import load_scenarios
 from foundryharness.gate import (
     IndependentAuthorizationGate,
@@ -186,15 +186,9 @@ def validate() -> int:
     # Signed runtime and independent-effect checks belong to the repository tests.
     try:
         auth_cases = load_auth_cases(PLUGIN_ROOT / "auth_cases")
-        if len(auth_cases) < 12:
-            raise LabError("Expected at least 12 authorization boundary cases")
+        validate_default_auth_coverage(auth_cases)
     except LabError as exc:
         print(f"FAIL: Authorization laboratory: {exc}", file=sys.stderr)
-        return 1
-    if not {"delegated-control", "autonomous-control"}.issubset(
-        {case.case_id for case in auth_cases}
-    ):
-        print("FAIL: Authorization laboratory positive controls are missing", file=sys.stderr)
         return 1
     print(f"  OK: Validated {len(auth_cases)} authorization case definitions; execution requires approval.")
 

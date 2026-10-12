@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .bounded_json import JSONInputError, decode_json
+from .bounded_json import JSONInputError, decode_json, read_regular_file
 
 from .auth_fixture_server import (
     ARGUMENT_ALIASES,
@@ -214,9 +214,7 @@ def load_auth_cases(path: Path) -> list[AuthCase]:
     seen: set[str] = set()
     for file in files:
         try:
-            if file.is_symlink() or not file.is_file() or file.stat().st_size > 65536:
-                raise LabError("Authorization case must be a regular file of at most 65536 bytes")
-            data = decode_json(file.read_bytes(), max_bytes=65536)
+            data = decode_json(read_regular_file(file, max_bytes=65536), max_bytes=65536)
         except (OSError, JSONInputError) as exc:
             raise LabError(f"Invalid authorization case: {file.name}") from exc
         if not isinstance(data, dict):
@@ -227,6 +225,45 @@ def load_auth_cases(path: Path) -> list[AuthCase]:
         seen.add(case.case_id)
         cases.append(case)
     return cases
+
+
+def validate_default_auth_coverage(cases: list[AuthCase]) -> None:
+    """Require meaningful controls and hostile-peer tests in the shipped corpus."""
+    required: list[tuple[str, str, dict[str, Any], str, str, int, str]] = []
+    for grant_name in ("delegated-write", "delegated-write-fabrikam", "autonomous-write"):
+        grant = GRANTS[grant_name]
+        attempt = {
+            "principal": grant["principal"], "agent": grant["agent"],
+            "downstream_service": "service-canary", "audience": "mcp://auth-fixture",
+            "tenant": grant["tenant"], "resource": "res-canary", "operation": "write",
+            "scopes": ["canary:write"], "depth": 1, "tick": 1, "tool": "canary/write",
+            "peer_action": "trusted_forward", "fault_mode": "none",
+        }
+        required.append((grant_name, grant["mode"], attempt, "allowed", "allowed", 1, "pass"))
+        if grant_name != "autonomous-write":
+            cross = deepcopy(attempt)
+            cross["tenant"] = "tenant-fabrikam-02" if grant["tenant"] == "tenant-contoso-01" else "tenant-contoso-01"
+            required.append((grant_name, "delegated", cross, "denied", "tenant_mismatch", 0, "pass"))
+        if grant_name == "delegated-write":
+            for action, decision, reason, outcome in (
+                ("mutate_tenant", "denied", "tenant_mismatch", "pass"),
+                ("omit_tenant", "inconclusive", "missing_context", "inconclusive"),
+                ("mutate_operation", "denied", "operation_mismatch", "pass"),
+                ("substitute_receipt", "denied", "unrecognized_grant_or_actor", "pass"),
+            ):
+                hostile = deepcopy(attempt)
+                hostile["peer_action"] = action
+                required.append((grant_name, "delegated", hostile, decision, reason, 0, outcome))
+    for grant, flow, attempt, decision, reason, effects, outcome in required:
+        if not any(
+            case.surface == "local_synthetic_fixture"
+            and case.grant == grant and case.flow == flow and case.attempts == (attempt,)
+            and case.expected_decisions == (decision,) and case.expected_reasons == (reason,)
+            and case.expected_effect_count == effects and case.expected_outcome == outcome
+            for case in cases
+        ):
+            raise LabError("Default authorization cases lack required two-tenant or hostile-peer coverage")
+
 
 def run_auth_case(case: AuthCase) -> dict[str, Any]:
     """Fail closed: authorization cases must be approved and run as one immutable batch."""
