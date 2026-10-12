@@ -1,0 +1,599 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Correlated peer and target authorization evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "attempt_id",
+    "request_id",
+    "canary_id",
+    "plan_digest",
+    "test_identity",
+    "case_id",
+    "tool",
+    "peer",
+    "target",
+    "observed_effect_count",
+    "expected_decision",
+    "expected_reason",
+    "redacted"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "cops.agent-mcp-auth-observation/v1"
+    },
+    "attempt_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "maxLength": 256
+    },
+    "request_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "maxLength": 256
+    },
+    "canary_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "maxLength": 256
+    },
+    "plan_digest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "test_identity": {
+      "const": "synthetic-fixture-runner"
+    },
+    "case_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "maxLength": 64
+    },
+    "tool": {
+      "type": "string",
+      "enum": [
+        "canary/read",
+        "canary/write"
+      ]
+    },
+    "peer": {
+      "$ref": "#/$defs/peer"
+    },
+    "target": {
+      "$ref": "#/$defs/decision"
+    },
+    "observed_effect_count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 6
+    },
+    "expected_decision": {
+      "type": "string",
+      "enum": [
+        "allowed",
+        "denied",
+        "inconclusive"
+      ]
+    },
+    "expected_reason": {
+      "type": "string",
+      "enum": [
+        "allowed",
+        "audience_mismatch",
+        "delegation_depth_exceeded",
+        "downstream_service_mismatch",
+        "expired_grant",
+        "flow_mismatch",
+        "missing_context",
+        "one_time_replay",
+        "operation_mismatch",
+        "principal_or_agent_binding",
+        "resource_mismatch",
+        "revoked_grant",
+        "scope_mismatch",
+        "tenant_mismatch",
+        "tool_not_permitted",
+        "unrecognized_grant_or_actor"
+      ]
+    },
+    "redacted": {
+      "const": true
+    }
+  },
+  "$defs": {
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "attempt_id",
+        "request_id",
+        "canary_id",
+        "plan_digest",
+        "test_identity",
+        "target_grant_alias",
+        "decision",
+        "phase",
+        "reason",
+        "redacted"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "cops.agent-mcp-auth-decision/v1"
+        },
+        "attempt_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "maxLength": 256
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "maxLength": 256
+        },
+        "canary_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "maxLength": 256
+        },
+        "plan_digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "test_identity": {
+          "const": "synthetic-fixture-runner"
+        },
+        "server_identity": {
+          "const": "fixed-target-authorization-service"
+        },
+        "target_grant_alias": {
+          "type": "string",
+          "enum": [
+            "autonomous-write",
+            "delegated-write",
+            "delegated-write-fabrikam",
+            "expired-write",
+            "one-time-write",
+            "read-only",
+            "read-only-fabrikam",
+            "receipt-approved-synthetic",
+            "reusable-write",
+            "revoked-write"
+          ]
+        },
+        "decision": {
+          "type": "string",
+          "enum": [
+            "allowed",
+            "denied",
+            "inconclusive"
+          ]
+        },
+        "phase": {
+          "type": "string",
+          "enum": [
+            "authentication",
+            "authorization",
+            "setup"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "allowed",
+            "audience_mismatch",
+            "delegation_depth_exceeded",
+            "downstream_service_mismatch",
+            "expired_grant",
+            "flow_mismatch",
+            "missing_context",
+            "one_time_replay",
+            "operation_mismatch",
+            "principal_or_agent_binding",
+            "resource_mismatch",
+            "revoked_grant",
+            "scope_mismatch",
+            "tenant_mismatch",
+            "tool_not_permitted",
+            "unrecognized_grant_or_actor"
+          ]
+        },
+        "redacted": {
+          "const": true
+        }
+      }
+    },
+    "ledger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "attempt_id",
+        "request_id",
+        "canary_id",
+        "plan_digest",
+        "test_identity",
+        "server_identity",
+        "kind",
+        "tenant",
+        "resource",
+        "operation",
+        "redacted"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "cops.agent-mcp-auth-ledger-event/v1"
+        },
+        "attempt_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "maxLength": 256
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "maxLength": 256
+        },
+        "canary_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "maxLength": 256
+        },
+        "plan_digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "test_identity": {
+          "const": "synthetic-fixture-runner"
+        },
+        "server_identity": {
+          "const": "fixed-target-authorization-service"
+        },
+        "kind": {
+          "const": "canary_write"
+        },
+        "tenant": {
+          "type": "string",
+          "enum": [
+            "tenant-contoso-01",
+            "tenant-fabrikam-02"
+          ]
+        },
+        "resource": {
+          "type": "string",
+          "enum": [
+            "res-canary",
+            "res-other"
+          ]
+        },
+        "operation": {
+          "const": "write"
+        },
+        "redacted": {
+          "const": true
+        }
+      }
+    },
+    "peer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "attempt_id",
+        "request_id",
+        "canary_id",
+        "plan_digest",
+        "test_identity",
+        "peer_action",
+        "peer_identity",
+        "forwarded_request",
+        "forwarded_request_digest",
+        "redacted"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "cops.agent-mcp-auth-peer-observation/v1"
+        },
+        "attempt_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "maxLength": 256
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "maxLength": 256
+        },
+        "canary_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "maxLength": 256
+        },
+        "plan_digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "test_identity": {
+          "const": "synthetic-fixture-runner"
+        },
+        "peer_action": {
+          "type": "string",
+          "enum": [
+            "mutate_operation",
+            "mutate_tenant",
+            "omit_tenant",
+            "substitute_receipt",
+            "trusted_forward"
+          ]
+        },
+        "peer_identity": {
+          "type": "string",
+          "enum": [
+            "hostile-forwarding-peer",
+            "trusted-forwarding-peer"
+          ]
+        },
+        "forwarded_request": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "agent",
+            "attempt_id",
+            "audience",
+            "canary_id",
+            "depth",
+            "downstream_service",
+            "fault_mode",
+            "flow",
+            "grant",
+            "operation",
+            "plan_digest",
+            "principal",
+            "request_id",
+            "resource",
+            "scopes",
+            "test_identity",
+            "tick"
+          ],
+          "properties": {
+            "grant": {
+              "type": "string",
+              "enum": [
+                "delegated-write",
+                "delegated-write-fabrikam",
+                "autonomous-write",
+                "one-time-write",
+                "reusable-write",
+                "expired-write",
+                "revoked-write",
+                "read-only",
+                "read-only-fabrikam",
+                "receipt-approved-synthetic"
+              ]
+            },
+            "flow": {
+              "type": "string",
+              "enum": [
+                "delegated",
+                "autonomous"
+              ]
+            },
+            "principal": {
+              "type": "string",
+              "enum": [
+                "principal-alice",
+                "principal-bob",
+                "service-scheduler"
+              ]
+            },
+            "agent": {
+              "type": "string",
+              "enum": [
+                "agent-shadow",
+                "agent-worker"
+              ]
+            },
+            "downstream_service": {
+              "type": "string",
+              "enum": [
+                "service-canary",
+                "service-shadow"
+              ]
+            },
+            "audience": {
+              "type": "string",
+              "enum": [
+                "mcp://auth-fixture",
+                "mcp://shadow"
+              ]
+            },
+            "tenant": {
+              "type": "string",
+              "enum": [
+                "tenant-contoso-01",
+                "tenant-fabrikam-02"
+              ]
+            },
+            "resource": {
+              "type": "string",
+              "enum": [
+                "res-canary",
+                "res-other"
+              ]
+            },
+            "operation": {
+              "type": "string",
+              "enum": [
+                "read",
+                "write"
+              ]
+            },
+            "scopes": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "enum": [
+                  "canary:admin",
+                  "canary:read",
+                  "canary:write"
+                ]
+              }
+            },
+            "depth": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 3
+            },
+            "tick": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10
+            },
+            "attempt_id": {
+              "type": "string",
+              "pattern": "[a-z0-9]+(?:-[a-z0-9]+)*"
+            },
+            "request_id": {
+              "type": "string",
+              "pattern": "[a-z0-9]+(?:-[a-z0-9]+)*"
+            },
+            "canary_id": {
+              "type": "string",
+              "pattern": "[a-z0-9]+(?:-[a-z0-9]+)*"
+            },
+            "plan_digest": {
+              "type": "string",
+              "pattern": "[0-9a-f]{64}"
+            },
+            "test_identity": {
+              "type": "string",
+              "const": "synthetic-fixture-runner"
+            },
+            "fault_mode": {
+              "type": "string",
+              "enum": [
+                "none",
+                "hung_server",
+                "missing_identity_telemetry",
+                "observer_failure"
+              ]
+            }
+          }
+        },
+        "forwarded_request_digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "redacted": {
+          "const": true
+        }
+      }
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "attempt_id",
+        "request_id",
+        "canary_id",
+        "plan_digest",
+        "test_identity",
+        "case_id",
+        "tool",
+        "peer",
+        "target",
+        "observed_effect_count",
+        "expected_decision",
+        "expected_reason",
+        "redacted"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "cops.agent-mcp-auth-observation/v1"
+        },
+        "attempt_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "maxLength": 256
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "maxLength": 256
+        },
+        "canary_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "maxLength": 256
+        },
+        "plan_digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "test_identity": {
+          "const": "synthetic-fixture-runner"
+        },
+        "case_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "maxLength": 64
+        },
+        "tool": {
+          "type": "string",
+          "enum": [
+            "canary/read",
+            "canary/write"
+          ]
+        },
+        "peer": {
+          "$ref": "#/$defs/peer"
+        },
+        "target": {
+          "$ref": "#/$defs/decision"
+        },
+        "observed_effect_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 6
+        },
+        "expected_decision": {
+          "type": "string",
+          "enum": [
+            "allowed",
+            "denied",
+            "inconclusive"
+          ]
+        },
+        "expected_reason": {
+          "type": "string",
+          "enum": [
+            "allowed",
+            "audience_mismatch",
+            "delegation_depth_exceeded",
+            "downstream_service_mismatch",
+            "expired_grant",
+            "flow_mismatch",
+            "missing_context",
+            "one_time_replay",
+            "operation_mismatch",
+            "principal_or_agent_binding",
+            "resource_mismatch",
+            "revoked_grant",
+            "scope_mismatch",
+            "tenant_mismatch",
+            "tool_not_permitted",
+            "unrecognized_grant_or_actor"
+          ]
+        },
+        "redacted": {
+          "const": true
+        }
+      }
+    }
+  }
+}

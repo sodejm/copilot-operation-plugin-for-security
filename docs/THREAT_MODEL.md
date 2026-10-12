@@ -294,6 +294,14 @@ validation before the affected release/capability expansion and schedule P2 with
 - Proposed mitigation and validation: Use approved read-only collection with independently recorded scope and collection times; review trust and relationship semantics with an AD specialist; restrict report access and retention. Keep negative tests and the repository gate at the exact revision before accepting the control.
 - Residual risk / status: Collector assertions, live directory state, and host configuration remain unverified. Candidate paths need analyst validation and exact-revision human security review.
 
+### T24: Delegated agent and MCP authorization overclaim
+
+- Attack path / prerequisite: A delegated or autonomous agent presents a grant for the wrong audience, tenant, operation, resource, tool, or delegation depth; a confused deputy accepts a COPS assessment receipt as target permission; or a tool response is mistaken for an independently observed effect.
+- Inherent impact: High; likelihood: Medium; priority: P1.
+- Existing evidence / limitation: The issue #236 batch verifies and atomically consumes signed COPS assessment authorization before launching fixed peer and MCP target processes. The immutable plan binds cases, source hashes, identities, protocol, exact tools, and aggregate limits. Strict JSON rejects duplicate fields. Peer requests, target authentication and authorization decisions, and an independently read canary-write ledger share plan, test, request, attempt, and canary bindings. Negative cases exercise hostile peer forwarding, mismatched bindings, expiry, revocation, one-time replay, and excessive depth. No live bearer, provider, OAuth flow, or remote effect is assessed.
+- Proposed mitigation and validation: Test competing receipt consumption, expired admission, aggregate byte and duration stops, cancellation, missing identity, observer failure, timeout, and independently verified cleanup of both processes and temporary storage. Preserve partial results and pending work. Require a separately approved and reviewed provider adapter with observed identity, permissions, effects, and revocation bounds before claiming a live boundary. Keep exact-revision checks and independent human security review.
+- Residual risk / status: Target authority comes from the synthetic grant, never the COPS receipt. A local logical-time revocation decision does not measure propagation; a reusable grant may legitimately be reused. Provider enforcement remains unverified, and missing telemetry is inconclusive. POSIX approval-store ownership checks do not establish Windows support. Declared no-egress and subprocess separation do not enforce OS network isolation. Interrupted batches need a new plan; durable headless recovery belongs to #283.
+
 ## STRIDE and privacy coverage
 
 | Category | Review obligation |

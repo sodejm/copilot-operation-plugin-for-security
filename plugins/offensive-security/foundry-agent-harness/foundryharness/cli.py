@@ -8,7 +8,11 @@ import sys
 from pathlib import Path
 
 if __package__ in (None, ""):
+    source_root = Path(__file__).resolve().parents[4]
+    if (source_root / "cops" / "__init__.py").is_file():
+        sys.path.insert(0, str(source_root))
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from foundryharness.auth_laboratory import load_auth_cases
     from foundryharness.gate import IndependentAuthorizationGate
     from foundryharness.laboratory import LabError, load_lab_cases, run_lab_case
     from foundryharness.mock_sandbox import MockSandbox
@@ -16,13 +20,13 @@ if __package__ in (None, ""):
     from foundryharness.reporting import render_json_report, render_markdown_report
     from foundryharness.simulator import evaluate_scenario
 else:
+    from .auth_laboratory import load_auth_cases
     from .gate import IndependentAuthorizationGate
     from .laboratory import LabError, load_lab_cases, run_lab_case
     from .mock_sandbox import MockSandbox
     from .models import HarnessError, Scenario
     from .reporting import render_json_report, render_markdown_report
     from .simulator import evaluate_scenario
-
 
 def load_scenarios(scenario_path: Path | None, scenarios_dir: Path | None) -> list[Scenario]:
     """Load scenarios from a single file or a directory."""
@@ -49,6 +53,24 @@ def load_scenarios(scenario_path: Path | None, scenarios_dir: Path | None) -> li
     if not scenarios:
         raise HarnessError("No valid scenarios found.")
     return scenarios
+
+
+def _load_json_object(path: Path, label: str) -> dict:
+    if path.is_symlink() or not path.is_file():
+        raise LabError(f"{label} must be a regular file")
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        raise LabError(f"{label} must contain a JSON object")
+    return value
+
+
+def _emit(value: str, output: Path | None) -> None:
+    if output is None:
+        print(value, end="")
+        return
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(value, encoding="utf-8")
+    print(f"Wrote report to {output}")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -81,6 +103,37 @@ def build_parser() -> argparse.ArgumentParser:
     lab_parser.add_argument("--output", type=Path, help="write report output to file")
     lab_parser.add_argument("--json", action="store_true", help="output structured JSON instead of a concise summary")
 
+    plan_parser = subparsers.add_parser(
+        "auth-plan",
+        help="compile an immutable authorization laboratory ActionPlan for COPS signing",
+    )
+    plan_parser.add_argument(
+        "--cases",
+        type=Path,
+        default=Path(__file__).resolve().parent.parent / "auth_cases",
+        help="authorization case JSON file or directory",
+    )
+    plan_parser.add_argument("--plan-id", required=True, help="COPS action-plan identifier")
+    plan_parser.add_argument("--engagement-id", required=True, help="COPS engagement identifier")
+    plan_parser.add_argument("--created-at", required=True, help="ActionPlan creation timestamp")
+    plan_parser.add_argument("--output", type=Path, help="write ActionPlan JSON to file")
+
+    auth_parser = subparsers.add_parser("auth-lab", help="run local synthetic MCP authorization cases")
+    auth_parser.add_argument(
+        "--cases",
+        type=Path,
+        default=Path(__file__).resolve().parent.parent / "auth_cases",
+        help="authorization case JSON file or directory",
+    )
+    auth_parser.add_argument("--plan", type=Path, required=True, help="signed lifecycle ActionPlan JSON")
+    auth_parser.add_argument("--engagement", type=Path, required=True, help="COPS engagement JSON")
+    auth_parser.add_argument("--authorization", type=Path, required=True, help="signed execution authorization JSON")
+    auth_parser.add_argument("--trust-store", type=Path, required=True, help="private verifier trust-store JSON")
+    auth_parser.add_argument("--worker-identity", required=True, help="worker identity bound by the authorization")
+    auth_parser.add_argument("--approval-store", type=Path, required=True, help="private COPS ApprovalStore database")
+    auth_parser.add_argument("--output", type=Path, help="write report output to file")
+    auth_parser.add_argument("--json", action="store_true", help="output structured JSON instead of a concise summary")
+
     return parser
 
 
@@ -89,6 +142,16 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
+        if args.command in ("auth-plan", "auth-lab"):
+            try:
+                from cops.contracts.models import ActionPlan
+                from cops.execution.authorization import AuthorizationTrustStore
+                from cops.execution.store import ApprovalStore
+                from foundryharness.auth_approval import build_auth_plan, run_auth_cases
+            except ModuleNotFoundError as exc:
+                if exc.name == "cops":
+                    raise LabError("auth-plan and auth-lab require the COPS source runtime") from None
+                raise
         if args.command in ("evaluate", "run"):
             scenarios = load_scenarios(args.scenario, args.scenarios_dir)
             sandbox = MockSandbox()
@@ -167,7 +230,56 @@ def main(argv: list[str] | None = None) -> int:
                 print(out_str, end="")
             return 0 if passed else 1
 
-    except (HarnessError, LabError, OSError, json.JSONDecodeError) as exc:
+        elif args.command == "auth-plan":
+            plan = build_auth_plan(
+                load_auth_cases(args.cases),
+                plan_id=args.plan_id,
+                engagement_id=args.engagement_id,
+                created_at=args.created_at,
+            )
+            _emit(json.dumps(plan.to_dict(), indent=2) + "\n", args.output)
+            return 0
+
+        elif args.command == "auth-lab":
+            cases = load_auth_cases(args.cases)
+            plan = ActionPlan.from_dict(_load_json_object(args.plan, "ActionPlan"))
+            engagement = _load_json_object(args.engagement, "engagement")
+            authorization = _load_json_object(args.authorization, "execution authorization")
+            trust_store = AuthorizationTrustStore.from_file(args.trust_store)
+            approval_store = ApprovalStore(args.approval_store, require_secure_perms=True)
+            report = run_auth_cases(
+                cases,
+                plan=plan,
+                authorization=authorization,
+                engagement=engagement,
+                trust_store=trust_store,
+                worker_identity=args.worker_identity,
+                approval_store=approval_store,
+            )
+            results = report["results"]
+            passed = report["all_expectations_met"]
+            if args.json:
+                out_str = json.dumps(report, indent=2) + "\n"
+            else:
+                lines = [
+                    "Local synthetic MCP authorization laboratory",
+                    f"Cases: {len(results)}/{report['planned_case_count']}; "
+                    f"expectations met: {sum(result['expectation_met'] for result in results)}; "
+                    f"cancelled: {report['cancelled']}",
+                ]
+                for result in results:
+                    lines.append(
+                        f"{result['case_id']}: outcome={result['outcome']} "
+                        f"effects={len(result['observed_effects'])} "
+                        f"process_exit={result['cleanup']['process_exit_observed']} "
+                        f"directory_removed={result['cleanup']['private_directory_removed']} "
+                        f"expectation_met={result['expectation_met']}"
+                    )
+                out_str = "\n".join(lines) + "\n"
+            _emit(out_str, args.output)
+            return 0 if passed else 1
+
+    except (HarnessError, LabError, OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"foundryharness error: {exc}", file=sys.stderr)
         return 2
 

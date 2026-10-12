@@ -1,0 +1,236 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Fixed synthetic MCP authorization case",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "case_id",
+    "title",
+    "grant",
+    "flow",
+    "attempts",
+    "expected_decisions",
+    "expected_reasons",
+    "expected_effect_count"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "cops.agent-mcp-auth-case/v1"
+    },
+    "case_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "maxLength": 64
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "\\S"
+    },
+    "grant": {
+      "type": "string",
+      "enum": [
+        "autonomous-write",
+        "delegated-write",
+        "delegated-write-fabrikam",
+        "expired-write",
+        "one-time-write",
+        "read-only",
+        "read-only-fabrikam",
+        "reusable-write",
+        "revoked-write"
+      ]
+    },
+    "flow": {
+      "type": "string",
+      "enum": [
+        "autonomous",
+        "delegated"
+      ]
+    },
+    "attempts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "principal",
+          "agent",
+          "downstream_service",
+          "audience",
+          "resource",
+          "operation",
+          "scopes",
+          "depth",
+          "tick",
+          "tool"
+        ],
+        "properties": {
+          "principal": {
+            "type": "string",
+            "enum": [
+              "principal-alice",
+              "principal-bob",
+              "service-scheduler"
+            ]
+          },
+          "agent": {
+            "type": "string",
+            "enum": [
+              "agent-shadow",
+              "agent-worker"
+            ]
+          },
+          "downstream_service": {
+            "type": "string",
+            "enum": [
+              "service-canary",
+              "service-shadow"
+            ]
+          },
+          "audience": {
+            "type": "string",
+            "enum": [
+              "mcp://auth-fixture",
+              "mcp://shadow"
+            ]
+          },
+          "tenant": {
+            "type": "string",
+            "enum": [
+              "tenant-contoso-01",
+              "tenant-fabrikam-02"
+            ]
+          },
+          "resource": {
+            "type": "string",
+            "enum": [
+              "res-canary",
+              "res-other"
+            ]
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "read",
+              "write"
+            ]
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "canary:admin",
+                "canary:read",
+                "canary:write"
+              ]
+            },
+            "maxItems": 1,
+            "minItems": 1
+          },
+          "depth": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3
+          },
+          "tick": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10
+          },
+          "tool": {
+            "type": "string",
+            "enum": [
+              "canary/read",
+              "canary/write"
+            ]
+          },
+          "peer_action": {
+            "type": "string",
+            "enum": [
+              "mutate_operation",
+              "mutate_tenant",
+              "omit_tenant",
+              "substitute_receipt",
+              "trusted_forward"
+            ]
+          },
+          "fault_mode": {
+            "type": "string",
+            "enum": [
+              "hung_server",
+              "missing_identity_telemetry",
+              "none",
+              "observer_failure"
+            ]
+          }
+        }
+      },
+      "maxItems": 6,
+      "minItems": 1
+    },
+    "expected_decisions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "allowed",
+          "denied",
+          "inconclusive"
+        ]
+      },
+      "maxItems": 6,
+      "minItems": 1
+    },
+    "expected_reasons": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "allowed",
+          "audience_mismatch",
+          "delegation_depth_exceeded",
+          "downstream_service_mismatch",
+          "expired_grant",
+          "flow_mismatch",
+          "missing_context",
+          "one_time_replay",
+          "operation_mismatch",
+          "principal_or_agent_binding",
+          "resource_mismatch",
+          "revoked_grant",
+          "scope_mismatch",
+          "tenant_mismatch",
+          "tool_not_permitted",
+          "unrecognized_grant_or_actor"
+        ]
+      },
+      "maxItems": 6,
+      "minItems": 1
+    },
+    "expected_effect_count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 6
+    },
+    "surface": {
+      "type": "string",
+      "enum": [
+        "local_synthetic_fixture",
+        "unsupported_provider_surface"
+      ]
+    },
+    "expected_outcome": {
+      "type": "string",
+      "enum": [
+        "fail",
+        "inconclusive",
+        "pass",
+        "unsupported"
+      ]
+    }
+  }
+}

@@ -29,3 +29,21 @@ Feature: Isolated local agent and MCP laboratory
     Given a case with a custom agent command, foreign tenant, or external destination
     When the case is loaded or its proposal is authorized
     Then the unsupported input is rejected before an MCP effect
+
+  Scenario: One signed assessment runs a two-tenant authorization batch
+    Given a signed batch of the bundled MCP authorization cases
+    When the authorization assessment runs without additional approval
+    Then the batch consumes one receipt and records target decisions separately from effects
+    And the target blocks cross-tenant, revoked, and replayed grants
+    And both fixed processes and private evidence are cleaned up
+
+  Scenario: Missing assessment approval prevents fixture startup
+    Given an MCP authorization batch without its signed receipt
+    When the authorization assessment is requested
+    Then it rejects the request before starting either fixture
+
+  Scenario: A hostile peer omits the tenant context
+    Given a signed case whose peer drops the tenant context
+    When the authorization assessment runs without additional approval
+    Then missing context is inconclusive with independently observed zero effects
+    And both fixed processes and private evidence are cleaned up

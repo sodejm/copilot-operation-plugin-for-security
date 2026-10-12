@@ -42,6 +42,7 @@ PORTABLE_ENTRIES = {
     "foundryharness",
     "scenarios",
     "lab_cases",
+    "auth_cases",
     "detectionquality",
     "rules",
     "proofpack",

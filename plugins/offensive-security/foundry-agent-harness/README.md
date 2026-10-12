@@ -2,12 +2,42 @@
 
 The Foundry Agent Harness provides offline, synthetic exercises for agent tool authorization. It does not connect to Microsoft Foundry, Semantic Kernel, a model, or a live MCP server. Its results describe the bundled fixtures and gates; they do not measure a deployed agent's prompt injection resistance.
 
-The package has two workflows:
+The package has three workflows:
 
 | Workflow | Command | Evidence |
 | :--- | :--- | :--- |
 | Scenario simulator | `evaluate` | A deterministic scenario decision, authorization decision, and in-memory mock ledger. This legacy workflow does not execute an agent process or model. |
 | Local agent and MCP laboratory | `lab` | A deterministic agent fixture proposes calls to a separate, fixed MCP stdio fixture. The runner records proposals, gate denials, calls actually forwarded, observed state effects, and reset verification. |
+| Delegation authorization laboratory | `auth-plan`, `auth-lab` | One signed batch approval binds a fixed peer and MCP target fixture. The runner correlates forwarded requests, target decisions, and an independently read canary effect ledger. |
+
+## Run the delegation authorization laboratory
+
+These commands require the COPS source checkout and its Python dependencies. The portable plugin's scenario simulator, local laboratory, and package validator continue to run with the standard library alone.
+
+```bash
+python3 plugins/offensive-security/foundry-agent-harness/foundryharness/cli.py auth-plan \
+  --plan-id plan-mcp-auth --engagement-id eng-mcp-auth \
+  --created-at 2026-10-12T00:00:00Z \
+  --output /tmp/cops-agent-mcp-auth-plan.json
+```
+
+Review the generated plan and issue its signed authorization through the existing [COPS authorization workflow](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/docs/AUTHENTICATED_EXECUTION.md). Store the receipt in the private approval database and bind it to the engagement and worker identity. Then run the approved batch headlessly:
+
+```bash
+python3 plugins/offensive-security/foundry-agent-harness/foundryharness/cli.py auth-lab \
+  --plan /tmp/cops-agent-mcp-auth-plan.json \
+  --authorization /tmp/cops-agent-mcp-auth-authorization.json \
+  --engagement /tmp/cops-agent-mcp-auth-engagement.json \
+  --trust-store /tmp/cops-agent-mcp-auth-trust.json \
+  --worker-identity fixture-worker --approval-store /tmp/cops-agent-mcp-auth-approvals.sqlite3 \
+  --json --output /tmp/cops-agent-mcp-auth-report.json
+```
+
+Use `--cases` for one case or a directory. Inputs follow `schemas/auth-case.schema.json`; reports follow `schemas/auth-report.schema.json`. The separate `schemas/auth-adapter.schema.json` and `schemas/auth-evidence.schema.json` describe the versioned adapter and redacted observation records. The 16 bundled cases include authorized delegated and autonomous controls, audience and tenant mismatches, expiry, revocation, one-time replay, excessive delegation depth, and confused-deputy requests. The ordinary reusable grant is accepted twice; replay rejection is asserted only for the grant marked one-time.
+
+Inspect the run's `assessment_authorization`, `budget`, `pending_case_ids`, and `next_action`, then each result's `fixture`, `observations`, `observed_effects`, `revocation_window`, `environment_verified`, `cleanup_verified`, and `expectation_met`. Every peer request, target decision, and effect is bound to the approved plan digest and test, attempt, request, and canary identities. An allowed write requires an independently observed effect; a denial requires none. Missing context, an unavailable observer, or failed setup or cleanup is inconclusive. The revoked-grant case uses synthetic logical time and does not measure provider propagation. Reports use fixed synthetic aliases without bearer tokens or live-provider claims. See [the analyst playbook](docs/PLAYBOOK.md) and the [authorized](examples/auth-authorized.json), [denied](examples/auth-denied.json), and [inconclusive](examples/auth-inconclusive.json) reports.
+
+The receipt is consumed atomically once for the whole batch. Case selection, fixture source hashes, identities, and aggregate duration and observed-output limits are immutable approval inputs. Expiry, cancellation, or a budget stop leaves explicit pending cases and requires a new approved plan for those cases; this command does not provide durable restart. The COPS receipt authorizes the assessment only. The target fixture independently verifies its synthetic grant before performing an action. The local processes and declared no-egress plan are not an operating-system network sandbox.
 
 ## Run the local laboratory
 

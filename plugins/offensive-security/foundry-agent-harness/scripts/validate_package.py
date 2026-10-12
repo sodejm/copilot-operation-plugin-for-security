@@ -10,11 +10,12 @@ import sys
 from pathlib import Path
 
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent
-REPO_ROOT = PLUGIN_ROOT.parent.parent
+REPO_ROOT = PLUGIN_ROOT.parents[2]
 
 if str(PLUGIN_ROOT) not in sys.path:
     sys.path.insert(0, str(PLUGIN_ROOT))
 
+from foundryharness.auth_laboratory import load_auth_cases
 from foundryharness.cli import load_scenarios
 from foundryharness.gate import (
     IndependentAuthorizationGate,
@@ -47,6 +48,10 @@ def validate() -> int:
         PLUGIN_ROOT / "schemas" / "report.schema.json",
         PLUGIN_ROOT / "schemas" / "lab-case.schema.json",
         PLUGIN_ROOT / "schemas" / "lab-report.schema.json",
+        PLUGIN_ROOT / "schemas" / "auth-case.schema.json",
+        PLUGIN_ROOT / "schemas" / "auth-adapter.schema.json",
+        PLUGIN_ROOT / "schemas" / "auth-evidence.schema.json",
+        PLUGIN_ROOT / "schemas" / "auth-report.schema.json",
     ]
 
     for p in json_files:
@@ -176,6 +181,22 @@ def validate() -> int:
         print("FAIL: Paired state-change baseline and strict gate evidence mismatch", file=sys.stderr)
         return 1
     print(f"  OK: Verified {len(lab_results)} local synthetic agent and MCP laboratory cases.")
+
+    # 8. Validate authorization definitions without bypassing execution approval.
+    # Signed runtime and independent-effect checks belong to the repository tests.
+    try:
+        auth_cases = load_auth_cases(PLUGIN_ROOT / "auth_cases")
+        if len(auth_cases) < 12:
+            raise LabError("Expected at least 12 authorization boundary cases")
+    except LabError as exc:
+        print(f"FAIL: Authorization laboratory: {exc}", file=sys.stderr)
+        return 1
+    if not {"delegated-control", "autonomous-control"}.issubset(
+        {case.case_id for case in auth_cases}
+    ):
+        print("FAIL: Authorization laboratory positive controls are missing", file=sys.stderr)
+        return 1
+    print(f"  OK: Validated {len(auth_cases)} authorization case definitions; execution requires approval.")
 
     print("[validate_package] All checks passed successfully.")
     return 0

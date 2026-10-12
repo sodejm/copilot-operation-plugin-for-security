@@ -14,6 +14,7 @@ these subsystem entries are prioritization, not proof of exhaustive review.
 | R4 | Canonical hunt skills → generated host adapters and all implementing code/configuration/tests | Pending independent human review | Maintainer assignment pending | Before affected release; triage within 30 days, first pass within 90 days |
 | R-CI | All CI, dependencies, packaging, release, scripts and agent/tool authority | Pending independent human review | Maintainer assignment pending | Before affected release; triage within 30 days, first pass within 90 days |
 | R-REST | All remaining tracked first-party files; enumerate and reconcile against Git inventory | Pending independent human review | Maintainer assignment pending | First pass within 90 days |
+| R236 | Foundry Agent Harness signed MCP authorization batch, peer/target fixtures, bounded JSON, canary evidence, portable integration, contracts and tests for issue #236 | Pending independent human review; owner authorized the 89-issue batch to merge after automated review and checks | Maintainer assignment pending | Before affected release; triage within 30 days, first pass within 90 days |
 
 For each reviewed row add exact paths, reviewed SHA, reviewer identity/date,
 checks/evidence, findings, disposition, residual risk acceptance/expiry and next

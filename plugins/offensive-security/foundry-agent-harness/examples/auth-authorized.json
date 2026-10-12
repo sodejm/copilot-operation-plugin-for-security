@@ -1,0 +1,130 @@
+{
+  "schema_version": "cops.agent-mcp-auth-run/v1",
+  "environment": "local-synthetic-mcp-auth-fixture",
+  "assessment_authorization": {
+    "signed_receipt_verified": true,
+    "authorization_ref": "auth-3ada255d5ab34143",
+    "plan_id": "plan-auth-approval-test",
+    "plan_digest": "bf1adf4437e917cb93a11672958678b71f3e81d18650e10fdde74d39ba80766d",
+    "engagement_id": "eng-auth-approval-test",
+    "worker_identity": "fixture-worker",
+    "consumed_once_for_batch": true
+  },
+  "test_identity": "synthetic-fixture-runner",
+  "cancelled": false,
+  "budget": {
+    "max_duration_seconds": 120,
+    "cleanup_reserve_seconds": 8,
+    "elapsed_seconds": 0.039,
+    "max_output_bytes": 1048576,
+    "observed_output_bytes": 6065,
+    "accounting_scope": "received_response_bytes_and_new_ledger_bytes",
+    "stop_reason": null
+  },
+  "pending_case_ids": [],
+  "next_action": null,
+  "planned_case_count": 1,
+  "completed_case_count": 1,
+  "all_expectations_met": true,
+  "results": [
+    {
+      "schema_version": "cops.agent-mcp-auth-result/v1",
+      "case_id": "delegated-control",
+      "plan_digest": "bf1adf4437e917cb93a11672958678b71f3e81d18650e10fdde74d39ba80766d",
+      "test_identity": "synthetic-fixture-runner",
+      "grant_alias": "delegated-write",
+      "flow": "delegated",
+      "outcome": "pass",
+      "reason": "expectations_met",
+      "environment_verified": true,
+      "observations": [
+        {
+          "schema_version": "cops.agent-mcp-auth-observation/v1",
+          "case_id": "delegated-control",
+          "attempt_id": "delegated-control-1",
+          "request_id": "request-delegated-control-1",
+          "canary_id": "canary-delegated-control-1",
+          "plan_digest": "bf1adf4437e917cb93a11672958678b71f3e81d18650e10fdde74d39ba80766d",
+          "test_identity": "synthetic-fixture-runner",
+          "tool": "canary/write",
+          "peer": {
+            "schema_version": "cops.agent-mcp-auth-peer-observation/v1",
+            "peer_action": "trusted_forward",
+            "peer_identity": "trusted-forwarding-peer",
+            "attempt_id": "delegated-control-1",
+            "request_id": "request-delegated-control-1",
+            "canary_id": "canary-delegated-control-1",
+            "plan_digest": "bf1adf4437e917cb93a11672958678b71f3e81d18650e10fdde74d39ba80766d",
+            "test_identity": "synthetic-fixture-runner",
+            "forwarded_request": {
+              "grant": "delegated-write",
+              "flow": "delegated",
+              "principal": "principal-alice",
+              "agent": "agent-worker",
+              "downstream_service": "service-canary",
+              "audience": "mcp://auth-fixture",
+              "tenant": "tenant-contoso-01",
+              "resource": "res-canary",
+              "operation": "write",
+              "scopes": [
+                "canary:write"
+              ],
+              "depth": 1,
+              "tick": 1,
+              "attempt_id": "delegated-control-1",
+              "request_id": "request-delegated-control-1",
+              "canary_id": "canary-delegated-control-1",
+              "plan_digest": "bf1adf4437e917cb93a11672958678b71f3e81d18650e10fdde74d39ba80766d",
+              "test_identity": "synthetic-fixture-runner",
+              "fault_mode": "none"
+            },
+            "forwarded_request_digest": "30c1f9b893591ce262b3924fa3ba6d6cccb931b040a0b67e79c77ab3b8d37dd7",
+            "redacted": true
+          },
+          "target": {
+            "attempt_id": "delegated-control-1",
+            "canary_id": "canary-delegated-control-1",
+            "decision": "allowed",
+            "phase": "authorization",
+            "plan_digest": "bf1adf4437e917cb93a11672958678b71f3e81d18650e10fdde74d39ba80766d",
+            "reason": "allowed",
+            "redacted": true,
+            "request_id": "request-delegated-control-1",
+            "schema_version": "cops.agent-mcp-auth-decision/v1",
+            "server_identity": "fixed-target-authorization-service",
+            "target_grant_alias": "delegated-write",
+            "test_identity": "synthetic-fixture-runner"
+          },
+          "observed_effect_count": 1,
+          "expected_decision": "allowed",
+          "expected_reason": "allowed",
+          "redacted": true
+        }
+      ],
+      "observed_effects": [
+        {
+          "schema_version": "cops.agent-mcp-auth-ledger-event/v1",
+          "attempt_id": "delegated-control-1",
+          "request_id": "request-delegated-control-1",
+          "canary_id": "canary-delegated-control-1",
+          "plan_digest": "bf1adf4437e917cb93a11672958678b71f3e81d18650e10fdde74d39ba80766d",
+          "test_identity": "synthetic-fixture-runner",
+          "server_identity": "fixed-target-authorization-service",
+          "kind": "canary_write",
+          "tenant": "tenant-contoso-01",
+          "resource": "res-canary",
+          "operation": "write",
+          "redacted": true
+        }
+      ],
+      "cleanup": {
+        "process_exit_observed": true,
+        "private_directory_removed": true
+      },
+      "redacted": true,
+      "expectation_met": true,
+      "revocation_window": null
+    }
+  ],
+  "redacted": true
+}

@@ -1,0 +1,885 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Signed synthetic MCP authorization batch report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "environment",
+    "assessment_authorization",
+    "test_identity",
+    "cancelled",
+    "budget",
+    "pending_case_ids",
+    "next_action",
+    "planned_case_count",
+    "completed_case_count",
+    "all_expectations_met",
+    "results",
+    "redacted"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "cops.agent-mcp-auth-run/v1"
+    },
+    "environment": {
+      "const": "local-synthetic-mcp-auth-fixture"
+    },
+    "assessment_authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "signed_receipt_verified",
+        "authorization_ref",
+        "plan_id",
+        "plan_digest",
+        "engagement_id",
+        "worker_identity",
+        "consumed_once_for_batch"
+      ],
+      "properties": {
+        "signed_receipt_verified": {
+          "const": true
+        },
+        "authorization_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "plan_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "plan_digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "engagement_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "worker_identity": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "consumed_once_for_batch": {
+          "const": true
+        }
+      }
+    },
+    "test_identity": {
+      "const": "synthetic-fixture-runner"
+    },
+    "cancelled": {
+      "type": "boolean"
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_duration_seconds",
+        "cleanup_reserve_seconds",
+        "elapsed_seconds",
+        "max_output_bytes",
+        "observed_output_bytes",
+        "accounting_scope",
+        "stop_reason"
+      ],
+      "properties": {
+        "max_duration_seconds": {
+          "const": 120
+        },
+        "cleanup_reserve_seconds": {
+          "const": 8
+        },
+        "elapsed_seconds": {
+          "type": "number",
+          "minimum": 0
+        },
+        "max_output_bytes": {
+          "const": 1048576
+        },
+        "observed_output_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "accounting_scope": {
+          "const": "received_response_bytes_and_new_ledger_bytes"
+        },
+        "stop_reason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "authorization_expired",
+                "authorization_window_exhausted",
+                "duration_budget_exhausted",
+                "output_budget_exhausted"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "pending_case_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+        "maxLength": 64
+      },
+      "maxItems": 100
+    },
+    "next_action": {
+      "anyOf": [
+        {
+          "const": "approve_a_new_plan_for_pending_cases"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "planned_case_count": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100
+    },
+    "completed_case_count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "all_expectations_met": {
+      "type": "boolean"
+    },
+    "results": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/result"
+      },
+      "maxItems": 100
+    },
+    "redacted": {
+      "const": true
+    }
+  },
+  "$defs": {
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "attempt_id",
+        "request_id",
+        "canary_id",
+        "plan_digest",
+        "test_identity",
+        "target_grant_alias",
+        "decision",
+        "phase",
+        "reason",
+        "redacted"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "cops.agent-mcp-auth-decision/v1"
+        },
+        "attempt_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "maxLength": 256
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "maxLength": 256
+        },
+        "canary_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "maxLength": 256
+        },
+        "plan_digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "test_identity": {
+          "const": "synthetic-fixture-runner"
+        },
+        "server_identity": {
+          "const": "fixed-target-authorization-service"
+        },
+        "target_grant_alias": {
+          "type": "string",
+          "enum": [
+            "autonomous-write",
+            "delegated-write",
+            "delegated-write-fabrikam",
+            "expired-write",
+            "one-time-write",
+            "read-only",
+            "read-only-fabrikam",
+            "receipt-approved-synthetic",
+            "reusable-write",
+            "revoked-write"
+          ]
+        },
+        "decision": {
+          "type": "string",
+          "enum": [
+            "allowed",
+            "denied",
+            "inconclusive"
+          ]
+        },
+        "phase": {
+          "type": "string",
+          "enum": [
+            "authentication",
+            "authorization",
+            "setup"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "allowed",
+            "audience_mismatch",
+            "delegation_depth_exceeded",
+            "downstream_service_mismatch",
+            "expired_grant",
+            "flow_mismatch",
+            "missing_context",
+            "one_time_replay",
+            "operation_mismatch",
+            "principal_or_agent_binding",
+            "resource_mismatch",
+            "revoked_grant",
+            "scope_mismatch",
+            "tenant_mismatch",
+            "tool_not_permitted",
+            "unrecognized_grant_or_actor"
+          ]
+        },
+        "redacted": {
+          "const": true
+        }
+      }
+    },
+    "ledger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "attempt_id",
+        "request_id",
+        "canary_id",
+        "plan_digest",
+        "test_identity",
+        "server_identity",
+        "kind",
+        "tenant",
+        "resource",
+        "operation",
+        "redacted"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "cops.agent-mcp-auth-ledger-event/v1"
+        },
+        "attempt_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "maxLength": 256
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "maxLength": 256
+        },
+        "canary_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "maxLength": 256
+        },
+        "plan_digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "test_identity": {
+          "const": "synthetic-fixture-runner"
+        },
+        "server_identity": {
+          "const": "fixed-target-authorization-service"
+        },
+        "kind": {
+          "const": "canary_write"
+        },
+        "tenant": {
+          "type": "string",
+          "enum": [
+            "tenant-contoso-01",
+            "tenant-fabrikam-02"
+          ]
+        },
+        "resource": {
+          "type": "string",
+          "enum": [
+            "res-canary",
+            "res-other"
+          ]
+        },
+        "operation": {
+          "const": "write"
+        },
+        "redacted": {
+          "const": true
+        }
+      }
+    },
+    "peer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "attempt_id",
+        "request_id",
+        "canary_id",
+        "plan_digest",
+        "test_identity",
+        "peer_action",
+        "peer_identity",
+        "forwarded_request",
+        "forwarded_request_digest",
+        "redacted"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "cops.agent-mcp-auth-peer-observation/v1"
+        },
+        "attempt_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "maxLength": 256
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "maxLength": 256
+        },
+        "canary_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "maxLength": 256
+        },
+        "plan_digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "test_identity": {
+          "const": "synthetic-fixture-runner"
+        },
+        "peer_action": {
+          "type": "string",
+          "enum": [
+            "mutate_operation",
+            "mutate_tenant",
+            "omit_tenant",
+            "substitute_receipt",
+            "trusted_forward"
+          ]
+        },
+        "peer_identity": {
+          "type": "string",
+          "enum": [
+            "hostile-forwarding-peer",
+            "trusted-forwarding-peer"
+          ]
+        },
+        "forwarded_request": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "agent",
+            "attempt_id",
+            "audience",
+            "canary_id",
+            "depth",
+            "downstream_service",
+            "fault_mode",
+            "flow",
+            "grant",
+            "operation",
+            "plan_digest",
+            "principal",
+            "request_id",
+            "resource",
+            "scopes",
+            "test_identity",
+            "tick"
+          ],
+          "properties": {
+            "grant": {
+              "type": "string",
+              "enum": [
+                "delegated-write",
+                "delegated-write-fabrikam",
+                "autonomous-write",
+                "one-time-write",
+                "reusable-write",
+                "expired-write",
+                "revoked-write",
+                "read-only",
+                "read-only-fabrikam",
+                "receipt-approved-synthetic"
+              ]
+            },
+            "flow": {
+              "type": "string",
+              "enum": [
+                "delegated",
+                "autonomous"
+              ]
+            },
+            "principal": {
+              "type": "string",
+              "enum": [
+                "principal-alice",
+                "principal-bob",
+                "service-scheduler"
+              ]
+            },
+            "agent": {
+              "type": "string",
+              "enum": [
+                "agent-shadow",
+                "agent-worker"
+              ]
+            },
+            "downstream_service": {
+              "type": "string",
+              "enum": [
+                "service-canary",
+                "service-shadow"
+              ]
+            },
+            "audience": {
+              "type": "string",
+              "enum": [
+                "mcp://auth-fixture",
+                "mcp://shadow"
+              ]
+            },
+            "tenant": {
+              "type": "string",
+              "enum": [
+                "tenant-contoso-01",
+                "tenant-fabrikam-02"
+              ]
+            },
+            "resource": {
+              "type": "string",
+              "enum": [
+                "res-canary",
+                "res-other"
+              ]
+            },
+            "operation": {
+              "type": "string",
+              "enum": [
+                "read",
+                "write"
+              ]
+            },
+            "scopes": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "enum": [
+                  "canary:admin",
+                  "canary:read",
+                  "canary:write"
+                ]
+              }
+            },
+            "depth": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 3
+            },
+            "tick": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10
+            },
+            "attempt_id": {
+              "type": "string",
+              "pattern": "[a-z0-9]+(?:-[a-z0-9]+)*"
+            },
+            "request_id": {
+              "type": "string",
+              "pattern": "[a-z0-9]+(?:-[a-z0-9]+)*"
+            },
+            "canary_id": {
+              "type": "string",
+              "pattern": "[a-z0-9]+(?:-[a-z0-9]+)*"
+            },
+            "plan_digest": {
+              "type": "string",
+              "pattern": "[0-9a-f]{64}"
+            },
+            "test_identity": {
+              "type": "string",
+              "const": "synthetic-fixture-runner"
+            },
+            "fault_mode": {
+              "type": "string",
+              "enum": [
+                "none",
+                "hung_server",
+                "missing_identity_telemetry",
+                "observer_failure"
+              ]
+            }
+          }
+        },
+        "forwarded_request_digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "redacted": {
+          "const": true
+        }
+      }
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "attempt_id",
+        "request_id",
+        "canary_id",
+        "plan_digest",
+        "test_identity",
+        "case_id",
+        "tool",
+        "peer",
+        "target",
+        "observed_effect_count",
+        "expected_decision",
+        "expected_reason",
+        "redacted"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "cops.agent-mcp-auth-observation/v1"
+        },
+        "attempt_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "maxLength": 256
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "maxLength": 256
+        },
+        "canary_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "maxLength": 256
+        },
+        "plan_digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "test_identity": {
+          "const": "synthetic-fixture-runner"
+        },
+        "case_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "maxLength": 64
+        },
+        "tool": {
+          "type": "string",
+          "enum": [
+            "canary/read",
+            "canary/write"
+          ]
+        },
+        "peer": {
+          "$ref": "#/$defs/peer"
+        },
+        "target": {
+          "$ref": "#/$defs/decision"
+        },
+        "observed_effect_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 6
+        },
+        "expected_decision": {
+          "type": "string",
+          "enum": [
+            "allowed",
+            "denied",
+            "inconclusive"
+          ]
+        },
+        "expected_reason": {
+          "type": "string",
+          "enum": [
+            "allowed",
+            "audience_mismatch",
+            "delegation_depth_exceeded",
+            "downstream_service_mismatch",
+            "expired_grant",
+            "flow_mismatch",
+            "missing_context",
+            "one_time_replay",
+            "operation_mismatch",
+            "principal_or_agent_binding",
+            "resource_mismatch",
+            "revoked_grant",
+            "scope_mismatch",
+            "tenant_mismatch",
+            "tool_not_permitted",
+            "unrecognized_grant_or_actor"
+          ]
+        },
+        "redacted": {
+          "const": true
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "case_id",
+        "plan_digest",
+        "test_identity",
+        "grant_alias",
+        "flow",
+        "outcome",
+        "reason",
+        "environment_verified",
+        "observations",
+        "observed_effects",
+        "cleanup",
+        "redacted",
+        "expectation_met",
+        "revocation_window"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "cops.agent-mcp-auth-result/v1"
+        },
+        "case_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "maxLength": 64
+        },
+        "plan_digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "test_identity": {
+          "const": "synthetic-fixture-runner"
+        },
+        "grant_alias": {
+          "type": "string",
+          "enum": [
+            "autonomous-write",
+            "delegated-write",
+            "delegated-write-fabrikam",
+            "expired-write",
+            "one-time-write",
+            "read-only",
+            "read-only-fabrikam",
+            "reusable-write",
+            "revoked-write"
+          ]
+        },
+        "flow": {
+          "type": "string",
+          "enum": [
+            "autonomous",
+            "delegated"
+          ]
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "fail",
+            "inconclusive",
+            "pass",
+            "unsupported"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "authorization_expired",
+            "authorization_window_exhausted",
+            "cancelled",
+            "duration_budget_exhausted",
+            "expectation_mismatch",
+            "expectations_met",
+            "fixture_setup_or_observation_failure",
+            "fixture_setup_or_protocol_failure",
+            "fixture_timeout",
+            "missing_context",
+            "missing_identity_telemetry",
+            "observer_failure",
+            "output_budget_exhausted",
+            "peer_setup_or_observation_failure",
+            "private_directory_removal_not_observed",
+            "private_directory_setup_or_cleanup_failure",
+            "process_exit_not_observed",
+            "surface_not_supported_by_local_fixed_adapter"
+          ]
+        },
+        "environment_verified": {
+          "type": "boolean"
+        },
+        "observations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/observation"
+          },
+          "maxItems": 6
+        },
+        "observed_effects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ledger"
+          },
+          "maxItems": 6
+        },
+        "cleanup": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "process_exit_observed",
+            "private_directory_removed"
+          ],
+          "properties": {
+            "process_exit_observed": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "private_directory_removed": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "redacted": {
+          "const": true
+        },
+        "expectation_met": {
+          "type": "boolean"
+        },
+        "revocation_window": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "clock",
+                "revoked_at_tick",
+                "observed_start_tick",
+                "observed_end_tick",
+                "pre_revocation_control_observed",
+                "post_revocation_denial_observed",
+                "observed_denial_lag_ticks",
+                "provider_propagation_measured"
+              ],
+              "properties": {
+                "clock": {
+                  "const": "synthetic_logical_ticks"
+                },
+                "revoked_at_tick": {
+                  "const": 3
+                },
+                "observed_start_tick": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 10
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "observed_end_tick": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 10
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "pre_revocation_control_observed": {
+                  "type": "boolean"
+                },
+                "post_revocation_denial_observed": {
+                  "type": "boolean"
+                },
+                "observed_denial_lag_ticks": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "provider_propagation_measured": {
+                  "const": false
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
