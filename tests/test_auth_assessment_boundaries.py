@@ -15,6 +15,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+import jsonschema
 
 from cops.execution import store as store_module
 from cops.execution.authorization import create_execution_authorization
@@ -87,13 +88,14 @@ def test_preloaded_controller_cannot_replace_differently_signed_controller(tmp_p
     assert not any(name.startswith("_cops_auth_approved_") for name in sys.modules)
 
 
-def test_cli_rejects_changed_controller_without_importing_it(tmp_path, monkeypatch):
+@pytest.mark.parametrize("filename", auth_approval.SOURCE_FILES)
+def test_cli_rejects_changed_source_without_importing_it(tmp_path, monkeypatch, filename):
     source = copy_executor(tmp_path, include_cli=True)
     monkeypatch.setattr(auth_approval, "__file__", str(source / "auth_approval.py"))
     arguments, _, context = cli_context(tmp_path)
     marker = tmp_path / "unapproved-controller-executed"
-    with (source / "auth_approval.py").open("a") as destination:
-        destination.write(f"\nPath({str(marker)!r}).write_text('unapproved')\n")
+    with (source / filename).open("a") as destination:
+        destination.write(f"\nfrom pathlib import Path\nPath({str(marker)!r}).write_text('unapproved')\n")
     result = subprocess.run(
         [sys.executable, str(source / "cli.py"), *arguments],
         env=cli_environment(), capture_output=True, text=True, timeout=10,
@@ -102,6 +104,60 @@ def test_cli_rejects_changed_controller_without_importing_it(tmp_path, monkeypat
     assert "does not exactly bind" in result.stderr
     assert not marker.exists()
     assert context["approval_store"].get_authorization(context["authorization"].authorization_id).status == "approved"
+
+
+@pytest.mark.parametrize("filename", auth_approval.SOURCE_FILES)
+def test_cli_plans_all_execution_sources_as_inert_bytes(tmp_path, filename):
+    source = copy_executor(tmp_path, include_cli=True)
+    marker = tmp_path / "planning-executed-payload"
+    with (source / filename).open("a") as destination:
+        destination.write(f"\nfrom pathlib import Path\nPath({str(marker)!r}).write_text('unapproved')\n")
+    case_path = PLUGIN_ROOT / "auth_cases/delegated-control.json"
+    result = subprocess.run(
+        [sys.executable, str(source / "cli.py"), "auth-plan", "--cases", str(case_path),
+         "--plan-id", "plan-inert-source", "--engagement-id", "eng-inert-source",
+         "--created-at", "2026-10-12T00:00:00Z"],
+        env=cli_environment(), capture_output=True, text=True, timeout=10,
+    )
+    assert result.returncode == 0, result.stderr
+    assert not marker.exists(), "Planning imported an execution source before approval"
+    plan = json.loads(result.stdout)
+    import hashlib
+
+    assert plan["operations"][0]["arguments"]["adapter"]["source_sha256"] == {
+        name: hashlib.sha256((source / name).read_bytes()).hexdigest()
+        for name in auth_approval.SOURCE_FILES
+    }
+
+
+@pytest.mark.parametrize("failure", ["SystemExit(0)", "ImportError('private-token')", "RuntimeError('private-token')"])
+def test_signed_controller_initialization_failure_returns_redacted_failed_report(tmp_path, monkeypatch, failure):
+    source = copy_executor(tmp_path, include_cli=True)
+    with (source / "auth_approval.py").open("a") as destination:
+        destination.write(f"\nraise {failure}\n")
+    monkeypatch.setattr(auth_approval, "__file__", str(source / "auth_approval.py"))
+    arguments, _, context = cli_context(tmp_path)
+    result = subprocess.run(
+        [sys.executable, str(source / "cli.py"), *arguments],
+        env=cli_environment(), capture_output=True, text=True, timeout=10,
+    )
+    assert result.returncode == 1, result.stderr
+    report = json.loads(result.stdout)
+    jsonschema.validate(report, json.loads((PLUGIN_ROOT / "schemas/auth-report.schema.json").read_text()))
+    assert report["security_pass"] is False
+    assert report["all_expectations_met"] is False
+    assert report["cancelled"] is False
+    assert report["completed_case_count"] == 0
+    assert report["pending_case_ids"] == ["delegated-control"]
+    assert report["source_snapshot"] == {
+        "verified": True, "private_directory_removed": True,
+        "reason": "source_snapshot_setup_or_execution_failure",
+    }
+    assert report["next_action"] == "inspect_execution_initialization_before_new_approval"
+    assert "private-token" not in result.stdout + result.stderr
+    assert "Traceback" not in result.stderr
+    assert not any(name.startswith("_cops_auth_approved_") for name in sys.modules)
+    assert context["approval_store"].get_authorization(context["authorization"].authorization_id).status == "consumed"
 
 
 @pytest.mark.parametrize("interrupt_at", ["first_spawn", "second_spawn", "exchange", "cleanup"])

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import re
@@ -40,7 +39,7 @@ from .auth_fixture_server import (
 )
 from .auth_laboratory import AUTHENTICATION_REASONS, DECISIONS, PHASES, REASONS, AuthCase
 from .laboratory import LabError, _JsonLineProcess, _McpClient
-from .bounded_json import JSONInputError, read_regular_file
+from cops.laboratory.agent_mcp import SOURCE_FILES, build_auth_plan as _build_trusted_auth_plan
 
 ADAPTER_ID = "local-synthetic-mcp-auth-fixture"
 SCENARIO_ID = "COPS-E16.01"
@@ -53,14 +52,6 @@ PEER_IDENTITIES = {
     "mutate_operation": "hostile-forwarding-peer",
     "substitute_receipt": "hostile-forwarding-peer",
 }
-SOURCE_FILES = (
-    "auth_approval.py",
-    "auth_fixture_server.py",
-    "auth_laboratory.py",
-    "auth_peer_fixture.py",
-    "bounded_json.py",
-    "laboratory.py",
-)
 MINIMUM_AUTHORIZATION_SECONDS = 9
 LEDGER_FIELDS = frozenset(
     {
@@ -191,21 +182,6 @@ def _coerce_cases(cases: Iterable[AuthCase | dict[str, Any]]) -> tuple[AuthCase,
     return tuple(normalized)
 
 
-def _capture_sources() -> dict[str, bytes]:
-    root = Path(__file__).resolve().parent
-    values: dict[str, bytes] = {}
-    for name in SOURCE_FILES:
-        try:
-            values[name] = read_regular_file(root / name, max_bytes=1048576)
-        except JSONInputError:
-            raise LabError(f"Authorization fixture source unavailable: {name}") from None
-    return values
-
-
-def _source_digests(sources: dict[str, bytes] | None = None) -> dict[str, str]:
-    return {name: hashlib.sha256(raw).hexdigest() for name, raw in (sources or _capture_sources()).items()}
-
-
 @contextmanager
 def _defer_cancellation(interrupted: list[bool]):
     """Keep process registration and cleanup atomic against SIGINT and SIGTERM."""
@@ -257,83 +233,6 @@ def _attempt_ids(case: AuthCase, index: int) -> dict[str, str]:
     }
 
 
-def _planned_cases(cases: tuple[AuthCase, ...]) -> list[dict[str, Any]]:
-    planned: list[dict[str, Any]] = []
-    for case in cases:
-        attempts = []
-        for index, (attempt, decision, reason) in enumerate(
-            zip(case.attempts, case.expected_decisions, case.expected_reasons, strict=True),
-            start=1,
-        ):
-            attempts.append(
-                {
-                    **_attempt_ids(case, index),
-                    "request": {
-                        "grant": case.grant,
-                        "flow": case.flow,
-                        **dict(attempt),
-                    },
-                    "expectation": {
-                        "decision": decision,
-                        "reason": reason,
-                        "effect_delta": 1 if decision == "allowed" and attempt["tool"] == "canary/write" else 0,
-                    },
-                }
-            )
-        planned.append(
-            {
-                "schema_version": "cops.agent-mcp-auth-planned-case/v1",
-                "surface": case.surface,
-                "case_id": case.case_id,
-                "title": case.title,
-                "attempts": attempts,
-                "expected_effect_count": case.expected_effect_count,
-                "expected_outcome": case.expected_outcome,
-            }
-        )
-    return planned
-
-
-
-def _manifest(cases: tuple[AuthCase, ...], sources: dict[str, bytes] | None = None) -> dict[str, Any]:
-    return {
-        "schema_version": "cops.agent-mcp-auth-manifest/v1",
-        "test_identity": TEST_IDENTITY,
-        "case_input_sha256": digest([case.to_dict() for case in cases]),
-        "adapter": {
-            "adapter_id": ADAPTER_ID,
-            "source_sha256": _source_digests(sources),
-            "protocol_version": PROTOCOL_VERSION,
-            "server_info": SERVER_INFO,
-            "transport": "stdio",
-            "tools": list(TOOLS),
-            "tool_input_schemas": TOOL_INPUT_SCHEMAS,
-            "tool_permissions": list(TOOL_PERMISSIONS),
-            "peer_actions": list(PEER_ACTIONS),
-        },
-        "cases": _planned_cases(cases),
-        "fault_modes": {
-            "supported": list(FAULT_MODES),
-            "hung_server_timeout_seconds": 1,
-            "missing_identity_telemetry_outcome": "inconclusive",
-            "observer_failure_outcome": "inconclusive",
-        },
-        "limits": {
-            "max_cases": 100,
-            "max_attempts_per_case": 6,
-            "max_ledger_bytes": 65536,
-            "max_response_bytes": 65536,
-            "network_egress": False,
-        },
-        "cleanup": {
-            "terminate_fixture_processes": True,
-            "verify_process_exit": True,
-            "remove_private_work_directory": True,
-            "verify_private_directory_removal": True,
-        },
-    }
-
-
 def build_auth_plan(
     cases: Iterable[AuthCase | dict[str, Any]],
     *,
@@ -342,46 +241,11 @@ def build_auth_plan(
     created_at: str,
     _sources: dict[str, bytes] | None = None,
 ) -> ActionPlan:
-    """Compile the exact fixed batch into the existing COPS signing lifecycle."""
-    normalized = _coerce_cases(cases)
-    if len(normalized) > 100:
-        raise LabError("Authorization batch exceeds the fixed case limit")
-    manifest = _manifest(normalized, _sources)
-    return ActionPlan.create(
-        plan_id=plan_id,
-        engagement_id=engagement_id,
-        scenario_id=SCENARIO_ID,
-        target=TARGET,
-        specialist_id=SPECIALIST_ID,
-        operations=[
-            {
-                "step_id": "auth-lab-batch",
-                "tool": "foundry-agent-harness/auth-lab",
-                "tool_version": "1",
-                "action": "run_authorization_batch",
-                "arguments": manifest,
-                "timeout_seconds": 120,
-                "cleanup": manifest["cleanup"],
-                "idempotent": False,
-                "expected_evidence": [
-                    "peer forwarding observation",
-                    "target authorization decision",
-                    "independent canary ledger",
-                    "process exit observation",
-                    "private directory removal observation",
-                ],
-                "side_effects": ["private staged source and work directories", "local synthetic canary ledger writes"],
-            }
-        ],
-        limits={
-            "max_duration_seconds": 120,
-            "max_output_bytes": 1048576,
-            "egress_allowed": False,
-        },
-        credential_references=[],
-        created_at=created_at,
-        platform_prerequisites=["python-standard-library", "local-stdio-processes"],
-        batch={"mode": "sequential", "max_operations": 1, "fail_fast": False},
+    """Compile the exact fixed batch with the trusted data-only planner."""
+    return _build_trusted_auth_plan(
+        [case.to_dict() for case in _coerce_cases(cases)],
+        plan_id=plan_id, engagement_id=engagement_id, created_at=created_at,
+        source_root=Path(__file__).resolve().parent, _sources=_sources,
     )
 
 

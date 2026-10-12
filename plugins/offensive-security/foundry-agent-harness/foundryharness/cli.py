@@ -12,9 +12,7 @@ if __package__ in (None, ""):
     if (source_root / "cops" / "__init__.py").is_file():
         sys.path.insert(0, str(source_root))
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-    from foundryharness.bounded_json import JSONInputError, decode_json, read_regular_file
-else:
-    from .bounded_json import JSONInputError, decode_json, read_regular_file
+
 
 def load_scenarios(scenario_path: Path | None, scenarios_dir: Path | None) -> list[Scenario]:
     """Load scenarios from a single file or a directory."""
@@ -46,6 +44,8 @@ def load_scenarios(scenario_path: Path | None, scenarios_dir: Path | None) -> li
 
 
 def _load_json_object(path: Path, label: str) -> dict:
+    from cops.laboratory.agent_mcp import JSONInputError, decode_json, read_regular_file
+
     try:
         value = decode_json(read_regular_file(path, max_bytes=1048576), max_bytes=1048576)
         if not isinstance(value, dict):
@@ -228,14 +228,14 @@ def main(argv: list[str] | None = None) -> int:
             return 0 if passed else 1
 
         elif args.command == "auth-plan":
-            from foundryharness.auth_approval import build_auth_plan
-            from foundryharness.auth_laboratory import load_auth_cases
+            from cops.laboratory.agent_mcp import build_auth_plan, load_case_inputs
 
             plan = build_auth_plan(
-                load_auth_cases(args.cases),
+                load_case_inputs(args.cases),
                 plan_id=args.plan_id,
                 engagement_id=args.engagement_id,
                 created_at=args.created_at,
+                source_root=Path(__file__).parent,
             )
             _emit(json.dumps(plan.to_dict(), indent=2) + "\n", args.output)
             return 0

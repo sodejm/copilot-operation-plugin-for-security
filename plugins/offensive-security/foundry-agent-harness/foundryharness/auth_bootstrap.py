@@ -1,6 +1,6 @@
 """Trusted admission bootstrap; execution payloads load only from approved bytes.
 
-This module, the CLI, bounded JSON reader, COPS verifier/store, Python and the OS
+This module, the CLI, COPS data-only planner/verifier/store, Python and the OS
 are the installed trusted computing base. The six execution sources are separate
 approval-bound payloads, including their controller and all relative imports.
 """
@@ -27,59 +27,10 @@ from cops.evidence.canonical import digest
 from cops.execution.authorization import AuthorizationTrustStore, verify_execution_authorization
 from cops.execution.store import ApprovalStore
 
-from .bounded_json import JSONInputError, decode_json, read_regular_file
-
-SOURCE_FILES = (
-    "auth_approval.py", "auth_fixture_server.py", "auth_laboratory.py",
-    "auth_peer_fixture.py", "bounded_json.py", "laboratory.py",
+from cops.laboratory.agent_mcp import (
+    JSONInputError, SOURCE_FILES, build_auth_plan, load_case_inputs,
+    normalize_case_inputs, read_regular_file,
 )
-
-
-def normalize_case_inputs(cases: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Bound and canonicalize data without importing any execution source."""
-    rows = []
-    seen = set()
-    for source in cases:
-        if len(rows) >= 100 or not isinstance(source, dict):
-            raise ValueError("Authorization cases must be bounded JSON objects")
-        # Strict JSON cloning excludes arbitrary objects and mutable shared inputs.
-        import json
-
-        row = decode_json(json.dumps(source, allow_nan=False).encode(), max_bytes=65536)
-        case_id = row.get("case_id")
-        if not isinstance(case_id, str) or not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", case_id) or len(case_id) > 64:
-            raise ValueError("Invalid authorization case ID")
-        if case_id in seen:
-            raise ValueError("Duplicate authorization case ID")
-        seen.add(case_id)
-        row.setdefault("surface", "local_synthetic_fixture")
-        row.setdefault("expected_outcome", "pass")
-        attempts = row.get("attempts")
-        if not isinstance(attempts, list) or not 1 <= len(attempts) <= 6:
-            raise ValueError("Invalid authorization attempts")
-        for attempt in attempts:
-            if not isinstance(attempt, dict):
-                raise ValueError("Invalid authorization attempt")
-            attempt.setdefault("peer_action", "trusted_forward")
-            attempt.setdefault("fault_mode", "none")
-        rows.append(row)
-    if not rows:
-        raise ValueError("Authorization batch must contain at least one case")
-    return rows
-
-
-def load_case_inputs(path: Path) -> list[dict[str, Any]]:
-    files = sorted(path.glob("*.json")) if path.is_dir() else [path]
-    if not files or len(files) > 100:
-        raise ValueError("Authorization batch requires 1 to 100 case files")
-    try:
-        return normalize_case_inputs(
-            decode_json(read_regular_file(file, max_bytes=65536), max_bytes=65536)
-            for file in files
-        )
-    except JSONInputError:
-        raise ValueError("Authorization cases require bounded regular files containing strict JSON") from None
-
 
 @contextmanager
 def _cancellation_handlers():
@@ -120,7 +71,7 @@ def _defer_cancellation(interrupted: list[bool]):
             signal.signal(number, handler)
 
 
-def _check_binding(plan: ActionPlan, rows: list[dict[str, Any]], sources: dict[str, bytes]) -> None:
+def _check_binding(plan: ActionPlan, rows: tuple[dict[str, Any], ...], sources: dict[str, bytes]) -> None:
     if len(plan.operations) != 1:
         raise ValueError("Action plan does not bind the fixed authorization batch")
     # ActionPlan freezes nested mappings; compare its canonical JSON snapshot.
@@ -129,27 +80,14 @@ def _check_binding(plan: ActionPlan, rows: list[dict[str, Any]], sources: dict[s
     if (
         not isinstance(manifest, dict)
         or manifest.get("schema_version") != "cops.agent-mcp-auth-manifest/v1"
-        or manifest.get("case_input_sha256") != digest(rows)
+        or manifest.get("case_input_sha256") != digest(list(rows))
         or not isinstance(manifest.get("adapter"), dict)
         or manifest["adapter"].get("source_sha256") != hashes
     ):
         raise ValueError("Action plan does not exactly bind the current immutable authorization manifest")
-    expected = ActionPlan.create(
-        plan_id=plan.plan_id, engagement_id=plan.engagement_id, created_at=plan.created_at,
-        scenario_id="COPS-E16.01", target="local-synthetic-agent-mcp-authorization-fixture",
-        specialist_id="cops-agent-mcp-authorization-lab",
-        operations=[{
-            "step_id": "auth-lab-batch", "tool": "foundry-agent-harness/auth-lab", "tool_version": "1",
-            "action": "run_authorization_batch", "arguments": manifest, "timeout_seconds": 120,
-            "cleanup": manifest.get("cleanup"), "idempotent": False,
-            "expected_evidence": ["peer forwarding observation", "target authorization decision",
-                                  "independent canary ledger", "process exit observation",
-                                  "private directory removal observation"],
-            "side_effects": ["private staged source and work directories", "local synthetic canary ledger writes"],
-        }],
-        limits={"max_duration_seconds": 120, "max_output_bytes": 1048576, "egress_allowed": False},
-        credential_references=[], platform_prerequisites=["python-standard-library", "local-stdio-processes"],
-        batch={"mode": "sequential", "max_operations": 1, "fail_fast": False},
+    expected = build_auth_plan(
+        rows, plan_id=plan.plan_id, engagement_id=plan.engagement_id,
+        created_at=plan.created_at, _sources=sources,
     )
     if plan.approved_snapshot(include_digest=True) != expected.approved_snapshot(include_digest=True):
         raise ValueError("Action plan does not bind the fixed authorization batch")
@@ -273,7 +211,7 @@ def run_auth_cases(
                 raise ValueError("Authorization admission was cancelled before consumption") from None
             if report is None:
                 report = _partial_report(plan, consumed, worker_identity, rows, started)
-        except (OSError, ValueError):
+        except (Exception, SystemExit):
             if consumed is None:
                 raise
             cleanup_failure = "source_snapshot_setup_or_execution_failure"
@@ -298,7 +236,9 @@ def run_auth_cases(
         report["cancelled"] = report["cancelled"] or interrupted[0]
         if cleanup_failure is not None or report["cancelled"] or not snapshot_verified or not removed:
             report["all_expectations_met"] = report["security_pass"] = False
-        if cleanup_failure is not None:
+        if cleanup_failure == "source_snapshot_setup_or_execution_failure":
+            report["next_action"] = "inspect_execution_initialization_before_new_approval"
+        elif cleanup_failure is not None:
             report["next_action"] = "inspect_source_snapshot_cleanup_before_new_approval"
         elif report["cancelled"] and not report["pending_case_ids"]:
             report["next_action"] = "review_partial_run_evidence"

@@ -176,6 +176,7 @@
           "type": "string",
           "enum": [
             "approve_a_new_plan_for_pending_cases",
+            "inspect_execution_initialization_before_new_approval",
             "inspect_source_snapshot_cleanup_before_new_approval",
             "review_partial_run_evidence"
           ]

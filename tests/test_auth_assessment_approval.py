@@ -16,6 +16,7 @@ import pytest
 from cops.contracts import ActionPlan
 from cops.execution.authorization import create_execution_authorization
 from cops.execution.store import ApprovalStore, ApprovalStoreConflictError
+from cops.laboratory import agent_mcp
 from tests.auth_testkit import (
     authorization_secret_environment,
     make_test_authorization_context,
@@ -25,7 +26,7 @@ from tests.auth_testkit import (
 PLUGIN_ROOT = Path(__file__).resolve().parents[1] / "plugins/offensive-security/foundry-agent-harness"
 sys.path.insert(0, str(PLUGIN_ROOT))
 
-from foundryharness import auth_approval, auth_bootstrap, auth_laboratory  # noqa: E402
+from foundryharness import auth_approval, auth_bootstrap, auth_fixture_server, auth_laboratory  # noqa: E402
 
 
 def authorized_batch(tmp_path: Path, cases=None):
@@ -71,6 +72,56 @@ def forbid_processes(monkeypatch: pytest.MonkeyPatch):
 
     monkeypatch.setattr(auth_approval, "_JsonLineProcess", forbidden)
     monkeypatch.setattr(auth_bootstrap, "_load_executor", forbidden)
+
+
+def test_trusted_planner_matches_runtime_case_and_tool_contracts():
+    cases = auth_laboratory.load_auth_cases(PLUGIN_ROOT / "auth_cases")
+    rows = agent_mcp.load_case_inputs(PLUGIN_ROOT / "auth_cases")
+    assert rows == tuple(case.to_dict() for case in cases)
+    plan = agent_mcp.build_auth_plan(
+        rows, plan_id="plan-contract-parity", engagement_id="eng-contract-parity",
+        created_at="2026-10-12T00:00:00Z", source_root=PLUGIN_ROOT / "foundryharness",
+    )
+    manifest = plan.approved_snapshot()["operations"][0]["arguments"]
+    adapter = manifest["adapter"]
+    assert adapter["protocol_version"] == auth_fixture_server.PROTOCOL_VERSION
+    assert adapter["server_info"] == auth_fixture_server.SERVER_INFO
+    assert adapter["tools"] == list(auth_fixture_server.TOOLS)
+    assert adapter["tool_input_schemas"] == auth_fixture_server.TOOL_INPUT_SCHEMAS
+    assert adapter["tool_permissions"] == list(auth_fixture_server.TOOL_PERMISSIONS)
+    assert adapter["peer_actions"] == list(auth_fixture_server.PEER_ACTIONS)
+    assert manifest["fault_modes"]["supported"] == list(auth_fixture_server.FAULT_MODES)
+
+
+@pytest.mark.parametrize("mutation", ["tool_schema", "permission", "peer", "cleanup", "budget"])
+def test_signed_but_changed_execution_contract_is_rejected_before_consumption(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutation: str,
+):
+    cases, context = authorized_batch(tmp_path)
+    snapshot = context["plan"].approved_snapshot()
+    manifest = snapshot["operations"][0]["arguments"]
+    if mutation == "tool_schema":
+        manifest["adapter"]["tool_input_schemas"]["canary/write"]["additionalProperties"] = True
+    elif mutation == "permission":
+        manifest["adapter"]["tool_permissions"][1]["granted_scopes"] = ["canary:admin"]
+    elif mutation == "peer":
+        manifest["adapter"]["peer_actions"] = ["trusted_forward"]
+    elif mutation == "cleanup":
+        manifest["cleanup"]["verify_process_exit"] = False
+    else:
+        snapshot["limits"]["max_output_bytes"] *= 2
+    snapshot.pop("schema_version")
+    plan = ActionPlan.create(**snapshot)
+    signer, trust_store, engagement = make_test_authorization_context(plan)
+    authorization = create_execution_authorization(
+        plan, signer=signer, engagement=engagement, worker_identity="fixture-worker",
+    )
+    context["approval_store"].store_authorization(authorization)
+    context.update(plan=plan, authorization=authorization, engagement=engagement, trust_store=trust_store)
+    forbid_processes(monkeypatch)
+    with pytest.raises(ValueError, match="fixed authorization batch"):
+        auth_approval.run_auth_cases(cases, **context)
+    assert context["approval_store"].get_authorization(authorization.authorization_id).status == "approved"
 
 
 def test_missing_signed_approval_cannot_launch_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
