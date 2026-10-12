@@ -124,7 +124,8 @@ def _partial_report(plan, consumed, worker, rows, started):
             "consumed_once_for_batch": True,
         },
         "test_identity": "synthetic-fixture-runner",
-        "source_snapshot": {"verified": False, "private_directory_removed": False, "reason": None},
+        "source_snapshot": {"verified": False, "private_directory_removed": False,
+                            "reason": None, "failures": []},
         "cancelled": True,
         "execution_failure": None,
         "budget": {"max_duration_seconds": 120, "cleanup_reserve_seconds": 8,
@@ -133,6 +134,7 @@ def _partial_report(plan, consumed, worker, rows, started):
                    "accounting_scope": "received_response_bytes_and_new_ledger_bytes", "stop_reason": None},
         "pending_case_ids": [row["case_id"] for row in rows],
         "next_action": "approve_a_new_plan_for_pending_cases",
+        "recovery_actions": ["approve_a_new_plan_for_pending_cases"],
         "planned_case_count": len(rows), "completed_case_count": 0,
         "all_expectations_met": False, "security_pass": False, "results": [], "redacted": True,
     }
@@ -171,7 +173,7 @@ def run_auth_cases(
     executor = None
     report = None
     consumed = None
-    cleanup_failure = None
+    snapshot_failures = []
     snapshot_verified = False
     with _cancellation_handlers():
         try:
@@ -215,7 +217,7 @@ def run_auth_cases(
         except (Exception, SystemExit):
             if consumed is None:
                 raise
-            cleanup_failure = "source_snapshot_setup_or_execution_failure"
+            snapshot_failures.append("source_snapshot_setup_or_execution_failure")
             report = report or _partial_report(plan, consumed, worker_identity, rows, started)
             report["cancelled"] = False
         finally:
@@ -227,20 +229,30 @@ def run_auth_cases(
                         os.chmod(directory.name, 0o700)
                         directory.cleanup()
                     except OSError:
-                        cleanup_failure = "source_snapshot_cleanup_failure"
+                        snapshot_failures.append("source_snapshot_cleanup_failure")
         removed = directory is None or not Path(directory.name).exists()
         if not removed:
-            cleanup_failure = cleanup_failure or "source_snapshot_removal_not_observed"
+            snapshot_failures.append("source_snapshot_removal_not_observed")
         report["source_snapshot"] = {
-            "verified": snapshot_verified, "private_directory_removed": removed, "reason": cleanup_failure,
+            "verified": snapshot_verified, "private_directory_removed": removed,
+            "reason": snapshot_failures[0] if snapshot_failures else None, "failures": snapshot_failures,
         }
         report["cancelled"] = report["cancelled"] or interrupted[0]
-        if cleanup_failure is not None or report["cancelled"] or not snapshot_verified or not removed:
+        if snapshot_failures or report["cancelled"] or not snapshot_verified or not removed:
             report["all_expectations_met"] = report["security_pass"] = False
-        if cleanup_failure == "source_snapshot_setup_or_execution_failure":
-            report["next_action"] = "inspect_execution_initialization_before_new_approval"
-        elif cleanup_failure is not None:
-            report["next_action"] = "inspect_source_snapshot_cleanup_before_new_approval"
-        elif report["cancelled"] and not report["pending_case_ids"]:
-            report["next_action"] = "review_partial_run_evidence"
+        recovery = []
+        if report.get("execution_failure"):
+            recovery.append("reconcile_uncertain_execution_effects_before_new_approval")
+        if "source_snapshot_setup_or_execution_failure" in snapshot_failures:
+            recovery.append("inspect_execution_initialization_before_new_approval")
+        if any(failure in snapshot_failures for failure in (
+            "source_snapshot_cleanup_failure", "source_snapshot_removal_not_observed",
+        )):
+            recovery.append("inspect_source_snapshot_cleanup_before_new_approval")
+        if report["pending_case_ids"]:
+            recovery.append("approve_a_new_plan_for_pending_cases")
+        elif report["cancelled"]:
+            recovery.append("review_partial_run_evidence")
+        report["recovery_actions"] = recovery
+        report["next_action"] = recovery[0] if recovery else None
         return report

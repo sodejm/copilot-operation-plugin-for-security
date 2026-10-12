@@ -152,6 +152,7 @@ def test_signed_controller_initialization_failure_returns_redacted_failed_report
     assert report["source_snapshot"] == {
         "verified": True, "private_directory_removed": True,
         "reason": "source_snapshot_setup_or_execution_failure",
+        "failures": ["source_snapshot_setup_or_execution_failure"],
     }
     assert report["next_action"] == "inspect_execution_initialization_before_new_approval"
     assert "private-token" not in result.stdout + result.stderr
@@ -452,6 +453,8 @@ def test_ledger_reads_respect_exact_remaining_byte_budget(tmp_path, over_by):
     event.update(
         schema_version="cops.agent-mcp-auth-ledger-event/v1", server_identity=auth_approval.SERVER_IDENTITY,
         test_identity=auth_approval.TEST_IDENTITY, kind="canary_write", operation="write", redacted=True,
+        tool="canary/write", principal="principal-alice", tenant="tenant-contoso-01",
+        resource="res-canary", plan_digest="a" * 64,
     )
     raw = (json.dumps(event) + "\n").encode()
     ledger = tmp_path / "effects.jsonl"

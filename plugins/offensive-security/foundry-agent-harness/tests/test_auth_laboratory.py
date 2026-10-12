@@ -63,7 +63,8 @@ def test_bundled_authorization_cases_have_independent_effect_evidence(tmp_path):
     assert len(results["one-time-replay"]["observed_effects"]) == 1
     assert decisions("reusable-grant") == ["allowed", "allowed"]
     assert len(results["reusable-grant"]["observed_effects"]) == 2
-    assert results["read-control"]["observed_effects"] == []
+    assert len(results["read-control"]["observed_effects"]) == 1
+    assert results["read-control"]["observed_effects"][0]["kind"] == "canary_read"
     assert results["delegated-control-fabrikam"]["observed_effects"][0]["tenant"] == "tenant-fabrikam-02"
     assert results["cross-tenant-reverse"]["observed_effects"] == []
     for name in ("peer-mutate-tenant", "peer-omit-tenant", "peer-mutate-operation", "peer-substitute-receipt"):
@@ -122,6 +123,62 @@ def test_expected_reason_mismatch_is_failure(tmp_path):
     report = run_data(tmp_path, data)
     assert report["results"][0]["outcome"] == "fail"
     assert report["all_expectations_met"] is False
+
+
+def test_allowed_read_without_independent_disclosure_is_inconclusive(tmp_path, monkeypatch):
+    def configure(executor):
+        observe = executor._read_effects
+        executor._read_effects = lambda path, *args: [
+            event for event in observe(path, *args) if event["kind"] != "canary_read"
+        ]
+
+    patch_executor(monkeypatch, configure)
+    report = run_data(tmp_path, case_data("read-control"))
+    result = report["results"][0]
+    assert result["observations"][0]["target"]["decision"] == "allowed"
+    assert result["outcome"] == "inconclusive"
+    assert not result["evidence_complete"] and not result["security_pass"]
+    assert not report["security_pass"] and not report["all_expectations_met"]
+
+
+@pytest.mark.parametrize("disclosure", [False, True])
+def test_denied_read_is_secure_only_without_independent_disclosure(tmp_path, monkeypatch, disclosure):
+    data = case_data("read-control")
+    data["attempts"][0]["tenant"] = "tenant-fabrikam-02"
+    data.update(expected_decisions=["denied"], expected_reasons=["tenant_mismatch"], expected_effect_count=0)
+
+    def configure(executor):
+        observe = executor._read_effects
+        reads = [0]
+
+        def observe_disclosure(path, *args):
+            events = observe(path, *args)
+            reads[0] += 1
+            if disclosure and reads[0] > 1:
+                case = executor._coerce_cases([data])[0]
+                # Independent telemetry records disclosure despite a claimed denial.
+                request = executor._request(case, case.attempts[0], 1, context["plan"].plan_digest)
+                events.append({
+                    "schema_version": "cops.agent-mcp-auth-ledger-event/v1",
+                    **{name: request[name] for name in (
+                        "attempt_id", "request_id", "canary_id", "plan_digest", "test_identity",
+                    )},
+                    "case_id": case.case_id, "principal": request["principal"],
+                    "tool": "canary/read", "server_identity": executor.SERVER_IDENTITY,
+                    "kind": "canary_read", "tenant": request["tenant"],
+                    "resource": request["resource"], "operation": "read", "redacted": True,
+                })
+            return events
+
+        executor._read_effects = observe_disclosure
+
+    cases, context = authorized_batch(tmp_path, [auth_laboratory.AuthCase.from_dict(data)])
+    patch_executor(monkeypatch, configure)
+    result = auth_approval.run_auth_cases(cases, **context)["results"][0]
+    assert result["observations"][0]["target"]["decision"] == "denied"
+    assert result["outcome"] == ("fail" if disclosure else "pass")
+    assert result["evidence_complete"] is True
+    assert result["security_pass"] is (not disclosure)
 
 
 def test_trusted_peer_preserves_missing_tenant_for_target_denial(tmp_path):

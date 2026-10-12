@@ -79,9 +79,10 @@
               "canary_id": "canary-wrong-audience-1",
               "plan_digest": "b16745d4a308a36758aa9c039e610803c6a081c0d0ed4d3c641ce9c3d4ffb00d",
               "test_identity": "synthetic-fixture-runner",
-              "fault_mode": "missing_identity_telemetry"
+              "fault_mode": "missing_identity_telemetry",
+              "case_id": "wrong-audience"
             },
-            "forwarded_request_digest": "7e10a69c23f1bf040b63bf01b905b11a4912a8d716d4f74963b4a03b4c8cb8a1",
+            "forwarded_request_digest": "8f0f9672cd6c0f47ea2797958f5e4fa64ba5d3383c54739b34583f61a07fc85c",
             "redacted": true
           },
           "target": {
@@ -117,6 +118,9 @@
   "source_snapshot": {
     "verified": true,
     "private_directory_removed": true,
-    "reason": null
-  }
+    "reason": null,
+    "failures": []
+  },
+  "execution_failure": null,
+  "recovery_actions": []
 }

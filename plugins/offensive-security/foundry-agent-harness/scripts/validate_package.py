@@ -13,13 +13,18 @@ from pathlib import Path
 
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent
 SCHEMA_KEYS = {
-    "$id", "$schema", "title", "description", "type", "const", "enum", "required",
-    "properties", "additionalProperties", "items", "oneOf", "minLength", "maxLength",
+    "$id", "$schema", "$defs", "$ref", "title", "description", "type", "const", "enum", "required",
+    "properties", "additionalProperties", "items", "oneOf", "anyOf", "minLength", "maxLength",
     "pattern", "minItems", "maxItems", "uniqueItems", "minimum", "maximum",
 }
 SUPPORTED_PATTERNS = {
     "^[a-z0-9]+(?:-[a-z0-9]+)*$", "^[a-z0-9]+(-[a-z0-9]+)*$",
     "^SCN-[A-Za-z0-9_-]+$", r"\S",
+    "^[a-f0-9]{64}$", "^[0-9a-f]{64}$",
+}
+SCHEMA_TYPES = {
+    "object": (dict,), "array": (list,), "string": (str,), "integer": (int,),
+    "number": (int, float), "boolean": (bool,), "null": (type(None),),
 }
 
 
@@ -75,28 +80,120 @@ def load_json(path: Path, limit: int = 1024 * 1024):
     return value
 
 
-def check_schema(value, schema):
-    """Check the small, explicit JSON Schema vocabulary used by case definitions."""
-    if not isinstance(schema, dict) or set(schema) - SCHEMA_KEYS:
-        raise PackageError("Unsupported case schema")
-    if "oneOf" in schema:
+def admit_schema(schema):
+    """Admit every schema node, including unused definitions, before checking data."""
+    if (not isinstance(schema, dict) or schema.get("type") != "object"
+            or not schema.get("properties") or not schema.get("required")
+            or schema.get("additionalProperties") is not False):
+        raise PackageError("Invalid package schema root")
+    definitions = schema.get("$defs", {})
+    stack, visited = [(schema, 0)], 0
+    while stack:
+        node, depth = stack.pop()
+        visited += 1
+        if (not isinstance(node, dict) or not node or set(node) - SCHEMA_KEYS
+                or not set(node) & {"type", "const", "enum", "properties", "$ref", "oneOf", "anyOf"}
+                or depth > 40 or visited > 10000):
+            raise PackageError("Unsupported package schema")
+        for key in ("$id", "$schema", "title", "description"):
+            if key in node and (not isinstance(node[key], str) or not node[key]):
+                raise PackageError("Invalid schema metadata")
+        if "type" in node:
+            names = node["type"] if isinstance(node["type"], list) else [node["type"]]
+            if (not names or any(not isinstance(name, str) or name not in SCHEMA_TYPES
+                                 for name in names) or len(set(names)) != len(names)):
+                raise PackageError("Unsupported schema type")
+        for key in ("properties", "$defs"):
+            if key in node:
+                if not isinstance(node[key], dict) or any(not name for name in node[key]):
+                    raise PackageError("Invalid schema properties")
+                stack.extend((child, depth + 1) for child in node[key].values())
+        if "$defs" in node and node is not schema:
+            raise PackageError("Unsupported nested schema definitions")
+        if "required" in node:
+            required = node["required"]
+            if (not isinstance(required, list)
+                    or any(not isinstance(name, str) or not name for name in required)
+                    or len(set(required)) != len(required)
+                    or ("properties" in node and set(required) - node["properties"].keys())):
+                raise PackageError("Invalid required schema fields")
+        if "enum" in node and (not isinstance(node["enum"], list) or not node["enum"]):
+            raise PackageError("Invalid schema enumeration")
+        if "additionalProperties" in node:
+            additional = node["additionalProperties"]
+            if isinstance(additional, dict):
+                stack.append((additional, depth + 1))
+            elif type(additional) is not bool:
+                raise PackageError("Invalid additional properties schema")
+        if "items" in node:
+            stack.append((node["items"], depth + 1))
+        for key in ("oneOf", "anyOf"):
+            if key in node:
+                if not isinstance(node[key], list) or not node[key]:
+                    raise PackageError("Invalid schema alternatives")
+                stack.extend((child, depth + 1) for child in node[key])
+        if "pattern" in node and (not isinstance(node["pattern"], str)
+                                  or node["pattern"] not in SUPPORTED_PATTERNS):
+            raise PackageError("Unsupported schema string pattern")
+        if "uniqueItems" in node and type(node["uniqueItems"]) is not bool:
+            raise PackageError("Invalid schema uniqueness constraint")
+        for low, high, integer in (("minLength", "maxLength", True),
+                                   ("minItems", "maxItems", True),
+                                   ("minimum", "maximum", False)):
+            for key in (low, high):
+                if key in node:
+                    bound = node[key]
+                    if (type(bound) not in ((int,) if integer else (int, float))
+                            or (integer and bound < 0)
+                            or (type(bound) is float and not math.isfinite(bound))):
+                        raise PackageError("Invalid schema bounds")
+            if low in node and high in node and node[low] > node[high]:
+                raise PackageError("Inconsistent schema bounds")
+        if "$ref" in node:
+            reference = node["$ref"]
+            if (not isinstance(reference, str) or not reference.startswith("#/$defs/")
+                    or reference[8:] not in definitions):
+                raise PackageError("Invalid local schema reference")
+    # Resolve the complete graph, rejecting cycles and excessive expansion.
+    stack, visited = [(schema, (), 0)], 0
+    while stack:
+        node, ancestry, depth = stack.pop()
+        visited += 1
+        if id(node) in ancestry or depth > 40 or visited > 10000:
+            raise PackageError("Unbounded schema reference graph")
+        ancestry = (*ancestry, id(node))
+        children = list(node.get("properties", {}).values()) + list(node.get("$defs", {}).values())
+        children += node.get("oneOf", []) + node.get("anyOf", [])
+        if "items" in node:
+            children.append(node["items"])
+        if isinstance(node.get("additionalProperties"), dict):
+            children.append(node["additionalProperties"])
+        if "$ref" in node:
+            children.append(definitions[node["$ref"][8:]])
+        stack.extend((child, ancestry, depth + 1) for child in children)
+    return schema
+
+
+def check_schema(value, schema, root=None):
+    """Check data against the admitted, explicit package schema vocabulary."""
+    root = schema if root is None else root
+    if "$ref" in schema:
+        check_schema(value, root["$defs"][schema["$ref"][8:]], root)
+    for keyword in ("oneOf", "anyOf"):
+        if keyword not in schema:
+            continue
         matches = 0
-        for branch in schema["oneOf"]:
+        for branch in schema[keyword]:
             try:
-                check_schema(value, branch)
+                check_schema(value, branch, root)
                 matches += 1
             except PackageError:
                 pass
-        if matches != 1:
+        if (keyword == "oneOf" and matches != 1) or (keyword == "anyOf" and matches == 0):
             raise PackageError("Invalid schema alternative")
-    types = {
-        "object": dict, "array": list, "string": str, "integer": int,
-        "number": (int, float), "boolean": bool, "null": type(None),
-    }
     if "type" in schema:
         names = schema["type"] if isinstance(schema["type"], list) else [schema["type"]]
-        if not any(type(value) in (types[name] if isinstance(types[name], tuple)
-                                  else (types[name],)) for name in names):
+        if not any(type(value) in SCHEMA_TYPES[name] for name in names):
             raise PackageError("Invalid case field type")
     if "const" in schema and (type(value) is not type(schema["const"])
                               or value != schema["const"]):
@@ -111,7 +208,10 @@ def check_schema(value, schema):
         if schema.get("additionalProperties") is False and value.keys() - properties.keys():
             raise PackageError("Unknown case field")
         for key in value.keys() & properties.keys():
-            check_schema(value[key], properties[key])
+            check_schema(value[key], properties[key], root)
+        if isinstance(schema.get("additionalProperties"), dict):
+            for key in value.keys() - properties.keys():
+                check_schema(value[key], schema["additionalProperties"], root)
     elif isinstance(value, list):
         if not schema.get("minItems", 0) <= len(value) <= schema.get("maxItems", len(value)):
             raise PackageError("Invalid array size")
@@ -120,12 +220,13 @@ def check_schema(value, schema):
             raise PackageError("Duplicate array item")
         if "items" in schema:
             for item in value:
-                check_schema(item, schema["items"])
+                check_schema(item, schema["items"], root)
     elif isinstance(value, str):
         if not schema.get("minLength", 0) <= len(value) <= schema.get("maxLength", len(value)):
             raise PackageError("Invalid string size")
         if "pattern" in schema:
-            if schema["pattern"] not in SUPPORTED_PATTERNS:
+            if (not isinstance(schema["pattern"], str)
+                    or schema["pattern"] not in SUPPORTED_PATTERNS):
                 raise PackageError("Unsupported string pattern")
             if re.search(schema["pattern"], value) is None:
                 raise PackageError("Invalid string pattern")
@@ -146,7 +247,7 @@ def load_cases(directory: str, schema_name: str, identity: str, minimum: int):
                 raise PackageError("Too many case definitions")
     if len(files) < minimum:
         raise PackageError("Missing case definitions")
-    schema = load_json(PLUGIN_ROOT / "schemas" / schema_name)
+    schema = admit_schema(load_json(PLUGIN_ROOT / "schemas" / schema_name))
     cases, identities = [], set()
     for path in sorted(files):
         case = load_json(path, 64 * 1024)
@@ -227,8 +328,14 @@ def validate() -> int:
 
     try:
         for path in json_files:
-            if not isinstance(load_json(path), dict):
+            value = load_json(path)
+            if not isinstance(value, dict):
                 raise PackageError("Invalid package configuration")
+            if path.parent.name == "schemas":
+                admit_schema(value)
+        report_schema = admit_schema(load_json(PLUGIN_ROOT / "schemas" / "auth-report.schema.json"))
+        for name in ("auth-authorized.json", "auth-denied.json", "auth-inconclusive.json"):
+            check_schema(load_json(PLUGIN_ROOT / "examples" / name), report_schema)
         for name in ("foundry-agent-review", "ai-agent-mcp-laboratories"):
             content = read_text(PLUGIN_ROOT / "skills" / name / "SKILL.md")
             if not content.startswith(f"---\nname: {name}\n"):

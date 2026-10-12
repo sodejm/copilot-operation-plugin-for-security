@@ -65,8 +65,10 @@ The `foundry-agent-harness` package binds a complete synthetic authorization
 batch to one signed COPS Action Plan before starting its fixed peer and target
 processes. The target evaluates its own principal, audience, tenant, tool scope,
 delegation, expiry, revocation, and replay rules independently of COPS approval.
-A private canary ledger records effects separately from peer requests and target
-decisions. Batch limits stop further admission and cleanup is observed.
+A private canary ledger records read disclosures and write effects separately
+from peer requests and target decisions. Batch limits stop further admission and
+cleanup is observed. Partial failures preserve completed evidence and usage, with
+all snapshot failures and ordered recovery actions reported.
 
 This is a POSIX local fixture with logical expiry and revocation. It does not
 establish external provider interoperability, Windows execution, operating-system

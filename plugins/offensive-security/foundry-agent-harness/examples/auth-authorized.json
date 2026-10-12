@@ -79,9 +79,10 @@
               "canary_id": "canary-delegated-control-1",
               "plan_digest": "ceef15440c478d51baf6d11b11b5903c0bb7ac3a3795238fb4b6c2f793bb3f83",
               "test_identity": "synthetic-fixture-runner",
-              "fault_mode": "none"
+              "fault_mode": "none",
+              "case_id": "delegated-control"
             },
-            "forwarded_request_digest": "4dff6513d5109c3499dbdaa3e1d6b905ccb17da8877a099d05a50f0ee5a1423d",
+            "forwarded_request_digest": "26b4f5009b598af5299bb3044d698d2b6f4e3c8d0ef85b826fb7c09c36a971de",
             "redacted": true
           },
           "target": {
@@ -117,7 +118,10 @@
           "tenant": "tenant-contoso-01",
           "resource": "res-canary",
           "operation": "write",
-          "redacted": true
+          "redacted": true,
+          "case_id": "delegated-control",
+          "principal": "principal-alice",
+          "tool": "canary/write"
         }
       ],
       "cleanup": {
@@ -133,6 +137,9 @@
   "source_snapshot": {
     "verified": true,
     "private_directory_removed": true,
-    "reason": null
-  }
+    "reason": null,
+    "failures": []
+  },
+  "execution_failure": null,
+  "recovery_actions": []
 }

@@ -84,6 +84,7 @@
             "attempt_id",
             "audience",
             "canary_id",
+            "case_id",
             "depth",
             "downstream_service",
             "fault_mode",
@@ -195,21 +196,30 @@
               "minimum": 0,
               "maximum": 10
             },
+            "case_id": {
+              "type": "string",
+              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+              "maxLength": 64
+            },
             "attempt_id": {
               "type": "string",
-              "pattern": "[a-z0-9]+(?:-[a-z0-9]+)*"
+              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+              "maxLength": 128
             },
             "request_id": {
               "type": "string",
-              "pattern": "[a-z0-9]+(?:-[a-z0-9]+)*"
+              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+              "maxLength": 128
             },
             "canary_id": {
               "type": "string",
-              "pattern": "[a-z0-9]+(?:-[a-z0-9]+)*"
+              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+              "maxLength": 128
             },
             "plan_digest": {
               "type": "string",
-              "pattern": "[0-9a-f]{64}"
+              "pattern": "^[0-9a-f]{64}$",
+              "maxLength": 64
             },
             "test_identity": {
               "type": "string",
@@ -234,6 +244,7 @@
             "attempt_id",
             "audience",
             "canary_id",
+            "case_id",
             "depth",
             "downstream_service",
             "fault_mode",
@@ -345,21 +356,30 @@
               "minimum": 0,
               "maximum": 10
             },
+            "case_id": {
+              "type": "string",
+              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+              "maxLength": 64
+            },
             "attempt_id": {
               "type": "string",
-              "pattern": "[a-z0-9]+(?:-[a-z0-9]+)*"
+              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+              "maxLength": 128
             },
             "request_id": {
               "type": "string",
-              "pattern": "[a-z0-9]+(?:-[a-z0-9]+)*"
+              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+              "maxLength": 128
             },
             "canary_id": {
               "type": "string",
-              "pattern": "[a-z0-9]+(?:-[a-z0-9]+)*"
+              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+              "maxLength": 128
             },
             "plan_digest": {
               "type": "string",
-              "pattern": "[0-9a-f]{64}"
+              "pattern": "^[0-9a-f]{64}$",
+              "maxLength": 64
             },
             "test_identity": {
               "type": "string",

@@ -251,9 +251,28 @@ def test_expiry_stops_admission_even_with_duration_remaining(tmp_path: Path, mon
         budget.admit()
 
 
+def fail_source_snapshot_cleanup(monkeypatch):
+    temporary_directory = auth_bootstrap.tempfile.TemporaryDirectory
+
+    def create(*args, **kwargs):
+        directory = temporary_directory(*args, **kwargs)
+        if kwargs.get("prefix") == "cops-auth-source-":
+            cleanup = directory.cleanup
+
+            def fail_after_cleanup():
+                cleanup()
+                raise OSError("private cleanup error must not enter evidence")
+
+            directory.cleanup = fail_after_cleanup
+        return directory
+
+    monkeypatch.setattr(auth_bootstrap.tempfile, "TemporaryDirectory", create)
+
+
 @pytest.mark.parametrize("failure", [RuntimeError, SystemExit])
+@pytest.mark.parametrize("cleanup_fails", [False, True])
 def test_later_case_failure_preserves_evidence_and_requires_effect_reconciliation(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure, cleanup_fails,
 ):
     import jsonschema
 
@@ -286,6 +305,8 @@ def test_later_case_failure_preserves_evidence_and_requires_effect_reconciliatio
         executor._run_auth_case = fail_after_effect
 
     patch_executor(monkeypatch, configure)
+    if cleanup_fails:
+        fail_source_snapshot_cleanup(monkeypatch)
     report = auth_approval.run_auth_cases(cases, **context)
     assert started == ["completed-before-failure", "uncertain-failure"]
     assert report["completed_case_count"] == 1
@@ -296,16 +317,52 @@ def test_later_case_failure_preserves_evidence_and_requires_effect_reconciliatio
         "case_id": "uncertain-failure", "reason": "case_execution_failed",
         "effect_status": "uncertain",
     }
-    assert report["next_action"] == "reconcile_uncertain_case_effects_before_new_approval"
+    assert report["next_action"] == "reconcile_uncertain_execution_effects_before_new_approval"
     assert report["cancelled"] is False
     assert report["all_expectations_met"] is False
     assert report["security_pass"] is False
     assert report["budget"]["observed_output_bytes"] > 0
     assert report["source_snapshot"] == {
-        "verified": True, "private_directory_removed": True, "reason": None,
+        "verified": True, "private_directory_removed": True,
+        "reason": "source_snapshot_cleanup_failure" if cleanup_fails else None,
+        "failures": ["source_snapshot_cleanup_failure"] if cleanup_fails else [],
     }
+    assert report["recovery_actions"] == [
+        "reconcile_uncertain_execution_effects_before_new_approval",
+        *(["inspect_source_snapshot_cleanup_before_new_approval"] if cleanup_fails else []),
+        "approve_a_new_plan_for_pending_cases",
+    ]
     assert all(process.poll() is not None and not directory.exists() for process, directory in children)
     assert private_payload not in json.dumps(report)
+    jsonschema.validate(report, json.loads((PLUGIN_ROOT / "schemas/auth-report.schema.json").read_text()))
+    with pytest.raises(ApprovalStoreConflictError):
+        auth_approval.run_auth_cases(cases, **context)
+
+
+def test_initialization_and_cleanup_failures_preserve_both_recovery_obligations(tmp_path, monkeypatch):
+    import jsonschema
+
+    cases, context = authorized_batch(tmp_path)
+    fail_source_snapshot_cleanup(monkeypatch)
+
+    def fail_to_load(_source_root):
+        raise RuntimeError("private initialization error must not enter evidence")
+
+    monkeypatch.setattr(auth_bootstrap, "_load_executor", fail_to_load)
+    report = auth_approval.run_auth_cases(cases, **context)
+    assert report["source_snapshot"]["reason"] == "source_snapshot_setup_or_execution_failure"
+    assert report["source_snapshot"]["failures"] == [
+        "source_snapshot_setup_or_execution_failure", "source_snapshot_cleanup_failure",
+    ]
+    assert report["recovery_actions"] == [
+        "inspect_execution_initialization_before_new_approval",
+        "inspect_source_snapshot_cleanup_before_new_approval",
+        "approve_a_new_plan_for_pending_cases",
+    ]
+    assert report["next_action"] == report["recovery_actions"][0]
+    assert not report["security_pass"] and not report["all_expectations_met"]
+    assert report["pending_case_ids"] == [case.case_id for case in cases]
+    assert "private" not in json.dumps(report).replace("private_directory_removed", "")
     jsonschema.validate(report, json.loads((PLUGIN_ROOT / "schemas/auth-report.schema.json").read_text()))
     with pytest.raises(ApprovalStoreConflictError):
         auth_approval.run_auth_cases(cases, **context)
@@ -352,7 +409,7 @@ def test_cli_runs_one_signed_batch_and_rejects_receipt_reuse(tmp_path: Path):
     assert report["all_expectations_met"] is True
     assert report["security_pass"] is True
     assert report["source_snapshot"] == {
-        "verified": True, "private_directory_removed": True, "reason": None,
+        "verified": True, "private_directory_removed": True, "reason": None, "failures": [],
     }
     assert report["assessment_authorization"]["consumed_once_for_batch"] is True
     assert report["completed_case_count"] == 2

@@ -1,7 +1,7 @@
 {
   "schema_version": "cops.agent-mcp-auth-case/v1",
   "case_id": "read-control",
-  "title": "Legitimate delegated read has no effect",
+  "title": "Legitimate delegated read has an observed disclosure",
   "grant": "read-only",
   "flow": "delegated",
   "attempts": [
@@ -24,7 +24,7 @@
   "expected_decisions": [
     "allowed"
   ],
-  "expected_effect_count": 0,
+  "expected_effect_count": 1,
   "expected_reasons": [
     "allowed"
   ]

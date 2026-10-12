@@ -58,6 +58,30 @@ def test_source_package_validator_does_not_require_repository_imports(tmp_path):
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+@pytest.mark.parametrize("schema_name", ["auth-adapter", "auth-evidence", "auth-report"])
+@pytest.mark.parametrize("defect", ["empty", "unknown_keyword", "missing_reference", "invalid_required"])
+def test_package_gate_rejects_invalid_authorization_schema(tmp_path, schema_name, defect):
+    copied = tmp_path / "plugin"
+    shutil.copytree(PLUGIN, copied, ignore=shutil.ignore_patterns("__pycache__"))
+    path = copied / "schemas" / f"{schema_name}.schema.json"
+    schema = json.loads(path.read_text())
+    if defect == "empty":
+        schema = {}
+    elif defect == "unknown_keyword":
+        schema["unrecognized_schema_keyword"] = True
+    elif defect == "missing_reference":
+        schema["$ref"] = "#/$defs/missing"
+    else:
+        schema["required"] = "schema_version"
+    path.write_text(json.dumps(schema))
+    result = subprocess.run(
+        [sys.executable, "-I", str(copied / "scripts/validate_package.py")],
+        cwd=tmp_path, capture_output=True, text=True, timeout=20,
+    )
+    assert result.returncode != 0
+    assert "Traceback" not in result.stderr
+
+
 def inject_execution_marker(source: Path, marker: Path):
     text = source.read_text()
     anchor = "from __future__ import annotations\n"

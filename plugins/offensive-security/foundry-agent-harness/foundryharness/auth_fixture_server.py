@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import threading
 from pathlib import Path
@@ -108,6 +109,7 @@ GRANTS = {
 }
 SYNTHETIC_GRANT_ALIASES = (*GRANTS, "receipt-approved-synthetic")
 ARGUMENT_FIELDS = frozenset({
+    "case_id",
     "grant",
     "flow",
     "principal",
@@ -165,10 +167,11 @@ TOOL_INPUT_SCHEMA = {
         },
         "depth": {"type": "integer", "minimum": 0, "maximum": 3},
         "tick": {"type": "integer", "minimum": 0, "maximum": 10},
-        "attempt_id": {"type": "string", "pattern": ID_PATTERN},
-        "request_id": {"type": "string", "pattern": ID_PATTERN},
-        "canary_id": {"type": "string", "pattern": ID_PATTERN},
-        "plan_digest": {"type": "string", "pattern": r"[0-9a-f]{64}"},
+        "case_id": {"type": "string", "pattern": f"^{ID_PATTERN}$", "maxLength": 64},
+        "attempt_id": {"type": "string", "pattern": f"^{ID_PATTERN}$", "maxLength": 128},
+        "request_id": {"type": "string", "pattern": f"^{ID_PATTERN}$", "maxLength": 128},
+        "canary_id": {"type": "string", "pattern": f"^{ID_PATTERN}$", "maxLength": 128},
+        "plan_digest": {"type": "string", "pattern": r"^[0-9a-f]{64}$", "maxLength": 64},
         "test_identity": {"type": "string", "const": TEST_IDENTITY},
         "fault_mode": {"type": "string", "enum": list(FAULT_MODES)},
     },
@@ -227,8 +230,12 @@ def _valid_arguments(args: dict[str, Any]) -> bool:
         and 0 <= args["depth"] <= 3
         and type(args["tick"]) is int
         and 0 <= args["tick"] <= 10
+        and isinstance(args["case_id"], str)
+        and 1 <= len(args["case_id"]) <= 64
+        and re.fullmatch(ID_PATTERN, args["case_id"]) is not None
         and all(
             isinstance(args[key], str) and 1 <= len(args[key]) <= 128
+            and re.fullmatch(ID_PATTERN, args[key]) is not None
             for key in ("attempt_id", "request_id", "canary_id")
         )
         and isinstance(args["plan_digest"], str)
@@ -279,11 +286,14 @@ def _append_effect(args: dict[str, Any]) -> None:
     event: dict[str, Any] = {
         "schema_version": "cops.agent-mcp-auth-ledger-event/v1",
         **_correlation(args),
+        "case_id": args["case_id"],
+        "principal": args["principal"],
+        "tool": f"canary/{args['operation']}",
         "server_identity": SERVER_IDENTITY,
-        "kind": "canary_write",
+        "kind": f"canary_{args['operation']}",
         "tenant": args["tenant"],
         "resource": args["resource"],
-        "operation": "write",
+        "operation": args["operation"],
         "redacted": True,
     }
     if args["fault_mode"] == "observer_failure":
@@ -341,7 +351,7 @@ def main() -> int:
                 if args.get("fault_mode") == "hung_server":
                     threading.Event().wait()
                 decision = _decision(name, args, used)
-                if decision["decision"] == "allowed" and name == "canary/write":
+                if decision["decision"] == "allowed":
                     _append_effect(args)
                 result = _tool_result(decision)
             else:

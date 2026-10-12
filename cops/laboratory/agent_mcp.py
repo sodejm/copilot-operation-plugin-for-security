@@ -236,8 +236,9 @@ def _tool_input_schema() -> dict[str, Any]:
                    "items": {"type": "string", "enum": sorted(SCOPES)}},
         "depth": {"type": "integer", "minimum": 0, "maximum": 3},
         "tick": {"type": "integer", "minimum": 0, "maximum": 10},
-        **{field: {"type": "string", "pattern": ID_PATTERN} for field in ("attempt_id", "request_id", "canary_id")},
-        "plan_digest": {"type": "string", "pattern": "[0-9a-f]{64}"},
+        "case_id": {"type": "string", "pattern": f"^{ID_PATTERN}$", "maxLength": 64},
+        **{field: {"type": "string", "pattern": f"^{ID_PATTERN}$", "maxLength": 128} for field in ("attempt_id", "request_id", "canary_id")},
+        "plan_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$", "maxLength": 64},
         "test_identity": {"type": "string", "const": TEST_IDENTITY},
         "fault_mode": {"type": "string", "enum": list(FAULT_MODES)},
     }
@@ -265,9 +266,9 @@ def build_auth_plan(
             attempt_id = f"{case['case_id']}-{index}"
             attempts.append({
                 "attempt_id": attempt_id, "request_id": f"request-{attempt_id}", "canary_id": f"canary-{attempt_id}",
-                "request": {"grant": case["grant"], "flow": case["flow"], **attempt},
+                "request": {"case_id": case["case_id"], "grant": case["grant"], "flow": case["flow"], **attempt},
                 "expectation": {"decision": case["expected_decisions"][index - 1], "reason": case["expected_reasons"][index - 1],
-                                "effect_delta": int(case["expected_decisions"][index - 1] == "allowed" and attempt["tool"] == "canary/write")},
+                                "effect_delta": int(case["expected_decisions"][index - 1] == "allowed")},
             })
         planned_cases.append({
             "schema_version": "cops.agent-mcp-auth-planned-case/v1", "surface": case["surface"],

@@ -18,7 +18,9 @@
     "all_expectations_met",
     "security_pass",
     "results",
-    "redacted"
+    "redacted",
+    "execution_failure",
+    "recovery_actions"
   ],
   "properties": {
     "schema_version": {
@@ -84,7 +86,8 @@
       "required": [
         "verified",
         "private_directory_removed",
-        "reason"
+        "reason",
+        "failures"
       ],
       "properties": {
         "verified": {
@@ -107,6 +110,19 @@
               "type": "null"
             }
           ]
+        },
+        "failures": {
+          "type": "array",
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "source_snapshot_cleanup_failure",
+              "source_snapshot_removal_not_observed",
+              "source_snapshot_setup_or_execution_failure"
+            ]
+          }
         }
       }
     },
@@ -166,18 +182,28 @@
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["case_id", "reason", "effect_status"],
+          "required": [
+            "case_id",
+            "reason",
+            "effect_status"
+          ],
           "properties": {
             "case_id": {
               "type": "string",
               "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
               "maxLength": 64
             },
-            "reason": {"const": "case_execution_failed"},
-            "effect_status": {"const": "uncertain"}
+            "reason": {
+              "const": "case_execution_failed"
+            },
+            "effect_status": {
+              "const": "uncertain"
+            }
           }
         },
-        {"type": "null"}
+        {
+          "type": "null"
+        }
       ]
     },
     "pending_case_ids": {
@@ -194,10 +220,10 @@
         {
           "type": "string",
           "enum": [
-            "approve_a_new_plan_for_pending_cases",
+            "reconcile_uncertain_execution_effects_before_new_approval",
             "inspect_execution_initialization_before_new_approval",
             "inspect_source_snapshot_cleanup_before_new_approval",
-            "reconcile_uncertain_case_effects_before_new_approval",
+            "approve_a_new_plan_for_pending_cases",
             "review_partial_run_evidence"
           ]
         },
@@ -231,6 +257,21 @@
     },
     "redacted": {
       "const": true
+    },
+    "recovery_actions": {
+      "type": "array",
+      "maxItems": 5,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "reconcile_uncertain_execution_effects_before_new_approval",
+          "inspect_execution_initialization_before_new_approval",
+          "inspect_source_snapshot_cleanup_before_new_approval",
+          "approve_a_new_plan_for_pending_cases",
+          "review_partial_run_evidence"
+        ]
+      }
     }
   },
   "$defs": {
@@ -257,17 +298,17 @@
         "attempt_id": {
           "type": "string",
           "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-          "maxLength": 256
+          "maxLength": 128
         },
         "request_id": {
           "type": "string",
           "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-          "maxLength": 256
+          "maxLength": 128
         },
         "canary_id": {
           "type": "string",
           "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-          "maxLength": 256
+          "maxLength": 128
         },
         "plan_digest": {
           "type": "string",
@@ -352,7 +393,10 @@
         "tenant",
         "resource",
         "operation",
-        "redacted"
+        "redacted",
+        "case_id",
+        "principal",
+        "tool"
       ],
       "properties": {
         "schema_version": {
@@ -361,17 +405,17 @@
         "attempt_id": {
           "type": "string",
           "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-          "maxLength": 256
+          "maxLength": 128
         },
         "request_id": {
           "type": "string",
           "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-          "maxLength": 256
+          "maxLength": 128
         },
         "canary_id": {
           "type": "string",
           "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-          "maxLength": 256
+          "maxLength": 128
         },
         "plan_digest": {
           "type": "string",
@@ -384,7 +428,11 @@
           "const": "fixed-target-authorization-service"
         },
         "kind": {
-          "const": "canary_write"
+          "type": "string",
+          "enum": [
+            "canary_read",
+            "canary_write"
+          ]
         },
         "tenant": {
           "type": "string",
@@ -401,12 +449,64 @@
           ]
         },
         "operation": {
-          "const": "write"
+          "type": "string",
+          "enum": [
+            "read",
+            "write"
+          ]
         },
         "redacted": {
           "const": true
+        },
+        "case_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "maxLength": 64
+        },
+        "principal": {
+          "type": "string",
+          "enum": [
+            "principal-alice",
+            "principal-bob",
+            "service-scheduler"
+          ]
+        },
+        "tool": {
+          "type": "string",
+          "enum": [
+            "canary/read",
+            "canary/write"
+          ]
         }
-      }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "kind": {
+              "const": "canary_read"
+            },
+            "operation": {
+              "const": "read"
+            },
+            "tool": {
+              "const": "canary/read"
+            }
+          }
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "canary_write"
+            },
+            "operation": {
+              "const": "write"
+            },
+            "tool": {
+              "const": "canary/write"
+            }
+          }
+        }
+      ]
     },
     "peer": {
       "type": "object",
@@ -431,17 +531,17 @@
         "attempt_id": {
           "type": "string",
           "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-          "maxLength": 256
+          "maxLength": 128
         },
         "request_id": {
           "type": "string",
           "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-          "maxLength": 256
+          "maxLength": 128
         },
         "canary_id": {
           "type": "string",
           "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-          "maxLength": 256
+          "maxLength": 128
         },
         "plan_digest": {
           "type": "string",
@@ -475,6 +575,7 @@
             "attempt_id",
             "audience",
             "canary_id",
+            "case_id",
             "depth",
             "downstream_service",
             "fault_mode",
@@ -586,21 +687,30 @@
               "minimum": 0,
               "maximum": 10
             },
+            "case_id": {
+              "type": "string",
+              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+              "maxLength": 64
+            },
             "attempt_id": {
               "type": "string",
-              "pattern": "[a-z0-9]+(?:-[a-z0-9]+)*"
+              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+              "maxLength": 128
             },
             "request_id": {
               "type": "string",
-              "pattern": "[a-z0-9]+(?:-[a-z0-9]+)*"
+              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+              "maxLength": 128
             },
             "canary_id": {
               "type": "string",
-              "pattern": "[a-z0-9]+(?:-[a-z0-9]+)*"
+              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+              "maxLength": 128
             },
             "plan_digest": {
               "type": "string",
-              "pattern": "[0-9a-f]{64}"
+              "pattern": "^[0-9a-f]{64}$",
+              "maxLength": 64
             },
             "test_identity": {
               "type": "string",
@@ -652,17 +762,17 @@
         "attempt_id": {
           "type": "string",
           "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-          "maxLength": 256
+          "maxLength": 128
         },
         "request_id": {
           "type": "string",
           "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-          "maxLength": 256
+          "maxLength": 128
         },
         "canary_id": {
           "type": "string",
           "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-          "maxLength": 256
+          "maxLength": 128
         },
         "plan_digest": {
           "type": "string",
@@ -817,7 +927,8 @@
             "private_directory_removal_not_observed",
             "private_directory_setup_or_cleanup_failure",
             "process_exit_not_observed",
-            "surface_not_supported_by_local_fixed_adapter"
+            "surface_not_supported_by_local_fixed_adapter",
+            "positive_effect_not_observed"
           ]
         },
         "environment_verified": {

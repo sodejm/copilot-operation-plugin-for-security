@@ -30,6 +30,7 @@ from .auth_fixture_server import (
     REQUIRED_ARGUMENT_FIELDS,
     SCOPES,
     SERVER_IDENTITY,
+    ID_PATTERN,
     SERVER_INFO,
     SYNTHETIC_GRANT_ALIASES,
     TEST_IDENTITY,
@@ -56,6 +57,7 @@ MINIMUM_AUTHORIZATION_SECONDS = 9
 LEDGER_FIELDS = frozenset(
     {
         "schema_version",
+        "case_id",
         "attempt_id",
         "request_id",
         "canary_id",
@@ -63,6 +65,8 @@ LEDGER_FIELDS = frozenset(
         "test_identity",
         "server_identity",
         "kind",
+        "principal",
+        "tool",
         "tenant",
         "resource",
         "operation",
@@ -277,8 +281,20 @@ def _read_effects(ledger: Path, budget: _BatchBudget) -> list[dict[str, Any]]:
             or event["schema_version"] != "cops.agent-mcp-auth-ledger-event/v1"
             or event["server_identity"] != SERVER_IDENTITY
             or event["test_identity"] != TEST_IDENTITY
-            or event["kind"] != "canary_write"
-            or event["operation"] != "write"
+            or not isinstance(event["operation"], str)
+            or event["operation"] not in {"read", "write"}
+            or event["kind"] != "canary_" + event["operation"]
+            or event["tool"] != "canary/" + event["operation"]
+            or any(not isinstance(event[key], str) or event[key] not in ARGUMENT_ALIASES[key]
+                   for key in ("principal", "tenant", "resource"))
+            or not isinstance(event["case_id"], str)
+            or not 1 <= len(event["case_id"]) <= 64
+            or re.fullmatch(ID_PATTERN, event["case_id"]) is None
+            or any(not isinstance(event[key], str) or not 1 <= len(event[key]) <= 128
+                   or re.fullmatch(ID_PATTERN, event[key]) is None
+                   for key in ("attempt_id", "request_id", "canary_id"))
+            or not isinstance(event["plan_digest"], str)
+            or re.fullmatch(r"[0-9a-f]{64}", event["plan_digest"]) is None
             or event["redacted"] is not True
         ):
             raise LabError("Independent effect observer returned malformed evidence")
@@ -287,6 +303,7 @@ def _read_effects(ledger: Path, budget: _BatchBudget) -> list[dict[str, Any]]:
 
 def _request(case: AuthCase, attempt: dict[str, Any], index: int, plan_digest: str) -> dict[str, Any]:
     request = {
+        "case_id": case.case_id,
         "grant": case.grant,
         "flow": case.flow,
         **{
@@ -322,6 +339,14 @@ def _validate_request(value: dict[str, Any]) -> None:
         or value["test_identity"] != TEST_IDENTITY
         or not isinstance(value["fault_mode"], str)
         or value["fault_mode"] not in FAULT_MODES
+        or not isinstance(value["case_id"], str)
+        or not 1 <= len(value["case_id"]) <= 64
+        or re.fullmatch(ID_PATTERN, value["case_id"]) is None
+        or any(not isinstance(value[key], str) or not 1 <= len(value[key]) <= 128
+               or re.fullmatch(ID_PATTERN, value[key]) is None
+               for key in ("attempt_id", "request_id", "canary_id"))
+        or not isinstance(value["plan_digest"], str)
+        or re.fullmatch(r"[0-9a-f]{64}", value["plan_digest"]) is None
     ):
         raise LabError("Peer forwarded malformed fixed request values")
 
@@ -523,6 +548,7 @@ def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget, sourc
                     delta = observed[len(events):]
                     for event in delta:
                         if any(event[key] != forwarded[key] for key in (
+                            "case_id",
                             "attempt_id",
                             "request_id",
                             "canary_id",
@@ -530,7 +556,9 @@ def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget, sourc
                             "test_identity",
                             "tenant",
                             "resource",
-                        )):
+                            "principal",
+                            "operation",
+                        )) or event["tool"] != attempt["tool"]:
                             raise LabError("Independent effect correlation mismatch")
                     observations.append(
                         {
@@ -555,6 +583,9 @@ def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget, sourc
                     events = observed
                     if not identity_present:
                         failure = "missing_identity_telemetry"
+                        break
+                    if decision["decision"] == expected_decision == "allowed" and not delta:
+                        failure = "positive_effect_not_observed"
                         break
             except KeyboardInterrupt:
                 failure = "cancelled"
@@ -603,7 +634,7 @@ def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget, sourc
         failure = failure or "private_directory_removal_not_observed"
 
     expected_deltas = [
-        1 if decision == "allowed" and attempt["tool"] == "canary/write" else 0
+        1 if decision == "allowed" else 0
         for attempt, decision in zip(case.attempts, case.expected_decisions, strict=True)
     ]
     evidence_complete = (
@@ -750,7 +781,7 @@ def _run_bound_batch(normalized, supplied_plan, consumed, worker_identity, sourc
         "execution_failure": execution_failure,
         "pending_case_ids": pending,
         "next_action": (
-            "reconcile_uncertain_case_effects_before_new_approval" if execution_failure
+            "reconcile_uncertain_execution_effects_before_new_approval" if execution_failure
             else "approve_a_new_plan_for_pending_cases" if pending else None
         ),
         "planned_case_count": len(normalized), "completed_case_count": len(results),
