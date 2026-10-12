@@ -43,6 +43,25 @@ one or when authorization for a consequential action is unclear.
 7. Report exact evidence and residual risk. A local commit, pushed branch, open PR,
    merged PR, release, and deployment are distinct states.
 
+## Issue model and effort preflight
+
+Before implementing each issue, read its scope and acceptance criteria, assess
+whether Daybreak would materially benefit the work, and verify the current exact
+model and reasoning effort against fresh host evidence. Use the
+[model and effort guide](docs/model-effort-routing.md) and the
+[routing skill](.agents/skills/route-security-specialist/SKILL.md).
+
+If a beneficial Daybreak route requires a change, stop before implementation and
+suggest the exact available model and supported effort. Otherwise, verify that
+the current pair is adequate; pause if it is unknown or insufficient. A family
+name does not establish capability or access, and Blue access does not grant Red
+access.
+
+An authorized bounded subagent may use a supported model/effort override after
+the applicable launcher routing and workboard requirements are met. Verify the
+child's actual settings; changing a child does not change the parent. Never force
+unavailable access or silently escalate to `xhigh`, `max`, or `ultra`.
+
 ## Git and hosted services
 
 - Before the first edit for every new feature or implementation task, create a
