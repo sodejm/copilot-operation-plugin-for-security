@@ -88,13 +88,10 @@ def write_qualification_docs(tmp_path, monkeypatch):
     (tmp_path / "README.md").write_text(table)
     (tmp_path / "docs/CAPABILITIES.md").write_text("| `one-plugin` | **Experimental** |\n")
     (tmp_path / "docs/plugin-guide.md").write_text(
-        table
-        + f"\n#### One plugin\n- **Maturity**: {badge}\n"
+        table + f"\n#### One plugin\n- **Maturity**: {badge}\n"
         "- **Playbook**: `plugins/testing/one-plugin/docs/PLAYBOOK.md`\n"
     )
-    (tmp_path / "docs/index.md").write_text(
-        f'<a href="plugin-guide.html#one-plugin">One plugin</a> {badge}\n'
-    )
+    (tmp_path / "docs/index.md").write_text(f'<a href="plugin-guide.html#one-plugin">One plugin</a> {badge}\n')
     return package
 
 
@@ -116,8 +113,7 @@ def test_verification_requires_each_catalog_playbook(tmp_path, monkeypatch):
     validate_docs.validate_plugin_verification(errors)
 
     assert errors == [
-        "one-plugin: missing end-to-end verification playbook: "
-        "plugins/testing/one-plugin/docs/VERIFICATION.md"
+        "one-plugin: missing end-to-end verification playbook: plugins/testing/one-plugin/docs/VERIFICATION.md"
     ]
 
 
@@ -198,14 +194,12 @@ def test_public_maturity_ignores_examples_and_multi_plugin_cards(tmp_path, monke
         path.write_text(path.read_text() + "| `two-plugin` | **Beta** |\n")
     path = tmp_path / "docs/plugin-guide.md"
     path.write_text(
-        path.read_text()
-        + "\n#### Two plugin\n- **Maturity**: **Beta**\n"
+        path.read_text() + "\n#### Two plugin\n- **Maturity**: **Beta**\n"
         "- **Playbook**: `plugins/testing/two-plugin/docs/PLAYBOOK.md`\n"
     )
     path = tmp_path / "docs/index.md"
     path.write_text(
-        path.read_text()
-        + '<a href="plugin-guide.html#one-plugin">One</a>'
+        path.read_text() + '<a href="plugin-guide.html#one-plugin">One</a>'
         '<a href="plugin-guide.html#two-plugin">Two</a>'
         '<span class="badge badge-stable">Stable</span>\n'
     )
@@ -226,6 +220,5 @@ def test_internal_links_include_plugin_verification_playbooks(tmp_path, monkeypa
     validate_docs.validate_internal_links(errors)
 
     assert errors == [
-        f"plugins/testing/one-plugin/docs/VERIFICATION.md:{line_number}: "
-        "Broken relative link to: missing.md"
+        f"plugins/testing/one-plugin/docs/VERIFICATION.md:{line_number}: Broken relative link to: missing.md"
     ]

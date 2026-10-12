@@ -35,6 +35,23 @@ python3 -m cops specialists
 
 ---
 
+## Model and effort suggestions
+
+Specialist profiles define task roles. The optional model advisor evaluates the
+model and reasoning effort used to carry out those roles:
+
+```bash
+python3 -m cops route "Review the authorization boundary" \
+  --suggest-model --model-catalog model-catalog.json \
+  --current-model <exact-host-model-id> --current-effort medium --json
+```
+
+Follow the [model routing guide](model-effort-routing.md) to supply fresh exact
+host evidence, inspect task classification and exclusions, and verify the current
+pair before implementation. Family names do not establish cybersecurity
+capability or entitlement. Suggestions do not launch agents, switch models, or
+replace execution authorization.
+
 ## Specialist Catalog by Discipline
 
 ### 1. Offensive Security

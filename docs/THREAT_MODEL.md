@@ -32,6 +32,7 @@ private payloads and real identifiers must never be copied into this document.
 | Operator decision → approval store → tool execution | Approval must be bound to action, effective resource and current revision, atomically consumed. |
 | Cloud integration → remote API / telemetry → agent | Credentials go only to intended recipients; telemetry remains untrusted even from authenticated services. |
 | Canonical hunt skills → generated host adapters | Hashes and deterministic generation establish consistency, not trust in malicious canonical content. |
+| Operator model catalog → offline advisor → host model selection | Catalog records are bounded, untrusted assertions about exact model capabilities, access and supported effort. Advice cannot establish entitlement or authorize a model switch, agent launch or security operation. |
 | Handoff proposal → specialist acceptance → auditor completion | A proposed skill ID and capability must resolve to the recipient's registered specialist profile and local skill file; acceptance records the resolved target and checksum. Skeptic review and audit re-resolve the current target. Completion is a reviewed handoff record, not tool execution. |
 | Attack Path input → descriptor-anchored report writer → operator-selected output directory | Output paths and concurrent filesystem names remain untrusted; a report set is complete only when the completion marker and recorded hashes validate. |
 | Laboratory operator observation → signed receipt → controller case classification | An independently provisioned observation key attests isolation, canary and control measurements. The worker result alone cannot establish case success; a protected local journal records dispatch intent and terminal outcomes. |
@@ -304,6 +305,14 @@ validation before the affected release/capability expansion and schedule P2 with
 - Existing evidence / limitation: The signed profile binds inventory, corpora, executable pin, and isolation digest. The worker checks bounded regular files with held descriptors, measures a fresh gated bubblewrap probe before approval consumption, and measures each external adapter sandbox before releasing its executable. Synthetic tests cover rejection paths; no independent deployed-host observation is present.
 - Proposed mitigation and validation: Keep profile and race rejection tests, repeat Linux integration checks on the intended worker image, and obtain independent host evidence for namespace, network, account, and journal boundaries before real-data use. Require exact-revision human security review for the implementation.
 - Residual risk / status: Worker self-observation cannot prove independent host isolation or the provenance of mounted corpora. A privileged or same-UID host actor can interfere with local state; live isolation and human review remain pending.
+
+### T24: Model capability or access misclassification
+
+- Attack path / prerequisite: A forged, stale or future-dated catalog, ambiguous task description, or model brand is treated as proof of capability or access. An operator may select an unsuitable model or incur unintended effort cost based on that advice.
+- Inherent impact: Medium; likelihood: Medium; priority: P2.
+- Existing evidence / limitation: The offline advisor bounds input, rejects duplicate JSON fields and unknown schema fields, and requires fresh, nonfuture evidence with exact model IDs, independent capability tags, granted access and supported effort. Family names carry no routing authority. Automatic suggestions are limited to low, medium and high; the advisor performs no discovery, provider calls, model changes or agent launches. Synthetic regression tests cover these boundaries.
+- Proposed mitigation and validation: Verify catalog assertions against the intended host and provider documentation, correct ambiguous task classification, and inspect current settings and exclusions before implementation. Keep malformed-input, freshness, access, effort and CLI compatibility tests at the exact revision; obtain independent human review before accepting the control.
+- Residual risk / status: Operator assertions, host clocks, native effort mappings and coarse task heuristics can be wrong. Offline validation cannot authenticate an entitlement or demonstrate actual model performance; host verification and human review remain pending.
 
 ## STRIDE and privacy coverage
 

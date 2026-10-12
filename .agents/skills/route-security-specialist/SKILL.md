@@ -7,6 +7,33 @@ description: Automatically route security requests to the optimal specialist age
 
 Use this skill to identify, select, and route incoming security requests to the most qualified COPS specialist agent profile.
 
+## Model and effort preflight
+
+Before implementing an issue, read the full scope and acceptance criteria and
+assess whether specialized cybersecurity reasoning would materially help. Follow
+the [model and effort guide](../../../docs/model-effort-routing.md): obtain a
+fresh exact host catalog and the current model/effort, then run:
+
+```bash
+python3 -m cops route "<issue scope and acceptance criteria>" \
+  --suggest-model --model-catalog model-catalog.json \
+  --current-model <exact-host-model-id> --current-effort <supported-effort> --json
+```
+
+Review the inferred task and correct it with `--task-kind` or `--complexity` when
+needed. Inspect `model_advice.current`, exclusions, and the recommendation. Pause
+before implementation when the current pair is unverified or a change is
+recommended. If a qualified Daybreak model would benefit the issue and requires
+a change, suggest its exact model and supported effort before proceeding.
+Otherwise verify that the current pair is adequate.
+
+Apply a change only through supported host settings or an already authorized,
+bounded subagent workflow that meets the launcher model-router and workboard
+requirements. Verify the selected settings; a child override does not switch the
+parent. The advisor does not launch agents, change settings, or grant access.
+Blue and Red have separate access checks; unavailable access cannot be forced.
+Keep `xhigh`, `max`, and `ultra` as explicit manual choices.
+
 ## Operational Workflow
 
 1. **Analyze Incoming Intent & Context**:

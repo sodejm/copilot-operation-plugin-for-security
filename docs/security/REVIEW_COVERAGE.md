@@ -13,6 +13,7 @@ these subsystem entries are prioritization, not proof of exhaustive review.
 | R3 | Cloud integration → remote API / telemetry → agent and all implementing code/configuration/tests | Pending independent human review | Maintainer assignment pending | Before affected release; triage within 30 days, first pass within 90 days |
 | R4 | Canonical hunt skills → generated host adapters and all implementing code/configuration/tests | Pending independent human review | Maintainer assignment pending | Before affected release; triage within 30 days, first pass within 90 days |
 | R-CI | All CI, dependencies, packaging, release, scripts and agent/tool authority | Pending independent human review | Maintainer assignment pending | Before affected release; triage within 30 days, first pass within 90 days |
+| R-MODEL | Model catalog parser and advisor (`cops/routing/model_advisor.py`), both route CLIs, model-routing skills, issue preflight policy and associated tests | Pending independent human review | Maintainer assignment pending | Before affected release; triage within 30 days, first pass within 90 days |
 | R-REST | All remaining tracked first-party files; enumerate and reconcile against Git inventory | Pending independent human review | Maintainer assignment pending | First pass within 90 days |
 
 For each reviewed row add exact paths, reviewed SHA, reviewer identity/date,

@@ -106,6 +106,13 @@ python3 -m cops specialists
 
 For high-risk operations (e.g. penetration testing, red team emulation, active containment, or cloud privilege escalation), COPS automatically activates **Triad Orchestration** (Primary Specialist + Domain Skeptic + Evidence Auditor) with mandatory interactive operator authorization. Read the **[Specialist Agents Guide](docs/specialist-agents.md)** for architecture details.
 
+Add `--suggest-model --model-catalog model-catalog.json` to receive offline model
+and reasoning-effort suggestions from fresh host evidence. Daybreak, Fable,
+Mythos, Astra, and other families qualify only through exact availability,
+access, capability, and effort records. See the
+[model routing guide](docs/model-effort-routing.md) for catalog setup and the
+required preflight before implementing an issue.
+
 ---
 
 ## MITRE ATT&CK & Attack Flow Coverage

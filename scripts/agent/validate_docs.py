@@ -177,7 +177,9 @@ def validate_plugin_verification(errors: list[str]) -> None:
                 errors.append(f"{plugin_id}: missing baseline command: {command}")
         readme = package / "README.md"
         readme_text = readme.read_text(encoding="utf-8") if readme.is_file() else ""
-        if not any(match["target"].strip("<>") == "docs/VERIFICATION.md" for match in MARKDOWN_LINK.finditer(readme_text)):
+        if not any(
+            match["target"].strip("<>") == "docs/VERIFICATION.md" for match in MARKDOWN_LINK.finditer(readme_text)
+        ):
             errors.append(f"{plugin_id}: README.md must link to docs/VERIFICATION.md")
         if not any(
             (index.parent / unquote(urlsplit(target).path)).resolve() == playbook.resolve()
@@ -222,7 +224,11 @@ def validate_public_maturity(errors: list[str]) -> None:
         path = ROOT / relative
         lines = unfenced_lines(path.read_text(encoding="utf-8")) if path.is_file() else []
         for plugin_id, expected in maturity.items():
-            rows = [line for line in lines if line.startswith("|") and re.search(rf"(?<![\w-]){re.escape(plugin_id)}(?![\w-])", line)]
+            rows = [
+                line
+                for line in lines
+                if line.startswith("|") and re.search(rf"(?<![\w-]){re.escape(plugin_id)}(?![\w-])", line)
+            ]
             if not rows:
                 errors.append(f"{relative}: {plugin_id} missing maturity table row")
             for row in rows:

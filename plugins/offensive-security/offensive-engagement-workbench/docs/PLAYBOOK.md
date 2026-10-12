@@ -17,6 +17,19 @@ The Offensive Engagement Workbench guides security operators through the intake 
    - Bounded execution limits.
    - SHA-256 integrity digest.
 
+## Model and effort preflight
+
+Before assigning an issue or assessment task, follow the
+[model routing guide](MODEL_ROUTING.md) with a fresh exact host catalog and the
+current model/effort. Inspect the inferred task, exclusions, and current-pair
+assessment. An unverified or insufficient pair requires a pause before
+implementation. When a qualified Daybreak route would benefit the task and
+requires a change, suggest the exact model and supported effort.
+
+The operator or an authorized orchestrator applies supported settings and
+verifies them. The advisor does not switch the parent, launch agents, or authorize
+assessment execution; the engagement and worker gates below still apply.
+
 ## Triad Specialist Handoffs
 
 Bounded execution handoffs operate under a four-party Triad coordination model:
