@@ -18,26 +18,38 @@ NOW = datetime(2026, 10, 12, tzinfo=UTC)
 
 def model(identifier="host-security", **overrides):
     return {
-        "id": identifier, "family": "Daybreak", "tier": "flagship",
+        "id": identifier,
+        "family": "Daybreak",
+        "tier": "flagship",
         "capabilities": ["general", "coding", "security", "advanced-security"],
-        "available": True, "access": "granted", "efforts": ["low", "medium", "high"],
-        "preference": 0, **overrides,
+        "available": True,
+        "access": "granted",
+        "efforts": ["low", "medium", "high"],
+        "preference": 0,
+        **overrides,
     }
 
 
 def catalog(*models, observed_at=NOW.isoformat()):
-    return {"schema_version": "cops.model-catalog/v1", "source": "test host inventory",
-            "observed_at": observed_at, "models": list(models)}
+    return {
+        "schema_version": "cops.model-catalog/v1",
+        "source": "test host inventory",
+        "observed_at": observed_at,
+        "models": list(models),
+    }
 
 
-@pytest.mark.parametrize(("query", "kind", "tier", "effort"), [
-    ("Fix a typo in the threat model guide", "routine", "efficient", "low"),
-    ("Implement a report formatter", "coding", "balanced", "medium"),
-    ("Implement a distributed indexing migration", "coding", "flagship", "high"),
-    ("Review authorization trust boundaries", "security-review", "flagship", "high"),
-    ("Authorized binary analysis and exploit development", "adversarial-research", "flagship", "high"),
-    ("Plan a penetration test", "adversarial-research", "flagship", "high"),
-])
+@pytest.mark.parametrize(
+    ("query", "kind", "tier", "effort"),
+    [
+        ("Fix a typo in the threat model guide", "routine", "efficient", "low"),
+        ("Implement a report formatter", "coding", "balanced", "medium"),
+        ("Implement a distributed indexing migration", "coding", "flagship", "high"),
+        ("Review authorization trust boundaries", "security-review", "flagship", "high"),
+        ("Authorized binary analysis and exploit development", "adversarial-research", "flagship", "high"),
+        ("Plan a penetration test", "adversarial-research", "flagship", "high"),
+    ],
+)
 def test_task_requirements(query, kind, tier, effort):
     result = assess_task(query)
     assert (result["kind"], result["minimum_tier"], result["minimum_effort"]) == (kind, tier, effort)
@@ -59,19 +71,33 @@ def test_families_use_exact_host_id_and_capabilities(family):
 
 
 def test_least_tier_then_operator_preference_then_id_without_price_claims():
-    candidates = [model("flagship", preference=0),
-                  model("z", tier="balanced", preference=2),
-                  model("b", tier="balanced", preference=1),
-                  model("a", tier="balanced", preference=1)]
+    candidates = [
+        model("flagship", preference=0),
+        model("z", tier="balanced", preference=2),
+        model("b", tier="balanced", preference=1),
+        model("a", tier="balanced", preference=1),
+    ]
     advice = advise_models("Implement a formatter", catalog=catalog(*candidates), now=NOW)
-    assert [advice["recommendation"]["model_id"], *[m["model_id"] for m in advice["alternatives"]]] == ["a", "b", "z", "flagship"]
+    assert [advice["recommendation"]["model_id"], *[m["model_id"] for m in advice["alternatives"]]] == [
+        "a",
+        "b",
+        "z",
+        "flagship",
+    ]
     assert advice["recommendation"]["effort"] == "medium"
 
 
 def test_access_and_availability_are_independent_and_never_inferred_from_blue():
-    advice = advise_models("Review security", catalog=catalog(
-        model("blue"), model("red", access="denied"), model("mythos", access="unknown"),
-        model("fable", available=False)), now=NOW)
+    advice = advise_models(
+        "Review security",
+        catalog=catalog(
+            model("blue"),
+            model("red", access="denied"),
+            model("mythos", access="unknown"),
+            model("fable", available=False),
+        ),
+        now=NOW,
+    )
     assert advice["recommendation"]["model_id"] == "blue"
     assert advice["excluded"] == {"red": ["access_denied"], "mythos": ["access_unknown"], "fable": ["unavailable"]}
 
@@ -92,12 +118,22 @@ def test_no_silent_effort_downgrade_or_manual_escalation(efforts):
     assert "automatic_effort_unsupported" in advice["excluded"]["host-security"]
 
 
-@pytest.mark.parametrize(("age", "status"), [(timedelta(hours=25), "catalog_stale"),
-                                              (timedelta(minutes=-1), "catalog_future"),
-                                              (timedelta(microseconds=-1), "catalog_future")])
+@pytest.mark.parametrize(
+    ("age", "status"),
+    [
+        (timedelta(hours=25), "catalog_stale"),
+        (timedelta(minutes=-1), "catalog_future"),
+        (timedelta(microseconds=-1), "catalog_future"),
+    ],
+)
 def test_stale_or_future_evidence_never_confirms_current_or_recommends(age, status):
-    advice = advise_models("Review security", catalog=catalog(model(), observed_at=(NOW - age).isoformat()),
-                           current_model="host-security", current_effort="high", now=NOW)
+    advice = advise_models(
+        "Review security",
+        catalog=catalog(model(), observed_at=(NOW - age).isoformat()),
+        current_model="host-security",
+        current_effort="high",
+        now=NOW,
+    )
     assert advice["status"] == status
     assert advice["recommendation"] is None
     assert advice["current"]["status"] == "unverified"
@@ -109,24 +145,45 @@ def test_catalog_freshness_boundaries(age):
     assert advice["status"] == "suggested"
 
 
-@pytest.mark.parametrize(("current_model", "effort", "status"), [
-    (None, None, "unverified"), ("missing", "high", "unverified"),
-    ("host-security", None, "unverified"), ("host-security", "low", "change_recommended"),
-    ("host-security", "high", "adequate"), ("host-security", "max", "adequate"),
-    ("host-security", "ultra", "change_recommended"),
-])
+@pytest.mark.parametrize(
+    ("current_model", "effort", "status"),
+    [
+        (None, None, "unverified"),
+        ("missing", "high", "unverified"),
+        ("host-security", None, "unverified"),
+        ("host-security", "low", "change_recommended"),
+        ("host-security", "high", "adequate"),
+        ("host-security", "max", "adequate"),
+        ("host-security", "ultra", "change_recommended"),
+    ],
+)
 def test_current_model_and_effort_checked_independently(current_model, effort, status):
-    advice = advise_models("Review security", catalog=catalog(model(efforts=["low", "high", "max"])),
-                           current_model=current_model, current_effort=effort, now=NOW)
+    advice = advise_models(
+        "Review security",
+        catalog=catalog(model(efforts=["low", "high", "max"])),
+        current_model=current_model,
+        current_effort=effort,
+        now=NOW,
+    )
     assert advice["current"]["status"] == status
     assert advice["recommendation"]["effort"] == "high"
 
 
-@pytest.mark.parametrize("change", [
-    {"available": "true"}, {"access": "inherited"}, {"efforts": ["maximum"]},
-    {"efforts": ["high", "high"]}, {"capabilities": []}, {"capabilities": ["cyber"]},
-    {"preference": True}, {"tier": "premium"}, {"id": "$(echo secret)"}, {"endpoint": "unexpected"},
-])
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"available": "true"},
+        {"access": "inherited"},
+        {"efforts": ["maximum"]},
+        {"efforts": ["high", "high"]},
+        {"capabilities": []},
+        {"capabilities": ["cyber"]},
+        {"preference": True},
+        {"tier": "premium"},
+        {"id": "$(echo secret)"},
+        {"endpoint": "unexpected"},
+    ],
+)
 def test_reject_invalid_or_ambiguous_records(change):
     with pytest.raises(ModelCatalogError):
         parse_catalog(catalog(model(**change)))
@@ -141,7 +198,7 @@ def test_duplicate_ids_and_missing_evidence_rejected():
         parse_catalog(value)
 
 
-@pytest.mark.parametrize("payload", [b'{"source":"a","source":"b"}', b'\xff', b'{', b'x' * (1024 * 1024 + 1)])
+@pytest.mark.parametrize("payload", [b'{"source":"a","source":"b"}', b"\xff", b"{", b"x" * (1024 * 1024 + 1)])
 def test_bounded_strict_json_errors_are_safe(tmp_path, payload):
     path = tmp_path / "private-name.json"
     path.write_bytes(payload)
@@ -161,8 +218,10 @@ def test_input_not_mutated():
 def test_invalid_catalog_does_not_reach_authorization(tmp_path, monkeypatch, capsys):
     path = tmp_path / "bad.json"
     path.write_text("{}")
+
     def unauthorized_call(**kwargs):
         pytest.fail("invalid catalog reached authorization")
+
     monkeypatch.setattr(cli, "ensure_authorization", unauthorized_call)
     assert cli.main(["route", "exploit a binary", "--critical", "--authorize", "--model-catalog", str(path)]) == 2
     assert "Model advice error:" in capsys.readouterr().err
@@ -176,8 +235,13 @@ def test_both_cli_entry_points_preserve_default_and_offer_same_advice(module, tm
     assert "model_advice" not in original
     path = tmp_path / "catalog.json"
     path.write_text(json.dumps(catalog(model(), observed_at=datetime.now(UTC).isoformat())))
-    routed = subprocess.run(command + ["--model-catalog", str(path), "--current-model", "host-security",
-                                       "--current-effort", "low"], capture_output=True, text=True, check=True, timeout=30)
+    routed = subprocess.run(
+        command + ["--model-catalog", str(path), "--current-model", "host-security", "--current-effort", "low"],
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=30,
+    )
     value = json.loads(routed.stdout)
     advice = value.pop("model_advice")
     assert value == original

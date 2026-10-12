@@ -19,19 +19,35 @@ def context():
 
 @given("a fresh catalog with an efficient model and a security flagship")
 def fresh_catalog(context):
-    context["catalog"] = parse_catalog({
-        "schema_version": "cops.model-catalog/v1",
-        "source": "test host discovery",
-        "observed_at": datetime.now(UTC).isoformat(),
-        "models": [
-            {"id": "test-efficient", "family": "General", "tier": "efficient",
-             "capabilities": ["general"], "available": True, "access": "granted",
-             "efforts": ["low", "medium"], "preference": 0},
-            {"id": "test-security", "family": "Daybreak", "tier": "flagship",
-             "capabilities": ["security"], "available": True, "access": "granted",
-             "efforts": ["low", "medium", "high"], "preference": 1},
-        ],
-    })
+    context["catalog"] = parse_catalog(
+        {
+            "schema_version": "cops.model-catalog/v1",
+            "source": "test host discovery",
+            "observed_at": datetime.now(UTC).isoformat(),
+            "models": [
+                {
+                    "id": "test-efficient",
+                    "family": "General",
+                    "tier": "efficient",
+                    "capabilities": ["general"],
+                    "available": True,
+                    "access": "granted",
+                    "efforts": ["low", "medium"],
+                    "preference": 0,
+                },
+                {
+                    "id": "test-security",
+                    "family": "Daybreak",
+                    "tier": "flagship",
+                    "capabilities": ["security"],
+                    "available": True,
+                    "access": "granted",
+                    "efforts": ["low", "medium", "high"],
+                    "preference": 1,
+                },
+            ],
+        }
+    )
 
 
 @given("a fresh catalog whose security flagship has denied access")
@@ -47,7 +63,9 @@ def documentation_advice(context):
 
 @when("I request advice for a trust boundary security review")
 def security_advice(context):
-    context["advice"] = advise_models("Review the authorization trust boundary for bypasses", catalog=context["catalog"])
+    context["advice"] = advise_models(
+        "Review the authorization trust boundary for bypasses", catalog=context["catalog"]
+    )
 
 
 @when("I request advice without a catalog or current settings")

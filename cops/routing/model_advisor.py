@@ -74,7 +74,9 @@ def parse_catalog(value: Any) -> dict[str, Any]:
         raise ModelCatalogError("models must be a list of at most 256 records")
     identifiers: set[str] = set()
     for model in models:
-        _fields(model, {"id", "family", "tier", "capabilities", "available", "access", "efforts", "preference"}, "model")
+        _fields(
+            model, {"id", "family", "tier", "capabilities", "available", "access", "efforts", "preference"}, "model"
+        )
         if not isinstance(model["id"], str) or not _ID.fullmatch(model["id"]):
             raise ModelCatalogError("model id must be a safe exact host identifier of at most 128 characters")
         if model["id"] in identifiers:
@@ -130,12 +132,20 @@ def assess_task(query: str, *, task_kind: str = "auto", complexity: str = "auto"
     if task_kind == "auto":
         # Documentation about a security topic does not itself need cyber access.
         docs = re.search(r"\b(documentation|readme|typo|wording|guide|comment)\b", text)
-        behavior = re.search(r"\b(implement|debug|exploit|bypass|vulnerability|vulnerabilities|patch|code|review)\b", text)
+        behavior = re.search(
+            r"\b(implement|debug|exploit|bypass|vulnerability|vulnerabilities|patch|code|review)\b", text
+        )
         if docs and not behavior:
             task_kind = "routine"
-        elif re.search(r"exploit (development|chain)|binary (analysis|exploitation)|reverse engineer|vulnerability research|adversarial research|penetration test|pentest|red.team", text):
+        elif re.search(
+            r"exploit (development|chain)|binary (analysis|exploitation)|reverse engineer|vulnerability research|adversarial research|penetration test|pentest|red.team",
+            text,
+        ):
             task_kind = "adversarial-research"
-        elif re.search(r"secur(?:ity|e)|trust.boundar|authoriz|authenticat|credential|threat|untrusted|sandbox|cryptograph|bypass|vulnerabil|penetration|pentest", text):
+        elif re.search(
+            r"secur(?:ity|e)|trust.boundar|authoriz|authenticat|credential|threat|untrusted|sandbox|cryptograph|bypass|vulnerabil|penetration|pentest",
+            text,
+        ):
             task_kind = "security-review"
         else:
             task_kind = "coding"
@@ -154,8 +164,11 @@ def assess_task(query: str, *, task_kind: str = "auto", complexity: str = "auto"
     elif task_kind == "coding" and complexity == "simple":
         tier, effort = "efficient", "low"
     return {
-        "kind": task_kind, "complexity": complexity, "capability": capability,
-        "minimum_tier": tier, "minimum_effort": effort,
+        "kind": task_kind,
+        "complexity": complexity,
+        "capability": capability,
+        "minimum_tier": tier,
+        "minimum_effort": effort,
         "reason": f"{task_kind} at {complexity} complexity requires {capability} capability, {tier} tier, and {effort} effort.",
     }
 
@@ -174,9 +187,13 @@ def _exclusions(model: dict[str, Any], task: dict[str, str]) -> list[str]:
 
 
 def advise_models(
-    query: str, *, catalog: dict[str, Any] | None = None,
-    task_kind: str = "auto", complexity: str = "auto",
-    current_model: str | None = None, current_effort: str | None = None,
+    query: str,
+    *,
+    catalog: dict[str, Any] | None = None,
+    task_kind: str = "auto",
+    complexity: str = "auto",
+    current_model: str | None = None,
+    current_effort: str | None = None,
     now: datetime | None = None,
 ) -> dict[str, Any]:
     """Suggest eligible exact model/effort pairs without changing execution."""
@@ -184,13 +201,21 @@ def advise_models(
         raise ValueError("unsupported current effort")
     task = assess_task(query, task_kind=task_kind, complexity=complexity)
     current: dict[str, Any] = {
-        "status": "unverified", "model_id": current_model, "effort": current_effort,
+        "status": "unverified",
+        "model_id": current_model,
+        "effort": current_effort,
         "reasons": ["current_settings_or_fresh_catalog_missing"],
     }
     result: dict[str, Any] = {
-        "schema_version": "cops.model-advice/v1", "advisory_only": True,
-        "status": "catalog_required", "task": task, "catalog": None,
-        "recommendation": None, "alternatives": [], "excluded": {}, "current": current,
+        "schema_version": "cops.model-advice/v1",
+        "advisory_only": True,
+        "status": "catalog_required",
+        "task": task,
+        "catalog": None,
+        "recommendation": None,
+        "alternatives": [],
+        "excluded": {},
+        "current": current,
         "next_action": "Discover the host's exact models, access, capabilities, and supported efforts; supply a fresh catalog.",
     }
     if catalog is None:
@@ -200,10 +225,16 @@ def advise_models(
     if now.tzinfo is None:
         raise ValueError("now requires a timezone")
     observed = _timestamp(catalog["observed_at"])
-    result["catalog"] = {"source": catalog["source"], "observed_at": catalog["observed_at"], "evidence": "operator_supplied"}
+    result["catalog"] = {
+        "source": catalog["source"],
+        "observed_at": catalog["observed_at"],
+        "evidence": "operator_supplied",
+    }
     if observed > now or now - observed > MAX_CATALOG_AGE:
         result["status"] = "catalog_future" if observed > now else "catalog_stale"
-        result["next_action"] = "Refresh host discovery; catalog evidence must be at most 24 hours old and not future dated."
+        result["next_action"] = (
+            "Refresh host discovery; catalog evidence must be at most 24 hours old and not future dated."
+        )
         return result
 
     candidates = []
@@ -229,20 +260,28 @@ def advise_models(
         current["reasons"] = ["current_model_not_in_catalog"]
 
     candidates.sort(key=lambda pair: (TIERS.index(pair[0]["tier"]), pair[0]["preference"], pair[0]["id"]))
-    suggestions = [{
-        "model_id": model["id"], "family": model["family"], "tier": model["tier"], "effort": effort,
-        "reason": "Available with granted access and sufficient catalog capabilities; ranked by tier, operator preference, then exact ID.",
-    } for model, effort in candidates]
+    suggestions = [
+        {
+            "model_id": model["id"],
+            "family": model["family"],
+            "tier": model["tier"],
+            "effort": effort,
+            "reason": "Available with granted access and sufficient catalog capabilities; ranked by tier, operator preference, then exact ID.",
+        }
+        for model, effort in candidates
+    ]
     if suggestions:
         result["status"] = "suggested"
         result["recommendation"] = suggestions[0]
         result["alternatives"] = suggestions[1:]
         result["next_action"] = (
             "Current settings are adequate; retain them or review the suggested pair."
-            if current["status"] == "adequate" else
-            "Review the suggested pair and select it through the host before implementation; verify current settings if unknown."
+            if current["status"] == "adequate"
+            else "Review the suggested pair and select it through the host before implementation; verify current settings if unknown."
         )
     else:
         result["status"] = "no_eligible_model"
-        result["next_action"] = "Review exclusions and obtain appropriate host access or narrow the task; do not silently downgrade."
+        result["next_action"] = (
+            "Review exclusions and obtain appropriate host access or narrow the task; do not silently downgrade."
+        )
     return result

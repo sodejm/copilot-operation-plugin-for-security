@@ -19,7 +19,9 @@ def add_model_arguments(parser: argparse.ArgumentParser) -> None:
     """Keep model advice options identical across the two public route CLIs."""
     parser.add_argument("--suggest-model", action="store_true", help="include advisory model and effort requirements")
     parser.add_argument("--model-catalog", type=Path, help="fresh host model catalog JSON (implies --suggest-model)")
-    parser.add_argument("--task-kind", choices=TASK_KINDS, default="auto", help="override model advice task classification")
+    parser.add_argument(
+        "--task-kind", choices=TASK_KINDS, default="auto", help="override model advice task classification"
+    )
     parser.add_argument("--complexity", choices=COMPLEXITIES, default="auto", help="override model advice complexity")
     parser.add_argument("--current-model", help="exact currently selected host model ID")
     parser.add_argument("--current-effort", choices=EFFORTS, help="currently selected reasoning effort")
@@ -31,13 +33,22 @@ def _model_advice(args: argparse.Namespace) -> dict | None:
     complexity = getattr(args, "complexity", "auto")
     current_model = getattr(args, "current_model", None)
     current_effort = getattr(args, "current_effort", None)
-    if not (getattr(args, "suggest_model", False) or catalog_path or task_kind != "auto"
-            or complexity != "auto" or current_model or current_effort):
+    if not (
+        getattr(args, "suggest_model", False)
+        or catalog_path
+        or task_kind != "auto"
+        or complexity != "auto"
+        or current_model
+        or current_effort
+    ):
         return None
     return advise_models(
-        args.query, catalog=load_catalog(catalog_path) if catalog_path else None,
-        task_kind=task_kind, complexity=complexity,
-        current_model=current_model, current_effort=current_effort,
+        args.query,
+        catalog=load_catalog(catalog_path) if catalog_path else None,
+        task_kind=task_kind,
+        complexity=complexity,
+        current_model=current_model,
+        current_effort=current_effort,
     )
 
 
