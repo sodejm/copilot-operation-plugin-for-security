@@ -6,6 +6,9 @@ The workbench operates completely offline against local export files and Azure e
 
 ---
 
+Follow the [end-to-end verification playbook](docs/VERIFICATION.md) to qualify this
+package's documented workflow and prepare evidence for a maturity review.
+
 ## When to Use & Engineering Playbook
 
 For comprehensive methodologies and remediation workflows, see the [Analyst & Engineer Playbook](docs/PLAYBOOK.md).

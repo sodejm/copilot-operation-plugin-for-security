@@ -2,6 +2,9 @@
 
 A deterministic testing and validation workbench for Microsoft Sentinel KQL and Splunk SPL detection rules.
 
+Follow the [end-to-end verification playbook](docs/VERIFICATION.md) to qualify this
+package's documented workflow and prepare evidence for a maturity review.
+
 ## Why This Workbench Exists
 
 In modern enterprise Security Operations Centers (SOCs), detection rules are the frontline defense against sophisticated attacks. However, detection engineering often suffers from critical quality challenges:

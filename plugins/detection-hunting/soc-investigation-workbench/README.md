@@ -6,6 +6,9 @@ During high-pressure incident triage, it is easy to latch onto an initial theory
 
 The workbench operates completely offline with Python 3.10+ and requires zero runtime dependencies, credentials, or cloud access.
 
+Follow the [end-to-end verification playbook](docs/VERIFICATION.md) to qualify this
+package's documented workflow and prepare evidence for a maturity review.
+
 ## Microsoft 365 acquisition preview (issue #27)
 
 The optional Microsoft 365 slice requires Python 3.11+ and the COPS shared

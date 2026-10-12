@@ -187,6 +187,9 @@ Passing checks verify deterministic logic, contract schemas, and offline regress
 
 ## Next Steps
 
+- Run the [plugin verification playbook](plugin-verification.md) for your selected
+  package and use its evidence record to propose a maturity change.
+
 - Consult the [Plugin Selection Guide](plugin-guide.md) to choose the right plugin for your operational needs.
 - Explore the [21 Specialist Agent Profiles](specialist-agents.md) and Triad orchestration.
 - Read the [ATT&CK Matrix (v18.0)](COVERAGE_MATRIX.md) for mapped defensive techniques.

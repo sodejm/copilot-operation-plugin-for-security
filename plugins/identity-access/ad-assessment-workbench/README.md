@@ -17,3 +17,6 @@ An exhausted search reports a path missing **from the collected graph**; a bound
 search that stops early reports `search_incomplete`. Incomplete or absent
 forest/host collection remains partial or unknown. Live integration,
 host installation, and privilege exercise are unverified.
+
+Follow the [end-to-end verification playbook](docs/VERIFICATION.md) to qualify this
+package's documented workflow and prepare evidence for a maturity review.

@@ -202,6 +202,18 @@ For complete authoring details, review [Adding a Plugin (docs/ADDING_A_PLUGIN.md
 
 ---
 
+## Plugin verification and maturity
+
+Each package has a [verification playbook](plugin-verification.md) for its complete
+user workflow. Include `docs/VERIFICATION.md` in new packages and link it from the
+package README and shared index. Update its exercise, acceptance criteria,
+negative/recovery cases, cleanup, and host instructions alongside behavior changes.
+
+Use the [record template](templates/PLUGIN_VERIFICATION_RECORD.md) and shared
+maturity gates before proposing a status update. The documentation check rejects
+missing playbooks and public maturity labels that disagree with package manifests.
+A passing CLI suite does not qualify a host installation or live integration.
+
 ## Offline Dependency Setup
 
 For air-gapped or restricted network development environments:

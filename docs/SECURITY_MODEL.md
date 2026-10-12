@@ -95,6 +95,11 @@ flowchart TD
 - **Our Defense**:
   - We clearly label test results: an offline demo verifies that the code runs against a fixture; it does not claim your production SIEM is configured correctly.
   - Every finding links directly to verifiable evidence.
+  - [Plugin qualification](plugin-verification.md) binds maturity evidence to a
+    tested revision, expected results, negative cases, host exercises, repeat
+    runs, and independent review. Offline checks alone cannot establish host or
+    live-service support. Keep raw run evidence private and publish sanitized
+    qualification records.
   - The Linux host assessment importer labels canary outcomes as source-reported, retains explicit prerequisite and coverage state, and cannot certify a live privilege crossing or cleanup from a local export.
 
 ### Threat 6: Unauthorized High-Consequence or Offensive Actions

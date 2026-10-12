@@ -45,3 +45,6 @@ Offline tests: `PYTHONPATH=.:plugins/detection-hunting/threat-intelligence-enric
 Live source permissions, licenses, retention, schema variants, and provider
 response semantics are unverified; use an authorized test tenant before relying
 on operational coverage.
+
+Follow the [end-to-end verification playbook](docs/VERIFICATION.md) to qualify this
+package's documented workflow and prepare evidence for a maturity review.

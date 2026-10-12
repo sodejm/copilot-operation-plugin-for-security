@@ -10,6 +10,9 @@ The planner operates completely offline, making zero network requests, tenant AP
 
 ---
 
+Follow the [end-to-end verification playbook](docs/VERIFICATION.md) to qualify this
+package's documented workflow and prepare evidence for a maturity review.
+
 ## When to Use & Offensive Engineer Playbook
 
 For step-by-step scoping workflows, authorization templates, and compliance tracking, see the complete [Offensive Engineer & Red Teamer Playbook](docs/PLAYBOOK.md).
