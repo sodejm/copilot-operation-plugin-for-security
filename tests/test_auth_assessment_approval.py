@@ -251,6 +251,66 @@ def test_expiry_stops_admission_even_with_duration_remaining(tmp_path: Path, mon
         budget.admit()
 
 
+@pytest.mark.parametrize("failure", [RuntimeError, SystemExit])
+def test_later_case_failure_preserves_evidence_and_requires_effect_reconciliation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure,
+):
+    import jsonschema
+
+    data = json.loads((PLUGIN_ROOT / "auth_cases/delegated-control.json").read_text())
+    cases = []
+    for case_id in ("completed-before-failure", "uncertain-failure", "unstarted-after-failure"):
+        cases.append(auth_laboratory.AuthCase.from_dict({**data, "case_id": case_id}))
+    cases, context = authorized_batch(tmp_path, cases)
+    started = []
+    children = []
+    private_payload = "private exception content must never appear in evidence"
+
+    def configure(executor):
+        original_case = executor._run_auth_case
+        original_process = executor._JsonLineProcess
+
+        def tracked_process(*args, **kwargs):
+            child = original_process(*args, **kwargs)
+            children.append((child.process, Path(args[1])))
+            return child
+
+        def fail_after_effect(case, *args, **kwargs):
+            started.append(case.case_id)
+            result = original_case(case, *args, **kwargs)
+            if case.case_id == "uncertain-failure":
+                raise failure(private_payload)
+            return result
+
+        executor._JsonLineProcess = tracked_process
+        executor._run_auth_case = fail_after_effect
+
+    patch_executor(monkeypatch, configure)
+    report = auth_approval.run_auth_cases(cases, **context)
+    assert started == ["completed-before-failure", "uncertain-failure"]
+    assert report["completed_case_count"] == 1
+    assert report["results"][0]["case_id"] == "completed-before-failure"
+    assert len(report["results"][0]["observed_effects"]) == 1
+    assert report["pending_case_ids"] == ["uncertain-failure", "unstarted-after-failure"]
+    assert report["execution_failure"] == {
+        "case_id": "uncertain-failure", "reason": "case_execution_failed",
+        "effect_status": "uncertain",
+    }
+    assert report["next_action"] == "reconcile_uncertain_case_effects_before_new_approval"
+    assert report["cancelled"] is False
+    assert report["all_expectations_met"] is False
+    assert report["security_pass"] is False
+    assert report["budget"]["observed_output_bytes"] > 0
+    assert report["source_snapshot"] == {
+        "verified": True, "private_directory_removed": True, "reason": None,
+    }
+    assert all(process.poll() is not None and not directory.exists() for process, directory in children)
+    assert private_payload not in json.dumps(report)
+    jsonschema.validate(report, json.loads((PLUGIN_ROOT / "schemas/auth-report.schema.json").read_text()))
+    with pytest.raises(ApprovalStoreConflictError):
+        auth_approval.run_auth_cases(cases, **context)
+
+
 def test_cli_runs_one_signed_batch_and_rejects_receipt_reuse(tmp_path: Path):
     cases_path = tmp_path / "cases"
     cases_path.mkdir()

@@ -703,13 +703,24 @@ def _run_bound_batch(normalized, supplied_plan, consumed, worker_identity, sourc
     results = []
     cancelled = False
     interrupted_case = None
+    execution_failure = None
     try:
         for case in normalized:
             try:
                 budget.admit()
             except _BatchBudgetStop:
                 break
-            result, case_cancelled = _run_auth_case(case, supplied_plan.plan_digest, budget, source_root)
+            try:
+                result, case_cancelled = _run_auth_case(case, supplied_plan.plan_digest, budget, source_root)
+            except (Exception, SystemExit):
+                # A request may have reached the fixture before its result was
+                # returned. Keep earlier observations and stop without retrying
+                # or exposing exception payloads from untrusted runtime code.
+                execution_failure = {
+                    "case_id": case.case_id, "reason": "case_execution_failed",
+                    "effect_status": "uncertain",
+                }
+                break
             results.append(result)
             if case_cancelled or budget.stop_reason is not None:
                 cancelled = case_cancelled
@@ -721,7 +732,8 @@ def _run_bound_batch(normalized, supplied_plan, consumed, worker_identity, sourc
     if interrupted_case is not None:
         pending.insert(0, interrupted_case)
     all_expectations_met = (
-        not cancelled and budget.stop_reason is None and len(results) == len(normalized)
+        not cancelled and execution_failure is None and budget.stop_reason is None
+        and len(results) == len(normalized)
         and all(result["expectation_met"] for result in results)
     )
     return {
@@ -735,8 +747,12 @@ def _run_bound_batch(normalized, supplied_plan, consumed, worker_identity, sourc
         },
         "test_identity": TEST_IDENTITY,
         "cancelled": cancelled, "budget": budget.report(),
+        "execution_failure": execution_failure,
         "pending_case_ids": pending,
-        "next_action": "approve_a_new_plan_for_pending_cases" if pending else None,
+        "next_action": (
+            "reconcile_uncertain_case_effects_before_new_approval" if execution_failure
+            else "approve_a_new_plan_for_pending_cases" if pending else None
+        ),
         "planned_case_count": len(normalized), "completed_case_count": len(results),
         "all_expectations_met": all_expectations_met,
         "security_pass": all_expectations_met and all(result["security_pass"] for result in results),

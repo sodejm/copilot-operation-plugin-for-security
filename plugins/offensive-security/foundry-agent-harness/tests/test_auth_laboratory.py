@@ -124,6 +124,20 @@ def test_expected_reason_mismatch_is_failure(tmp_path):
     assert report["all_expectations_met"] is False
 
 
+def test_trusted_peer_preserves_missing_tenant_for_target_denial(tmp_path):
+    data = case_data()
+    del data["attempts"][0]["tenant"]
+    data["attempts"][0]["peer_action"] = "trusted_forward"
+    data.update(expected_decisions=["denied"], expected_reasons=["missing_tenant"], expected_effect_count=0)
+    report = run_data(tmp_path, data)
+    assert report["all_expectations_met"] is True
+    assert report["security_pass"] is True
+    result = report["results"][0]
+    assert result["evidence_complete"] is True
+    assert result["observations"][0]["target"]["reason"] == "missing_tenant"
+    assert result["observed_effects"] == []
+
+
 @pytest.mark.parametrize("fault", ["hung_server", "missing_identity_telemetry", "observer_failure"])
 def test_incomplete_runtime_evidence_is_inconclusive_with_cleanup(tmp_path, fault):
     data = case_data()

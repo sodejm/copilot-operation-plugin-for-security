@@ -126,6 +126,7 @@ def _partial_report(plan, consumed, worker, rows, started):
         "test_identity": "synthetic-fixture-runner",
         "source_snapshot": {"verified": False, "private_directory_removed": False, "reason": None},
         "cancelled": True,
+        "execution_failure": None,
         "budget": {"max_duration_seconds": 120, "cleanup_reserve_seconds": 8,
                    "elapsed_seconds": round(time.monotonic() - started, 3),
                    "max_observed_fixture_bytes": 1048576, "observed_output_bytes": 0,
