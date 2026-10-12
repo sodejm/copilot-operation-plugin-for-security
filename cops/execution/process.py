@@ -9,7 +9,7 @@ import selectors
 import signal
 import subprocess
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -120,6 +120,7 @@ def run_bounded_process(
     pass_fds: tuple[int, ...] = (),
     resource_limits: ProcessResourceLimits | None = None,
     defer_process_limit: bool = False,
+    on_started: Callable[[subprocess.Popen[bytes], float], None] | None = None,
 ) -> BoundedProcessResult:
     """Run ``command`` while bounding retained stdout and stderr bytes.
 
@@ -165,6 +166,8 @@ def run_bounded_process(
     drain_deadline: float | None = None
 
     try:
+        if on_started is not None:
+            on_started(process, deadline)
         selector = selectors.DefaultSelector()
         for stream, name in streams:
             os.set_blocking(stream.fileno(), False)
