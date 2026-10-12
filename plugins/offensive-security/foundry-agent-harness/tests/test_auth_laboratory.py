@@ -14,7 +14,7 @@ sys.path.insert(0, str(PLUGIN_ROOT))
 
 from foundryharness import auth_approval, auth_laboratory  # noqa: E402
 from foundryharness.laboratory import LabError  # noqa: E402
-from tests.test_auth_assessment_approval import authorized_batch  # noqa: E402
+from tests.test_auth_assessment_approval import authorized_batch, patch_executor  # noqa: E402
 
 
 def case_data(name="delegated-control"):
@@ -42,14 +42,14 @@ def test_bundled_authorization_cases_have_independent_effect_evidence(tmp_path):
     assert report["assessment_authorization"]["signed_receipt_verified"] is True
     assert report["assessment_authorization"]["consumed_once_for_batch"] is True
     assert report["all_expectations_met"] is True
-    assert report["security_pass"] is False  # The missing-context probe remains inconclusive.
+    assert report["security_pass"] is True
     assert report["pending_case_ids"] == []
     assert report["budget"]["observed_output_bytes"] > 0
     results = {result["case_id"]: result for result in report["results"]}
     for case_id, result in results.items():
-        assert result["outcome"] == ("inconclusive" if case_id == "peer-omit-tenant" else "pass")
+        assert result["outcome"] == "pass"
         assert result["evidence_complete"] is True
-        assert result["security_pass"] is (case_id != "peer-omit-tenant")
+        assert result["security_pass"] is True
         assert result["environment_verified"] is True
         assert result["cleanup"] == {"process_exit_observed": True, "private_directory_removed": True}
         for index, row in enumerate(result["observations"], 1):
@@ -101,7 +101,7 @@ def test_two_tenants_have_positive_controls_and_cross_tenant_denials(tmp_path, t
 
 @pytest.mark.parametrize("action,decision,reason,outcome", [
     ("mutate_tenant", "denied", "tenant_mismatch", "pass"),
-    ("omit_tenant", "inconclusive", "missing_context", "inconclusive"),
+    ("omit_tenant", "denied", "missing_tenant", "pass"),
     ("mutate_operation", "denied", "operation_mismatch", "pass"),
     ("substitute_receipt", "denied", "unrecognized_grant_or_actor", "pass"),
 ])
@@ -150,8 +150,11 @@ def test_cancellation_returns_pending_work_and_consumes_approval(tmp_path, monke
     def cancelled(*_args, **_kwargs):
         raise KeyboardInterrupt
 
-    monkeypatch.setattr(auth_approval, "_JsonLineProcess", capture_process)
-    monkeypatch.setattr(auth_approval._McpClient, "call", cancelled)
+    def configure(executor):
+        executor._JsonLineProcess = capture_process
+        executor._McpClient.call = cancelled
+
+    patch_executor(monkeypatch, configure)
     report = auth_approval.run_auth_cases(cases, **context)
     assert report["cancelled"] is True
     assert report["all_expectations_met"] is False
@@ -169,7 +172,7 @@ def test_unsupported_surface_cannot_launch_fixture(tmp_path, monkeypatch):
     def forbidden(*_args, **_kwargs):
         pytest.fail("unsupported surface launched fixture")
 
-    monkeypatch.setattr(auth_approval, "_JsonLineProcess", forbidden)
+    patch_executor(monkeypatch, lambda executor: setattr(executor, "_JsonLineProcess", forbidden))
     report = run_data(tmp_path, data)
     assert report["results"][0]["outcome"] == "unsupported"
     assert report["results"][0]["environment_verified"] is False
@@ -228,7 +231,7 @@ def test_unsigned_entrypoint_is_disabled():
 @pytest.mark.parametrize("filename,decision,outcome", [
     ("auth-authorized.json", "allowed", "pass"),
     ("auth-denied.json", "denied", "pass"),
-    ("auth-inconclusive.json", "inconclusive", "inconclusive"),
+    ("auth-inconclusive.json", "denied", "inconclusive"),
 ])
 def test_documented_reports_match_schema(filename, decision, outcome):
     schema = json.loads((PLUGIN_ROOT / "schemas/auth-report.schema.json").read_text())

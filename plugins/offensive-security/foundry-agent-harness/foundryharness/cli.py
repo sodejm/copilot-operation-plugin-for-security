@@ -12,26 +12,14 @@ if __package__ in (None, ""):
     if (source_root / "cops" / "__init__.py").is_file():
         sys.path.insert(0, str(source_root))
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-    from foundryharness.auth_laboratory import load_auth_cases
     from foundryharness.bounded_json import JSONInputError, decode_json, read_regular_file
-    from foundryharness.gate import IndependentAuthorizationGate
-    from foundryharness.laboratory import LabError, load_lab_cases, run_lab_case
-    from foundryharness.mock_sandbox import MockSandbox
-    from foundryharness.models import HarnessError, Scenario
-    from foundryharness.reporting import render_json_report, render_markdown_report
-    from foundryharness.simulator import evaluate_scenario
 else:
-    from .auth_laboratory import load_auth_cases
     from .bounded_json import JSONInputError, decode_json, read_regular_file
-    from .gate import IndependentAuthorizationGate
-    from .laboratory import LabError, load_lab_cases, run_lab_case
-    from .mock_sandbox import MockSandbox
-    from .models import HarnessError, Scenario
-    from .reporting import render_json_report, render_markdown_report
-    from .simulator import evaluate_scenario
 
 def load_scenarios(scenario_path: Path | None, scenarios_dir: Path | None) -> list[Scenario]:
     """Load scenarios from a single file or a directory."""
+    from foundryharness.models import HarnessError, Scenario
+
     scenarios: list[Scenario] = []
 
     if scenario_path:
@@ -64,7 +52,7 @@ def _load_json_object(path: Path, label: str) -> dict:
             raise JSONInputError("object_required")
         return value
     except JSONInputError:
-        raise LabError(f"{label} must be a bounded regular file containing strict JSON") from None
+        raise ValueError(f"{label} must be a bounded regular file containing strict JSON") from None
 
 
 def _emit(value: str, output: Path | None) -> None:
@@ -149,12 +137,17 @@ def main(argv: list[str] | None = None) -> int:
                 from cops.contracts.models import ActionPlan
                 from cops.execution.authorization import AuthorizationTrustStore
                 from cops.execution.store import ApprovalStore
-                from foundryharness.auth_approval import build_auth_plan, run_auth_cases
+
             except ModuleNotFoundError as exc:
                 if exc.name == "cops":
-                    raise LabError("auth-plan and auth-lab require the COPS source runtime") from None
+                    raise ValueError("auth-plan and auth-lab require the COPS source runtime") from None
                 raise
         if args.command in ("evaluate", "run"):
+            from foundryharness.gate import IndependentAuthorizationGate
+            from foundryharness.mock_sandbox import MockSandbox
+            from foundryharness.reporting import render_json_report, render_markdown_report
+            from foundryharness.simulator import evaluate_scenario
+
             scenarios = load_scenarios(args.scenario, args.scenarios_dir)
             sandbox = MockSandbox()
             gate = IndependentAuthorizationGate()
@@ -195,6 +188,8 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         elif args.command == "lab":
+            from foundryharness.laboratory import load_lab_cases, run_lab_case
+
             cases = load_lab_cases(args.cases)
             results = [run_lab_case(case) for case in cases]
             passed = all(result["expectation_met"] for result in results)
@@ -233,6 +228,9 @@ def main(argv: list[str] | None = None) -> int:
             return 0 if passed else 1
 
         elif args.command == "auth-plan":
+            from foundryharness.auth_approval import build_auth_plan
+            from foundryharness.auth_laboratory import load_auth_cases
+
             plan = build_auth_plan(
                 load_auth_cases(args.cases),
                 plan_id=args.plan_id,
@@ -243,7 +241,9 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         elif args.command == "auth-lab":
-            cases = load_auth_cases(args.cases)
+            from foundryharness.auth_bootstrap import load_case_inputs, run_auth_cases
+
+            cases = load_case_inputs(args.cases)
             plan = ActionPlan.from_dict(_load_json_object(args.plan, "ActionPlan"))
             engagement = _load_json_object(args.engagement, "engagement")
             authorization = _load_json_object(args.authorization, "execution authorization")
@@ -267,11 +267,14 @@ def main(argv: list[str] | None = None) -> int:
                     "Local synthetic MCP authorization laboratory",
                     f"Cases: {len(results)}/{report['planned_case_count']}; "
                     f"expectations met: {sum(result['expectation_met'] for result in results)}; "
-                    f"cancelled: {report['cancelled']}",
+                    f"cancelled: {report['cancelled']}; security_pass: {passed}",
+                    f"source_snapshot: {report['source_snapshot']}; budget_stop: {report['budget']['stop_reason']}",
+                    f"pending: {', '.join(report['pending_case_ids']) or 'none'}; next_action: {report['next_action'] or 'none'}",
                 ]
                 for result in results:
                     lines.append(
-                        f"{result['case_id']}: outcome={result['outcome']} "
+                        f"{result['case_id']}: outcome={result['outcome']} reason={result['reason']} "
+                        f"evidence_complete={result['evidence_complete']} security_pass={result['security_pass']} "
                         f"effects={len(result['observed_effects'])} "
                         f"process_exit={result['cleanup']['process_exit_observed']} "
                         f"directory_removed={result['cleanup']['private_directory_removed']} "
@@ -281,7 +284,7 @@ def main(argv: list[str] | None = None) -> int:
             _emit(out_str, None)
             return 0 if passed else 1
 
-    except (HarnessError, LabError, OSError, ValueError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError) as exc:
         print(f"foundryharness error: {exc}", file=sys.stderr)
         return 2
 

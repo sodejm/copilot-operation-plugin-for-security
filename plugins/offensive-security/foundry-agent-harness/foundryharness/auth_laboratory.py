@@ -54,6 +54,7 @@ REASONS = {
     "downstream_service_mismatch",
     "audience_mismatch",
     "tenant_mismatch",
+    "missing_tenant",
     "resource_mismatch",
     "delegation_depth_exceeded",
     "tool_not_permitted",
@@ -247,7 +248,7 @@ def validate_default_auth_coverage(cases: list[AuthCase]) -> None:
         if grant_name == "delegated-write":
             for action, decision, reason, outcome in (
                 ("mutate_tenant", "denied", "tenant_mismatch", "pass"),
-                ("omit_tenant", "inconclusive", "missing_context", "inconclusive"),
+                ("omit_tenant", "denied", "missing_tenant", "pass"),
                 ("mutate_operation", "denied", "operation_mismatch", "pass"),
                 ("substitute_receipt", "denied", "unrecognized_grant_or_actor", "pass"),
             ):

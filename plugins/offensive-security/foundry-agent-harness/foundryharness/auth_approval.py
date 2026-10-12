@@ -19,7 +19,7 @@ from typing import Any, Iterable
 from cops.contracts.models import ActionPlan
 from cops.evidence.canonical import EvidenceError, decode_json, digest, timestamp, utc_now
 from cops.execution.authorization import AuthorizationTrustStore, verify_execution_authorization
-from cops.execution.store import ApprovalStore
+from cops.execution.store import ApprovalStore, ApprovalStoreConflictError
 
 from .auth_fixture_server import (
     ARGUMENT_ALIASES,
@@ -207,35 +207,38 @@ def _source_digests(sources: dict[str, bytes] | None = None) -> dict[str, str]:
 
 
 @contextmanager
-def _defer_sigint(interrupted: list[bool]):
-    """Keep process registration and cleanup atomic against ordinary SIGINT."""
+def _defer_cancellation(interrupted: list[bool]):
+    """Keep process registration and cleanup atomic against SIGINT and SIGTERM."""
     if threading.current_thread() is not threading.main_thread():
         yield
         return
-    previous = signal.getsignal(signal.SIGINT)
+    previous = {number: signal.getsignal(number) for number in (signal.SIGINT, signal.SIGTERM)}
 
     def defer(_signum, _frame):
         interrupted[0] = True
 
-    signal.signal(signal.SIGINT, defer)
     try:
+        for number in previous:
+            signal.signal(number, defer)
         yield
     finally:
-        signal.signal(signal.SIGINT, previous)
+        for number, handler in previous.items():
+            signal.signal(number, handler)
+
 
 
 @contextmanager
 def _private_directory(prefix: str, interrupted: list[bool]):
     directory = None
     try:
-        with _defer_sigint(interrupted):
+        with _defer_cancellation(interrupted):
             directory = tempfile.TemporaryDirectory(prefix=prefix)
         if interrupted[0]:
             raise KeyboardInterrupt
         yield Path(directory.name)
     finally:
         if directory is not None:
-            with _defer_sigint(interrupted):
+            with _defer_cancellation(interrupted):
                 # Staged source directories are read-only during execution.
                 os.chmod(directory.name, 0o700)
                 try:
@@ -296,6 +299,7 @@ def _manifest(cases: tuple[AuthCase, ...], sources: dict[str, bytes] | None = No
     return {
         "schema_version": "cops.agent-mcp-auth-manifest/v1",
         "test_identity": TEST_IDENTITY,
+        "case_input_sha256": digest([case.to_dict() for case in cases]),
         "adapter": {
             "adapter_id": ADAPTER_ID,
             "source_sha256": _source_digests(sources),
@@ -589,7 +593,7 @@ def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget, sourc
             spawned: list[_JsonLineProcess] = []
             try:
                 def start(script: str) -> _JsonLineProcess:
-                    with _defer_sigint(interrupted):
+                    with _defer_cancellation(interrupted):
                         process = _JsonLineProcess(
                             script, workdir,
                             response_timeout_seconds=1,
@@ -706,7 +710,7 @@ def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget, sourc
             except (OSError, ValueError, TypeError):
                 failure = "fixture_setup_or_observation_failure"
             finally:
-                with _defer_sigint(interrupted):
+                with _defer_cancellation(interrupted):
                     for process in reversed(spawned):
                         try:
                             closed.append(process.close())
@@ -813,122 +817,64 @@ def run_auth_cases(
     worker_identity: str,
     approval_store: ApprovalStore,
 ) -> dict[str, Any]:
-    """Verify and consume one COPS approval before starting the fixed batch."""
-    normalized = _coerce_cases(cases)
-    supplied_plan = ActionPlan.from_dict(plan) if isinstance(plan, dict) else plan
-    if not isinstance(supplied_plan, ActionPlan):
-        raise LabError("Authorization laboratory requires a COPS ActionPlan")
-    sources = _capture_sources()
-    rebuilt = build_auth_plan(
-        normalized,
-        plan_id=supplied_plan.plan_id,
-        engagement_id=supplied_plan.engagement_id,
-        created_at=supplied_plan.created_at,
-        _sources=sources,
-    )
-    if supplied_plan.approved_snapshot(include_digest=True) != rebuilt.approved_snapshot(include_digest=True):
-        raise LabError("Action plan does not exactly bind the current immutable authorization manifest")
-    if (
-        not isinstance(trust_store, AuthorizationTrustStore)
-        or not isinstance(approval_store, ApprovalStore)
-        or not isinstance(worker_identity, str)
-        or not re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", worker_identity)
-    ):
-        raise LabError("Authorization verifier, private approval store, or worker identity is invalid")
-    if not hasattr(os, "geteuid") or not approval_store.require_secure_perms:
-        raise LabError("Authorization laboratory requires a private owner-protected approval store")
-    approval_store.assert_protected_owner(os.geteuid())
-    verified = verify_execution_authorization(
-        authorization,
-        supplied_plan,
-        trust_store=trust_store,
-        engagement=engagement,
-        worker_identity=worker_identity,
-    )
-    consumed = approval_store.atomically_consume(
-        verified.authorization_id,
-        expected_authorization=verified,
-        worker_identity=worker_identity,
-        minimum_remaining_seconds=MINIMUM_AUTHORIZATION_SECONDS,
-    )
-    budget = _BatchBudget(supplied_plan, verified.authorized_until_utc)
+    """Compatibility entry point; admission loads a fresh approved controller."""
+    from .auth_bootstrap import run_auth_cases as admit_and_run
 
-    results: list[dict[str, Any]] = []
-    cancelled = False
-    interrupted_case: str | None = None
-    source_root: Path | None = None
-    snapshot_verified = False
-    snapshot_failure: str | None = None
-    interrupted = [False]
     try:
-        with _private_directory("cops-auth-source-", interrupted) as source_root:
-            for name, raw in sources.items():
-                with (source_root / name).open("xb") as destination:
-                    destination.write(raw)
-                os.chmod(source_root / name, 0o400)
-            os.chmod(source_root, 0o500)
-            snapshot_verified = True
-            for case in normalized:
-                try:
-                    budget.admit()
-                except _BatchBudgetStop:
-                    break
-                result, case_cancelled = _run_auth_case(case, supplied_plan.plan_digest, budget, source_root)
-                results.append(result)
-                if case_cancelled:
-                    cancelled = True
-                    interrupted_case = case.case_id
-                    break
-                if budget.stop_reason is not None:
-                    interrupted_case = case.case_id
-                    break
+        return admit_and_run(
+            [case.to_dict() if isinstance(case, AuthCase) else case for case in cases],
+            plan=plan, authorization=authorization, engagement=engagement,
+            trust_store=trust_store, worker_identity=worker_identity, approval_store=approval_store,
+            source_root=Path(__file__).resolve().parent,
+        )
+    except ApprovalStoreConflictError:
+        raise
+    except ValueError as exc:
+        raise LabError(str(exc)) from exc
+
+
+def _run_bound_batch(normalized, supplied_plan, consumed, worker_identity, source_root):
+    """Execute only after the trusted bootstrap binds and consumes approval."""
+    budget = _BatchBudget(supplied_plan, consumed.authorized_until_utc)
+    results = []
+    cancelled = False
+    interrupted_case = None
+    try:
+        for case in normalized:
+            try:
+                budget.admit()
+            except _BatchBudgetStop:
+                break
+            result, case_cancelled = _run_auth_case(case, supplied_plan.plan_digest, budget, source_root)
+            results.append(result)
+            if case_cancelled or budget.stop_reason is not None:
+                cancelled = case_cancelled
+                interrupted_case = case.case_id
+                break
     except KeyboardInterrupt:
-        interrupted[0] = True
-    except (OSError, ValueError):
-        snapshot_failure = "source_snapshot_setup_or_cleanup_failure"
-    cancelled = cancelled or interrupted[0]
-    snapshot_removed = source_root is not None and not source_root.exists()
-    if not snapshot_removed:
-        snapshot_failure = snapshot_failure or "source_snapshot_removal_not_observed"
+        cancelled = True
     pending = [case.case_id for case in normalized[len(results):]]
     if interrupted_case is not None:
         pending.insert(0, interrupted_case)
     all_expectations_met = (
-        not cancelled and snapshot_verified and snapshot_removed and snapshot_failure is None
-        and budget.stop_reason is None and len(results) == len(normalized)
+        not cancelled and budget.stop_reason is None and len(results) == len(normalized)
         and all(result["expectation_met"] for result in results)
     )
-    next_action = "approve_a_new_plan_for_pending_cases" if pending else None
-    if snapshot_failure is not None:
-        next_action = "inspect_source_snapshot_cleanup_before_new_approval"
-    elif cancelled and not pending:
-        next_action = "review_partial_run_evidence"
     return {
         "schema_version": "cops.agent-mcp-auth-run/v1",
         "environment": "local-synthetic-mcp-auth-fixture",
         "assessment_authorization": {
-            "signed_receipt_verified": True,
-            "authorization_ref": consumed.authorization_id,
-            "plan_id": supplied_plan.plan_id,
-            "plan_digest": supplied_plan.plan_digest,
-            "engagement_id": supplied_plan.engagement_id,
-            "worker_identity": worker_identity,
+            "signed_receipt_verified": True, "authorization_ref": consumed.authorization_id,
+            "plan_id": supplied_plan.plan_id, "plan_digest": supplied_plan.plan_digest,
+            "engagement_id": supplied_plan.engagement_id, "worker_identity": worker_identity,
             "consumed_once_for_batch": True,
         },
         "test_identity": TEST_IDENTITY,
-        "source_snapshot": {
-            "verified": snapshot_verified,
-            "private_directory_removed": snapshot_removed,
-            "reason": snapshot_failure,
-        },
-        "cancelled": cancelled,
-        "budget": budget.report(),
+        "cancelled": cancelled, "budget": budget.report(),
         "pending_case_ids": pending,
-        "next_action": next_action,
-        "planned_case_count": len(normalized),
-        "completed_case_count": len(results),
+        "next_action": "approve_a_new_plan_for_pending_cases" if pending else None,
+        "planned_case_count": len(normalized), "completed_case_count": len(results),
         "all_expectations_met": all_expectations_met,
         "security_pass": all_expectations_met and all(result["security_pass"] for result in results),
-        "results": results,
-        "redacted": all(result["redacted"] is True for result in results),
+        "results": results, "redacted": all(result["redacted"] is True for result in results),
     }

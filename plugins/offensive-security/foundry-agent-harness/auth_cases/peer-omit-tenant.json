@@ -23,11 +23,11 @@
     }
   ],
   "expected_decisions": [
-    "inconclusive"
+    "denied"
   ],
   "expected_effect_count": 0,
   "expected_reasons": [
-    "missing_context"
+    "missing_tenant"
   ],
-  "expected_outcome": "inconclusive"
+  "expected_outcome": "pass"
 }

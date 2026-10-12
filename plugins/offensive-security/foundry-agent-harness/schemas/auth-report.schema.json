@@ -98,8 +98,9 @@
             {
               "type": "string",
               "enum": [
+                "source_snapshot_cleanup_failure",
                 "source_snapshot_removal_not_observed",
-                "source_snapshot_setup_or_cleanup_failure"
+                "source_snapshot_setup_or_execution_failure"
               ]
             },
             {
@@ -298,6 +299,7 @@
             "expired_grant",
             "flow_mismatch",
             "missing_context",
+            "missing_tenant",
             "one_time_replay",
             "operation_mismatch",
             "principal_or_agent_binding",
@@ -689,6 +691,7 @@
             "expired_grant",
             "flow_mismatch",
             "missing_context",
+            "missing_tenant",
             "one_time_replay",
             "operation_mismatch",
             "principal_or_agent_binding",

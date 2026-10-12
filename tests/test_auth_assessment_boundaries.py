@@ -6,6 +6,9 @@ import io
 import json
 import os
 import signal
+import subprocess
+import sys
+import time
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -21,8 +24,8 @@ from tests.auth_testkit import (
     make_test_authorization_context,
     write_test_authorization_trust_store,
 )
-from tests.test_auth_assessment_approval import PLUGIN_ROOT, authorized_batch, forbid_processes
-from foundryharness import auth_approval, auth_laboratory, cli, laboratory
+from tests.test_auth_assessment_approval import PLUGIN_ROOT, authorized_batch, forbid_processes, patch_executor
+from foundryharness import auth_approval, auth_bootstrap, auth_laboratory, cli, laboratory
 
 
 def cli_context(tmp_path: Path, data: dict | None = None):
@@ -52,6 +55,130 @@ def set_test_secrets(monkeypatch):
         monkeypatch.setenv(name, value)
 
 
+def copy_executor(tmp_path: Path, *, include_cli: bool = False) -> Path:
+    source = tmp_path / "source" / "foundryharness"
+    source.mkdir(parents=True)
+    names = list(auth_approval.SOURCE_FILES)
+    if include_cli:
+        names.extend(("__init__.py", "auth_bootstrap.py", "cli.py"))
+    for name in names:
+        (source / name).write_bytes((PLUGIN_ROOT / "foundryharness" / name).read_bytes())
+    return source
+
+
+def cli_environment() -> dict[str, str]:
+    environment = os.environ.copy()
+    environment.update(authorization_secret_environment())
+    environment["PYTHONPATH"] = str(PLUGIN_ROOT.parents[2])
+    return environment
+
+
+def test_preloaded_controller_cannot_replace_differently_signed_controller(tmp_path, monkeypatch):
+    source = copy_executor(tmp_path)
+    marker = tmp_path / "approved-controller-executed"
+    with (source / "auth_approval.py").open("a") as destination:
+        destination.write(f"\nPath({str(marker)!r}).write_text('approved')\n")
+    monkeypatch.setattr(auth_approval, "__file__", str(source / "auth_approval.py"))
+    cases, context = authorized_batch(tmp_path)
+    assert not marker.exists()
+    report = auth_approval.run_auth_cases(cases, **context)
+    assert marker.read_text() == "approved"
+    assert report["security_pass"] is True
+    assert not any(name.startswith("_cops_auth_approved_") for name in sys.modules)
+
+
+def test_cli_rejects_changed_controller_without_importing_it(tmp_path, monkeypatch):
+    source = copy_executor(tmp_path, include_cli=True)
+    monkeypatch.setattr(auth_approval, "__file__", str(source / "auth_approval.py"))
+    arguments, _, context = cli_context(tmp_path)
+    marker = tmp_path / "unapproved-controller-executed"
+    with (source / "auth_approval.py").open("a") as destination:
+        destination.write(f"\nPath({str(marker)!r}).write_text('unapproved')\n")
+    result = subprocess.run(
+        [sys.executable, str(source / "cli.py"), *arguments],
+        env=cli_environment(), capture_output=True, text=True, timeout=10,
+    )
+    assert result.returncode == 2
+    assert "does not exactly bind" in result.stderr
+    assert not marker.exists()
+    assert context["approval_store"].get_authorization(context["authorization"].authorization_id).status == "approved"
+
+
+@pytest.mark.parametrize("interrupt_at", ["first_spawn", "second_spawn", "exchange", "cleanup"])
+def test_sigterm_cli_observes_child_exits_and_private_directory_removal(tmp_path, monkeypatch, interrupt_at):
+    source = copy_executor(tmp_path, include_cli=True)
+    ready = tmp_path / "ready.json"
+    acknowledge = tmp_path / "continue"
+    # This signed test controller exposes exact lifecycle boundaries to the
+    # parent process; it does not replace the installed cancellation handlers.
+    hook = f'''
+_OriginalProcess = _JsonLineProcess
+_started_processes = []
+_boundary_entered = False
+def _test_boundary():
+    global _boundary_entered
+    if _boundary_entered:
+        return
+    _boundary_entered = True
+    Path({str(ready)!r}).write_text(json.dumps(_started_processes))
+    while not Path({str(acknowledge)!r}).exists():
+        time.sleep(0.01)
+class _ObservedProcess(_OriginalProcess):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        _started_processes.append({{
+            "pid": self.process.pid, "work_directory": str(args[1]),
+            "source_directory": str(kwargs["source_root"]),
+        }})
+        if ({interrupt_at!r} == "first_spawn" and len(_started_processes) == 1
+                or {interrupt_at!r} == "second_spawn" and len(_started_processes) == 2):
+            _test_boundary()
+    def exchange(self, payload):
+        if {interrupt_at!r} == "exchange":
+            _test_boundary()
+        return super().exchange(payload)
+    def close(self):
+        if {interrupt_at!r} == "cleanup":
+            _test_boundary()
+        return super().close()
+_JsonLineProcess = _ObservedProcess
+'''
+    with (source / "auth_approval.py").open("a") as destination:
+        destination.write(hook)
+    monkeypatch.setattr(auth_approval, "__file__", str(source / "auth_approval.py"))
+    arguments, _, context = cli_context(tmp_path)
+    process = subprocess.Popen(
+        [sys.executable, str(source / "cli.py"), *arguments],
+        env=cli_environment(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+    )
+    try:
+        deadline = time.monotonic() + 10
+        while not ready.exists() and process.poll() is None and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert ready.exists(), "CLI did not reach the signed lifecycle boundary"
+        children = json.loads(ready.read_text())
+        process.send_signal(signal.SIGTERM)
+        acknowledge.write_text("continue cleanup")
+        stdout, stderr = process.communicate(timeout=10)
+        assert process.returncode == 1, stderr
+        report = json.loads(stdout)
+        assert report["cancelled"] is True
+        assert report["security_pass"] is False
+        assert report["source_snapshot"]["private_directory_removed"] is True
+        assert context["approval_store"].get_authorization(context["authorization"].authorization_id).status == "consumed"
+        assert children
+        for child in children:
+            with pytest.raises(ProcessLookupError):
+                os.kill(child["pid"], 0)
+            assert not Path(child["work_directory"]).exists()
+            assert not Path(child["source_directory"]).exists()
+    finally:
+        acknowledge.touch()
+        if process.poll() is None:
+            process.kill()
+            process.communicate(timeout=10)
+
+
 def test_execution_uses_captured_approved_bytes_after_source_changes(tmp_path, monkeypatch):
     source = tmp_path / "source"
     source.mkdir()
@@ -60,7 +187,7 @@ def test_execution_uses_captured_approved_bytes_after_source_changes(tmp_path, m
     monkeypatch.setattr(auth_approval, "__file__", str(source / "auth_approval.py"))
     cases, context = authorized_batch(tmp_path)
     marker = tmp_path / "unapproved-source-executed"
-    verify = auth_approval.verify_execution_authorization
+    verify = auth_bootstrap.verify_execution_authorization
     original_process = auth_approval._JsonLineProcess
     launched_sources = []
 
@@ -75,8 +202,8 @@ def test_execution_uses_captured_approved_bytes_after_source_changes(tmp_path, m
         launched_sources.append(kwargs["source_root"])
         return original_process(*args, **kwargs)
 
-    monkeypatch.setattr(auth_approval, "verify_execution_authorization", change_source_after_verification)
-    monkeypatch.setattr(auth_approval, "_JsonLineProcess", track_process)
+    monkeypatch.setattr(auth_bootstrap, "verify_execution_authorization", change_source_after_verification)
+    patch_executor(monkeypatch, lambda executor: setattr(executor, "_JsonLineProcess", track_process))
     report = auth_approval.run_auth_cases(cases, **context)
     assert report["security_pass"] is True
     assert not marker.exists()
@@ -109,7 +236,7 @@ def test_sigint_during_startup_or_cleanup_observes_exits_and_removal(tmp_path, m
             child.close = interrupted_close
         return child
 
-    monkeypatch.setattr(auth_approval, "_JsonLineProcess", tracked_process)
+    patch_executor(monkeypatch, lambda executor: setattr(executor, "_JsonLineProcess", tracked_process))
     report = auth_approval.run_auth_cases(cases, **context)
     assert report["cancelled"] is True
     assert report["security_pass"] is False
@@ -141,13 +268,11 @@ def test_cli_cannot_write_an_unapproved_report_destination(tmp_path, monkeypatch
     assert context["approval_store"].get_authorization(context["authorization"].authorization_id).status == "approved"
 
 
-@pytest.mark.parametrize("mode", ["hung_server", "unsupported", "missing_context"])
+@pytest.mark.parametrize("mode", ["hung_server", "unsupported", "missing_identity_telemetry"])
 def test_cli_returns_failure_for_incomplete_or_inconclusive_security_evidence(tmp_path, monkeypatch, capsys, mode):
     data = json.loads((PLUGIN_ROOT / "auth_cases/delegated-control.json").read_text())
     if mode == "unsupported":
         data.update(surface="unsupported_provider_surface", expected_outcome="unsupported")
-    elif mode == "missing_context":
-        data = json.loads((PLUGIN_ROOT / "auth_cases/peer-omit-tenant.json").read_text())
     else:
         data["attempts"][0]["fault_mode"] = mode
     arguments, _, _ = cli_context(tmp_path, data)
@@ -157,12 +282,8 @@ def test_cli_returns_failure_for_incomplete_or_inconclusive_security_evidence(tm
     assert report["security_pass"] is False
     result = report["results"][0]
     assert result["outcome"] in ("unsupported", "inconclusive")
-    if mode == "missing_context":
-        assert result["evidence_complete"] is True
-        assert result["expectation_met"] is True
-    else:
-        assert result["evidence_complete"] is False
-        assert result["expectation_met"] is False
+    assert result["evidence_complete"] is False
+    assert result["expectation_met"] is False
 
 
 @pytest.mark.parametrize("input_name", ["plan", "engagement", "authorization", "trust-store"])

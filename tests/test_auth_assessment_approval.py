@@ -25,7 +25,7 @@ from tests.auth_testkit import (
 PLUGIN_ROOT = Path(__file__).resolve().parents[1] / "plugins/offensive-security/foundry-agent-harness"
 sys.path.insert(0, str(PLUGIN_ROOT))
 
-from foundryharness import auth_approval, auth_laboratory  # noqa: E402
+from foundryharness import auth_approval, auth_bootstrap, auth_laboratory  # noqa: E402
 
 
 def authorized_batch(tmp_path: Path, cases=None):
@@ -53,11 +53,24 @@ def authorized_batch(tmp_path: Path, cases=None):
     }
 
 
+def patch_executor(monkeypatch: pytest.MonkeyPatch, configure):
+    """Instrument the freshly imported, approved execution namespace."""
+    loader = auth_bootstrap._load_executor
+
+    def load(source_root):
+        executor = loader(source_root)
+        configure(executor)
+        return executor
+
+    monkeypatch.setattr(auth_bootstrap, "_load_executor", load)
+
+
 def forbid_processes(monkeypatch: pytest.MonkeyPatch):
     def forbidden(*_args, **_kwargs):
         pytest.fail("fixture launched before authorization passed")
 
     monkeypatch.setattr(auth_approval, "_JsonLineProcess", forbidden)
+    monkeypatch.setattr(auth_bootstrap, "_load_executor", forbidden)
 
 
 def test_missing_signed_approval_cannot_launch_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -117,7 +130,7 @@ def test_competing_receipt_consumers_launch_only_one_batch(tmp_path: Path, monke
         except ApprovalStoreConflictError as error:
             return error
 
-    monkeypatch.setattr(auth_approval, "_JsonLineProcess", tracked_process)
+    patch_executor(monkeypatch, lambda executor: setattr(executor, "_JsonLineProcess", tracked_process))
     with ThreadPoolExecutor(max_workers=2) as pool:
         results = list(pool.map(lambda _: attempt(), range(2)))
     reports = [result for result in results if isinstance(result, dict)]
@@ -156,15 +169,18 @@ def test_duration_budget_reserves_cleanup_and_stops_next_case(tmp_path: Path, mo
     cases += auth_laboratory.load_auth_cases(PLUGIN_ROOT / "auth_cases/wrong-audience.json")
     cases, context = authorized_batch(tmp_path, cases)
     clock = [0.0]
-    monkeypatch.setattr(auth_approval, "time", SimpleNamespace(monotonic=lambda: clock[0]))
-    original = auth_approval._run_auth_case
+    def configure(executor):
+        executor.time = SimpleNamespace(monotonic=lambda: clock[0])
+        original = executor._run_auth_case
 
-    def complete_first_case(*args, **kwargs):
-        result = original(*args, **kwargs)
-        clock[0] = 112.0
-        return result
+        def complete_first_case(*args, **kwargs):
+            result = original(*args, **kwargs)
+            clock[0] = 112.0
+            return result
 
-    monkeypatch.setattr(auth_approval, "_run_auth_case", complete_first_case)
+        executor._run_auth_case = complete_first_case
+
+    patch_executor(monkeypatch, configure)
     report = auth_approval.run_auth_cases(cases, **context)
     assert report["results"][0]["expectation_met"] is True
     assert report["completed_case_count"] == 1

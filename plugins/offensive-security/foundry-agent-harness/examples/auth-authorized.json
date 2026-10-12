@@ -3,19 +3,14 @@
   "environment": "local-synthetic-mcp-auth-fixture",
   "assessment_authorization": {
     "signed_receipt_verified": true,
-    "authorization_ref": "auth-bc9967822ad74646",
+    "authorization_ref": "auth-0eb87755daf2412b",
     "plan_id": "plan-auth-approval-test",
-    "plan_digest": "0d3e4b034540ee3aec0e8a13bcd93b9f25ef9dd384319844d46c7bf537736656",
+    "plan_digest": "ceef15440c478d51baf6d11b11b5903c0bb7ac3a3795238fb4b6c2f793bb3f83",
     "engagement_id": "eng-auth-approval-test",
     "worker_identity": "fixture-worker",
     "consumed_once_for_batch": true
   },
   "test_identity": "synthetic-fixture-runner",
-  "source_snapshot": {
-    "verified": true,
-    "private_directory_removed": true,
-    "reason": null
-  },
   "cancelled": false,
   "budget": {
     "max_duration_seconds": 120,
@@ -36,7 +31,7 @@
     {
       "schema_version": "cops.agent-mcp-auth-result/v1",
       "case_id": "delegated-control",
-      "plan_digest": "0d3e4b034540ee3aec0e8a13bcd93b9f25ef9dd384319844d46c7bf537736656",
+      "plan_digest": "ceef15440c478d51baf6d11b11b5903c0bb7ac3a3795238fb4b6c2f793bb3f83",
       "test_identity": "synthetic-fixture-runner",
       "grant_alias": "delegated-write",
       "flow": "delegated",
@@ -52,7 +47,7 @@
           "attempt_id": "delegated-control-1",
           "request_id": "request-delegated-control-1",
           "canary_id": "canary-delegated-control-1",
-          "plan_digest": "0d3e4b034540ee3aec0e8a13bcd93b9f25ef9dd384319844d46c7bf537736656",
+          "plan_digest": "ceef15440c478d51baf6d11b11b5903c0bb7ac3a3795238fb4b6c2f793bb3f83",
           "test_identity": "synthetic-fixture-runner",
           "tool": "canary/write",
           "peer": {
@@ -62,7 +57,7 @@
             "attempt_id": "delegated-control-1",
             "request_id": "request-delegated-control-1",
             "canary_id": "canary-delegated-control-1",
-            "plan_digest": "0d3e4b034540ee3aec0e8a13bcd93b9f25ef9dd384319844d46c7bf537736656",
+            "plan_digest": "ceef15440c478d51baf6d11b11b5903c0bb7ac3a3795238fb4b6c2f793bb3f83",
             "test_identity": "synthetic-fixture-runner",
             "forwarded_request": {
               "grant": "delegated-write",
@@ -82,11 +77,11 @@
               "attempt_id": "delegated-control-1",
               "request_id": "request-delegated-control-1",
               "canary_id": "canary-delegated-control-1",
-              "plan_digest": "0d3e4b034540ee3aec0e8a13bcd93b9f25ef9dd384319844d46c7bf537736656",
+              "plan_digest": "ceef15440c478d51baf6d11b11b5903c0bb7ac3a3795238fb4b6c2f793bb3f83",
               "test_identity": "synthetic-fixture-runner",
               "fault_mode": "none"
             },
-            "forwarded_request_digest": "e0a8609d0e33290a3a064f051cf2c7a08f8ad5d9574931b79a41eaee10eca373",
+            "forwarded_request_digest": "4dff6513d5109c3499dbdaa3e1d6b905ccb17da8877a099d05a50f0ee5a1423d",
             "redacted": true
           },
           "target": {
@@ -94,7 +89,7 @@
             "canary_id": "canary-delegated-control-1",
             "decision": "allowed",
             "phase": "authorization",
-            "plan_digest": "0d3e4b034540ee3aec0e8a13bcd93b9f25ef9dd384319844d46c7bf537736656",
+            "plan_digest": "ceef15440c478d51baf6d11b11b5903c0bb7ac3a3795238fb4b6c2f793bb3f83",
             "reason": "allowed",
             "redacted": true,
             "request_id": "request-delegated-control-1",
@@ -115,7 +110,7 @@
           "attempt_id": "delegated-control-1",
           "request_id": "request-delegated-control-1",
           "canary_id": "canary-delegated-control-1",
-          "plan_digest": "0d3e4b034540ee3aec0e8a13bcd93b9f25ef9dd384319844d46c7bf537736656",
+          "plan_digest": "ceef15440c478d51baf6d11b11b5903c0bb7ac3a3795238fb4b6c2f793bb3f83",
           "test_identity": "synthetic-fixture-runner",
           "server_identity": "fixed-target-authorization-service",
           "kind": "canary_write",
@@ -134,5 +129,10 @@
       "revocation_window": null
     }
   ],
-  "redacted": true
+  "redacted": true,
+  "source_snapshot": {
+    "verified": true,
+    "private_directory_removed": true,
+    "reason": null
+  }
 }

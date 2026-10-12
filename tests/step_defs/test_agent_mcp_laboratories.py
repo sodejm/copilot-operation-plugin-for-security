@@ -12,7 +12,7 @@ from pytest_bdd import given, scenarios, then, when
 PACKAGE = Path(__file__).resolve().parents[2] / "plugins/offensive-security/foundry-agent-harness"
 sys.path.insert(0, str(PACKAGE))
 from foundryharness.laboratory import LabError, load_lab_cases, run_lab_case  # noqa: E402
-from foundryharness import auth_approval, auth_laboratory  # noqa: E402
+from foundryharness import auth_approval, auth_bootstrap, auth_laboratory  # noqa: E402
 from tests.test_auth_assessment_approval import authorized_batch  # noqa: E402
 
 scenarios("../../specs/features/agent_mcp_laboratories.feature")
@@ -197,6 +197,7 @@ def signed_batch_evidence(context):
     report = context["auth_report"]
     assert report["assessment_authorization"]["consumed_once_for_batch"] is True
     assert report["all_expectations_met"] is True
+    assert report["security_pass"] is True
     assert report["pending_case_ids"] == []
     assert all("observations" in result and "observed_effects" in result for result in report["results"])
 
@@ -233,6 +234,7 @@ def request_unsigned_auth(context, monkeypatch: pytest.MonkeyPatch):
         pytest.fail("unsigned batch started a fixture")
 
     monkeypatch.setattr(auth_approval, "_JsonLineProcess", forbidden)
+    monkeypatch.setattr(auth_bootstrap, "_load_executor", forbidden)
     with pytest.raises((TypeError, ValueError, RuntimeError)):
         auth_approval.run_auth_cases(context["auth_cases"], **context["auth_context"])
     context["unsigned_rejected"] = True
@@ -244,19 +246,22 @@ def unsigned_rejected(context):
     assert context["fixture_launches"] == 0
 
 
-@given("a signed case whose peer drops the tenant context")
-def missing_context_case(context, tmp_path: Path):
-    data = json.loads((PACKAGE / "auth_cases/delegated-control.json").read_text(encoding="utf-8"))
-    data["attempts"][0]["peer_action"] = "omit_tenant"
-    data.update(expected_decisions=["inconclusive"], expected_reasons=["missing_context"],
-                expected_outcome="inconclusive", expected_effect_count=0)
+@given("a signed case whose target omits identity telemetry")
+def missing_identity_case(context, tmp_path: Path):
+    data = json.loads((PACKAGE / "auth_cases/wrong-audience.json").read_text(encoding="utf-8"))
+    data["attempts"][0]["fault_mode"] = "missing_identity_telemetry"
+    data["expected_outcome"] = "inconclusive"
     cases = [auth_laboratory.AuthCase.from_dict(data)]
     context["auth_cases"], context["auth_context"] = authorized_batch(tmp_path, cases)
 
 
-@then("missing context is inconclusive with independently observed zero effects")
-def missing_context_evidence(context):
+@then("missing identity is inconclusive with independently observed zero effects")
+def missing_identity_evidence(context):
     result = context["auth_report"]["results"][0]
     assert result["outcome"] == "inconclusive"
+    assert result["evidence_complete"] is False
+    assert result["security_pass"] is False
+    assert context["auth_report"]["security_pass"] is False
     assert result["observed_effects"] == []
-    assert result["observations"][0]["target"]["reason"] == "missing_context"
+    assert result["observations"][0]["target"]["decision"] == "denied"
+    assert "server_identity" not in result["observations"][0]["target"]

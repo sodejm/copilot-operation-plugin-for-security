@@ -243,7 +243,7 @@ def _decision(name: str, args: dict[str, Any], used: set[str]) -> dict[str, Any]
     if not _valid_arguments(args):
         raise ValueError("Malformed fixed authorization request")
     if "tenant" not in args:
-        return _result(args, "inconclusive", "setup", "missing_context")
+        return _result(args, "denied", "authorization", "missing_tenant")
     grant = GRANTS.get(args["grant"])
     if grant is None or args["agent"] not in {"agent-worker", "agent-shadow"}:
         return _result(args, "denied", "authentication", "unrecognized_grant_or_actor")

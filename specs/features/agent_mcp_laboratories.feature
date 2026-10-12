@@ -42,8 +42,8 @@ Feature: Isolated local agent and MCP laboratory
     When the authorization assessment is requested
     Then it rejects the request before starting either fixture
 
-  Scenario: A hostile peer omits the tenant context
-    Given a signed case whose peer drops the tenant context
+  Scenario: The target omits required identity telemetry
+    Given a signed case whose target omits identity telemetry
     When the authorization assessment runs without additional approval
-    Then missing context is inconclusive with independently observed zero effects
+    Then missing identity is inconclusive with independently observed zero effects
     And both fixed processes and private evidence are cleaned up
