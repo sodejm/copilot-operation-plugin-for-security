@@ -4,6 +4,9 @@ This experimental package reviews **local Linux privilege-boundary exports**. It
 does not collect host data or attempt privilege escalation. The versioned import
 contract is `specs/host-linux-privilege-boundaries.spec.md` in the source repository.
 
+Follow the [end-to-end verification playbook](docs/VERIFICATION.md) to qualify this
+package's documented workflow and prepare evidence for a maturity review.
+
 ## Use
 
 From the repository root:

@@ -6,6 +6,9 @@ It is the primary logging and telemetry package in the Copilot Operations Plugin
 
 ---
 
+Follow the [end-to-end verification playbook](docs/VERIFICATION.md) to qualify this
+package's documented workflow and prepare evidence for a maturity review.
+
 ## Quick Test Drive (Offline Demo)
 
 You can test drive the advisor right now from the repository root—no cloud credentials, API keys, or external dependencies required:

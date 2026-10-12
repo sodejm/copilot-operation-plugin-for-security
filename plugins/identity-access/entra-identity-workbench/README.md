@@ -2,6 +2,9 @@
 
 Offline Entra ID, Azure RBAC, and AI Agent identity graph modeling, privilege analysis, and exposure review.
 
+Follow the [end-to-end verification playbook](docs/VERIFICATION.md) to qualify this
+package's documented workflow and prepare evidence for a maturity review.
+
 ## Overview
 
 The **Entra Identity Workbench** (`entra-identity-workbench`) provides security engineers and identity analysts with an offline, deterministic tool to analyze complex privilege relationships across Microsoft Entra ID (Azure AD), Azure Resource Manager RBAC, and emerging AI Agent identities (such as Microsoft Foundry blueprints and runtime Agent IDs).

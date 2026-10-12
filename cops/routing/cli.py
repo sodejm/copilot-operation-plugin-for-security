@@ -6,11 +6,50 @@ import argparse
 import json
 import sys
 from collections.abc import Sequence
+from pathlib import Path
 
 from cops.authorization import ensure_authorization
 
 from .catalog import get_specialist, load_specialists_registry
 from .classifier import route_request
+from .model_advisor import COMPLEXITIES, EFFORTS, TASK_KINDS, ModelCatalogError, advise_models, load_catalog
+
+
+def add_model_arguments(parser: argparse.ArgumentParser) -> None:
+    """Keep model advice options identical across the two public route CLIs."""
+    parser.add_argument("--suggest-model", action="store_true", help="include advisory model and effort requirements")
+    parser.add_argument("--model-catalog", type=Path, help="fresh host model catalog JSON (implies --suggest-model)")
+    parser.add_argument(
+        "--task-kind", choices=TASK_KINDS, default="auto", help="override model advice task classification"
+    )
+    parser.add_argument("--complexity", choices=COMPLEXITIES, default="auto", help="override model advice complexity")
+    parser.add_argument("--current-model", help="exact currently selected host model ID")
+    parser.add_argument("--current-effort", choices=EFFORTS, help="currently selected reasoning effort")
+
+
+def _model_advice(args: argparse.Namespace) -> dict | None:
+    catalog_path = getattr(args, "model_catalog", None)
+    task_kind = getattr(args, "task_kind", "auto")
+    complexity = getattr(args, "complexity", "auto")
+    current_model = getattr(args, "current_model", None)
+    current_effort = getattr(args, "current_effort", None)
+    if not (
+        getattr(args, "suggest_model", False)
+        or catalog_path
+        or task_kind != "auto"
+        or complexity != "auto"
+        or current_model
+        or current_effort
+    ):
+        return None
+    return advise_models(
+        args.query,
+        catalog=load_catalog(catalog_path) if catalog_path else None,
+        task_kind=task_kind,
+        complexity=complexity,
+        current_model=current_model,
+        current_effort=current_effort,
+    )
 
 
 def command_list(args: argparse.Namespace) -> int:
@@ -62,7 +101,16 @@ def command_info(args: argparse.Namespace) -> int:
 
 
 def command_route(args: argparse.Namespace) -> int:
+    # Validate untrusted catalog input before any interactive authorization.
+    try:
+        advice = _model_advice(args)
+    except ModelCatalogError as exc:
+        print(f"Model advice error: {exc}", file=sys.stderr)
+        return 2
     decision = route_request(args.query, force_critical=args.critical)
+    out = decision.to_dict()
+    if advice is not None:
+        out["model_advice"] = advice
 
     authorize = getattr(args, "authorize", False)
     if authorize and decision.interactive_authorization_required:
@@ -76,13 +124,12 @@ def command_route(args: argparse.Namespace) -> int:
             interactive=True,
         )
         if args.json:
-            out = decision.to_dict()
             out["authorization_receipt"] = receipt.to_dict()
             print(json.dumps(out, indent=2))
             return 0
 
     if args.json:
-        print(json.dumps(decision.to_dict(), indent=2))
+        print(json.dumps(out, indent=2))
         return 0
 
     p = decision.primary_profile
@@ -101,6 +148,17 @@ def command_route(args: argparse.Namespace) -> int:
     print("\n  Matching Rationales:")
     for reason in decision.match_reasons:
         print(f"    * {reason}")
+
+    if advice is not None:
+        print(f"\n  Model Advice (advisory only): {advice['status']}")
+        print(f"    {advice['task']['reason']}")
+        recommendation = advice["recommendation"]
+        if recommendation:
+            print(f"    Suggested: {recommendation['model_id']} / {recommendation['effort']}")
+        print(f"    Current settings: {advice['current']['status']}")
+        for model_id, reasons in advice["excluded"].items():
+            print(f"    Excluded {model_id}: {', '.join(reasons)}")
+        print(f"    Next: {advice['next_action']}")
 
     if decision.triad_plan:
         tp = decision.triad_plan
@@ -160,6 +218,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     route_p.add_argument("--scope", nargs="+", help="Target scope identifiers for authorization")
     route_p.add_argument("--action", help="Action name for authorization")
     route_p.add_argument("--json", action="store_true", help="Output JSON format")
+    add_model_arguments(route_p)
     route_p.set_defaults(func=command_route)
 
     # authorize

@@ -39,6 +39,9 @@ Inspect the run's `assessment_authorization`, `budget`, `pending_case_ids`, and 
 
 The receipt is consumed atomically once for the whole batch. Case selection, fixture source hashes, identities, and aggregate duration and observed-output limits are immutable approval inputs. Expiry, cancellation, or a budget stop leaves explicit pending cases and requires a new approved plan for those cases; this command does not provide durable restart. The COPS receipt authorizes the assessment only. The target fixture independently verifies its synthetic grant before performing an action. The local processes and declared no-egress plan are not an operating-system network sandbox.
 
+Follow the [end-to-end verification playbook](docs/VERIFICATION.md) to qualify this
+package's documented workflow and prepare evidence for a maturity review.
+
 ## Run the local laboratory
 
 From the repository root:

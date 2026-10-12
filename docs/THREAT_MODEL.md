@@ -32,6 +32,7 @@ private payloads and real identifiers must never be copied into this document.
 | Operator decision → approval store → tool execution | Approval must be bound to action, effective resource and current revision, atomically consumed. |
 | Cloud integration → remote API / telemetry → agent | Credentials go only to intended recipients; telemetry remains untrusted even from authenticated services. |
 | Canonical hunt skills → generated host adapters | Hashes and deterministic generation establish consistency, not trust in malicious canonical content. |
+| Operator model catalog → offline advisor → host model selection | Catalog records are bounded, untrusted assertions about exact model capabilities, access and supported effort. Advice cannot establish entitlement or authorize a model switch, agent launch or security operation. |
 | Handoff proposal → specialist acceptance → auditor completion | A proposed skill ID and capability must resolve to the recipient's registered specialist profile and local skill file; acceptance records the resolved target and checksum. Skeptic review and audit re-resolve the current target. Completion is a reviewed handoff record, not tool execution. |
 | Attack Path input → descriptor-anchored report writer → operator-selected output directory | Output paths and concurrent filesystem names remain untrusted; a report set is complete only when the completion marker and recorded hashes validate. |
 | Laboratory operator observation → signed receipt → controller case classification | An independently provisioned observation key attests isolation, canary and control measurements. The worker result alone cannot establish case success; a protected local journal records dispatch intent and terminal outcomes. |
@@ -44,6 +45,7 @@ private payloads and real identifiers must never be copied into this document.
 | Scoped offline Active Directory export → bounded relationship graph → analyst | Collector identity, scope, completeness, collection time, and relationship support are untrusted input. Candidate paths are structural observations; reports can contain sensitive relationship identifiers and do not establish current privilege. |
 | Local Linux host export → host-assessment-workbench importer → operator | The importer reads a bounded local JSON file and returns classifications from untrusted source assertions. It does not collect host state or verify canary execution, cleanup, or the source's identity. Opaque IDs must be kept free of secrets by the exporter. |
 | Operator assessment budget → owner-controlled ledger → fixture assessment dispatcher | The controller must reserve before callback dispatch. Agent and provider content cannot expand the budget or release an uncertain attempt. Provider integration remains pending issue #150. |
+| Approved local corpus → private Linux worker workspace → offline research adapter → run result | The signed plan binds corpus, inventory, isolation, and executable digests. The worker checks a fresh namespace observation before approval consumption and before each external adapter starts; its own measurements do not independently attest host controls. |
 
 ```mermaid
 flowchart LR
@@ -85,6 +87,8 @@ account and credential recipient rather than only their user-supplied labels.
 - `plugins/identity-access/ad-assessment-workbench/adwb/inventory.py` and `tests/test_inventory.py`: strict bounded offline input validation, scoped provenance-linked path analysis, coverage labels, and synthetic negative tests; live directory state and collector assertions remain unverified.
 - `plugins/offensive-security/host-assessment-workbench/host_assessment_workbench/core.py`: bounded, exact-schema local import, prerequisite matching, coverage and reported-canary classification; no host collector or executor.
 - `tests/test_host_assessment_workbench.py`: synthetic positive, negative and fixed canaries, plus malformed-import and mismatch tests. These do not establish live privilege-boundary behavior.
+- `cops/execution/offline_research.py`, `sandbox.py`, and `worker.py`: profile validation, bounded descriptor-based corpus staging, gated Linux namespace observations, and per-invocation result records.
+- `tests/test_offline_research.py`: synthetic rejection tests for altered corpora, profile substitutions, stale or mismatched isolation, and unsupported operations; no live Linux host attestation.
 
 ## Threat register and prioritization
 
@@ -294,7 +298,23 @@ validation before the affected release/capability expansion and schedule P2 with
 - Proposed mitigation and validation: Use approved read-only collection with independently recorded scope and collection times; review trust and relationship semantics with an AD specialist; restrict report access and retention. Keep negative tests and the repository gate at the exact revision before accepting the control.
 - Residual risk / status: Collector assertions, live directory state, and host configuration remain unverified. Candidate paths need analyst validation and exact-revision human security review.
 
-### T24: Delegated agent and MCP authorization overclaim
+### T23: Offline research isolation substitution or false assurance
+
+- Attack path / prerequisite: A plan substitutes another worker, corpus, adapter binary, or stale isolation digest; an inherited socket, route, or network namespace difference gives an ostensibly offline tool outside access. A same-authority host actor may alter local evidence or corpus provisioning.
+- Inherent impact: High; likelihood: Medium; priority: P1.
+- Existing evidence / limitation: The signed profile binds inventory, corpora, executable pin, and isolation digest. The worker checks bounded regular files with held descriptors, measures a fresh gated bubblewrap probe before approval consumption, and measures each external adapter sandbox before releasing its executable. Synthetic tests cover rejection paths; no independent deployed-host observation is present.
+- Proposed mitigation and validation: Keep profile and race rejection tests, repeat Linux integration checks on the intended worker image, and obtain independent host evidence for namespace, network, account, and journal boundaries before real-data use. Require exact-revision human security review for the implementation.
+- Residual risk / status: Worker self-observation cannot prove independent host isolation or the provenance of mounted corpora. A privileged or same-UID host actor can interfere with local state; live isolation and human review remain pending.
+
+### T24: Model capability or access misclassification
+
+- Attack path / prerequisite: A forged, stale or future-dated catalog, ambiguous task description, or model brand is treated as proof of capability or access. An operator may select an unsuitable model or incur unintended effort cost based on that advice.
+- Inherent impact: Medium; likelihood: Medium; priority: P2.
+- Existing evidence / limitation: The offline advisor bounds input, rejects duplicate JSON fields and unknown schema fields, and requires fresh, nonfuture evidence with exact model IDs, independent capability tags, granted access and supported effort. Family names carry no routing authority. Automatic suggestions are limited to low, medium and high; the advisor performs no discovery, provider calls, model changes or agent launches. Synthetic regression tests cover these boundaries.
+- Proposed mitigation and validation: Verify catalog assertions against the intended host and provider documentation, correct ambiguous task classification, and inspect current settings and exclusions before implementation. Keep malformed-input, freshness, access, effort and CLI compatibility tests at the exact revision; obtain independent human review before accepting the control.
+- Residual risk / status: Operator assertions, host clocks, native effort mappings and coarse task heuristics can be wrong. Offline validation cannot authenticate an entitlement or demonstrate actual model performance; host verification and human review remain pending.
+
+### T25: Delegated agent and MCP authorization overclaim
 
 - Attack path / prerequisite: A delegated or autonomous agent presents a grant for the wrong audience, tenant, operation, resource, tool, or delegation depth; a confused deputy accepts a COPS assessment receipt as target permission; or a tool response is mistaken for an independently observed effect.
 - Inherent impact: High; likelihood: Medium; priority: P1.

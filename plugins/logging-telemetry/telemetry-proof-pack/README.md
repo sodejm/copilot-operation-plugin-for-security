@@ -6,6 +6,9 @@ The **Telemetry-to-Detection Proof Pack** correlates supplied, offline records f
 
 ---
 
+Follow the [end-to-end verification playbook](docs/VERIFICATION.md) to qualify this
+package's documented workflow and prepare evidence for a maturity review.
+
 ## When to Use This Plugin
 
 Use this plugin when you need to:

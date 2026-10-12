@@ -2,6 +2,9 @@
 
 `offensive-engagement-workbench` provides authorized adversarial assessment intake, scope boundary validation, execution mode classification, and reviewable immutable action planning for the Copilot Operations Plugin for Security (COPS) ecosystem.
 
+Follow the [end-to-end verification playbook](docs/VERIFICATION.md) to qualify this
+package's documented workflow and prepare evidence for a maturity review.
+
 ## Features
 
 - **Engagement Intake**: Enforces explicit operator ownership, valid authorized windows, unambiguous targets, non-colliding exclusions, execution budgets, and credential references.
@@ -12,6 +15,7 @@
 - **Triad Specialist Handoffs**: Emits and validates `SpecialistHandoff` (`cops.specialist-handoff/v1`) contracts coordinating Planner, Specialist, Skeptic, and Auditor with capability matching and re-approval triggers.
 - **Scenario Laboratory Harness**: Registers and verifies operator container and VM environments with canary detection, isolation verification, reproducible resets, and controlled positive, negative, and remediated test execution.
 - **Package Workflow and Capability Diagnostics**: Validates package manifests, skills, playbooks, host tool prerequisites, and capability truth-in-advertising diagnostics across all registered plugins and execution environments.
+- **Model and Effort Suggestions**: Uses an operator-supplied host catalog to recommend an available model and sufficient reasoning effort for a bounded task, with separate capability and access checks.
 
 ## Installation and Runtime Availability
 
@@ -42,6 +46,25 @@ COPS publishes discovery metadata for these host surfaces. To install in an assi
 The adapters and portable package are structurally checked, and the local workflow is validated offline. The package remains **experimental**: `host_installation` and `live_integration` are **unverified** in the repository's `package.json` for this package. After registering it, verify discovery and run a safe offline demo in the specific host before relying on that installation. Host permissions and plugin loading differ; see repository docs `docs/PORTABILITY.md` and `docs/COMPATIBILITY.md`.
 
 Planning and inventory inspection are portable CLI workflows. Authenticated external adapter execution has narrower platform requirements: the worker requires Linux with executable `/proc/self/fd`, while inert execution requires POSIX secure directory descriptors. Unsupported workers fail closed. These runtime limits and separate deployment checks are detailed in repository docs `docs/COMPATIBILITY.md` and `docs/AUTHENTICATED_EXECUTION.md`. Offline validation does not establish host installation or live execution readiness.
+
+## Model and effort suggestions
+
+Use the packaged [model-effort-routing skill](skills/model-effort-routing/SKILL.md)
+and [catalog and preflight guide](docs/MODEL_ROUTING.md) before implementing an
+issue or assigning security work. Run the advisor from the COPS checkout:
+
+```bash
+python3 -m cops route "Review the authorization boundary" \
+  --suggest-model --model-catalog model-catalog.json \
+  --current-model <exact-host-model-id> --current-effort medium --json
+```
+
+Daybreak, Fable, Mythos, Astra, and other families can qualify when the catalog
+records the exact available model, granted access, sufficient capabilities, and
+supported effort. Names alone do not qualify a model. The advisor runs offline;
+it does not switch models or launch provider calls. The portable plugin includes
+the skill and guide; executing the command also requires the COPS checkout and
+Python 3.11 or newer described above.
 
 ## CLI Usage
 

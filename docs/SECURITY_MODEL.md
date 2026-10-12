@@ -95,6 +95,11 @@ flowchart TD
 - **Our Defense**:
   - We clearly label test results: an offline demo verifies that the code runs against a fixture; it does not claim your production SIEM is configured correctly.
   - Every finding links directly to verifiable evidence.
+  - [Plugin qualification](plugin-verification.md) binds maturity evidence to a
+    tested revision, expected results, negative cases, host exercises, repeat
+    runs, and independent review. Offline checks alone cannot establish host or
+    live-service support. Keep raw run evidence private and publish sanitized
+    qualification records.
   - The Linux host assessment importer labels canary outcomes as source-reported, retains explicit prerequisite and coverage state, and cannot certify a live privilege crossing or cleanup from a local export.
 
 ### Threat 6: Unauthorized High-Consequence or Offensive Actions
@@ -118,6 +123,7 @@ flowchart TD
   - **Assessment Reporting (`cops.assessment-report/v1`)**: The offline report validates supplied contract joins and marks access or evidence gaps `not_assessed`. It omits evidence payloads and source locators, but scope identifiers and caller-authored text may still be sensitive. Owner-only output permissions are not encryption. Supplied hashes, modes, and statuses do not independently authenticate sources, authorization, or execution; see the [reporting guide](ENGAGEMENT_REPORTING.md).
   - **Shared-Key Limitation**: HMAC authenticates membership in a shared-key channel. Any verifier that holds the key can mint an authorization, so it does not provide non-repudiation.
   - **Execution Egress Boundary**: An explicitly egress-enabled, signed operation supplies one HTTPS endpoint, exact authenticated service identity, and exact request targets. The worker creates a per-operation broker capability only when its own trust domain, engagement scope, plan limit, and Linux sandbox support agree. The mediator rechecks DNS, redirects, TLS peer identity, and resource targets; the adapter's network namespace removes direct IPv4 and IPv6 access.
+  - **Offline Research Boundary**: The opt-in `offline-research/v1` profile binds local corpus and worker inventory digests, an independently observed Linux isolation digest, and any external adapter executable pin into the signed plan. The worker stages bounded regular files before approval consumption and measures the actual sandbox before each external tool starts. These worker observations are local evidence, not independent proof of host network denial; deployment needs separate host verification. See [Offline Research Execution](OFFLINE_RESEARCH_EXECUTION.md).
   - **Residual Boundaries**: The sandbox, approval transport, mediated HTTPS channel, and cleanup journal require deployment with separately owned authority and worker accounts, protected socket/store paths, pinned SSH host keys, correctly provisioned service certificates, and a working Linux sandbox runtime. Repository tests cannot prove a particular installation enforces those host controls. The cleanup identity uses the portable device, inode, and type tuple; filesystems can reuse inode numbers, and a hostile process sharing the worker UID can interfere with worker-owned state or quarantine. The dedicated UID and operator review of unresolved cleanup therefore remain necessary.
 
 See the [Authenticated Execution Guide](AUTHENTICATED_EXECUTION.md) for operator setup, migration, failure handling, and key rotation.

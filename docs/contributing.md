@@ -25,6 +25,25 @@ input bundle, assessment labels, and privacy review for findings reports.
 Changes to its joins or claims need focused tests for missing evidence,
 partial outcomes, contradictory findings, and sensitive text.
 
+### Issue model and effort preflight
+
+Before implementing an issue, apply the [model routing guide](model-effort-routing.md)
+and [contributor routing skill](../.agents/skills/route-security-specialist/SKILL.md).
+Read the issue, assess whether Daybreak would materially help, and verify the
+current model/effort against fresh exact host evidence. Pause for a supported
+change when needed; an authorized subagent override must satisfy the applicable
+launcher routing and workboard rules and does not switch the parent.
+
+Model advisor changes need focused coverage for catalog validation, freshness,
+access, capabilities, effort limits, current settings, and both CLI entry points:
+
+```bash
+python -m pytest tests/test_model_advisor.py tests/step_defs/test_model_effort_routing.py tests/test_routing.py -q
+```
+
+The full repository gate still applies. Provider access and host installation
+remain separate from offline test evidence.
+
 ---
 
 ## Authenticated Execution Changes
@@ -201,6 +220,18 @@ To contribute a new cybersecurity capability to COPS:
 For complete authoring details, review [Adding a Plugin (docs/ADDING_A_PLUGIN.md)](ADDING_A_PLUGIN.md).
 
 ---
+
+## Plugin verification and maturity
+
+Each package has a [verification playbook](plugin-verification.md) for its complete
+user workflow. Include `docs/VERIFICATION.md` in new packages and link it from the
+package README and shared index. Update its exercise, acceptance criteria,
+negative/recovery cases, cleanup, and host instructions alongside behavior changes.
+
+Use the [record template](templates/PLUGIN_VERIFICATION_RECORD.md) and shared
+maturity gates before proposing a status update. The documentation check rejects
+missing playbooks and public maturity labels that disagree with package manifests.
+A passing CLI suite does not qualify a host installation or live integration.
 
 ## Offline Dependency Setup
 
