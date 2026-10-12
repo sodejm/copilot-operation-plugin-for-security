@@ -10,6 +10,9 @@ COPS separates planning, approval, and execution. A reviewed Action Plan is not 
 
 This guide covers the operator-facing trust channel and lifecycle. The [Security Model](SECURITY_MODEL.md) explains the wider threat model, and the [Compatibility guide](COMPATIBILITY.md#5-authenticated-execution-compatibility-and-migration) separates repository proof from host and network guarantees.
 
+For the opt-in, credential-free Linux profile that reads approved local files,
+see [Offline Research Execution](OFFLINE_RESEARCH_EXECUTION.md).
+
 ## Trust artifacts and boundary
 
 An authenticated execution uses five inputs with distinct responsibilities:

@@ -203,6 +203,38 @@
       "type": "string",
       "format": "date-time"
     },
+    "offline_research": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profile", "version", "worker_identity", "worker_inventory_sha256", "corpora", "isolation_attestation"],
+      "properties": {
+        "profile": {"const": "offline-research"},
+        "version": {"const": "v1"},
+        "worker_identity": {"type": "string", "minLength": 1},
+        "worker_inventory_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "cat_executable_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "corpora": {
+          "type": "array", "minItems": 1, "maxItems": 16,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["name", "path", "sha256"],
+            "properties": {
+              "name": {"type": "string", "pattern": "^[a-z0-9_-]{1,48}$"},
+              "path": {"type": "string", "pattern": "^/", "minLength": 2},
+              "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            }
+          }
+        },
+        "isolation_attestation": {
+          "type": "object", "additionalProperties": false,
+          "required": ["digest", "observed_at"],
+          "properties": {
+            "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            "observed_at": {"type": "string", "format": "date-time"}
+          }
+        }
+      }
+    },
     "batch": {
       "type": "object",
       "additionalProperties": false,
