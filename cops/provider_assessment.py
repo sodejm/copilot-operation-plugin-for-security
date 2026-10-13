@@ -17,8 +17,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
-from jsonschema import Draft202012Validator
-
+from cops._schema_validation import SchemaValidationError, validate
 from cops.assessment_budget import (
     AssessmentBudgetLedger,
     AttemptRequest,
@@ -64,8 +63,10 @@ def _schema(name: str) -> dict[str, Any]:
 
 
 def _validate(value: Any, name: str) -> None:
-    if not Draft202012Validator(_schema(name)).is_valid(value):
-        raise ProviderAssessmentError("input does not match " + name)
+    try:
+        validate(value, _schema(name))
+    except SchemaValidationError as exc:
+        raise ProviderAssessmentError("input does not match " + name) from exc
 
 
 def read_json(path: Path, schema_name: str) -> Any:
