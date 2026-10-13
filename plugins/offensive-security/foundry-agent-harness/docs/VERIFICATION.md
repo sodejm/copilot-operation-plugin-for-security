@@ -12,10 +12,15 @@ Use only synthetic or authorized sanitized inputs; keep output evidence private.
 ## Baseline checks
 
 ```bash
-source .venv/bin/activate
-python3 -m cops info foundry-agent-harness
-python3 -m cops demo foundry-agent-harness
-python3 -m cops check foundry-agent-harness
+python -m venv .venv
+if [[ -f .venv/Scripts/activate ]]; then
+  source .venv/Scripts/activate
+else
+  source .venv/bin/activate
+fi
+python -m cops info foundry-agent-harness
+python -m cops demo foundry-agent-harness
+python -m cops check foundry-agent-harness
 ```
 
 Confirm discovery, inspect the demo result, and retain the complete package-gate
@@ -26,10 +31,10 @@ output. A passing gate does not substitute for the manual comparisons below.
 ```bash
 P=plugins/offensive-security/foundry-agent-harness
 COPS_FOUNDRY_RUN=$(mktemp -d)
-.venv/bin/python "$P/foundryharness/cli.py" list --scenarios-dir "$P/scenarios"
-.venv/bin/python "$P/foundryharness/cli.py" evaluate --scenarios-dir "$P/scenarios" --json --output "$COPS_FOUNDRY_RUN/scenarios.json"
-.venv/bin/python "$P/foundryharness/cli.py" lab --json --output "$COPS_FOUNDRY_RUN/lab.json"
-.venv/bin/python -m cops.provider_assessment > "$COPS_FOUNDRY_RUN/providers.json"
+python "$P/foundryharness/cli.py" list --scenarios-dir "$P/scenarios"
+python "$P/foundryharness/cli.py" evaluate --scenarios-dir "$P/scenarios" --json --output "$COPS_FOUNDRY_RUN/scenarios.json"
+python "$P/foundryharness/cli.py" lab --json --output "$COPS_FOUNDRY_RUN/lab.json"
+python "$P/scripts/run_provider_assessment.py" > "$COPS_FOUNDRY_RUN/providers.json"
 ```
 
 Inventory the scenario, laboratory case, and provider fixture files before loading them. Compare loaded IDs/counts, expected denials, observed mock effects, normalized provider states, budget results, and cleanup receipts with the files. Repeat with bounded synthetic copies whose required refusal and allowed effect an independent reviewer has specified.

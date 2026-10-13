@@ -33,7 +33,7 @@ qualification workflow and record evidence before proposing a status change.
 | **Reconcile an approved Kubernetes context and namespace scope** | `kubernetes-assessment-workbench` | Offensive Security | <span class="badge badge-experimental">Experimental</span> | `import` | `python3 -m cops demo kubernetes-assessment-workbench` |
 | **Intake engagement scope and compile action plans** | `offensive-engagement-workbench` | Offensive Security | <span class="badge badge-experimental">Experimental</span> | `planned` | `python3 -m cops demo offensive-engagement-workbench` |
 | **Review Linux privilege-boundary exports** | `host-assessment-workbench` | Offensive Security | <span class="badge badge-experimental">Experimental</span> | `import` | `python3 -m cops demo host-assessment-workbench` |
-| **Rehearse synthetic agent tool authorization** | `foundry-agent-harness` | Offensive Security | <span class="badge badge-beta">Beta</span> | `laboratory` | `python3 -m cops check foundry-agent-harness` |
+| **Rehearse synthetic agent/MCP and provider response handling** | `foundry-agent-harness` | Offensive Security | <span class="badge badge-beta">Beta</span> | `laboratory` | `python3 -m cops check foundry-agent-harness` |
 | **Rehearse containment with cryptographic receipts** | `incident-response-sandbox` | Incident Response | <span class="badge badge-experimental">Experimental</span> | `laboratory` | `python3 -m cops check incident-response-sandbox` |
 
 ---
@@ -180,9 +180,9 @@ qualification workflow and record evidence before proposing a status change.
 
 #### Foundry Agent Harness
 - **Maturity**: <span class="badge badge-beta">Beta</span> | **Operational Mode**: `laboratory`
-- **When to use**: When rehearsing how an independent authorization gate handles synthetic agent tool proposals from untrusted content.
-- **Key Capabilities**: Versioned local agent and MCP fixture cases, observed gate denials and mock effects, paired permissive and strict controls.
-- **Boundaries**: No hosted model, deployed agent, or live MCP integration. Fixture subprocesses are not an operating-system network sandbox.
+- **When to use**: When rehearsing how an independent authorization gate handles synthetic agent tool proposals from untrusted content or how strict post-gate validation normalizes bundled provider-shaped response fixtures.
+- **Key Capabilities**: Versioned local agent and MCP cases, observed gate denials and mock effects, paired permissive and strict controls, and offline OpenAI-, Azure-, AWS-, and GCP-shaped response cases with exact request binding and shared synthetic budget accounting.
+- **Boundaries**: No provider client, credential lookup, network call, hosted model, deployed agent, or live MCP integration. Provider usage, billing, cancellation, and cleanup are not independently verified, and fixture subprocesses are not an operating-system network sandbox.
 - **Playbook**: `plugins/offensive-security/foundry-agent-harness/docs/PLAYBOOK.md`
 - **Verification**: [End-to-end playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/offensive-security/foundry-agent-harness/docs/VERIFICATION.md)
 

@@ -2,7 +2,7 @@
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "foundry-agent-harness",
   "version": "0.1.0",
-  "description": "Rehearse synthetic agent tool authorization with deterministic scenarios and local MCP fixtures.",
+  "description": "Rehearse synthetic agent/MCP authorization and normalize provider-shaped responses from deterministic offline fixtures.",
   "author": {
     "name": "Justin Soderberg",
     "url": "https://github.com/sodejm"
