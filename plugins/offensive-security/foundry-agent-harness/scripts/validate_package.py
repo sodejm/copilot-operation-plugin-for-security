@@ -10,13 +10,9 @@ import sys
 from pathlib import Path
 
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent
-REPO_ROOT = PLUGIN_ROOT.parent.parent
-SOURCE_ROOT = PLUGIN_ROOT.parents[2]
 
 if str(PLUGIN_ROOT) not in sys.path:
     sys.path.insert(0, str(PLUGIN_ROOT))
-if str(SOURCE_ROOT) not in sys.path:
-    sys.path.insert(0, str(SOURCE_ROOT))
 
 from foundryharness.cli import load_scenarios
 from foundryharness.gate import (
@@ -27,6 +23,7 @@ from foundryharness.mock_sandbox import (
     MockSandbox,
 )
 from foundryharness.models import Scenario
+from foundryharness.provider_assessment import assess, read_json, report_case_id
 from foundryharness.reporting import (
     render_json_report,
     render_markdown_report,
@@ -34,8 +31,6 @@ from foundryharness.reporting import (
 from foundryharness.simulator import (
     evaluate_scenario,
 )
-
-from cops.provider_assessment import assess, read_json, report_case_id
 
 
 def validate() -> int:
@@ -62,12 +57,12 @@ def validate() -> int:
 
     for p in json_files:
         if not p.is_file():
-            print(f"FAIL: Missing required file {p.relative_to(REPO_ROOT)}", file=sys.stderr)
+            print(f"FAIL: Missing required file {p.relative_to(PLUGIN_ROOT)}", file=sys.stderr)
             return 1
         try:
             json.loads(p.read_text(encoding="utf-8"))
         except Exception as e:
-            print(f"FAIL: Malformed JSON in {p.relative_to(REPO_ROOT)}: {e}", file=sys.stderr)
+            print(f"FAIL: Malformed JSON in {p.relative_to(PLUGIN_ROOT)}: {e}", file=sys.stderr)
             return 1
     print(f"  OK: Validated {len(json_files)} package configuration and schema files.")
 
@@ -75,7 +70,7 @@ def validate() -> int:
     for name in ("foundry-agent-review", "ai-agent-mcp-laboratories", "ai-provider-assessment"):
         skill_file = PLUGIN_ROOT / "skills" / name / "SKILL.md"
         if not skill_file.is_file():
-            print(f"FAIL: Missing skill file {skill_file.relative_to(REPO_ROOT)}", file=sys.stderr)
+            print(f"FAIL: Missing skill file {skill_file.relative_to(PLUGIN_ROOT)}", file=sys.stderr)
             return 1
         content = skill_file.read_text(encoding="utf-8")
         if not content.startswith(f"---\nname: {name}\n"):

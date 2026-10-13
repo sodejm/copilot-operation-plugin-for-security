@@ -3,6 +3,8 @@
 """Comprehensive unit test suite for Foundry Agent Harness."""
 
 import json
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -244,3 +246,48 @@ def test_cli_list_and_evaluate(scenarios_dir: Path, tmp_path: Path):
     assert data["schema_version"] == "foundry.review-report/v1"
     assert data["summary"]["total_scenarios"] == 6
     assert data["summary"]["denied_tool_call_count"] == 6
+
+
+def test_exported_package_provider_runner_needs_no_repo_or_site_packages(tmp_path: Path):
+    """The bundled assessment command runs from an exported package on stdlib alone."""
+    exported = tmp_path / "foundry-agent-harness"
+    shutil.copytree(
+        PLUGIN_ROOT,
+        exported,
+        ignore=shutil.ignore_patterns("__pycache__", ".pytest_cache"),
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-I", "-S", "scripts/run_provider_assessment.py"],
+        cwd=exported,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    report = json.loads(result.stdout)
+    assert report["mode"] == "offline_fixture"
+    assert report["all_expectations_met"] is True
+    assert report["cleanup_verified"] is True
+
+
+def test_exported_package_gate_uses_bundled_provider_runtime(tmp_path: Path):
+    """The package gate cannot depend on the repository's cops module or jsonschema."""
+    exported = tmp_path / "foundry-agent-harness"
+    shutil.copytree(
+        PLUGIN_ROOT,
+        exported,
+        ignore=shutil.ignore_patterns("__pycache__", ".pytest_cache"),
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-I", "-S", "scripts/validate_package.py"],
+        cwd=exported,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "Verified 14 offline AI provider assessment cases." in result.stdout
