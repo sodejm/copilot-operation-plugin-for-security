@@ -272,6 +272,34 @@ def test_exported_package_provider_runner_needs_no_repo_or_site_packages(tmp_pat
     assert report["cleanup_verified"] is True
 
 
+def test_exported_package_provider_runner_rejects_nonfinite_json(tmp_path: Path):
+    exported = tmp_path / "foundry-agent-harness"
+    shutil.copytree(
+        PLUGIN_ROOT,
+        exported,
+        ignore=shutil.ignore_patterns("__pycache__", ".pytest_cache"),
+    )
+    cases_path = exported / "provider_fixtures" / "cases.json"
+    cases = json.loads(cases_path.read_text(encoding="utf-8"))
+    denied = next(item for item in cases["cases"] if item["case_id"] == "endpoint-denied")
+    cases_path.write_text(
+        json.dumps({"schema_version": cases["schema_version"], "cases": [denied]}).replace(
+            '"response": {', '"response": {"nonfinite": NaN, ', 1
+        ),
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [sys.executable, "-I", "-S", "scripts/run_provider_assessment.py"],
+        cwd=exported,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 2
+    assert not result.stdout
+    assert "ProviderAssessmentError" in result.stderr
+
+
 def test_exported_package_gate_uses_bundled_provider_runtime(tmp_path: Path):
     """The package gate cannot depend on the repository's cops module or jsonschema."""
     exported = tmp_path / "foundry-agent-harness"

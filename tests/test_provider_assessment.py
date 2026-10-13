@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from cops._schema_validation import SchemaValidationError, validate
+from cops import provider_assessment
 from cops.provider_assessment import ProviderAssessmentError, assess, main, read_json, report_case_id
 
 FIXTURES = Path(__file__).resolve().parents[1] / "plugins/offensive-security/foundry-agent-harness/provider_fixtures"
@@ -150,6 +151,20 @@ def test_bounded_parser_rejects_duplicate_keys_and_excessive_nesting(tmp_path: P
         read_json(path, "provider-cases.schema.json")
 
 
+@pytest.mark.parametrize("constant", ("NaN", "Infinity", "-Infinity"))
+def test_nonfinite_constant_in_denied_response_is_rejected_before_gate(
+    tmp_path: Path, constant: str
+) -> None:
+    _, cases = inputs()
+    denied = next(item for item in cases["cases"] if item["case_id"] == "endpoint-denied")
+    source = json.dumps({"schema_version": cases["schema_version"], "cases": [denied]})
+    source = source.replace('"response": {', f'"response": {{"nonfinite": {constant}, ', 1)
+    path = tmp_path / "cases.json"
+    path.write_text(source, encoding="utf-8")
+    with pytest.raises(ProviderAssessmentError, match="non-finite JSON constant"):
+        read_json(path, "provider-cases.schema.json")
+
+
 def test_bounded_parser_rejects_oversized_and_nonregular_sources(tmp_path: Path) -> None:
     path = tmp_path / "cases.json"
     path.write_bytes(b" " * (256 * 1024 + 1))
@@ -234,6 +249,27 @@ def test_cli_exits_nonzero_on_actual_budget_overrun(tmp_path: Path, capsys: pyte
     assert main(["--plan", str(plan_path), "--cases", str(cases_path)]) == 1
     output = json.loads(capsys.readouterr().out)
     assert output["budget"]["over_budget"]
+
+
+def test_cli_reports_temporary_cleanup_failure(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    original = provider_assessment.tempfile.TemporaryDirectory
+
+    class FailingCleanup:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            self._directory = original(*args, **kwargs)
+            self.name = self._directory.name
+
+        def cleanup(self) -> None:
+            self._directory.cleanup()
+            raise OSError("synthetic cleanup failure")
+
+    monkeypatch.setattr(provider_assessment.tempfile, "TemporaryDirectory", FailingCleanup)
+    assert main([]) == 1
+    report = json.loads(capsys.readouterr().out)
+    assert report["all_expectations_met"] is True
+    assert report["cleanup_verified"] is False
 
 
 @pytest.mark.parametrize(

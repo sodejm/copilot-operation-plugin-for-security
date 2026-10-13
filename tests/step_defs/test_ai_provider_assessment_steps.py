@@ -8,7 +8,8 @@ from pathlib import Path
 import pytest
 from pytest_bdd import given, scenarios, then, when
 
-from cops.provider_assessment import ProviderAssessmentError, assess, read_json, report_case_id
+from cops import provider_assessment
+from cops.provider_assessment import ProviderAssessmentError, assess, main, read_json, report_case_id
 
 FIXTURES = Path(__file__).resolve().parents[2] / "plugins/offensive-security/foundry-agent-harness/provider_fixtures"
 
@@ -121,3 +122,53 @@ def load_unsupported(context):
 @then("the runner rejects it before credential or network access")
 def no_live_execution(context):
     assert context["rejected"] == [True, True]
+
+
+@given("a provider case file with NaN or Infinity in a denied response")
+def nonfinite_denied_file(context, tmp_path):
+    _, cases = _inputs()
+    denied = next(item for item in cases["cases"] if item["case_id"] == "endpoint-denied")
+    source = json.dumps({"schema_version": cases["schema_version"], "cases": [denied]})
+    context["case_path"] = tmp_path / "cases.json"
+    context["case_path"].write_text(source.replace('"response": {', '"response": {"nonfinite": NaN, ', 1), encoding="utf-8")
+
+
+@when("the case file is loaded")
+def load_nonfinite_denied_file(context):
+    with pytest.raises(ProviderAssessmentError, match="non-finite JSON constant"):
+        read_json(context["case_path"], "provider-cases.schema.json")
+    context["nonfinite_rejected"] = True
+
+
+@then("the runner rejects the nonstandard JSON constant")
+def nonfinite_is_rejected(context):
+    assert context["nonfinite_rejected"] is True
+
+
+@given("an otherwise completed provider assessment whose temporary ledger cannot be deleted")
+def cleanup_failure(monkeypatch):
+    original = provider_assessment.tempfile.TemporaryDirectory
+
+    class FailingCleanup:
+        def __init__(self, *args, **kwargs):
+            self._directory = original(*args, **kwargs)
+            self.name = self._directory.name
+
+        def cleanup(self):
+            self._directory.cleanup()
+            raise OSError("synthetic cleanup failure")
+
+    monkeypatch.setattr(provider_assessment.tempfile, "TemporaryDirectory", FailingCleanup)
+
+
+@when("the assessment completes")
+def run_cleanup_failure(context, capsys):
+    context["exit_code"] = main([])
+    context["report"] = json.loads(capsys.readouterr().out)
+
+
+@then("its report marks cleanup unverified and the command exits nonzero")
+def cleanup_is_unverified(context):
+    assert context["exit_code"] == 1
+    assert context["report"]["all_expectations_met"] is True
+    assert context["report"]["cleanup_verified"] is False
