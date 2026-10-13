@@ -246,7 +246,8 @@ def assess(plan: dict[str, Any], case_bundle: dict[str, Any]) -> dict[str, Any]:
     report = {
         "schema_version": "cops.ai-provider-assessment-report/v1",
         "mode": "offline_fixture",
-        "all_expectations_met": all(result["expectation_met"] for result in results) and not budget_snapshot["over_budget"],
+        "all_expectations_met": all(result["expectation_met"] for result in results)
+        and not budget_snapshot["over_budget"],
         "cleanup_verified": cleanup_verified,
         "budget": budget_snapshot,
         "results": results,
