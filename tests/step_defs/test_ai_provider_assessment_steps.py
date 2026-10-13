@@ -130,7 +130,9 @@ def nonfinite_denied_file(context, tmp_path):
     denied = next(item for item in cases["cases"] if item["case_id"] == "endpoint-denied")
     source = json.dumps({"schema_version": cases["schema_version"], "cases": [denied]})
     context["case_path"] = tmp_path / "cases.json"
-    context["case_path"].write_text(source.replace('"response": {', '"response": {"nonfinite": NaN, ', 1), encoding="utf-8")
+    context["case_path"].write_text(
+        source.replace('"response": {', '"response": {"nonfinite": NaN, ', 1), encoding="utf-8"
+    )
 
 
 @when("the case file is loaded")
