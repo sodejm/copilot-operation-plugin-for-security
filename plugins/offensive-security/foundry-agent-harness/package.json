@@ -3,7 +3,7 @@
   "id": "foundry-agent-harness",
   "display_name": "COPS Microsoft Foundry Adversarial Agent Review Harness",
   "maturity": "beta",
-  "summary": "Rehearse synthetic agent tool authorization with deterministic scenarios and local MCP fixtures.",
+  "summary": "Rehearse synthetic agent authorization and provider response handling with deterministic local fixtures.",
   "support": {
     "structural_validation": "validated",
     "offline_workflow": "validated",
@@ -11,7 +11,8 @@
     "live_integration": "unverified"
   },
   "limitations": [
-    "Runs bundled synthetic fixtures; does not connect to Microsoft Foundry, Semantic Kernel, a hosted model, or a live MCP server.",
+    "Runs bundled synthetic fixtures; does not connect to Microsoft Foundry, Semantic Kernel, a hosted model, a provider API, or a live MCP server.",
+    "Provider-shaped responses and synthetic prices establish only local normalization, exact-binding, and budget-ledger behavior; they do not attest provider usage, billing, cancellation, or cleanup.",
     "Results establish only local fixture and gate behavior, not a real agent's prompt-injection resistance or production authorization posture.",
     "The MCP fixture uses subprocess isolation, not an operating-system network sandbox; use synthetic case data only."
   ],

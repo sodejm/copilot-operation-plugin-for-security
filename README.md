@@ -85,7 +85,7 @@ Each package lives in its own self-contained directory under `plugins/<category>
 | **[Kubernetes Assessment Workbench](plugins/offensive-security/kubernetes-assessment-workbench/README.md)** | Offensive Security | <span class="badge badge-experimental">Experimental</span> | Reconciles an approved Kubernetes context and namespace scope with a sanitized local observation. | `python3 -m cops demo kubernetes-assessment-workbench` |
 | **[Offensive Engagement Workbench](plugins/offensive-security/offensive-engagement-workbench/README.md)** | Offensive Security | <span class="badge badge-experimental">Experimental</span> | Validates authorized engagement scope and prepares reviewable action plans from local inputs. | `python3 -m cops check offensive-engagement-workbench` |
 | **[Host Assessment Workbench](plugins/offensive-security/host-assessment-workbench/README.md)** | Offensive Security | <span class="badge badge-experimental">Experimental</span> | Classifies local Linux privilege-boundary exports and imported canary reports without host execution. | `python3 -m cops demo host-assessment-workbench` |
-| **[Foundry Agent Harness](plugins/offensive-security/foundry-agent-harness/README.md)** | Offensive Security | <span class="badge badge-beta">Beta</span> | Rehearses synthetic agent and MCP authorization with deterministic local fixtures. | `python3 -m cops check foundry-agent-harness` |
+| **[Foundry Agent Harness](plugins/offensive-security/foundry-agent-harness/README.md)** | Offensive Security | <span class="badge badge-beta">Beta</span> | Rehearses synthetic agent/MCP authorization and provider response normalization with deterministic local fixtures. | `.venv/bin/python -m cops check foundry-agent-harness` |
 | **[Incident Response Sandbox](plugins/incident-response/incident-response-sandbox/README.md)** | Incident Response | <span class="badge badge-experimental">Experimental</span> | Rehearses containment workflows, calculates blast radius, and generates cryptographic execution receipts. | `python3 -m cops check incident-response-sandbox` |
 
 For in-depth guidance on choosing the right plugin for your operational scenario, see the **[When to Use Each Plugin Guide](docs/plugin-guide.md)**.
@@ -175,8 +175,12 @@ Before creating new plugins or modifying contracts, please review:
 ## Evidence & Safety Principles
 
 The opt-in [aggregate assessment budget fixture](docs/ASSESSMENT_BUDGETS.md)
-records admission and recovery for synthetic assessment calls. Real provider
-enforcement awaits provider adapter integration.
+records admission and recovery for synthetic assessment calls. It also mediates
+the Foundry Agent Harness's bundled offline provider-shaped response fixtures.
+Those fixtures use strict post-gate provider envelopes, hashed report case
+references, and a nonzero exit when the reported ledger is over budget.
+It does not mediate or attest real provider requests, usage, billing,
+cancellation, or cleanup.
 
 In security engineering, confidence comes from verification:
 

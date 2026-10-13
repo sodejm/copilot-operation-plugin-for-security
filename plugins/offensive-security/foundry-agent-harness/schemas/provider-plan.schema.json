@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "COPS offline AI provider assessment plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "mode", "paid_execution_opt_in", "engagement_id", "budget", "environments"],
+  "properties": {
+    "schema_version": {"const": "cops.ai-provider-assessment-plan/v1"},
+    "mode": {"const": "offline_fixture"},
+    "paid_execution_opt_in": {"const": false},
+    "engagement_id": {"$ref": "#/$defs/id"},
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["currency", "price_source", "price_version", "price_effective_date", "limits"],
+      "properties": {
+        "currency": {"const": "USD"},
+        "price_source": {"const": "synthetic-fixture"},
+        "price_version": {"$ref": "#/$defs/id"},
+        "price_effective_date": {"type": "string", "format": "date"},
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["max_attempts", "max_estimated_tokens", "max_estimated_cost_microunits", "max_elapsed_ms", "max_concurrency", "max_retained_output_bytes", "max_depth", "max_children_per_parent"],
+          "properties": {
+            "max_attempts": {"$ref": "#/$defs/positive"},
+            "max_estimated_tokens": {"$ref": "#/$defs/positive"},
+            "max_estimated_cost_microunits": {"$ref": "#/$defs/positive"},
+            "max_elapsed_ms": {"$ref": "#/$defs/positive"},
+            "max_concurrency": {"$ref": "#/$defs/positive"},
+            "max_retained_output_bytes": {"$ref": "#/$defs/positive"},
+            "max_depth": {"$ref": "#/$defs/nonnegative"},
+            "max_children_per_parent": {"$ref": "#/$defs/positive"}
+          }
+        }
+      }
+    },
+    "environments": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["environment_id", "provider", "scope", "allowed_tools", "canary_ids", "approved_requests"],
+        "properties": {
+          "environment_id": {"$ref": "#/$defs/id"},
+          "provider": {"enum": ["openai", "azure", "aws", "gcp"]},
+          "scope": {"$ref": "#/$defs/scope"},
+          "allowed_tools": {"type": "array", "uniqueItems": true, "maxItems": 16, "items": {"$ref": "#/$defs/id"}},
+          "canary_ids": {"type": "array", "uniqueItems": true, "minItems": 1, "maxItems": 16, "items": {"type": "string", "pattern": "^CANARY_[A-Z0-9_]+$"}},
+          "approved_requests": {
+            "type": "object",
+            "maxProperties": 64,
+            "patternProperties": {"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$": {"type": "string", "pattern": "^[a-f0-9]{64}$"}},
+            "additionalProperties": false
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"},
+    "nonnegative": {"type": "integer", "minimum": 0, "maximum": 9223372036854775807},
+    "positive": {"type": "integer", "minimum": 1, "maximum": 9223372036854775807},
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["account_id", "project_id", "region", "endpoint", "model"],
+      "properties": {
+        "account_id": {"type": "string", "pattern": "^synthetic-[A-Za-z0-9._-]+$"},
+        "project_id": {"type": "string", "pattern": "^synthetic-[A-Za-z0-9._-]+$"},
+        "region": {"$ref": "#/$defs/id"},
+        "endpoint": {"type": "string", "maxLength": 256, "pattern": "^https://[A-Za-z0-9.-]+\\.invalid(?:/[A-Za-z0-9._/-]*)?$"},
+        "model": {"type": "string", "pattern": "^fixture-[A-Za-z0-9._-]+$"}
+      }
+    }
+  }
+}
