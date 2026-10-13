@@ -9,9 +9,26 @@ from pathlib import Path
 
 import pytest
 
+from cops._schema_validation import SchemaValidationError, validate
 from cops.provider_assessment import ProviderAssessmentError, assess, main, read_json, report_case_id
 
 FIXTURES = Path(__file__).resolve().parents[1] / "plugins/offensive-security/foundry-agent-harness/provider_fixtures"
+
+
+@pytest.mark.parametrize("number", (0, 0.0))
+def test_schema_const_does_not_equate_false_with_zero(number: int | float) -> None:
+    with pytest.raises(SchemaValidationError):
+        validate(number, {"const": False})
+    with pytest.raises(SchemaValidationError):
+        validate(number, {"enum": [False]})
+    validate([False, number], {"uniqueItems": True})
+
+
+def test_schema_preserves_draft_integer_and_date_annotation_semantics() -> None:
+    validate(1.0, {"type": "integer"})
+    validate("invalid-date", {"type": "string", "format": "date"})
+    with pytest.raises(SchemaValidationError):
+        validate([1, 1.0], {"uniqueItems": True})
 
 
 def inputs() -> tuple[dict, dict]:
