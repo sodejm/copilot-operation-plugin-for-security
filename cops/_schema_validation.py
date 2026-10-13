@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import json
+import math
 import re
-from datetime import date
 from typing import Any
 
 
@@ -69,9 +68,9 @@ def _validate(value: Any, schema: Any, root: dict[str, Any]) -> None:
 
     if "type" in schema and not _matches_type(value, schema["type"]):
         raise SchemaValidationError("value has the wrong type")
-    if "const" in schema and value != schema["const"]:
+    if "const" in schema and not _json_equal(value, schema["const"]):
         raise SchemaValidationError("value does not equal const")
-    if "enum" in schema and value not in schema["enum"]:
+    if "enum" in schema and not any(_json_equal(value, item) for item in schema["enum"]):
         raise SchemaValidationError("value is not in enum")
     if "allOf" in schema:
         for option in _schema_list(schema["allOf"]):
@@ -144,8 +143,7 @@ def _validate_object(value: dict[str, Any], schema: dict[str, Any], root: dict[s
 def _validate_array(value: list[Any], schema: dict[str, Any], root: dict[str, Any]) -> None:
     _range(value, schema, "minItems", "maxItems", len)
     if schema.get("uniqueItems"):
-        encoded = [json.dumps(item, sort_keys=True, separators=(",", ":")) for item in value]
-        if len(encoded) != len(set(encoded)):
+        if any(_json_equal(item, other) for index, item in enumerate(value) for other in value[:index]):
             raise SchemaValidationError("array items must be unique")
     if "items" in schema:
         for item in value:
@@ -161,13 +159,7 @@ def _validate_string(value: str, schema: dict[str, Any]) -> None:
     _range(value, schema, "minLength", "maxLength", len)
     if "pattern" in schema and not re.search(schema["pattern"], value):
         raise SchemaValidationError("string does not match pattern")
-    if schema.get("format") == "date":
-        try:
-            date.fromisoformat(value)
-        except ValueError as exc:
-            raise SchemaValidationError("string is not an ISO date") from exc
-    elif "format" in schema:
-        raise SchemaValidationError("unsupported string format")
+    # Draft 2020-12 treats format as an annotation without a FormatChecker.
 
 
 def _validate_number(value: int | float, schema: dict[str, Any]) -> None:
@@ -193,7 +185,7 @@ def _matches_type(value: Any, expected: Any) -> bool:
         (name == "object" and isinstance(value, dict))
         or (name == "array" and isinstance(value, list))
         or (name == "string" and isinstance(value, str))
-        or (name == "integer" and type(value) is int)
+        or (name == "integer" and _is_number(value) and value == int(value))
         or (name == "number" and _is_number(value))
         or (name == "boolean" and type(value) is bool)
         or (name == "null" and value is None)
@@ -228,4 +220,19 @@ def _range(value: Any, schema: dict[str, Any], minimum: str, maximum: str, measu
 
 
 def _is_number(value: Any) -> bool:
-    return type(value) in {int, float}
+    return type(value) is int or (type(value) is float and math.isfinite(value))
+
+
+def _json_equal(left: Any, right: Any) -> bool:
+    """Compare JSON values without equating booleans and numbers."""
+    if type(left) is bool or type(right) is bool:
+        return type(left) is type(right) and left == right
+    if _is_number(left) and _is_number(right):
+        return left == right
+    if type(left) is not type(right):
+        return False
+    if isinstance(left, list):
+        return len(left) == len(right) and all(_json_equal(a, b) for a, b in zip(left, right, strict=True))
+    if isinstance(left, dict):
+        return left.keys() == right.keys() and all(_json_equal(left[key], right[key]) for key in left)
+    return left == right
