@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "COPS offline AI provider assessment report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "mode", "all_expectations_met", "cleanup_verified", "budget", "results"],
+  "properties": {
+    "schema_version": {"const": "cops.ai-provider-assessment-report/v1"},
+    "mode": {"const": "offline_fixture"},
+    "all_expectations_met": {"type": "boolean"},
+    "cleanup_verified": {"type": "boolean"},
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["charged_attempts", "charged_tokens", "charged_cost_microunits", "charged_output_bytes", "active_concurrency", "over_budget"],
+      "properties": {
+        "charged_attempts": {"type": "integer", "minimum": 0},
+        "charged_tokens": {"type": "integer", "minimum": 0},
+        "charged_cost_microunits": {"type": "integer", "minimum": 0},
+        "charged_output_bytes": {"type": "integer", "minimum": 0},
+        "active_concurrency": {"type": "integer", "minimum": 0},
+        "over_budget": {"type": "boolean"}
+      }
+    },
+    "results": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["case_id", "provider", "decision", "outcome", "response_state", "usage_state", "ledger_state", "expectation_met"],
+        "properties": {
+          "case_id": {"type": "string", "pattern": "^case-[0-9a-f]{64}$"},
+          "provider": {"enum": ["openai", "azure", "aws", "gcp"]},
+          "decision": {"enum": ["approved", "denied", "budget_denied"]},
+          "outcome": {"enum": ["completed", "tool_proposal", "no_effect"]},
+          "response_state": {"enum": ["not_processed", "completed", "tool_proposal", "partial"]},
+          "usage_state": {"enum": ["not_charged", "known_synthetic", "unknown"]},
+          "ledger_state": {"enum": ["none", "settled", "usage_unknown"]},
+          "expectation_met": {"type": "boolean"}
+        }
+      }
+    }
+  }
+}
