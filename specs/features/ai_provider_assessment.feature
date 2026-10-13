@@ -22,3 +22,13 @@ Feature: Offline AI provider assessment fixtures
     Given a provider assessment plan requesting live or paid execution
     When the plan is loaded
     Then the runner rejects it before credential or network access
+
+  Scenario: Non-finite JSON is rejected even in a denied response
+    Given a provider case file with NaN or Infinity in a denied response
+    When the case file is loaded
+    Then the runner rejects the nonstandard JSON constant
+
+  Scenario: Temporary-ledger deletion failure is reported
+    Given an otherwise completed provider assessment whose temporary ledger cannot be deleted
+    When the assessment completes
+    Then its report marks cleanup unverified and the command exits nonzero

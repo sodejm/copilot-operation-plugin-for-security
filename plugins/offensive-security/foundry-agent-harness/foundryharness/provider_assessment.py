@@ -47,6 +47,10 @@ def _unique_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
+def _reject_json_constant(_: str) -> Any:
+    raise ProviderAssessmentError("non-finite JSON constant")
+
+
 def _bounded(value: Any, depth: int = 0) -> None:
     if depth > _MAX_DEPTH:
         raise ProviderAssessmentError("JSON nesting limit exceeded")
@@ -78,7 +82,9 @@ def read_json(path: Path, schema_name: str) -> Any:
             content = source.read(_MAX_INPUT_BYTES + 1)
         if len(content) > _MAX_INPUT_BYTES:
             raise ProviderAssessmentError("input size limit exceeded")
-        value = json.loads(content.decode("utf-8"), object_pairs_hook=_unique_pairs)
+        value = json.loads(
+            content.decode("utf-8"), object_pairs_hook=_unique_pairs, parse_constant=_reject_json_constant
+        )
     except RecursionError as exc:
         raise ProviderAssessmentError("JSON nesting limit exceeded") from exc
     except (UnicodeError, json.JSONDecodeError) as exc:
@@ -212,8 +218,9 @@ def assess(plan: dict[str, Any], case_bundle: dict[str, Any]) -> dict[str, Any]:
     if any(item["provider"] not in _PROVIDERS for item in plan["environments"]):
         raise ProviderAssessmentError("unsupported provider")
     results: list[dict[str, Any]] = []
-    with tempfile.TemporaryDirectory(prefix="cops-provider-fixture-") as temporary:
-        ledger = AssessmentBudgetLedger(Path(temporary) / "budget.sqlite3", _policy(plan))
+    temporary = tempfile.TemporaryDirectory(prefix="cops-provider-fixture-")
+    try:
+        ledger = AssessmentBudgetLedger(Path(temporary.name) / "budget.sqlite3", _policy(plan))
         for case in cases:
             result = {
                 "case_id": report_case_id(case["case_id"]),
@@ -247,7 +254,13 @@ def assess(plan: dict[str, Any], case_bundle: dict[str, Any]) -> dict[str, Any]:
             )
             results.append(result)
         budget_snapshot = asdict(ledger.snapshot())
-    cleanup_verified = not Path(temporary).exists()
+    finally:
+        try:
+            temporary.cleanup()
+        except OSError:
+            cleanup_verified = False
+        else:
+            cleanup_verified = not Path(temporary.name).exists()
     report = {
         "schema_version": "cops.ai-provider-assessment-report/v1",
         "mode": "offline_fixture",
