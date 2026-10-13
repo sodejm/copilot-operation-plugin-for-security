@@ -2,20 +2,24 @@
 
 ## Status and scope
 
-Source baseline: `42cb017012934839702ce0b939a5cbc9193271ea`. Adoption: 2026-10-08.
+Original source baseline: `42cb017012934839702ce0b939a5cbc9193271ea`. Adoption: 2026-10-08.
 Status: source-based initial model; independent human security review pending.
 This model contains attack hypotheses, not validated vulnerability findings.
 Existing canonical security documentation and stricter acceptance gates remain
-applicable. Future changes must update this baseline rather than treating its
-source revision as evidence for newer behavior.
+applicable. The E16.01 implementation entry identifies its later source revision;
+the original baseline does not establish newer behavior.
+The E16.01 local agent/MCP fixture source and pre-existing tests were inspected
+at `843e0ed1bcd2eadb167491ba7539713d19748b9b` (merged PR #276). The exact
+bundled-case inventory assertion was added at
+`50da6d6df8ff89774db89fb33d598ec47d7af754` in PR #293.
 
 COPS distributes security operations plugins and skills, local validation/marketplace tooling and execution/approval support. Capabilities vary by component: the Sentinel hunt workbench is offline and credential-free; other integrations can reach live APIs. No global offline or harmless-execution assumption applies.
 
 ## Assets, actors and assumptions
 
-Assets: Plugin package and marketplace integrity; approval/checkpoint records; cloud/Sentinel credentials; tenant/resource identifiers; security telemetry and hunt results; generated report-set integrity and completion evidence; agent execution authority; CI and distribution credentials.
+Assets: Plugin package and marketplace integrity; approval/checkpoint records; cloud/Sentinel credentials; tenant/resource identifiers; security telemetry and hunt results; generated report-set integrity and completion evidence; agent execution authority; synthetic laboratory case, MCP fixture state and effect-report integrity; CI and distribution credentials.
 
-Actors: Authorized security operator; malicious telemetry/tool-output author; untrusted plugin contributor; compromised dependency/marketplace source; local user manipulating approval state; attacker controlling a configured API endpoint.
+Actors: Authorized security operator and laboratory case author; malicious telemetry/tool-output or laboratory text author; laboratory runner and separate agent/MCP fixture processes; untrusted plugin contributor; compromised dependency/marketplace source; local user manipulating approval state; attacker controlling a configured API endpoint.
 
 Assume an authorized operator, a trusted host and reviewed checkout. Treat input,
 remote responses and imported content as untrusted. Repository access or a local
@@ -46,6 +50,7 @@ private payloads and real identifiers must never be copied into this document.
 | Local Linux host export → host-assessment-workbench importer → operator | The importer reads a bounded local JSON file and returns classifications from untrusted source assertions. It does not collect host state or verify canary execution, cleanup, or the source's identity. Opaque IDs must be kept free of secrets by the exporter. |
 | Operator assessment budget → owner-controlled ledger → fixture assessment dispatcher | The controller must reserve before callback dispatch. Agent and provider content cannot expand the budget or release an uncertain attempt. Provider integration remains pending issue #150. |
 | Approved local corpus → private Linux worker workspace → offline research adapter → run result | The signed plan binds corpus, inventory, isolation, and executable digests. The worker checks a fresh namespace observation before approval consumption and before each external adapter starts; its own measurements do not independently attest host controls. |
+| Operator-supplied synthetic case → runner → agent fixture proposal → authorization gate → MCP stdio fixture → observed state/report | Case text and MCP tool output are untrusted data. The agent child proposes but has no MCP pipe; only the runner can forward a proposal after case-scoped checks. The separate child processes share the host's OS authority, so their stdio boundary is not an OS network sandbox. |
 
 ```mermaid
 flowchart LR
@@ -62,6 +67,55 @@ The flow table defines the project-specific boundaries behind this overview.
 Authentication of an upstream service does not make its content trusted. Review
 the effective filesystem path, subprocess arguments, network recipient, cloud
 account and credential recipient rather than only their user-supplied labels.
+
+### Local agent and MCP fixture boundary
+
+The Foundry Agent Harness laboratory loads versioned JSON cases from an
+operator-selected file or directory. A case author supplies the task,
+`untrusted_text`, tool permissions, `approved_call`, and control profile. The
+`approved_call` is the case's test oracle, not an independently authenticated
+operator approval. Case validation restricts tools, tenant, arguments, resources
+and destination to fixed synthetic values; it does not establish the author's
+identity or the truth of the task description. The loader does not limit file
+bytes, directory case count or JSON nesting before parsing. Large or hostile
+case inputs can exhaust local memory or CPU; use only vetted synthetic inputs.
+
+For each case, the runner starts fixed local Python agent and MCP fixture scripts
+as separate child processes, in a temporary working directory with a reduced
+environment. It exchanges bounded JSON lines over pipes and checks response
+deadlines. The MCP pipe belongs to the runner, not the agent fixture. The runner
+checks the MCP protocol version, tool inventory and response shape, reads initial
+state, and, for a tool-response case, obtains the injected text through an MCP
+lookup. Case text can claim higher priority or impersonate a peer. The
+deterministic agent fixture is not a live model: it can turn an untrusted
+`TOOL_CALL:` marker into a proposed call. Agent text and MCP responses are data,
+not authority to execute.
+
+The runner checks each proposal against case tool permission, tenant and exact
+synthetic argument, resource and destination allowlists. The `strict` profile
+also requires the proposal to equal the case's `approved_call` before the runner
+forwards it to MCP. The `permission_only` profile deliberately omits that task
+binding to demonstrate a permitted but off-task effect; it is not a safe
+authorization profile for live tools. Denied calls are not forwarded. The runner
+derives effects from MCP state before and after execution, then requests reset
+and compares the final state with the initial state. A tool's success text or
+agent proposal alone does not prove an effect or cleanup. Malformed responses,
+timeouts, protocol mismatches and unverifiable state fail the case; child
+processes are terminated on exit. Report fields such as `environment_verified`
+and `cleanup_verified` describe these fixture checks only.
+`all_expectations_met` summarizes only the selected cases; a custom `--cases`
+run is not evidence that all 13 bundled cases ran. Check the report's case IDs
+when asserting bundled-suite coverage.
+
+Python `-I`, a reduced environment and a temporary working directory constrain
+the launched scripts but do not provide OS process, filesystem or network
+isolation. The children run with the invoking user's host authority; compromised
+same-authority code or a modified checkout could bypass the runner's intended
+MCP gate or access host resources. The bundled fixture performs no real network
+operation and accepts no case-selected command or endpoint, but the OS does not
+block network access. Run only trusted checkout code with synthetic data and no
+real credentials or live targets. These local results do not establish live
+model prompt-injection resistance, host containment or independent authorization.
 
 ## Implementation evidence inventory
 
@@ -89,6 +143,9 @@ account and credential recipient rather than only their user-supplied labels.
 - `tests/test_host_assessment_workbench.py`: synthetic positive, negative and fixed canaries, plus malformed-import and mismatch tests. These do not establish live privilege-boundary behavior.
 - `cops/execution/offline_research.py`, `sandbox.py`, and `worker.py`: profile validation, bounded descriptor-based corpus staging, gated Linux namespace observations, and per-invocation result records.
 - `tests/test_offline_research.py`: synthetic rejection tests for altered corpora, profile substitutions, stale or mismatched isolation, and unsupported operations; no live Linux host attestation.
+- `plugins/offensive-security/foundry-agent-harness/foundryharness/laboratory.py` at `843e0ed1bcd2eadb167491ba7539713d19748b9b`: per-case validation after unbounded file loading, fixed child-process launch, MCP protocol checks, runner-owned authorization, state comparison and reset verification.
+- `plugins/offensive-security/foundry-agent-harness/foundryharness/fixture_agent.py` and `mcp_fixture_server.py`: deterministic proposal and synthetic MCP state fixtures; neither establishes live model or host isolation behavior.
+- `plugins/offensive-security/foundry-agent-harness/tests/test_laboratory.py` and `specs/agent-mcp-laboratories.spec.md`: exact bundled-case inventory, synthetic case behavior, untrusted-config rejection, reset coverage and the local laboratory contract; malformed-protocol, timeout and reset-failure tests remain pending. No live endpoint or OS network-isolation evidence.
 
 ## Threat register and prioritization
 
@@ -313,6 +370,14 @@ validation before the affected release/capability expansion and schedule P2 with
 - Existing evidence / limitation: The offline advisor bounds input, rejects duplicate JSON fields and unknown schema fields, and requires fresh, nonfuture evidence with exact model IDs, independent capability tags, granted access and supported effort. Family names carry no routing authority. Automatic suggestions are limited to low, medium and high; the advisor performs no discovery, provider calls, model changes or agent launches. Synthetic regression tests cover these boundaries.
 - Proposed mitigation and validation: Verify catalog assertions against the intended host and provider documentation, correct ambiguous task classification, and inspect current settings and exclusions before implementation. Keep malformed-input, freshness, access, effort and CLI compatibility tests at the exact revision; obtain independent human review before accepting the control.
 - Residual risk / status: Operator assertions, host clocks, native effort mappings and coarse task heuristics can be wrong. Offline validation cannot authenticate an entitlement or demonstrate actual model performance; host verification and human review remain pending.
+
+### T25: Local agent/MCP proposal or subprocess-boundary confusion
+
+- Attack path / prerequisite: Untrusted case text or an MCP tool response impersonates a higher-priority instruction or peer and induces an off-task proposal. A malformed or stalled child response can disrupt observation; a compromised fixture or same-authority host process can bypass the runner's intended gate, alter state or report data, or use host network access. A report disclosed beyond its intended audience can expose case content.
+- Inherent impact: High if this pattern is extended to live tools or private data; likelihood: Low under the current synthetic-only, trusted-checkout assumptions; priority: P1 before any live expansion.
+- Existing evidence / limitation: The fixture agent only proposes calls and has no MCP pipe. The runner validates each parsed case, MCP handshake and responses, restricts tool/tenant/arguments/resource/destination, binds strict-profile proposals to the case's `approved_call`, observes state effects, and verifies reset. The permission-only profile intentionally permits an off-task synthetic effect. Case approval is supplied by the same case author. Case-file bytes, case count and JSON nesting are not bounded before parsing; Python process flags and temporary storage do not enforce OS network or same-authority isolation.
+- Proposed mitigation and validation: Retain paired strict/permission-only injection cases and existing foreign-tenant, disallowed-tool and destination checks. Add focused malformed-protocol, timeout and reset-failure tests and bound case-file loading before expanding exposure. Restrict case/report access and retention. Before any live model, MCP server, credential or target is connected, design an independently authenticated approval boundary and verify effective subprocess identity, filesystem and network controls on the intended host; obtain exact-revision human security review.
+- Residual risk / status: Fixture tests establish only local runner behavior. Unbounded case input can exhaust local resources; the three failure-path tests above remain pending. The fixtures do not prove author identity, independent approval, resistance of a live model, containment of compromised child code, host network isolation or trustworthy state under same-authority interference. Human review and live-use controls are pending.
 
 ## STRIDE and privacy coverage
 
