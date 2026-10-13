@@ -9,8 +9,8 @@ from pathlib import Path
 
 import pytest
 
-from cops._schema_validation import SchemaValidationError, validate
 from cops import provider_assessment
+from cops._schema_validation import SchemaValidationError, validate
 from cops.provider_assessment import ProviderAssessmentError, assess, main, read_json, report_case_id
 
 FIXTURES = Path(__file__).resolve().parents[1] / "plugins/offensive-security/foundry-agent-harness/provider_fixtures"
