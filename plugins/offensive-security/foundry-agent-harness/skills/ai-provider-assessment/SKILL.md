@@ -9,10 +9,11 @@ Use this skill to inspect the Foundry Agent Harness's fixed synthetic response f
 
 ## Run
 
-From the repository root:
+From the `foundry-agent-harness` package directory, with a Python virtual
+environment activated:
 
 ```bash
-.venv/bin/python -m cops.provider_assessment
+python scripts/run_provider_assessment.py
 ```
 
 The default command loads the bundled `provider_fixtures/plan.json` and `provider_fixtures/cases.json`. Use `--plan` and `--cases` only for reviewed synthetic copies that conform to the package schemas. Never place credentials, private prompts, real endpoints, tenant data, or provider output in these files.

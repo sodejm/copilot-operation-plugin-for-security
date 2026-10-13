@@ -8,7 +8,7 @@ The package has three workflows:
 | :--- | :--- | :--- |
 | Scenario simulator | `evaluate` | A deterministic scenario decision, authorization decision, and in-memory mock ledger. This legacy workflow does not execute an agent process or model. |
 | Local agent and MCP laboratory | `lab` | A deterministic agent fixture proposes calls to a separate, fixed MCP stdio fixture. The runner records proposals, gate denials, calls actually forwarded, observed state effects, and reset verification. |
-| AI provider assessment | `.venv/bin/python -m cops.provider_assessment` | Fixed OpenAI, Azure OpenAI, AWS Bedrock, and GCP Vertex shaped response fixtures pass through exact plan binding, post-gate provider-envelope validation, normalization, and the shared assessment budget ledger. No request leaves the host. |
+| AI provider assessment | `python scripts/run_provider_assessment.py` (from the package directory) | Fixed OpenAI, Azure OpenAI, AWS Bedrock, and GCP Vertex shaped response fixtures pass through exact plan binding, post-gate provider-envelope validation, normalization, and the shared assessment budget ledger. No request leaves the host. |
 
 Follow the [end-to-end verification playbook](docs/VERIFICATION.md) to qualify this
 package's documented workflow and prepare evidence for a maturity review.
@@ -57,8 +57,10 @@ The six legacy scenarios use a deterministic simulator and an in-memory mock san
 
 ## Assess synthetic provider fixtures
 
+From the `foundry-agent-harness` package directory, with a Python virtual environment activated:
+
 ```bash
-.venv/bin/python -m cops.provider_assessment
+python scripts/run_provider_assessment.py
 ```
 
 The command imports the bundled plan and 14 response cases. Four success cases use provider-shaped envelopes for OpenAI Responses, Azure OpenAI Responses, AWS Bedrock Converse, and GCP Vertex `generateContent`. The remaining cases exercise endpoint, tenant, model, tool, canary, and request binding; budget refusal; an AWS tool proposal; and an incomplete OpenAI response.

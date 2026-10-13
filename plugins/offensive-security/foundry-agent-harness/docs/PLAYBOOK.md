@@ -43,8 +43,10 @@ For a real-agent assessment, document the authorized target, model and tool vers
 
 ## Inspect the provider assessment fixture
 
+From the `foundry-agent-harness` package directory, with a Python virtual environment activated:
+
 ```bash
-.venv/bin/python -m cops.provider_assessment
+python scripts/run_provider_assessment.py
 ```
 
 The default command reads the bundled `provider_fixtures/plan.json` and `provider_fixtures/cases.json`. Use `--plan` and `--cases` only with reviewed, synthetic copies that conform to the package schemas. The bounded loader rejects duplicate keys, unknown fields, excessive nesting, oversized input, and unsupported provider families.
