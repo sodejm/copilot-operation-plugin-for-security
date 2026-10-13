@@ -8,6 +8,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
+import stat
 import tempfile
 from dataclasses import asdict
 from functools import partial
@@ -67,13 +69,15 @@ def _validate(value: Any, name: str) -> None:
 
 
 def read_json(path: Path, schema_name: str) -> Any:
-    if path.stat().st_size > _MAX_INPUT_BYTES:
-        raise ProviderAssessmentError("input size limit exceeded")
     try:
-        content = path.read_text(encoding="utf-8")
-        if len(content.encode("utf-8")) > _MAX_INPUT_BYTES:
+        descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_NOFOLLOW", 0))
+        with os.fdopen(descriptor, "rb") as source:
+            if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
+                raise ProviderAssessmentError("input must be a regular file")
+            content = source.read(_MAX_INPUT_BYTES + 1)
+        if len(content) > _MAX_INPUT_BYTES:
             raise ProviderAssessmentError("input size limit exceeded")
-        value = json.loads(content, object_pairs_hook=_unique_pairs)
+        value = json.loads(content.decode("utf-8"), object_pairs_hook=_unique_pairs)
     except RecursionError as exc:
         raise ProviderAssessmentError("JSON nesting limit exceeded") from exc
     except (UnicodeError, json.JSONDecodeError) as exc:

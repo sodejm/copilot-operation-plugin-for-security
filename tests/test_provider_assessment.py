@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -130,6 +131,19 @@ def test_bounded_parser_rejects_duplicate_keys_and_excessive_nesting(tmp_path: P
     path.write_text('{"x":' * 1200 + '"value"' + "}" * 1200, encoding="utf-8")
     with pytest.raises(ProviderAssessmentError, match="nesting limit exceeded"):
         read_json(path, "provider-cases.schema.json")
+
+
+def test_bounded_parser_rejects_oversized_and_nonregular_sources(tmp_path: Path) -> None:
+    path = tmp_path / "cases.json"
+    path.write_bytes(b" " * (256 * 1024 + 1))
+    with pytest.raises(ProviderAssessmentError, match="input size limit exceeded"):
+        read_json(path, "provider-cases.schema.json")
+
+    if hasattr(os, "mkfifo"):
+        fifo = tmp_path / "cases.fifo"
+        os.mkfifo(fifo)
+        with pytest.raises(ProviderAssessmentError, match="input must be a regular file"):
+            read_json(fifo, "provider-cases.schema.json")
 
 
 def test_partial_response_with_claimed_usage_still_stays_unknown() -> None:
