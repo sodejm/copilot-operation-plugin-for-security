@@ -152,9 +152,7 @@ def test_bounded_parser_rejects_duplicate_keys_and_excessive_nesting(tmp_path: P
 
 
 @pytest.mark.parametrize("constant", ("NaN", "Infinity", "-Infinity"))
-def test_nonfinite_constant_in_denied_response_is_rejected_before_gate(
-    tmp_path: Path, constant: str
-) -> None:
+def test_nonfinite_constant_in_denied_response_is_rejected_before_gate(tmp_path: Path, constant: str) -> None:
     _, cases = inputs()
     denied = next(item for item in cases["cases"] if item["case_id"] == "endpoint-denied")
     source = json.dumps({"schema_version": cases["schema_version"], "cases": [denied]})
