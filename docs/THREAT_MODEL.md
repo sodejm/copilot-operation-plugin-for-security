@@ -8,8 +8,10 @@ This model contains attack hypotheses, not validated vulnerability findings.
 Existing canonical security documentation and stricter acceptance gates remain
 applicable. The E16.01 implementation entry identifies its later source revision;
 the original baseline does not establish newer behavior.
-The E16.01 local agent/MCP fixture source and tests below are inspected at
-`843e0ed1bcd2eadb167491ba7539713d19748b9b` (merged PR #276).
+The E16.01 local agent/MCP fixture source and pre-existing tests were inspected
+at `843e0ed1bcd2eadb167491ba7539713d19748b9b` (merged PR #276). The exact
+bundled-case inventory assertion was added at
+`50da6d6df8ff89774db89fb33d598ec47d7af754` in PR #293.
 
 COPS distributes security operations plugins and skills, local validation/marketplace tooling and execution/approval support. Capabilities vary by component: the Sentinel hunt workbench is offline and credential-free; other integrations can reach live APIs. No global offline or harmless-execution assumption applies.
 
