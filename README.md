@@ -17,6 +17,11 @@ Welcome to **COPS (Copilot Operations Plugins for Security)**! COPS is an open-s
 
 The [AI asset inventory](docs/AI_ASSET_INVENTORY.md) documents the bounded, offline evidence graph contract.
 
+Start with [Investigate possible malicious access](docs/investigate-malicious-access.md)
+for a complete case with malicious, benign, and insufficient-evidence outcomes.
+The [runnable workflow index](docs/plugin-playbacks.md) links every plugin's
+usage, design, schema reference, and checked playback.
+
 The [service attack notice registry](docs/SERVICE_ATTACK_NOTICES.md) provides a
 versioned, source-scoped offline assessment contract for service inventory and
 endpoint-validation evidence.

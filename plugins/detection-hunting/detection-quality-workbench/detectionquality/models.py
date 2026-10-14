@@ -153,6 +153,8 @@ class FixtureSuite:
         for f in required:
             if f not in data:
                 raise QualityError(f"Missing required fixture suite field: {f}")
+        if not data["cases"]:
+            raise QualityError("Fixture suite must contain at least one case")
         return cls(
             fixture_suite_id=data["fixture_suite_id"],
             target_rule_id=data["target_rule_id"],

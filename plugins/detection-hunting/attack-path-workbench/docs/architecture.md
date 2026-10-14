@@ -50,6 +50,20 @@ The five bounded specialist definitions in `agents/` state their packet input, t
 
 Before real integration, supply: redacted Wiz exports and field/relationship documentation; exact query/API and coverage semantics; user crown jewels, service map, and business-impact criteria; locally approved ATT&CK and Attack Flow bundles; and the human authority for review and remediation closure. The current illustrative records are invented test data and establish no real exposure.
 
+## Filesystem trust boundary
+
+Input evidence and completed reports are local trust-boundary objects. POSIX I/O
+walks from held directory descriptors with no-follow operations. Windows I/O opens
+a filesystem anchor, traverses components with handle-relative `NtCreateFile`, and
+rejects reparse points and multiply linked input files. Existing ancestors are
+opened for listing and inspection only; the newly created report directory receives
+the add/write rights needed for publication. Windows completion publication renames
+the held staging handle with `NtSetInformationFile(FileRenameInformation)`, uses
+the held report directory as its root, and disables replacement. Both implementations
+reopen the requested output path and compare filesystem identity before reporting
+success. These checks contain path substitution; confidentiality still depends on
+an analyst-owned private parent directory and, on Windows, its inherited ACL.
+
 ## Azure entitlement profile
 
 `attackpath/azure/input.py` verifies local SDK envelopes and receipts before

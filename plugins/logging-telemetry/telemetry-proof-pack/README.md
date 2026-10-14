@@ -51,17 +51,46 @@ Each stage accepts one record object or a `{"records": [...]}` envelope. More th
 
 For offline rule logic and labeled fixture precision/recall, use the Detection Quality & Regression Workbench (`plugins/detection-hunting/detection-quality-workbench`). Its fixture results and this pack's operational stage correlation answer different questions; neither alone establishes a production detection rate.
 
+## Data contracts and flow
+
+The manifest defines one bounded correlation run. Evidence records are matched to
+that run, normalized by stage, and summarized in machine-readable and Markdown
+reports. The playback exercises complete and incomplete paths without contacting
+the named platforms.
+
+| Contract or artifact | Purpose | Key fields | Producer | Consumer | Validation | Example |
+| --- | --- | --- | --- | --- | --- | --- |
+| Run manifest | Bind a synthetic marker to its expected route and time window | Run ID, marker, tenant, destination, rule, timestamps, clock skew | Operator or playback fixture | Correlator | Manifest schema, identifier, and time-window checks | Cribl-to-Splunk synthetic route |
+| Stage evidence record | Describe one observed lifecycle stage | Evidence ID, stage, marker, timestamp, details | Authorized export or fixture | Correlator | Record schema, marker match, timestamp, and duplicate checks | Sentinel incident record containing the marker |
+| Correlation result | State the supplied evidence status at each stage | Stage state, evidence hash, details, unresolved reason | Correlator | Report renderer and analyst | Exactly one in-window match for a passing stage | Query stage unresolved because two records match |
+| Proof report | Preserve the run conclusion and evidence references | Overall health, stages, hashes, gaps | Report renderer | Detection engineer or reviewer | Report schema and consistency with correlation result | `degraded` with missing alert evidence |
+| Playback summary | Qualify expected healthy, degraded, and broken traces | Scenario names, expected health, rerun result | `scripts/run_demo.py` | Maintainer | Semantic health assertions and equivalent rerun | Two healthy routes and three expected failures |
+
 ---
 
 ## Quick Start
 
 ### Run the Demo
 
-See healthy, degraded, and broken proof pack traces in action:
+Run all five packaged healthy, degraded, and broken traces from the repository
+root:
 
 ```bash
-python3 plugins/logging-telemetry/telemetry-proof-pack/scripts/run_demo.py
+python3 -m cops demo telemetry-proof-pack
 ```
+
+The demo creates a private temporary output directory by default. Retain the
+machine-readable and Markdown reports for review with an explicit directory:
+
+```bash
+python3 plugins/logging-telemetry/telemetry-proof-pack/scripts/run_demo.py \
+  --out-dir /path/to/private-review-directory
+```
+
+Successful output names the two healthy routes and the three expected failure
+scenarios, confirms the expected health for each, and reports an equivalent
+rerun. A nonzero exit means an input, expected health, report, or rerun check
+failed.
 
 ### Trace a Pipeline Run
 

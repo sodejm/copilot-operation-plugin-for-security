@@ -35,6 +35,8 @@ PORTABLE_ENTRIES = {
     "evaluations",
     "huntwb",
     "investigationwb",
+    "vendor",
+    "vendor-lock.json",
     "attackpath",
     "attack_surface_planner",
     "entrawb",

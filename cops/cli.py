@@ -814,10 +814,12 @@ def build_parser() -> argparse.ArgumentParser:
     l_ver = lab_sub.add_parser("verify", help="verify laboratory environment isolation, prerequisites, and canary")
     l_ver.add_argument("environment", help="path to laboratory environment JSON")
     l_ver.add_argument("--tools", help="comma-separated list of required tools")
+    l_ver.add_argument("--mock", action="store_true", help="validate configuration without runtime observations")
     l_ver.add_argument("--output", help="output path for verified environment JSON")
 
     l_res = lab_sub.add_parser("reset", help="reproducible reset of laboratory environment")
     l_res.add_argument("environment", help="path to laboratory environment JSON")
+    l_res.add_argument("--mock", action="store_true", help="validate reset configuration without performing a reset")
     l_res.add_argument("--output", help="output path for reset environment JSON")
 
     l_mat = lab_sub.add_parser("matrix", help="display tested platform and tool matrix")
@@ -825,6 +827,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     l_run = lab_sub.add_parser("run", help="execute a laboratory test case")
     l_run.add_argument("--environment", required=True, help="path to laboratory environment JSON")
+    l_run.add_argument(
+        "--evidence-dir",
+        type=Path,
+        required=True,
+        help="absolute owner-only directory for durable evidence outside the disposable workspace",
+    )
     l_run.add_argument("--plan", required=True, help="path to action plan JSON")
     l_run.add_argument("--authorization", required=True, help="path to execution authorization JSON")
     l_run.add_argument(

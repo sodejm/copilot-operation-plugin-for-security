@@ -119,3 +119,31 @@ error.
   deterministic corpus, and adapter drift; repository `make check` additionally
   covers unit tests, executable scenarios,
   adapter drift, and repository contracts.
+
+## 8. Offline playback contract
+
+`python3 -m cops demo sentinel-hunt-workbench` invokes the package playback
+runner. By default, the runner creates a mode-`0700` temporary output directory;
+`scripts/run_demo.py --out-dir <directory>` retains the same artifacts in an
+operator-selected private directory.
+
+The playback must:
+
+1. Render every supported surface declared by H01 through H12 and write a
+   compatibility report that accounts for supported and unsupported surfaces.
+2. Evaluate H01, H02, and H10 malicious, benign, and insufficient-evidence
+   fixtures as `match`, `no_escalation`, and `insufficient_evidence`, respectively.
+3. Run the full library qualification suite, including semantic-mutation gates.
+4. Write versioned `playback-summary.json`, `evaluation-summary.json`,
+   `qualification-report.json`, `compatibility-report.json`, and rendered-hunt
+   artifacts, then parse and assert those artifacts.
+5. Repeat the fixture evaluation and require an equivalent result.
+
+Missing or malformed fixtures, missing or empty output artifacts, failed
+qualification or outcome assertions, and rerun differences must exit nonzero.
+Partial output is diagnostic evidence and is never a successful resume point;
+after correction, rerun the complete command.
+
+This contract validates synthetic fixtures, rendering, schemas, and reference
+semantics. It does not execute KQL in Microsoft Sentinel, query a workspace,
+validate provider authentication, or establish production detection behavior.

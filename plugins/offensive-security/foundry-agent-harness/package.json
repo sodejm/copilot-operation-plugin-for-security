@@ -17,10 +17,10 @@
     "The MCP fixture uses subprocess isolation, not an operating-system network sandbox; use synthetic case data only."
   ],
   "demo": {
-    "description": "Run six deterministic synthetic scenarios through the offline mock authorization gate.",
+    "description": "Run six deterministic mock attacks through the authorization gate, verify semantic reruns, and exercise malformed-scenario rejection.",
     "command": [
       "$PYTHON",
-      "plugins/offensive-security/foundry-agent-harness/scripts/run_demo.py"
+      "plugins/offensive-security/foundry-agent-harness/scripts/run_playback.py"
     ],
     "timeout_seconds": 60
   },
@@ -30,6 +30,14 @@
       "command": [
         "$PYTHON",
         "plugins/offensive-security/foundry-agent-harness/scripts/validate_package.py"
+      ],
+      "timeout_seconds": 60
+    },
+    {
+      "name": "playback regression",
+      "command": [
+        "$PYTHON",
+        "plugins/offensive-security/foundry-agent-harness/tests/test_playback.py"
       ],
       "timeout_seconds": 60
     }

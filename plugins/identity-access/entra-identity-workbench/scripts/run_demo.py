@@ -1,58 +1,90 @@
-# Repository path setup precedes standalone entry point imports.
-# ruff: noqa: E402
 #!/usr/bin/env python3
-"""Deterministic demo runner for Entra Identity Workbench."""
+"""Run a retained or temporary end-to-end Entra evidence playback."""
 
 from __future__ import annotations
 
+import argparse
+import json
 import sys
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
-# Add plugin root to sys.path so entrawb can be imported cleanly
-PLUGIN_ROOT = Path(__file__).resolve().parent.parent
-REPO_ROOT = PLUGIN_ROOT.parent.parent
-
-if str(PLUGIN_ROOT) not in sys.path:
-    sys.path.insert(0, str(PLUGIN_ROOT))
-
-from entrawb.analysis import (
-    analyze_identity_graph,
-)
-from entrawb.graph import (
-    build_identity_graph,
-)
-from entrawb.ingestion import (
-    ingest_tenant_export,
-)
-from entrawb.reporting import (
-    render_markdown_report,
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+from entrawb.analysis import analyze_identity_graph  # noqa: E402
+from entrawb.graph import build_identity_graph  # noqa: E402
+from entrawb.ingestion import EntraError, ingest_tenant_export  # noqa: E402
+from entrawb.reporting import render_json_report, render_markdown_report  # noqa: E402
+from entrawb.validation import (  # noqa: E402
+    validate_graph_artifact,
+    validate_report_artifact,
 )
 
-FIXTURE_AS_OF = datetime(2026, 9, 30, 18, tzinfo=UTC)
+AS_OF = datetime(2026, 9, 30, 18, tzinfo=UTC)
 
 
-def main() -> int:
-    manifest_path = PLUGIN_ROOT / "fixtures" / "tenants" / "contoso-corp" / "manifest.json"
-    if not manifest_path.exists():
-        print(f"Error: Fixture manifest not found at {manifest_path}", file=sys.stderr)
-        return 1
+def require(condition: bool, message: str) -> None:
+    if not condition:
+        raise RuntimeError(message)
 
-    print("=== Entra Identity Workbench Demo ===")
-    print(f"Loading tenant export from: {manifest_path.relative_to(REPO_ROOT)}")
-    print("Synthetic historical assessment as of 2026-09-30T18:00:00Z; not a current tenant review.")
 
-    manifest, sources = ingest_tenant_export(manifest_path)
-    graph = build_identity_graph(manifest, sources, as_of=FIXTURE_AS_OF)
-    hypotheses = analyze_identity_graph(graph)
+def assess(manifest, out):
+    m, s = ingest_tenant_export(manifest)
+    g = build_identity_graph(m, s, as_of=AS_OF)
+    h = analyze_identity_graph(g)
+    gd = g.to_dict()
+    r = render_json_report(g, h)
+    validate_graph_artifact(gd)
+    validate_report_artifact(r)
+    require(bool(gd["nodes"] and gd["edges"] and r["hypotheses"]), "assessment produced no graph or hypotheses")
+    out.mkdir()
+    (out / "graph.json").write_text(json.dumps(gd, indent=2, sort_keys=True) + "\n")
+    (out / "report.json").write_text(json.dumps(r, indent=2, sort_keys=True) + "\n")
+    (out / "report.md").write_text(render_markdown_report(g, h))
+    return gd, r
 
-    report_md = render_markdown_report(graph, hypotheses)
-    print("\n" + report_md)
-    print(
-        f"\n[OK] Successfully analyzed {len(graph.nodes)} entities and identified {len(hypotheses)} exposure hypotheses."
-    )
+
+def playback(w):
+    p = ROOT / "fixtures/tenants/contoso-corp/manifest.json"
+    g1, r1 = assess(p, w / "run-1")
+    g2, r2 = assess(p, w / "run-2")
+    r1.pop("analyzed_at", None)
+    r2.pop("analyzed_at", None)
+    require(g1 == g2 and r1 == r2, "playback rerun changed the graph or assessment")
+    bad = w / "expected-failure.json"
+    bad.write_text("{}\n")
+    try:
+        ingest_tenant_export(bad)
+    except (EntraError, OSError, ValueError) as e:
+        (w / "expected-failure.txt").write_text(type(e).__name__ + "\n")
+    else:
+        raise AssertionError("invalid manifest was accepted")
+    return {
+        "nodes": len(g1["nodes"]),
+        "edges": len(g1["edges"]),
+        "hypotheses": len(r1["hypotheses"]),
+        "rerun_equivalent": True,
+        "expected_failure": True,
+    }
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--workspace", type=Path)
+    a = ap.parse_args()
+    if a.workspace and a.workspace.exists():
+        ap.error("--workspace must not already exist")
+    if a.workspace:
+        a.workspace.mkdir(parents=True)
+        s = playback(a.workspace)
+        (a.workspace / "playback-summary.json").write_text(json.dumps(s, indent=2, sort_keys=True) + "\n")
+        print(json.dumps({"workspace": str(a.workspace), **s}, sort_keys=True))
+    else:
+        with tempfile.TemporaryDirectory(prefix="entra-playback-") as d:
+            print(json.dumps(playback(Path(d)), sort_keys=True))
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

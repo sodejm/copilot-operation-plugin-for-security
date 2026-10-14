@@ -18,7 +18,11 @@ python3 -m cops check attack-path-workbench
 ```
 
 Confirm discovery, inspect the demo result, and retain the complete package-gate
-output. A passing gate does not substitute for the manual comparisons below.
+output. On Windows, the demo also exercises normal evidence read/report publication
+and verifies that input and output junctions fail without redirected artifacts or a
+completion marker. A passing gate does not substitute for the manual comparisons
+below. The native handle-relative implementation cannot be qualified by a non-Windows
+run; retain hosted Windows evidence for that platform.
 
 ## End-to-end exercise
 
