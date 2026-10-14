@@ -16,9 +16,12 @@ request. It binds the action plan ID and digest, authorization ID, worker SPIFFE
 identity, exact provider, account or project, region, model, gateway endpoint
 ID, request target, body SHA-256 digest and byte count, and a short validity
 window. The gateway verifies the signature, scope, body, worker identity, and
-expiry, then consumes the dispatch ID before a provider handler runs. A reused
-ID or an unavailable replay store denies dispatch. Do not retry an uncertain
-dispatch with the same or a new ID until its effect and charge are reconciled.
+expiry, then consumes both the dispatch ID and authorization ID before a provider
+handler runs. A reused ID or an unavailable replay store denies dispatch. The
+replay store must enforce uniqueness for both IDs; legacy stores without the
+authorization ID column fail closed until migrated with their consumption history
+intact. Do not retry an uncertain dispatch with the same or a new ID until its
+effect and charge are reconciled.
 
 The worker-side broker permits one bounded `POST` only to the configured HTTPS
 gateway origin and exact path. TLS must authenticate the hostname and configured
@@ -29,7 +32,10 @@ the worker and assessment report must never receive their values. A gateway
 implementation must independently compare the grant with its configured
 provider endpoint and credential scope before calling the provider. This
 repository's gateway emulator exercises that check without issuing a real
-provider request or retrieving credentials.
+provider request or retrieving credentials. Emulator handlers may return a
+bounded JSON response only after the grant is consumed. Dispatch receipts hide
+request and response bodies in their printed representation; operators must keep
+any retained body out of logs and assessment evidence.
 
 ## Operational controls before a real canary
 

@@ -15,7 +15,7 @@ import sqlite3
 import stat
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime
+from dataclasses import field as dataclass_field
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any
@@ -167,7 +167,7 @@ class GatewayDispatchGrant:
             raise _deny()
 
     @classmethod
-    def from_dict(cls, value: object) -> "GatewayDispatchGrant":
+    def from_dict(cls, value: object) -> GatewayDispatchGrant:
         if not isinstance(value, dict) or set(value) != set(cls._FIELDS):
             raise _deny()
         try:
@@ -208,7 +208,7 @@ class GatewayDispatchTrustStore:
         object.__setattr__(self, "keys", MappingProxyType(normalized))
 
     @classmethod
-    def from_file(cls, path: Path | str) -> "GatewayDispatchTrustStore":
+    def from_file(cls, path: Path | str) -> GatewayDispatchTrustStore:
         source = Path(path)
         descriptor = -1
         parent_fd = -1
@@ -324,12 +324,17 @@ class GatewayDispatchReplayStore:
                 connection.execute("PRAGMA journal_mode=DELETE")
                 connection.execute("PRAGMA synchronous=FULL")
                 connection.execute(
-                    "CREATE TABLE IF NOT EXISTS consumed_dispatches (dispatch_id TEXT PRIMARY KEY, descriptor_digest TEXT NOT NULL, consumed_at TEXT NOT NULL)"
+                    "CREATE TABLE IF NOT EXISTS consumed_dispatches (dispatch_id TEXT PRIMARY KEY, authorization_id TEXT NOT NULL UNIQUE, descriptor_digest TEXT NOT NULL, consumed_at TEXT NOT NULL)"
+                )
+                # Existing replay databases may predate the authorization column's
+                # UNIQUE constraint. Enforce it on those databases as well.
+                connection.execute(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS consumed_dispatches_authorization_id_unique ON consumed_dispatches(authorization_id)"
                 )
                 connection.execute("BEGIN IMMEDIATE")
                 connection.execute(
-                    "INSERT INTO consumed_dispatches (dispatch_id, descriptor_digest, consumed_at) VALUES (?, ?, ?)",
-                    (grant.dispatch_id, gateway_dispatch_descriptor_digest(grant), consumed_at),
+                    "INSERT INTO consumed_dispatches (dispatch_id, authorization_id, descriptor_digest, consumed_at) VALUES (?, ?, ?, ?)",
+                    (grant.dispatch_id, grant.authorization_id, gateway_dispatch_descriptor_digest(grant), consumed_at),
                 )
                 connection.execute("COMMIT")
             except sqlite3.IntegrityError as err:
@@ -431,6 +436,26 @@ class GatewayDispatchReceipt:
     body_bytes: int
     decision: str
     consumed_at: str
+    response: GatewayDispatchResponse | None = dataclass_field(default=None, repr=False)
+
+
+@dataclass(frozen=True)
+class GatewayDispatchResponse:
+    """Bounded provider emulator response, released only after grant consumption."""
+
+    status_code: int
+    media_type: str
+    body: bytes = dataclass_field(repr=False)
+
+    def __post_init__(self) -> None:
+        if (
+            type(self.status_code) is not int
+            or not 200 <= self.status_code <= 599
+            or self.media_type != "application/json"
+            or type(self.body) is not bytes
+            or len(self.body) > 1_048_576
+        ):
+            raise GatewayDispatchError("gateway dispatch response is invalid")
 
 
 @dataclass(frozen=True)
@@ -444,6 +469,7 @@ class GatewayDispatchInvocation:
     descriptor_digest: str
     body_sha256: str
     body_bytes: int
+    body: bytes = dataclass_field(repr=False)
 
 
 class GatewayDispatchEmulator:
@@ -454,10 +480,19 @@ class GatewayDispatchEmulator:
         *,
         authorizer: GatewayDispatchTransportAuthorizer,
         replay_store: GatewayDispatchReplayStore,
-        handler: Callable[[GatewayDispatchInvocation], None] | None = None,
+        action_plan_id: str,
+        plan_digest: str,
+        worker_spiffe_id: str,
+        handler: Callable[[GatewayDispatchInvocation], GatewayDispatchResponse | None] | None = None,
     ) -> None:
+        _require_token(action_plan_id)
+        _require_hash(plan_digest)
+        _require_spiffe(worker_spiffe_id)
         self._authorizer = authorizer
         self._replay_store = replay_store
+        self._action_plan_id = action_plan_id
+        self._plan_digest = plan_digest
+        self._worker_spiffe_id = worker_spiffe_id
         self._handler = handler
 
     def dispatch(
@@ -471,23 +506,29 @@ class GatewayDispatchEmulator:
     ) -> GatewayDispatchReceipt:
         endpoint = self._authorizer.verify_for_transport(
             grant=grant,
-            action_plan_id=grant.action_plan_id,
-            plan_digest=grant.plan_digest,
+            action_plan_id=self._action_plan_id,
+            plan_digest=self._plan_digest,
             presented_worker_spiffe_id=presented_worker_spiffe_id,
             request_target=request_target,
             body=body,
             current_time_iso=current_time_iso,
         )
+        if presented_worker_spiffe_id != self._worker_spiffe_id:
+            raise _deny()
         descriptor_digest, consumed_at = self._replay_store.consume(grant, current_time_iso=current_time_iso)
         invocation = GatewayDispatchInvocation(
             dispatch_id=grant.dispatch_id, authorization_id=grant.authorization_id,
             action_plan_id=grant.action_plan_id, plan_digest=grant.plan_digest,
             gateway_endpoint_id=endpoint.gateway_endpoint_id, gateway_identity=endpoint.gateway_identity,
             descriptor_digest=descriptor_digest, body_sha256=grant.body_sha256, body_bytes=grant.body_bytes,
+            body=body,
         )
+        response = None
         if self._handler is not None:
             try:
-                self._handler(invocation)
+                response = self._handler(invocation)
+                if response is not None and not isinstance(response, GatewayDispatchResponse):
+                    raise GatewayDispatchError("gateway dispatch response is invalid")
             except Exception as err:
                 raise GatewayDispatchError("gateway dispatch failed after authorization consumption") from err
         receipt_id = hashlib.sha256(f"{descriptor_digest}:{consumed_at}".encode("ascii")).hexdigest()
@@ -496,7 +537,7 @@ class GatewayDispatchEmulator:
             action_plan_id=grant.action_plan_id, plan_digest=grant.plan_digest,
             gateway_endpoint_id=endpoint.gateway_endpoint_id, gateway_identity=endpoint.gateway_identity,
             descriptor_digest=descriptor_digest, body_sha256=grant.body_sha256, body_bytes=grant.body_bytes,
-            decision="accepted", consumed_at=consumed_at,
+            decision="accepted", consumed_at=consumed_at, response=response,
         )
 
     def dispatch_envelope(

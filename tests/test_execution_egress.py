@@ -2,19 +2,24 @@
 
 from __future__ import annotations
 
-import ipaddress
+import base64
 import hashlib
+import ipaddress
 import json
 import os
 import socket
+import sqlite3
 import ssl
 import subprocess
 import sys
 import time
 from collections.abc import Mapping
 from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from cops.execution.egress import (
     BROKER_PROTOCOL,
@@ -27,11 +32,29 @@ from cops.execution.egress import (
     EgressMediationError,
     EgressProtocolError,
     ExecutionEgressBroker,
+    GatewayBrokerConfig,
     GatewayPostEgressPolicy,
     HTTPSExecutionMediator,
     ResolvedEndpoint,
     ServiceIdentityVerifier,
     _MetadataBoundedReader,
+)
+from cops.execution.gateway_dispatch import (
+    GATEWAY_DISPATCH_ALGORITHM,
+    GATEWAY_DISPATCH_SCHEMA,
+    GatewayDispatchEmulator,
+    GatewayDispatchEndpoint,
+    GatewayDispatchError,
+    GatewayDispatchGrant,
+    GatewayDispatchReplayError,
+    GatewayDispatchReplayStore,
+    GatewayDispatchResponse,
+    GatewayDispatchStoreError,
+    GatewayDispatchTransportAuthorizer,
+    GatewayDispatchTrustStore,
+    GatewayDispatchValidationError,
+    decode_gateway_dispatch_envelope,
+    sign_gateway_dispatch,
 )
 from cops.execution.scope_guard import ScopeDefinition, ScopeGuard, ScopeViolationError
 
@@ -65,6 +88,54 @@ def _identity_uri(identity: AuthenticatedServiceIdentity = IDENTITY) -> str:
     for name, value in identity.as_dict().items():
         parts.extend((name, value))
     return f"spiffe://{TRUST_DOMAIN}/cops/v1/{'/'.join(parts)}"
+
+
+def _dispatch_grant(*, dispatch_id: str = "dispatch-1", authorization_id: str = "approval-1") -> tuple[GatewayDispatchGrant, GatewayDispatchTrustStore, bytes]:
+    body = b'{"model":"approved"}'
+    now = datetime.now(UTC)
+    key = Ed25519PrivateKey.generate()
+    grant = GatewayDispatchGrant(
+        schema_version=GATEWAY_DISPATCH_SCHEMA,
+        dispatch_id=dispatch_id,
+        authorization_id=authorization_id,
+        action_plan_id="plan-1",
+        plan_digest="a" * 64,
+        worker_spiffe_id="spiffe://identity.example.test/worker/approved",
+        provider="openai",
+        account_or_project_kind="project",
+        account_or_project="project-1",
+        region="us-east-1",
+        model="model-1",
+        gateway_endpoint_id="endpoint-1",
+        request_target="https://api.openai.com/v1/responses",
+        body_sha256=hashlib.sha256(body).hexdigest(),
+        body_bytes=len(body),
+        issued_at=now.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+        expires_at=(now + timedelta(minutes=2)).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+        key_id="test-key",
+        algorithm=GATEWAY_DISPATCH_ALGORITHM,
+    )
+    trust = GatewayDispatchTrustStore({
+        "test-key": key.public_key().public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw,
+        )
+    })
+    return sign_gateway_dispatch(grant, key), trust, body
+
+
+def _dispatch_authorizer(trust: GatewayDispatchTrustStore) -> GatewayDispatchTransportAuthorizer:
+    endpoint = GatewayDispatchEndpoint(
+        gateway_endpoint_id="endpoint-1",
+        gateway_identity=_identity_uri(),
+        provider="openai",
+        account_or_project_kind="project",
+        account_or_project="project-1",
+        region="us-east-1",
+        model="model-1",
+        request_target="https://api.openai.com/v1/responses",
+    )
+    return GatewayDispatchTransportAuthorizer(trust_store=trust, endpoints={"endpoint-1": endpoint})
 
 
 def _certificate(*uris: str) -> dict[str, object]:
@@ -248,6 +319,7 @@ def _gateway_policy(
     gateway_url: str = "https://api.example.test/v2/dispatch",
     request_target: str = "/v2/dispatch",
     expected_identity: AuthenticatedServiceIdentity = IDENTITY,
+    expected_spiffe_id: str | None = None,
     body_sha256: str | None = None,
     body_bytes: int | None = None,
     max_body_bytes: int = 4_096,
@@ -257,6 +329,7 @@ def _gateway_policy(
         gateway_url=gateway_url,
         request_target=request_target,
         expected_identity=expected_identity,
+        expected_spiffe_id=expected_spiffe_id or _identity_uri(expected_identity),
         body_sha256=hashlib.sha256(body).hexdigest() if body_sha256 is None else body_sha256,
         body_bytes=len(body) if body_bytes is None else body_bytes,
         max_body_bytes=max_body_bytes,
@@ -790,6 +863,300 @@ def test_subprocess_broker_requests_receive_fail_closed_denials(attempt: str) ->
 
     assert json.loads(completed.stdout) == {"error": "egress_denied", "ok": False}
     assert mediator.observations[-1].decision == "blocked"
+
+
+def test_v1_broker_rejects_direct_provider_post_before_resolution() -> None:
+    resolver = ScriptedResolver({})
+    connector = FakeConnector()
+    mediator = _mediator(
+        resolver,
+        connector,
+        domains=("api.openai.com",),
+        approved_origin=("api.openai.com", 443),
+    )
+    broker = ExecutionEgressBroker(mediator)
+    document = {
+        "version": BROKER_PROTOCOL,
+        "method": "POST",
+        "url": "https://api.openai.com/v1/responses",
+        "headers": {},
+        "body": "{}",
+    }
+
+    with broker.open_channel() as channel:
+        completed = subprocess.run(
+            [sys.executable, "-c", _BROKER_CHILD, json.dumps(document)],
+            check=True,
+            capture_output=True,
+            env={**os.environ, **channel.environment},
+            pass_fds=channel.pass_fds,
+        )
+
+    assert json.loads(completed.stdout) == {"error": "egress_denied", "ok": False}
+    assert resolver.calls == []
+    assert connector.opened == []
+
+
+def _gateway_broker(
+    *,
+    tmp_path: object,
+    trust: GatewayDispatchTrustStore,
+    resolver: ScriptedResolver,
+    connector: FakeConnector,
+    action_plan_id: str = "plan-1",
+    gateway_spiffe_id: str | None = None,
+) -> ExecutionEgressBroker:
+    mediator = _mediator(
+        resolver,
+        connector,
+        request_targets=frozenset({"/v2/dispatch"}),
+        approved_origin=("api.example.test", 443),
+    )
+    config = GatewayBrokerConfig(
+        gateway_url="https://api.example.test/v2/dispatch",
+        gateway_spiffe_id=gateway_spiffe_id or _identity_uri(),
+        expected_identity=IDENTITY,
+        action_plan_id=action_plan_id,
+        plan_digest="a" * 64,
+        worker_spiffe_id="spiffe://identity.example.test/worker/approved",
+        max_body_bytes=4096,
+        authorizer=_dispatch_authorizer(trust),
+        replay_store=GatewayDispatchReplayStore(tmp_path / "broker-replay.sqlite"),
+    )
+    return ExecutionEgressBroker(mediator, gateway_config=config)
+
+
+def _gateway_broker_document(grant: GatewayDispatchGrant, body: bytes) -> bytes:
+    return json.dumps(
+        {
+            "version": GATEWAY_POST_BROKER_PROTOCOL,
+            "grant": grant.to_dict(),
+            "body_base64": base64.b64encode(body).decode("ascii"),
+        }
+    ).encode("ascii")
+
+
+def test_gateway_broker_binds_signed_grant_and_consumes_it_once(tmp_path) -> None:
+    grant, trust, body = _dispatch_grant()
+    endpoint = _endpoint("192.0.2.10")
+    resolver = ScriptedResolver({"api.example.test": [(endpoint,)] * 4})
+    first = FakeConnection()
+    second = FakeConnection()
+    broker = _gateway_broker(
+        tmp_path=tmp_path,
+        trust=trust,
+        resolver=resolver,
+        connector=FakeConnector(first, second),
+    )
+    request = _gateway_broker_document(grant, body)
+
+    response = broker._dispatch(request, deadline=time.monotonic() + 5)
+
+    assert response.status == 200
+    assert first.requests[0][0:2] == ("POST", "/v2/dispatch")
+    assert decode_gateway_dispatch_envelope(first.request_bodies[0]) == (grant, body)
+    assert b"api.openai.com" in first.request_bodies[0]
+
+    with pytest.raises(EgressMediationError, match="authorization callback"):
+        broker._dispatch(request, deadline=time.monotonic() + 5)
+
+    assert second.requests == []
+    assert broker._mediator.observations[-1].decision == "blocked"
+    assert "approved" not in repr(broker._mediator.observations)
+
+
+def test_gateway_broker_rechecks_expiry_after_connection_preflight(tmp_path, monkeypatch) -> None:
+    grant, trust, body = _dispatch_grant()
+    endpoint = _endpoint("192.0.2.10")
+    resolver = ScriptedResolver({"api.example.test": [(endpoint,), (endpoint,)]})
+    connection = FakeConnection()
+    broker = _gateway_broker(
+        tmp_path=tmp_path,
+        trust=trust,
+        resolver=resolver,
+        connector=FakeConnector(connection),
+    )
+    clock = iter((grant.issued_at, (datetime.fromisoformat(grant.expires_at.replace("Z", "+00:00")) + timedelta(seconds=1)).isoformat()))
+    monkeypatch.setattr("cops.execution.gateway_dispatch.utc_now", lambda: next(clock))
+
+    with pytest.raises(EgressMediationError, match="authorization callback"):
+        broker._dispatch(_gateway_broker_document(grant, body), deadline=time.monotonic() + 5)
+
+    assert connection.requests == []
+
+
+def test_gateway_broker_denies_wrong_certificate_spiffe_id_before_send(tmp_path) -> None:
+    grant, trust, body = _dispatch_grant()
+    endpoint = _endpoint("192.0.2.10")
+    resolver = ScriptedResolver({"api.example.test": [(endpoint,), (endpoint,)]})
+    connection = FakeConnection(certificate=_certificate(_identity_uri(), _identity_uri()))
+    broker = _gateway_broker(
+        tmp_path=tmp_path,
+        trust=trust,
+        resolver=resolver,
+        connector=FakeConnector(connection),
+    )
+
+    with pytest.raises(AuthenticatedResourceScopeError):
+        broker._dispatch(_gateway_broker_document(grant, body), deadline=time.monotonic() + 5)
+
+    assert connection.requests == []
+
+
+@pytest.mark.parametrize("alteration", ("scope", "identity", "body", "direct-url"))
+def test_gateway_broker_rejects_unapproved_dispatch_before_network(tmp_path, alteration: str) -> None:
+    grant, trust, body = _dispatch_grant()
+    endpoint = _endpoint("192.0.2.10")
+    resolver = ScriptedResolver({"api.example.test": [(endpoint,), (endpoint,)]})
+    connection = FakeConnection()
+    broker = _gateway_broker(
+        tmp_path=tmp_path,
+        trust=trust,
+        resolver=resolver,
+        connector=FakeConnector(connection),
+        action_plan_id="another-plan" if alteration == "scope" else "plan-1",
+        gateway_spiffe_id="spiffe://identity.example.test/other" if alteration == "identity" else None,
+    )
+    if alteration == "body":
+        body = b'{"model":"altered"}'
+    document = json.loads(_gateway_broker_document(grant, body))
+    if alteration == "direct-url":
+        document["url"] = "https://api.openai.com/v1/responses"
+
+    with pytest.raises((EgressProtocolError, GatewayDispatchValidationError)):
+        broker._dispatch(json.dumps(document).encode("ascii"), deadline=time.monotonic() + 5)
+
+    assert resolver.calls == []
+    assert connection.requests == []
+
+
+def test_gateway_emulator_uses_independent_plan_and_worker_scope_and_replay_store(tmp_path) -> None:
+    grant, trust, body = _dispatch_grant()
+    invocations: list[object] = []
+    gateway = GatewayDispatchEmulator(
+        authorizer=_dispatch_authorizer(trust),
+        replay_store=GatewayDispatchReplayStore(tmp_path / "gateway-replay.sqlite"),
+        action_plan_id="plan-1",
+        plan_digest="a" * 64,
+        worker_spiffe_id="spiffe://identity.example.test/worker/approved",
+        handler=invocations.append,
+    )
+
+    with pytest.raises(GatewayDispatchValidationError):
+        gateway.dispatch(
+            grant=grant,
+            presented_worker_spiffe_id="spiffe://identity.example.test/worker/other",
+            request_target=grant.request_target,
+            body=body,
+        )
+    assert invocations == []
+
+    receipt = gateway.dispatch(
+        grant=grant,
+        presented_worker_spiffe_id=grant.worker_spiffe_id,
+        request_target=grant.request_target,
+        body=body,
+    )
+    assert receipt.decision == "accepted"
+    assert len(invocations) == 1
+    assert "approved" not in repr(invocations)
+
+    with pytest.raises(GatewayDispatchReplayError):
+        gateway.dispatch(
+            grant=grant,
+            presented_worker_spiffe_id=grant.worker_spiffe_id,
+            request_target=grant.request_target,
+            body=body,
+        )
+    assert len(invocations) == 1
+
+
+def test_gateway_replay_store_consumes_authorization_id_once_across_dispatch_ids(tmp_path) -> None:
+    first, _, _ = _dispatch_grant()
+    second, _, _ = _dispatch_grant(dispatch_id="dispatch-2")
+    store = GatewayDispatchReplayStore(tmp_path / "replay.sqlite")
+
+    store.consume(first)
+    with pytest.raises(GatewayDispatchReplayError):
+        store.consume(second)
+
+
+def test_gateway_replay_store_fails_closed_on_legacy_schema(tmp_path) -> None:
+    first, _, _ = _dispatch_grant()
+    database_path = tmp_path / "legacy-replay.sqlite"
+    with sqlite3.connect(database_path) as connection:
+        connection.execute(
+            "CREATE TABLE consumed_dispatches (dispatch_id TEXT PRIMARY KEY, descriptor_digest TEXT NOT NULL, consumed_at TEXT NOT NULL)"
+        )
+    database_path.chmod(0o600)
+
+    with pytest.raises(GatewayDispatchStoreError):
+        GatewayDispatchReplayStore(database_path).consume(first)
+
+
+def test_gateway_emulator_returns_bounded_response_after_consumption(tmp_path) -> None:
+    grant, trust, body = _dispatch_grant()
+    store = GatewayDispatchReplayStore(tmp_path / "gateway-response-replay.sqlite")
+    invocations = []
+
+    def handler(invocation):
+        invocations.append(invocation)
+        with pytest.raises(GatewayDispatchReplayError):
+            store.consume(grant)
+        return GatewayDispatchResponse(200, "application/json", b'{"secret":"never-log"}')
+
+    gateway = GatewayDispatchEmulator(
+        authorizer=_dispatch_authorizer(trust),
+        replay_store=store,
+        action_plan_id="plan-1",
+        plan_digest="a" * 64,
+        worker_spiffe_id="spiffe://identity.example.test/worker/approved",
+        handler=handler,
+    )
+
+    receipt = gateway.dispatch(
+        grant=grant,
+        presented_worker_spiffe_id=grant.worker_spiffe_id,
+        request_target=grant.request_target,
+        body=body,
+    )
+
+    assert invocations[0].body == body
+    assert receipt.response is not None
+    assert receipt.response.body == b'{"secret":"never-log"}'
+    assert "never-log" not in repr(receipt)
+    assert body.decode("ascii") not in repr(invocations[0])
+
+
+def test_gateway_emulator_does_not_replay_after_oversized_response(tmp_path) -> None:
+    grant, trust, body = _dispatch_grant()
+
+    def oversized_response(_invocation):
+        return GatewayDispatchResponse(200, "application/json", b"x" * 1_048_577)
+
+    gateway = GatewayDispatchEmulator(
+        authorizer=_dispatch_authorizer(trust),
+        replay_store=GatewayDispatchReplayStore(tmp_path / "gateway-oversize-replay.sqlite"),
+        action_plan_id="plan-1",
+        plan_digest="a" * 64,
+        worker_spiffe_id="spiffe://identity.example.test/worker/approved",
+        handler=oversized_response,
+    )
+
+    with pytest.raises(GatewayDispatchError, match="failed after authorization consumption"):
+        gateway.dispatch(
+            grant=grant,
+            presented_worker_spiffe_id=grant.worker_spiffe_id,
+            request_target=grant.request_target,
+            body=body,
+        )
+    with pytest.raises(GatewayDispatchReplayError):
+        gateway.dispatch(
+            grant=grant,
+            presented_worker_spiffe_id=grant.worker_spiffe_id,
+            request_target=grant.request_target,
+            body=body,
+        )
 
 
 def _receive_line(client: socket.socket) -> dict[str, object]:

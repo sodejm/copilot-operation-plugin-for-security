@@ -16,6 +16,7 @@ import ipaddress
 import json
 import math
 import multiprocessing
+import re
 import socket
 import ssl
 import threading
@@ -29,6 +30,12 @@ from types import MappingProxyType
 from typing import Protocol
 from urllib.parse import SplitResult, quote, unquote, urljoin, urlsplit
 
+from .gateway_dispatch import (
+    GatewayDispatchGrant,
+    GatewayDispatchReplayStore,
+    GatewayDispatchTransportAuthorizer,
+    encode_gateway_dispatch_envelope,
+)
 from .scope_guard import METADATA_ADDRESSES, ScopeGuard, ScopeViolationError
 
 BROKER_FD_ENV = "COPS_EGRESS_BROKER_FD"
@@ -131,9 +138,44 @@ class GatewayPostEgressPolicy:
     gateway_url: str
     request_target: str
     expected_identity: AuthenticatedServiceIdentity
+    expected_spiffe_id: str
     body_sha256: str
     body_bytes: int
     max_body_bytes: int
+
+
+@dataclass(frozen=True)
+class GatewayBrokerConfig:
+    """Operator-owned scope for one adapter's signed gateway dispatches."""
+
+    gateway_url: str
+    gateway_spiffe_id: str
+    expected_identity: AuthenticatedServiceIdentity
+    action_plan_id: str
+    plan_digest: str
+    worker_spiffe_id: str
+    max_body_bytes: int
+    authorizer: GatewayDispatchTransportAuthorizer
+    replay_store: GatewayDispatchReplayStore
+
+    def __post_init__(self) -> None:
+        if (
+            not isinstance(self.gateway_url, str)
+            or not isinstance(self.gateway_spiffe_id, str)
+            or not self.gateway_spiffe_id.startswith("spiffe://")
+            or not isinstance(self.expected_identity, AuthenticatedServiceIdentity)
+            or not isinstance(self.action_plan_id, str)
+            or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}", self.action_plan_id)
+            or not isinstance(self.plan_digest, str)
+            or not re.fullmatch(r"[0-9a-f]{64}", self.plan_digest)
+            or not isinstance(self.worker_spiffe_id, str)
+            or not self.worker_spiffe_id.startswith("spiffe://")
+            or type(self.max_body_bytes) is not int
+            or not 0 < self.max_body_bytes <= 16 * 1024 * 1024
+            or not isinstance(self.authorizer, GatewayDispatchTransportAuthorizer)
+            or not isinstance(self.replay_store, GatewayDispatchReplayStore)
+        ):
+            raise ValueError("gateway broker configuration is invalid")
 
 
 class ServiceIdentityVerifier(Protocol):
@@ -165,6 +207,10 @@ class CertificateURIIdentityVerifier:
         if not canonical or any(character not in "abcdefghijklmnopqrstuvwxyz0123456789-." for character in canonical):
             raise ValueError("certificate identity trust domain is invalid")
         self._trust_domain = canonical
+
+    @property
+    def trust_domain(self) -> str:
+        return self._trust_domain
 
     def verify(
         self,
@@ -662,6 +708,12 @@ class HTTPSExecutionMediator:
                 raise AuthenticatedResourceScopeError("TLS peer resource identity verification failed") from err
             if identity != policy.expected_identity:
                 raise AuthenticatedResourceScopeError("TLS peer identity does not match the configured gateway")
+            subject_alt_names = connection.peer_certificate.get("subjectAltName", ())
+            if (
+                not isinstance(subject_alt_names, (tuple, list))
+                or sum(item == ("URI", policy.expected_spiffe_id) for item in subject_alt_names) != 1
+            ):
+                raise AuthenticatedResourceScopeError("TLS peer SPIFFE identity does not match the configured gateway")
             self._identity_allowlist.require(identity, request_target=target)
 
             host_literal = f"[{hostname}]" if ":" in hostname else hostname
@@ -720,6 +772,25 @@ class HTTPSExecutionMediator:
             raise EgressProtocolError("unsupported gateway dispatch protocol version")
         if not isinstance(policy.expected_identity, AuthenticatedServiceIdentity):
             raise EgressProtocolError("gateway dispatch identity is invalid")
+        if not isinstance(policy.expected_spiffe_id, str):
+            raise EgressProtocolError("gateway dispatch SPIFFE identity is invalid")
+        parsed_identity = urlsplit(policy.expected_spiffe_id)
+        expected_path = "/cops/v1/" + "/".join(
+            part
+            for name, value in policy.expected_identity.as_dict().items()
+            for part in (name, quote(value, safe=""))
+        )
+        if (
+            parsed_identity.scheme != "spiffe"
+            or not parsed_identity.hostname
+            or parsed_identity.netloc != parsed_identity.hostname
+            or parsed_identity.path != expected_path
+            or parsed_identity.query
+            or parsed_identity.fragment
+            or not isinstance(self._identity_verifier, CertificateURIIdentityVerifier)
+            or self._identity_verifier.trust_domain != parsed_identity.hostname
+        ):
+            raise EgressProtocolError("gateway dispatch SPIFFE identity is invalid")
         if type(body) is not bytes:
             raise EgressProtocolError("gateway dispatch body must be bytes")
         if (
@@ -1086,6 +1157,7 @@ class ExecutionEgressBroker:
         max_total_request_bytes: int = 262_144,
         max_total_response_bytes: int = 8_388_608,
         protocol_timeout_seconds: float = 15.0,
+        gateway_config: GatewayBrokerConfig | None = None,
     ) -> None:
         if (
             max_request_bytes <= 0
@@ -1101,6 +1173,9 @@ class ExecutionEgressBroker:
         self._max_total_request_bytes = max_total_request_bytes
         self._max_total_response_bytes = max_total_response_bytes
         self._protocol_timeout_seconds = protocol_timeout_seconds
+        if gateway_config is not None and not isinstance(gateway_config, GatewayBrokerConfig):
+            raise ValueError("gateway broker configuration is invalid")
+        self._gateway_config = gateway_config
 
     @contextmanager
     def open_channel(self, *, deadline: float | None = None) -> Iterator[BrokerChannel]:
@@ -1270,6 +1345,8 @@ class ExecutionEgressBroker:
 
     def _dispatch(self, line: bytes, *, deadline: float) -> MediatedResponse:
         document = json.loads(line)
+        if isinstance(document, dict) and document.get("version") == GATEWAY_POST_BROKER_PROTOCOL:
+            return self._dispatch_gateway(document, deadline=deadline)
         if not isinstance(document, dict) or set(document) != {"version", "method", "url", "headers"}:
             raise EgressProtocolError("broker request fields do not match the protocol")
         if document["version"] != BROKER_PROTOCOL:
@@ -1282,6 +1359,62 @@ class ExecutionEgressBroker:
         if any(not isinstance(name, str) or not isinstance(value, str) for name, value in headers.items()):
             raise EgressProtocolError("broker request header types do not match the protocol")
         return self._mediator.request(method=method, url=url, headers=headers, deadline=deadline)
+
+    def _dispatch_gateway(self, document: dict[str, object], *, deadline: float) -> MediatedResponse:
+        config = self._gateway_config
+        if config is None or set(document) != {"version", "grant", "body_base64"}:
+            raise EgressProtocolError("gateway dispatch is unavailable or malformed")
+        encoded_body = document["body_base64"]
+        if not isinstance(encoded_body, str) or len(encoded_body) > (config.max_body_bytes + 2) * 4 // 3 + 4:
+            raise EgressProtocolError("gateway dispatch body exceeds the configured limit")
+        try:
+            grant = GatewayDispatchGrant.from_dict(document["grant"])
+            body = base64.b64decode(encoded_body, validate=True)
+        except (ValueError, TypeError) as err:
+            raise EgressProtocolError("gateway dispatch envelope is malformed") from err
+        if len(body) > config.max_body_bytes:
+            raise EgressProtocolError("gateway dispatch body exceeds the configured limit")
+        endpoint = config.authorizer.verify_for_transport(
+            grant=grant,
+            action_plan_id=config.action_plan_id,
+            plan_digest=config.plan_digest,
+            presented_worker_spiffe_id=config.worker_spiffe_id,
+            request_target=grant.request_target,
+            body=body,
+        )
+        if endpoint.gateway_identity != config.gateway_spiffe_id:
+            raise EgressProtocolError("gateway dispatch identity does not match the configured endpoint")
+        envelope = encode_gateway_dispatch_envelope(grant=grant, body=body)
+        policy = GatewayPostEgressPolicy(
+            protocol=GATEWAY_POST_BROKER_PROTOCOL,
+            gateway_url=config.gateway_url,
+            request_target=_request_target(urlsplit(config.gateway_url)),
+            expected_identity=config.expected_identity,
+            expected_spiffe_id=config.gateway_spiffe_id,
+            body_sha256=hashlib.sha256(envelope).hexdigest(),
+            body_bytes=len(envelope),
+            max_body_bytes=self._max_request_bytes,
+        )
+        def before_send() -> None:
+            current_endpoint = config.authorizer.verify_for_transport(
+                grant=grant,
+                action_plan_id=config.action_plan_id,
+                plan_digest=config.plan_digest,
+                presented_worker_spiffe_id=config.worker_spiffe_id,
+                request_target=grant.request_target,
+                body=body,
+            )
+            if current_endpoint.gateway_identity != config.gateway_spiffe_id:
+                raise EgressProtocolError("gateway dispatch identity does not match the configured endpoint")
+            config.replay_store.consume(grant)
+
+        return self._mediator.post_gateway(
+            policy=policy,
+            body=envelope,
+            headers={"Content-Type": "application/json"},
+            before_send=before_send,
+            deadline=deadline,
+        )
 
     def _write_error(self, server_socket: socket.socket, code: str, deadline: float) -> None:
         self._send(server_socket, _json_line({"ok": False, "error": code}), deadline)

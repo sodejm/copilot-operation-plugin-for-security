@@ -52,6 +52,7 @@ private payloads and real identifiers must never be copied into this document.
 | Approved local corpus → private Linux worker workspace → offline research adapter → run result | The signed plan binds corpus, inventory, isolation, and executable digests. The worker checks a fresh namespace observation before approval consumption and before each external adapter starts; its own measurements do not independently attest host controls. |
 | Operator-supplied synthetic case → runner → agent fixture proposal → authorization gate → MCP stdio fixture → observed state/report | Case text and MCP tool output are untrusted data. The agent child proposes but has no MCP pipe; only the runner can forward a proposal after case-scoped checks. The separate child processes share the host's OS authority, so their stdio boundary is not an OS network sandbox. |
 | Synthetic provider plan and response fixture → exact plan gate → assessment budget ledger → normalized content-free report | Provider-shaped input remains untrusted. Exact environment, scope, endpoint, model, canary, tool and request-digest binding precede reservation and fixture processing. The importer makes no network request and executes no proposed tool. |
+| Approved dispatch grant → worker egress broker → operator gateway → provider handler | The opt-in v2 broker accepts a bounded POST only to one configured gateway origin and path with an exact TLS SPIFFE identity. It verifies the signed grant against the plan, worker identity, provider scope, and request digest, then durably consumes the one-use dispatch and authorization IDs before sending. The gateway independently verifies those bindings and owns provider credentials. Repository tests use an emulator; no production gateway or credential path is provisioned. |
 
 ```mermaid
 flowchart LR
@@ -146,9 +147,32 @@ receipt covers only the temporary local budget ledger. The importer has no
 provider client, credential lookup, network operation, live mode or paid mode.
 It cannot authenticate a response, verify tenant identity, establish actual
 usage or cost, prove remote cancellation or cleanup, or measure model behavior.
-The shared egress broker permits only `GET` and `HEAD`, which cannot carry a
-provider inference request. Live assessment requires a separately authorized
-execution boundary with exact POST origin, path, body and identity binding.
+The default shared egress broker permits only `GET` and `HEAD`. An opt-in v2
+gateway route supports a bounded POST to an operator-configured gateway, as
+described below. The offline importer does not use that route. Neither component
+establishes production worker readiness or authorizes a paid provider request.
+
+### Operator gateway dispatch boundary
+
+The v2 broker accepts a signed dispatch grant and a bounded body only when the
+operator has configured the exact action plan and digest, worker SPIFFE identity,
+gateway HTTPS origin and path, gateway SPIFFE identity, trust store, and durable
+replay store. The grant binds the provider, account or project, region, model,
+gateway endpoint, provider request target, body digest and byte count. The
+broker rechecks the grant immediately before consuming its one-use dispatch and
+authorization IDs. TLS checks the gateway hostname and configured SPIFFE URI;
+redirects and automatic retries are denied. A legacy replay database missing
+the authorization ID constraint fails closed until its history is migrated.
+
+The gateway emulator independently verifies the signed grant and worker identity
+and consumes it before invoking a provider-shaped handler. The handler can return
+only a bounded JSON response. These tests establish local protocol behavior, not
+the identity, credentials, isolation, or retention of a deployed gateway. A
+production gateway would own scoped provider credentials and must compare the
+grant to its configured provider endpoint before any provider call. The worker
+must not receive those credentials. A consumed grant followed by a disconnect
+has an uncertain outcome and must not be replayed automatically. Provider usage,
+billing, remote cancellation, and deletion require independent evidence.
 
 ## Implementation evidence inventory
 
@@ -417,9 +441,17 @@ validation before the affected release/capability expansion and schedule P2 with
 
 - Attack path / prerequisite: A substituted endpoint, tenant/account, project/subscription, model, request digest, canary, or tool request is accepted as the authorized case; a forged completed response or usage record is reported as provider truth; nested prompt or response content reaches the report; or a tool proposal is confused with tool execution.
 - Inherent impact: High if fixture evidence is used to authorize or describe live provider activity; likelihood: Medium; priority: P1 before any live expansion.
-- Existing evidence / limitation: The offline importer accepts only bounded, strict plan, case, and provider-shaped response documents. It requires exact binding before ledger reservation and response normalization, uses reserved `.invalid` endpoints, treats tool requests as proposals only, and reports partial responses as `no_effect` with unknown usage while keeping the reservation conservative. The report is assembled from allowlisted fields and excludes response text, prompts, endpoint URLs, account identifiers, canary values, and credentials. Synthetic tests exercise each supported provider family plus binding, budget, tool, partial-response, and malformed-input paths. The shared egress contract permits only `GET` and `HEAD`, so it cannot dispatch provider inference requests.
+- Existing evidence / limitation: The offline importer accepts only bounded, strict plan, case, and provider-shaped response documents. It requires exact binding before ledger reservation and response normalization, uses reserved `.invalid` endpoints, treats tool requests as proposals only, and reports partial responses as `no_effect` with unknown usage while keeping the reservation conservative. The report is assembled from allowlisted fields and excludes response text, prompts, endpoint URLs, account identifiers, canary values, and credentials. Synthetic tests exercise each supported provider family plus binding, budget, tool, partial-response, and malformed-input paths. The default egress contract permits only `GET` and `HEAD`; the opt-in v2 gateway route is separately scoped and has only emulator evidence.
 - Proposed mitigation and validation: Keep provider-specific parsing and negative binding tests pinned to versioned schemas. Before adding live capability, separately authorize an exact provider origin, path, method, body class, credential identity, tenant/account and model; integrate export redaction at the send boundary; reconcile provider usage and billing independently; record cancellation request, observed stop and final usage separately; and verify remote cleanup and retention with provider evidence. Require exact-revision human security review.
 - Residual risk / status: Offline fixtures cannot authenticate a provider response, establish tenant or project ownership, prove usage or billing, verify remote cancellation or cleanup, or evaluate model and tool safety. A same-authority actor can rewrite fixtures and expected results together. No live or paid provider evidence is present.
+
+### T27: Gateway dispatch replay, identity substitution, or credential scope escape
+
+- Attack path / prerequisite: A worker or gateway accepts a forged, expired, reused, or mismatched dispatch grant; a redirected POST reaches a direct provider destination; a gateway uses credentials outside the approved account, project, region, or model; or an uncertain request is automatically retried and charged twice.
+- Inherent impact: High; likelihood: Medium before deployment controls are verified; priority: P1.
+- Existing evidence / limitation: The v2 broker binds a bounded POST body to a signed plan-scoped grant, exact gateway URL and TLS SPIFFE URI, rechecks authorization immediately before sending, and consumes both dispatch and authorization IDs in a durable replay store. The emulator independently checks plan, worker, provider scope, and request digest before its handler runs. Synthetic tests cover replay, scope and identity mismatch, direct egress, oversized bodies, malformed responses, and uncertain outcomes. The repository does not provision the production gateway, provider credentials, worker route, or provider-side billing and deletion evidence.
+- Proposed mitigation and validation: Verify production worker isolation, SSH host key, gateway TLS identity, signer custody, replay-store durability, credential resolver scope, provider endpoint mapping, retention, and log redaction on the intended host. Exercise cancellation, timeout, duplicate delivery, and reconciliation with a separate engagement authorization and exact-revision human security review before a real canary.
+- Residual risk / status: A compromised gateway or same-authority replay store can bypass local checks. An authorization consumed before a disconnect may have produced an effect or charge; local cleanup cannot establish provider cancellation, billing, or deletion. Live execution remains disabled by default and no paid provider call has been made.
 
 ## STRIDE and privacy coverage
 
