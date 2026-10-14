@@ -172,9 +172,7 @@ def test_ascii_case_variation_selects_exact_target(engagement: dict[str, object]
 
 
 @pytest.mark.parametrize("lookalike", ["wiKi", "wıkı", "wİkİ"])
-def test_unicode_lookalike_cannot_select_ascii_target(
-    engagement: dict[str, object], lookalike: str
-) -> None:
+def test_unicode_lookalike_cannot_select_ascii_target(engagement: dict[str, object], lookalike: str) -> None:
     unselected = copy.deepcopy(engagement)
     unselected["scope"]["included_targets"] = ["wiki"]  # type: ignore[index]
     unselected["metadata"] = {}
@@ -365,9 +363,7 @@ def test_goal_rejects_out_of_scope_metadata_selection(engagement: dict[str, obje
         ('Assess the selected endpoint; for example, "10.0.0.5".', "non_authoritative_target"),
     ],
 )
-def test_goal_scope_error_precedes_stale_selection(
-    engagement: dict[str, object], goal: str, code: str
-) -> None:
+def test_goal_scope_error_precedes_stale_selection(engagement: dict[str, object], goal: str, code: str) -> None:
     changed = copy.deepcopy(engagement)
     changed["metadata"]["goal_selection"]["target"] = "stale.internal"  # type: ignore[index]
     with pytest.raises(GoalResolutionError) as error:
