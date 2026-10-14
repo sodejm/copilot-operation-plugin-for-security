@@ -29,6 +29,31 @@ from tests.auth_testkit import (
 )
 from tests.test_auth_assessment_approval import PLUGIN_ROOT, authorized_batch, forbid_processes, patch_executor
 
+EXPECTED_AUTH_CASE_IDS = (
+    "autonomous-control",
+    "confused-deputy",
+    "cross-tenant",
+    "cross-tenant-reverse",
+    "delegated-control",
+    "delegated-control-fabrikam",
+    "excess-depth",
+    "expired-grant",
+    "one-time-replay",
+    "peer-mutate-operation",
+    "peer-mutate-tenant",
+    "peer-omit-tenant",
+    "peer-substitute-receipt",
+    "read-control",
+    "reusable-grant",
+    "revoked-grant",
+    "wrong-agent",
+    "wrong-audience",
+    "wrong-downstream",
+    "wrong-resource",
+    "wrong-scope",
+    "wrong-tool",
+)
+
 
 def cli_context(tmp_path: Path, data: dict | None = None):
     case_path = tmp_path / "case.json"
@@ -543,6 +568,24 @@ def test_coverage_gate_rejects_same_count_with_missing_required_behavior(case_id
             data["attempts"][0]["peer_action"] = "trusted_forward"
             data["attempts"][0]["tenant"] = "tenant-contoso-01"
             data["grant"] = "delegated-write"
+        changed.append(auth_laboratory.AuthCase.from_dict(data))
+    assert len(changed) == len(cases)
+    with pytest.raises(auth_laboratory.LabError, match="coverage"):
+        auth_laboratory.validate_default_auth_coverage(changed)
+
+
+def test_required_auth_matrix_pins_all_reviewed_case_ids():
+    assert set(auth_laboratory.required_auth_coverage()) == set(EXPECTED_AUTH_CASE_IDS)
+
+
+@pytest.mark.parametrize("case_id", EXPECTED_AUTH_CASE_IDS)
+def test_coverage_gate_rejects_replacing_any_default_case(case_id):
+    cases = auth_laboratory.load_auth_cases(PLUGIN_ROOT / "auth_cases")
+    changed = []
+    for case in cases:
+        data = case.to_dict()
+        if case.case_id == case_id:
+            data["case_id"] = f"replacement-{case_id}"
         changed.append(auth_laboratory.AuthCase.from_dict(data))
     assert len(changed) == len(cases)
     with pytest.raises(auth_laboratory.LabError, match="coverage"):

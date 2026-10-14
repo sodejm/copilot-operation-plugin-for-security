@@ -70,6 +70,42 @@ class PackageError(ValueError):
     """Invalid or unsupported package data; messages never contain input values."""
 
 
+def required_auth_coverage():
+    """Read the same data-only control matrix used by the runtime gate."""
+    data = load_json(PLUGIN_ROOT / "schemas" / "auth-required-coverage.json", 64 * 1024)
+    if not isinstance(data, dict) or set(data) != {"schema_version", "required_cases"}:
+        raise PackageError("Invalid required authorization coverage")
+    cases = data["required_cases"]
+    if data["schema_version"] != "cops.agent-mcp-auth-coverage/v1" or not isinstance(cases, dict) or len(cases) != 22:
+        raise PackageError("Invalid required authorization coverage")
+    required = {}
+    for case_id, contract in cases.items():
+        if not isinstance(case_id, str) or not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", case_id):
+            raise PackageError("Invalid required authorization coverage")
+        if not isinstance(contract, dict) or set(contract) != {
+            "grant", "flow", "expected_decisions", "expected_reasons", "expected_effect_count"
+        }:
+            raise PackageError("Invalid required authorization coverage")
+        grant, flow = contract["grant"], contract["flow"]
+        decisions, reasons = contract["expected_decisions"], contract["expected_reasons"]
+        effects = contract["expected_effect_count"]
+        if (
+            not isinstance(grant, str)
+            or not isinstance(flow, str)
+            or not isinstance(decisions, list)
+            or not decisions
+            or not all(isinstance(value, str) and value in ("allowed", "denied", "inconclusive") for value in decisions)
+            or not isinstance(reasons, list)
+            or len(reasons) != len(decisions)
+            or not all(isinstance(value, str) for value in reasons)
+            or type(effects) is not int
+            or not 0 <= effects <= len(decisions)
+        ):
+            raise PackageError("Invalid required authorization coverage")
+        required[case_id] = (grant, flow, tuple(decisions), tuple(reasons), effects)
+    return required
+
+
 def read_text(path: Path, limit: int = 1024 * 1024) -> str:
     for component in (path, *path.parents):
         if component.is_symlink():
@@ -336,6 +372,20 @@ def load_cases(directory: str, schema_name: str, identity: str, minimum: int):
 
 
 def check_auth_coverage(cases):
+    actual = {
+        case["case_id"]: (
+            case["grant"],
+            case["flow"],
+            tuple(case["expected_decisions"]),
+            tuple(case["expected_reasons"]),
+            case["expected_effect_count"],
+        )
+        for case in cases
+        if case.get("surface", "local_synthetic_fixture") == "local_synthetic_fixture"
+        and case.get("expected_outcome", "pass") == "pass"
+    }
+    if any(actual.get(case_id) != contract for case_id, contract in required_auth_coverage().items()):
+        raise PackageError("Missing required default authorization coverage")
     definitions = []
     for case in cases:
         if (

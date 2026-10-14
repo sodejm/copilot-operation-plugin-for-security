@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -184,6 +185,8 @@ def rejected_boundary(context):
 
 @given("a signed batch of the bundled MCP authorization cases")
 def signed_auth_batch(context, tmp_path: Path):
+    if os.name == "nt":
+        pytest.skip("Signed MCP authorization fixture requires POSIX private-permission checks")
     cases = auth_laboratory.load_auth_cases(PACKAGE / "auth_cases")
     context["auth_cases"], context["auth_context"] = authorized_batch(tmp_path, cases)
 
@@ -248,6 +251,8 @@ def unsigned_rejected(context):
 
 @given("a signed case whose target omits identity telemetry")
 def missing_identity_case(context, tmp_path: Path):
+    if os.name == "nt":
+        pytest.skip("Signed MCP authorization fixture requires POSIX private-permission checks")
     data = json.loads((PACKAGE / "auth_cases/wrong-audience.json").read_text(encoding="utf-8"))
     data["attempts"][0]["fault_mode"] = "missing_identity_telemetry"
     data["expected_outcome"] = "inconclusive"

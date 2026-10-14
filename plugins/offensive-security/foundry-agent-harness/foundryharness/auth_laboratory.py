@@ -74,6 +74,46 @@ SURFACES = {"local_synthetic_fixture", "unsupported_provider_surface"}
 OUTCOMES = {"pass", "fail", "inconclusive", "unsupported"}
 
 
+def required_auth_coverage() -> dict[str, tuple[str, str, tuple[str, ...], tuple[str, ...], int]]:
+    """Read the shipped, data-only authorization control matrix."""
+    path = Path(__file__).resolve().parents[1] / "schemas" / "auth-required-coverage.json"
+    try:
+        data = decode_json(read_regular_file(path, max_bytes=65536), max_bytes=65536)
+    except (OSError, JSONInputError) as exc:
+        raise LabError("Invalid required authorization coverage") from exc
+    if not isinstance(data, dict) or set(data) != {"schema_version", "required_cases"}:
+        raise LabError("Invalid required authorization coverage")
+    cases = data["required_cases"]
+    if data["schema_version"] != "cops.agent-mcp-auth-coverage/v1" or not isinstance(cases, dict) or len(cases) != 22:
+        raise LabError("Invalid required authorization coverage")
+    required = {}
+    for case_id, contract in cases.items():
+        if not isinstance(case_id, str) or not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", case_id):
+            raise LabError("Invalid required authorization coverage")
+        if not isinstance(contract, dict) or set(contract) != {
+            "grant", "flow", "expected_decisions", "expected_reasons", "expected_effect_count"
+        }:
+            raise LabError("Invalid required authorization coverage")
+        grant, flow = contract["grant"], contract["flow"]
+        decisions, reasons = contract["expected_decisions"], contract["expected_reasons"]
+        effects = contract["expected_effect_count"]
+        if (
+            not isinstance(grant, str)
+            or not isinstance(flow, str)
+            or not isinstance(decisions, list)
+            or not decisions
+            or not all(isinstance(value, str) and value in DECISIONS for value in decisions)
+            or not isinstance(reasons, list)
+            or len(reasons) != len(decisions)
+            or not all(isinstance(value, str) and value in REASONS for value in reasons)
+            or type(effects) is not int
+            or not 0 <= effects <= len(decisions)
+        ):
+            raise LabError("Invalid required authorization coverage")
+        required[case_id] = (grant, flow, tuple(decisions), tuple(reasons), effects)
+    return required
+
+
 @dataclass(frozen=True)
 class AuthCase:
     surface: str
@@ -239,6 +279,19 @@ def load_auth_cases(path: Path) -> list[AuthCase]:
 
 def validate_default_auth_coverage(cases: list[AuthCase]) -> None:
     """Require meaningful controls and hostile-peer tests in the shipped corpus."""
+    actual = {
+        case.case_id: (
+            case.grant,
+            case.flow,
+            case.expected_decisions,
+            case.expected_reasons,
+            case.expected_effect_count,
+        )
+        for case in cases
+        if case.surface == "local_synthetic_fixture" and case.expected_outcome == "pass"
+    }
+    if any(actual.get(case_id) != contract for case_id, contract in required_auth_coverage().items()):
+        raise LabError("Default authorization cases lack required coverage")
     required: list[tuple[str, str, dict[str, Any], str, str, int, str]] = []
     for grant_name in ("delegated-write", "delegated-write-fabrikam", "autonomous-write"):
         grant = GRANTS[grant_name]

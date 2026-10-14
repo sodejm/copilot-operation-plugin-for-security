@@ -65,6 +65,31 @@ def test_source_package_validator_does_not_require_repository_imports(tmp_path):
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+@pytest.mark.parametrize("defect", ["missing_case", "changed_contract", "missing_matrix"])
+def test_package_gate_rejects_missing_required_auth_coverage(tmp_path, defect):
+    copied = tmp_path / "plugin"
+    shutil.copytree(PLUGIN, copied, ignore=shutil.ignore_patterns("__pycache__"))
+    matrix = copied / "schemas/auth-required-coverage.json"
+    if defect == "missing_case":
+        (copied / "auth_cases/wrong-tool.json").unlink()
+    elif defect == "changed_contract":
+        data = json.loads(matrix.read_text())
+        data["required_cases"]["wrong-tool"]["expected_reasons"] = ["allowed"]
+        matrix.write_text(json.dumps(data))
+    else:
+        matrix.unlink()
+    result = subprocess.run(
+        [sys.executable, "-I", str(copied / "scripts/validate_package.py")],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+    assert result.returncode == 1
+    assert "Invalid, missing, or unsupported package data" in result.stderr
+    assert "Traceback" not in result.stderr
+
+
 @pytest.mark.parametrize("schema_name", ["auth-adapter", "auth-evidence", "auth-report"])
 @pytest.mark.parametrize("defect", ["empty", "unknown_keyword", "missing_reference", "invalid_required"])
 def test_package_gate_rejects_invalid_authorization_schema(tmp_path, schema_name, defect):
