@@ -13,3 +13,19 @@ This audit covers the repository contracts for closed issues [#82–#87](https:/
 | #90 laboratory | `tests/test_provider_assessment.py` and `tests/test_assessment_budget.py` cover offline provider fixtures, budget admission, malformed responses, uncertain usage, and report redaction. | A controlled emulator and gateway deployment for the exact revision before a real canary. |
 
 No existing gate defect was demonstrated by this audit's source review and focused local tests. The new gateway POST and provider assessment tests extend the local contracts. They do not close the operational gate: a real canary still needs an engagement-specific authorization, approved request digest and budget, independent production worker and gateway evidence, credential and residency review, billing reconciliation, and exact-revision security review.
+
+The audit's focused suite ran under Python 3.11.17 in a virtual environment:
+
+```bash
+python -m pytest -q \
+  tests/test_execution_authorization.py tests/test_ssh_execution.py \
+  tests/test_isolated_worker.py tests/test_worker_supervisor.py \
+  tests/test_execution_egress_policy.py tests/test_execution_worker_egress.py \
+  tests/test_execution_egress.py tests/test_adapter_registry.py \
+  tests/test_adapter_execution.py tests/test_scoped_credentials.py \
+  tests/test_credential_evidence.py tests/test_supervisor_credential_provider.py \
+  tests/test_cleanup_recovery.py tests/test_provider_assessment.py \
+  tests/test_assessment_budget.py
+```
+
+The command exited successfully with six skips. Those skips and the absence of a deployed worker or gateway limit this finding to the repository contracts tested here.
