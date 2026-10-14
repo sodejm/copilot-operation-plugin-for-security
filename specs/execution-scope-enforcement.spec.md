@@ -28,6 +28,24 @@ Enforces actual network destinations and resource identities at execution time a
    - Redirects, resolution changes, peer-address changes, proxy/tunnel headers, metadata endpoints, malformed responses, and request or response limit overruns fail closed and produce redacted observations.
    - The broker bounds request count, aggregate bytes, and total protocol time for one operation.
 
+6. **Operator Gateway POST Protocol (`cops.operator-gateway-dispatch/v2`)**:
+   - Provider dispatch is a separate, versioned broker capability. It does not widen the `GET`/`HEAD` mediation protocol.
+   - The capability permits exactly one HTTPS `POST` to one configured gateway origin and one exact request target. The worker does not receive a provider origin, provider credential, redirect destination, or proxy/tunnel capability.
+   - The request body has a configured maximum byte length. The worker verifies its SHA-256 digest and byte length against the signed dispatch descriptor before the first byte leaves the broker.
+   - The configured gateway TLS peer must present the exact allowlisted SPIFFE URI identity. Hostname, resolved addresses, connected peer address, origin, and request target remain subject to the existing scope and identity checks.
+   - Redirect status responses, a changed origin or target, a second request, and every retry are rejected. A timeout or transport failure after transmission is recorded as an unknown outcome and is never resent.
+   - A pre-send callback runs after all transport checks and immediately before bytes leave the broker. It is the only point at which a caller may consume a one-use authorization for the dispatch.
+
+7. **Gateway Dispatch Binding and Replay Prevention**:
+   - The dispatch descriptor binds a unique `dispatch_id`, authorization identifier, action-plan identifier and digest, worker SPIFFE identity, account, project, region, model, gateway endpoint identifier, exact request target, body SHA-256 digest, body byte length, issuance and expiry, and signing key identifier.
+   - A gateway verifies the descriptor with a pinned Ed25519 public-key trust store. The gateway must not receive a worker-held shared signing secret; existing HMAC execution authorization remains an input to issuance, rather than a gateway-verification credential.
+   - Before any upstream provider attempt, the gateway atomically claims `dispatch_id` durably. A replay or descriptor mismatch is rejected without an upstream attempt.
+   - The gateway maps the endpoint identifier to the provider route and obtains its own scoped credential. Neither the worker request nor execution evidence may contain a provider credential, raw request body, authorization header, or raw provider response.
+
+8. **Synthetic Gateway Emulator Boundary**:
+   - The laboratory emulator is loopback-only and validates the signed descriptor, mTLS identity, fixed target, digest, size, replay behavior, and redacted receipt shape.
+   - It has no provider credential, provider destination, or forwarding path. Its evidence records only identifiers, hashes, byte counts, decision codes, and bounded status metadata.
+
 ## Deployment boundary
 
-The mediator and broker are a capability for a contained worker. They do not remove an adapter's ambient network access by themselves. A deployment may claim mandatory egress mediation only after the worker derives the destination, identity, and exact request-target allowlists from consumed trusted authorization, passes only the broker capability into an operating-system network sandbox, and proves the child cannot open direct IPv4 or IPv6 sockets while broker traffic succeeds.
+The mediator and broker are a capability for a contained worker. They do not remove an adapter's ambient network access by themselves. A deployment may claim mandatory egress mediation only after the worker derives the destination, identity, and exact request-target allowlists from verified trusted authorization and the dispatch descriptor before consuming authorization, passes only the broker capability into an operating-system network sandbox, and proves the child cannot open direct IPv4 or IPv6 sockets while broker traffic succeeds.

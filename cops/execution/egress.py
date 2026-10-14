@@ -10,6 +10,7 @@ adapter direct AF_INET and AF_INET6 access.
 from __future__ import annotations
 
 import base64
+import hashlib
 import http.client
 import ipaddress
 import json
@@ -32,6 +33,7 @@ from .scope_guard import METADATA_ADDRESSES, ScopeGuard, ScopeViolationError
 
 BROKER_FD_ENV = "COPS_EGRESS_BROKER_FD"
 BROKER_PROTOCOL = "cops.execution-egress/v1"
+GATEWAY_POST_BROKER_PROTOCOL = "cops.operator-gateway-dispatch/v2"
 
 
 class EgressMediationError(RuntimeError):
@@ -114,6 +116,24 @@ class AuthenticatedServiceAllowlist:
             raise AuthenticatedResourceScopeError(
                 "authenticated service request target is outside the exact identity allowlist"
             )
+
+
+@dataclass(frozen=True)
+class GatewayPostEgressPolicy:
+    """Immutable transport constraints for one operator-gateway POST dispatch.
+
+    Grant validation and replay protection belong to the dispatcher and gateway.
+    This policy keeps the transport's authority bounded even when that caller is
+    separately responsible for verifying a signed dispatch grant.
+    """
+
+    protocol: str
+    gateway_url: str
+    request_target: str
+    expected_identity: AuthenticatedServiceIdentity
+    body_sha256: str
+    body_bytes: int
+    max_body_bytes: int
 
 
 class ServiceIdentityVerifier(Protocol):
@@ -233,6 +253,7 @@ class OpenEgressConnection(Protocol):
         method: str,
         target: str,
         headers: Mapping[str, str],
+        body: bytes = b"",
         max_response_bytes: int,
         max_response_header_bytes: int,
         timeout_seconds: float,
@@ -321,6 +342,7 @@ class _DirectTLSConnection:
         method: str,
         target: str,
         headers: Mapping[str, str],
+        body: bytes = b"",
         max_response_bytes: int,
         max_response_header_bytes: int,
         timeout_seconds: float,
@@ -329,7 +351,7 @@ class _DirectTLSConnection:
         request_lines = [f"{method} {target} HTTP/1.1"]
         request_lines.extend(f"{name}: {value}" for name, value in headers.items())
         request_lines.append("Connection: close")
-        self._socket.sendall(("\r\n".join(request_lines) + "\r\n\r\n").encode("ascii"))
+        self._socket.sendall(("\r\n".join(request_lines) + "\r\n\r\n").encode("ascii") + body)
         bounded_socket = _MetadataBoundedSocket(
             self._socket,
             max_metadata_bytes=max_response_header_bytes,
@@ -516,6 +538,217 @@ class HTTPSExecutionMediator:
             raise
 
         raise AssertionError("redirect loop escaped configured bound")
+
+    def post_gateway(
+        self,
+        *,
+        policy: GatewayPostEgressPolicy,
+        body: bytes,
+        headers: Mapping[str, str] | None = None,
+        before_send: Callable[[], None],
+        deadline: float | None = None,
+    ) -> MediatedResponse:
+        """Send exactly one pre-authorized request to the configured gateway.
+
+        The synchronous callback is deliberately the last operation before the
+        connection begins its request write.  A caller can therefore consume a
+        one-use authorization only after every network and body preflight has
+        succeeded, without giving this transport authority to validate grants.
+        """
+
+        current_url = policy.gateway_url if isinstance(policy, GatewayPostEgressPolicy) else "unparseable"
+        operation_deadline = monotonic() + self._timeout_seconds
+        if deadline is not None:
+            operation_deadline = min(operation_deadline, deadline)
+        try:
+            _remaining_seconds(operation_deadline)
+            parsed, target = self._validate_gateway_post_policy(policy, body)
+            current_url = policy.gateway_url
+            origin = (parsed.scheme, parsed.hostname or "", parsed.port or 443)
+            if self._approved_origin is None or origin[1:] != self._approved_origin:
+                raise EgressProtocolError("gateway dispatch origin does not match the configured operation")
+            if not callable(before_send):
+                raise EgressProtocolError("gateway dispatch pre-send callback must be callable")
+            checked_headers = self._validate_headers(headers if headers is not None else {})
+            response = self._post_gateway_once(
+                parsed,
+                target,
+                policy=policy,
+                body=body,
+                headers=checked_headers,
+                before_send=before_send,
+                deadline=operation_deadline,
+            )
+            if response.status in self._REDIRECT_STATUSES:
+                raise EgressMediationError("gateway dispatch did not return a terminal response")
+            self.observations.append(
+                EgressObservation(
+                    origin=_redacted_origin(current_url),
+                    decision="allowed",
+                    reason="authenticated_exact_gateway_scope",
+                    identity=response.identity,
+                )
+            )
+            return response
+        except (EgressMediationError, ScopeViolationError) as err:
+            self.observations.append(
+                EgressObservation(
+                    origin=_redacted_origin(current_url),
+                    decision="blocked",
+                    reason=type(err).__name__,
+                )
+            )
+            raise
+
+    def _post_gateway_once(
+        self,
+        parsed: SplitResult,
+        target: str,
+        *,
+        policy: GatewayPostEgressPolicy,
+        body: bytes,
+        headers: Mapping[str, str],
+        before_send: Callable[[], None],
+        deadline: float,
+    ) -> MediatedResponse:
+        hostname = parsed.hostname or ""
+        port = parsed.port or 443
+        endpoints = self._resolve(hostname, port, deadline=deadline)
+        address_set = self._address_set(endpoints)
+        self._scope_guard.check_resolved_destination(hostname, tuple(sorted(address_set)))
+        if not endpoints:
+            raise EgressMediationError("destination did not resolve to a usable endpoint")
+
+        endpoint = endpoints[0]
+        try:
+            connection = self._connector.open(
+                endpoint,
+                hostname=hostname,
+                port=port,
+                timeout_seconds=_remaining_seconds(deadline),
+            )
+            _remaining_seconds(deadline)
+        except EgressMediationError:
+            raise
+        except Exception as err:
+            raise EgressMediationError("HTTPS connection to the validated endpoint failed") from err
+
+        response: MediatedResponse
+        try:
+            try:
+                peer_ip = _canonical_ip(connection.peer_ip)
+            except Exception as err:
+                raise EgressMediationError("connected peer address is unavailable or invalid") from err
+            if peer_ip != endpoint.ip:
+                raise EgressMediationError("connected peer address differs from the validated endpoint")
+
+            pinned_endpoints = self._resolve(hostname, port, deadline=deadline)
+            pinned_address_set = self._address_set(pinned_endpoints)
+            self._scope_guard.check_resolved_destination(hostname, tuple(sorted(pinned_address_set)))
+            if pinned_address_set != address_set:
+                raise EgressMediationError("DNS address set changed between validation and request dispatch")
+
+            try:
+                _remaining_seconds(deadline)
+                identity = self._identity_verifier.verify(
+                    hostname=hostname,
+                    peer_certificate_der=connection.peer_certificate_der,
+                    peer_certificate=connection.peer_certificate,
+                )
+                _remaining_seconds(deadline)
+            except AuthenticatedResourceScopeError:
+                raise
+            except Exception as err:
+                raise AuthenticatedResourceScopeError("TLS peer resource identity verification failed") from err
+            if identity != policy.expected_identity:
+                raise AuthenticatedResourceScopeError("TLS peer identity does not match the configured gateway")
+            self._identity_allowlist.require(identity, request_target=target)
+
+            host_literal = f"[{hostname}]" if ":" in hostname else hostname
+            host_header = host_literal if port == 443 else f"{host_literal}:{port}"
+            outbound_headers = {"Host": host_header, "Content-Length": str(len(body)), **headers}
+            try:
+                before_send()
+            except Exception as err:
+                raise EgressMediationError("gateway dispatch authorization callback failed") from err
+            try:
+                status, response_headers, response_body = connection.request(
+                    method="POST",
+                    target=target,
+                    headers=outbound_headers,
+                    body=body,
+                    max_response_bytes=self._max_response_bytes,
+                    max_response_header_bytes=self._max_response_header_bytes,
+                    timeout_seconds=_remaining_seconds(deadline),
+                )
+                _remaining_seconds(deadline)
+            except EgressMediationError:
+                raise
+            except Exception as err:
+                raise EgressMediationError("gateway dispatch failed after transmission may have begun") from err
+            checked_status, checked_response_headers, checked_body = self._validate_response(
+                status,
+                response_headers,
+                response_body,
+            )
+            response = MediatedResponse(
+                status=checked_status,
+                headers=checked_response_headers,
+                body=checked_body,
+                final_url=parsed.geturl(),
+                identity=identity,
+            )
+        except Exception:
+            with suppress(Exception):
+                connection.close()
+            raise
+        try:
+            connection.close()
+        except Exception as err:
+            raise EgressMediationError("HTTPS connection cleanup failed") from err
+        _remaining_seconds(deadline)
+        return response
+
+    def _validate_gateway_post_policy(
+        self,
+        policy: GatewayPostEgressPolicy,
+        body: bytes,
+    ) -> tuple[SplitResult, str]:
+        if not isinstance(policy, GatewayPostEgressPolicy):
+            raise EgressProtocolError("gateway dispatch policy is invalid")
+        if policy.protocol != GATEWAY_POST_BROKER_PROTOCOL:
+            raise EgressProtocolError("unsupported gateway dispatch protocol version")
+        if not isinstance(policy.expected_identity, AuthenticatedServiceIdentity):
+            raise EgressProtocolError("gateway dispatch identity is invalid")
+        if type(body) is not bytes:
+            raise EgressProtocolError("gateway dispatch body must be bytes")
+        if (
+            isinstance(policy.body_bytes, bool)
+            or not isinstance(policy.body_bytes, int)
+            or isinstance(policy.max_body_bytes, bool)
+            or not isinstance(policy.max_body_bytes, int)
+            or policy.body_bytes < 0
+            or policy.max_body_bytes <= 0
+            or policy.body_bytes > policy.max_body_bytes
+            or len(body) != policy.body_bytes
+        ):
+            raise EgressProtocolError("gateway dispatch body size does not match the configured policy")
+        if (
+            not isinstance(policy.body_sha256, str)
+            or len(policy.body_sha256) != 64
+            or any(character not in "0123456789abcdef" for character in policy.body_sha256)
+            or hashlib.sha256(body).hexdigest() != policy.body_sha256
+        ):
+            raise EgressProtocolError("gateway dispatch body digest does not match the configured policy")
+        parsed = self._validate_url(policy.gateway_url)
+        target = _request_target(parsed)
+        try:
+            configured_target = _validate_configured_request_target(policy.request_target)
+        except ValueError as err:
+            raise EgressProtocolError("gateway dispatch target is invalid") from err
+        if configured_target != target:
+            raise EgressProtocolError("gateway dispatch target does not match the configured policy")
+        return parsed, target
 
     def _request_once(
         self,

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ipaddress
+import hashlib
 import json
 import os
 import socket
@@ -17,6 +18,7 @@ import pytest
 
 from cops.execution.egress import (
     BROKER_PROTOCOL,
+    GATEWAY_POST_BROKER_PROTOCOL,
     AuthenticatedResourceScopeError,
     AuthenticatedServiceAllowlist,
     AuthenticatedServiceIdentity,
@@ -25,6 +27,7 @@ from cops.execution.egress import (
     EgressMediationError,
     EgressProtocolError,
     ExecutionEgressBroker,
+    GatewayPostEgressPolicy,
     HTTPSExecutionMediator,
     ResolvedEndpoint,
     ServiceIdentityVerifier,
@@ -52,6 +55,7 @@ DEFAULT_REQUEST_TARGETS = frozenset(
         "/start?token=hidden",
         "/status",
         "/v1/status",
+        "/v2/dispatch",
     }
 )
 
@@ -110,6 +114,7 @@ class FakeConnection:
         request_error: Exception | None = None,
         request_delay_seconds: float = 0.0,
         close_delay_seconds: float = 0.0,
+        request_events: list[str] | None = None,
     ) -> None:
         self.peer_ip = peer_ip
         self.peer_certificate_der = b"authenticated-peer"
@@ -118,7 +123,9 @@ class FakeConnection:
         self.request_error = request_error
         self.request_delay_seconds = request_delay_seconds
         self.close_delay_seconds = close_delay_seconds
+        self.request_events = request_events
         self.requests: list[tuple[str, str, dict[str, str], int]] = []
+        self.request_bodies: list[bytes] = []
         self.closed = False
 
     def request(
@@ -127,12 +134,16 @@ class FakeConnection:
         method: str,
         target: str,
         headers: Mapping[str, str],
+        body: bytes = b"",
         max_response_bytes: int,
         max_response_header_bytes: int,
         timeout_seconds: float,
     ) -> tuple[object, object, object]:
         del max_response_header_bytes, timeout_seconds
         self.requests.append((method, target, dict(headers), max_response_bytes))
+        self.request_bodies.append(body)
+        if self.request_events is not None:
+            self.request_events.append("request")
         time.sleep(self.request_delay_seconds)
         if self.request_error is not None:
             raise self.request_error
@@ -229,6 +240,162 @@ def _mediator(
         max_response_bytes=max_response_bytes,
         max_response_header_bytes=max_response_header_bytes,
     )
+
+
+def _gateway_policy(
+    body: bytes,
+    *,
+    gateway_url: str = "https://api.example.test/v2/dispatch",
+    request_target: str = "/v2/dispatch",
+    expected_identity: AuthenticatedServiceIdentity = IDENTITY,
+    body_sha256: str | None = None,
+    body_bytes: int | None = None,
+    max_body_bytes: int = 4_096,
+) -> GatewayPostEgressPolicy:
+    return GatewayPostEgressPolicy(
+        protocol=GATEWAY_POST_BROKER_PROTOCOL,
+        gateway_url=gateway_url,
+        request_target=request_target,
+        expected_identity=expected_identity,
+        body_sha256=hashlib.sha256(body).hexdigest() if body_sha256 is None else body_sha256,
+        body_bytes=len(body) if body_bytes is None else body_bytes,
+        max_body_bytes=max_body_bytes,
+    )
+
+
+def test_gateway_post_preflights_then_calls_one_use_callback_immediately_before_send() -> None:
+    endpoint = _endpoint("192.0.2.10")
+    resolver = ScriptedResolver({"api.example.test": [(endpoint,), (endpoint,)]})
+    events: list[str] = []
+    connection = FakeConnection(request_events=events)
+    mediator = _mediator(
+        resolver,
+        FakeConnector(connection),
+        request_targets=frozenset({"/v2/dispatch"}),
+        approved_origin=("api.example.test", 443),
+    )
+    body = b'{"dispatch":"opaque"}'
+
+    response = mediator.post_gateway(
+        policy=_gateway_policy(body),
+        body=body,
+        headers={"Content-Type": "application/json"},
+        before_send=lambda: events.append("callback"),
+    )
+
+    assert response.status == 200
+    assert resolver.calls == ["api.example.test", "api.example.test"]
+    assert events == ["callback", "request"]
+    assert connection.requests == [
+        (
+            "POST",
+            "/v2/dispatch",
+            {
+                "Host": "api.example.test",
+                "Content-Length": str(len(body)),
+                "Content-Type": "application/json",
+            },
+            1_048_576,
+        )
+    ]
+    assert connection.request_bodies == [body]
+    assert "opaque" not in repr(mediator.observations)
+
+
+def test_gateway_post_rejects_wrong_body_digest_before_callback_or_connection() -> None:
+    resolver = ScriptedResolver({})
+    connection = FakeConnection()
+    mediator = _mediator(
+        resolver,
+        FakeConnector(connection),
+        request_targets=frozenset({"/v2/dispatch"}),
+        approved_origin=("api.example.test", 443),
+    )
+    body = b"dispatch"
+
+    with pytest.raises(EgressProtocolError, match="body digest"):
+        mediator.post_gateway(
+            policy=_gateway_policy(body, body_sha256="0" * 64),
+            body=body,
+            before_send=lambda: pytest.fail("callback must not be called"),
+        )
+
+    assert resolver.calls == []
+    assert connection.requests == []
+    assert mediator.observations[-1].decision == "blocked"
+
+
+def test_gateway_post_rejects_wrong_authenticated_gateway_identity_before_callback() -> None:
+    endpoint = _endpoint("192.0.2.10")
+    resolver = ScriptedResolver({"api.example.test": [(endpoint,), (endpoint,)]})
+    actual_identity = replace(IDENTITY, resource="resource-b")
+    connection = FakeConnection(certificate=_certificate(_identity_uri(actual_identity)))
+    mediator = _mediator(
+        resolver,
+        FakeConnector(connection),
+        request_targets=frozenset({"/v2/dispatch"}),
+        approved_origin=("api.example.test", 443),
+    )
+    body = b"dispatch"
+
+    with pytest.raises(AuthenticatedResourceScopeError, match="configured gateway"):
+        mediator.post_gateway(
+            policy=_gateway_policy(body),
+            body=body,
+            before_send=lambda: pytest.fail("callback must not be called"),
+        )
+
+    assert connection.requests == []
+    assert mediator.observations[-1].decision == "blocked"
+
+
+def test_gateway_post_refuses_redirect_without_retrying_or_following_location() -> None:
+    endpoint = _endpoint("192.0.2.10")
+    resolver = ScriptedResolver({"api.example.test": [(endpoint,), (endpoint,)]})
+    events: list[str] = []
+    connection = FakeConnection(response=(302, (("Location", "/again"),), b""), request_events=events)
+    mediator = _mediator(
+        resolver,
+        FakeConnector(connection),
+        request_targets=frozenset({"/v2/dispatch"}),
+        approved_origin=("api.example.test", 443),
+    )
+    body = b"dispatch"
+
+    with pytest.raises(EgressMediationError, match="terminal response"):
+        mediator.post_gateway(
+            policy=_gateway_policy(body),
+            body=body,
+            before_send=lambda: events.append("callback"),
+        )
+
+    assert events == ["callback", "request"]
+    assert len(connection.requests) == 1
+    assert connection.request_bodies == [body]
+    assert mediator.observations[-1].decision == "blocked"
+
+
+def test_gateway_post_callback_failure_leaves_request_unsent() -> None:
+    endpoint = _endpoint("192.0.2.10")
+    resolver = ScriptedResolver({"api.example.test": [(endpoint,), (endpoint,)]})
+    connection = FakeConnection()
+    mediator = _mediator(
+        resolver,
+        FakeConnector(connection),
+        request_targets=frozenset({"/v2/dispatch"}),
+        approved_origin=("api.example.test", 443),
+    )
+    body = b"dispatch"
+
+    with pytest.raises(EgressMediationError, match="authorization callback"):
+        mediator.post_gateway(
+            policy=_gateway_policy(body),
+            body=body,
+            before_send=lambda: (_ for _ in ()).throw(RuntimeError("grant rejected")),
+        )
+
+    assert connection.requests == []
+    assert mediator.observations[-1].decision == "blocked"
 
 
 @pytest.mark.parametrize(
