@@ -156,12 +156,20 @@ from .remote_models import (
     RemoteServicesReport,
     RemoteServiceType,
 )
+from .service_entry_validation import (
+    ApprovedEndpoint,
+    ServiceEntryHandoff,
+    ServiceValidationPlan,
+    prepare_service_entry_handoff,
+    prepare_session_service_handoffs,
+)
 
 __all__ = [
     "ActiveScanError",
     "ActiveScanSession",
     "ActiveScanner",
     "ActiveServiceAssessment",
+    "ApprovedEndpoint",
     "AssetType",
     "AuthPrerequisite",
     "ConfidenceLevel",
@@ -190,7 +198,9 @@ __all__ = [
     "ScanVantage",
     "ScopeViolationError",
     "ServiceExposureStatus",
+    "ServiceEntryHandoff",
     "ServiceReachability",
+    "ServiceValidationPlan",
     "StandardSocketDispatcher",
     "StandardSocketInfraCollector",
     "TargetShiftQuarantine",
@@ -269,6 +279,8 @@ __all__ = [
     "StandardSocketDeveloperCollector",
     "assess_developer_services",
     "prepare_developer_handoff",
+    "prepare_service_entry_handoff",
+    "prepare_session_service_handoffs",
     "DEFAULT_LEGACY_PORTS",
     "LegacyAuthPrerequisite",
     "LegacyCategory",
