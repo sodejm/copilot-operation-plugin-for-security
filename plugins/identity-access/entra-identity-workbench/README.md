@@ -23,6 +23,14 @@ The playback refuses an existing workspace so that a prior report cannot be mist
 
 For a separate export, create a manifest conforming to `schemas/manifest.schema.json`, include the declared SHA-256 for every source file, and use the package modules as shown in `scripts/run_demo.py`. See [the playbook](docs/PLAYBOOK.md) for the operational sequence and [the verification guide](docs/VERIFICATION.md) for package checks.
 
+## Preparing a private export
+
+An authorized collector must obtain the tenant data separately. Grant that collector only the read permissions needed for the selected sources and tenant; this offline package requests no Microsoft Graph permissions and cannot confirm the collector's effective rights or whether pagination completed. Record the collector's permitted tenant, source set, collection time, and any gaps outside the report. A missing source or an incomplete collection must not be represented as full coverage.
+
+Exports can contain names, user principal names, application identifiers, and relationship details. Remove secrets and unnecessary personal data before ingestion, and replace identifiers consistently across source files so graph joins still work. The workbench does not automatically redact input or output. Recompute each manifest SHA-256 after sanitizing, keep the source bundle and generated graph and reports in access-controlled storage, and apply the engagement's retention and deletion rules. Do not commit real tenant exports or reports.
+
+Set each source's `exported_at` to its actual collection time; if omitted, the manifest-level `exported_at` is used. The assessment uses a 24-hour window measured from its UTC `assessed_at`. Only an available, fully collected source with a valid timestamp inside that window is `fresh`. Missing, partial, future-dated, invalid-time, and older sources are `unknown` with a reason in `source_coverage`. Their nodes and edges are not current evidence for a hypothesis. A hash match proves file integrity relative to the manifest, not collection completeness or freshness.
+
 ## Design and data flow
 
 1. **Intake:** `ingest_tenant_export` validates the manifest, confines source paths to the manifest directory, verifies hashes, and parses the declared sources.
