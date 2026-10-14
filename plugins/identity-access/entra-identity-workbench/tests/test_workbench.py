@@ -18,6 +18,7 @@ REPO_ROOT = PLUGIN_ROOT.parent.parent
 if str(PLUGIN_ROOT) not in sys.path:
     sys.path.insert(0, str(PLUGIN_ROOT))
 
+import entrawb.reporting as reporting
 from entrawb.analysis import (
     analyze_identity_graph,
 )
@@ -142,6 +143,50 @@ def test_fractional_assessment_time_keeps_fresh_source_valid(contoso_manifest_pa
     assert graph.assessed_at == "2026-09-30T18:00:00.500000Z"
     assert graph.to_dict()["assessed_at"] == graph.assessed_at
     assert render_json_report(graph, analyze_identity_graph(graph))["assessed_at"] == graph.assessed_at
+
+
+@pytest.mark.parametrize(
+    "exported_at",
+    ["0001-01-01T00:00:00+14:00", "2026-09-30T18:00:00.1234569Z"],
+)
+def test_unrepresentable_source_time_fails_closed(contoso_manifest_path: Path, exported_at: str):
+    manifest, sources = ingest_tenant_export(contoso_manifest_path)
+    for entry in manifest["sources"]:
+        if entry["source_id"] == "users":
+            entry["exported_at"] = exported_at
+    graph = build_identity_graph(manifest, sources, as_of=FIXTURE_AS_OF)
+    assert graph.source_coverage["users"]["status"] == "unknown"
+    assert graph.source_coverage["users"]["reason"] == "invalid_timestamp"
+
+    fresh_manifest, fresh_sources = ingest_tenant_export(contoso_manifest_path)
+    fresh_graph = build_identity_graph(fresh_manifest, fresh_sources, as_of=FIXTURE_AS_OF)
+    for name, document, validate in (
+        ("graph", fresh_graph.to_dict(), validate_graph_artifact),
+        ("report", render_json_report(fresh_graph, analyze_identity_graph(fresh_graph)), validate_report_artifact),
+    ):
+        altered = deepcopy(document)
+        altered["source_coverage"]["users"]["exported_at"] = exported_at
+        schema = json.loads((PLUGIN_ROOT / "schemas" / f"{name}.v2.schema.json").read_text())
+        if "." in exported_at:
+            assert not Draft202012Validator(schema, format_checker=FormatChecker()).is_valid(altered)
+        with pytest.raises(EntraError, match="invalid assessment or source timestamp|valid source timestamps"):
+            validate(altered)
+
+
+def test_report_analysis_time_preserves_assessment_order(contoso_manifest_path: Path, monkeypatch):
+    manifest, sources = ingest_tenant_export(contoso_manifest_path)
+    graph = build_identity_graph(manifest, sources, as_of=FIXTURE_AS_OF.replace(microsecond=250000))
+
+    class FrozenDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            assert tz is UTC
+            return FIXTURE_AS_OF.replace(microsecond=500000)
+
+    monkeypatch.setattr(reporting, "datetime", FrozenDatetime)
+    report = render_json_report(graph, [])
+    assert report["analyzed_at"] == "2026-09-30T18:00:00.500000Z"
+    assert report["analyzed_at"] > report["assessed_at"]
 
 
 def test_markdown_rejects_hypotheses_from_stale_snapshot(contoso_manifest_path: Path):

@@ -29,7 +29,7 @@ def render_json_report(graph: IdentityGraph, hypotheses: list[ReviewHypothesis])
     """Construct typed dictionary matching report.v2.schema.json."""
     validate_export_metadata(graph)
     summary = build_report_summary(graph, hypotheses)
-    now_iso = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    now_iso = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     report_hypotheses = []
     edges_by_id = {edge.edge_id: edge for edge in graph.edges}
     for hypothesis in hypotheses:

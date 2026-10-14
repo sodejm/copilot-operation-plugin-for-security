@@ -23,7 +23,7 @@ SOURCE_IDS = (
     "oauth_grants",
 )
 MAX_AGE = timedelta(hours=24)
-TIMESTAMP_PATTERN = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})\Z")
+TIMESTAMP_PATTERN = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})\Z")
 
 
 def _source_coverage(manifest: dict[str, Any], sources: dict[str, Any], as_of: datetime) -> dict[str, dict[str, Any]]:
@@ -66,10 +66,10 @@ def _source_coverage(manifest: dict[str, Any], sources: dict[str, Any], as_of: d
                 timestamp = datetime.fromisoformat(exported_at.replace("Z", "+00:00"))
                 if timestamp.tzinfo is None or timestamp.utcoffset() is None:
                     raise ValueError("timestamp must include a timezone")
-            except (AttributeError, TypeError, ValueError):
+                timestamp = timestamp.astimezone(UTC)
+            except (AttributeError, TypeError, ValueError, OverflowError):
                 item["reason"] = "invalid_timestamp"
             else:
-                timestamp = timestamp.astimezone(UTC)
                 if timestamp > as_of:
                     item["reason"] = "future_timestamp"
                 elif as_of - timestamp > MAX_AGE:
