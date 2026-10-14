@@ -8,6 +8,9 @@
     "schema_version",
     "tenant_id",
     "analyzed_at",
+    "assessed_at",
+    "max_age_hours",
+    "source_coverage",
     "summary",
     "hypotheses"
   ],
@@ -20,7 +23,21 @@
       "minLength": 1
     },
     "analyzed_at": {
-      "type": "string"
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "assessed_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "max_age_hours": {"const": 24},
+    "source_coverage": {
+      "type": "object",
+      "required": [
+        "users", "groups", "applications", "service_principals", "managed_identities",
+        "federated_credentials", "agent_blueprints", "agent_identities", "resources",
+        "directory_roles", "role_assignments", "oauth_grants"
+      ],
+      "propertyNames": {"$ref": "#/$defs/source_id"},
+      "additionalProperties": {"$ref": "#/$defs/source_coverage"}
     },
     "summary": {
       "type": "object",
@@ -56,6 +73,43 @@
     }
   },
   "$defs": {
+    "source_id": {
+      "enum": [
+        "users", "groups", "applications", "service_principals", "managed_identities",
+        "federated_credentials", "agent_blueprints", "agent_identities", "resources",
+        "directory_roles", "role_assignments", "oauth_grants"
+      ]
+    },
+    "source_coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "reason", "path", "sha256", "completeness", "exported_at"],
+      "properties": {
+        "status": {"enum": ["fresh", "unknown"]},
+        "reason": {"type": ["string", "null"]},
+        "path": {"type": ["string", "null"]},
+        "sha256": {"type": ["string", "null"]},
+        "completeness": {"enum": ["full", "partial", "unknown", null]},
+        "exported_at": {"type": ["string", "null"]}
+      },
+      "allOf": [{
+        "if": {"properties": {"status": {"const": "fresh"}}},
+        "then": {"properties": {
+          "reason": {"const": null},
+          "path": {"type": "string", "minLength": 1},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "completeness": {"const": "full"},
+          "exported_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$"
+          }
+        }},
+        "else": {"properties": {"reason": {
+          "enum": ["not_listed", "missing_file", "incomplete", "invalid_timestamp", "future_timestamp", "stale"]
+        }}}
+      }]
+    },
     "hypothesis": {
       "type": "object",
       "additionalProperties": false,
@@ -68,6 +122,8 @@
         "principal_type",
         "description",
         "supporting_edges",
+        "evidence_status",
+        "evidence_sources",
         "missing_evidence",
         "recommended_action"
       ],
@@ -104,6 +160,13 @@
         "supporting_edges": {
           "type": "array",
           "items": {"type": "string"}
+        },
+        "evidence_status": {"const": "fresh"},
+        "evidence_sources": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/source_id"}
         },
         "missing_evidence": {
           "type": "array",

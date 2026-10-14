@@ -127,6 +127,23 @@ def test_fresh_and_stale_snapshot_policy(contoso_manifest_path: Path):
     assert "Evidence coverage is unknown" in render_markdown_report(stale_graph, [])
 
 
+def test_fractional_assessment_time_keeps_fresh_source_valid(contoso_manifest_path: Path):
+    """Export validation uses the same timestamp precision as freshness classification."""
+    manifest, sources = ingest_tenant_export(contoso_manifest_path)
+    for entry in manifest["sources"]:
+        if entry["source_id"] == "users":
+            entry["exported_at"] = "2026-09-30T18:00:00.250Z"
+    graph = build_identity_graph(
+        manifest,
+        sources,
+        as_of=datetime(2026, 9, 30, 18, 0, 0, 500000, tzinfo=UTC),
+    )
+    assert graph.source_coverage["users"]["status"] == "fresh"
+    assert graph.assessed_at == "2026-09-30T18:00:00.500000Z"
+    assert graph.to_dict()["assessed_at"] == graph.assessed_at
+    assert render_json_report(graph, analyze_identity_graph(graph))["assessed_at"] == graph.assessed_at
+
+
 def test_markdown_rejects_hypotheses_from_stale_snapshot(contoso_manifest_path: Path):
     """Prior hypotheses cannot be rendered as current after their exports age out."""
     manifest, sources = ingest_tenant_export(contoso_manifest_path)
@@ -526,34 +543,14 @@ def test_markdown_report_escapes_export_derived_text(contoso_manifest_path: Path
     assert "name&#124;column" in report
 
 
-def test_legacy_v1_schemas_remain_compatible():
-    """Previously valid v1 artifacts remain readable by their versioned schemas."""
-    legacy_graph = {
-        "schema_version": "entra.identity-graph/v1",
-        "tenant_id": "tenant-1",
-        "nodes": [],
-        "edges": [],
-    }
-    legacy_report = {
-        "schema_version": "entra.identity-report/v1",
-        "tenant_id": "tenant-1",
-        "analyzed_at": "2026-09-30T18:00:00Z",
-        "summary": {
-            name: 0
-            for name in (
-                "total_nodes",
-                "total_edges",
-                "human_users",
-                "service_principals",
-                "managed_identities",
-                "agent_blueprints",
-                "agent_identities",
-                "critical_hypotheses",
-                "high_hypotheses",
-            )
-        },
-        "hypotheses": [],
-    }
+def test_v1_schemas_remain_compatible_with_existing_artifacts(contoso_manifest_path: Path):
+    """Keep accepting the provenance-bearing v1 artifacts emitted before v2."""
+    manifest, sources = ingest_tenant_export(contoso_manifest_path)
+    graph = build_identity_graph(manifest, sources, as_of=FIXTURE_AS_OF)
+    legacy_graph = graph.to_dict()
+    legacy_graph["schema_version"] = "entra.identity-graph/v1"
+    legacy_report = render_json_report(graph, analyze_identity_graph(graph))
+    legacy_report["schema_version"] = "entra.identity-report/v1"
     for name, document in (("graph", legacy_graph), ("report", legacy_report)):
         v1 = json.loads((PLUGIN_ROOT / "schemas" / f"{name}.schema.json").read_text())
         v2 = json.loads((PLUGIN_ROOT / "schemas" / f"{name}.v2.schema.json").read_text())
