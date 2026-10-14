@@ -256,7 +256,7 @@ class OfflineSyntheticDispatcher(ProbeDispatcher):
 
 
 class StandardSocketDispatcher(ProbeDispatcher):
-    """Standard-library live TCP socket and TLS probe dispatcher."""
+    """Standard-library live TCP and bounded UDP probe dispatcher."""
 
     def resolve_target(self, target_host: str) -> str:
         try:
@@ -278,8 +278,10 @@ class StandardSocketDispatcher(ProbeDispatcher):
         timeout: float = 2.0,
         vantage: str = "external",
     ) -> ActiveServiceAssessment:
+        if protocol == Protocol.UDP.value:
+            return self._dispatch_udp(target_host, resolved_ip, port, timeout, vantage)
         if protocol != Protocol.TCP.value:
-            raise ActiveScanError("Live UDP probing is unavailable; no TCP fallback is permitted")
+            raise ActiveScanError(f"Unsupported live probe protocol: {protocol}")
         probe_key = ActiveScanSession.make_probe_key(vantage, protocol, target_host, port)
         timestamp = utc_now()
         probe_id = hashlib.sha256(f"{probe_key}:{timestamp}".encode()).hexdigest()[:24]
@@ -393,6 +395,88 @@ class StandardSocketDispatcher(ProbeDispatcher):
                     # Closing a failed probe must not replace its result.
                     pass
 
+    def _dispatch_udp(
+        self, target_host: str, resolved_ip: str, port: int, timeout: float, vantage: str
+    ) -> ActiveServiceAssessment:
+        """Send one empty datagram; silence is inconclusive, never evidence of an open port."""
+        protocol = Protocol.UDP.value
+        probe_key = ActiveScanSession.make_probe_key(vantage, protocol, target_host, port)
+        timestamp = utc_now()
+        probe_id = hashlib.sha256(f"{probe_key}:{timestamp}".encode()).hexdigest()[:24]
+        start_time = time.monotonic()
+        sock = None
+        try:
+            family = socket.AF_INET6 if ipaddress.ip_address(resolved_ip).version == 6 else socket.AF_INET
+            sock = socket.socket(family, socket.SOCK_DGRAM)
+            sock.settimeout(timeout)
+            sock.connect((resolved_ip, port))
+            sock.send(b"")
+            response = sock.recv(512)
+            observed = ObservedConfiguration(
+                protocol_metadata={
+                    "probe_payload": "empty_datagram",
+                    "response_prefix_bytes": len(response),
+                    "response_prefix_sha256": hashlib.sha256(response).hexdigest(),
+                }
+            )
+            return ActiveServiceAssessment(
+                probe_id=probe_id,
+                target_host=target_host,
+                resolved_ip=resolved_ip,
+                port=port,
+                protocol=protocol,
+                vantage=vantage,
+                port_state=PortState.OPEN.value,
+                reachability=ServiceReachability.REACHABLE.value,
+                observed_config=observed,
+                inferred_fingerprint=infer_service_fingerprint(target_host, port, protocol, observed),
+                latency_ms=(time.monotonic() - start_time) * 1000.0,
+                timestamp_utc=timestamp,
+            )
+        except TimeoutError:
+            return ActiveServiceAssessment(
+                probe_id=probe_id,
+                target_host=target_host,
+                resolved_ip=resolved_ip,
+                port=port,
+                protocol=protocol,
+                vantage=vantage,
+                port_state=PortState.UNKNOWN.value,
+                reachability=ServiceReachability.UNKNOWN.value,
+                observed_config=ObservedConfiguration(),
+                latency_ms=(time.monotonic() - start_time) * 1000.0,
+                timestamp_utc=timestamp,
+                error_message="No UDP response to an empty datagram; open or filtered cannot be distinguished",
+            )
+        except OSError as err:
+            refused = err.errno == errno.ECONNREFUSED
+            no_route = err.errno in {errno.ENETUNREACH, errno.EHOSTUNREACH, errno.ENETDOWN, errno.EHOSTDOWN}
+            return ActiveServiceAssessment(
+                probe_id=probe_id,
+                target_host=target_host,
+                resolved_ip=resolved_ip,
+                port=port,
+                protocol=protocol,
+                vantage=vantage,
+                port_state=(
+                    PortState.CLOSED.value if refused else PortState.UNREACHABLE.value if no_route else PortState.UNKNOWN.value
+                ),
+                reachability=(
+                    ServiceReachability.REACHABLE.value if refused else ServiceReachability.UNREACHABLE.value if no_route else ServiceReachability.UNKNOWN.value
+                ),
+                observed_config=ObservedConfiguration(),
+                latency_ms=(time.monotonic() - start_time) * 1000.0,
+                timestamp_utc=timestamp,
+                error_message=str(err),
+            )
+        finally:
+            if sock is not None:
+                try:
+                    sock.close()
+                except OSError:
+                    # Closing a failed probe must not replace its result.
+                    pass
+
 
 class ActiveScanner:
     """Bounded, resumable active assessment engine with scope and rate enforcement."""
@@ -418,19 +502,19 @@ class ActiveScanner:
 
     def _validate_run(self) -> None:
         budget = self.session.budget
-        if not self.session.approved_targets or not self.session.approved_ports:
-            raise ActiveScanError("A scan needs explicit targets and TCP ports")
+        if not self.session.approved_targets or not (self.session.approved_ports or self.session.approved_udp_ports):
+            raise ActiveScanError("A scan needs explicit targets and TCP or UDP ports")
         if any(not isinstance(target, str) or not target.strip() for target in self.session.approved_targets):
             raise ActiveScanError("Targets must be nonempty hostnames or IP addresses")
         if any(
             not isinstance(port, int) or isinstance(port, bool) or not 1 <= port <= 65535
-            for port in self.session.approved_ports
+            for port in self.session.approved_ports + self.session.approved_udp_ports
         ):
-            raise ActiveScanError("TCP ports must be integers from 1 through 65535")
+            raise ActiveScanError("TCP and UDP ports must be integers from 1 through 65535")
         if len({target.lower() for target in self.session.approved_targets}) != len(
             self.session.approved_targets
-        ) or len(set(self.session.approved_ports)) != len(self.session.approved_ports):
-            raise ActiveScanError("Duplicate targets or TCP ports would repeat probe side effects")
+        ) or any(len(set(ports)) != len(ports) for ports in (self.session.approved_ports, self.session.approved_udp_ports)):
+            raise ActiveScanError("Duplicate targets or ports would repeat probe side effects")
         if (
             not isinstance(budget.timeout_seconds, (int, float))
             or isinstance(budget.timeout_seconds, bool)
@@ -505,6 +589,9 @@ class ActiveScanner:
             "budget": ScanBudget.from_dict(self.session.budget.to_dict()).to_dict(),
             "scope": self.scope,
         }
+        # Preserve digests for existing TCP-only checkpoints.
+        if self.session.approved_udp_ports:
+            plan["approved_udp_ports"] = self.session.approved_udp_ports
         encoded = json.dumps(plan, sort_keys=True, separators=(",", ":")).encode("utf-8")
         return hashlib.sha256(encoded).hexdigest()
 
@@ -513,20 +600,28 @@ class ActiveScanner:
         session = self.session
         completed = session.completed_probe_keys
         pending = session.pending_probe_keys
-        ports = set(session.approved_ports)
+        planned_ports = {
+            Protocol.TCP.value: set(session.approved_ports),
+            Protocol.UDP.value: set(session.approved_udp_ports),
+        }
         targets = {target.lower() for target in session.approved_targets}
-        prefix = f"{session.vantage}:{Protocol.TCP.value}:"
 
         def planned_key(key: str) -> bool:
-            if not isinstance(key, str) or not key.startswith(prefix):
+            if not isinstance(key, str):
                 return False
+            protocol = next(
+                (name for name in planned_ports if key.startswith(f"{session.vantage}:{name}:")), None
+            )
+            if protocol is None:
+                return False
+            prefix = f"{session.vantage}:{protocol}:"
             host, separator, port_text = key[len(prefix) :].rpartition(":")
             return bool(
                 separator
                 and host in targets
                 and port_text.isdecimal()
-                and int(port_text) in ports
-                and key == ActiveScanSession.make_probe_key(session.vantage, Protocol.TCP.value, host, int(port_text))
+                and int(port_text) in planned_ports[protocol]
+                and key == ActiveScanSession.make_probe_key(session.vantage, protocol, host, int(port_text))
             )
 
         if completed & pending or any(not planned_key(key) for key in completed | pending):
@@ -676,6 +771,11 @@ class ActiveScanner:
 
         self.session.status = "in_progress"
         persist()
+        planned_probes = [
+            (Protocol.TCP.value, port) for port in self.session.approved_ports
+        ] + [
+            (Protocol.UDP.value, port) for port in self.session.approved_udp_ports
+        ]
 
         for target_host in self.session.approved_targets:
             # A quarantined target stays halted across checkpoint resumes.
@@ -703,8 +803,17 @@ class ActiveScanner:
                 a.resolved_ip for a in self.session.assessments if a.target_host.lower() == target_host.lower()
             }
             prior_ip = next(iter(prior_ips)) if len(prior_ips) == 1 else None
-            probe_prefix = f"{self.session.vantage}:{Protocol.TCP.value}:{target_host.lower()}:"
-            has_completed_probe = any(key.startswith(probe_prefix) for key in self.session.completed_probe_keys)
+            probe_prefixes = tuple(
+                f"{self.session.vantage}:{protocol}:{target_host.lower()}:"
+                for protocol, ports in (
+                    (Protocol.TCP.value, self.session.approved_ports),
+                    (Protocol.UDP.value, self.session.approved_udp_ports),
+                )
+                if ports
+            )
+            has_completed_probe = any(
+                key.startswith(probe_prefixes) for key in self.session.completed_probe_keys
+            )
             if len(prior_ips) > 1 or (has_completed_probe and prior_ip is None):
                 self.session.quarantined_targets.append(
                     TargetShiftQuarantine(
@@ -721,9 +830,9 @@ class ActiveScanner:
             # A fully completed target needs no further DNS lookup or network
             # activity. This also makes a repeated resume side-effect free.
             if all(
-                ActiveScanSession.make_probe_key(self.session.vantage, Protocol.TCP.value, target_host, port)
+                ActiveScanSession.make_probe_key(self.session.vantage, protocol, target_host, port)
                 in self.session.completed_probe_keys
-                for port in self.session.approved_ports
+                for protocol, port in planned_probes
             ):
                 continue
 
@@ -772,11 +881,11 @@ class ActiveScanner:
 
             probes_for_target = 0
 
-            for port in self.session.approved_ports:
+            for protocol, port in planned_probes:
                 # 3. Skip completed operations before checking whether another
                 # dispatch is within the remaining cumulative budget.
                 probe_key = ActiveScanSession.make_probe_key(
-                    self.session.vantage, Protocol.TCP.value, target_host, port
+                    self.session.vantage, protocol, target_host, port
                 )
                 if probe_key in self.session.completed_probe_keys:
                     continue
@@ -858,7 +967,7 @@ class ActiveScanner:
                         target_host=target_host,
                         resolved_ip=resolved_ip,
                         port=port,
-                        protocol=Protocol.TCP.value,
+                        protocol=protocol,
                         timeout=probe_timeout,
                         vantage=self.session.vantage,
                     )
@@ -867,7 +976,7 @@ class ActiveScanner:
                         or assessment.target_host != target_host
                         or assessment.resolved_ip != resolved_ip
                         or assessment.port != port
-                        or assessment.protocol != Protocol.TCP.value
+                        or assessment.protocol != protocol
                         or assessment.vantage != self.session.vantage
                     ):
                         raise ActiveScanError("Probe result does not match its reserved target, port, and vantage")

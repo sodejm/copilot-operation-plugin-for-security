@@ -96,9 +96,18 @@ def build_active_parser(parser: argparse.ArgumentParser) -> None:
     # 1. plan
     plan_p = active_subs.add_parser("plan", help="Create an active scanning session plan with budgets and targets.")
     plan_p.add_argument("--targets", "-t", required=True, help="Comma-separated target hosts/IPs or path to JSON.")
-    plan_p.add_argument("--ports", "-p", default="80,443,22", help="TCP ports, ranges, or 'all' (default: 80,443,22).")
+    plan_p.add_argument(
+        "--ports",
+        "-p",
+        default=None,
+        help="TCP ports, ranges, or 'all' (defaults to 80,443,22 only when UDP is omitted).",
+    )
+    plan_p.add_argument("--udp-ports", default="", help="Separately approved UDP ports, ranges, or 'all'.")
     plan_p.add_argument(
         "--allow-full-tcp", action="store_true", help="Explicitly allow all 65,535 TCP ports in the plan."
+    )
+    plan_p.add_argument(
+        "--allow-full-udp", action="store_true", help="Explicitly allow all 65,535 UDP ports in the plan."
     )
     plan_p.add_argument(
         "--max-probes", type=int, default=1024, help="Cumulative probe cap across resumes (default: 1024)."
@@ -603,7 +612,9 @@ def command_active_discovery(args: argparse.Namespace, root: Path | None = None)
             raise ValueError("Scope must contain a JSON object")
         return scope
 
-    def parse_tcp_ports(spec: str, allow_full: bool) -> list[int]:
+    def parse_ports(spec: str, allow_full: bool, protocol: str) -> list[int]:
+        if not spec.strip():
+            return []
         if spec.strip().lower() == "all":
             ports = list(range(1, 65536))
         else:
@@ -611,18 +622,18 @@ def command_active_discovery(args: argparse.Namespace, root: Path | None = None)
             for item in spec.split(","):
                 item = item.strip()
                 if not item:
-                    raise ValueError("TCP port selection contains an empty item")
+                    raise ValueError(f"{protocol} port selection contains an empty item")
                 parts = item.split("-")
                 if len(parts) > 2 or any(not part.isdecimal() for part in parts):
-                    raise ValueError(f"Invalid TCP port selection: {item}")
+                    raise ValueError(f"Invalid {protocol} port selection: {item}")
                 low = int(parts[0])
                 high = int(parts[-1])
                 if low < 1 or high > 65535 or low > high:
-                    raise ValueError(f"TCP port selection outside 1-65535: {item}")
+                    raise ValueError(f"{protocol} port selection outside 1-65535: {item}")
                 ports_set.update(range(low, high + 1))
             ports = sorted(ports_set)
         if len(ports) == 65535 and not allow_full:
-            raise ValueError("Full TCP selection requires --allow-full-tcp")
+            raise ValueError(f"Full {protocol} selection requires --allow-full-{protocol.lower()}")
         return ports
 
     if active_cmd == "plan":
@@ -646,12 +657,17 @@ def command_active_discovery(args: argparse.Namespace, root: Path | None = None)
             raise ValueError("Targets must be a nonempty list of nonempty hostnames or IP addresses")
         targets = [target.strip() for target in targets]
 
-        ports = parse_tcp_ports(args.ports, getattr(args, "allow_full_tcp", False))
+        udp_spec = getattr(args, "udp_ports", "")
+        tcp_spec = args.ports if args.ports is not None else ("" if udp_spec.strip() else "80,443,22")
+        ports = parse_ports(tcp_spec, getattr(args, "allow_full_tcp", False), "TCP")
+        udp_ports = parse_ports(udp_spec, getattr(args, "allow_full_udp", False), "UDP")
+        if not (ports or udp_ports):
+            raise ValueError("Select at least one TCP or UDP port")
         max_probes = getattr(args, "max_probes", 1024)
         if isinstance(max_probes, bool) or not isinstance(max_probes, int) or max_probes <= 0:
             raise ValueError("--max-probes must be positive")
-        if len(ports) == 65535 and max_probes < len(targets) * len(ports):
-            raise ValueError("Full TCP selection requires --max-probes to cover every selected target and port")
+        if (len(ports) == 65535 or len(udp_ports) == 65535) and max_probes < len(targets) * (len(ports) + len(udp_ports)):
+            raise ValueError("Full port selection requires --max-probes to cover every selected target and port")
         if not math.isfinite(args.timeout) or args.timeout <= 0:
             raise ValueError("--timeout must be positive and finite")
         if not math.isfinite(args.rate_limit) or args.rate_limit < 0:
@@ -666,12 +682,16 @@ def command_active_discovery(args: argparse.Namespace, root: Path | None = None)
             rate_limit_pps=args.rate_limit,
             max_probes=max_probes,
         )
-        h = hashlib.sha256(f"{args.scope_ref}:{sorted(targets)}:{sorted(ports)}".encode()).hexdigest()[:16]
+        plan_identity = f"{args.scope_ref}:{sorted(targets)}:{sorted(ports)}"
+        if udp_ports:
+            plan_identity += f":udp:{sorted(udp_ports)}"
+        h = hashlib.sha256(plan_identity.encode()).hexdigest()[:16]
         session = ActiveScanSession(
             session_id=f"active-{h}",
             scope_reference=args.scope_ref,
             approved_targets=targets,
             approved_ports=ports,
+            approved_udp_ports=udp_ports,
             vantage=args.vantage,
             budget=budget,
         )

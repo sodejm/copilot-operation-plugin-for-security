@@ -1,7 +1,7 @@
 """Run bounded active-discovery acceptance cases inside a loopback-only Linux namespace.
 
 Run through the documented Docker command. This module fails closed if any
-non-loopback interface is present and uses only ephemeral TCP listeners.
+non-loopback interface is present and uses only ephemeral TCP and UDP listeners.
 """
 
 from __future__ import annotations
@@ -65,12 +65,19 @@ def accepted_count(server: socket.socket) -> int:
     return count
 
 
-def session(name: str, host: str, ports: list[int], budget: ScanBudget | None = None) -> ActiveScanSession:
+def session(
+    name: str,
+    host: str,
+    ports: list[int],
+    budget: ScanBudget | None = None,
+    udp_ports: list[int] | None = None,
+) -> ActiveScanSession:
     return ActiveScanSession(
         session_id=name,
         scope_reference="disposable-loopback-acceptance",
         approved_targets=[host],
         approved_ports=ports,
+        approved_udp_ports=udp_ports or [],
         budget=budget or ScanBudget(timeout_seconds=0.3, rate_limit_pps=100, max_total_seconds=60),
     )
 
@@ -170,6 +177,53 @@ def shifted_dns_server():
         server.shutdown()
         server.server_close()
         thread.join(timeout=1)
+
+
+class ProbeUdpServer(socketserver.UDPServer):
+    allow_reuse_address = False
+
+    def __init__(self, respond: bool) -> None:
+        super().__init__(("127.0.0.1", 0), self.Answer)
+        self.respond = respond
+        self.datagrams: list[bytes] = []
+
+    class Answer(socketserver.BaseRequestHandler):
+        def handle(self) -> None:
+            payload, reply_socket = self.request
+            self.server.datagrams.append(payload)
+            if self.server.respond:
+                reply_socket.sendto(b"acceptance-response", self.client_address)
+
+
+@contextmanager
+def udp_probe_server(respond: bool):
+    server = ProbeUdpServer(respond)
+    thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01})
+    thread.start()
+    try:
+        yield server
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=1)
+
+
+def check_udp() -> dict[str, object]:
+    with udp_probe_server(True) as responding, udp_probe_server(False) as silent:
+        ports = [responding.server_address[1], silent.server_address[1]]
+        result = scan(session("udp", "127.0.0.1", [], udp_ports=ports))
+        states = [assessment.port_state for assessment in result.assessments]
+        require(states == [PortState.OPEN.value, PortState.UNKNOWN.value], "UDP response or silence was misclassified")
+        require(responding.datagrams == [b""] and silent.datagrams == [b""], "UDP probe count or payload changed")
+        observed = result.assessments[0].observed_config.protocol_metadata
+        require(observed.get("probe_payload") == "empty_datagram", "UDP payload provenance was lost")
+        require(observed.get("response_prefix_bytes") == len(b"acceptance-response"), "UDP reply was not observed")
+        require(
+            result.assessments[0].inferred_fingerprint.service_name == f"unknown-{ports[0]}",
+            "A UDP reply without a protocol signature was mislabeled",
+        )
+        require("cannot be distinguished" in result.assessments[1].error_message, "Silent UDP result lost uncertainty")
+        return {"states": states, "listener_datagrams": [1, 1], "payload": "empty_datagram"}
 
 
 def check_rate_limit() -> dict[str, object]:
@@ -351,6 +405,7 @@ def main() -> None:
         "rate_limit": check_rate_limit(),
         "unreachable": check_unreachable(),
         "dns_shift": check_dns_shift(),
+        "udp": check_udp(),
         "partial_resume": check_partial_resume(),
         "remediation": check_remediation(),
     }
