@@ -57,9 +57,7 @@ def build_action_plan(
             f"Target '{target_clean}' is not present in engagement included_targets: {validated_eng['scope']['included_targets']}"
         )
     if target_lower in excluded:
-        raise ScopeAmbiguityError(
-            f"Target '{target_clean}' is explicitly listed in engagement excluded_targets"
-        )
+        raise ScopeAmbiguityError(f"Target '{target_clean}' is explicitly listed in engagement excluded_targets")
 
     # 3. Mode determination and live request guard
     resolved_mode = mode or validated_eng.get("mode", "planning")
@@ -109,9 +107,7 @@ def build_action_plan(
     operation_tool = tools[0] if tools else "cops"
     operation_tool_version = tool_versions.get(operation_tool)
     if not isinstance(operation_tool_version, str) or not operation_tool_version.strip():
-        raise EngagementIntakeError(
-            f"Exact tool version required for scenario tool '{operation_tool}'"
-        )
+        raise EngagementIntakeError(f"Exact tool version required for scenario tool '{operation_tool}'")
     operation_tool_version = operation_tool_version.strip()
     tactics = mitre.get("tactics", ["discovery"])
     action_name = tactics[0] if tactics else "discovery"
