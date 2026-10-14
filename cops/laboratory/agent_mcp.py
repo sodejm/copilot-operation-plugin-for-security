@@ -428,7 +428,7 @@ def build_auth_plan(
                 "expected_evidence": [
                     "peer forwarding observation",
                     "target authorization decision",
-                    "independent canary ledger",
+                    "separate-process canary ledger",
                     "process exit observation",
                     "private directory removal observation",
                 ],

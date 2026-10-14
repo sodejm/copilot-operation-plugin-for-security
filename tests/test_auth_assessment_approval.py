@@ -97,6 +97,9 @@ def test_trusted_planner_matches_runtime_case_and_tool_contracts():
     assert adapter["tool_permissions"] == list(auth_fixture_server.TOOL_PERMISSIONS)
     assert adapter["peer_actions"] == list(auth_fixture_server.PEER_ACTIONS)
     assert manifest["fault_modes"]["supported"] == list(auth_fixture_server.FAULT_MODES)
+    expected_evidence = plan.approved_snapshot()["operations"][0]["expected_evidence"]
+    assert "separate-process canary ledger" in expected_evidence
+    assert "independent canary ledger" not in expected_evidence
 
 
 @pytest.mark.parametrize("mutation", ["tool_schema", "permission", "peer", "cleanup", "budget"])
