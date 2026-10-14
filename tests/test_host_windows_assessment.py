@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -193,6 +194,25 @@ def test_cli_is_deterministic_and_does_not_execute_export(tmp_path: Path) -> Non
     second = subprocess.run(command, capture_output=True, text=True, check=True)
     assert first.stdout == second.stdout
     assert json.loads(first.stdout)["mode"] == "offline_import"
+
+
+def test_package_validator_rejects_wrong_semantics_under_optimized_python(tmp_path: Path) -> None:
+    copied_package = tmp_path / PACKAGE.name
+    shutil.copytree(PACKAGE, copied_package)
+    fixture_path = copied_package / "fixtures" / "synthetic" / "host_windows_vulnerable_v1.json"
+    payload = json.loads(fixture_path.read_text())
+    payload["observations"][0]["canary"]["case"] = "negative"
+    payload["observations"][0]["canary"]["after_access"] = "denied"
+    fixture_path.write_text(json.dumps(payload))
+
+    result = subprocess.run(
+        [sys.executable, "-O", str(copied_package / "scripts" / "validate-package.py")],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode != 0
+    assert "Windows vulnerable classification mismatch" in result.stderr
 
 
 def test_duplicate_keys_oversize_and_unknown_schema_rejected() -> None:
