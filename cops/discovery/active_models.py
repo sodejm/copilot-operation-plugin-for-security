@@ -13,7 +13,6 @@ from cops.evidence.canonical import canonical, decode_json, utc_now
 
 from .models import EvidenceProvenance
 
-
 # A complete TCP sweep can exceed the evidence module's smaller default limit.
 # Keep checkpoint reads and writes bounded to the same explicit ceiling.
 MAX_ACTIVE_CHECKPOINT_BYTES = 256 * 1024 * 1024

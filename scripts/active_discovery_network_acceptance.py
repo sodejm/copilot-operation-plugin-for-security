@@ -15,9 +15,9 @@ import sys
 import tempfile
 import threading
 import time
+from collections.abc import Callable
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Callable
 
 from cops.discovery import (
     ActiveScanner,

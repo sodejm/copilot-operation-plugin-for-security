@@ -97,8 +97,12 @@ def build_active_parser(parser: argparse.ArgumentParser) -> None:
     plan_p = active_subs.add_parser("plan", help="Create an active scanning session plan with budgets and targets.")
     plan_p.add_argument("--targets", "-t", required=True, help="Comma-separated target hosts/IPs or path to JSON.")
     plan_p.add_argument("--ports", "-p", default="80,443,22", help="TCP ports, ranges, or 'all' (default: 80,443,22).")
-    plan_p.add_argument("--allow-full-tcp", action="store_true", help="Explicitly allow all 65,535 TCP ports in the plan.")
-    plan_p.add_argument("--max-probes", type=int, default=1024, help="Cumulative probe cap across resumes (default: 1024).")
+    plan_p.add_argument(
+        "--allow-full-tcp", action="store_true", help="Explicitly allow all 65,535 TCP ports in the plan."
+    )
+    plan_p.add_argument(
+        "--max-probes", type=int, default=1024, help="Cumulative probe cap across resumes (default: 1024)."
+    )
     plan_p.add_argument(
         "--vantage",
         default="external",
@@ -634,8 +638,10 @@ def command_active_discovery(args: argparse.Namespace, root: Path | None = None)
                 raise ValueError("Targets file must be a JSON list or an object with a targets list")
         else:
             targets = [t.strip() for t in raw_targets.split(",")]
-        if not isinstance(targets, list) or not targets or any(
-            not isinstance(target, str) or not target.strip() for target in targets
+        if (
+            not isinstance(targets, list)
+            or not targets
+            or any(not isinstance(target, str) or not target.strip() for target in targets)
         ):
             raise ValueError("Targets must be a nonempty list of nonempty hostnames or IP addresses")
         targets = [target.strip() for target in targets]
