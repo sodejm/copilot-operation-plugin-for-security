@@ -112,7 +112,14 @@ def _reject_overlapping_exclusions(target: str, excluded: list[str]) -> None:
 
 
 def _resolve_target(goal: str, engagement: dict[str, Any], selection: dict[str, Any]) -> tuple[str, str]:
-    included = [str(target).strip() for target in engagement["scope"]["included_targets"]]
+    included: list[str] = []
+    seen_included: set[str] = set()
+    for raw_target in engagement["scope"]["included_targets"]:
+        target = str(raw_target).strip()
+        identity = target.casefold()
+        if identity not in seen_included:
+            included.append(target)
+            seen_included.add(identity)
     excluded = [str(target).strip() for target in engagement["scope"].get("excluded_targets", [])]
     non_authoritative = [*_quoted_spans(goal), *_illustrative_spans(goal)]
 
@@ -199,7 +206,7 @@ def _validate_goal_detail(goal: str, target: str, target_source: str) -> dict[st
             next_action="Start with a direct request such as 'Assess the selected endpoint'.",
         )
     subject = re.escape(target) if target_source == "goal" else r"the\s+selected(?:\s+production)?\s+endpoint"
-    supported_detail = rf"{subject}(?:\s+for\s+exposed\s+services)?(?:\s+safely)?[.!]?"
+    supported_detail = rf"{subject}(?:\s+for\s+exposed\s+services)?(?:\s+safely)?[.!?]?"
     detail = goal[intent.end() :].strip()
     if re.fullmatch(supported_detail, detail, re.IGNORECASE) is None:
         raise _fail(
@@ -257,14 +264,21 @@ def resolve_engagement_goal(
             code="invalid_engagement",
             next_action="Supply a valid cops.engagement/v1 JSON contract.",
         )
-    validated = validate_engagement_intake(dict(raw_engagement))
-    scope = validated["scope"]
-    if len(scope["included_targets"]) + len(scope.get("excluded_targets", [])) > MAX_SCOPE_TARGETS:
+    scope = raw_engagement.get("scope")
+    if isinstance(scope, dict):
+        included_targets = scope.get("included_targets")
+        excluded_targets = scope.get("excluded_targets", [])
+    else:
+        included_targets = excluded_targets = None
+    included_count = len(included_targets) if isinstance(included_targets, list) else 0
+    excluded_count = len(excluded_targets) if isinstance(excluded_targets, list) else 0
+    if included_count + excluded_count > MAX_SCOPE_TARGETS:
         raise _fail(
             "Engagement contains too many scope targets for goal selection",
             code="scope_too_large",
             next_action="Provide an engagement with at most 1024 included and excluded target entries in total.",
         )
+    validated = validate_engagement_intake(dict(raw_engagement))
     lifecycle_status = validated["status"]
     if lifecycle_status not in {"planned", "active"}:
         raise _fail(
