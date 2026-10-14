@@ -533,42 +533,6 @@ def ingest_sources(
             fallback_alias = get_or_create_entity("resource", "unspecified-system")
             ent_aliases.append(fallback_alias)
 
-        # Build initial assessments based on indicators
-        assessments: list[Document] = []
-        is_suspicious = False
-
-        if rec.indicators.get("severity") in ("High", "Critical", "Medium"):
-            is_suspicious = True
-        elif rec.indicators.get("error_code") and rec.indicators.get("error_code") != 0:
-            is_suspicious = True
-        elif rec.indicators.get("risk") not in ("none", "", None):
-            is_suspicious = True
-        elif rec.indicators.get("action") in ("blocked", "failure"):
-            is_suspicious = True
-
-        if is_suspicious:
-            assessments.append({
-                "hypothesis_id": "malicious-activity",
-                "stance": "supports",
-                "reason": f"Observed anomaly or security alert ({rec.summary}) in {rec.source_system}.",
-            })
-            assessments.append({
-                "hypothesis_id": "benign-explanation",
-                "stance": "refutes",
-                "reason": "Alert severity or failure code contradicts expected benign workflow.",
-            })
-        else:
-            assessments.append({
-                "hypothesis_id": "benign-explanation",
-                "stance": "supports",
-                "reason": f"Activity in {rec.source_system} conforms to standard event baseline.",
-            })
-            assessments.append({
-                "hypothesis_id": "malicious-activity",
-                "stance": "refutes",
-                "reason": "Clean completion or normal telemetry weakens compromise hypothesis.",
-            })
-
         evidence_list.append({
             "id": ev_id,
             "source": source_alias,
@@ -576,12 +540,25 @@ def ingest_sources(
             "scope": {"tenant": tenant, "workspace": workspace},
             "event_time": rec.timestamp_utc,
             "entities": sorted(ent_aliases),
-            "assessments": assessments,
+            # Severity, risk labels, failures, and successful actions are source
+            # observations. They do not establish either hypothesis until an
+            # analyst assesses the evidence in the context of the case.
+            "assessments": [],
             "summary": rec.summary,
         })
 
     # Generate initial investigative inquiry steps
-    primary_entities = [e["id"] for e in entities_list[:2]]
+    def entity_context(*kinds: str) -> list[str]:
+        selected = [
+            entity["id"]
+            for kind in kinds
+            for entity in entities_list
+            if entity["kind"] == kind
+        ]
+        return list(dict.fromkeys(selected)) or [entities_list[0]["id"]]
+
+    signin_entities = entity_context("account", "ip")
+    consent_entities = entity_context("account", "app")
     steps: list[Document] = [
         {
             "id": "signin-triage",
@@ -593,7 +570,7 @@ def ingest_sources(
             "query": {
                 "hunt_id": "H01",
                 "surface": "sentinel_analytics",
-                "entities": primary_entities,
+                "entities": signin_entities,
                 "start": start,
                 "end": end,
             },
@@ -616,17 +593,12 @@ def ingest_sources(
             "question": "Were any high-privilege tokens or OAuth applications consented during this interval?",
             "hypothesis_ids": ["malicious-activity"],
             "basis": [],
-            "depends_on": ["signin-triage"],
-            "when": [
-                {
-                    "step_id": "signin-triage",
-                    "outcomes": ["supports", "inconclusive"],
-                }
-            ],
+            "depends_on": [],
+            "when": [],
             "query": {
-                "hunt_id": "H02",
+                "hunt_id": "H10",
                 "surface": "sentinel_analytics",
-                "entities": primary_entities,
+                "entities": consent_entities,
                 "start": start,
                 "end": end,
             },

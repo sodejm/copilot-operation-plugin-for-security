@@ -1,122 +1,98 @@
-# SOC Investigation Workbench Analyst Playbook
+# SOC Investigation Workbench playbook
 
-## 1. Overview & Intended Personas
+## Purpose and audience
 
-The **COPS SOC Investigation Workbench** provides a structured, evidence-backed reasoning framework for Security Operations Center (SOC) analysts and incident responders. It enforces rigorous investigative discipline by modeling competing hypotheses, tracking evidence linkages, maintaining an inquiry dependency graph, and ranking the most dispositive next questions.
+Use this playbook to investigate exported identity and alert records while preserving the distinction between a source observation and an analyst verdict. It is written for SOC analysts, incident responders, and reviewers who need a reproducible case record and shift handoff.
 
-- **Primary Personas**:
-  - **SOC Tier 2 / Tier 3 Analysts**: Investigating complex alerts that cannot be resolved with simple single-log lookups.
-  - **Incident Responders (IR)**: Orchestrating evidence collection, testing rival explanations, and establishing timeline causality.
-  - **Security Operations Leads**: Ensuring junior analysts avoid confirmation bias and document justifiable closure decisions.
+The workbench operates on local JSON. It does not query Microsoft Sentinel, execute KQL, call a provider API, contain an account, or decide whether activity is malicious or benign.
 
-```mermaid
-flowchart TD
-    A[Alert Intake & Entity Seeding] --> B[Formulate Competing Hypotheses]
-    B --> C[Construct Dependency Graph & Rank Questions]
-    C --> D[Attach Evidence & Resolve Contradictions]
-    D --> E[Case Review & Incident Disposition]
-```
+## Prerequisites
 
----
+- Python 3.11 or later.
+- A checkout of this repository.
+- For a real case, authorized and redacted source exports that fall within one tenant, workspace, and UTC time window.
+- A new output directory on a private, disposable filesystem. Do not store secrets, access tokens, raw credentials, or unnecessary personal data in case artifacts.
 
-## 2. When to Use This Plugin
+## Run the standalone demo
 
-Invoke this workbench during active alert triage and incident handling under the following triggers:
-
-| Trigger Scenario | Operational Objective | Primary Skills Invoked |
-| :--- | :--- | :--- |
-| **High-Impact Multi-Stage Alert** | Triage complex alerts such as anomalous OAuth consent grants, credential theft indicators, or unusual admin elevation. | `soc-investigation-planning` |
-| **Ambiguous / High-Noise Alerts** | Formulate explicit rival hypotheses (true attack vs. approved maintenance vs. benign misconfiguration) to counter confirmation bias. | `soc-investigation-planning` |
-| **Information Overload & Alert Fatigue** | Determine the most efficient, discriminatory query to run next when facing thousands of raw logs. | `soc-investigation-planning` |
-| **Incident Review & Shift Handoff** | Document the complete chain of evidence, question dependencies, and remaining uncertainties for peer review or escalation. | `soc-investigation-review` |
-
-### Operational Boundaries & Safety Guarantees
-- **Investigative Reasoning Only**: The workbench is an analytical decision-support tool. It **does not directly query live SIEMs** or automatically trigger SOAR response actions (e.g., account lock, host isolation).
-- **Offline / Local Execution**: Case data and evidence graphs are stored locally as JSON; no tenant credentials or API keys are required.
-- **Untrusted Input Caution**: Ingested log messages, filenames, and user input strings are treated strictly as untrusted data, never as executable instructions.
-
----
-
-## 3. Five-Phase SOC Analyst Playbook
-
-### Phase 1: Case Intake & Entity Seeding
-**Skill**: [`soc-investigation-planning`](../skills/soc-investigation-planning/SKILL.md)
-
-1. **Ingest Primary Alert Data**:
-   - Record case ID, alert name, severity, timestamp, and reporting detection source.
-2. **Seed Known Entities**:
-   - Extract identities (User Principal Names, Service Principal IDs, Object IDs).
-   - Extract network coordinates (source/destination IP addresses, ASNs, user agents).
-   - Extract resource identifiers (hosts, mailboxes, cloud resources).
-3. **Initialize Case Record via Multi-Source Intake**:
-   ```bash
-   python3 plugins/detection-hunting/soc-investigation-workbench/scripts/investigate.py intake \
-     --case-id incident-402 \
-     --tenant tenant-a \
-     --workspace workspace-a \
-     --start 2026-01-01T00:00:00Z \
-     --end 2026-01-02T00:00:00Z \
-     --sources sentinel:examples/intake/sentinel-incidents.json \
-               splunk:examples/intake/splunk-events.json \
-               entra:examples/intake/entra-signins.json \
-     --out /tmp/case-snapshot.json
-   ```
-
-### Phase 2: Competing Hypothesis Formulation
-Avoid fixation on a single premature conclusion by maintaining mutually exclusive explanations:
-
-- **Hypothesis 1 ($H_1$ - Malicious Compromise)**:
-  - *Example*: External adversary compromised user credentials via password spray and granted malicious OAuth permissions for persistence.
-- **Hypothesis 2 ($H_2$ - Authorized Business Activity)**:
-  - *Example*: Approved third-party vendor integration registered by the user following internal change management procedures.
-- **Hypothesis 3 ($H_3$ - Benign Misconfiguration / Testing)**:
-  - *Example*: Internal developer testing custom automation script in an unauthorized environment.
-
-### Phase 3: Dependency Graph & Question Ranking
-**Skill**: [`soc-investigation-planning`](../skills/soc-investigation-planning/SKILL.md)
-
-1. **Identify Critical Missing Inquiries**:
-   - What query separates $H_1$ from $H_2$?
-   - *Example Questions*:
-     - *Q1*: Did the IP address performing the consent grant originate from a known corporate VPN or atypical geographical location?
-     - *Q2*: Was an approved Jira/ServiceNow ticket submitted for this application consent?
-     - *Q3*: Did the user complete MFA challenge during the session that executed the consent grant?
-2. **Evaluate Question Information Gain**:
-   - Rank questions based on discriminatory power. Execute inquiries that can decisively refute the highest number of rival hypotheses.
-
-### Phase 4: Evidence Attachment & Contradiction Resolution
-1. **Link Gathered Log Evidence**:
-   - Associate log excerpts, sign-in records, or ticket confirmations with specific question nodes.
-2. **Update Hypothesis Probability**:
-   - When evidence proves an authorized change ticket exists, downgrade $H_1$ and upgrade $H_2$.
-3. **Document Conflicts & Gaps**:
-   - If log retention expired or audit logs are missing, explicitly document an `unavailable_evidence` finding rather than assuming benign behavior.
-
-### Phase 5: Incident Disposition & Review
-**Skill**: [`soc-investigation-review`](../skills/soc-investigation-review/SKILL.md)
-
-1. **Finalize Case Disposition**:
-   - Classify outcome: `True Positive - Incident`, `True Positive - Benign/Authorized`, or `False Positive - Detection Tuning Required`.
-2. **Compile Shift Handoff Artifact**:
-   - Export structured Markdown and JSON handoffs containing the complete hypothesis graph, cited evidence hashes, and remaining uncertainties:
-   ```bash
-   python3 plugins/detection-hunting/soc-investigation-workbench/scripts/investigate.py export-handoff /tmp/case-snapshot.json --out-dir /tmp/case-handoff
-   ```
-3. **Recommend Containment / Tuning**:
-   - If malicious: specify targeted containment (revoke OAuth refresh tokens, disable app).
-   - If benign: formulate detection tuning rule to filter out authorized automation.
-
----
-
-## 4. Verification & Gate Checks
-
-Verify the workbench implementation and example case evaluation:
+From an installed COPS environment, run the package demo through the stable dispatcher:
 
 ```bash
-# Package validation gate
-python3 plugins/detection-hunting/soc-investigation-workbench/scripts/validate-package.py --allow-pending-vendor
-
-# CLI case evaluation smoke test
-python3 plugins/detection-hunting/soc-investigation-workbench/scripts/investigate.py validate plugins/detection-hunting/soc-investigation-workbench/examples/case.json
-python3 plugins/detection-hunting/soc-investigation-workbench/scripts/investigate.py next plugins/detection-hunting/soc-investigation-workbench/examples/case.json
+python3 -m cops demo soc-investigation-workbench
 ```
+
+For reproducible local review, name an explicit output directory:
+
+```bash
+PACKAGE=plugins/detection-hunting/soc-investigation-workbench
+OUT="${TMPDIR:-/tmp}/cops-soc-playback-$(date +%s)"
+python3 "$PACKAGE/scripts/run_demo.py" --out-dir "$OUT"
+```
+
+The directory must not already exist. A successful run writes `playback-summary.json` with `status: passed` and creates `malicious`, `benign`, and `insufficient_evidence` subdirectories. See the [malicious-access walkthrough](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/docs/investigate-malicious-access.md) for the expected decisions and files.
+
+## Investigation data flow
+
+1. **Intake** normalizes exported records, seeds account, IP, application, and resource entities, and creates unassessed evidence.
+2. **Validate** checks the versioned case schema and cross-references before any decision step.
+3. **Next** ranks eligible questions from the inquiry graph.
+4. **Handoff** creates a bounded hunt request with the case scope, time window, hypothesis, and entity context.
+5. **Evaluate** uses the offline vendored Sentinel fixture evaluator in the demo. A real analyst runs the query in an authorized service and records what happened.
+6. **Import** adds an immutable result as an observation and records an analyst-supplied reason for each assessment.
+7. **Revise** records a justified plan change when unavailable evidence leaves a step unresolved.
+8. **Report and export** render the hypothesis state, reasons, gaps, and complete timeline for review or shift handoff.
+
+## Artifact schema guide
+
+| Artifact | Purpose | Key fields | Producer and consumer | Validation | Example |
+| --- | --- | --- | --- | --- | --- |
+| Case snapshot | Versioned investigation state | `case`, `scope`, `entities`, `evidence`, `hypotheses`, `steps`, `timeline` | `intake`; every later command | `investigate.py validate` checks schema and references | `malicious/case-intake.json` |
+| Hunt handoff | Bounded request for one inquiry | case ID, step ID, hunt ID, surface, entity aliases, start, end | `handoff`; authorized analyst or hunt tool | Case and step must validate; scope is copied from the case | `malicious/handoff-H01.json` |
+| Hunt result | Untrusted observation returned for import | evidence ID, outcome, summary, source, event time, assessments | fixture evaluator or analyst; `import` | Import validates required fields, IDs, and assessment references | `malicious/result-H01.json` |
+| Evidence record | Immutable fact or failed collection attempt | `id`, `source`, `collected_at`, `event_time`, `entities`, `summary`, `assessments` | intake/import; reasoning and report commands | A reused ID must have identical content; hashes expose changes | entry in `case-final.json` |
+| Assessment | Analyst interpretation of one evidence record | hypothesis ID, `supports` or `refutes`, reason | analyst result; hypothesis aggregation | Reason is required and the hypothesis must exist | H01 observation supports malicious activity because the synthetic sign-in violates the stated invariant |
+| Report | Reviewable case state | hypothesis status, cited evidence, reasons, gaps, next steps | `report`; analyst or reviewer | Generated only from a valid snapshot | `malicious/final-report.json` |
+| Handoff export | Portable JSON and Markdown case history | case scope, hypotheses, evidence hashes, gaps, timeline | `export-handoff`; next shift or reviewer | Export reads a valid snapshot and preserves the timeline | `malicious/handoff/` |
+| Playback summary | Machine-readable acceptance result | schema version, status, evaluator limits, per-case assertions | `run_demo.py`; CI and maintainers | Demo exits nonzero if an expected intermediate or final state differs | `playback-summary.json` |
+
+All examples in the table are under the output directory passed to `run_demo.py`.
+
+## Make the analyst decision
+
+Treat imported records as observations. Record an assessment only after the record gives a reason to support or refute a named hypothesis.
+
+- **Malicious path:** H01 shows an anomalous sign-in pattern and H10 shows a suspicious consent pattern. The imported observations support the malicious hypothesis and refute the benign explanation.
+- **Benign path:** The reference counterfactuals show activity consistent with the stated benign conditions. The observations refute malicious activity and support the benign explanation.
+- **Insufficient-evidence path:** Fixture validation fails closed. Record the failed collection and the evidence gap. Do not convert missing, empty, or failed evidence into a benign assessment. Revise the plan with a reason and leave the hypotheses unresolved.
+
+Before assigning a real disposition, review the source, scope, event time, entities, and reason for every assessment. Resolve contradictory evidence explicitly. If the available records cannot distinguish the hypotheses, preserve that uncertainty in the handoff.
+
+## Failure, retry, and resume
+
+Commands write a new snapshot or output directory. Keep the most recent valid snapshot and retry the failed command with a new output path. Do not edit an imported evidence record in place.
+
+If collection fails, import a failed-closed result that describes the limitation, record a gap, and use `revise` to add or reprioritize a question. Resume by validating the last valid snapshot and running `next`; the case timeline retains the earlier attempt and reason for the plan change.
+
+If the demo stops, inspect its last stderr message and delete only the disposable output directory you created, or choose another new directory. Re-running against an existing directory is rejected to prevent accidental overwrite.
+
+## Troubleshooting
+
+| Symptom | Meaning and action |
+| --- | --- |
+| Output directory already exists | Choose a new `--out-dir`. The demo will not overwrite prior evidence. |
+| `vendor-lock.json` or snapshot verification fails | Do not bypass validation. A maintainer must resync from an allowlisted canonical or legacy Sentinel source and review the new lock and hashes. |
+| H01 lacks an account or IP | Check that the intake exports contain supported account and network fields within the case scope. |
+| H10 lacks an account or application | Check the Entra or consent export for a supported application identifier. H10 is independent of the H01 result. |
+| No next step is eligible | Review completed steps, dependencies, evidence gaps, and the timeline. Use `revise` with a documented reason when the plan must change. |
+| Evidence import is rejected | Validate the result schema and unique evidence ID. A prior ID cannot be reused with different content. |
+| A failed or empty result appears benign | Remove the unsupported assessment, record an evidence gap, and leave the hypothesis unresolved. |
+
+## Limitations
+
+- The demo evaluator proves fixture contracts and reference invariants only. It does not parse or execute KQL and does not validate a live Sentinel workspace.
+- Query entity aliases are context for the analyst; they are not guaranteed server-side filters.
+- Synthetic fixtures do not establish coverage for a production tenant's schema, retention, identity model, or detection tuning.
+- Reports summarize recorded evidence and reasons. They do not authorize containment or replace peer review.
+- Local artifacts may still contain sensitive case data. Apply your organization's retention, access-control, and redaction requirements.
+
+Run package-specific validation as described in the [verification guide](VERIFICATION.md).

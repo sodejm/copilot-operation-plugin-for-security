@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from .evidence import LaboratoryEvidenceStore
 from .fixtures import (
     make_inert_action_plan,
     make_inert_container_environment,
@@ -39,6 +40,7 @@ __all__ = [
     "LaboratoryError",
     "LaboratoryGateError",
     "LaboratoryHarness",
+    "LaboratoryEvidenceStore",
     "LaboratoryObservation",
     "LaboratoryObservationTrustStore",
     "LaboratoryResetReceipt",

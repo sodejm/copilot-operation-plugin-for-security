@@ -352,14 +352,24 @@ exit status alone does not establish a clean baseline.
 Case execution requires an explicit `ScopeGuard`, verified worker capability
 and SSH endpoint inventories, and an action plan that prohibits egress.
 Supply a `LaboratoryCaseJournal` in an owner-only directory, with one controller
-process responsible for that journal. `execute_case`
-records dispatch intent in that journal before sending the authorized plan to
+process responsible for that journal. Also pass an absolute `evidence_dir` to
+`LaboratoryHarness`, outside disposable worker workspaces. The evidence store
+requires an operator-owned directory with no group or other access and rejects
+symbolic links. It writes canonical JSON with SHA-256 references and `0600`
+permissions. Keep both the journal and evidence under the engagement's retention
+policy; permissions do not encrypt them.
+
+`execute_case` atomically reserves the authorization identifier and records
+dispatch intent in that journal before sending the authorized plan to
 the pinned worker over SSH, then returns a `RemoteAuthorizedRun`. Call
 `case_observation_challenge` to obtain a fresh nonce, then have the independent
 adapter measure and sign a `LaboratoryCaseObservation` bound to the result, its
 finish time, and that nonce.
 `classify_case` verifies the observation, the worker `RunResult`, and its cleanup
-status before classifying the case. The result retains the full signed case,
+status before classifying the case. It derives `observed_case_type` from the
+evidence, then compares it with the expected `case_type`; choosing a positive
+case does not make its result positive. Contradictory evidence is indeterminate
+and fails the expectation. The result retains the full signed case,
 pre-execution, and, when used, reset and post-reset receipts in `details`.
 `verify_receipt_signature` can authenticate a saved receipt against the public
 trust store without a live freshness check. Install the optional `laboratory`
@@ -372,13 +382,29 @@ or reverification records a terminal failed case if no valid observation arrived
 An uncertain dispatch is recorded as `unknown` for operator reconciliation.
 Match its journal `dispatch_request_id` to the worker audit request ID when
 determining whether the worker accepted or ran the plan.
-Use `recorded_cases` to retrieve persisted outcomes. The harness does not issue
-a separate laboratory cleanup receipt.
+Use `recorded_cases` to retrieve persisted outcomes. The harness retains the
+pre-execution observation, worker result, controller cleanup receipt, and accepted
+case observation in the evidence directory. Its cleanup receipt records the
+trusted worker's reported cleanup state and binds it by digest to the case; it
+does not independently inspect the worker. A dispatch without a trusted result
+records cleanup as unknown.
 
-The bundled CLI supports `lab matrix` and `lab register`. Its `verify`,
-`reset`, and `run` commands fail closed because the CLI has no live observer,
-worker reset, or case result integration. Configure those integrations in an
-operator-controlled Python caller before using the laboratory for live cases.
+Existing journals migrate authorization identifiers from saved dispatch payloads
+into a unique index. Duplicate identifiers fail closed and require operator
+reconciliation; historical rows without an identifier remain readable. Protect
+the journal owner account: the journal is not a defense against a hostile process
+running as that owner. A journal object holds its parent directory identity and
+rejects replacement. After deliberately relocating a journal, construct a new
+`LaboratoryCaseJournal` for its new absolute path.
+
+The bundled CLI supports `lab matrix` and `lab register`. `lab verify --mock`
+and `lab reset --mock` exercise local configuration and simulated reset state.
+They set `verification_provenance` to `simulated` and leave the environment
+unverified; they cannot authorize execution. Without `--mock`, these commands
+fail closed because the CLI has no live observer or worker reset integration.
+`lab run` also fails closed. Configure those integrations in an operator-controlled
+Python caller before using the laboratory for live cases. Reverify legacy
+environments that lack observed verification provenance before dispatch.
 The laboratory requires inventories loaded with the protected
 `WorkerCapabilityInventory.from_file` and `SSHRemoteEndpointInventory.from_file`
 constructors, plus a separately provisioned observation trust store, and binds

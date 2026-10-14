@@ -100,6 +100,10 @@ COPS organizes 17 dedicated security plugins across six cybersecurity discipline
 
 For a side-by-side comparison of problem statements and operational playbooks, see [When to Use Each Plugin](plugin-guide.md).
 
+Run a checked example from the [plugin workflow index](plugin-playbacks.md), or
+follow [Investigate possible malicious access](investigate-malicious-access.md)
+through malicious, benign, and insufficient-evidence cases.
+
 ---
 
 ## 21 Specialist Agent Profiles & Dynamic Routing

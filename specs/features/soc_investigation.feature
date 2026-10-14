@@ -48,3 +48,8 @@ Feature: Analyst-led SOC investigation planning
     Given a scoped synthetic investigation
     When the CLI imports a result and repeats an output path
     Then it creates a private validated snapshot and rejects overwrite
+
+  Scenario: AC11 Malicious access playback preserves verdict boundaries
+    Given a scoped synthetic investigation
+    When malicious benign and insufficient-evidence playbacks complete
+    Then assessments are explicit and missing evidence never becomes benign

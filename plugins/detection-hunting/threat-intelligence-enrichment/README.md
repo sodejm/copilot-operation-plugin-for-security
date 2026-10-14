@@ -1,6 +1,8 @@
 # COPS Threat Intelligence Enrichment
 
-Issue #29. This read-only library validates analyst-selected IPs, domains, URLs,
+## Purpose and supported sources
+
+This read-only library validates analyst-selected IPs, domains, URLs,
 SHA-256 hashes, certificate SHA-256 fingerprints, email addresses, and Azure
 application IDs. Each outbound request requires an `Approval` for the exact
 source and indicator digest. Paths and queries in URLs, email addresses, and
@@ -24,6 +26,8 @@ distribution values and TAXII object marking references are carried as provider
 identifiers. Missing or malformed restrictions are `unknown`; consumers must
 resolve provider markings before sharing. A Microsoft host record is not a verdict.
 
+## Design and data flow
+
 The library imports the repository's `cops.connectors` SDK. Install from this
 repository or package that SDK explicitly with the plugin before standalone
 distribution. Configure MISP/TAXII origins from trusted operator settings;
@@ -41,10 +45,29 @@ provenance. The default history holds 100 snapshots per lookup key; evicted
 history is reported as `history_unavailable`. History does not survive process
 restart and should not be used as a durable audit record.
 
+| Contract or artifact | Purpose | Key fields | Producer | Consumer | Validation | Example |
+| --- | --- | --- | --- | --- | --- | --- |
+| Indicator approval | Bind one lookup to an exact source and normalized indicator | Source, indicator type, digest, sensitive-data permission | Analyst | Connector | Digest, source, type, and sensitive-value checks | Approved domain lookup against TAXII |
+| Source response | Supply bounded provider data | Status, headers, body, source locator | Injected transport or authorized provider | Adapter | TLS route, redirect, timeout, retry, and size policy | Synthetic MISP attribute response |
+| Normalized claim | Preserve a source assertion without turning it into a verdict | Indicator, source, retrieved time, confidence, restrictions | Adapter | Analyst and downstream consumer | Claim schema and source-specific parsing | Microsoft host record with unknown restrictions |
+| Cache and history snapshot | Support explicit fresh, stale, and as-of reads | Lookup key, claim, retrieval and expiry times | Enrichment library | Later read or replay | TTL, bounded history, and source-scoped cooldown | Latest snapshot at an analyst-selected time |
+| Playback summary | Qualify adapters, conflicts, caching, limits, and retry exhaustion | Source outcomes, claims, cache states, failure results | `scripts/run_demo.py` | Maintainer | Semantic assertions with a transport that forbids network access | Conflicting MISP and TAXII claims retained separately |
+
+## Usage and playback
+
 Offline tests: `PYTHONPATH=.:plugins/detection-hunting/threat-intelligence-enrichment python3 -m unittest discover -s plugins/detection-hunting/threat-intelligence-enrichment/tests`.
 Live source permissions, licenses, retention, schema variants, and provider
 response semantics are unverified; use an authorized test tenant before relying
 on operational coverage.
+
+Run the [operator playback](docs/PLAYBOOK.md) to exercise approved injected
+MISP, TAXII, and Microsoft responses, conflicting claims, fresh and stale cache
+reads, historical replay, pagination limits, and retry exhaustion without opening
+a network connection:
+
+```sh
+python3 plugins/detection-hunting/threat-intelligence-enrichment/scripts/run_demo.py
+```
 
 Follow the [end-to-end verification playbook](docs/VERIFICATION.md) to qualify this
 package's documented workflow and prepare evidence for a maturity review.

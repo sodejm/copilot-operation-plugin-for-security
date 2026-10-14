@@ -1,138 +1,72 @@
-# COPS SOC Investigation Workbench
+# SOC Investigation Workbench
 
-The **SOC Investigation Workbench** helps security analysts investigate complex, ambiguous security alerts methodically without succumbing to alert fatigue or confirmation bias.
+SOC Investigation Workbench helps SOC analysts and incident responders build a local, evidence-backed case from exported security records. It preserves competing hypotheses, ranks the next investigative step, creates bounded hunt handoffs, imports immutable observations, and produces reviewable reports. It never queries a live service or assigns an analyst verdict.
 
-During high-pressure incident triage, it is easy to latch onto an initial theory and miss alternative explanations—such as mistaking an approved internal developer integration for an attacker's rogue OAuth application. This workbench provides a structured investigative framework: it maintains **competing hypotheses**, tracks explicit evidence associations, builds a dependency graph of findings, and dynamically ranks the **highest-gain next questions** to query in your telemetry.
+## Run the complete playback
 
-The workbench operates completely offline with Python 3.10+ and requires zero runtime dependencies, credentials, or cloud access.
-
-Follow the [end-to-end verification playbook](docs/VERIFICATION.md) to qualify this
-package's documented workflow and prepare evidence for a maturity review.
-
-## Microsoft 365 acquisition preview (issue #27)
-
-The optional Microsoft 365 slice requires Python 3.11+ and the COPS shared
-`cops.evidence` and `cops.connectors` SDK from this repository. Install the
-repository alongside this package; a copied plugin directory alone does not
-include the SDK. The existing case planner remains offline and standalone.
-
-Run `python3 plugins/detection-hunting/soc-investigation-workbench/scripts/m365-offline-demo.py`
-from the repository root to collect synthetic Graph pages and correlate
-tenant-bound identities without a credential or network call. The SDK's
-`GraphCollection(tenant, source)` supports `preview(adapter)` before credential
-use and `collect(adapter, checkpoint, credentials)` with a caller-provided
-ephemeral bearer-token provider. Its fixed GET paths and bounded shared runner
-support twelve fixed collections across Entra, Defender, Purview, Exchange, SharePoint,
-and Teams. A partial acquisition receipt must remain visible in any report.
-
-| Graph source | Least-privilege application permission | Prerequisites and limits |
-| --- | --- | --- |
-| [Sign-ins](https://learn.microsoft.com/graph/api/signin-list) | `AuditLog.Read.All` | Entra sign-in log access, applicable license and retention; collection can be partial at any SDK limit. |
-| [Directory audits](https://learn.microsoft.com/graph/api/directoryaudit-list) | `AuditLog.Read.All` | Entra audit log access and tenant retention; collection can be partial. |
-| [Service principals](https://learn.microsoft.com/graph/api/serviceprincipal-list) | `Application.Read.All` | Directory consent; the projection excludes credentials and other sensitive properties. |
-| [Conditional access policies](https://learn.microsoft.com/graph/api/conditionalaccessroot-list-policies) | `Policy.Read.All` | Applicable conditional access licensing and policy access; policy state alone does not prove enforcement. |
-| [Security alerts](https://learn.microsoft.com/graph/api/alert-list) | `SecurityAlert.Read.All` | Defender XDR alert ingestion; alert projections preserve severity and tenant-bound entity IDs. |
-| [Security incidents](https://learn.microsoft.com/graph/api/security-incident-list) | `SecurityIncident.Read.All` | Incident access under Microsoft Defender XDR. |
-| [Purview cases](https://learn.microsoft.com/graph/api/ediscovery-ediscoveryroot-list-cases) | `eDiscovery.Read.All` | Microsoft Purview eDiscovery license and compliance role group. |
-| [Mail messages](https://learn.microsoft.com/graph/api/user-list-messages) | `Mail.ReadBasic.All` | Exchange Online mailbox access; least-privilege projection limits exposure to IDs and subjects. |
-| [SharePoint sites](https://learn.microsoft.com/graph/api/site-list) | `Sites.Read.All` | SharePoint tenant access and site visibility. |
-| [Teams chats](https://learn.microsoft.com/graph/api/chat-list) | `Chat.Read.All` | Teams tenant messaging access and retention boundaries. |
-| [Authentication methods](https://learn.microsoft.com/graph/api/credentialuserregistrationdetails-list) | `Reports.Read.All` | User registration report access under Entra ID. |
-| [OAuth2 permission grants](https://learn.microsoft.com/graph/api/oauth2permissiongrant-list) | `DelegatedPermissionGrant.Read.All` | Scoped delegated permission grant auditing across users and applications. |
-
-Permissions above are endpoint-level minima for these adapters; a real tenant
-requires administrative consent, license tiers, and retention checks. Cross-domain
-correlation fixtures each join identity, activity, and directory audit evidence:
-Defender alert + sign-in + audit, OAuth grant + sign-in + audit, and mail message +
-authentication method + audit. Offline tests verify tenant binding, stable record
-IDs, and source acquisition provenance.
-
----
-
-## When to Use & SOC Analyst Playbook
-
-For end-to-end investigation workflows, evidence collection tips, and case handoffs, see the complete [SOC Analyst Playbook](docs/PLAYBOOK.md).
-
-Use this workbench when:
-- **Investigating complex, multi-entity alerts**: Triaging ambiguous OAuth consent events, credential spills, or privilege escalation across users and service principals.
-- **Countering confirmation bias**: Actively tracking competing hypotheses (e.g., malicious account takeover vs. authorized IT administration).
-- **Ranking next investigative questions**: Determining the highest-value log queries to execute when faced with dozens of possible leads.
-- **Structuring incident handoffs & post-mortems**: Exporting complete, immutable evidence chains and explicitly documenting unresolved uncertainties.
-
----
-
-## Interactive Walkthrough (Offline Demo)
-
-You can run through an entire simulated investigation using the included synthetic case and evidence snippets:
+Use Python 3.11 or later from the repository root. No tenant credentials or network access are required.
 
 ```bash
-# Run from the soc-investigation-workbench directory:
-# 0. Ingest raw exports from Sentinel, Splunk, and Entra into a new case
-python3 scripts/investigate.py intake \
+PACKAGE=plugins/detection-hunting/soc-investigation-workbench
+OUT="${TMPDIR:-/tmp}/cops-soc-playback-$(date +%s)"
+python3 "$PACKAGE/scripts/run_demo.py" --out-dir "$OUT"
+cat "$OUT/playback-summary.json"
+```
+
+The output directory must not already exist. The script creates it with owner-only permissions and exercises three cases over the same synthetic tenant, workspace, entities, and UTC time window:
+
+- `malicious`: imports supporting H01 and H10 observations and ends with a supported malicious-activity hypothesis.
+- `benign`: imports counterfactual observations that refute malicious activity and support a benign explanation.
+- `insufficient_evidence`: imports failed-closed observations, records evidence gaps, revises the pending plan, and leaves both hypotheses unresolved.
+
+Each path executes intake, validation, next-step selection, hunt handoff, fixture evaluation, immutable evidence import, report generation, and timeline export. Success means the script checked every intermediate and final assertion. The vendored evaluator checks reference fixture semantics; it does not execute Kusto Query Language (KQL) or contact Microsoft Sentinel.
+
+For a guided investigation, see the [malicious-access walkthrough](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/docs/investigate-malicious-access.md). For operations and recovery, use the [analyst playbook](docs/PLAYBOOK.md). For package gates and vendor integrity, use the [verification guide](docs/VERIFICATION.md).
+
+## Manual workflow
+
+Start a case from local exports:
+
+```bash
+python3 plugins/detection-hunting/soc-investigation-workbench/scripts/investigate.py intake \
   --case-id incident-402 \
   --tenant tenant-a \
   --workspace workspace-a \
   --start 2026-01-01T00:00:00Z \
   --end 2026-01-02T00:00:00Z \
-  --sources sentinel:examples/intake/sentinel-incidents.json \
-            splunk:examples/intake/splunk-events.json \
-            entra:examples/intake/entra-signins.json \
-  --out /tmp/soc-case-intake.json
-
-# 1. Validate the initial case structure
-python3 scripts/investigate.py validate examples/case.json
-
-# 2. View the ranked next questions to investigate
-python3 scripts/investigate.py next examples/case.json
-
-# 3. Import sign-in telemetry results into a new case snapshot
-python3 scripts/investigate.py import examples/case.json examples/signin-result.json --out /tmp/soc-case-01.json
-
-# 4. Import OAuth application consent evidence
-python3 scripts/investigate.py import /tmp/soc-case-01.json examples/consent-result.json --out /tmp/soc-case-02.json
-
-# 5. Record an unmonitored mailbox gap and view the updated investigation report
-python3 scripts/investigate.py import /tmp/soc-case-02.json examples/mailbox-gap.json --out /tmp/soc-case-03.json
-python3 scripts/investigate.py report /tmp/soc-case-03.json
-
-# 6. Export an immutable case handoff package (Markdown & JSON) for the next shift analyst
-python3 scripts/investigate.py export-handoff /tmp/soc-case-03.json --out-dir /tmp/soc-handoff
+  --sources sentinel:plugins/detection-hunting/soc-investigation-workbench/examples/intake/sentinel-incidents.json \
+            splunk:plugins/detection-hunting/soc-investigation-workbench/examples/intake/splunk-events.json \
+            entra:plugins/detection-hunting/soc-investigation-workbench/examples/intake/entra-signins.json \
+  --out /tmp/incident-402.json
+python3 plugins/detection-hunting/soc-investigation-workbench/scripts/investigate.py validate /tmp/incident-402.json
+python3 plugins/detection-hunting/soc-investigation-workbench/scripts/investigate.py next /tmp/incident-402.json
+python3 plugins/detection-hunting/soc-investigation-workbench/scripts/investigate.py handoff \
+  /tmp/incident-402.json --step signin-triage > /tmp/incident-402-h01.json
 ```
 
-### What to look for
-- **Multi-Source Intake**: Ingests raw Sentinel alerts, Splunk events, and Entra logs, parses timestamps into canonical UTC, extracts entities with case-scoped hashed keys, and strictly enforces tenant boundaries.
-- **Immutable Snapshots**: Each `import` command produces a new, immutable snapshot file without modifying the original.
-- **Shift Handoff Reports**: `export-handoff` generates `handoff.md` and `handoff.json` with chronological timelines, competing hypotheses status, and ranked next questions.
-- **Privacy by Default**: Generated snapshot and handoff files are written with restricted POSIX permissions (`0600`) so other users on your machine cannot inspect sensitive investigation notes.
-- **Explicit Uncertainty**: Notice how the final report preserves conflicting assessments and clearly flags the unavailable mailbox telemetry rather than glossing over missing evidence.
+The initial evidence is deliberately unassessed. Source severity, risk labels, error codes, and successful actions are observations; an analyst must supply a reasoned assessment after reviewing relevant evidence. Empty or failed evidence cannot establish a benign outcome.
 
----
+The H01 sign-in handoff carries the account and IP context. The independent H10 consent handoff carries the account and application context. Query aliases supply investigation context and do not promise server-side entity filtering.
 
-## Skills & Host Discovery
+## Design and data flow
 
-The workbench provides two canonical skills:
-1. `soc-investigation-planning`: Formulates hypotheses, structures entities, and ranks next investigative questions.
-2. `soc-investigation-review`: Audits case logic, checks for missing alternative hypotheses, and verifies evidence links.
+The workbench treats the case snapshot as the single versioned state object. Commands read one validated snapshot and write a new file; evidence imports preserve content hashes and reject conflicting reuse of an evidence ID. Handoffs carry the case scope and question to another tool without embedding credentials. Reports and exports present recorded observations, assessments, reasons, gaps, and the full timeline.
 
-The plugin can be loaded directly into GitHub Copilot, Claude Code, or OpenAI Codex using the portable `plugin.json` or `.claude-plugin/` manifests.
+| Contract or artifact | Purpose | Key fields | Producer | Consumer | Validation | Example |
+| --- | --- | --- | --- | --- | --- | --- |
+| Case snapshot | Preserve scoped investigation state and competing hypotheses | Case, tenant, workspace, time window, entities, hypotheses, evidence gaps | Intake and subsequent case commands | Every workbench command and analyst | Versioned schema, scope checks, and immutable evidence identifiers | `incident-402` with H01 and H10 pending |
+| Hunt handoff | Ask a bounded question using case context | Step ID, hunt ID, scope, entities, question | `next` and `handoff` commands | Vendored hunt evaluator or another approved tool | Hunt and scope compatibility checks | H01 sign-in triage for one account and IP |
+| Evidence observation | Import a content-addressed result without assigning a verdict | Evidence ID, source, status, observations, SHA-256 | Fixture evaluator or analyst import | Hypothesis assessment and report generation | Hash verification and conflicting-ID rejection | H10 consent observation supporting malicious activity |
+| Report and timeline | Present recorded facts, assessments, gaps, and chronology | Hypothesis status, rationale, evidence references, timeline entries | Reporting commands | Analyst and incident reviewer | Snapshot validation and evidence-reference integrity | Insufficient-evidence report with both hypotheses unresolved |
+| Playback summary | Qualify all three synthetic paths | Case outcomes, step counts, artifact paths, assertions | `scripts/run_demo.py` | Maintainer | Semantic assertions for malicious, benign, and failed-closed cases | `malicious` ends with a supported hypothesis |
 
----
+The Sentinel hunt catalog is a verified vendored snapshot. `vendor-lock.json` records its canonical source path, base revision, file hashes, snapshot hash, and license. Package validation fails closed when the snapshot is absent, modified, or inconsistent with the lock.
 
-## Documentation & Methodology
+## Package validation
 
-- [SOC Analyst Playbook](docs/PLAYBOOK.md): Practical triage playbooks and investigative methodology.
-- [Case Workflow & JSON Contracts](docs/workflow.md): Detailed schemas for cases, entities, observations, and hypotheses.
-- [Validation Guide](docs/validation.md): Executable acceptance scenarios and test specifications.
-- [Ownership & Updates](docs/ownership.md): How hunt workflows link with the Sentinel Hunt Workbench.
+```bash
+python3 plugins/detection-hunting/soc-investigation-workbench/scripts/validate-package.py
+python3 -m pytest -q tests/step_defs/test_soc_investigation.py
+```
 
----
-
-## Evidence & Practical Boundaries
-
-The SOC Investigation Workbench is an analyst-led decision support system. It records and structures your observations, but **you remain the investigator**:
-- You run the queries in your authorized SIEM, EDR, or identity portals.
-- You import redacted observations and link them to entities.
-- The tool does not autonomously quarantine hosts, disable accounts, or declare final verdicts.
-
-### License
-Offered under the [PolyForm Noncommercial License 1.0.0](LICENSE).
+The package is offered under the [PolyForm Noncommercial License 1.0.0](LICENSE).

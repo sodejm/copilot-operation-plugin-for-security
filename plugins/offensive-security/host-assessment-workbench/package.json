@@ -26,6 +26,11 @@
       "name": "offline package gate",
       "command": ["$PYTHON", "plugins/offensive-security/host-assessment-workbench/scripts/validate-package.py"],
       "timeout_seconds": 120
+    },
+    {
+      "name": "playback semantics",
+      "command": ["$PYTHON", "plugins/offensive-security/host-assessment-workbench/tests/test_playback.py"],
+      "timeout_seconds": 120
     }
   ]
 }

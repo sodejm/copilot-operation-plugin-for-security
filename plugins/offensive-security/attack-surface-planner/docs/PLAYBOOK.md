@@ -215,9 +215,36 @@ For each in-scope asset, author a passive, bounded evaluation step:
 Validate the package implementation and test reproducibility:
 
 ```bash
+# Repository smoke demo
+python3 -m cops demo attack-surface-planner
+
 # Package validation gate
 python3 plugins/offensive-security/attack-surface-planner/scripts/validate-package.py
 
 # Offline unit tests
 python3 -m unittest discover -s plugins/offensive-security/attack-surface-planner/tests -v
 ```
+
+## Deterministic manifest playback
+
+### Purpose and prerequisites
+
+`scripts/run_playback.py` is the runnable acceptance example for the offline planner. It requires only Python 3 and the package files. It does not need cloud credentials, tenant access, DNS access, or a network connection. Run it from the package root with `python3 scripts/run_playback.py`; pass `--manifest PATH` only when validating a compatible playback contract.
+
+### Design and data flow
+
+The manifest pins the synthetic scope manifest and expected semantics. The runner copies the fixture directory into a disposable private directory so relative export paths continue to resolve, invokes `scripts/plan.py` twice, parses both reports, and checks the results. Data flows from four operator-supplied JSON exports through the scope gate to the source ledger, surface map, passive test proposals, and final JSON report. No output is used as execution authority.
+
+| Purpose | Key fields | Producer | Consumer | Definition | Validation | Example |
+| --- | --- | --- | --- | --- | --- | --- |
+| Playback contract (`scripts/playback/manifest.json`) | `schema_version`, `scope_manifest`, `expected` | Maintainer | Playback runner | Pins fixture and semantic assertions | Required keys load as JSON | `cops.attack-surface-playback/v1` |
+| Source ledger | `kind`, `file`, `sha256`, `record_count` | Planner | Reviewer | Provenance for each passive export | Four ordered source kinds and hashes | `dns_ct` |
+| Boundary decision | `asset_id`, `decision`, `reason`, `evidence` | Planner | Reviewer and proposal builder | Classifies every record | Counts are 4 in scope, 3 excluded, 1 unresolved | `unresolved` |
+| Passive proposal | `method`, `hypothesis`, `stop_condition`, `cleanup` | Planner | Engagement reviewer | Review step for an in-scope record | Four proposals; each method begins `passive-review` | `passive-review of ...` |
+| Final report | `summary`, `test_plan`, `network_requests` | Planner | Playback runner | Canonical bounded result | Reruns equal and network requests equal zero | `network_requests: 0` |
+
+### Interpretation, failures, and reruns
+
+A `status` of `passed` means the current implementation reproduced the manifest's expected fixture semantics. It does not prove that an external asset exists or is exploitable. Excluded and unresolved entries remain quarantined from the proposal list. The negative case must return code 2 and an `input gate` error for active mode. JSON parse errors, changed counts, changed ordering, non-passive methods, or unequal reruns fail the playback with a nonzero exit.
+
+Reruns create fresh temporary directories and do not reuse prior output. The standard temporary-directory cleanup runs on success and exceptions. If a process is forcibly terminated, remove any `cops-planner-playback-*` directory left in the operating system temporary directory. The playback covers pinned local exports and planner semantics only; it does not validate export freshness, ownership assertions, live systems, or authorization outside the fixture.

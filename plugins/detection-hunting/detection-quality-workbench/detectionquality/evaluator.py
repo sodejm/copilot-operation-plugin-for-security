@@ -196,6 +196,8 @@ def evaluate_rule_suite(
     rule: Rule, suite: FixtureSuite, environment: str = "offline_reference_evaluator"
 ) -> dict[str, Any]:
     """Evaluate a complete fixture suite against a rule."""
+    if not suite.cases:
+        raise QualityError("Fixture suite must contain at least one case")
     static_checks = analyze_rule_dependencies(rule, list(suite.cases))
 
     case_results = [evaluate_fixture_case(case, rule) for case in suite.cases]

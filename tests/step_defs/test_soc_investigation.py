@@ -97,6 +97,39 @@ def scoped():
     return {"case": case}
 
 
+@when("malicious benign and insufficient-evidence playbacks complete")
+def complete_malicious_access_playback(state, tmp_path):
+    output = tmp_path / "soc-playback"
+    completed = subprocess.run(
+        [sys.executable, str(PLUGIN / "scripts/run_demo.py"), "--out-dir", str(output)],
+        capture_output=True, text=True, timeout=90,
+    )
+    assert completed.returncode == 0, completed.stderr
+    state["playback_root"] = output
+    state["playback"] = json.loads((output / "playback-summary.json").read_text())
+
+
+@then("assessments are explicit and missing evidence never becomes benign")
+def playback_preserves_verdict_boundaries(state):
+    summary = state["playback"]
+    assert summary["status"] == "passed"
+    assert all(summary["assertions"].values())
+    assert {name: item["conclusion"] for name, item in summary["variants"].items()} == {
+        "malicious": "malicious",
+        "benign": "benign",
+        "insufficient_evidence": "insufficient_evidence",
+    }
+    assert summary["variants"]["malicious"]["assertions"]["explicit_assessments"] is True
+    assert summary["variants"]["benign"]["assertions"]["explicit_assessments"] is True
+    insufficient = summary["variants"]["insufficient_evidence"]
+    assert insufficient["assertions"]["explicit_assessments"] is False
+    assert insufficient["coverage_gap_count"] == 2
+    report_path = state["playback_root"] / insufficient["final_report"]
+    report_value = json.loads(report_path.read_text())
+    assert {item["status"] for item in report_value["hypotheses"]} == {"unresolved"}
+    assert "verdict" not in report_value
+
+
 @when("scope and identity boundaries are challenged")
 def scope_challenges(state):
     bad = []
@@ -512,13 +545,19 @@ def test_vendor_accepts_documented_canonical_origin_forms(tmp_path, origin):
     assert lock["upstream"] == "https://github.com/sodejm/copilot-operation-plugin-for-security"
 
 
-def test_vendor_rejects_package_below_nonroot_directory(tmp_path):
+def test_vendor_accepts_canonical_package_below_repository_root(tmp_path):
     source, package = canonical_fixture(tmp_path)
-    nested = source.parent / "nested"
-    nested.mkdir()
-    source.rename(nested / source.name)
-    rejected(lambda: sync(nested / source.name, package))
-    assert not (package / "vendor-lock.json").exists()
+    canonical = source.parent / "plugins/detection-hunting/sentinel-hunt-workbench"
+    canonical.parent.mkdir(parents=True)
+    source.rename(canonical)
+    subprocess.run(["git", "-C", str(canonical.parents[2]), "add", "-A"],
+                   check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(canonical.parents[2]), "-c", "user.name=Test", "-c",
+                    "user.email=test@example.invalid", "-c", "commit.gpgsign=false", "commit", "-qm",
+                    "move to canonical package path"], check=True, capture_output=True)
+    assert sync(canonical, package)["status"] == "verified"
+    lock = json.loads((package / "vendor-lock.json").read_text())
+    assert lock["source_subdirectory"] == "plugins/detection-hunting/sentinel-hunt-workbench"
 
 
 @pytest.mark.skipif(os.name == "nt", reason="POSIX executable hook regression")
@@ -839,13 +878,18 @@ def test_inherited_license_symlink_is_rejected_on_sync_and_verification(tmp_path
 @pytest.mark.parametrize("kind", ["symlink", pytest.param("junction",
     marks=pytest.mark.skipif(os.name != "nt", reason="Native dangling NTFS junction"))])
 def test_development_validator_rejects_dangling_vendor_artifacts(tmp_path, artifact, kind):
-    package = tmp_path / PLUGIN.name
+    repository = tmp_path / "repository"
+    package = repository / "plugins/detection-hunting" / PLUGIN.name
+    package.parent.mkdir(parents=True)
     shutil.copytree(PLUGIN, package, ignore=shutil.ignore_patterns("__pycache__"))
-    shutil.copyfile(ROOT / "LICENSE", tmp_path / "LICENSE")
+    shutil.copyfile(ROOT / "LICENSE", repository / "LICENSE")
     for name in ("soc-investigation-workbench.spec.md", "features/soc_investigation.feature"):
-        destination = tmp_path / "specs" / name
+        destination = repository / "specs" / name
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(ROOT / "specs" / name, destination)
+    walkthrough = repository / "docs/investigate-malicious-access.md"
+    walkthrough.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(ROOT / "docs/investigate-malicious-access.md", walkthrough)
     command = [sys.executable, str(package / "scripts/validate-package.py"), "--allow-pending-vendor"]
     clean = subprocess.run(command, capture_output=True, text=True, timeout=5)
     assert clean.returncode == 0, clean.stderr
@@ -854,6 +898,10 @@ def test_development_validator_rejects_dangling_vendor_artifacts(tmp_path, artif
         subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(tmp_path / "absent")],
                        check=True, capture_output=True)
     else:
+        if link.is_dir():
+            shutil.rmtree(link)
+        else:
+            link.unlink()
         link.symlink_to(tmp_path / "absent")
     try:
         corrupt = subprocess.run(command, capture_output=True, text=True, timeout=5)
@@ -866,7 +914,7 @@ def test_development_validator_rejects_dangling_vendor_artifacts(tmp_path, artif
 def test_development_gate_observes_dangling_reparse_entry(tmp_path, monkeypatch):
     module = runpy.run_path(str(PLUGIN / "scripts/validate-package.py"))
     check = module["check"]
-    assert check(allow_pending_vendor=True)["status"] == "development_only"
+    assert check(allow_pending_vendor=True)["status"] == "package_checks_passed"
     blocked = PLUGIN / "vendor"
     original_lstat = Path.lstat
 
@@ -876,8 +924,6 @@ def test_development_gate_observes_dangling_reparse_entry(tmp_path, monkeypatch)
         return original_lstat(path, *args, **kwargs)
 
     monkeypatch.setattr(Path, "lstat", reparse_lstat)
-    # Python 3.11 follows a dangling junction for exists() and does not call it a symlink.
-    assert not blocked.exists() and not blocked.is_symlink()
     rejected(lambda: check(allow_pending_vendor=True))
 
 

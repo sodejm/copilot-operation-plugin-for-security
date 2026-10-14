@@ -2,7 +2,7 @@
 
 The **Sentinel Hunt Workbench** gives threat hunters and detection engineers a safe, structured environment to design, test, and refine advanced Kusto Query Language (KQL) threat hunts offline.
 
-In enterprise security, running unoptimized or unverified queries across terabytes of production logs can lead to expensive compute bills, slow query performance, or false alarms. The Sentinel Hunt Workbench solves this by packaging **twelve battle-tested hunt definitions (H01–H12)**, synthetic event fixtures, and multi-surface rendering (Microsoft Sentinel, Microsoft Defender XDR, and Azure Data Lake) that you can test and validate locally using pure standard-library Python—before running a single query in your live tenant.
+In enterprise security, running unoptimized or unverified queries across terabytes of production logs can lead to expensive compute bills, slow query performance, or false alarms. The Sentinel Hunt Workbench packages **twelve hunt definitions (H01–H12)**, synthetic event fixtures, and declared surface profiles (Microsoft Sentinel, Microsoft Defender XDR, and Azure Data Lake) that you can render and reference-check locally using pure standard-library Python before running a query in your live tenant.
 
 ---
 
@@ -22,7 +22,7 @@ For end-to-end hunting methodologies, hypothesis design, and surface tuning, see
 Use this workbench when:
 - **Developing new threat hunts**: Translating adversary tradecraft (MITRE ATT&CK) into parameterized, efficient KQL queries.
 - **Porting queries across surfaces**: Adapting queries between Microsoft Defender XDR, Sentinel Analytics, and Sentinel Data Lake without syntax errors.
-- **Stress-testing detection logic**: Testing queries against synthetic benign and malicious event streams offline before deployment.
+- **Reference-checking detection intent**: Evaluating declared invariants against synthetic benign and malicious event streams offline before deployment.
 - **Qualifying hunting packages**: Validating query schemas, join safety, and evidence contracts for enterprise release.
 
 ---
@@ -30,7 +30,7 @@ Use this workbench when:
 ## Core Capabilities Included
 
 - **Twelve Gold-Contract Hunts (`H01`–`H12`)**: Structured hunting queries covering key adversary techniques (e.g., OAuth abuse, suspicious token issuance, cross-tenant lateral movement).
-- **Surface Profiles**: Automatic syntax translation across Sentinel Analytics, Defender Advanced Hunting, and Azure Data Lake.
+- **Surface Profiles**: Explicit compatibility declarations and parameter rendering for Sentinel Analytics, Defender Advanced Hunting, and Azure Data Lake.
 - **Six Portable Agent Skills**: Modular skills for planning, authoring, adapting, validating, testing, and reviewing hunts.
 - **Strict Typed Parameter Binding**: Eliminates raw KQL string concatenation and prevents query injection vulnerabilities.
 - **Synthetic Test Corpora**: Realistic offline datasets containing both benign background noise and positive attack signals.
@@ -55,7 +55,19 @@ python3 -m cops check sentinel-hunt-workbench
 ```
 
 ### What to look for
-The demo explains the hypothesis, required tables, parameters, and investigative pivots of a packaged hunt. It does not contact any Microsoft APIs or execute live queries.
+The demo renders every supported surface for all twelve hunts, evaluates
+malicious, benign, and insufficient-evidence fixtures for H01, H02, and H10,
+runs the library qualification and semantic-mutation checks, and repeats the
+evaluation to prove the result is stable. It writes artifacts to a private
+temporary directory by default. Retain a review copy when needed:
+
+```bash
+python3 plugins/detection-hunting/sentinel-hunt-workbench/scripts/run_demo.py \
+  --out-dir /path/to/private-review-directory
+```
+
+The result is offline fixture evidence. It does not contact Microsoft APIs,
+execute KQL in a native engine, or validate a tenant.
 
 ---
 
@@ -114,6 +126,20 @@ flowchart LR
 
 ---
 
+## Data contracts and flow
+
+The workbench keeps hunt intent, surface rendering, and fixture evaluation as
+separate contracts. This lets a reviewer identify whether a failure belongs to
+the hunt definition, a surface mapping, or the synthetic reference evaluator.
+
+| Contract or artifact | Purpose | Key fields | Producer | Consumer | Validation | Example |
+| --- | --- | --- | --- | --- | --- | --- |
+| Hunt definition | Describe a hypothesis and its required telemetry | Hunt ID, hypothesis, tables, parameters, supported surfaces | Package author | Renderer, evaluator, and analyst | Hunt schema and catalog checks | H01 anomalous sign-in hunt |
+| Surface profile and rendered query | Bind a hunt to a supported Sentinel surface | Surface, table mappings, parameters, KQL text | Renderer | Analyst or authorized tenant workflow | Compatibility and required-parameter checks | H09 rendered for Log Analytics |
+| Synthetic fixture corpus | Supply labeled offline observations | Hunt ID, case ID, input records, expected result | Package maintainer | Reference evaluator | Fixture schema and expected-outcome checks | Positive and benign H01 cases |
+| Qualification result | Record reference-evaluator outcomes | Hunt, case, matched observations, expectation status | Offline evaluator | Playback and reviewer | Every fixture must meet its declared outcome | H01 positive case matches |
+| Playback summary | Prove catalog coverage and deterministic reruns | Hunt counts, surface counts, failure-path result, digest | `scripts/run_demo.py` | Maintainer | Semantic assertions and rerun equality | All 12 hunts evaluated with a rejected malformed fixture |
+
 ## Architecture & Supplementary Docs
 
 - [Threat Hunter Playbook](docs/PLAYBOOK.md): Step-by-step methodologies and real-world hunt scenarios.
@@ -128,7 +154,7 @@ flowchart LR
 
 ## Evidence & Practical Boundaries
 
-The reference evaluator executes declarative checks over synthetic event fixtures. It is an analytical engine, not a live Kusto cluster or Sentinel emulator. Local test passes demonstrate that your query logic and parameters are sound, but cannot predict real-world cloud query costs, data ingestion latency, or custom tenant table schemas. Always test queries in an authorized test workspace before deploying them as production analytics rules.
+The reference evaluator applies declarative checks to synthetic event fixtures. It is not a Kusto compiler, live Kusto cluster, or Sentinel emulator. Local passes demonstrate that the package contracts, fixtures, and declared parameters are internally consistent; they do not establish native query validity, real-world cloud query costs, data ingestion latency, or compatibility with custom tenant table schemas. Test queries in an authorized test workspace before deploying them as production analytics rules.
 
 ### License
 Offered under the [PolyForm Noncommercial License 1.0.0](LICENSE).

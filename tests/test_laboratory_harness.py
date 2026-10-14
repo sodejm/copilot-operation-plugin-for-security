@@ -6,6 +6,7 @@ import argparse
 import builtins
 import hashlib
 import hmac
+import json
 import uuid
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -52,13 +53,13 @@ from tests.laboratory_testkit import (
 
 
 def _harness(inventory, provider=None):
+    runtime_dir = inventory.resolve("lab-operator").known_hosts_path.parent
     return LaboratoryHarness(
         observation_provider=provider
         or (lambda environment, nonce: environment_observation(environment, nonce, inventory)),
-        observation_trust_store=observation_trust_store(inventory.resolve("lab-operator").known_hosts_path.parent),
-        case_journal=LaboratoryCaseJournal(
-            inventory.resolve("lab-operator").known_hosts_path.parent / "case-journal.sqlite3"
-        ),
+        observation_trust_store=observation_trust_store(runtime_dir),
+        case_journal=LaboratoryCaseJournal(runtime_dir / "case-journal.sqlite3"),
+        evidence_dir=runtime_dir / "evidence",
     )
 
 
@@ -139,8 +140,13 @@ def test_untrusted_observation_and_missing_provider_fail_closed(tmp_path: Path) 
         harness.verify_environment(environment, endpoint_inventory=inventory)
     assert environment.status == "failed"
     environment = make_inert_container_environment()
-    with pytest.raises(IsolationVerificationError, match="Mock checks"):
-        _harness(inventory).verify_environment(environment, endpoint_inventory=inventory, mock_checks=True)
+    simulated = _harness(inventory).verify_environment(
+        environment, endpoint_inventory=inventory, mock_checks=True
+    )
+    assert simulated.status == "registered"
+    assert simulated.canary["verified"] is False
+    assert simulated.isolation["verification_status"] == "unverified"
+    assert simulated.isolation["verification_provenance"] == "simulated"
 
 
 @pytest.mark.parametrize(
@@ -575,7 +581,7 @@ def test_missing_observation_expires_to_persisted_failure(tmp_path: Path) -> Non
     harness._pending_cases[run.result.result_id] = (
         *pending[:6],
         (datetime.now(UTC) - timedelta(minutes=3)).isoformat().replace("+00:00", "Z"),
-        pending[7],
+        *pending[7:],
     )
     with pytest.raises(LaboratoryGateError, match="pending"):
         harness.case_observation_challenge(run)
@@ -608,6 +614,136 @@ def test_dispatch_failure_retains_unknown_attempt(tmp_path: Path, dispatch_error
     request_id = record["payload"]["dispatch_request_id"]
     assert uuid.UUID(request_id).version == 4
     assert dispatch.call_args.kwargs["request_id"] == request_id
+
+
+def test_mismatched_worker_result_is_never_recorded_as_trusted_cleanup(tmp_path: Path) -> None:
+    harness, inventory, environment, plan, auth, trust, engagement, worker_inventory, guard = _ready_case(tmp_path)
+    run = remote_run(plan, auth.authorization_id, environment.owner)
+    mismatched = replace(
+        run,
+        approval_receipt=replace(run.approval_receipt, authorization_id="auth-mismatch"),
+    )
+    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute", return_value=mismatched):
+        with pytest.raises(LaboratoryGateError, match="dispatch failed"):
+            harness.execute_case(
+                environment,
+                plan,
+                auth,
+                trust_store=trust,
+                engagement=engagement,
+                worker_inventory=worker_inventory,
+                endpoint_inventory=inventory,
+                scope_guard=guard,
+            )
+    (record,) = harness.recorded_cases()
+    assert record["state"] == "unknown"
+    evidence = [json.loads(Path(item["path"]).read_text()) for item in record["payload"]["durable_evidence"]]
+    assert not any(item.get("basis") == "trusted worker result" for item in evidence)
+    assert not any(item.get("cleanup_status") == "completed" for item in evidence)
+    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute") as dispatch:
+        with pytest.raises(LaboratoryGateError, match="already"):
+            harness.execute_case(
+                environment,
+                plan,
+                auth,
+                trust_store=trust,
+                engagement=engagement,
+                worker_inventory=worker_inventory,
+                endpoint_inventory=inventory,
+                scope_guard=guard,
+            )
+        dispatch.assert_not_called()
+
+
+@pytest.mark.parametrize("failure_point", ["run-result", "cleanup-receipt", "bind"])
+def test_post_dispatch_persistence_failure_marks_attempt_unknown_and_consumes_authorization(
+    tmp_path: Path, failure_point: str
+) -> None:
+    harness, inventory, environment, plan, auth, trust, engagement, worker_inventory, guard = _ready_case(tmp_path)
+    run = remote_run(plan, auth.authorization_id, environment.owner)
+    original_write = harness.evidence_store.write_json
+
+    def fail_selected_write(kind, value):
+        if kind == failure_point:
+            if kind != "cleanup-receipt" or value.get("basis") == "trusted worker result":
+                raise OSError(f"injected {failure_point} failure")
+        return original_write(kind, value)
+
+    write_patch = patch.object(harness.evidence_store, "write_json", side_effect=fail_selected_write)
+    bind_patch = (
+        patch.object(harness.case_journal, "bind", side_effect=OSError("injected bind failure"))
+        if failure_point == "bind"
+        else patch.object(harness.case_journal, "bind", wraps=harness.case_journal.bind)
+    )
+    with write_patch, bind_patch, patch(
+        "cops.laboratory.harness.SSHExecutionDispatcher.execute", return_value=run
+    ):
+        with pytest.raises(LaboratoryGateError, match="persistence failed"):
+            harness.execute_case(
+                environment,
+                plan,
+                auth,
+                trust_store=trust,
+                engagement=engagement,
+                worker_inventory=worker_inventory,
+                endpoint_inventory=inventory,
+                scope_guard=guard,
+            )
+    (record,) = harness.recorded_cases()
+    assert record["state"] == "unknown"
+    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute") as dispatch:
+        with pytest.raises(LaboratoryGateError, match="already"):
+            harness.execute_case(
+                environment,
+                plan,
+                auth,
+                trust_store=trust,
+                engagement=engagement,
+                worker_inventory=worker_inventory,
+                endpoint_inventory=inventory,
+                scope_guard=guard,
+            )
+        dispatch.assert_not_called()
+
+
+def test_failure_evidence_write_failures_still_mark_attempt_unknown(tmp_path: Path) -> None:
+    harness, inventory, environment, plan, auth, trust, engagement, worker_inventory, guard = _ready_case(tmp_path)
+    original_write = harness.evidence_store.write_json
+
+    def fail_failure_evidence(kind, value):
+        if kind in {"dispatch-failure", "cleanup-receipt"}:
+            raise OSError(f"injected {kind} failure")
+        return original_write(kind, value)
+
+    with patch.object(harness.evidence_store, "write_json", side_effect=fail_failure_evidence), patch(
+        "cops.laboratory.harness.SSHExecutionDispatcher.execute", side_effect=RuntimeError("disconnect")
+    ):
+        with pytest.raises(LaboratoryGateError, match="dispatch failed"):
+            harness.execute_case(
+                environment,
+                plan,
+                auth,
+                trust_store=trust,
+                engagement=engagement,
+                worker_inventory=worker_inventory,
+                endpoint_inventory=inventory,
+                scope_guard=guard,
+            )
+    (record,) = harness.recorded_cases()
+    assert record["state"] == "unknown"
+    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute") as dispatch:
+        with pytest.raises(LaboratoryGateError, match="already"):
+            harness.execute_case(
+                environment,
+                plan,
+                auth,
+                trust_store=trust,
+                engagement=engagement,
+                worker_inventory=worker_inventory,
+                endpoint_inventory=inventory,
+                scope_guard=guard,
+            )
+        dispatch.assert_not_called()
 
 
 def test_case_journal_is_required_before_dispatch(tmp_path: Path) -> None:
@@ -722,7 +858,20 @@ def test_case_rejects_equal_result_timestamp(tmp_path: Path) -> None:
 
 
 def test_cli_reports_provenance_requirements(capsys) -> None:
+    environment = json.dumps(make_inert_container_environment().to_dict())
     for command in ("verify", "reset", "run"):
-        args = argparse.Namespace(lab_command=command, environment="{}", output=None)
+        args = argparse.Namespace(
+            lab_command=command,
+            environment=environment,
+            output=None,
+            mock=False,
+            evidence_dir=None,
+        )
         assert command_laboratory(args) == 1
         assert "requires" in capsys.readouterr().err
+
+
+def test_cli_reports_invalid_evidence_directory(capsys) -> None:
+    args = argparse.Namespace(lab_command="matrix", output=None, evidence_dir="relative-evidence")
+    assert command_laboratory(args) == 1
+    assert "absolute" in capsys.readouterr().err

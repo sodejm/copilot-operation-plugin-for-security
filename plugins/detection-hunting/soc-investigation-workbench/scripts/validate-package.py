@@ -89,7 +89,7 @@ def check(allow_pending_vendor=False):
     feature = (ROOT / "specs/features/soc_investigation.feature").read_text(encoding="utf-8")
     criteria = re.findall(r"^- \[[ x]\] (AC\d+):", spec, re.M)
     scenarios = re.findall(r"^  Scenario: (AC\d+) ", feature, re.M)
-    require(len(criteria) == 10 and len(set(criteria)) == 10 and sorted(criteria) == sorted(scenarios),
+    require(len(criteria) == 11 and len(set(criteria)) == 11 and sorted(criteria) == sorted(scenarios),
             "Acceptance criteria and executable scenarios do not match.")
     validate(read_json(PACKAGE / "examples/case.json"))
     if (allow_pending_vendor and all(absent(path)

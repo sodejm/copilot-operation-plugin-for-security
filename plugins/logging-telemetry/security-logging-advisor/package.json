@@ -16,11 +16,10 @@
     "No host installation is proven by the repository checks."
   ],
   "demo": {
-    "description": "Scan the plugin package itself and emit repository context as JSON.",
+    "description": "Collect synthetic repository context, verify semantic reruns and partial-scan disclosure, and validate a human-authored recommendation template.",
     "command": [
       "$PYTHON",
-      "plugins/logging-telemetry/security-logging-advisor/skills/repository-context/scripts/collect-repository-context.py",
-      "plugins/logging-telemetry/security-logging-advisor"
+      "plugins/logging-telemetry/security-logging-advisor/scripts/run_playback.py"
     ],
     "timeout_seconds": 60
   },
@@ -34,6 +33,11 @@
       "name": "offline behavior",
       "command": ["$PYTHON", "plugins/logging-telemetry/security-logging-advisor/scripts/test_plugin.py"],
       "timeout_seconds": 120
+    },
+    {
+      "name": "playback regression",
+      "command": ["$PYTHON", "plugins/logging-telemetry/security-logging-advisor/scripts/test_playback.py"],
+      "timeout_seconds": 60
     }
   ]
 }
