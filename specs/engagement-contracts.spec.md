@@ -62,6 +62,8 @@ create an ActionPlan or claim execution readiness.
   excluded, illustrative, quoted, and multiple target references are rejected.
 - A selected IP range that overlaps any excluded address or range is rejected;
   selecting a broad range must never imply authority over its exclusions.
+- A selected domain at or beneath an excluded domain is rejected, including
+  equivalent ASCII case and leading-dot exclusion forms.
 - One result selects at most one target. The `needs_execution_path` response
   records the target and its source, unbound requested intent, a canonical
   engagement digest with unverified review status, `not_assessed` coverage, unavailable
@@ -70,6 +72,9 @@ create an ActionPlan or claim execution readiness.
 - Goal selection does not contact targets, dispatch a worker, request approval,
   or assess a system. Host adapters must preserve the same boundary until a
   separately verified execution path exists.
+- When an otherwise valid Engagement needs goal clarification, the response
+  includes its ID and canonical digest so the retry can retain the same contract
+  binding. An invalid Engagement has no trusted binding.
 - Terminal engagements and expired windows are rejected. Upcoming windows may
   select a target but do not confer execution readiness. Requests longer than
   4,096 characters, more than 1,024 combined scope targets, or more than 1 MiB

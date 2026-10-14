@@ -92,8 +92,9 @@ followed by "for exposed services" and "safely". Other target or task details
 return `needs_input` instead of being silently dropped. Statements, informational questions,
 negated requests, excluded targets, multiple targets, and target text inside
 quotes or illustrative clauses also return `needs_input` with a specific next
-action. A selected IP range overlapping an excluded address or range also
-returns `needs_input`. It does not infer a target merely because the Engagement has only one
+action. A selected IP range overlapping an excluded address or range, or a
+domain at or beneath an excluded domain, also returns `needs_input`. It does not
+infer a target merely because the Engagement has only one
 included target. After an illustrative marker, the remainder of the request is
 non-authoritative, including periods inside IP addresses and hostnames. Target
 matching examines the request subject after the assessment verb; words in the
@@ -108,7 +109,11 @@ ID and canonical SHA-256 digest, lifecycle/window status, and a separate
 schema do not prove provenance or review. The caller must independently verify
 the contract and its selected target against the controlled review path, then
 map the intent to an allowed operation before seeking approval. The command
-rejects terminal lifecycle states and expired windows; a future window is
+includes the Engagement ID and canonical digest in a `needs_input` response
+when contract validation succeeded; malformed or unreadable contracts have no
+trusted binding. For a directly named target with unsupported detail, the next
+action names the same target so it can be retried without adding a selection.
+The command rejects terminal lifecycle states and expired windows; a future window is
 reported as `upcoming` and cannot establish execution readiness. Requests
 are limited to 4,096 characters, 1,024 scope target entries in total, and
 1 MiB of Engagement JSON. Duplicate JSON keys are rejected.

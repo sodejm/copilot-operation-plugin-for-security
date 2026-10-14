@@ -68,8 +68,11 @@ python3 -m cops engagement goal \
 The command accepts one exact target named directly in the request, or the
 engagement's recorded `metadata.goal_selection.target` when the request says
 "the selected endpoint". It rejects ambiguous, excluded, quoted, illustrative,
-and unsupported instructions. The result retains the requested verb and the
-contract digest, while marking review and action binding as unverified. It reports `needs_execution_path` and
+and unsupported instructions, including targets beneath an excluded domain.
+After validating the contract, clarification responses include its ID and digest
+so the next request can be tied to the same version. Successful resolution retains
+the requested verb and contract digest while marking review and action binding as
+unverified. It reports `needs_execution_path` and
 `not_assessed`: no executable plan, approval, worker action, or recovery
 checkpoint is created. See [Authenticated Execution](docs/AUTHENTICATED_EXECUTION.md#resolve-an-ordinary-language-goal-offline)
 for the current boundary and remaining work.
