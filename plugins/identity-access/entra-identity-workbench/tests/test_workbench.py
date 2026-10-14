@@ -520,6 +520,22 @@ def test_cross_object_validation_rejects_fresh_claims_from_unknown_sources(
         validate_report_artifact(bad_report)
 
 
+@pytest.mark.parametrize("exported_at", ["2000-01-01T00:00:00Z", "2026-10-01T00:00:00Z"])
+def test_artifact_validation_rechecks_fresh_source_window(contoso_manifest_path: Path, exported_at: str):
+    manifest, sources = ingest_tenant_export(contoso_manifest_path)
+    graph = build_identity_graph(manifest, sources, as_of=FIXTURE_AS_OF)
+    for name, document, validate in (
+        ("graph", graph.to_dict(), validate_graph_artifact),
+        ("report", render_json_report(graph, analyze_identity_graph(graph)), validate_report_artifact),
+    ):
+        altered = deepcopy(document)
+        altered["source_coverage"]["users"]["exported_at"] = exported_at
+        schema = json.loads((PLUGIN_ROOT / "schemas" / f"{name}.v2.schema.json").read_text())
+        assert Draft202012Validator(schema, format_checker=FormatChecker()).is_valid(altered)
+        with pytest.raises(EntraError, match="outside the assessment window"):
+            validate(altered)
+
+
 def test_markdown_report_escapes_export_derived_text(contoso_manifest_path: Path):
     manifest, sources = ingest_tenant_export(contoso_manifest_path)
     graph = build_identity_graph(manifest, sources, as_of=FIXTURE_AS_OF)

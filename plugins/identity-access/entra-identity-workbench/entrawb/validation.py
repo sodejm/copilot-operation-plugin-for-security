@@ -26,12 +26,16 @@ def _timestamp(value: Any, *, utc_only: bool = False) -> datetime:
 
 def validate_export_metadata(graph: IdentityGraph) -> None:
     """Fail closed before exporting a graph without complete v2 freshness metadata."""
+    _validate_freshness_metadata(graph.assessed_at, graph.max_age_hours, graph.source_coverage)
+
+
+def _validate_freshness_metadata(assessed_at: Any, max_age_hours: Any, coverage: Any) -> None:
+    """Recheck source freshness for both generated and imported v2 artifacts."""
     from .graph import SOURCE_IDS
 
-    assessed = _timestamp(graph.assessed_at, utc_only=True)
-    if type(graph.max_age_hours) is not int or graph.max_age_hours != 24:
+    assessed = _timestamp(assessed_at, utc_only=True)
+    if type(max_age_hours) is not int or max_age_hours != 24:
         raise EntraError("Export requires a 24-hour freshness limit")
-    coverage = graph.source_coverage
     if not isinstance(coverage, dict) or set(coverage) != set(SOURCE_IDS):
         raise EntraError("Export requires source coverage for every Entra source")
     for source_id, item in coverage.items():
@@ -77,6 +81,7 @@ def validate_graph_artifact(document: dict[str, Any]) -> None:
     Validate the document against graph.v2.schema.json first for field shapes.
     """
     coverage = document["source_coverage"]
+    _validate_freshness_metadata(document["assessed_at"], document["max_age_hours"], coverage)
     nodes = {node["node_id"]: node for node in document["nodes"]}
     for node in document["nodes"]:
         if node["evidence_status"] == "fresh" and node["node_type"] != "tenant":
@@ -97,6 +102,7 @@ def validate_report_artifact(document: dict[str, Any]) -> None:
     Validate the document against report.v2.schema.json first for field shapes.
     """
     coverage = document["source_coverage"]
+    _validate_freshness_metadata(document["assessed_at"], document["max_age_hours"], coverage)
     for hypothesis in document["hypotheses"]:
         if hypothesis["evidence_status"] != "fresh":
             raise EntraError(f"hypothesis '{hypothesis['hypothesis_id']}' is not fresh")
