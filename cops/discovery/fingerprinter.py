@@ -63,11 +63,7 @@ def infer_service_fingerprint(
         confidence = ConfidenceLevel.MEDIUM.value
 
         # Check for CDN / Edge Proxy fronting
-        has_cloudflare = any(
-            "cloudflare" in (server_header or "").lower()
-            or "cf-ray" in k.lower()
-            for k in headers
-        )
+        has_cloudflare = any("cloudflare" in (server_header or "").lower() or "cf-ray" in k.lower() for k in headers)
         has_cloudfront = any(
             "cloudfront" in (server_header or "").lower()
             or "x-amz-cf-id" in k.lower()
@@ -122,7 +118,9 @@ def infer_service_fingerprint(
                     # Check certificate expiry if ISO or standard format
                     exp_dt = datetime.fromisoformat(tls.valid_until.replace("Z", "+00:00"))
                     if exp_dt < datetime.now(UTC):
-                        uncertainty_reasons.append("TLS certificate is expired; target service configuration may be unmaintained")
+                        uncertainty_reasons.append(
+                            "TLS certificate is expired; target service configuration may be unmaintained"
+                        )
                         confidence = ConfidenceLevel.UNCERTAIN.value
                 except (TypeError, ValueError):
                     uncertainty_reasons.append("TLS certificate expiry date could not be parsed")
@@ -170,7 +168,9 @@ def infer_service_fingerprint(
             try:
                 exp_dt = datetime.fromisoformat(tls.valid_until.replace("Z", "+00:00"))
                 if exp_dt < datetime.now(UTC):
-                    uncertainty_reasons.append("TLS certificate is expired; target service configuration may be unmaintained")
+                    uncertainty_reasons.append(
+                        "TLS certificate is expired; target service configuration may be unmaintained"
+                    )
             except (TypeError, ValueError):
                 uncertainty_reasons.append("TLS certificate expiry date could not be parsed")
         return InferredFingerprint(

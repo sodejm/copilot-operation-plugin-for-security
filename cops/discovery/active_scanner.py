@@ -459,10 +459,18 @@ class StandardSocketDispatcher(ProbeDispatcher):
                 protocol=protocol,
                 vantage=vantage,
                 port_state=(
-                    PortState.CLOSED.value if refused else PortState.UNREACHABLE.value if no_route else PortState.UNKNOWN.value
+                    PortState.CLOSED.value
+                    if refused
+                    else PortState.UNREACHABLE.value
+                    if no_route
+                    else PortState.UNKNOWN.value
                 ),
                 reachability=(
-                    ServiceReachability.REACHABLE.value if refused else ServiceReachability.UNREACHABLE.value if no_route else ServiceReachability.UNKNOWN.value
+                    ServiceReachability.REACHABLE.value
+                    if refused
+                    else ServiceReachability.UNREACHABLE.value
+                    if no_route
+                    else ServiceReachability.UNKNOWN.value
                 ),
                 observed_config=ObservedConfiguration(),
                 latency_ms=(time.monotonic() - start_time) * 1000.0,
@@ -513,7 +521,9 @@ class ActiveScanner:
             raise ActiveScanError("TCP and UDP ports must be integers from 1 through 65535")
         if len({target.lower() for target in self.session.approved_targets}) != len(
             self.session.approved_targets
-        ) or any(len(set(ports)) != len(ports) for ports in (self.session.approved_ports, self.session.approved_udp_ports)):
+        ) or any(
+            len(set(ports)) != len(ports) for ports in (self.session.approved_ports, self.session.approved_udp_ports)
+        ):
             raise ActiveScanError("Duplicate targets or ports would repeat probe side effects")
         if (
             not isinstance(budget.timeout_seconds, (int, float))
@@ -609,9 +619,7 @@ class ActiveScanner:
         def planned_key(key: str) -> bool:
             if not isinstance(key, str):
                 return False
-            protocol = next(
-                (name for name in planned_ports if key.startswith(f"{session.vantage}:{name}:")), None
-            )
+            protocol = next((name for name in planned_ports if key.startswith(f"{session.vantage}:{name}:")), None)
             if protocol is None:
                 return False
             prefix = f"{session.vantage}:{protocol}:"
@@ -771,9 +779,7 @@ class ActiveScanner:
 
         self.session.status = "in_progress"
         persist()
-        planned_probes = [
-            (Protocol.TCP.value, port) for port in self.session.approved_ports
-        ] + [
+        planned_probes = [(Protocol.TCP.value, port) for port in self.session.approved_ports] + [
             (Protocol.UDP.value, port) for port in self.session.approved_udp_ports
         ]
 
@@ -811,9 +817,7 @@ class ActiveScanner:
                 )
                 if ports
             )
-            has_completed_probe = any(
-                key.startswith(probe_prefixes) for key in self.session.completed_probe_keys
-            )
+            has_completed_probe = any(key.startswith(probe_prefixes) for key in self.session.completed_probe_keys)
             if len(prior_ips) > 1 or (has_completed_probe and prior_ip is None):
                 self.session.quarantined_targets.append(
                     TargetShiftQuarantine(
@@ -884,9 +888,7 @@ class ActiveScanner:
             for protocol, port in planned_probes:
                 # 3. Skip completed operations before checking whether another
                 # dispatch is within the remaining cumulative budget.
-                probe_key = ActiveScanSession.make_probe_key(
-                    self.session.vantage, protocol, target_host, port
-                )
+                probe_key = ActiveScanSession.make_probe_key(self.session.vantage, protocol, target_host, port)
                 if probe_key in self.session.completed_probe_keys:
                     continue
 

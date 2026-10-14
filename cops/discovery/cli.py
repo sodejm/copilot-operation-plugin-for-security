@@ -666,7 +666,9 @@ def command_active_discovery(args: argparse.Namespace, root: Path | None = None)
         max_probes = getattr(args, "max_probes", 1024)
         if isinstance(max_probes, bool) or not isinstance(max_probes, int) or max_probes <= 0:
             raise ValueError("--max-probes must be positive")
-        if (len(ports) == 65535 or len(udp_ports) == 65535) and max_probes < len(targets) * (len(ports) + len(udp_ports)):
+        if (len(ports) == 65535 or len(udp_ports) == 65535) and max_probes < len(targets) * (
+            len(ports) + len(udp_ports)
+        ):
             raise ValueError("Full port selection requires --max-probes to cover every selected target and port")
         if not math.isfinite(args.timeout) or args.timeout <= 0:
             raise ValueError("--timeout must be positive and finite")
