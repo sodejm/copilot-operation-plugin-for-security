@@ -188,12 +188,12 @@ def run_playback(
     _require(isinstance(observation, dict), "inert subprocess observation must be a JSON object")
     expected_observation = {
         "dispatcher": "local-inert",
-        "engagement_id": "eng-synthetic-e03",
-        "mode": "planning",
+        "engagement_id": validated["engagement_id"],
+        "mode": validated["mode"],
         "network_requests": 0,
         "operation_ids": [operations[0]["step_id"]],
-        "operations_count": 1,
-        "target": "10.100.0.10",
+        "operations_count": len(operations),
+        "target": target,
     }
     _require(observation == expected_observation, "inert subprocess observation failed semantic validation")
 
@@ -209,12 +209,12 @@ def run_playback(
     _atomic_write_json(output_dir / "execution-evidence.json", evidence)
 
     result = {
-        "engagement_id": "eng-synthetic-e03",
-        "mode": "planning",
+        "engagement_id": validated["engagement_id"],
+        "mode": validated["mode"],
         "network_requests": 0,
-        "operations_count": 1,
+        "operations_count": len(operations),
         "status": "passed",
-        "target": "10.100.0.10",
+        "target": target,
     }
     _atomic_write_json(output_dir / "playback-result.json", result)
     return result

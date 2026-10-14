@@ -101,6 +101,29 @@ class TestEngagementPlayback(unittest.TestCase):
             self.assertEqual(sentinel.read_text(encoding="utf-8"), "preserve me")
             self.assertIsInstance(json.loads((output_dir / "action-plan.json").read_text()), dict)
 
+    def test_playback_reports_validated_manifest_and_requested_target(self) -> None:
+        manifest = json.loads(self.manifest.read_text(encoding="utf-8"))
+        manifest["engagement_id"] = "eng-custom-planning"
+        target = "k8s-api.internal"
+
+        with tempfile.TemporaryDirectory() as directory:
+            output_dir = Path(directory)
+            result = run_playback(
+                manifest,
+                output_dir=output_dir,
+                tool_versions={"python3": "3.11.9"},
+                target=target,
+                root=REPO_ROOT,
+            )
+
+            self.assertEqual(result["engagement_id"], manifest["engagement_id"])
+            self.assertEqual(result["mode"], manifest["mode"])
+            self.assertEqual(result["target"], target)
+            observation = json.loads((output_dir / "inert-observation.json").read_text())
+            self.assertEqual(observation["engagement_id"], manifest["engagement_id"])
+            self.assertEqual(observation["mode"], manifest["mode"])
+            self.assertEqual(observation["target"], target)
+
     def test_semantic_failure_removes_stale_success_result(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             output_dir = Path(directory)

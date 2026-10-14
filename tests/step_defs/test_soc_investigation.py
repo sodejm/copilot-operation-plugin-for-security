@@ -969,15 +969,15 @@ def test_development_validator_rejects_dangling_vendor_artifacts(tmp_path, artif
     clean = subprocess.run(command, capture_output=True, text=True, timeout=5)
     assert clean.returncode == 0, clean.stderr
     link = package / artifact
+    if link.is_dir():
+        shutil.rmtree(link)
+    else:
+        link.unlink()
     if kind == "junction":
         subprocess.run(
             ["cmd", "/c", "mklink", "/J", str(link), str(tmp_path / "absent")], check=True, capture_output=True
         )
     else:
-        if link.is_dir():
-            shutil.rmtree(link)
-        else:
-            link.unlink()
         link.symlink_to(tmp_path / "absent")
     try:
         corrupt = subprocess.run(command, capture_output=True, text=True, timeout=5)
