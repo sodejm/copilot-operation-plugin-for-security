@@ -71,6 +71,7 @@ def session(
     ports: list[int],
     budget: ScanBudget | None = None,
     udp_ports: list[int] | None = None,
+    udp_dns_probe_ports: list[int] | None = None,
 ) -> ActiveScanSession:
     return ActiveScanSession(
         session_id=name,
@@ -78,6 +79,7 @@ def session(
         approved_targets=[host],
         approved_ports=ports,
         approved_udp_ports=udp_ports or [],
+        udp_dns_probe_ports=udp_dns_probe_ports or [],
         budget=budget or ScanBudget(timeout_seconds=0.3, rate_limit_pps=100, max_total_seconds=60),
     )
 
@@ -94,7 +96,7 @@ def scan(
             return scan(scan_session, dispatcher, ip_range, Path(temp_dir) / "checkpoint.json", sleeper)
     return ActiveScanner(
         session=scan_session,
-        dispatcher=dispatcher or StandardSocketDispatcher(),
+        dispatcher=dispatcher or StandardSocketDispatcher(scan_session.udp_dns_probe_ports),
         scope={"ip_ranges": [ip_range]},
         checkpoint=checkpoint,
         sleeper=sleeper,
@@ -224,6 +226,85 @@ def check_udp() -> dict[str, object]:
         )
         require("cannot be distinguished" in result.assessments[1].error_message, "Silent UDP result lost uncertainty")
         return {"states": states, "listener_datagrams": [1, 1], "payload": "empty_datagram"}
+
+
+class DnsProbeServer(socketserver.UDPServer):
+    allow_reuse_address = False
+
+    def __init__(self, response_kind: str) -> None:
+        super().__init__(("127.0.0.1", 0), self.Answer)
+        self.response_kind = response_kind
+        self.datagrams: list[bytes] = []
+
+    class Answer(socketserver.BaseRequestHandler):
+        def handle(self) -> None:
+            query, reply_socket = self.request
+            self.server.datagrams.append(query)
+            if len(query) != 17:
+                return
+            kind = self.server.response_kind
+            query_id = bytes((query[0] ^ 0xFF, query[1])) if kind == "wrong_id" else query[:2]
+            flags = 0x8200 if kind == "truncated" else 0x8040 if kind == "reserved_z" else 0x8000
+            question_count = 0 if kind == "wrong_count" else 1
+            question = query[12:-1] + b"\x02" if kind == "wrong_question" else query[12:]
+            response = query_id + struct.pack("!HHHHH", flags, question_count, 0, 0, 0) + question
+            if kind == "short":
+                response = response[:16]
+            reply_socket.sendto(response, self.client_address)
+
+
+@contextmanager
+def dns_probe_server(response_kind: str):
+    server = DnsProbeServer(response_kind)
+    thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01})
+    thread.start()
+    try:
+        yield server
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=1)
+
+
+def check_udp_dns() -> dict[str, object]:
+    with (
+        dns_probe_server("matching") as matching,
+        dns_probe_server("wrong_id") as mismatched,
+        dns_probe_server("truncated") as truncated,
+        dns_probe_server("wrong_count") as wrong_count,
+        dns_probe_server("wrong_question") as wrong_question,
+        dns_probe_server("short") as short,
+        dns_probe_server("reserved_z") as reserved_z,
+    ):
+        responders = [matching, mismatched, truncated, wrong_count, wrong_question, short, reserved_z]
+        ports = [responder.server_address[1] for responder in responders]
+        result = scan(session("udp-dns", "127.0.0.1", [], udp_ports=ports, udp_dns_probe_ports=ports))
+        require(all(len(responder.datagrams) == 1 for responder in responders), "DNS probe count changed")
+        expected_question = b"\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x01"
+        require(
+            all(responder.datagrams[0][2:] == expected_question for responder in responders),
+            "Unexpected DNS probe payload",
+        )
+        require(all(assessment.port_state == "open" for assessment in result.assessments), "DNS replies were missed")
+        fingerprints = [assessment.inferred_fingerprint for assessment in result.assessments]
+        require(fingerprints[0].service_name == "dns" and fingerprints[0].product is None and fingerprints[0].version is None, "Matching DNS response was mislabeled")
+        require(fingerprints[2].service_name == "dns", "Matching truncated DNS response was rejected")
+        require(
+            all(fingerprints[index].service_name == f"unknown-{ports[index]}" for index in (1, 3, 4, 5, 6)),
+            "Malformed DNS response was accepted",
+        )
+        metadata = [assessment.observed_config.protocol_metadata for assessment in result.assessments]
+        require(
+            [item["dns_response_validated"] for item in metadata] == [True, False, True, False, False, False, False],
+            "DNS response validation provenance was lost",
+        )
+        require(metadata[2]["dns_response_truncated"], "Truncated DNS response provenance was lost")
+        return {
+            "states": ["open"] * len(ports),
+            "services": [fingerprint.service_name for fingerprint in fingerprints],
+            "datagrams": [1] * len(ports),
+            "truncated": metadata[2]["dns_response_truncated"],
+        }
 
 
 def check_server_first_banner() -> dict[str, object]:
@@ -442,6 +523,7 @@ def main() -> None:
         "unreachable": check_unreachable(),
         "dns_shift": check_dns_shift(),
         "udp": check_udp(),
+        "udp_dns": check_udp_dns(),
         "partial_resume": check_partial_resume(),
         "remediation": check_remediation(),
     }

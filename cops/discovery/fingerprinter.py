@@ -25,6 +25,20 @@ def infer_service_fingerprint(
     headers = observed_config.http_headers or {}
     tls = observed_config.tls
 
+    if (
+        protocol == "udp"
+        and observed_config.protocol_metadata.get("probe_payload") == "dns_root_ns_query"
+        and observed_config.protocol_metadata.get("dns_response_validated") is True
+    ):
+        return InferredFingerprint(
+            service_name="dns",
+            product=None,
+            version=None,
+            confidence=ConfidenceLevel.MEDIUM.value,
+            uncertainty_reasons=["Matching DNS response does not authenticate the server or establish a product or version"],
+            evidence_sources=["matched_dns_query_response"],
+        )
+
     # 1. SSH Analysis
     if protocol == "tcp" and raw_banner.startswith("SSH-"):
         evidence_sources.append("ssh_protocol_banner")

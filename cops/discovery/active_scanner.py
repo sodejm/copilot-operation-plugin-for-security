@@ -274,6 +274,9 @@ class OfflineSyntheticDispatcher(ProbeDispatcher):
 class StandardSocketDispatcher(ProbeDispatcher):
     """Standard-library live TCP and bounded UDP probe dispatcher."""
 
+    def __init__(self, udp_dns_probe_ports: list[int] | None = None) -> None:
+        self.udp_dns_probe_ports = frozenset(udp_dns_probe_ports or [])
+
     def resolve_target(self, target_host: str) -> str:
         try:
             return str(ipaddress.ip_address(target_host))
@@ -443,11 +446,19 @@ class StandardSocketDispatcher(ProbeDispatcher):
     def _dispatch_udp(
         self, target_host: str, resolved_ip: str, port: int, timeout: float, vantage: str
     ) -> ActiveServiceAssessment:
-        """Send one empty datagram; silence is inconclusive, never evidence of an open port."""
+        """Send one approved datagram; silence never establishes an open port."""
         protocol = Protocol.UDP.value
         probe_key = ActiveScanSession.make_probe_key(vantage, protocol, target_host, port)
         timestamp = utc_now()
         probe_id = hashlib.sha256(f"{probe_key}:{timestamp}".encode()).hexdigest()[:24]
+        dns_probe = port in self.udp_dns_probe_ports
+        query_id = os.urandom(2) if dns_probe else b""
+        payload = (
+            query_id + b"\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x01"
+            if dns_probe
+            else b""
+        )
+        probe_name = "dns_root_ns_query" if dns_probe else "empty_datagram"
         start_time = time.monotonic()
         sock = None
         try:
@@ -455,13 +466,31 @@ class StandardSocketDispatcher(ProbeDispatcher):
             sock = socket.socket(family, socket.SOCK_DGRAM)
             sock.settimeout(timeout)
             sock.connect((resolved_ip, port))
-            sock.send(b"")
+            sock.send(payload)
             response = sock.recv(512)
+            dns_validated = bool(
+                dns_probe
+                and len(response) >= 17
+                and response[:2] == query_id
+                and (response[2] & 0x80)
+                and not (response[2] & 0x78)
+                and not (response[3] & 0x40)
+                and response[4:6] == b"\x00\x01"
+                and response[12:17] == payload[12:17]
+            )
             observed = ObservedConfiguration(
                 protocol_metadata={
-                    "probe_payload": "empty_datagram",
+                    "probe_payload": probe_name,
                     "response_prefix_bytes": len(response),
                     "response_prefix_sha256": hashlib.sha256(response).hexdigest(),
+                    **(
+                        {
+                            "dns_response_validated": dns_validated,
+                            "dns_response_truncated": dns_validated and bool(response[2] & 0x02),
+                        }
+                        if dns_probe
+                        else {}
+                    ),
                 }
             )
             return ActiveServiceAssessment(
@@ -491,7 +520,7 @@ class StandardSocketDispatcher(ProbeDispatcher):
                 observed_config=ObservedConfiguration(),
                 latency_ms=(time.monotonic() - start_time) * 1000.0,
                 timestamp_utc=timestamp,
-                error_message="No UDP response to an empty datagram; open or filtered cannot be distinguished",
+                error_message=f"No UDP response to {probe_name}; open or filtered cannot be distinguished",
             )
         except OSError as err:
             refused = err.errno == errno.ECONNREFUSED
@@ -570,6 +599,14 @@ class ActiveScanner:
             len(set(ports)) != len(ports) for ports in (self.session.approved_ports, self.session.approved_udp_ports)
         ):
             raise ActiveScanError("Duplicate targets or ports would repeat probe side effects")
+        dns_ports = self.session.udp_dns_probe_ports
+        if (
+            any(not isinstance(port, int) or isinstance(port, bool) or not 1 <= port <= 65535 for port in dns_ports)
+            or len(set(dns_ports)) != len(dns_ports)
+            or not set(dns_ports).issubset(self.session.approved_udp_ports)
+        ):
+            raise ActiveScanError("DNS probe ports must be unique approved UDP ports")
+        self._validate_dns_probe_profile()
         if (
             not isinstance(budget.timeout_seconds, (int, float))
             or isinstance(budget.timeout_seconds, bool)
@@ -647,8 +684,47 @@ class ActiveScanner:
         # Preserve digests for existing TCP-only checkpoints.
         if self.session.approved_udp_ports:
             plan["approved_udp_ports"] = self.session.approved_udp_ports
+        if self.session.udp_dns_probe_ports:
+            plan["udp_dns_probe_ports"] = self.session.udp_dns_probe_ports
         encoded = json.dumps(plan, sort_keys=True, separators=(",", ":")).encode("utf-8")
         return hashlib.sha256(encoded).hexdigest()
+
+    def _validate_dns_probe_profile(self) -> None:
+        """Keep the live dispatcher's payload selection bound to the approved plan."""
+        if not self._live_dispatcher:
+            return
+        configured = getattr(self.dispatcher, "udp_dns_probe_ports", None)
+        if self.session.udp_dns_probe_ports or configured is not None:
+            if not isinstance(configured, frozenset) or configured != frozenset(
+                self.session.udp_dns_probe_ports
+            ):
+                raise ActiveScanError("Live UDP DNS probe selection differs from the approved plan")
+
+    def _validate_probe_evidence(self, assessment: ActiveServiceAssessment) -> None:
+        """Reject results that claim an unapproved UDP application payload."""
+        metadata = assessment.observed_config.protocol_metadata
+        if not isinstance(metadata, dict):
+            raise ActiveScanError("Probe result has invalid protocol metadata")
+        if assessment.protocol != Protocol.UDP.value:
+            if "probe_payload" in metadata and metadata["probe_payload"] == "dns_root_ns_query":
+                raise ActiveScanError("Probe result claims an out-of-plan DNS payload")
+            return
+        expected = (
+            "dns_root_ns_query"
+            if assessment.port in self.session.udp_dns_probe_ports
+            else "empty_datagram"
+        )
+        if "probe_payload" in metadata and metadata["probe_payload"] != expected:
+            raise ActiveScanError("Probe result claims an out-of-plan UDP payload")
+        if any(
+            isinstance(key, str) and key.startswith("dns_response_") for key in metadata
+        ) and expected != "dns_root_ns_query":
+            raise ActiveScanError("Probe result claims unapproved DNS response evidence")
+        if assessment.port_state == PortState.OPEN.value and expected == "dns_root_ns_query":
+            if metadata.get("probe_payload") != expected or not isinstance(
+                metadata.get("dns_response_validated"), bool
+            ):
+                raise ActiveScanError("Open DNS probe result lacks payload provenance")
 
     def _validate_live_ledger(self) -> None:
         """Reject a contradictory checkpoint before any resumed network activity."""
@@ -706,6 +782,10 @@ class ActiveScanner:
                 or not self._is_ip_in_scope(assessment.resolved_ip)
             ):
                 raise ActiveScanError("Live checkpoint assessment evidence is inconsistent")
+            try:
+                self._validate_probe_evidence(assessment)
+            except ActiveScanError as err:
+                raise ActiveScanError("Live checkpoint probe evidence is inconsistent") from err
             assessment_keys.add(key)
         if assessment_keys != completed:
             raise ActiveScanError("Live checkpoint lacks assessment evidence for completed probes")
@@ -1005,6 +1085,7 @@ class ActiveScanner:
 
                 # Reserve the attempt durably before the network side effect. A
                 # crash or error leaves it pending for external reconciliation.
+                self._validate_dns_probe_profile()
                 self.session.pending_probe_keys.add(probe_key)
                 self.session.total_probes_dispatched += 1
                 prior_dispatch = True
@@ -1027,6 +1108,7 @@ class ActiveScanner:
                         or assessment.vantage != self.session.vantage
                     ):
                         raise ActiveScanError("Probe result does not match its reserved target, port, and vantage")
+                    self._validate_probe_evidence(assessment)
                 except Exception:
                     self.session.status = "requires_reconciliation"
                     persist()

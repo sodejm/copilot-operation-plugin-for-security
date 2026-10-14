@@ -296,6 +296,7 @@ class ActiveScanSession:
     approved_targets: list[str]
     approved_ports: list[int]
     approved_udp_ports: list[int] = field(default_factory=list)
+    udp_dns_probe_ports: list[int] = field(default_factory=list)
     vantage: str = ScanVantage.EXTERNAL.value
     budget: ScanBudget = field(default_factory=ScanBudget)
     started_at: str = field(default_factory=utc_now)
@@ -322,6 +323,7 @@ class ActiveScanSession:
             "approved_targets": list(self.approved_targets),
             "approved_ports": list(self.approved_ports),
             "approved_udp_ports": list(self.approved_udp_ports),
+            "udp_dns_probe_ports": list(self.udp_dns_probe_ports),
             "vantage": self.vantage,
             "budget": self.budget.to_dict(),
             "started_at": self.started_at,
@@ -345,6 +347,7 @@ class ActiveScanSession:
             approved_targets=list(data["approved_targets"]),
             approved_ports=list(data["approved_ports"]),
             approved_udp_ports=list(data.get("approved_udp_ports", [])),
+            udp_dns_probe_ports=list(data.get("udp_dns_probe_ports", [])),
             vantage=data.get("vantage", ScanVantage.EXTERNAL.value),
             budget=ScanBudget.from_dict(data.get("budget", {})),
             started_at=data.get("started_at", utc_now()),

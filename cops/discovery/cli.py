@@ -104,6 +104,11 @@ def build_active_parser(parser: argparse.ArgumentParser) -> None:
     )
     plan_p.add_argument("--udp-ports", default="", help="Separately approved UDP ports, ranges, or 'all'.")
     plan_p.add_argument(
+        "--udp-dns-probe-ports",
+        default="",
+        help="Approved UDP ports to receive one nonrecursive DNS root NS query; must be selected by --udp-ports.",
+    )
+    plan_p.add_argument(
         "--allow-full-tcp", action="store_true", help="Explicitly allow all 65,535 TCP ports in the plan."
     )
     plan_p.add_argument(
@@ -661,6 +666,9 @@ def command_active_discovery(args: argparse.Namespace, root: Path | None = None)
         tcp_spec = args.ports if args.ports is not None else ("" if udp_spec.strip() else "80,443,22")
         ports = parse_ports(tcp_spec, getattr(args, "allow_full_tcp", False), "TCP")
         udp_ports = parse_ports(udp_spec, getattr(args, "allow_full_udp", False), "UDP")
+        udp_dns_probe_ports = parse_ports(getattr(args, "udp_dns_probe_ports", ""), False, "UDP DNS probe")
+        if not set(udp_dns_probe_ports).issubset(udp_ports):
+            raise ValueError("--udp-dns-probe-ports must be a subset of --udp-ports")
         if not (ports or udp_ports):
             raise ValueError("Select at least one TCP or UDP port")
         max_probes = getattr(args, "max_probes", 1024)
@@ -687,6 +695,8 @@ def command_active_discovery(args: argparse.Namespace, root: Path | None = None)
         plan_identity = f"{args.scope_ref}:{sorted(targets)}:{sorted(ports)}"
         if udp_ports:
             plan_identity += f":udp:{sorted(udp_ports)}"
+        if udp_dns_probe_ports:
+            plan_identity += f":udp_dns_probe:{sorted(udp_dns_probe_ports)}"
         h = hashlib.sha256(plan_identity.encode()).hexdigest()[:16]
         session = ActiveScanSession(
             session_id=f"active-{h}",
@@ -694,6 +704,7 @@ def command_active_discovery(args: argparse.Namespace, root: Path | None = None)
             approved_targets=targets,
             approved_ports=ports,
             approved_udp_ports=udp_ports,
+            udp_dns_probe_ports=udp_dns_probe_ports,
             vantage=args.vantage,
             budget=budget,
         )
@@ -719,7 +730,7 @@ def command_active_discovery(args: argparse.Namespace, root: Path | None = None)
                 mock_targets = json.loads(Path(args.offline_targets).read_text(encoding="utf-8"))
             dispatcher = OfflineSyntheticDispatcher(targets=mock_targets)
         else:
-            dispatcher = StandardSocketDispatcher()
+            dispatcher = StandardSocketDispatcher(session.udp_dns_probe_ports)
 
         scanner = ActiveScanner(session=session, dispatcher=dispatcher, scope=scope_dict, checkpoint=args.checkpoint)
         completed_session = scanner.run()
@@ -751,7 +762,7 @@ def command_active_discovery(args: argparse.Namespace, root: Path | None = None)
                 mock_targets = json.loads(Path(args.offline_targets).read_text(encoding="utf-8"))
             dispatcher = OfflineSyntheticDispatcher(targets=mock_targets)
         else:
-            dispatcher = StandardSocketDispatcher()
+            dispatcher = StandardSocketDispatcher(session.udp_dns_probe_ports)
 
         scanner = ActiveScanner(session=session, dispatcher=dispatcher, scope=scope_dict, checkpoint=save_chk)
         resumed_session = scanner.run()

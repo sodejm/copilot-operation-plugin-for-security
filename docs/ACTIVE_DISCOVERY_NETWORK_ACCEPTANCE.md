@@ -71,8 +71,20 @@ reported the responding port as `open` with a response length and SHA-256 digest
 it reported the silent port as `unknown` because silence cannot distinguish open
 from filtered. Neither result claimed a DNS or other application protocol from
 the port number. This verifies basic bounded UDP behavior in the isolated Linux
-environment. Protocol-specific UDP identification, external networks, native
-Windows and macOS operation, and full-range scan performance remain unverified.
+environment. External networks, native Windows and macOS operation, and
+full-range scan performance remain unverified.
+
+A subsequent 2026-10-14 isolated Linux run exercised the explicitly selected
+DNS probe on seven UDP loopback ports. Each responder received exactly one
+nonrecursive root NS query. All replied, so all ports were `open`. Matching
+complete and truncated responses were identified as `dns`, with truncation
+recorded; wrong transaction ID, question count, question bytes, reserved header
+bit, and short responses remained unidentified. None claimed a product or
+version. The same run passed the earlier rate-limit, DNS-shift, interruption,
+retest, generic UDP, and server-first banner controls. This establishes bounded
+DNS response identification in this disposable namespace. Other UDP services,
+other malformed-response variants, external networks, and native Windows/macOS
+operation remain unverified.
 
 TCP fingerprint tests also reject a generic `220` greeting on conventional SMTP
 and FTP ports as insufficient to identify the service. A protocol-specific banner
