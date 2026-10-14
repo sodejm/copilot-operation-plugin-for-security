@@ -18,10 +18,10 @@ import jsonschema
 import pytest
 from foundryharness import auth_approval, auth_bootstrap, auth_laboratory, cli, laboratory
 
-from cops.laboratory import agent_mcp
 from cops.execution import store as store_module
 from cops.execution.authorization import create_execution_authorization
 from cops.execution.store import ApprovalStoreConflictError
+from cops.laboratory import agent_mcp
 from tests.auth_testkit import (
     authorization_secret_environment,
     make_test_authorization_context,

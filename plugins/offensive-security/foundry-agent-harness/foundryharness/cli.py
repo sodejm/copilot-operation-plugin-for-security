@@ -6,12 +6,17 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from foundryharness.models import Scenario
 
 if __package__ in (None, ""):
     source_root = Path(__file__).resolve().parents[4]
     if (source_root / "cops" / "__init__.py").is_file():
         sys.path.insert(0, str(source_root))
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 
 def load_scenarios(scenario_path: Path | None, scenarios_dir: Path | None) -> list[Scenario]:
     """Load scenarios from a single file or a directory."""
