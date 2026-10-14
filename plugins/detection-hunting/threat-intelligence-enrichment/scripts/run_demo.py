@@ -177,15 +177,20 @@ def main() -> int:
         microsoft_failure["status"] == "error" and microsoft_failure["error"] == "http_503",
         "Microsoft retry-exhaustion evidence missing",
     )
+    request_attempts = {
+        "misp": len(misp_transport.requests),
+        "taxii": len(taxii_transport.requests),
+        "microsoft": len(microsoft_transport.requests),
+    }
+    require(
+        request_attempts == {"misp": 1, "taxii": 1, "microsoft": 3},
+        f"provider request-attempt evidence is invalid: {request_attempts}",
+    )
     result = {
         "schema": "cops.threat-intelligence-playback/v1",
         "network_mode": "injected-mock-only",
         "live_integrations_validated": False,
-        "request_attempts": {
-            "misp": len(misp_transport.requests),
-            "taxii": len(taxii_transport.requests),
-            "microsoft": len(microsoft_transport.requests),
-        },
+        "request_attempts": request_attempts,
         "misp": {
             "initial": initial,
             "fresh_cache": fresh,

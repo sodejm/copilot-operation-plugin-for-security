@@ -19,6 +19,8 @@ The output directory must not already exist. The script creates it with owner-on
 - `benign`: imports counterfactual observations that refute malicious activity and support a benign explanation.
 - `insufficient_evidence`: imports failed-closed observations, records evidence gaps, revises the pending plan, and leaves both hypotheses unresolved.
 
+Omit `--out-dir` for a transient qualification run. The script creates an owner-only temporary directory, removes it after either success or failure, and returns the three-case assessment as `playback_summary` without reporting its path. Pass an explicit new `--out-dir` when you need to retain and inspect the generated artifacts.
+
 Each path executes intake, validation, next-step selection, hunt handoff, fixture evaluation, immutable evidence import, report generation, and timeline export. Success means the script checked every intermediate and final assertion. The vendored evaluator checks reference fixture semantics; it does not execute Kusto Query Language (KQL) or contact Microsoft Sentinel.
 
 For a guided investigation, see the [malicious-access walkthrough](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/docs/investigate-malicious-access.md). For operations and recovery, use the [analyst playbook](docs/PLAYBOOK.md). For package gates and vendor integrity, use the [verification guide](docs/VERIFICATION.md).

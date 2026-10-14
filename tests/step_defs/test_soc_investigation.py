@@ -151,6 +151,53 @@ def playback_preserves_verdict_boundaries(state):
     assert "verdict" not in report_value
 
 
+def test_default_playback_output_is_disposable_and_private(tmp_path):
+    environment = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "TMPDIR": str(tmp_path)}
+    completed = subprocess.run(
+        [sys.executable, str(PLUGIN / "scripts/run_demo.py")],
+        capture_output=True,
+        text=True,
+        timeout=90,
+        env=environment,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    result = json.loads(completed.stdout)
+    summary = result.pop("playback_summary")
+    assert result == {"artifacts": "validated_in_disposable_directory", "status": "passed"}
+    assert summary["schema_version"] == "soc-investigation.playback/v1"
+    assert {name: item["conclusion"] for name, item in summary["variants"].items()} == {
+        "malicious": "malicious",
+        "benign": "benign",
+        "insufficient_evidence": "insufficient_evidence",
+    }
+    assert all(summary["assertions"].values())
+    assert str(tmp_path) not in completed.stdout
+    assert str(tmp_path) not in completed.stderr
+    assert not list(tmp_path.glob("cops-soc-playback-*"))
+
+
+def test_default_playback_output_is_removed_and_redacted_after_failure(tmp_path, monkeypatch, capsys):
+    module = runpy.run_path(str(PLUGIN / "scripts/run_demo.py"))
+    monkeypatch.setattr(module["tempfile"], "tempdir", str(tmp_path))
+
+    def fail_evaluator(arguments, **_kwargs):
+        generated_root = Path(arguments[-1]).parent
+        return SimpleNamespace(returncode=1, stdout="", stderr=f"failed under {generated_root}")
+
+    monkeypatch.setattr(module["subprocess"], "run", fail_evaluator)
+
+    assert module["main"]([]) == 2
+    captured = capsys.readouterr()
+    failure = json.loads(captured.err)
+    assert failure == {
+        "error": "vendored hunt evaluator failed: failed under <disposable-output>",
+        "status": "failed",
+    }
+    assert str(tmp_path) not in captured.err
+    assert not list(tmp_path.glob("cops-soc-playback-*"))
+
+
 @when("scope and identity boundaries are challenged")
 def scope_challenges(state):
     bad = []

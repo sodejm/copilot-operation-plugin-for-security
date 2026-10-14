@@ -120,6 +120,9 @@ EXPECTED_PLAYBACK_FIELDS: dict[str, dict[tuple[str, ...], object]] = {
         ("network_mode",): "injected-mock-only",
         ("live_integrations_validated",): False,
         ("microsoft_failure", "status"): "error",
+        ("request_attempts", "misp"): 1,
+        ("request_attempts", "taxii"): 1,
+        ("request_attempts", "microsoft"): 3,
         ("taxii_partial", "status"): "partial",
         ("misp", "fresh_cache", "cache"): "fresh",
         ("misp", "stale_cache", "cache"): "stale",
@@ -201,9 +204,8 @@ def _assert_playback_semantics(plugin_id: str, result: subprocess.CompletedProce
         assert actual == expected, f"{plugin_id} {'.'.join(path)}: expected {expected!r}, got {actual!r}"
 
     if plugin_id == "soc-investigation-workbench":
-        summary_path = Path(_value_at(payload, ("summary",)))
-        assert summary_path.name == "playback-summary.json" and summary_path.is_file()
-        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        assert payload["artifacts"] == "validated_in_disposable_directory"
+        summary = _value_at(payload, ("playback_summary",))
         assert summary["schema_version"] == "soc-investigation.playback/v1"
         assert summary["evidence_scope"] == "synthetic_contract_and_reference_semantics_only"
         assert summary["live_service_validation"] == "not_performed"

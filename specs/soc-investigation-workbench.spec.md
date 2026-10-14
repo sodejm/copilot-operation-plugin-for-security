@@ -92,7 +92,10 @@ of tenant or cross-host validation are included.
 - [x] AC10: CLI snapshots are validated, private, and never overwritten.
 - [x] AC11: Malicious, benign, and insufficient-evidence playbacks run through
   the real CLI boundary and preserve the distinction between observations,
-  analyst assessments, and case-level verdicts.
+  analyst assessments, and case-level verdicts. The default playback directory
+  is private, is removed after success or failure, and is never reported. Its
+  assessment summary is returned inline; only an explicit output directory is
+  retained and reported.
 
 Each criterion has a matching executable scenario in
 `features/soc_investigation.feature`. Unit tests add boundary coverage. Release

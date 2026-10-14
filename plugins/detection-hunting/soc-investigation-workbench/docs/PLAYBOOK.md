@@ -11,7 +11,7 @@ The workbench operates on local JSON. It does not query Microsoft Sentinel, exec
 - Python 3.11 or later.
 - A checkout of this repository.
 - For a real case, authorized and redacted source exports that fall within one tenant, workspace, and UTC time window.
-- A new output directory on a private, disposable filesystem. Do not store secrets, access tokens, raw credentials, or unnecessary personal data in case artifacts.
+- A private, disposable filesystem if you retain artifacts with `--out-dir`. Do not store secrets, access tokens, raw credentials, or unnecessary personal data in case artifacts.
 
 ## Run the standalone demo
 
@@ -30,6 +30,8 @@ python3 "$PACKAGE/scripts/run_demo.py" --out-dir "$OUT"
 ```
 
 The directory must not already exist. A successful run writes `playback-summary.json` with `status: passed` and creates `malicious`, `benign`, and `insufficient_evidence` subdirectories. See the [malicious-access walkthrough](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/docs/investigate-malicious-access.md) for the expected decisions and files.
+
+Without `--out-dir`, the runner uses an owner-only temporary directory, removes it after success or failure, and returns the three-case assessment inline as `playback_summary` without reporting an internal path. Use an explicit new output directory only when you need to retain artifacts for review.
 
 ## Investigation data flow
 
@@ -73,12 +75,13 @@ Commands write a new snapshot or output directory. Keep the most recent valid sn
 
 If collection fails, import a failed-closed result that describes the limitation, record a gap, and use `revise` to add or reprioritize a question. Resume by validating the last valid snapshot and running `next`; the case timeline retains the earlier attempt and reason for the plan change.
 
-If the demo stops, inspect its last stderr message and delete only the disposable output directory you created, or choose another new directory. Re-running against an existing directory is rejected to prevent accidental overwrite.
+If the default demo stops, inspect its last stderr message; its internal temporary directory has already been removed. If a run with `--out-dir` stops, delete only the caller-chosen disposable directory or choose another new directory. Re-running against an existing directory is rejected to prevent accidental overwrite.
 
 ## Troubleshooting
 
 | Symptom | Meaning and action |
 | --- | --- |
+| No artifacts remain after the default demo | This is expected. Inspect the inline `playback_summary`, or pass a new `--out-dir` when the artifacts need review. |
 | Output directory already exists | Choose a new `--out-dir`. The demo will not overwrite prior evidence. |
 | `vendor-lock.json` or snapshot verification fails | Do not bypass validation. A maintainer must resync from an allowlisted canonical or legacy Sentinel source and review the new lock and hashes. |
 | H01 lacks an account or IP | Check that the intake exports contain supported account and network fields within the case scope. |

@@ -9,6 +9,8 @@ import os
 import subprocess
 import sys
 import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from hashlib import sha256
 from pathlib import Path
 from typing import Any
@@ -65,6 +67,20 @@ def run_json(*arguments: object) -> dict[str, Any]:
 def assert_true(condition: bool, message: str) -> None:
     if not condition:
         raise PlaybackError(message)
+
+
+@contextmanager
+def output_directory(requested: Path | None) -> Iterator[tuple[Path, bool]]:
+    """Yield a private output directory and whether the caller retained it."""
+    if requested is not None:
+        root = requested.resolve()
+        root.mkdir(mode=0o700, parents=True, exist_ok=False)
+        yield root, True
+        return
+    with tempfile.TemporaryDirectory(prefix="cops-soc-playback-") as raw:
+        root = Path(raw)
+        os.chmod(root, 0o700)
+        yield root, False
 
 
 def observation(variant: str, hunt_id: str, handoff: dict[str, Any]) -> dict[str, Any]:
@@ -261,63 +277,71 @@ def run_variant(root: Path, variant: str, evaluation: dict[str, Any]) -> dict[st
     }
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out-dir", type=Path, help="New private directory for disposable playback artifacts.")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     os.umask(0o077)
+    disposable_root: Path | None = None
     try:
-        if args.out_dir is None:
-            root = Path(tempfile.mkdtemp(prefix="cops-soc-playback-"))
-            os.chmod(root, 0o700)
-        else:
-            root = args.out_dir.resolve()
-            root.mkdir(mode=0o700, parents=True, exist_ok=False)
-        evaluator_dir = root / "sentinel-evaluation"
-        evaluated = subprocess.run(
-            [sys.executable, str(EVALUATOR), "--out-dir", str(evaluator_dir)],
-            cwd=PACKAGE.parents[2],
-            text=True,
-            capture_output=True,
-            timeout=60,
-            check=False,
-            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
-        )
-        if evaluated.returncode:
-            raise PlaybackError(f"vendored hunt evaluator failed: {evaluated.stderr.strip()}")
-        evaluation = load(evaluator_dir / "evaluation-summary.json")
-        assert_true(evaluation.get("status") == "passed", "vendored hunt evaluation did not pass")
-        variants = {name: run_variant(root, name, evaluation) for name in VARIANTS}
-        summary = {
-            "schema_version": "soc-investigation.playback/v1",
-            "status": "passed",
-            "evidence_scope": "synthetic_contract_and_reference_semantics_only",
-            "live_service_validation": "not_performed",
-            "variants": variants,
-            "assertions": {
-                "all_three_outcomes_completed": set(item["conclusion"] for item in variants.values())
-                == {"malicious", "benign", "insufficient_evidence"},
-                "no_automatic_verdicts": all(item["automatic"] is False for item in variants.values()),
-                "failed_or_empty_evidence_did_not_imply_benign": variants["insufficient_evidence"]["conclusion"]
-                == "insufficient_evidence",
-            },
-            "limitations": [
-                "The vendored evaluator checks reference invariants; it does not execute KQL.",
-                "No live Sentinel service, tenant, workspace, or connector was contacted.",
-                "Synthetic observations demonstrate workflow semantics and do not establish production efficacy.",
-            ],
-        }
-        assert_true(all(summary["assertions"].values()), "final playback assertions failed")
-        private_json(root / "playback-summary.json", summary)
-        print(
-            json.dumps(
-                {"status": "passed", "out_dir": str(root), "summary": str(root / "playback-summary.json")},
-                sort_keys=True,
+        with output_directory(args.out_dir) as (root, retained):
+            if not retained:
+                disposable_root = root
+            evaluator_dir = root / "sentinel-evaluation"
+            evaluated = subprocess.run(
+                [sys.executable, str(EVALUATOR), "--out-dir", str(evaluator_dir)],
+                cwd=PACKAGE.parents[2],
+                text=True,
+                capture_output=True,
+                timeout=60,
+                check=False,
+                env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
             )
-        )
+            if evaluated.returncode:
+                raise PlaybackError(f"vendored hunt evaluator failed: {evaluated.stderr.strip()}")
+            evaluation = load(evaluator_dir / "evaluation-summary.json")
+            assert_true(evaluation.get("status") == "passed", "vendored hunt evaluation did not pass")
+            variants = {name: run_variant(root, name, evaluation) for name in VARIANTS}
+            summary = {
+                "schema_version": "soc-investigation.playback/v1",
+                "status": "passed",
+                "evidence_scope": "synthetic_contract_and_reference_semantics_only",
+                "live_service_validation": "not_performed",
+                "variants": variants,
+                "assertions": {
+                    "all_three_outcomes_completed": set(item["conclusion"] for item in variants.values())
+                    == {"malicious", "benign", "insufficient_evidence"},
+                    "no_automatic_verdicts": all(item["automatic"] is False for item in variants.values()),
+                    "failed_or_empty_evidence_did_not_imply_benign": variants["insufficient_evidence"]["conclusion"]
+                    == "insufficient_evidence",
+                },
+                "limitations": [
+                    "The vendored evaluator checks reference invariants; it does not execute KQL.",
+                    "No live Sentinel service, tenant, workspace, or connector was contacted.",
+                    "Synthetic observations demonstrate workflow semantics and do not establish production efficacy.",
+                ],
+            }
+            assert_true(all(summary["assertions"].values()), "final playback assertions failed")
+            private_json(root / "playback-summary.json", summary)
+            if retained:
+                result = {
+                    "status": "passed",
+                    "out_dir": str(root),
+                    "summary": str(root / "playback-summary.json"),
+                }
+            else:
+                result = {
+                    "status": "passed",
+                    "artifacts": "validated_in_disposable_directory",
+                    "playback_summary": summary,
+                }
+            print(json.dumps(result, sort_keys=True))
         return 0
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError, PlaybackError) as exc:
-        print(json.dumps({"status": "failed", "error": str(exc)}), file=sys.stderr)
+        error = str(exc)
+        if disposable_root is not None:
+            error = error.replace(str(disposable_root), "<disposable-output>")
+        print(json.dumps({"status": "failed", "error": error}), file=sys.stderr)
         return 2
 
 
