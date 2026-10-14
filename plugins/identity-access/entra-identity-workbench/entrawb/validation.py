@@ -8,7 +8,6 @@ from typing import Any
 
 from .models import EntraError, IdentityGraph
 
-
 _COVERAGE_FIELDS = {"status", "reason", "path", "sha256", "completeness", "exported_at"}
 _UNKNOWN_REASONS = {"not_listed", "missing_file", "incomplete", "invalid_timestamp", "future_timestamp", "stale"}
 _TIMESTAMP = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})\Z")
@@ -40,9 +39,14 @@ def validate_export_metadata(graph: IdentityGraph) -> None:
             raise EntraError(f"Export requires complete source coverage for '{source_id}'")
         status = item["status"]
         if status == "fresh":
-            if (item["reason"] is not None or not isinstance(item["path"], str) or not item["path"]
-                or not isinstance(item["sha256"], str) or not _SHA256.fullmatch(item["sha256"])
-                or item["completeness"] != "full"):
+            if (
+                item["reason"] is not None
+                or not isinstance(item["path"], str)
+                or not item["path"]
+                or not isinstance(item["sha256"], str)
+                or not _SHA256.fullmatch(item["sha256"])
+                or item["completeness"] != "full"
+            ):
                 raise EntraError(f"Fresh source '{source_id}' has incomplete provenance")
             exported = _timestamp(item["exported_at"])
             if exported > assessed or assessed - exported > timedelta(hours=24):

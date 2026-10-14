@@ -541,9 +541,15 @@ def test_legacy_v1_schemas_remain_compatible():
         "summary": {
             name: 0
             for name in (
-                "total_nodes", "total_edges", "human_users", "service_principals",
-                "managed_identities", "agent_blueprints", "agent_identities",
-                "critical_hypotheses", "high_hypotheses",
+                "total_nodes",
+                "total_edges",
+                "human_users",
+                "service_principals",
+                "managed_identities",
+                "agent_blueprints",
+                "agent_identities",
+                "critical_hypotheses",
+                "high_hypotheses",
             )
         },
         "hypotheses": [],
