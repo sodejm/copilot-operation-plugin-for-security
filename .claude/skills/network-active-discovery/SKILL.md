@@ -20,7 +20,7 @@ Execute authorized, bounded active network assessment across approved hosts, por
    - A probe reserved before dispatch but lacking a result requires reconciliation; it is never retried automatically.
 
 3. **Grounded Service Identification with Visible Uncertainty**:
-   - Clearly separates **Observed Configuration** from **Inferred Fingerprints**. The built-in live dispatcher currently checks TCP reachability and, on ports 443/8443, TLS version and cipher. Imports and synthetic results may contain other fields; the live dispatcher does not collect banners, HTTP headers, certificates, or UDP responses.
+   - Clearly separates **Observed Configuration** from **Inferred Fingerprints**. The built-in live dispatcher checks TCP reachability; on ports 443/8443 it records TLS version and cipher without peer authentication. On other TCP ports it may read up to 512 bytes of an unsolicited server-first banner. A UDP reply is recorded by length and digest; an opted-in DNS query can identify a matching DNS response. It does not send HTTP requests, collect HTTP headers or certificates, or retain UDP response bodies. Banner-based product and version claims are untrusted self-reports.
    - Calibrates confidence (`high`, `medium`, `low`, `uncertain`, `provisional`).
    - Explicitly records `uncertainty_reasons` (e.g. reverse proxy fronting, CDN masking, certificate hostname mismatch, or empty banner responses).
 
@@ -31,7 +31,7 @@ Execute authorized, bounded active network assessment across approved hosts, por
 
 5. **Remediated Exposure Verification (Scan Delta)**:
    - Compares baseline active assessment against subsequent re-test sessions.
-   - Computes remediated exposures, newly opened ports, persistent services, and version drift with an exact remediation percentage. Only a confirmed closed retest counts as remediated; missing or inconclusive retests remain `unverified_exposures`.
+   - Computes remediated exposures, newly opened ports, persistent services, and version drift with a remediation percentage. A closed retest counts as remediated only for the same host, resolved address, protocol, port, and vantage, with no conflicting observation. Changed identity, missing probes, and inconclusive retests remain `unverified_exposures`.
 
 ## CLI Usage
 

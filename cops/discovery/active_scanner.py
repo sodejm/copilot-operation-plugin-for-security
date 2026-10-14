@@ -1122,17 +1122,36 @@ class ActiveScanner:
 
 def compare_active_scans(baseline: ActiveScanSession, current: ActiveScanSession) -> ScanDelta:
     """Compare baseline scan against current scan to compute remediated and altered exposures."""
-    baseline_open: dict[str, ActiveServiceAssessment] = {}
+    def canonical_address(value: str) -> str:
+        try:
+            return str(ipaddress.ip_address(value))
+        except ValueError:
+            return value
+
+    def identity(a: ActiveServiceAssessment) -> tuple[str, str, int, str, str]:
+        return (
+            canonical_address(a.target_host.lower()),
+            a.protocol,
+            a.port,
+            canonical_address(a.resolved_ip),
+            a.vantage,
+        )
+
+    def slot(a: ActiveServiceAssessment) -> tuple[str, str, int]:
+        return (canonical_address(a.target_host.lower()), a.protocol, a.port)
+
+    baseline_open: dict[tuple[str, str, int, str, str], ActiveServiceAssessment] = {}
     for a in baseline.assessments:
         if a.port_state == PortState.OPEN.value:
-            key = f"{a.target_host}:{a.protocol}:{a.port}"
-            baseline_open[key] = a
+            baseline_open[identity(a)] = a
 
-    current_open: dict[str, ActiveServiceAssessment] = {}
-    current_all: dict[str, ActiveServiceAssessment] = {}
+    current_open: dict[tuple[str, str, int, str, str], ActiveServiceAssessment] = {}
+    current_all: dict[tuple[str, str, int, str, str], list[ActiveServiceAssessment]] = {}
+    current_by_slot: dict[tuple[str, str, int], list[ActiveServiceAssessment]] = {}
     for a in current.assessments:
-        key = f"{a.target_host}:{a.protocol}:{a.port}"
-        current_all[key] = a
+        key = identity(a)
+        current_all.setdefault(key, []).append(a)
+        current_by_slot.setdefault(slot(a), []).append(a)
         if a.port_state == PortState.OPEN.value:
             current_open[key] = a
 
@@ -1143,21 +1162,40 @@ def compare_active_scans(baseline: ActiveScanSession, current: ActiveScanSession
     fingerprint_changes: list[dict[str, Any]] = []
 
     for key, base_a in baseline_open.items():
-        curr_a = current_all.get(key)
+        exact_retests = current_all.get(key, [])
+        curr_a = current_open.get(key) or next(
+            (a for a in exact_retests if a.port_state != PortState.CLOSED.value),
+            exact_retests[-1] if exact_retests else None,
+        )
+        other_identity = next(
+            (a for a in current_by_slot.get(slot(base_a), []) if identity(a) != key),
+            None,
+        ) if curr_a is None else None
         if not curr_a or curr_a.port_state != PortState.OPEN.value:
+            observed_retest = curr_a or other_identity
             item = {
                 "target_host": base_a.target_host,
                 "port": base_a.port,
                 "protocol": base_a.protocol,
                 "previous_state": base_a.port_state,
-                "current_state": curr_a.port_state if curr_a else "not_probed",
+                "current_state": observed_retest.port_state if observed_retest else "not_probed",
                 "service": base_a.inferred_fingerprint.service_name if base_a.inferred_fingerprint else "unknown",
+                "previous_resolved_ip": base_a.resolved_ip,
+                "current_resolved_ip": observed_retest.resolved_ip if observed_retest else None,
+                "previous_vantage": base_a.vantage,
+                "current_vantage": observed_retest.vantage if observed_retest else None,
             }
-            # Only a refusal confirms that the previously open port is closed.
-            # A missing, filtered, or unreachable retest cannot prove remediation.
-            if curr_a and curr_a.port_state == PortState.CLOSED.value:
+            # Only consistent refusals confirm that the previously open port is closed.
+            # A different address or vantage cannot close the original exposure.
+            if exact_retests and all(a.port_state == PortState.CLOSED.value for a in exact_retests):
                 remediated.append(item)
             else:
+                if other_identity:
+                    item["reason"] = "identity_changed"
+                elif curr_a:
+                    item["reason"] = "inconclusive_retest"
+                else:
+                    item["reason"] = "not_probed"
                 unverified.append(item)
         else:
             persistent.append(
@@ -1165,6 +1203,8 @@ def compare_active_scans(baseline: ActiveScanSession, current: ActiveScanSession
                     "target_host": curr_a.target_host,
                     "port": curr_a.port,
                     "protocol": curr_a.protocol,
+                    "resolved_ip": curr_a.resolved_ip,
+                    "vantage": curr_a.vantage,
                     "state": curr_a.port_state,
                     "service": curr_a.inferred_fingerprint.service_name if curr_a.inferred_fingerprint else "unknown",
                 }
@@ -1178,6 +1218,8 @@ def compare_active_scans(baseline: ActiveScanSession, current: ActiveScanSession
                         "target_host": curr_a.target_host,
                         "port": curr_a.port,
                         "protocol": curr_a.protocol,
+                        "resolved_ip": curr_a.resolved_ip,
+                        "vantage": curr_a.vantage,
                         "previous_product": base_fp.product,
                         "previous_version": base_fp.version,
                         "current_product": curr_fp.product,
@@ -1192,6 +1234,8 @@ def compare_active_scans(baseline: ActiveScanSession, current: ActiveScanSession
                     "target_host": curr_a.target_host,
                     "port": curr_a.port,
                     "protocol": curr_a.protocol,
+                    "resolved_ip": curr_a.resolved_ip,
+                    "vantage": curr_a.vantage,
                     "state": curr_a.port_state,
                     "service": curr_a.inferred_fingerprint.service_name if curr_a.inferred_fingerprint else "unknown",
                 }

@@ -894,6 +894,148 @@ class TestActiveScannerExecutionAndBudgets(unittest.TestCase):
 
 
 class TestRemediatedExposureVerification(unittest.TestCase):
+    def test_equivalent_ipv6_spellings_share_retest_identity(self):
+        baseline = ActiveScanSession("baseline", "test-scope", ["app.example"], [443])
+        baseline.assessments = [
+            ActiveServiceAssessment(
+                probe_id="baseline-probe",
+                target_host="app.example",
+                resolved_ip="0:0:0:0:0:0:0:1",
+                port=443,
+                port_state=PortState.OPEN.value,
+            )
+        ]
+
+        for state in (PortState.CLOSED.value, PortState.OPEN.value):
+            with self.subTest(state=state):
+                current = ActiveScanSession("retest", "test-scope", ["app.example"], [443])
+                current.assessments = [
+                    ActiveServiceAssessment(
+                        probe_id="retest-probe",
+                        target_host="app.example",
+                        resolved_ip="::1",
+                        port=443,
+                        port_state=state,
+                    )
+                ]
+
+                delta = compare_active_scans(baseline, current)
+                self.assertEqual(len(delta.remediated_exposures), int(state == PortState.CLOSED.value))
+                self.assertEqual(len(delta.persistent_exposures), int(state == PortState.OPEN.value))
+                self.assertEqual(delta.unverified_exposures, [])
+                self.assertEqual(delta.new_exposures, [])
+
+    def test_equivalent_ipv6_literal_targets_share_retest_identity(self):
+        baseline = ActiveScanSession("baseline", "test-scope", ["0:0:0:0:0:0:0:1"], [443])
+        baseline.assessments = [
+            ActiveServiceAssessment(
+                probe_id="baseline-probe",
+                target_host="0:0:0:0:0:0:0:1",
+                resolved_ip="0:0:0:0:0:0:0:1",
+                port=443,
+                port_state=PortState.OPEN.value,
+            )
+        ]
+        current = ActiveScanSession("retest", "test-scope", ["::1"], [443])
+        current.assessments = [
+            ActiveServiceAssessment(
+                probe_id="retest-probe",
+                target_host="::1",
+                resolved_ip="::1",
+                port=443,
+                port_state=PortState.CLOSED.value,
+            )
+        ]
+
+        delta = compare_active_scans(baseline, current)
+        self.assertEqual(len(delta.remediated_exposures), 1)
+        self.assertEqual(delta.unverified_exposures, [])
+
+    def test_conflicting_retest_observations_cannot_confirm_remediation(self):
+        baseline = ActiveScanSession("baseline", "test-scope", ["app.example"], [443])
+        baseline.assessments = [
+            ActiveServiceAssessment(
+                probe_id="baseline-probe",
+                target_host="app.example",
+                resolved_ip="198.51.100.10",
+                port=443,
+                port_state=PortState.OPEN.value,
+            )
+        ]
+
+        for earlier_state, expected_persistent in (
+            (PortState.OPEN.value, True),
+            (PortState.FILTERED.value, False),
+        ):
+            with self.subTest(earlier_state=earlier_state):
+                current = ActiveScanSession("retest", "test-scope", ["app.example"], [443])
+                current.assessments = [
+                    ActiveServiceAssessment(
+                        probe_id="retest-earlier",
+                        target_host="app.example",
+                        resolved_ip="198.51.100.10",
+                        port=443,
+                        port_state=earlier_state,
+                    ),
+                    ActiveServiceAssessment(
+                        probe_id="retest-later",
+                        target_host="app.example",
+                        resolved_ip="198.51.100.10",
+                        port=443,
+                        port_state=PortState.CLOSED.value,
+                    ),
+                ]
+
+                delta = compare_active_scans(baseline, current)
+                self.assertEqual(delta.remediated_exposures, [])
+                self.assertEqual(delta.remediation_rate, 0.0)
+                self.assertEqual(len(delta.persistent_exposures), int(expected_persistent))
+                self.assertEqual(len(delta.unverified_exposures), int(not expected_persistent))
+
+    def test_retest_of_different_address_or_vantage_cannot_confirm_remediation(self):
+        baseline = ActiveScanSession("baseline", "test-scope", ["app.example"], [443])
+        baseline.assessments = [
+            ActiveServiceAssessment(
+                probe_id="baseline-probe",
+                target_host="app.example",
+                resolved_ip="198.51.100.10",
+                port=443,
+                vantage=ScanVantage.EXTERNAL.value,
+                port_state=PortState.OPEN.value,
+            )
+        ]
+
+        for resolved_ip, vantage, state in (
+            ("198.51.100.11", ScanVantage.EXTERNAL.value, PortState.CLOSED.value),
+            ("198.51.100.10", ScanVantage.INTERNAL.value, PortState.CLOSED.value),
+            ("198.51.100.11", ScanVantage.EXTERNAL.value, PortState.OPEN.value),
+        ):
+            with self.subTest(resolved_ip=resolved_ip, vantage=vantage, state=state):
+                current = ActiveScanSession("retest", "test-scope", ["app.example"], [443], vantage=vantage)
+                current.assessments = [
+                    ActiveServiceAssessment(
+                        probe_id="retest-probe",
+                        target_host="app.example",
+                        resolved_ip=resolved_ip,
+                        port=443,
+                        vantage=vantage,
+                        port_state=state,
+                    )
+                ]
+
+                delta = compare_active_scans(baseline, current)
+                self.assertEqual(delta.remediated_exposures, [])
+                self.assertEqual(delta.persistent_exposures, [])
+                self.assertEqual(delta.remediation_rate, 0.0)
+                self.assertEqual(len(delta.unverified_exposures), 1)
+                self.assertEqual(delta.unverified_exposures[0]["reason"], "identity_changed")
+                self.assertEqual(delta.unverified_exposures[0]["current_state"], state)
+                self.assertEqual(delta.unverified_exposures[0]["previous_resolved_ip"], "198.51.100.10")
+                self.assertEqual(delta.unverified_exposures[0]["current_resolved_ip"], resolved_ip)
+                self.assertEqual(delta.unverified_exposures[0]["previous_vantage"], ScanVantage.EXTERNAL.value)
+                self.assertEqual(delta.unverified_exposures[0]["current_vantage"], vantage)
+                self.assertEqual(len(delta.new_exposures), int(state == PortState.OPEN.value))
+
     def test_missing_or_inconclusive_retest_is_not_remediated(self):
         baseline = ActiveScanner(
             ActiveScanSession("baseline", "test-scope", ["127.0.0.1"], [18001, 18002]),
