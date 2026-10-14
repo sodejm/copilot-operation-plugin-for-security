@@ -13,7 +13,6 @@ if __package__ in (None, ""):
         sys.path.insert(0, str(source_root))
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-
 def load_scenarios(scenario_path: Path | None, scenarios_dir: Path | None) -> list[Scenario]:
     """Load scenarios from a single file or a directory."""
     from foundryharness.models import HarnessError, Scenario
@@ -241,7 +240,8 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         elif args.command == "auth-lab":
-            from foundryharness.auth_bootstrap import load_case_inputs, run_auth_cases
+            from cops.laboratory.agent_mcp import load_case_inputs
+            from foundryharness.auth_bootstrap import run_auth_cases
 
             cases = load_case_inputs(args.cases)
             plan = ActionPlan.from_dict(_load_json_object(args.plan, "ActionPlan"))

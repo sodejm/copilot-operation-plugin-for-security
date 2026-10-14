@@ -13,19 +13,19 @@ import pytest
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PLUGIN_ROOT))
 
-from foundryharness.laboratory import (  # noqa: E402
-    LabError,
-    _JsonLineProcess,
-    _McpClient,
-    load_lab_cases,
-    run_lab_case,
-)
 from foundryharness.auth_fixture_server import (  # noqa: E402
     PROTOCOL_VERSION,
     SERVER_INFO,
     TOOL_DESCRIPTORS,
     TOOL_INPUT_SCHEMAS,
     TOOLS,
+)
+from foundryharness.laboratory import (  # noqa: E402
+    LabError,
+    _JsonLineProcess,
+    _McpClient,
+    load_lab_cases,
+    run_lab_case,
 )
 
 

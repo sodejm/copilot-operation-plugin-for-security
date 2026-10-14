@@ -1,4 +1,4 @@
-"""Run fixed, offline MCP authorization cases with target-ledger effects."""
+"""Run fixed, offline MCP authorization cases with observer-ledger effects."""
 
 from __future__ import annotations
 
@@ -8,8 +8,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .bounded_json import JSONInputError, decode_json, read_regular_file
-
 from .auth_fixture_server import (
     ARGUMENT_ALIASES,
     FAULT_MODES,
@@ -18,6 +16,7 @@ from .auth_fixture_server import (
     SCOPES,
     TOOLS,
 )
+from .bounded_json import JSONInputError, decode_json, read_regular_file
 from .laboratory import LabError
 
 CASE_REQUIRED_FIELDS = frozenset(

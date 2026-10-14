@@ -188,7 +188,7 @@ def test_competing_receipt_consumers_launch_only_one_batch(tmp_path: Path, monke
     assert len(reports) == 1
     assert reports[0]["all_expectations_met"] is True
     assert sum(isinstance(result, ApprovalStoreConflictError) for result in results) == 1
-    assert len(launches) == 2  # One target service and one peer for the winning batch.
+    assert len(launches) == 3  # Observer, target service, and peer for the winning batch.
 
 
 def test_output_budget_counts_responses_and_new_bytes_across_ledgers(tmp_path: Path):

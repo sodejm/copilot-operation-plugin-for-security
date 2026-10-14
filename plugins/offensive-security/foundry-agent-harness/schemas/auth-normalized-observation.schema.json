@@ -60,7 +60,7 @@
         "count": {"type": "integer", "minimum": 0, "maximum": 32},
         "observer_identity": {"type": ["string", "null"], "maxLength": 256},
         "observation_channel": {"type": "string", "minLength": 1, "maxLength": 128},
-        "trust_relation": {"enum": ["target_produced", "independent", "unavailable"]}
+        "trust_relation": {"enum": ["target_produced", "separate_process_same_trust_boundary", "independent", "unavailable"]}
       }
     },
     "redacted": {"const": true}

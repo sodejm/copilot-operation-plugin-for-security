@@ -55,7 +55,7 @@ hashes, identities, and aggregate limits with the checked-in cases. Keep the
 plan, signed receipt, trust store, approval database, and report in private
 storage. After the run, reconcile every planned case and attempt against the
 report; require both positive delegated controls, cross-tenant denials in both
-directions, and zero target-ledger effects for each hostile peer probe.
+directions, and zero observer-ledger effects for each hostile peer probe.
 The runner reads the ledger separately from tool replies, but the target
 produces it. Inspect `assessment_authorization`, `observations` (peer and
 target), `normalized_observations`, `observed_effects`, `cleanup`,
@@ -67,12 +67,12 @@ Follow all recovery actions before authorizing a new run; a consumed receipt is
 not retryable, and an uncertain external effect must be reconciled first.
 
 Exercise `lost_response_after_effect` with an allowed write followed by another
-case. Confirm the target-produced ledger retains the write, the batch stops, the
+case. Confirm the local observer ledger retains the write, the batch stops, the
 interrupted and unstarted cases remain pending, and the consumed receipt cannot
 be replayed. Reconcile the uncertain effect before approving a new plan.
 
 Record the exact command, revision, Python and OS versions, plan and case
-digests, case-by-case outcomes, target-ledger effect observations, and cleanup
+digests, case-by-case outcomes, observer-ledger effect observations, and cleanup
 result in the private run record. The fixture covers the legacy MCP
 `initialize` handshake and exact capability/tool descriptors over local
 synthetic stdio only. It rejects a paginated tool inventory rather than
@@ -87,7 +87,7 @@ support from this exercise.
 - Every intended scenario is loaded; warnings/skipped malformed files are coverage gaps even when the command exits zero.
 - Expected unauthorized calls are denied by the independent gate, and allowed mock effects match the scenario contract.
 - All required laboratory expectations and cleanup receipts pass, with failures represented explicitly. Local subprocess fixtures cannot certify host/network isolation.
-- The #236 authorization batch reconciles every planned case and attempt, its two-tenant controls, all four hostile peer probes, normalized observation provenance, target-ledger effects, and cleanup. It passes only when each result has complete evidence and `security_pass` is true; otherwise report the exact inconclusive or failed cases.
+- The #236 authorization batch reconciles every planned case and attempt, its two-tenant controls, all four hostile peer probes, normalized observation provenance, observer-ledger effects, and cleanup. It passes only when each result has complete evidence and `security_pass` is true; otherwise report the exact inconclusive or failed cases.
 - The provider report contains all 14 bundled cases under deterministic SHA-256 references from `report_case_id`, with no source case IDs. The four provider-family success cases settle as `completed`; exact endpoint, tenant/account, model, tool, canary, and request mismatches are denied before response processing; the AWS tool case remains a `tool_proposal`; the partial case records `no_effect`, `unknown` usage, and `usage_unknown`; and the final budget case is denied before response processing.
 - Authorized and budget-admitted responses must pass their strict provider-specific envelope schema before normalization. Malformed, unknown-field, cross-provider, unsupported-status, inconsistent AWS tool-use, unrequested tool proposals, invalid usage counts, and output token counts above the approved request cap fail the assessment. Denied and budget-refused cases remain `not_processed` regardless of their response content.
 - Provider `all_expectations_met` and temporary-ledger `cleanup_verified` are true, and `budget.over_budget` is false. A deliberately over-budget completed report exits nonzero while retaining the budget and cleanup evidence. The report contains only the schema fields documented in `specs/ai-provider-assessment.spec.md`; it contains no response text, prompt, source case ID, endpoint URL, account identifier, canary value, or credential.

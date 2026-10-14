@@ -11,8 +11,9 @@ from pytest_bdd import given, scenarios, then, when
 
 PACKAGE = Path(__file__).resolve().parents[2] / "plugins/offensive-security/foundry-agent-harness"
 sys.path.insert(0, str(PACKAGE))
-from foundryharness.laboratory import LabError, load_lab_cases, run_lab_case  # noqa: E402
 from foundryharness import auth_approval, auth_bootstrap, auth_laboratory  # noqa: E402
+from foundryharness.laboratory import LabError, load_lab_cases, run_lab_case  # noqa: E402
+
 from tests.test_auth_assessment_approval import authorized_batch  # noqa: E402
 
 scenarios("../../specs/features/agent_mcp_laboratories.feature")

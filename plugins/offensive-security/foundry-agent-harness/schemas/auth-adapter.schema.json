@@ -23,6 +23,7 @@
       "additionalProperties": false,
       "required": [
         "auth_approval.py",
+        "auth_effect_observer.py",
         "auth_fixture_server.py",
         "auth_laboratory.py",
         "auth_peer_fixture.py",
@@ -31,6 +32,10 @@
       ],
       "properties": {
         "auth_approval.py": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "auth_effect_observer.py": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$"
         },

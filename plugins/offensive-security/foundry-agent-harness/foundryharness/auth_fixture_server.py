@@ -1,7 +1,7 @@
 """Fixed MCP stdio server for synthetic delegation authorization cases.
 
-Grant aliases are local test data, not bearer credentials. The only persistent
-side effect is an append to the runner-created canary ledger in the workdir.
+Grant aliases are local test data, not bearer credentials. A separate local
+observer process performs the synthetic canary operation and records it.
 """
 
 from __future__ import annotations
@@ -11,6 +11,7 @@ import os
 import re
 import sys
 import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -288,33 +289,55 @@ def _decision(name: str, args: dict[str, Any], used: set[str]) -> dict[str, Any]
 
 
 def _append_effect(args: dict[str, Any]) -> None:
-    ledger = Path.cwd() / "effects.jsonl"
-    if ledger.is_symlink() or not ledger.is_file():
-        raise ValueError("Side-effect ledger unavailable")
-    event: dict[str, Any] = {
-        "schema_version": "cops.agent-mcp-auth-ledger-event/v1",
+    request: dict[str, Any] = {
+        "command": "effect",
         **_correlation(args),
         "case_id": args["case_id"],
         "principal": args["principal"],
         "tool": f"canary/{args['operation']}",
-        "server_identity": SERVER_IDENTITY,
-        "kind": f"canary_{args['operation']}",
         "tenant": args["tenant"],
         "resource": args["resource"],
         "operation": args["operation"],
-        "redacted": True,
+        "fault_mode": args["fault_mode"],
     }
-    if args["fault_mode"] == "observer_failure":
-        event = {"observer_fault": True}
-    flags = os.O_WRONLY | os.O_APPEND
-    if hasattr(os, "O_NOFOLLOW"):
-        flags |= os.O_NOFOLLOW
-    fd = os.open(ledger, flags)
+    attempt_id = args["attempt_id"]
+    if re.fullmatch(ID_PATTERN, attempt_id) is None or len(attempt_id) > 128:
+        raise ValueError("Invalid observer request identity")
+    request_path = Path(f"observer-{attempt_id}.request")
+    response_path = Path(f"observer-{attempt_id}.response")
+    temporary_path = Path(f".observer-{attempt_id}.request.tmp")
+    payload = (json.dumps(request, separators=(",", ":")) + "\n").encode("utf-8")
+    if len(payload) >= 8192:
+        raise ValueError("Effect observer request exceeded limit")
+    descriptor = os.open(temporary_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
     try:
-        os.write(fd, (json.dumps(event, separators=(",", ":")) + "\n").encode("utf-8"))
-        os.fsync(fd)
+        if os.write(descriptor, payload) != len(payload):
+            raise ValueError("Effect observer request write incomplete")
+        os.fsync(descriptor)
     finally:
-        os.close(fd)
+        os.close(descriptor)
+    os.replace(temporary_path, request_path)
+    deadline = time.monotonic() + 0.75
+    while time.monotonic() < deadline:
+        try:
+            descriptor = os.open(response_path, os.O_RDONLY | os.O_NOFOLLOW)
+        except FileNotFoundError:
+            time.sleep(0.005)
+            continue
+        try:
+            response = os.read(descriptor, 4096)
+        finally:
+            os.close(descriptor)
+        response_path.unlink()
+        if not response.endswith(b"\n") or len(response) >= 4096:
+            raise ValueError("Effect observer returned incomplete acknowledgement")
+        acknowledgement = json.loads(response)
+        if acknowledgement.get("recorded") is not True:
+            raise ValueError("Effect observer did not record canary operation")
+        if args["operation"] == "read" and acknowledgement.get("canary") != "synthetic-canary":
+            raise ValueError("Effect observer returned no canary disclosure")
+        return
+    raise ValueError("Effect observer acknowledgement timed out")
 
 
 def _tool_result(value: dict[str, Any]) -> dict[str, Any]:

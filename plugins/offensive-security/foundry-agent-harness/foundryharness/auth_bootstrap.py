@@ -1,7 +1,7 @@
 """Trusted admission bootstrap; execution payloads load only from approved bytes.
 
 This module, the CLI, COPS data-only planner/verifier/store, Python and the OS
-are the installed trusted computing base. The six execution sources are separate
+are the installed trusted computing base. The seven execution sources are separate
 approval-bound payloads, including their controller and all relative imports.
 """
 
@@ -18,19 +18,23 @@ import threading
 import time
 import types
 import uuid
+from collections.abc import Iterable
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from cops.contracts.models import ActionPlan
 from cops.evidence.canonical import digest
 from cops.execution.authorization import AuthorizationTrustStore, verify_execution_authorization
 from cops.execution.store import ApprovalStore
-
 from cops.laboratory.agent_mcp import (
-    JSONInputError, SOURCE_FILES, build_auth_plan, load_case_inputs,
-    normalize_case_inputs, read_regular_file,
+    SOURCE_FILES,
+    JSONInputError,
+    build_auth_plan,
+    normalize_case_inputs,
+    read_regular_file,
 )
+
 
 @contextmanager
 def _cancellation_handlers():

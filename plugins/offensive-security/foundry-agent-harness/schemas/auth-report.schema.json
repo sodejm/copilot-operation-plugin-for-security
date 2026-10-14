@@ -1305,6 +1305,7 @@
             "trust_relation": {
               "enum": [
                 "target_produced",
+                "separate_process_same_trust_boundary",
                 "independent",
                 "unavailable"
               ]

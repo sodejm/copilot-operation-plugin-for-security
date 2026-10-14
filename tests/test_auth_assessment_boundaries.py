@@ -10,13 +10,15 @@ import subprocess
 import sys
 import time
 from contextlib import contextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
-import pytest
 import jsonschema
+import pytest
+from foundryharness import auth_approval, auth_bootstrap, auth_laboratory, cli, laboratory
 
+from cops.laboratory import agent_mcp
 from cops.execution import store as store_module
 from cops.execution.authorization import create_execution_authorization
 from cops.execution.store import ApprovalStoreConflictError
@@ -26,7 +28,6 @@ from tests.auth_testkit import (
     write_test_authorization_trust_store,
 )
 from tests.test_auth_assessment_approval import PLUGIN_ROOT, authorized_batch, forbid_processes, patch_executor
-from foundryharness import auth_approval, auth_bootstrap, auth_laboratory, cli, laboratory
 
 
 def cli_context(tmp_path: Path, data: dict | None = None):
@@ -59,7 +60,7 @@ def set_test_secrets(monkeypatch):
 def copy_executor(tmp_path: Path, *, include_cli: bool = False) -> Path:
     source = tmp_path / "source" / "foundryharness"
     source.mkdir(parents=True)
-    names = list(auth_approval.SOURCE_FILES)
+    names = list(agent_mcp.SOURCE_FILES)
     if include_cli:
         names.extend(("__init__.py", "auth_bootstrap.py", "cli.py"))
     for name in names:
@@ -88,7 +89,7 @@ def test_preloaded_controller_cannot_replace_differently_signed_controller(tmp_p
     assert not any(name.startswith("_cops_auth_approved_") for name in sys.modules)
 
 
-@pytest.mark.parametrize("filename", auth_approval.SOURCE_FILES)
+@pytest.mark.parametrize("filename", agent_mcp.SOURCE_FILES)
 def test_cli_rejects_changed_source_without_importing_it(tmp_path, monkeypatch, filename):
     source = copy_executor(tmp_path, include_cli=True)
     monkeypatch.setattr(auth_approval, "__file__", str(source / "auth_approval.py"))
@@ -106,7 +107,7 @@ def test_cli_rejects_changed_source_without_importing_it(tmp_path, monkeypatch, 
     assert context["approval_store"].get_authorization(context["authorization"].authorization_id).status == "approved"
 
 
-@pytest.mark.parametrize("filename", auth_approval.SOURCE_FILES)
+@pytest.mark.parametrize("filename", agent_mcp.SOURCE_FILES)
 def test_cli_plans_all_execution_sources_as_inert_bytes(tmp_path, filename):
     source = copy_executor(tmp_path, include_cli=True)
     marker = tmp_path / "planning-executed-payload"
@@ -126,7 +127,7 @@ def test_cli_plans_all_execution_sources_as_inert_bytes(tmp_path, filename):
 
     assert plan["operations"][0]["arguments"]["adapter"]["source_sha256"] == {
         name: hashlib.sha256((source / name).read_bytes()).hexdigest()
-        for name in auth_approval.SOURCE_FILES
+        for name in agent_mcp.SOURCE_FILES
     }
 
 
@@ -169,6 +170,7 @@ def test_sigterm_cli_observes_child_exits_and_private_directory_removal(tmp_path
     # This signed test controller exposes exact lifecycle boundaries to the
     # parent process; it does not replace the installed cancellation handlers.
     hook = f'''
+import json
 _OriginalProcess = _JsonLineProcess
 _started_processes = []
 _boundary_entered = False
@@ -239,7 +241,7 @@ _JsonLineProcess = _ObservedProcess
 def test_execution_uses_captured_approved_bytes_after_source_changes(tmp_path, monkeypatch):
     source = tmp_path / "source"
     source.mkdir()
-    for name in auth_approval.SOURCE_FILES:
+    for name in agent_mcp.SOURCE_FILES:
         (source / name).write_bytes((PLUGIN_ROOT / "foundryharness" / name).read_bytes())
     monkeypatch.setattr(auth_approval, "__file__", str(source / "auth_approval.py"))
     cases, context = authorized_batch(tmp_path)
@@ -264,7 +266,7 @@ def test_execution_uses_captured_approved_bytes_after_source_changes(tmp_path, m
     report = auth_approval.run_auth_cases(cases, **context)
     assert report["security_pass"] is True
     assert not marker.exists()
-    assert len(launched_sources) == 2
+    assert len(launched_sources) == 3
     assert all(path != source and not path.exists() for path in launched_sources)
 
 
@@ -377,7 +379,7 @@ def test_cli_rejects_malformed_inputs_before_consumption_or_launch(
 def test_near_expiry_receipt_is_not_consumed_and_launches_nothing(tmp_path, monkeypatch):
     cases, context = authorized_batch(tmp_path)
     signer, trust, engagement = make_test_authorization_context(context["plan"])
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     receipt = create_execution_authorization(
         context["plan"], signer=signer, engagement=engagement, worker_identity="fixture-worker",
         issued_at=now.isoformat().replace("+00:00", "Z"),

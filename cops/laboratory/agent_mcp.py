@@ -11,11 +11,13 @@ import hashlib
 import os
 import re
 import stat
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from cops.contracts import ActionPlan
-from cops.evidence.canonical import EvidenceError, canonical, decode_json as _decode_json, digest
+from cops.evidence.canonical import EvidenceError, canonical, digest
+from cops.evidence.canonical import decode_json as _decode_json
 
 
 class JSONInputError(ValueError):
@@ -24,6 +26,7 @@ class JSONInputError(ValueError):
 
 SOURCE_FILES = (
     "auth_approval.py",
+    "auth_effect_observer.py",
     "auth_fixture_server.py",
     "auth_laboratory.py",
     "auth_peer_fixture.py",

@@ -1,4 +1,4 @@
-"""Observe approved MCP authorization decisions and target-ledger effects."""
+"""Observe approved MCP authorization decisions and separate-process effects."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ sys.path.insert(0, str(PLUGIN_ROOT))
 
 from foundryharness import auth_approval, auth_laboratory  # noqa: E402
 from foundryharness.laboratory import LabError  # noqa: E402
+
 from cops.execution.store import ApprovalStoreConflictError  # noqa: E402
 from tests.test_auth_assessment_approval import authorized_batch, patch_executor  # noqa: E402
 
@@ -66,8 +67,11 @@ def test_bundled_authorization_cases_have_correlated_target_effect_evidence(tmp_
             assert normalized["request"]["tenant"] == row["peer"]["forwarded_request"].get("tenant")
             assert normalized["target_authority"]["decision"] == row["target"]["decision"]
             assert normalized["effect"]["count"] == row["observed_effect_count"]
-            assert normalized["effect"]["trust_relation"] == "target_produced"
-    decisions = lambda name: [row["target"]["decision"] for row in results[name]["observations"]]
+            assert normalized["effect"]["trust_relation"] == "separate_process_same_trust_boundary"
+            assert normalized["effect"]["observer_identity"] == "fixed-effect-observer"
+            assert normalized["effect"]["observation_channel"] == "separate_process_private_ledger"
+    def decisions(name):
+        return [row["target"]["decision"] for row in results[name]["observations"]]
     assert decisions("one-time-replay") == ["allowed", "denied"]
     assert len(results["one-time-replay"]["observed_effects"]) == 1
     assert decisions("reusable-grant") == ["allowed", "allowed"]

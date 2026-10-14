@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import os
 import re
 import signal
@@ -11,37 +10,34 @@ import subprocess
 import tempfile
 import threading
 import time
+from collections.abc import Iterable
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from cops.contracts.models import ActionPlan
 from cops.evidence.canonical import EvidenceError, decode_json, digest, timestamp, utc_now
-from cops.execution.authorization import AuthorizationTrustStore, verify_execution_authorization
+from cops.execution.authorization import AuthorizationTrustStore
 from cops.execution.store import ApprovalStore, ApprovalStoreConflictError
+from cops.laboratory.agent_mcp import build_auth_plan as _build_trusted_auth_plan
 
 from .auth_fixture_server import (
     ARGUMENT_ALIASES,
     ARGUMENT_FIELDS,
     FAULT_MODES,
     GRANTS,
-    PEER_ACTIONS,
-    PROTOCOL_VERSION,
+    ID_PATTERN,
     REQUIRED_ARGUMENT_FIELDS,
     SCOPES,
     SERVER_IDENTITY,
-    ID_PATTERN,
     SERVER_INFO,
-    SYNTHETIC_GRANT_ALIASES,
     TEST_IDENTITY,
     TOOL_DESCRIPTORS,
     TOOL_INPUT_SCHEMAS,
-    TOOL_PERMISSIONS,
     TOOLS,
 )
 from .auth_laboratory import AUTHENTICATION_REASONS, DECISIONS, PHASES, REASONS, AuthCase
 from .laboratory import LabError, _JsonLineProcess, _McpClient
-from cops.laboratory.agent_mcp import SOURCE_FILES, build_auth_plan as _build_trusted_auth_plan
 
 ADAPTER_ID = "local-synthetic-mcp-auth-fixture"
 SCENARIO_ID = "COPS-E16.01"
@@ -112,7 +108,7 @@ class _BatchBudgetStop(LabError):
 
 
 class _BatchBudget:
-    """Account observed bytes and reserve time for both fixed child cleanups."""
+    """Account observed bytes and reserve time for fixed child cleanups."""
 
     def __init__(self, plan: ActionPlan, authorized_until_utc: str) -> None:
         self.started = time.monotonic()
@@ -155,7 +151,7 @@ class _BatchBudget:
     def account_ledger(self, ledger: Path, raw: bytes) -> None:
         previous = self.ledgers.get(ledger, b"")
         if not raw.startswith(previous):
-            raise LabError("Target-produced effect ledger changed previously observed bytes")
+            raise LabError("Effect observer ledger changed previously observed bytes")
         self.account_response(raw[len(previous):])
         self.ledgers[ledger] = raw
 
@@ -261,7 +257,7 @@ def _read_effects(ledger: Path, budget: _BatchBudget) -> list[dict[str, Any]]:
         with os.fdopen(descriptor, "rb") as stream:
             metadata = os.fstat(stream.fileno())
             if not stat.S_ISREG(metadata.st_mode) or metadata.st_size > 65536:
-                raise LabError("Target-produced effect ledger is unavailable or oversized")
+                raise LabError("Effect observer ledger is unavailable or oversized")
             previous = budget.ledgers.get(ledger, b"")
             remaining = budget.remaining_bytes()
             if metadata.st_size - len(previous) > remaining:
@@ -270,11 +266,11 @@ def _read_effects(ledger: Path, budget: _BatchBudget) -> list[dict[str, Any]]:
             if stream.read(1):
                 budget.stop("output_budget_exhausted")
         if len(raw) > 65536 or (raw and not raw.endswith(b"\n")):
-            raise LabError("Target-produced effect ledger is unavailable or oversized")
+            raise LabError("Effect observer ledger is unavailable or oversized")
         budget.account_ledger(ledger, raw)
         events = [decode_json(line, max_bytes=65536) for line in raw.splitlines()]
     except (OSError, EvidenceError) as exc:
-        raise LabError("Target-produced effect ledger returned malformed evidence") from exc
+        raise LabError("Effect observer ledger returned malformed evidence") from exc
     for event in events:
         if (
             not isinstance(event, dict)
@@ -298,7 +294,7 @@ def _read_effects(ledger: Path, budget: _BatchBudget) -> list[dict[str, Any]]:
             or re.fullmatch(r"[0-9a-f]{64}", event["plan_digest"]) is None
             or event["redacted"] is not True
         ):
-            raise LabError("Target-produced effect ledger returned malformed evidence")
+            raise LabError("Effect observer ledger returned malformed evidence")
     return events
 
 
@@ -481,6 +477,7 @@ def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget, sourc
             workdir = str(workdir_path)
             ledger = workdir_path / "effects.jsonl"
             ledger.touch(mode=0o600, exist_ok=False)
+            observer: _JsonLineProcess | None = None
             server: _JsonLineProcess | None = None
             peer: _JsonLineProcess | None = None
             closed: list[bool] = []
@@ -502,6 +499,10 @@ def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget, sourc
                         raise KeyboardInterrupt
                     return process
 
+                observer = start("auth_effect_observer.py")
+                ready = observer.exchange({"command": "ready"})
+                if ready != {"ready": True, "observer_identity": "fixed-effect-observer"}:
+                    raise LabError("Effect observer did not confirm readiness")
                 server = start("auth_fixture_server.py")
                 peer = start("auth_peer_fixture.py")
                 mcp = _McpClient(
@@ -519,7 +520,7 @@ def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget, sourc
                 def observe_effects(forwarded: dict[str, Any], tool: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
                     observed = _read_effects(ledger, budget)
                     if observed[:len(events)] != events:
-                        raise LabError("Target-produced effect ledger changed previously observed events")
+                        raise LabError("Effect observer ledger changed previously observed events")
                     delta = observed[len(events):]
                     for event in delta:
                         if any(event[key] != forwarded[key] for key in (
@@ -534,7 +535,7 @@ def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget, sourc
                             "principal",
                             "operation",
                         )) or event["tool"] != tool:
-                            raise LabError("Target-produced effect ledger correlation mismatch")
+                            raise LabError("Effect observer ledger correlation mismatch")
                     return observed, delta
 
                 for index, (attempt, expected_decision, expected_reason) in enumerate(
@@ -569,9 +570,12 @@ def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget, sourc
                         raise LabError("Peer delegation process rejected the fixed request")
                     peer_observation = peer_value["result"]
                     forwarded = _validate_peer(peer_observation, original, attempt["peer_action"])
-                    def mark_dispatch_attempt() -> None:
+                    def mark_dispatch_attempt(
+                        forwarded_request: dict[str, Any] = forwarded,
+                        tool_name: str = attempt["tool"],
+                    ) -> None:
                         nonlocal dispatched
-                        dispatched = (forwarded, attempt["tool"])
+                        dispatched = (forwarded_request, tool_name)
 
                     decision = mcp.call(attempt["tool"], forwarded, on_dispatch_attempt=mark_dispatch_attempt)
                     identity_present = _validate_decision(decision, forwarded)
@@ -629,9 +633,9 @@ def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget, sourc
                                 "status": "observed" if delta else "absent",
                                 "kinds": [event["kind"] for event in delta],
                                 "count": len(delta),
-                                "observer_identity": decision.get("server_identity"),
-                                "observation_channel": "target_private_ledger",
-                                "trust_relation": "target_produced",
+                                "observer_identity": ready["observer_identity"],
+                                "observation_channel": "separate_process_private_ledger",
+                                "trust_relation": "separate_process_same_trust_boundary",
                             },
                             "redacted": observations[-1]["redacted"],
                         }
@@ -679,7 +683,7 @@ def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget, sourc
                     uncertain_execution = True
                     try:
                         # The tool may have committed an effect before its response
-                        # disappeared. Retain only correlated target-ledger events.
+                        # disappeared. Retain only correlated observer-ledger events.
                         observed, _ = observe_effects(*dispatched)
                         events = observed
                     except (_BatchBudgetStop, LabError, OSError, ValueError, TypeError):
