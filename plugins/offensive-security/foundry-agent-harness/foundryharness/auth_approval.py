@@ -155,7 +155,7 @@ class _BatchBudget:
     def account_ledger(self, ledger: Path, raw: bytes) -> None:
         previous = self.ledgers.get(ledger, b"")
         if not raw.startswith(previous):
-            raise LabError("Independent effect ledger changed previously observed bytes")
+            raise LabError("Target-produced effect ledger changed previously observed bytes")
         self.account_response(raw[len(previous):])
         self.ledgers[ledger] = raw
 
@@ -261,7 +261,7 @@ def _read_effects(ledger: Path, budget: _BatchBudget) -> list[dict[str, Any]]:
         with os.fdopen(descriptor, "rb") as stream:
             metadata = os.fstat(stream.fileno())
             if not stat.S_ISREG(metadata.st_mode) or metadata.st_size > 65536:
-                raise LabError("Independent effect observer is unavailable or oversized")
+                raise LabError("Target-produced effect ledger is unavailable or oversized")
             previous = budget.ledgers.get(ledger, b"")
             remaining = budget.remaining_bytes()
             if metadata.st_size - len(previous) > remaining:
@@ -270,11 +270,11 @@ def _read_effects(ledger: Path, budget: _BatchBudget) -> list[dict[str, Any]]:
             if stream.read(1):
                 budget.stop("output_budget_exhausted")
         if len(raw) > 65536 or (raw and not raw.endswith(b"\n")):
-            raise LabError("Independent effect observer is unavailable or oversized")
+            raise LabError("Target-produced effect ledger is unavailable or oversized")
         budget.account_ledger(ledger, raw)
         events = [decode_json(line, max_bytes=65536) for line in raw.splitlines()]
     except (OSError, EvidenceError) as exc:
-        raise LabError("Independent effect observer returned malformed evidence") from exc
+        raise LabError("Target-produced effect ledger returned malformed evidence") from exc
     for event in events:
         if (
             not isinstance(event, dict)
@@ -298,7 +298,7 @@ def _read_effects(ledger: Path, budget: _BatchBudget) -> list[dict[str, Any]]:
             or re.fullmatch(r"[0-9a-f]{64}", event["plan_digest"]) is None
             or event["redacted"] is not True
         ):
-            raise LabError("Independent effect observer returned malformed evidence")
+            raise LabError("Target-produced effect ledger returned malformed evidence")
     return events
 
 
@@ -448,6 +448,7 @@ def _unsupported_result(case: AuthCase, plan_digest: str) -> dict[str, Any]:
         "evidence_complete": False,
         "security_pass": False,
         "observations": [],
+        "normalized_observations": [],
         "observed_effects": [],
         "cleanup": {
             "process_exit_observed": None,
@@ -464,6 +465,7 @@ def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget, sourc
         return _unsupported_result(case, plan_digest), False, False
 
     observations: list[dict[str, Any]] = []
+    normalized_observations: list[dict[str, Any]] = []
     events: list[dict[str, Any]] = []
     failure: str | None = None
     cancelled = False
@@ -517,7 +519,7 @@ def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget, sourc
                 def observe_effects(forwarded: dict[str, Any], tool: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
                     observed = _read_effects(ledger, budget)
                     if observed[:len(events)] != events:
-                        raise LabError("Independent effect ledger changed previously observed events")
+                        raise LabError("Target-produced effect ledger changed previously observed events")
                     delta = observed[len(events):]
                     for event in delta:
                         if any(event[key] != forwarded[key] for key in (
@@ -532,7 +534,7 @@ def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget, sourc
                             "principal",
                             "operation",
                         )) or event["tool"] != tool:
-                            raise LabError("Independent effect correlation mismatch")
+                            raise LabError("Target-produced effect ledger correlation mismatch")
                     return observed, delta
 
                 for index, (attempt, expected_decision, expected_reason) in enumerate(
@@ -594,6 +596,46 @@ def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget, sourc
                             ),
                         }
                     )
+                    normalized_observations.append(
+                        {
+                            "schema_version": "cops.agent-mcp-auth-normalized-observation/v1",
+                            "correlation": {
+                                "plan_digest": plan_digest,
+                                "case_id": case.case_id,
+                                **ids,
+                                "test_identity": TEST_IDENTITY,
+                            },
+                            "request": {
+                                "principal": forwarded["principal"],
+                                "agent": forwarded["agent"],
+                                "peer": peer_observation["peer_identity"],
+                                "tenant": forwarded.get("tenant"),
+                                "resource": forwarded["resource"],
+                                "operation": forwarded["operation"],
+                                "audience": forwarded["audience"],
+                                "downstream_service": forwarded["downstream_service"],
+                                "tool": attempt["tool"],
+                                "requested_scopes": forwarded["scopes"],
+                                "delegation_depth": forwarded["depth"],
+                                "authorization_alias": forwarded["grant"],
+                            },
+                            "target_authority": {
+                                "server_identity": decision.get("server_identity"),
+                                "decision": decision["decision"],
+                                "phase": decision["phase"],
+                                "reason": decision["reason"],
+                            },
+                            "effect": {
+                                "status": "observed" if delta else "absent",
+                                "kinds": [event["kind"] for event in delta],
+                                "count": len(delta),
+                                "observer_identity": decision.get("server_identity"),
+                                "observation_channel": "target_private_ledger",
+                                "trust_relation": "target_produced",
+                            },
+                            "redacted": observations[-1]["redacted"],
+                        }
+                    )
                     events = observed
                     dispatched = None
                     if not identity_present:
@@ -637,7 +679,7 @@ def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget, sourc
                     uncertain_execution = True
                     try:
                         # The tool may have committed an effect before its response
-                        # disappeared. Retain only independently correlated events.
+                        # disappeared. Retain only correlated target-ledger events.
                         observed, _ = observe_effects(*dispatched)
                         events = observed
                     except (_BatchBudgetStop, LabError, OSError, ValueError, TypeError):
@@ -667,6 +709,7 @@ def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget, sourc
         and process_exit_observed
         and private_directory_removed
         and len(observations) == len(case.attempts)
+        and len(normalized_observations) == len(case.attempts)
     )
     expectations_match = (
         evidence_complete
@@ -713,6 +756,7 @@ def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget, sourc
         "evidence_complete": evidence_complete,
         "security_pass": outcome == "pass" and expectations_match,
         "observations": observations,
+        "normalized_observations": normalized_observations,
         "observed_effects": events,
         "cleanup": {
             "process_exit_observed": process_exit_observed,

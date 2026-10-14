@@ -351,6 +351,7 @@ def validate() -> int:
         PLUGIN_ROOT / "schemas" / "auth-case.schema.json",
         PLUGIN_ROOT / "schemas" / "auth-adapter.schema.json",
         PLUGIN_ROOT / "schemas" / "auth-evidence.schema.json",
+        PLUGIN_ROOT / "schemas" / "auth-normalized-observation.schema.json",
         PLUGIN_ROOT / "schemas" / "auth-report.schema.json",
         PLUGIN_ROOT / "schemas" / "provider-plan.schema.json",
         PLUGIN_ROOT / "schemas" / "provider-cases.schema.json",
@@ -368,6 +369,12 @@ def validate() -> int:
         # schema vocabulary. Check bounded syntax here; the offline runner checks it fully.
         load_json(PLUGIN_ROOT / "schemas" / "provider-response.schema.json")
         report_schema = admit_schema(load_json(PLUGIN_ROOT / "schemas" / "auth-report.schema.json"))
+        normalized_schema = load_json(
+            PLUGIN_ROOT / "schemas" / "auth-normalized-observation.schema.json")
+        embedded_schema = report_schema["$defs"]["normalized_observation"]
+        if embedded_schema != {key: value for key, value in normalized_schema.items()
+                               if key not in {"$schema", "title"}}:
+            raise PackageError("Normalized observation schema differs from report definition")
         for name in ("auth-authorized.json", "auth-denied.json", "auth-inconclusive.json"):
             check_schema(load_json(PLUGIN_ROOT / "examples" / name), report_schema)
         for name in ("foundry-agent-review", "ai-agent-mcp-laboratories", "ai-provider-assessment"):

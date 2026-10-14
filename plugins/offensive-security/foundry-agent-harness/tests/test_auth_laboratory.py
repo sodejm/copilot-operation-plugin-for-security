@@ -1,4 +1,4 @@
-"""Observe approved MCP authorization decisions and independent canary effects."""
+"""Observe approved MCP authorization decisions and target-ledger effects."""
 
 from __future__ import annotations
 
@@ -27,10 +27,10 @@ def run_data(tmp_path, data):
     return auth_approval.run_auth_cases(cases, **context)
 
 
-def test_bundled_authorization_cases_have_independent_effect_evidence(tmp_path):
+def test_bundled_authorization_cases_have_correlated_target_effect_evidence(tmp_path):
     schemas = {
         name: json.loads((PLUGIN_ROOT / "schemas" / f"auth-{name}.schema.json").read_text())
-        for name in ("case", "report", "adapter", "evidence")
+        for name in ("case", "report", "adapter", "evidence", "normalized-observation")
     }
     for path in (PLUGIN_ROOT / "auth_cases").glob("*.json"):
         jsonschema.validate(json.loads(path.read_text()), schemas["case"])
@@ -53,12 +53,20 @@ def test_bundled_authorization_cases_have_independent_effect_evidence(tmp_path):
         assert result["security_pass"] is True
         assert result["environment_verified"] is True
         assert result["cleanup"] == {"process_exit_observed": True, "private_directory_removed": True}
+        assert len(result["normalized_observations"]) == len(result["observations"])
         for index, row in enumerate(result["observations"], 1):
             jsonschema.validate(row, schemas["evidence"])
             assert row["attempt_id"] == f"{case_id}-{index}"
             for witness in (row["peer"], row["target"]):
                 for field in ("attempt_id", "request_id", "canary_id", "plan_digest", "test_identity"):
                     assert witness[field] == row[field]
+            normalized = result["normalized_observations"][index - 1]
+            jsonschema.validate(normalized, schemas["normalized-observation"])
+            assert normalized["correlation"]["request_id"] == row["request_id"]
+            assert normalized["request"]["tenant"] == row["peer"]["forwarded_request"].get("tenant")
+            assert normalized["target_authority"]["decision"] == row["target"]["decision"]
+            assert normalized["effect"]["count"] == row["observed_effect_count"]
+            assert normalized["effect"]["trust_relation"] == "target_produced"
     decisions = lambda name: [row["target"]["decision"] for row in results[name]["observations"]]
     assert decisions("one-time-replay") == ["allowed", "denied"]
     assert len(results["one-time-replay"]["observed_effects"]) == 1
@@ -81,6 +89,28 @@ def test_bundled_authorization_cases_have_independent_effect_evidence(tmp_path):
     }
     assert all(result["observed_effects"] == [] for name, result in results.items()
                if name.startswith("wrong-") or name in {"cross-tenant", "expired-grant", "excess-depth", "confused-deputy"})
+
+
+def test_normalized_observation_accepts_provider_specific_identifiers(tmp_path):
+    result = run_data(tmp_path, case_data())["results"][0]
+    record = result["normalized_observations"][0]
+    record["correlation"]["test_identity"] = "provider.example/tenant-a/service-7"
+    record["request"].update(
+        principal="oidc:subject-287", agent="agent:researcher", peer="peer:broker-1",
+        tenant="org:tenant-711", resource="urn:example:record:9",
+        operation="records.update", audience="https://api.example.test/records",
+        downstream_service="service:records", tool="record/update",
+        requested_scopes=["records:write"], authorization_alias="grant:opaque-handle-1",
+    )
+    record["target_authority"].update(
+        server_identity="https://api.example.test/mcp", phase="provider_policy",
+        reason="scope_and_tenant_permitted",
+    )
+    schema = json.loads((PLUGIN_ROOT / "schemas/auth-normalized-observation.schema.json").read_text())
+    jsonschema.validate(record, schema)
+    del record["effect"]["trust_relation"]
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(record, schema)
 
 
 @pytest.mark.parametrize("tenant,principal,grant", [

@@ -37,9 +37,11 @@ class _AdvertisedMcpProcess:
         self.include_next_cursor = include_next_cursor
         self.methods = []
 
-    def exchange(self, request, *, response=True):
+    def exchange(self, request, *, response=True, on_dispatch_attempt=None):
         method = request["method"]
         self.methods.append(method)
+        if on_dispatch_attempt is not None:
+            on_dispatch_attempt()
         if not response:
             return None
         if method == "initialize":

@@ -1,4 +1,4 @@
-"""Run fixed, offline MCP authorization boundary cases with independent effects."""
+"""Run fixed, offline MCP authorization cases with target-ledger effects."""
 
 from __future__ import annotations
 
