@@ -6,6 +6,7 @@ import hashlib
 import os
 import re
 import stat
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,7 @@ from cops.execution.filesystem import SecureDirectoryError, open_directory_no_sy
 from .models import LaboratoryGateError
 
 _SAFE_KIND = re.compile(r"[^a-z0-9_-]+")
+_SHA256 = re.compile(r"[0-9a-f]{64}")
 
 
 class LaboratoryEvidenceStore:
@@ -99,7 +101,6 @@ class LaboratoryEvidenceStore:
         digest = hashlib.sha256(raw).hexdigest()
         safe_kind = _SAFE_KIND.sub("-", kind.lower()).strip("-") or "evidence"
         name = f"{safe_kind}-{digest}.json"
-        path = self.directory / name
         flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_CLOEXEC", 0)
         if hasattr(os, "O_NOFOLLOW"):
             flags |= os.O_NOFOLLOW
@@ -125,7 +126,7 @@ class LaboratoryEvidenceStore:
                 self._validate_directory_binding(directory_descriptor)
                 return {
                     "kind": safe_kind,
-                    "path": str(path),
+                    "path": name,
                     "sha256": digest,
                     "byte_length": len(raw),
                 }
@@ -154,7 +155,24 @@ class LaboratoryEvidenceStore:
             os.close(directory_descriptor)
         return {
             "kind": safe_kind,
-            "path": str(path),
+            "path": name,
             "sha256": digest,
             "byte_length": len(raw),
         }
+
+    def resolve(self, reference: Mapping[str, Any]) -> Path:
+        """Resolve a validated content-addressed reference under this store."""
+        kind = reference.get("kind")
+        path = reference.get("path")
+        digest = reference.get("sha256")
+        if (
+            not isinstance(kind, str)
+            or not kind
+            or _SAFE_KIND.sub("-", kind.lower()).strip("-") != kind
+            or not isinstance(digest, str)
+            or _SHA256.fullmatch(digest) is None
+            or not isinstance(path, str)
+            or path != f"{kind}-{digest}.json"
+        ):
+            raise LaboratoryGateError("invalid laboratory evidence reference")
+        return self.directory / path

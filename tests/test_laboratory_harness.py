@@ -635,7 +635,11 @@ def test_mismatched_worker_result_is_never_recorded_as_trusted_cleanup(tmp_path:
             )
     (record,) = harness.recorded_cases()
     assert record["state"] == "unknown"
-    evidence = [json.loads(Path(item["path"]).read_text()) for item in record["payload"]["durable_evidence"]]
+    assert harness.evidence_store is not None
+    evidence = [
+        json.loads(harness.evidence_store.resolve(item).read_text())
+        for item in record["payload"]["durable_evidence"]
+    ]
     assert not any(item.get("basis") == "trusted worker result" for item in evidence)
     assert not any(item.get("cleanup_status") == "completed" for item in evidence)
     with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute") as dispatch:

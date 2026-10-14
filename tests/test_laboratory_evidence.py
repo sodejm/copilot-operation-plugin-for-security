@@ -17,10 +17,26 @@ def test_evidence_digest_covers_exact_canonical_bytes(tmp_path: Path) -> None:
     store = LaboratoryEvidenceStore(tmp_path / "evidence")
     value = {"unicode": "snowman \u2603", "count": 2}
     reference = store.write_json("observation", value)
-    raw = Path(reference["path"]).read_bytes()
+    assert reference["path"] == f"observation-{reference['sha256']}.json"
+    assert not Path(reference["path"]).is_absolute()
+    assert str(tmp_path) not in str(reference)
+    raw = store.resolve(reference).read_bytes()
     assert raw == canonical(value)
     assert reference["sha256"] == hashlib.sha256(raw).hexdigest()
     assert reference["byte_length"] == len(raw)
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["../evidence.json", "/tmp/evidence.json", "observation-wrong.json"],
+)
+def test_evidence_reference_path_must_match_content_address(path: str, tmp_path: Path) -> None:
+    store = LaboratoryEvidenceStore(tmp_path / "evidence")
+    reference = store.write_json("observation", {"status": "observed"})
+    reference["path"] = path
+
+    with pytest.raises(LaboratoryGateError, match="invalid laboratory evidence reference"):
+        store.resolve(reference)
 
 
 def test_existing_evidence_symlink_is_rejected(tmp_path: Path) -> None:

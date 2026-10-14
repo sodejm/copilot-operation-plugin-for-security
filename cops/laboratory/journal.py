@@ -172,14 +172,20 @@ class LaboratoryCaseJournal:
         if "authorization_id" not in columns:
             connection.execute("ALTER TABLE cases ADD COLUMN authorization_id TEXT")
         for row in connection.execute("SELECT attempt_id, payload_json FROM cases WHERE authorization_id IS NULL"):
-            authorization_id = json.loads(row["payload_json"]).get("authorization_id")
-            if authorization_id is not None:
-                if not isinstance(authorization_id, str) or not authorization_id:
-                    raise ValueError("invalid laboratory authorization identifier")
-                connection.execute(
-                    "UPDATE cases SET authorization_id = ? WHERE attempt_id = ?",
-                    (authorization_id, row["attempt_id"]),
-                )
+            payload = json.loads(row["payload_json"])
+            if not isinstance(payload, dict):
+                raise ValueError("invalid laboratory journal payload")
+            authorization_id = payload.get("authorization_id")
+            if not isinstance(authorization_id, str) or not authorization_id:
+                raise ValueError("missing laboratory authorization identifier")
+            connection.execute(
+                "UPDATE cases SET authorization_id = ? WHERE attempt_id = ?",
+                (authorization_id, row["attempt_id"]),
+            )
+        for row in connection.execute("SELECT authorization_id FROM cases"):
+            authorization_id = row["authorization_id"]
+            if not isinstance(authorization_id, str) or not authorization_id:
+                raise ValueError("invalid laboratory authorization identifier")
         connection.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS cases_authorization_id_unique "
             "ON cases(authorization_id) WHERE authorization_id IS NOT NULL"

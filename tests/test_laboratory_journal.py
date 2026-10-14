@@ -76,6 +76,27 @@ def test_legacy_duplicate_authorizations_fail_migration(tmp_path: Path) -> None:
         LaboratoryCaseJournal(journal_path)
 
 
+@pytest.mark.parametrize("state", ["pending", "classified", "failed"])
+def test_legacy_bound_row_without_authorization_fails_migration(
+    tmp_path: Path,
+    state: str,
+) -> None:
+    journal_path = _private_directory(tmp_path / "journal") / "cases.sqlite3"
+    _legacy_journal(journal_path, [("old-attempt", "authorization-old")])
+    connection = sqlite3.connect(journal_path)
+    try:
+        connection.execute(
+            "UPDATE cases SET state = ?, payload_json = ? WHERE attempt_id = 'old-attempt'",
+            (state, json.dumps({"failure_result": {"result_id": "result-old", "details": {}}})),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    with pytest.raises(LaboratoryGateError, match="invalid or unavailable"):
+        LaboratoryCaseJournal(journal_path)
+
+
 def test_begin_atomically_reserves_authorization_across_connections(tmp_path: Path) -> None:
     journal_path = _private_directory(tmp_path / "journal") / "cases.sqlite3"
     first = LaboratoryCaseJournal(journal_path)

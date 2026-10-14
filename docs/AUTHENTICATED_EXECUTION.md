@@ -356,8 +356,11 @@ process responsible for that journal. Also pass an absolute `evidence_dir` to
 `LaboratoryHarness`, outside disposable worker workspaces. The evidence store
 requires an operator-owned directory with no group or other access and rejects
 symbolic links. It writes canonical JSON with SHA-256 references and `0600`
-permissions. Keep both the journal and evidence under the engagement's retention
-policy; permissions do not encrypt them.
+permissions. Each reference contains a content-addressed path relative to the
+configured evidence directory and omits the controller's absolute path. Resolve
+references through the `LaboratoryEvidenceStore` that owns that directory. Keep
+both the journal and evidence under the engagement's retention policy;
+permissions do not encrypt them.
 
 `execute_case` atomically reserves the authorization identifier and records
 dispatch intent in that journal before sending the authorized plan to
@@ -390,8 +393,10 @@ does not independently inspect the worker. A dispatch without a trusted result
 records cleanup as unknown.
 
 Existing journals migrate authorization identifiers from saved dispatch payloads
-into a unique index. Duplicate identifiers fail closed and require operator
-reconciliation; historical rows without an identifier remain readable. Protect
+into a unique index. Duplicate identifiers and attempted historical rows whose
+authorization identifier cannot be recovered fail journal initialization closed
+and require operator reconciliation. This prevents an old row from becoming
+reusable when an earlier bind operation replaced its dispatch payload. Protect
 the journal owner account: the journal is not a defense against a hostile process
 running as that owner. A journal object holds its parent directory identity and
 rejects replacement. After deliberately relocating a journal, construct a new
