@@ -1122,6 +1122,7 @@ class ActiveScanner:
 
 def compare_active_scans(baseline: ActiveScanSession, current: ActiveScanSession) -> ScanDelta:
     """Compare baseline scan against current scan to compute remediated and altered exposures."""
+
     def canonical_address(value: str) -> str:
         try:
             return str(ipaddress.ip_address(value))
@@ -1167,10 +1168,14 @@ def compare_active_scans(baseline: ActiveScanSession, current: ActiveScanSession
             (a for a in exact_retests if a.port_state != PortState.CLOSED.value),
             exact_retests[-1] if exact_retests else None,
         )
-        other_identity = next(
-            (a for a in current_by_slot.get(slot(base_a), []) if identity(a) != key),
-            None,
-        ) if curr_a is None else None
+        other_identity = (
+            next(
+                (a for a in current_by_slot.get(slot(base_a), []) if identity(a) != key),
+                None,
+            )
+            if curr_a is None
+            else None
+        )
         if not curr_a or curr_a.port_state != PortState.OPEN.value:
             observed_retest = curr_a or other_identity
             item = {
