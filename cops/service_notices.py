@@ -249,8 +249,7 @@ def _validate_notice(value: Any, index: int) -> str:
     if not isinstance(sources, list) or not sources:
         raise ServiceNoticeError(f"{path}.sources must be a non-empty list")
     source_dates = [
-        _validate_source(source, f"{path}.sources[{source_index}]")
-        for source_index, source in enumerate(sources)
+        _validate_source(source, f"{path}.sources[{source_index}]") for source_index, source in enumerate(sources)
     ]
     if published != min(source_dates) or reviewed < max(source_dates):
         raise ServiceNoticeError(f"{path} source publication dates are inconsistent with notice dates")
@@ -448,7 +447,13 @@ def _assess_notice(notice: dict[str, Any], asset: dict[str, Any], *, as_of: date
 
     product_name = asset.get("product")
     if product_name is None:
-        return _result(notice, "unknown", ["Product evidence is missing."], ["product"], "Collect exact product and version inventory.")
+        return _result(
+            notice,
+            "unknown",
+            ["Product evidence is missing."],
+            ["product"],
+            "Collect exact product and version inventory.",
+        )
     products = {item["name"].casefold(): item for item in notice["scope"]["products"]}
     product = products.get(product_name.casefold())
     if product is None:
@@ -462,7 +467,13 @@ def _assess_notice(notice: dict[str, Any], asset: dict[str, Any], *, as_of: date
 
     operating_system = asset.get("operating_system")
     if operating_system is None:
-        return _result(notice, "unknown", ["Operating-system evidence is missing."], ["operating_system"], "Collect exact operating-system inventory.")
+        return _result(
+            notice,
+            "unknown",
+            ["Operating-system evidence is missing."],
+            ["operating_system"],
+            "Collect exact operating-system inventory.",
+        )
     allowed_systems = {item.casefold() for item in notice["scope"]["operating_systems"]}
     if operating_system.casefold() not in allowed_systems:
         return _result(
@@ -475,7 +486,9 @@ def _assess_notice(notice: dict[str, Any], asset: dict[str, Any], *, as_of: date
 
     version = asset.get("version")
     if version is None:
-        return _result(notice, "unknown", ["Version evidence is missing."], ["version"], "Collect an exact product version.")
+        return _result(
+            notice, "unknown", ["Version evidence is missing."], ["version"], "Collect an exact product version."
+        )
     normalized_version = version.casefold()
     fixed_versions = {item.casefold() for item in product["fixed_versions"]}
     affected_versions = {item.casefold() for item in product["affected_versions"]}
@@ -498,9 +511,7 @@ def _assess_notice(notice: dict[str, Any], asset: dict[str, Any], *, as_of: date
 
     configured_services: list[dict[str, Any]] = []
     rules = {
-        (service["name"].casefold(), transport)
-        for service in notice["services"]
-        for transport in service["transports"]
+        (service["name"].casefold(), transport) for service in notice["services"] for transport in service["transports"]
     }
     for service in asset.get("services", []):
         if (service["name"].casefold(), service["transport"]) in rules:
@@ -514,14 +525,38 @@ def _assess_notice(notice: dict[str, Any], asset: dict[str, Any], *, as_of: date
             "Collect service identity, reachability, and enabled/configured state.",
         )
     if all(service.get("reachable") is False for service in configured_services):
-        return _result(notice, "not_applicable", ["The supplied input reports the required service unreachable."], [], "Verify and retain reachability evidence, then monitor configuration changes.")
+        return _result(
+            notice,
+            "not_applicable",
+            ["The supplied input reports the required service unreachable."],
+            [],
+            "Verify and retain reachability evidence, then monitor configuration changes.",
+        )
     if not any(service.get("reachable") is True for service in configured_services):
-        return _result(notice, "unknown", ["Service reachability is not established."], ["reachability"], "Confirm service reachability without extending scan scope.")
+        return _result(
+            notice,
+            "unknown",
+            ["Service reachability is not established."],
+            ["reachability"],
+            "Confirm service reachability without extending scan scope.",
+        )
     reachable = [service for service in configured_services if service.get("reachable") is True]
     if all(service.get("configured") is False for service in reachable):
-        return _result(notice, "not_applicable", ["The supplied input reports the required service disabled or unconfigured."], [], "Verify and retain configuration evidence, then monitor changes.")
+        return _result(
+            notice,
+            "not_applicable",
+            ["The supplied input reports the required service disabled or unconfigured."],
+            [],
+            "Verify and retain configuration evidence, then monitor changes.",
+        )
     if not any(service.get("configured") is True for service in reachable):
-        return _result(notice, "unknown", ["Required service configuration is not established."], ["configuration"], "Confirm the enabled/configured state from trusted local evidence.")
+        return _result(
+            notice,
+            "unknown",
+            ["Required service configuration is not established."],
+            ["configuration"],
+            "Confirm the enabled/configured state from trusted local evidence.",
+        )
 
     supplied_evidence = {item.casefold() for item in asset.get("evidence", [])}
     missing_keys = [item["key"] for item in notice["prerequisites"] if item["key"].casefold() not in supplied_evidence]
@@ -561,7 +596,9 @@ def assess_asset(registry: Any, asset: Any, *, as_of: date) -> dict[str, Any]:
         "asset_id": context["asset_id"],
         "assessed_on": as_of.isoformat(),
         "input_verification": "unverified",
-        "reasons": ["Offline allowlist assessment of unverified input completed; candidate results propose investigation only."],
+        "reasons": [
+            "Offline allowlist assessment of unverified input completed; candidate results propose investigation only."
+        ],
         "missing_evidence": sorted(missing),
         "safe_next_action": "Review each notice result and collect missing evidence without expanding authorization or scan scope.",
         "results": results,
