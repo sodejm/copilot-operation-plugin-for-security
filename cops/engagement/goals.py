@@ -41,7 +41,8 @@ def _fail(message: str, *, code: str, next_action: str) -> GoalResolutionError:
 
 def _quoted_spans(text: str) -> list[tuple[int, int]]:
     spans: list[tuple[int, int]] = []
-    for opener, closer in (("\"", "\""), ("'", "'"), ("`", "`"), ("“", "”"), ("‘", "’")):
+    for opener, closer in (('"', '"'), ("'", "'"), ("`", "`"), ("“", "”"), ("‘", "’")):
+
         def find_quote(character: str, offset: int) -> int:
             while (position := text.find(character, offset)) >= 0:
                 if character != "'" or not (
@@ -99,10 +100,7 @@ def _reject_overlapping_exclusions(target: str, excluded: list[str]) -> None:
             excluded_network = ipaddress.ip_network(exclusion, strict=False)
         except ValueError:
             continue
-        if (
-            target_network.version == excluded_network.version
-            and target_network.overlaps(excluded_network)
-        ):
+        if target_network.version == excluded_network.version and target_network.overlaps(excluded_network):
             raise _fail(
                 "Selected target overlaps an excluded address or network",
                 code="overlapping_exclusion",
@@ -113,9 +111,7 @@ def _reject_overlapping_exclusions(target: str, excluded: list[str]) -> None:
             )
 
 
-def _resolve_target(
-    goal: str, engagement: dict[str, Any], selection: dict[str, Any]
-) -> tuple[str, str]:
+def _resolve_target(goal: str, engagement: dict[str, Any], selection: dict[str, Any]) -> tuple[str, str]:
     included = [str(target).strip() for target in engagement["scope"]["included_targets"]]
     excluded = [str(target).strip() for target in engagement["scope"].get("excluded_targets", [])]
     non_authoritative = [*_quoted_spans(goal), *_illustrative_spans(goal)]
@@ -161,11 +157,7 @@ def _resolve_target(
         )
     canonical_selection = (
         next(
-            (
-                target
-                for target in included
-                if target.casefold() == selected_target.strip().casefold()
-            ),
+            (target for target in included if target.casefold() == selected_target.strip().casefold()),
             None,
         )
         if selected_target is not None
@@ -206,13 +198,9 @@ def _validate_goal_detail(goal: str, target: str, target_source: str) -> dict[st
             code="missing_assessment_intent",
             next_action="Start with a direct request such as 'Assess the selected endpoint'.",
         )
-    subject = (
-        re.escape(target)
-        if target_source == "goal"
-        else r"the\s+selected(?:\s+production)?\s+endpoint"
-    )
+    subject = re.escape(target) if target_source == "goal" else r"the\s+selected(?:\s+production)?\s+endpoint"
     supported_detail = rf"{subject}(?:\s+for\s+exposed\s+services)?(?:\s+safely)?[.!]?"
-    detail = goal[intent.end():].strip()
+    detail = goal[intent.end() :].strip()
     if re.fullmatch(supported_detail, detail, re.IGNORECASE) is None:
         raise _fail(
             "Goal contains a target or instruction this resolver cannot interpret",
@@ -225,9 +213,7 @@ def _validate_goal_detail(goal: str, target: str, target_source: str) -> dict[st
     return {
         "verb": intent.group("verb").lower(),
         "detail": (
-            "exposed_services"
-            if re.search(r"\bfor\s+exposed\s+services\b", detail, re.IGNORECASE)
-            else "unspecified"
+            "exposed_services" if re.search(r"\bfor\s+exposed\s+services\b", detail, re.IGNORECASE) else "unspecified"
         ),
         "safe_mode_requested": bool(re.search(r"\bsafely\b", detail, re.IGNORECASE)),
         "status": "unbound",
@@ -342,9 +328,7 @@ def resolve_engagement_goal(
             "status": "not_assessed",
             "assessed_targets": [],
             "not_assessed_targets": [target],
-            "reason": (
-                "Target selection only: no plan, approval, worker dispatch, or assessment occurred."
-            ),
+            "reason": ("Target selection only: no plan, approval, worker dispatch, or assessment occurred."),
         },
         "next_action": {
             "type": "bind_execution_path",
