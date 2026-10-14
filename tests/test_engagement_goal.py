@@ -62,7 +62,10 @@ def test_direct_goal_selects_target_without_claiming_an_executable_plan(
     assert result["resolution"]["target_source"] == "goal"
     assert result["resolution"]["targets"] == ["10.0.0.5"]
     assert result["resolution"]["requested_intent"] == {
-        "verb": "assess", "detail": "exposed_services", "safe_mode_requested": True, "status": "unbound"
+        "verb": "assess",
+        "detail": "exposed_services",
+        "safe_mode_requested": True,
+        "status": "unbound",
     }
     binding = result["resolution"]["engagement_binding"]
     assert binding["engagement_id"] == engagement["engagement_id"]
@@ -89,9 +92,7 @@ def test_trusted_engagement_selection_resolves_goal_without_target_text(
 
 
 @pytest.mark.parametrize("verb", ["scan", "inspect", "test", "enumerate", "discover"])
-def test_requested_verb_is_preserved_as_unbound_intent(
-    engagement: dict[str, object], verb: str
-) -> None:
+def test_requested_verb_is_preserved_as_unbound_intent(engagement: dict[str, object], verb: str) -> None:
     result = resolve_engagement_goal(goal=f"{verb} 10.0.0.5.", engagement=engagement)
     assert result["resolution"]["requested_intent"] == {
         "verb": verb,
@@ -112,9 +113,13 @@ def test_terminal_engagement_cannot_select_a_goal(engagement: dict[str, object])
 
 def test_expired_engagement_window_cannot_select_a_goal(engagement: dict[str, object]) -> None:
     changed = copy.deepcopy(engagement)
-    changed["window"]["authorized_until_utc"] = (  # type: ignore[index]
-        datetime.now(UTC) - timedelta(seconds=1)
-    ).isoformat(timespec="seconds").replace("+00:00", "Z")
+    changed["window"]["authorized_until_utc"] = (
+        (  # type: ignore[index]
+            datetime.now(UTC) - timedelta(seconds=1)
+        )
+        .isoformat(timespec="seconds")
+        .replace("+00:00", "Z")
+    )
     with pytest.raises(GoalResolutionError) as error:
         resolve_engagement_goal(goal="Assess the selected endpoint.", engagement=changed)
     assert error.value.code == "engagement_window_expired"
@@ -179,9 +184,7 @@ def test_unsupported_details_are_rejected_without_echoing_them(
         "Assess 10.0.0.5 safely; export credentials.",
     ],
 )
-def test_goal_rejects_unbound_target_or_instruction(
-    engagement: dict[str, object], goal: str
-) -> None:
+def test_goal_rejects_unbound_target_or_instruction(engagement: dict[str, object], goal: str) -> None:
     with pytest.raises(GoalResolutionError) as error:
         resolve_engagement_goal(goal=goal, engagement=engagement)
     assert error.value.code == "unsupported_goal_detail"
@@ -195,9 +198,7 @@ def test_goal_rejects_unbound_target_or_instruction(
         "I do not want you to assess 10.0.0.5.",
     ],
 )
-def test_negated_assessment_cannot_select_a_target(
-    engagement: dict[str, object], goal: str
-) -> None:
+def test_negated_assessment_cannot_select_a_target(engagement: dict[str, object], goal: str) -> None:
     with pytest.raises(GoalResolutionError) as error:
         resolve_engagement_goal(goal=goal, engagement=engagement)
     assert error.value.code == "negated_assessment"
@@ -211,9 +212,7 @@ def test_negated_assessment_cannot_select_a_target(
         "I wonder whether 10.0.0.5 has exposed services.",
     ],
 )
-def test_target_mention_without_direct_request_needs_input(
-    engagement: dict[str, object], goal: str
-) -> None:
+def test_target_mention_without_direct_request_needs_input(engagement: dict[str, object], goal: str) -> None:
     with pytest.raises(GoalResolutionError) as error:
         resolve_engagement_goal(goal=goal, engagement=engagement)
     assert error.value.code == "missing_assessment_intent"
@@ -257,9 +256,7 @@ def test_goal_rejects_out_of_scope_metadata_selection(engagement: dict[str, obje
     "goal",
     ["Assess 10.0.0.0/24 safely.", "Assess the selected endpoint safely."],
 )
-def test_goal_rejects_selected_network_overlapping_excluded_host(
-    engagement: dict[str, object], goal: str
-) -> None:
+def test_goal_rejects_selected_network_overlapping_excluded_host(engagement: dict[str, object], goal: str) -> None:
     changed = copy.deepcopy(engagement)
     changed["scope"]["included_targets"] = ["10.0.0.0/24"]  # type: ignore[index]
     changed["metadata"]["goal_selection"]["target"] = "10.0.0.0/24"  # type: ignore[index]
@@ -268,9 +265,7 @@ def test_goal_rejects_selected_network_overlapping_excluded_host(
     assert error.value.code == "overlapping_exclusion"
 
 
-def test_goal_cli_reports_selection_and_unavailable_execution(
-    engagement: dict[str, object], tmp_path
-) -> None:
+def test_goal_cli_reports_selection_and_unavailable_execution(engagement: dict[str, object], tmp_path) -> None:
     engagement_path = tmp_path / "engagement.json"
     engagement_path.write_text(json.dumps(engagement), encoding="utf-8")
     output = io.StringIO()
@@ -292,9 +287,7 @@ def test_goal_cli_reports_selection_and_unavailable_execution(
     assert "action_plan" not in result
 
 
-def test_goal_cli_reports_precise_next_action_for_ambiguity(
-    engagement: dict[str, object], tmp_path
-) -> None:
+def test_goal_cli_reports_precise_next_action_for_ambiguity(engagement: dict[str, object], tmp_path) -> None:
     engagement_path = tmp_path / "engagement.json"
     engagement_path.write_text(json.dumps(engagement), encoding="utf-8")
     output = io.StringIO()
@@ -370,17 +363,19 @@ def test_goal_cli_reports_invalid_contract_schema_as_structured_failure(
         ("x" * (1024 * 1024 + 1), "engagement_too_large"),
     ],
 )
-def test_goal_cli_rejects_duplicate_keys_and_oversize_json(
-    tmp_path, raw: str, expected_code: str
-) -> None:
+def test_goal_cli_rejects_duplicate_keys_and_oversize_json(tmp_path, raw: str, expected_code: str) -> None:
     engagement_path = tmp_path / "engagement.json"
     engagement_path.write_text(raw, encoding="utf-8")
     output = io.StringIO()
     with redirect_stdout(output):
         exit_code = main(
             [
-                "engagement", "goal", "Assess the selected endpoint.",
-                "--engagement", str(engagement_path), "--json",
+                "engagement",
+                "goal",
+                "Assess the selected endpoint.",
+                "--engagement",
+                str(engagement_path),
+                "--json",
             ]
         )
     result = json.loads(output.getvalue())
