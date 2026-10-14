@@ -56,6 +56,66 @@ Supply at least 32 bytes of signing material through the named environment varia
 
 HMAC provides shared-key channel authentication. Every verifier with the secret can also mint a valid authorization, so this design does not provide non-repudiation or independent signer identity proof. Limit secret access to the verifier boundary, record who can read it, and rotate the key when that membership changes.
 
+## Resolve an ordinary-language goal offline
+
+The `engagement goal` command resolves a narrow assessment request to one exact
+target in a validated Engagement. It does not create an ActionPlan or establish
+that a scenario, worker adapter, or operation can perform the requested work.
+For a request that says "the selected endpoint", the Engagement may
+provide the target in its metadata:
+
+```json
+{
+  "metadata": {
+    "goal_selection": {
+      "target": "10.100.0.10"
+    }
+  }
+}
+```
+
+The selected target must also appear in `scope.included_targets`. Alternatively,
+name one included target directly in the request:
+
+```bash
+python3 -m cops engagement goal \
+  "Assess 10.100.0.10 for exposed services safely." \
+  --engagement engagement.json \
+  --json
+```
+
+The command accepts a direct request beginning with assess, scan, inspect,
+test, enumerate, discover, evaluate, probe, or check, including a few polite
+forms. It accepts one exact target or "the selected endpoint", optionally
+followed by "for exposed services" and "safely". Other target or task details
+return `needs_input` instead of being silently dropped. Statements, questions,
+negated requests, excluded targets, multiple targets, and target text inside
+quotes or illustrative clauses also return `needs_input` with a specific next
+action. A selected IP range overlapping an excluded address or range also
+returns `needs_input`. It does not infer a target merely because the Engagement has only one
+included target. After an illustrative marker, the remainder of the request is
+non-authoritative, including periods inside IP addresses and hostnames.
+
+Successful resolution returns `needs_execution_path`, the selected target,
+the requested verb and supported detail with status `unbound`, the Engagement
+ID and canonical SHA-256 digest, lifecycle/window status, and a separate
+`selection_review_status: unverified`. A current window and valid contract
+schema do not prove provenance or review. The caller must independently verify
+the contract and its selected target against the controlled review path, then
+map the intent to an allowed operation before seeking approval. The command
+rejects terminal lifecycle states and expired windows; a future window is
+reported as `upcoming` and cannot establish execution readiness. Requests
+are limited to 4,096 characters, 1,024 scope target entries in total, and
+1 MiB of Engagement JSON. Duplicate JSON keys are rejected.
+
+The response also reports
+`not_assessed` coverage, and the missing step: bind a verified assessment
+scenario and worker operation, then present an executable bounded plan for
+approval. No network request, worker dispatch, action, approval, or checkpoint
+occurs. `metadata.goal_selection` is not a separate signature or approval.
+The JSON result may contain an internal target name, so
+keep it in the engagement's private review and retention boundary.
+
 ## Supply planner tool-version provenance
 
 Before compiling an Action Plan, measure the scenario operation tool through an independently trusted inventory or deployment workflow. Pass each exact value to the CLI with repeatable `--tool-version TOOL=VERSION` options, or pass the required `tool_versions: Mapping[str, str]` argument to `build_action_plan` or `run_engagement_plan_workflow`. For example:
