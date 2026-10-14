@@ -137,7 +137,23 @@ def test_bundled_cases_observe_denial_effect_and_cleanup():
         jsonschema.validate(json.loads(case_path.read_text()), case_schema)
 
     cases = load_lab_cases(PLUGIN_ROOT / "lab_cases")
-    assert len(cases) >= 10
+    expected_case_ids = {
+        "authorized-canary-sink",
+        "authorized-lookup",
+        "authorized-state-change",
+        "context-boundary",
+        "cross-tenant",
+        "data-exfiltration",
+        "memory-boundary",
+        "peer-agent-spoofing",
+        "retrieval-poisoning",
+        "state-change-baseline",
+        "state-change-remediated",
+        "tool-permission",
+        "tool-response-poisoning",
+    }
+    assert len(cases) == len(expected_case_ids)
+    assert {case.case_id for case in cases} == expected_case_ids
     results = {case.case_id: run_lab_case(case) for case in cases}
 
     assert all(result["environment_verified"] for result in results.values())

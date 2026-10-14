@@ -1,20 +1,20 @@
 ---
 layout: documentation
 title: "21 Specialist Cybersecurity Agents & Dynamic Routing"
-description: "Centralized catalog of twenty-one pre-tuned cybersecurity agent profiles, zero-token deterministic routing, and multi-agent Triad orchestration."
+description: "Catalog of twenty-one cybersecurity agent profiles, deterministic profile selection, proposed triad plans, and specialist handoff records."
 ---
 
 # 21 Specialist Cybersecurity Agents & Dynamic Routing
 
 COPS centralizes **21 specialist cybersecurity agent profiles** housed in `agents/`. Each profile defines a dedicated persona, tool allowlist, domain constraints, and evaluation criteria tailored to specific security disciplines.
 
-Rather than relying on a generic assistant prompt, COPS routes tasks to the specialist profile with the highest domain precision.
+The COPS router recommends a specialist profile for your host assistant to use. Starting an agent is a separate action in that host.
 
 ---
 
 ## Dynamic Zero-Token Routing (`cops route`)
 
-COPS includes a deterministic router implemented in standard Python. It parses task semantics, matches keywords, and selects the ideal specialist profile **without consuming LLM tokens** or calling external APIs:
+The router selects a profile by an explicit profile ID or weighted matches against keywords, skills, and tools. It falls back to the SOC analyst profile when no match scores above zero. These local rules use standard Python **without consuming LLM tokens** or calling external APIs:
 
 ```bash
 # Route any natural language task:
@@ -34,6 +34,16 @@ python3 -m cops specialists
 ```
 
 ---
+
+## Triad plans from routing
+
+When the selected profile is marked critical, or you pass `--critical`, the router returns a proposed plan with a Primary Specialist, Domain Skeptic, Evidence Auditor, and handoff steps:
+
+```bash
+python3 -m cops route "cops-pentest-specialist" --json
+```
+
+The command returns routing data; it does not launch agents or execute the task. The `interactive_authorization_required` field comes from the selected profile. A prompt appears only when you pass `--authorize` and that field is true. A routing authorization receipt does not replace the separate [execution authorization requirements](AUTHENTICATED_EXECUTION.md).
 
 ## Model and effort suggestions
 

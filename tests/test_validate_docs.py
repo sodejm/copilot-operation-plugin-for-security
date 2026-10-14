@@ -105,6 +105,17 @@ def test_verification_and_maturity_accept_complete_catalog_docs(tmp_path, monkey
     assert errors == []
 
 
+def test_verification_accepts_virtualenv_python_command(tmp_path, monkeypatch):
+    package = write_qualification_docs(tmp_path, monkeypatch)
+    playbook = package / "docs/VERIFICATION.md"
+    playbook.write_text(playbook.read_text().replace("python3 -m cops", "python -m cops"))
+
+    errors: list[str] = []
+    validate_docs.validate_plugin_verification(errors)
+
+    assert errors == []
+
+
 def test_verification_requires_each_catalog_playbook(tmp_path, monkeypatch):
     package = write_qualification_docs(tmp_path, monkeypatch)
     (package / "docs/VERIFICATION.md").unlink()
@@ -133,7 +144,7 @@ def test_verification_requires_run_recovery_and_discovery_instructions(tmp_path,
 
     assert len(errors) == 4
     assert any("missing section: Failure and recovery" in error for error in errors)
-    assert any("missing baseline command: python3 -m cops check one-plugin" in error for error in errors)
+    assert any("missing baseline command: python -m cops check one-plugin" in error for error in errors)
     assert any("README.md must link to docs/VERIFICATION.md" in error for error in errors)
     assert any("verification index must link" in error for error in errors)
 

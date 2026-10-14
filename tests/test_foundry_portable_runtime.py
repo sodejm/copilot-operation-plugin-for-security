@@ -91,8 +91,8 @@ def inject_execution_marker(source: Path, marker: Path):
     ))
 
 
-@pytest.mark.parametrize("name", SOURCE_FILES)
-def test_package_gate_does_not_execute_authorization_sources(tmp_path, name):
+@pytest.mark.parametrize("name", (*SOURCE_FILES, "provider_assessment.py"))
+def test_package_gate_does_not_execute_assessment_sources(tmp_path, name):
     copied = tmp_path / "plugin"
     shutil.copytree(PLUGIN, copied, ignore=shutil.ignore_patterns("__pycache__"))
     marker = tmp_path / "executed"
@@ -120,7 +120,7 @@ def test_normal_cops_check_keeps_package_sources_inert(tmp_path, capsys):
             shutil.copy2(source, destination)
     runtime = copied / PLUGIN.relative_to(ROOT) / "foundryharness"
     markers = []
-    for name in (*SOURCE_FILES, "mcp_fixture_server.py"):
+    for name in (*SOURCE_FILES, "mcp_fixture_server.py", "provider_assessment.py"):
         marker = tmp_path / (name + ".executed")
         inject_execution_marker(runtime / name, marker)
         markers.append(marker)
@@ -141,6 +141,27 @@ def test_data_only_package_gate_rejects_invalid_case(tmp_path, directory):
         cwd=tmp_path, capture_output=True, text=True, timeout=20,
     )
     assert result.returncode != 0
+
+
+@pytest.mark.parametrize("defect", ["unknown_case_field", "invalid_price_date"])
+def test_data_only_package_gate_rejects_invalid_provider_fixture(tmp_path, defect):
+    copied = tmp_path / "plugin"
+    shutil.copytree(PLUGIN, copied, ignore=shutil.ignore_patterns("__pycache__"))
+    if defect == "unknown_case_field":
+        path = copied / "provider_fixtures" / "cases.json"
+        data = json.loads(path.read_text())
+        data["cases"][0]["unrecognized_field"] = True
+    else:
+        path = copied / "provider_fixtures" / "plan.json"
+        data = json.loads(path.read_text())
+        data["budget"]["price_effective_date"] = "2026-13-99"
+    path.write_text(json.dumps(data))
+    result = subprocess.run(
+        [sys.executable, "-I", str(copied / "scripts/validate_package.py")],
+        cwd=tmp_path, capture_output=True, text=True, timeout=20,
+    )
+    assert result.returncode != 0
+    assert "Traceback" not in result.stderr
 
 
 @pytest.mark.parametrize("raw", [

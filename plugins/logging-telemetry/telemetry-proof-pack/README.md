@@ -1,8 +1,8 @@
 # COPS Telemetry-to-Detection Proof Pack
 
-When an expected alert is absent, inspect source, routing, indexing, rule execution, and alert evidence before assigning a cause.
+Supply a run manifest and a directory of JSON evidence records to the **Telemetry-to-Detection Proof Pack**. It correlates a synthetic marker across source, routing, indexing, rule execution, and alert records. It does not collect evidence or verify a live service by itself.
 
-The **Telemetry-to-Detection Proof Pack** correlates supplied, offline records for a synthetic marker across those five stages. It does not collect evidence or verify a live service by itself.
+When an expected alert is absent, use the report to identify missing or unresolved stage evidence before assigning a cause.
 
 ---
 
@@ -39,7 +39,7 @@ flowchart LR
 
 ## Understanding Pipeline Health
 
-The correlation engine summarizes pipeline health into three clear states:
+The correlation engine reports three health states based on the supplied evidence. These states describe the records for that run, not current service availability:
 
 | Health Status | Description | Action Required |
 | :--- | :--- | :--- |

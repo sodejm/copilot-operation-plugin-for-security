@@ -9,18 +9,24 @@ import os
 import re
 import stat
 import sys
+from datetime import date
 from pathlib import Path
 
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent
 SCHEMA_KEYS = {
     "$id", "$schema", "$defs", "$ref", "title", "description", "type", "const", "enum", "required",
-    "properties", "additionalProperties", "items", "oneOf", "anyOf", "minLength", "maxLength",
-    "pattern", "minItems", "maxItems", "uniqueItems", "minimum", "maximum",
+    "properties", "patternProperties", "additionalProperties", "maxProperties", "items",
+    "oneOf", "anyOf", "minLength", "maxLength", "pattern", "format", "minItems",
+    "maxItems", "uniqueItems", "minimum", "maximum",
 }
 SUPPORTED_PATTERNS = {
     "^[a-z0-9]+(?:-[a-z0-9]+)*$", "^[a-z0-9]+(-[a-z0-9]+)*$",
     "^SCN-[A-Za-z0-9_-]+$", r"\S",
     "^[a-f0-9]{64}$", "^[0-9a-f]{64}$",
+    "^CANARY_[A-Z0-9_]+$", "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+    "^fixture-[A-Za-z0-9._-]+$", "^synthetic-[A-Za-z0-9._-]+$",
+    r"^https://[A-Za-z0-9.-]+\.invalid(?:/[A-Za-z0-9._/-]*)?$",
+    "^case-[0-9a-f]{64}$",
 }
 SCHEMA_TYPES = {
     "object": (dict,), "array": (list,), "string": (str,), "integer": (int,),
@@ -103,10 +109,12 @@ def admit_schema(schema):
             if (not names or any(not isinstance(name, str) or name not in SCHEMA_TYPES
                                  for name in names) or len(set(names)) != len(names)):
                 raise PackageError("Unsupported schema type")
-        for key in ("properties", "$defs"):
+        for key in ("properties", "$defs", "patternProperties"):
             if key in node:
                 if not isinstance(node[key], dict) or any(not name for name in node[key]):
                     raise PackageError("Invalid schema properties")
+                if key == "patternProperties" and set(node[key]) - SUPPORTED_PATTERNS:
+                    raise PackageError("Unsupported property-name pattern")
                 stack.extend((child, depth + 1) for child in node[key].values())
         if "$defs" in node and node is not schema:
             raise PackageError("Unsupported nested schema definitions")
@@ -135,6 +143,11 @@ def admit_schema(schema):
         if "pattern" in node and (not isinstance(node["pattern"], str)
                                   or node["pattern"] not in SUPPORTED_PATTERNS):
             raise PackageError("Unsupported schema string pattern")
+        if "format" in node and node["format"] != "date":
+            raise PackageError("Unsupported schema format")
+        if "maxProperties" in node and (type(node["maxProperties"]) is not int
+                                        or not 0 <= node["maxProperties"] <= 1000):
+            raise PackageError("Invalid property count bound")
         if "uniqueItems" in node and type(node["uniqueItems"]) is not bool:
             raise PackageError("Invalid schema uniqueness constraint")
         for low, high, integer in (("minLength", "maxLength", True),
@@ -163,6 +176,7 @@ def admit_schema(schema):
             raise PackageError("Unbounded schema reference graph")
         ancestry = (*ancestry, id(node))
         children = list(node.get("properties", {}).values()) + list(node.get("$defs", {}).values())
+        children += list(node.get("patternProperties", {}).values())
         children += node.get("oneOf", []) + node.get("anyOf", [])
         if "items" in node:
             children.append(node["items"])
@@ -203,14 +217,22 @@ def check_schema(value, schema, root=None):
         raise PackageError("Invalid enumeration")
     if isinstance(value, dict):
         properties = schema.get("properties", {})
+        patterns = schema.get("patternProperties", {})
         if set(schema.get("required", ())) - value.keys():
             raise PackageError("Missing case field")
-        if schema.get("additionalProperties") is False and value.keys() - properties.keys():
-            raise PackageError("Unknown case field")
-        for key in value.keys() & properties.keys():
-            check_schema(value[key], properties[key], root)
-        if isinstance(schema.get("additionalProperties"), dict):
-            for key in value.keys() - properties.keys():
+        if len(value) > schema.get("maxProperties", len(value)):
+            raise PackageError("Too many object fields")
+        for key in value:
+            if key in properties:
+                check_schema(value[key], properties[key], root)
+            matching = [child for pattern, child in patterns.items() if re.search(pattern, key)]
+            for child in matching:
+                check_schema(value[key], child, root)
+            if key in properties or matching:
+                continue
+            if schema.get("additionalProperties") is False:
+                raise PackageError("Unknown case field")
+            if isinstance(schema.get("additionalProperties"), dict):
                 check_schema(value[key], schema["additionalProperties"], root)
     elif isinstance(value, list):
         if not schema.get("minItems", 0) <= len(value) <= schema.get("maxItems", len(value)):
@@ -230,6 +252,12 @@ def check_schema(value, schema, root=None):
                 raise PackageError("Unsupported string pattern")
             if re.search(schema["pattern"], value) is None:
                 raise PackageError("Invalid string pattern")
+        if schema.get("format") == "date":
+            try:
+                if date.fromisoformat(value).isoformat() != value:
+                    raise PackageError("Invalid date")
+            except ValueError as exc:
+                raise PackageError("Invalid date") from exc
     elif type(value) in (int, float):
         if not schema.get("minimum", -math.inf) <= value <= schema.get("maximum", math.inf):
             raise PackageError("Invalid numeric range")
@@ -324,6 +352,9 @@ def validate() -> int:
         PLUGIN_ROOT / "schemas" / "auth-adapter.schema.json",
         PLUGIN_ROOT / "schemas" / "auth-evidence.schema.json",
         PLUGIN_ROOT / "schemas" / "auth-report.schema.json",
+        PLUGIN_ROOT / "schemas" / "provider-plan.schema.json",
+        PLUGIN_ROOT / "schemas" / "provider-cases.schema.json",
+        PLUGIN_ROOT / "schemas" / "provider-report.schema.json",
     ]
 
     try:
@@ -333,10 +364,13 @@ def validate() -> int:
                 raise PackageError("Invalid package configuration")
             if path.parent.name == "schemas":
                 admit_schema(value)
+        # The response envelope uses conditionals outside this data-only gate's admitted
+        # schema vocabulary. Check bounded syntax here; the offline runner checks it fully.
+        load_json(PLUGIN_ROOT / "schemas" / "provider-response.schema.json")
         report_schema = admit_schema(load_json(PLUGIN_ROOT / "schemas" / "auth-report.schema.json"))
         for name in ("auth-authorized.json", "auth-denied.json", "auth-inconclusive.json"):
             check_schema(load_json(PLUGIN_ROOT / "examples" / name), report_schema)
-        for name in ("foundry-agent-review", "ai-agent-mcp-laboratories"):
+        for name in ("foundry-agent-review", "ai-agent-mcp-laboratories", "ai-provider-assessment"):
             content = read_text(PLUGIN_ROOT / "skills" / name / "SKILL.md")
             if not content.startswith(f"---\nname: {name}\n"):
                 raise PackageError("Invalid skill frontmatter")
@@ -344,6 +378,15 @@ def validate() -> int:
         labs = load_cases("lab_cases", "lab-case.schema.json", "case_id", 10)
         auth = load_cases("auth_cases", "auth-case.schema.json", "case_id", 9)
         check_auth_coverage(auth)
+        provider_plan = load_json(PLUGIN_ROOT / "provider_fixtures" / "plan.json")
+        provider_cases = load_json(PLUGIN_ROOT / "provider_fixtures" / "cases.json")
+        check_schema(provider_plan, admit_schema(load_json(
+            PLUGIN_ROOT / "schemas" / "provider-plan.schema.json")))
+        check_schema(provider_cases, admit_schema(load_json(
+            PLUGIN_ROOT / "schemas" / "provider-cases.schema.json")))
+        case_ids = [case["case_id"] for case in provider_cases["cases"]]
+        if len(case_ids) < 14 or len(case_ids) != len(set(case_ids)):
+            raise PackageError("Missing or duplicate provider fixture case")
     except (PackageError, OSError, UnicodeError, ValueError, TypeError, KeyError, RecursionError):
         print("FAIL: Invalid, missing, or unsupported package data; assessment code was not loaded.",
               file=sys.stderr)
@@ -352,6 +395,7 @@ def validate() -> int:
     print("  OK: Validated skill definitions and frontmatter.")
     print(f"  OK: Validated {len(scenarios)} scenario, {len(labs)} laboratory, "
           f"and {len(auth)} authorization case definitions.")
+    print(f"  OK: Validated {len(case_ids)} provider fixture cases as data.")
     print("[validate_package] Data checks passed; runtime behavior requires separate observed execution.")
     return 0
 

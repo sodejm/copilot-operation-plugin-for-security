@@ -43,6 +43,7 @@ PORTABLE_ENTRIES = {
     "scenarios",
     "lab_cases",
     "auth_cases",
+    "provider_fixtures",
     "detectionquality",
     "rules",
     "proofpack",

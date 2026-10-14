@@ -172,9 +172,9 @@ def validate_plugin_verification(errors: list[str]) -> None:
             if section not in headings:
                 errors.append(f"{plugin_id}: missing section: {section}")
         for action in ("info", "demo", "check"):
-            command = f"python3 -m cops {action} {plugin_id}"
-            if not re.search(rf"(?m)^\s*{re.escape(command)}\s*$", text):
-                errors.append(f"{plugin_id}: missing baseline command: {command}")
+            command = f"python -m cops {action} {plugin_id}"
+            if not re.search(rf"(?m)^\s*python(?:3)? -m cops {action} {re.escape(plugin_id)}\s*$", text):
+                errors.append(f"{plugin_id}: missing baseline command: {command} (or python3)")
         readme = package / "README.md"
         readme_text = readme.read_text(encoding="utf-8") if readme.is_file() else ""
         if not any(
