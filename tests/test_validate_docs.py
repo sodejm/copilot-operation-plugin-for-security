@@ -74,9 +74,7 @@ def write_qualification_docs(tmp_path, monkeypatch):
         "| Report | Records results | Runner | Reviewer | Semantic assertions |\n"
     )
     (package / "docs/PLAYBOOK.md").write_text("```bash\npython3 -m cops demo one-plugin\n```\n")
-    (tmp_path / "docs/plugin-playbacks.md").write_text(
-        "[Run](../plugins/testing/one-plugin/docs/PLAYBOOK.md)\n"
-    )
+    (tmp_path / "docs/plugin-playbacks.md").write_text("[Run](../plugins/testing/one-plugin/docs/PLAYBOOK.md)\n")
     (package / "docs/VERIFICATION.md").write_text(
         "## Scope and prerequisites\n"
         "## Baseline checks\n"
@@ -165,9 +163,7 @@ def test_verification_discovery_ignores_links_inside_fences(tmp_path, monkeypatc
     package = write_qualification_docs(tmp_path, monkeypatch)
     (package / "README.md").write_text("```markdown\n[Verify](docs/VERIFICATION.md)\n```\n")
     (tmp_path / "docs/plugin-verification.md").write_text(
-        "```markdown\n"
-        "[Verify](../plugins/testing/one-plugin/docs/VERIFICATION.md)\n"
-        "```\n"
+        "```markdown\n[Verify](../plugins/testing/one-plugin/docs/VERIFICATION.md)\n```\n"
     )
 
     errors: list[str] = []

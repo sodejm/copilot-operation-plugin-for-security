@@ -140,9 +140,7 @@ def test_untrusted_observation_and_missing_provider_fail_closed(tmp_path: Path) 
         harness.verify_environment(environment, endpoint_inventory=inventory)
     assert environment.status == "failed"
     environment = make_inert_container_environment()
-    simulated = _harness(inventory).verify_environment(
-        environment, endpoint_inventory=inventory, mock_checks=True
-    )
+    simulated = _harness(inventory).verify_environment(environment, endpoint_inventory=inventory, mock_checks=True)
     assert simulated.status == "registered"
     assert simulated.canary["verified"] is False
     assert simulated.isolation["verification_status"] == "unverified"
@@ -675,9 +673,7 @@ def test_post_dispatch_persistence_failure_marks_attempt_unknown_and_consumes_au
         if failure_point == "bind"
         else patch.object(harness.case_journal, "bind", wraps=harness.case_journal.bind)
     )
-    with write_patch, bind_patch, patch(
-        "cops.laboratory.harness.SSHExecutionDispatcher.execute", return_value=run
-    ):
+    with write_patch, bind_patch, patch("cops.laboratory.harness.SSHExecutionDispatcher.execute", return_value=run):
         with pytest.raises(LaboratoryGateError, match="persistence failed"):
             harness.execute_case(
                 environment,
@@ -715,8 +711,9 @@ def test_failure_evidence_write_failures_still_mark_attempt_unknown(tmp_path: Pa
             raise OSError(f"injected {kind} failure")
         return original_write(kind, value)
 
-    with patch.object(harness.evidence_store, "write_json", side_effect=fail_failure_evidence), patch(
-        "cops.laboratory.harness.SSHExecutionDispatcher.execute", side_effect=RuntimeError("disconnect")
+    with (
+        patch.object(harness.evidence_store, "write_json", side_effect=fail_failure_evidence),
+        patch("cops.laboratory.harness.SSHExecutionDispatcher.execute", side_effect=RuntimeError("disconnect")),
     ):
         with pytest.raises(LaboratoryGateError, match="dispatch failed"):
             harness.execute_case(

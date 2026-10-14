@@ -208,7 +208,9 @@ def _assert_playback_semantics(plugin_id: str, result: subprocess.CompletedProce
         assert summary["evidence_scope"] == "synthetic_contract_and_reference_semantics_only"
         assert summary["live_service_validation"] == "not_performed"
         assert set(item["conclusion"] for item in summary["variants"].values()) == {
-            "malicious", "benign", "insufficient_evidence",
+            "malicious",
+            "benign",
+            "insufficient_evidence",
         }
         assert all(summary["assertions"].values())
     elif plugin_id == "sentinel-hunt-workbench":
@@ -217,7 +219,8 @@ def _assert_playback_semantics(plugin_id: str, result: subprocess.CompletedProce
         }
     elif plugin_id == "detection-quality-workbench":
         assert {(rule["platform"], rule["passed"]) for rule in payload["rules"]} == {
-            ("sentinel_kql", True), ("splunk_spl", True),
+            ("sentinel_kql", True),
+            ("splunk_spl", True),
         }
         assert all(rule["metrics"]["schema_error_cases"] > 0 for rule in payload["rules"])
     elif plugin_id == "patch-security-review":
@@ -243,10 +246,7 @@ def _assert_all_playback_results(
     """Report every playback failure without skipping later package results."""
     failures: list[str] = []
     if set(results) != expected_plugin_ids:
-        failures.append(
-            "catalog result mismatch: "
-            f"expected {sorted(expected_plugin_ids)!r}, got {sorted(results)!r}"
-        )
+        failures.append(f"catalog result mismatch: expected {sorted(expected_plugin_ids)!r}, got {sorted(results)!r}")
     for plugin_id, runs in results.items():
         if len(runs) != 2:
             failures.append(f"{plugin_id}: expected 2 runs, got {len(runs)}")
@@ -255,7 +255,11 @@ def _assert_all_playback_results(
                 _assert_playback_semantics(plugin_id, result)
                 if require_public_command:
                     assert result.args == [
-                        sys.executable, "-m", "cops", "demo", plugin_id,
+                        sys.executable,
+                        "-m",
+                        "cops",
+                        "demo",
+                        plugin_id,
                     ]
             except AssertionError as error:
                 failures.append(f"{plugin_id} run {run_number}: {error}")
@@ -327,7 +331,8 @@ def run_exported_demos(context, tmp_path):
     runtime = tmp_path / "runtime"
     for directory in ("cops", "catalog"):
         shutil.copytree(
-            ROOT / directory, runtime / directory,
+            ROOT / directory,
+            runtime / directory,
             ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
         )
     (runtime / "agents").mkdir()
@@ -342,8 +347,12 @@ def run_exported_demos(context, tmp_path):
         command, timeout = validate_declared_command(record.package["demo"], record, runtime)
         context["exported_results"][record.id] = [
             subprocess.run(
-                command, cwd=runtime, env=environment,
-                capture_output=True, text=True, timeout=timeout + 5,
+                command,
+                cwd=runtime,
+                env=environment,
+                capture_output=True,
+                text=True,
+                timeout=timeout + 5,
             )
             for _ in range(2)
         ]
@@ -361,7 +370,10 @@ def exported_demos_succeed(context):
 @pytest.mark.parametrize("stdout", ["", "playback passed\n"])
 def test_playback_acceptance_rejects_exit_zero_noop_runner(stdout):
     result = subprocess.CompletedProcess(
-        args=["no-op-runner"], returncode=0, stdout=stdout, stderr="",
+        args=["no-op-runner"],
+        returncode=0,
+        stdout=stdout,
+        stderr="",
     )
     with pytest.raises(AssertionError, match="no machine-readable JSON result"):
         _assert_playback_semantics("security-logging-advisor", result)
@@ -371,7 +383,10 @@ def test_playback_acceptance_reports_every_runner_failure():
     results = {
         plugin_id: [
             subprocess.CompletedProcess(
-                args=[plugin_id], returncode=1, stdout="", stderr=f"failure {run_number}",
+                args=[plugin_id],
+                returncode=1,
+                stdout="",
+                stderr=f"failure {run_number}",
             )
             for run_number in (1, 2)
         ]

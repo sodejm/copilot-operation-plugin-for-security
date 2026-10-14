@@ -15,7 +15,9 @@ from .errors import ContentError
 from .paths import load_bounded_json
 
 _UUID = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$")
-_HOST = re.compile(r"^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?$")
+_HOST = re.compile(
+    r"^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?$"
+)
 _HASH = re.compile(r"^(?:[0-9a-fA-F]{32}|[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$")
 _DURATION = re.compile(r"^[1-9][0-9]{0,5}(?:s|m|h|d)$")
 _SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:@/+-]{0,254}$")
@@ -140,7 +142,11 @@ def _serialize_scalar(type_name: str, value: Any, definition: dict[str, Any]) ->
 def serialize_parameter(definition: dict[str, Any], value: Any) -> str:
     type_name = definition.get("type")
     if type_name == "bounded_list":
-        if not isinstance(value, list) or not value or len(value) > min(definition.get("max_items", MAX_LIST), MAX_LIST):
+        if (
+            not isinstance(value, list)
+            or not value
+            or len(value) > min(definition.get("max_items", MAX_LIST), MAX_LIST)
+        ):
             raise ContentError(f"parameter {definition['name']} must be a non-empty bounded list")
         item_definition = {
             "name": definition["name"],
@@ -150,10 +156,7 @@ def serialize_parameter(definition: dict[str, Any], value: Any) -> str:
         # Validate every item with the same scalar allowlists, then use JSON for
         # the dynamic literal. Embedding already-quoted KQL strings here would
         # produce a Kusto-looking value that is not valid JSON.
-        normalized = [
-            _normalize_scalar(item_definition["type"], item, item_definition)
-            for item in value
-        ]
+        normalized = [_normalize_scalar(item_definition["type"], item, item_definition) for item in value]
         return "dynamic(" + json.dumps(normalized, ensure_ascii=False, separators=(",", ":")) + ")"
     return _serialize_scalar(str(type_name), value, definition)
 

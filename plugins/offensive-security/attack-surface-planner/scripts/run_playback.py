@@ -62,15 +62,20 @@ def main() -> int:
         failure = run([sys.executable, str(ROOT / "scripts/plan.py"), str(bad)])
         require(failure.returncode == 2 and "input gate:" in failure.stderr, "active mode was not rejected")
 
-    print(json.dumps({
-        "playback": "attack-surface-planner",
-        "status": "passed",
-        "rerun_equal": True,
-        "failure_path": "active mode rejected",
-        "summary": one["summary"],
-        "test_plan_count": len(one["test_plan"]),
-        "network_requests": one["network_requests"],
-    }, sort_keys=True))
+    print(
+        json.dumps(
+            {
+                "playback": "attack-surface-planner",
+                "status": "passed",
+                "rerun_equal": True,
+                "failure_path": "active mode rejected",
+                "summary": one["summary"],
+                "test_plan_count": len(one["test_plan"]),
+                "network_requests": one["network_requests"],
+            },
+            sort_keys=True,
+        )
+    )
     return 0
 
 

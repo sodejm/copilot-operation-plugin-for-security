@@ -231,9 +231,7 @@ class LaboratoryHarness:
             raise IsolationVerificationError("Laboratory environment must have network isolation enabled.")
         if not isolation.get("egress_restricted"):
             raise IsolationVerificationError("Laboratory environment must enforce strict egress restrictions.")
-        expected_type = {"container": "container_unprivileged", "vm": "vm_hypervisor"}.get(
-            environment.environment_type
-        )
+        expected_type = {"container": "container_unprivileged", "vm": "vm_hypervisor"}.get(environment.environment_type)
         if expected_type is None or isolation.get("isolation_type") != expected_type:
             raise IsolationVerificationError(f"Unsupported isolation type '{isolation.get('isolation_type')}'.")
         if not environment.canary.get("canary_token") or not environment.canary.get("location"):
@@ -438,7 +436,9 @@ class LaboratoryHarness:
         if environment.isolation.get("verification_status") != "verified":
             raise LaboratoryGateError("laboratory isolation has not been verified")
         if environment.isolation.get("verification_provenance") != "observed":
-            raise LaboratoryGateError("laboratory verification lacks fresh observed provenance; reverify the environment")
+            raise LaboratoryGateError(
+                "laboratory verification lacks fresh observed provenance; reverify the environment"
+            )
         try:
             pre_execution_observation = self._observe_environment(environment, endpoint_inventory=endpoint_inventory)
         except (IsolationVerificationError, CanaryVerificationError) as err:
@@ -556,9 +556,7 @@ class LaboratoryHarness:
             )
         except Exception as err:
             failure_code = (
-                "trusted_worker_result_invalid"
-                if dispatch_returned
-                else "trusted_worker_dispatch_outcome_unknown"
+                "trusted_worker_result_invalid" if dispatch_returned else "trusted_worker_dispatch_outcome_unknown"
             )
             failure_basis = (
                 "dispatch returned an invalid or mismatched worker result"
@@ -566,9 +564,7 @@ class LaboratoryHarness:
                 else "dispatch raised before a trusted worker result was available"
             )
             journal_reason = (
-                "trusted worker result invalid"
-                if dispatch_returned
-                else "trusted worker dispatch outcome unknown"
+                "trusted worker result invalid" if dispatch_returned else "trusted worker dispatch outcome unknown"
             )
             mark_unknown_best_effort(
                 reason=journal_reason,
@@ -708,21 +704,9 @@ class LaboratoryHarness:
         canary_found = case_observation.canary_token_detected
         blocked = case_observation.control_blocked
         cleaned = result.cleanup_status in ("completed", "not_required")
-        if (
-            result.status == "success"
-            and result.exit_code == 0
-            and canary_found
-            and not blocked
-            and cleaned
-        ):
+        if result.status == "success" and result.exit_code == 0 and canary_found and not blocked and cleaned:
             observed_case_type = "positive"
-        elif (
-            result.status == "success"
-            and result.exit_code == 0
-            and not canary_found
-            and blocked
-            and cleaned
-        ):
+        elif result.status == "success" and result.exit_code == 0 and not canary_found and blocked and cleaned:
             observed_case_type = "remediated"
         elif (
             result.status == "failed"

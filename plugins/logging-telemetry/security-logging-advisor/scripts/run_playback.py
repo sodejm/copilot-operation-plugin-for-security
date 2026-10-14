@@ -30,7 +30,9 @@ def validate_contract(contract: dict) -> None:
 
 
 def collect(target: Path, *limits: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run([sys.executable, str(COLLECTOR), *limits, str(target)], text=True, capture_output=True, check=False)
+    return subprocess.run(
+        [sys.executable, str(COLLECTOR), *limits, str(target)], text=True, capture_output=True, check=False
+    )
 
 
 def recommendation_errors(text: str, contract: dict) -> list[str]:
@@ -72,12 +74,17 @@ def main() -> int:
         require(one["languages"] == expected["languages"], "detected languages changed")
         require(expected["framework"] in one["frameworks_and_libraries"], "expected framework was not detected")
         require(sorted(one["iac_and_cloud"]) == sorted(expected["iac_and_cloud"]), "IaC detection changed")
-        require(one["coverage"] == "complete" and not one["incomplete_coverage"], "full scan reported incomplete coverage")
+        require(
+            one["coverage"] == "complete" and not one["incomplete_coverage"], "full scan reported incomplete coverage"
+        )
         require(not recommendation_errors(recommendation, contract), "recommendation template failed validation")
 
         partial = collect(fixture, "--max-files", "1")
         partial_data = json.loads(partial.stdout)
-        require(partial.returncode == 0 and partial_data["incomplete_coverage"], "limited scan did not disclose partial coverage")
+        require(
+            partial.returncode == 0 and partial_data["incomplete_coverage"],
+            "limited scan did not disclose partial coverage",
+        )
         require(bool(partial_data["partial_scan_notice"]), "limited scan omitted its partial coverage notice")
         broken = recommendation.replace("- **Acceptance Criteria**:", "- **Removed Field**:")
         require(
@@ -85,13 +92,19 @@ def main() -> int:
             "missing recommendation field was not rejected",
         )
 
-    print(json.dumps({
-        "playback": "security-logging-advisor", "status": "passed",
-        "scanned_files_count": one["scanned_files_count"],
-        "rerun_semantically_equal": True,
-        "failure_paths": ["partial scan disclosed", "missing recommendation field rejected"],
-        "recommendation_author": "human-authored fixture",
-    }, sort_keys=True))
+    print(
+        json.dumps(
+            {
+                "playback": "security-logging-advisor",
+                "status": "passed",
+                "scanned_files_count": one["scanned_files_count"],
+                "rerun_semantically_equal": True,
+                "failure_paths": ["partial scan disclosed", "missing recommendation field rejected"],
+                "recommendation_author": "human-authored fixture",
+            },
+            sort_keys=True,
+        )
+    )
     return 0
 
 

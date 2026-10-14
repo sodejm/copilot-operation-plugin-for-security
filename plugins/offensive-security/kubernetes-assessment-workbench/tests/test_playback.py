@@ -15,7 +15,10 @@ class PlaybackTests(unittest.TestCase):
         for _ in range(2):
             result = subprocess.run(
                 [sys.executable, str(PACKAGE / "scripts/demo.py")],
-                capture_output=True, text=True, timeout=30, check=False,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             report = json.loads(result.stdout)

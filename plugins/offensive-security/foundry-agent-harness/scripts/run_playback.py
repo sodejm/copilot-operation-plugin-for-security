@@ -39,7 +39,9 @@ def validate_contract(contract: dict) -> None:
 def invoke(scenarios: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, str(ROOT / "foundryharness/cli.py"), "evaluate", "--scenarios-dir", str(scenarios), "--json"],
-        text=True, capture_output=True, check=False,
+        text=True,
+        capture_output=True,
+        check=False,
     )
 
 
@@ -96,13 +98,19 @@ def main() -> int:
             "scenario without approval was not rejected",
         )
 
-    print(json.dumps({
-        "playback": "foundry-agent-harness", "status": "passed",
-        "scenario_count": one["summary"]["total_scenarios"],
-        "denied_count": one["summary"]["denied_tool_call_count"],
-        "rerun_semantically_equal": True,
-        "failure_path": "scenario missing approval rejected",
-    }, sort_keys=True))
+    print(
+        json.dumps(
+            {
+                "playback": "foundry-agent-harness",
+                "status": "passed",
+                "scenario_count": one["summary"]["total_scenarios"],
+                "denied_count": one["summary"]["denied_tool_call_count"],
+                "rerun_semantically_equal": True,
+                "failure_path": "scenario missing approval rejected",
+            },
+            sort_keys=True,
+        )
+    )
     return 0
 
 

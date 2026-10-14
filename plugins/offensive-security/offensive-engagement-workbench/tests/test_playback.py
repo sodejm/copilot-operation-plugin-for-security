@@ -77,9 +77,7 @@ class TestEngagementPlayback(unittest.TestCase):
             self.assertEqual({path.name for path in output_dir.iterdir()}, EXPECTED_ARTIFACTS)
             observation = json.loads((output_dir / "inert-observation.json").read_text())
             evidence = json.loads((output_dir / "execution-evidence.json").read_text())
-            expected_stdout = (
-                json.dumps(observation, sort_keys=True, separators=(",", ":")) + "\n"
-            ).encode()
+            expected_stdout = (json.dumps(observation, sort_keys=True, separators=(",", ":")) + "\n").encode()
             self.assertEqual(
                 evidence["stdout_sha256"],
                 f"sha256:{hashlib.sha256(expected_stdout).hexdigest()}",

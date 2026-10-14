@@ -104,9 +104,7 @@ class TestScenarioLaboratoryManagementSkill(unittest.TestCase):
             {reference["kind"] for reference in evidence},
             {"pre-execution-observation", "run-result", "cleanup-receipt", "case-observation"},
         )
-        cleanup_reference = next(
-            reference for reference in evidence if reference["kind"] == "cleanup-receipt"
-        )
+        cleanup_reference = next(reference for reference in evidence if reference["kind"] == "cleanup-receipt")
         self.assertEqual(cleanup_reference["sha256"], result.cleanup_receipt_digest)
         cleanup_path = Path(cleanup_reference["path"])
         self.assertEqual(cleanup_path.parent, self.evidence_dir)

@@ -20,7 +20,10 @@ def require(condition: bool, message: str) -> None:
 def import_case(source: Path) -> dict:
     result = subprocess.run(
         [sys.executable, str(PACKAGE / "scripts/assess.py"), str(source)],
-        capture_output=True, text=True, timeout=15, check=False,
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=False,
     )
     require(result.returncode == 0, result.stderr)
     report = json.loads(result.stdout)
@@ -72,7 +75,10 @@ def main() -> int:
         source.write_text(json.dumps(record), encoding="utf-8")
         rejected = subprocess.run(
             [sys.executable, str(PACKAGE / "scripts/assess.py"), str(source)],
-            capture_output=True, text=True, timeout=15, check=False,
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
         )
         require(rejected.returncode == 2 and not rejected.stdout, "unverified cleanup was not rejected")
         require("cleanup" in rejected.stderr, "cleanup rejection did not explain the failure")

@@ -59,11 +59,7 @@ class LaboratoryEvidenceStore:
             current = os.stat(self.directory, follow_symlinks=False)
         except OSError as err:
             raise LaboratoryGateError("laboratory evidence directory changed during write") from err
-        if (
-            not stat.S_ISDIR(current.st_mode)
-            or current.st_dev != held.st_dev
-            or current.st_ino != held.st_ino
-        ):
+        if not stat.S_ISDIR(current.st_mode) or current.st_dev != held.st_dev or current.st_ino != held.st_ino:
             raise LaboratoryGateError("laboratory evidence directory changed during write")
 
     @staticmethod

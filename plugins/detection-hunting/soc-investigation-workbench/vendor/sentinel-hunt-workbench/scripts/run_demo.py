@@ -35,9 +35,7 @@ CATEGORIES = {
     "benign": "benign_counterfactual",
     "insufficient": "schema_surface",
 }
-MODELED_SCHEMA_FAILURES = frozenset(
-    {"unknown_table", "unknown_field", "unsupported_operator", "unverified_surface"}
-)
+MODELED_SCHEMA_FAILURES = frozenset({"unknown_table", "unknown_field", "unsupported_operator", "unverified_surface"})
 
 
 def _assert_json_artifact(path: Path, schema_key: str, schema_value: str) -> dict[str, object]:
@@ -72,9 +70,7 @@ def _evaluate(hunt_id: str, fixtures_root: Path = FIXTURES_DIR) -> dict[str, obj
         if category == "schema_surface":
             evaluation_input = copy.deepcopy(scenario["input"])
             controls = evaluation_input.get("controls", {})
-            validation_contract = (
-                controls.get("validation_contract") if isinstance(controls, dict) else None
-            )
+            validation_contract = controls.get("validation_contract") if isinstance(controls, dict) else None
             # The offline reference evaluator does not parse KQL. Translate the
             # curated schema/surface contract into its modeled static-failure input.
             if validation_contract in MODELED_SCHEMA_FAILURES:

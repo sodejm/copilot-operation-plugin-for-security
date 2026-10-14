@@ -107,22 +107,24 @@ def observation(variant: str, hunt_id: str, handoff: dict[str, Any]) -> dict[str
         "outcome": "supports" if malicious else "refutes",
         "coverage": "complete",
         "cost": 2 if hunt_id == "H01" else 3,
-        "evidence": [{
-            "id": f"ev-{variant}-{hunt_id.lower()}",
-            "source": f"sentinel-{hunt_id.lower()}-reference-fixture",
-            "record_ref": sha256(record.encode()).hexdigest(),
-            "scope": {
-                "tenant": handoff["request"]["scope"]["tenant"],
-                "workspace": handoff["request"]["scope"]["workspace"],
-            },
-            "event_time": "2026-01-01T04:20:00Z" if hunt_id == "H01" else "2026-01-01T04:30:00Z",
-            "entities": aliases,
-            "assessments": assessments,
-            "summary": (
-                f"Offline {hunt_id} reference fixture observed the expected "
-                f"{'malicious invariant' if malicious else 'benign counterfactual'}."
-            ),
-        }],
+        "evidence": [
+            {
+                "id": f"ev-{variant}-{hunt_id.lower()}",
+                "source": f"sentinel-{hunt_id.lower()}-reference-fixture",
+                "record_ref": sha256(record.encode()).hexdigest(),
+                "scope": {
+                    "tenant": handoff["request"]["scope"]["tenant"],
+                    "workspace": handoff["request"]["scope"]["workspace"],
+                },
+                "event_time": "2026-01-01T04:20:00Z" if hunt_id == "H01" else "2026-01-01T04:30:00Z",
+                "entities": aliases,
+                "assessments": assessments,
+                "summary": (
+                    f"Offline {hunt_id} reference fixture observed the expected "
+                    f"{'malicious invariant' if malicious else 'benign counterfactual'}."
+                ),
+            }
+        ],
     }
 
 
@@ -131,18 +133,33 @@ def run_variant(root: Path, variant: str, evaluation: dict[str, Any]) -> dict[st
     variant_dir.mkdir(mode=0o700)
     initial = variant_dir / "01-intake.json"
     run_json(
-        "intake", "--case-id", f"case-malicious-access-{variant}",
-        "--tenant", "tenant-a", "--workspace", "workspace-a",
-        "--start", "2026-01-01T00:00:00Z", "--end", "2026-01-02T00:00:00Z",
-        "--sources", f"entra:{SOURCE}", "--out", initial,
+        "intake",
+        "--case-id",
+        f"case-malicious-access-{variant}",
+        "--tenant",
+        "tenant-a",
+        "--workspace",
+        "workspace-a",
+        "--start",
+        "2026-01-01T00:00:00Z",
+        "--end",
+        "2026-01-02T00:00:00Z",
+        "--sources",
+        f"entra:{SOURCE}",
+        "--out",
+        initial,
     )
     case = load(initial)
-    assert_true(all(not item["assessments"] for item in case["evidence"]),
-                "intake observations must begin without analyst assessments")
+    assert_true(
+        all(not item["assessments"] for item in case["evidence"]),
+        "intake observations must begin without analyst assessments",
+    )
     run_json("validate", initial)
     first_next = run_json("next", initial)
-    assert_true({item["step_id"] for item in first_next["candidates"]} == {"signin-triage", "token-audit"},
-                "both independent inquiries must be ready after intake")
+    assert_true(
+        {item["step_id"] for item in first_next["candidates"]} == {"signin-triage", "token-audit"},
+        "both independent inquiries must be ready after intake",
+    )
 
     current = initial
     handoffs: dict[str, dict[str, Any]] = {}
@@ -153,12 +170,16 @@ def run_variant(root: Path, variant: str, evaluation: dict[str, Any]) -> dict[st
         private_json(variant_dir / f"handoff-{hunt_id}.json", handoff)
         expected_kinds = {"H01": {"account", "ip"}, "H10": {"account", "app"}}[hunt_id]
         entity_kinds = {item["id"]: item["kind"] for item in load(current)["entities"]}
-        assert_true({entity_kinds[item] for item in handoff["request"]["entities"]} == expected_kinds,
-                    f"{hunt_id} must receive its kind-aware aliases")
+        assert_true(
+            {entity_kinds[item] for item in handoff["request"]["entities"]} == expected_kinds,
+            f"{hunt_id} must receive its kind-aware aliases",
+        )
         evaluator_key, evaluator_outcome = VARIANTS[variant]
         evaluated = evaluation["hunts"][hunt_id][evaluator_key]
-        assert_true(evaluated["passed"] is True and evaluated["actual_outcome"] == evaluator_outcome,
-                    f"{hunt_id} evaluator outcome did not satisfy the {variant} contract")
+        assert_true(
+            evaluated["passed"] is True and evaluated["actual_outcome"] == evaluator_outcome,
+            f"{hunt_id} evaluator outcome did not satisfy the {variant} contract",
+        )
 
         result_path = variant_dir / f"{sequence:02d}-{hunt_id.lower()}-observation.json"
         private_json(result_path, observation(variant, hunt_id, handoff))
@@ -169,7 +190,9 @@ def run_variant(root: Path, variant: str, evaluation: dict[str, Any]) -> dict[st
         if variant == "insufficient_evidence" and hunt_id == "H01":
             revised_steps = load(current)["steps"]
             pending = next(item for item in revised_steps if item["id"] == "token-audit")
-            pending["question"] = "Can the independent consent trail reduce uncertainty despite unavailable sign-in telemetry?"
+            pending["question"] = (
+                "Can the independent consent trail reduce uncertainty despite unavailable sign-in telemetry?"
+            )
             revision_path = variant_dir / "03-revised-steps.json"
             private_json(revision_path, revised_steps)
             revised_case = variant_dir / "03-revised-case.json"
@@ -177,25 +200,32 @@ def run_variant(root: Path, variant: str, evaluation: dict[str, Any]) -> dict[st
             current = revised_case
             run_json("validate", current)
             ready = run_json("next", current)
-            assert_true([item["step_id"] for item in ready["candidates"]] == ["token-audit"],
-                        "revised independent consent inquiry must remain eligible")
+            assert_true(
+                [item["step_id"] for item in ready["candidates"]] == ["token-audit"],
+                "revised independent consent inquiry must remain eligible",
+            )
 
     report_value = run_json("report", current)
     statuses = {item["id"]: item["status"] for item in report_value["hypotheses"]}
     if variant == "malicious":
-        assert_true(statuses == {"malicious-activity": "support_observed", "benign-explanation": "refutation_observed"},
-                    "malicious observations must support only the malicious hypothesis")
+        assert_true(
+            statuses == {"malicious-activity": "support_observed", "benign-explanation": "refutation_observed"},
+            "malicious observations must support only the malicious hypothesis",
+        )
         conclusion = "malicious"
     elif variant == "benign":
-        assert_true(statuses == {"malicious-activity": "refutation_observed", "benign-explanation": "support_observed"},
-                    "benign observations must support only the bounded benign hypothesis")
+        assert_true(
+            statuses == {"malicious-activity": "refutation_observed", "benign-explanation": "support_observed"},
+            "benign observations must support only the bounded benign hypothesis",
+        )
         conclusion = "benign"
     else:
         assert_true(set(statuses.values()) == {"unresolved"}, "missing evidence must leave hypotheses unresolved")
         assert_true(len(report_value["coverage_gaps"]) == 2, "both unavailable inquiries must remain coverage gaps")
-        assert_true(report_value["next"]["state"] == "needs_review"
-                    and report_value["next"]["reason"] == "no_progress",
-                    "two unavailable inquiries must stop for analyst review")
+        assert_true(
+            report_value["next"]["state"] == "needs_review" and report_value["next"]["reason"] == "no_progress",
+            "two unavailable inquiries must stop for analyst review",
+        )
         conclusion = "insufficient_evidence"
     assert_true("verdict" not in report_value, "the engine must not emit an automatic verdict")
 
@@ -203,8 +233,10 @@ def run_variant(root: Path, variant: str, evaluation: dict[str, Any]) -> dict[st
     private_json(report_path, report_value)
     export_dir = variant_dir / "handoff-export"
     exported = run_json("export-handoff", current, "--out-dir", export_dir)
-    assert_true(Path(exported["json_path"]).is_file() and Path(exported["md_path"]).is_file(),
-                "final JSON and Markdown handoffs must be exported")
+    assert_true(
+        Path(exported["json_path"]).is_file() and Path(exported["md_path"]).is_file(),
+        "final JSON and Markdown handoffs must be exported",
+    )
     return {
         "case_id": load(current)["id"],
         "conclusion": conclusion,
@@ -244,7 +276,11 @@ def main() -> int:
         evaluator_dir = root / "sentinel-evaluation"
         evaluated = subprocess.run(
             [sys.executable, str(EVALUATOR), "--out-dir", str(evaluator_dir)],
-            cwd=PACKAGE.parents[2], text=True, capture_output=True, timeout=60, check=False,
+            cwd=PACKAGE.parents[2],
+            text=True,
+            capture_output=True,
+            timeout=60,
+            check=False,
             env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
         )
         if evaluated.returncode:
@@ -262,8 +298,8 @@ def main() -> int:
                 "all_three_outcomes_completed": set(item["conclusion"] for item in variants.values())
                 == {"malicious", "benign", "insufficient_evidence"},
                 "no_automatic_verdicts": all(item["automatic"] is False for item in variants.values()),
-                "failed_or_empty_evidence_did_not_imply_benign":
-                    variants["insufficient_evidence"]["conclusion"] == "insufficient_evidence",
+                "failed_or_empty_evidence_did_not_imply_benign": variants["insufficient_evidence"]["conclusion"]
+                == "insufficient_evidence",
             },
             "limitations": [
                 "The vendored evaluator checks reference invariants; it does not execute KQL.",
@@ -273,8 +309,12 @@ def main() -> int:
         }
         assert_true(all(summary["assertions"].values()), "final playback assertions failed")
         private_json(root / "playback-summary.json", summary)
-        print(json.dumps({"status": "passed", "out_dir": str(root),
-                          "summary": str(root / "playback-summary.json")}, sort_keys=True))
+        print(
+            json.dumps(
+                {"status": "passed", "out_dir": str(root), "summary": str(root / "playback-summary.json")},
+                sort_keys=True,
+            )
+        )
         return 0
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError, PlaybackError) as exc:
         print(json.dumps({"status": "failed", "error": str(exc)}), file=sys.stderr)

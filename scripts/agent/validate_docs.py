@@ -275,17 +275,13 @@ def validate_plugin_playbacks(errors: list[str]) -> None:
         else:
             readme_text = readme.read_text(encoding="utf-8")
             targets = {
-                match["target"].strip("<>")
-                for match in MARKDOWN_LINK.finditer("\n".join(unfenced_lines(readme_text)))
+                match["target"].strip("<>") for match in MARKDOWN_LINK.finditer("\n".join(unfenced_lines(readme_text)))
             }
             if "docs/PLAYBOOK.md" not in targets:
                 errors.append(f"{plugin_id}: README.md must link to docs/PLAYBOOK.md")
             headings = markdown_headings(readme_text)
             if not any(
-                any(
-                    term in heading
-                    for term in ("usage", "quick start", "start here", "test drive", "run", "workflow")
-                )
+                any(term in heading for term in ("usage", "quick start", "start here", "test drive", "run", "workflow"))
                 for heading in headings
             ):
                 errors.append(f"{plugin_id}: README.md must include a usage section")

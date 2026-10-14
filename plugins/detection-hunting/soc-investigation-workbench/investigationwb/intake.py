@@ -20,9 +20,7 @@ from .engine import ContractError, Document, alias, require, utc, validate
 from .files import read_regular
 
 ID_PATTERN = re.compile(r"[a-z][a-z0-9_-]{0,63}\Z")
-ISO_TZ_PATTERN = re.compile(
-    r"^(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2})(?:\.\d+)?(Z|[+-]\d{2}:?\d{2})?$"
-)
+ISO_TZ_PATTERN = re.compile(r"^(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2})(?:\.\d+)?(Z|[+-]\d{2}:?\d{2})?$")
 IP_PATTERN = re.compile(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
 
 
@@ -126,11 +124,17 @@ def parse_sentinel(content: bytes, filename: str, expected_tenant: str | None) -
 
             entities: list[tuple[str, str]] = []
             if item.get("Account") or item.get("UserPrincipalName") or item.get("AccountName"):
-                entities.append(("account", str(item.get("Account") or item.get("UserPrincipalName") or item.get("AccountName"))))
+                entities.append(
+                    ("account", str(item.get("Account") or item.get("UserPrincipalName") or item.get("AccountName")))
+                )
             if item.get("IPAddress") or item.get("ClientIP") or item.get("CallerIpAddress"):
-                entities.append(("ip", str(item.get("IPAddress") or item.get("ClientIP") or item.get("CallerIpAddress"))))
+                entities.append(
+                    ("ip", str(item.get("IPAddress") or item.get("ClientIP") or item.get("CallerIpAddress")))
+                )
             if item.get("AppDisplayName") or item.get("AppId") or item.get("ApplicationId"):
-                entities.append(("app", str(item.get("AppDisplayName") or item.get("AppId") or item.get("ApplicationId"))))
+                entities.append(
+                    ("app", str(item.get("AppDisplayName") or item.get("AppId") or item.get("ApplicationId")))
+                )
             if item.get("ResourceId") or item.get("Resource"):
                 entities.append(("resource", str(item.get("ResourceId") or item.get("Resource"))))
             if item.get("DeviceName") or item.get("Computer"):
@@ -467,9 +471,7 @@ def ingest_sources(
         all_records.extend(records)
 
     # Filter records within case interval [start, end)
-    scoped_records = [
-        r for r in all_records if start_dt <= utc(r.timestamp_utc) < end_dt
-    ]
+    scoped_records = [r for r in all_records if start_dt <= utc(r.timestamp_utc) < end_dt]
     require(bool(scoped_records), "No records found within the specified case time window.")
 
     # Sort deterministically: timestamp, source, record_ref
@@ -533,28 +535,25 @@ def ingest_sources(
             fallback_alias = get_or_create_entity("resource", "unspecified-system")
             ent_aliases.append(fallback_alias)
 
-        evidence_list.append({
-            "id": ev_id,
-            "source": source_alias,
-            "record_ref": rec.record_ref,
-            "scope": {"tenant": tenant, "workspace": workspace},
-            "event_time": rec.timestamp_utc,
-            "entities": sorted(ent_aliases),
-            # Severity, risk labels, failures, and successful actions are source
-            # observations. They do not establish either hypothesis until an
-            # analyst assesses the evidence in the context of the case.
-            "assessments": [],
-            "summary": rec.summary,
-        })
+        evidence_list.append(
+            {
+                "id": ev_id,
+                "source": source_alias,
+                "record_ref": rec.record_ref,
+                "scope": {"tenant": tenant, "workspace": workspace},
+                "event_time": rec.timestamp_utc,
+                "entities": sorted(ent_aliases),
+                # Severity, risk labels, failures, and successful actions are source
+                # observations. They do not establish either hypothesis until an
+                # analyst assesses the evidence in the context of the case.
+                "assessments": [],
+                "summary": rec.summary,
+            }
+        )
 
     # Generate initial investigative inquiry steps
     def entity_context(*kinds: str) -> list[str]:
-        selected = [
-            entity["id"]
-            for kind in kinds
-            for entity in entities_list
-            if entity["kind"] == kind
-        ]
+        selected = [entity["id"] for kind in kinds for entity in entities_list if entity["kind"] == kind]
         return list(dict.fromkeys(selected)) or [entities_list[0]["id"]]
 
     signin_entities = entity_context("account", "ip")

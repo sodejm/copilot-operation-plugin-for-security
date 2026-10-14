@@ -24,7 +24,10 @@ def run_case(directory: Path, name: str, record: dict, expected_error: str | Non
     source.chmod(0o600)
     result = subprocess.run(
         [sys.executable, str(PACKAGE / "scripts/assess.py"), str(source)],
-        capture_output=True, text=True, timeout=15, check=False,
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=False,
     )
     if expected_error:
         require(
@@ -47,7 +50,9 @@ def main() -> int:
         directory = Path(temporary)
         matched = run_case(directory, "matched", fixture)
         require(matched["cluster_identity"]["status"] == "matched_sanitized_export", "cluster identity did not match")
-        require(matched["namespaces"] == [{"namespace": "payments", "status": "accessible"}], "namespace result changed")
+        require(
+            matched["namespaces"] == [{"namespace": "payments", "status": "accessible"}], "namespace result changed"
+        )
         require(matched["blockers"] == [], "matched input reported blockers")
         require(matched == run_case(directory, "matched-rerun", fixture), "matched playback was not repeatable")
 
@@ -59,9 +64,15 @@ def main() -> int:
         limited = run_case(directory, "limited", limited_input)
         require(limited["cluster_identity"]["status"] == "unresolved", "limited identity did not remain unresolved")
         require(limited["namespaces"][0]["status"] == "denied", "limited namespace denial was lost")
-        require(set(limited["blockers"]) == {
-            "stable_identity_unresolved", "namespace_access_incomplete", "surface_access_incomplete",
-        }, "limited blockers changed")
+        require(
+            set(limited["blockers"])
+            == {
+                "stable_identity_unresolved",
+                "namespace_access_incomplete",
+                "surface_access_incomplete",
+            },
+            "limited blockers changed",
+        )
         require(
             set(limited["limitations"]) == {"control_plane_unavailable", "node_access_unavailable"},
             "limited coverage did not preserve unavailable surfaces",
@@ -70,9 +81,21 @@ def main() -> int:
         switched = copy.deepcopy(fixture)
         switched["observation"]["current_context"]["cluster"] = "different-cluster"
         rejected = run_case(directory, "switched", switched, "context_mismatch")
-        print(json.dumps({"status": "passed", "mode": "offline", "cases": {
-            "matched": matched, "limited": limited, "switched": rejected,
-        }}, indent=2, sort_keys=True))
+        print(
+            json.dumps(
+                {
+                    "status": "passed",
+                    "mode": "offline",
+                    "cases": {
+                        "matched": matched,
+                        "limited": limited,
+                        "switched": rejected,
+                    },
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
     return 0
 
 
