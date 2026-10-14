@@ -83,21 +83,24 @@ def test_all_platform_mappings_are_conditional_and_source_backed() -> None:
         "services": [{"name": "Screen Sharing", "transport": "tcp", "reachable": True, "configured": True}],
         "evidence": ["screen_sharing_enabled"],
     }
-    report = assess_asset(registry, apple, as_of=date(2026, 10, 14))
-    result = _result(report, "COPS-SAN-2026-003")
-    assert result["status"] == "candidate"
-    assert result["mapping_application"] == "not_assessed"
-    assert result["conditional_attack_mappings"][0]["required_evidence"] == [
-        "screen_sharing_lateral_exploitation_observed"
-    ]
+    for version in ("26.5.2", "26.6"):
+        apple["version"] = version
+        report = assess_asset(registry, apple, as_of=date(2026, 10, 14))
+        result = _result(report, "COPS-SAN-2026-003")
+        assert result["status"] == "candidate"
+        assert result["mapping_application"] == "not_assessed"
+        assert result["conditional_attack_mappings"][0]["required_evidence"] == [
+            "screen_sharing_lateral_exploitation_observed"
+        ]
     assert registry["notices"][2]["observation_date"] is None
     assert registry["notices"][2]["observation_context"]
 
 
 def test_fixed_and_wrong_product_are_not_candidates() -> None:
     registry = load_registry(REGISTRY_PATH)
-    fixed = assess_asset(registry, _dell_asset("6.1"), as_of=date(2026, 10, 14))
-    assert _result(fixed, "COPS-SAN-2026-002")["status"] == "fixed"
+    for version in ("6.0.3.1 HF1", "6.1"):
+        fixed = assess_asset(registry, _dell_asset(version), as_of=date(2026, 10, 14))
+        assert _result(fixed, "COPS-SAN-2026-002")["status"] == "fixed"
 
     unrelated = copy.deepcopy(_dell_asset())
     unrelated["product"] = "Apache Tomcat"
@@ -105,9 +108,13 @@ def test_fixed_and_wrong_product_are_not_candidates() -> None:
     assert _result(wrong_product, "COPS-SAN-2026-002")["status"] == "not_applicable"
 
 
-def test_ambiguous_dell_version_remains_unknown() -> None:
+def test_dell_advisory_versions_are_candidates_and_unlisted_version_is_unknown() -> None:
     registry = load_registry(REGISTRY_PATH)
-    report = assess_asset(registry, _dell_asset("6.0.3.1"), as_of=date(2026, 10, 14))
+    for version in ("5.3 SP4 P1", "6.0 SP3 P1", "6.0.3.1"):
+        report = assess_asset(registry, _dell_asset(version), as_of=date(2026, 10, 14))
+        assert _result(report, "COPS-SAN-2026-002")["status"] == "candidate"
+
+    report = assess_asset(registry, _dell_asset("6.0.2"), as_of=date(2026, 10, 14))
     result = _result(report, "COPS-SAN-2026-002")
     assert result["status"] == "unknown"
     assert "source_scoped_version_evidence" in result["missing_evidence"]
@@ -215,6 +222,7 @@ def test_successor_chain_must_be_compatible_acyclic_and_active() -> None:
         ("different_product", "incompatible successor"),
         ("withdrawn", "withdrawn successor"),
         ("cycle", "successor cycle"),
+        ("indirect_dangling", "unknown successor"),
     ):
         changed = copy.deepcopy(registry)
         original = changed["notices"][1]
@@ -230,6 +238,10 @@ def test_successor_chain_must_be_compatible_acyclic_and_active() -> None:
             successor["status"] = "withdrawn"
             successor["lifecycle"]["state"] = "withdrawn"
             successor["lifecycle"]["withdrawn_reason"] = "Synthetic withdrawal."
+        elif variant == "indirect_dangling":
+            successor["status"] = "superseded"
+            successor["lifecycle"]["state"] = "superseded"
+            successor["lifecycle"]["superseded_by"] = "COPS-SAN-2026-100"
         else:
             successor["status"] = "superseded"
             successor["lifecycle"]["state"] = "superseded"

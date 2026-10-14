@@ -64,9 +64,19 @@ The CLI always assesses freshness using the current date. Python acceptance
 tests pass a fixed date to the pure assessor for deterministic historical cases;
 those tests do not establish current source freshness.
 
-Dell's CVE-2026-22769 narrative names RecoverPoint for VMs 6.0.3, while its
-grouped remediation table also lists 6.0.3.1. The registry leaves 6.0.3.1
-`unknown` for this CVE until product-specific scope is clarified.
+Dell's [DSA-2026-079](https://www.dell.com/support/kbdoc/en-us/000426773/dsa-2026-079)
+names affected RecoverPoint for VMs 5.3 and 6.0 releases and a remediation path
+to 6.0.3.1 HF1 or a vendor remediation script. Its later
+[DSA-2026-096](https://www.dell.com/support/kbdoc/en-us/000501664/dsa-2026-096-security-update-for-dell-recoverpoint-for-virtual-machines-multiple-vulnerabilities)
+also lists 6.0.3 and 6.0.3.1 in the affected product table with 6.1 as a
+remediated version. The registry matches only named version strings, not a
+vendor-described range or evidence that a remediation script ran. Unlisted
+versions remain `unknown`; even `fixed` requires independent build verification.
+The [original Apple Screen Sharing research](https://calif.io/research/password-fiction)
+reports CVE-2026-65400 in macOS Tahoe 26.5.2 and a working exploit against a
+live 26.6 machine. [Apple's advisory](https://support.apple.com/en-us/148170)
+identifies 26.6.1 as the Tahoe release containing the fix. Other versions
+require their own source-backed applicability review.
 
 The Storm-2570 notice deliberately has no affected-version allowlist. The cited
 Microsoft research describes observed post-compromise RDP, SMB, RMM, NetScan,

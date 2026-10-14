@@ -1,6 +1,6 @@
 {
   "schema_version": "cops.service-attack-notices/v1",
-  "catalog_version": "2026.10.2",
+  "catalog_version": "2026.10.3",
   "notices": [
     {
       "id": "COPS-SAN-2026-001",
@@ -104,6 +104,11 @@
       "sources": [
         {
           "type": "vendor_advisory",
+          "url": "https://www.dell.com/support/kbdoc/en-us/000426773/dsa-2026-079",
+          "published_on": "2026-02-17"
+        },
+        {
+          "type": "vendor_advisory",
           "url": "https://www.dell.com/support/kbdoc/en-us/000501664/dsa-2026-096-security-update-for-dell-recoverpoint-for-virtual-machines-multiple-vulnerabilities",
           "published_on": "2026-08-19"
         },
@@ -121,9 +126,23 @@
           {
             "name": "Dell RecoverPoint for VMs",
             "affected_versions": [
-              "6.0.3"
+              "5.3 SP2",
+              "5.3 SP3",
+              "5.3 SP4",
+              "5.3 SP4 P1",
+              "6.0",
+              "6.0 SP1",
+              "6.0 SP1 P1",
+              "6.0 SP1 P2",
+              "6.0 SP2",
+              "6.0 SP2 P1",
+              "6.0 SP3",
+              "6.0 SP3 P1",
+              "6.0.3",
+              "6.0.3.1"
             ],
             "fixed_versions": [
+              "6.0.3.1 HF1",
               "6.1"
             ]
           }
@@ -157,7 +176,7 @@
           "Identify the exact RecoverPoint for VMs product and version, then review Tomcat Manager access and appliance authentication telemetry."
         ],
         "remediation": [
-          "Apply the Dell advisory's update path to RecoverPoint for VMs 6.1 and restrict management reachability while remediation is pending."
+          "Follow Dell DSA-2026-079's version-specific path to 6.0.3.1 HF1 or its remediation script, or the DSA-2026-096 path to 6.1; verify applied remediation and restrict management reachability while pending."
         ],
         "safe_applicability": "Applicability is limited to the explicitly allowlisted Dell RecoverPoint for VMs releases with reachable and configured Tomcat Manager context.",
         "safe_next_action": "Confirm the appliance inventory and configuration, then open a targeted investigation against the Dell advisory using authorized product-specific procedures."
@@ -166,7 +185,8 @@
         "A candidate is not a vulnerability or exploitability finding.",
         "This notice does not apply to arbitrary Linux systems or unrelated Apache Tomcat installations.",
         "Tomcat Manager reachability without exact product, version, and configuration evidence is insufficient.",
-        "Dell's CVE-specific narrative names 6.0.3, while its grouped remediation table also lists 6.0.3.1; the latter remains unknown for this CVE until product-specific scope is clarified."
+        "The exact-version allowlist covers Dell's named releases; other legacy and patch levels remain unknown even where Dell describes a broader affected range.",
+        "A remediation script may address the issue without changing the version string; this matcher cannot verify that script or a patch's installation."
       ]
     },
     {
@@ -203,6 +223,7 @@
           {
             "name": "macOS Tahoe",
             "affected_versions": [
+              "26.5.2",
               "26.6"
             ],
             "fixed_versions": [
@@ -241,7 +262,7 @@
         "remediation": [
           "Update macOS Tahoe to 26.6.1 or later as directed by Apple and disable or restrict Screen Sharing when it is not required."
         ],
-        "safe_applicability": "Applicability requires the explicitly allowlisted Tahoe 26.6 context plus enabled and reachable Screen Sharing.",
+        "safe_applicability": "Applicability requires explicitly allowlisted Tahoe 26.5.2 or 26.6 context plus enabled and reachable Screen Sharing.",
         "safe_next_action": "Verify the exact OS and Screen Sharing configuration, then follow Apple's update guidance."
       },
       "limitations": [

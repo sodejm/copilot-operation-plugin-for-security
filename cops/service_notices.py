@@ -352,6 +352,8 @@ def validate_registry(registry: Any) -> dict[str, Any]:
         while successor:
             if successor in seen:
                 raise ServiceNoticeError(f"{notice['id']} has a successor cycle")
+            if successor not in by_id:
+                raise ServiceNoticeError(f"{notice['id']} references an unknown successor notice")
             seen.add(successor)
             successor = by_id[successor]["lifecycle"]["superseded_by"]
     return document

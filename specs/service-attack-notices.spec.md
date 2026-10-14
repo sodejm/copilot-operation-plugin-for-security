@@ -46,10 +46,11 @@ Feature: Conservative service attack notice assessment
     Then no notice is a candidate
     And missing product, version, and configuration evidence is reported
 
-  Scenario: Ambiguous vendor version is unknown
+  Scenario: Named vendor version is a candidate and unlisted version is unknown
     Given a Dell RecoverPoint for VMs 6.0.3.1 asset with reachable Tomcat Manager
     When its service context is assessed offline
-    Then the Dell notice remains unknown pending product-specific source review
+    Then the Dell notice is a candidate for targeted investigation
+    And an unlisted 6.0.2 version remains unknown pending product-specific source review
 
   Scenario: Fixed, unrelated, and stale contexts are not candidates
     Given fixed or unrelated assets or a notice past its review date
