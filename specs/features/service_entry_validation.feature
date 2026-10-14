@@ -6,7 +6,7 @@ Feature: Bounded service entry-point validation handoff
   Scenario: An observed protocol on a nonstandard port is routed without changing the endpoint
     Given an approved endpoint with an SSH protocol banner on TCP port 2222
     When COPS prepares a service-validation handoff
-    Then it proposes the remote-services specialist for that exact endpoint
+    Then it proposes the registered cops-pentest-specialist with the network-remote-and-file-services skill for that exact endpoint
     And its plan requires a separate execution authorization and a bounded budget
     And preparing the handoff sends no network request
 
@@ -27,6 +27,19 @@ Feature: Bounded service entry-point validation handoff
     When COPS prepares session handoffs against separately validated engagement endpoints
     Then a checkpoint approval alone cannot produce a plan
     And the quarantined host stays blocked regardless of letter case
+
+  Scenario: A recorded assessment must belong to the completed scan probe
+    Given an approved endpoint with a recognized protocol response
+    But its evidence has missing or mismatched active-scan provenance
+    When COPS prepares session handoffs
+    Then it returns no specialist plan
+    And it names the session or evidence repair needed before routing
+
+  Scenario: An observed service without a registered route stays unsupported
+    Given an approved endpoint with a recorded HTTP protocol response
+    When COPS prepares session handoffs
+    Then it reports the missing registered service skill
+    And it proposes no specialist action
 
   Scenario: A candidate is distinct from successful authorized use
     Given a reachable approved service with an observed protocol response
