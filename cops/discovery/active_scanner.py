@@ -5,13 +5,17 @@ from __future__ import annotations
 import errno
 import hashlib
 import ipaddress
-import re
+import json
+import math
+import os
 import socket
 import ssl
 import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from typing import Any
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Any, Iterator
 
 from cops.evidence.canonical import utc_now
 
@@ -22,6 +26,7 @@ from .active_models import (
     ObservedTLS,
     PortState,
     Protocol,
+    ScanBudget,
     ScanDelta,
     ServiceReachability,
     TargetShiftQuarantine,
@@ -31,6 +36,40 @@ from .fingerprinter import infer_service_fingerprint
 
 class ActiveScanError(Exception):
     """Base error for active discovery operations."""
+
+
+@contextmanager
+def _live_checkpoint_lock(path: Path) -> Iterator[None]:
+    """Hold one cross-process controller lock for the whole live scan."""
+    lock_path = path.with_name(f"{path.name}.lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+    acquired = False
+    try:
+        try:
+            if os.name == "nt":
+                import msvcrt
+
+                if os.fstat(descriptor).st_size == 0:
+                    os.write(descriptor, b"\0")
+                os.lseek(descriptor, 0, os.SEEK_SET)
+                msvcrt.locking(descriptor, msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            acquired = True
+        except OSError as err:
+            raise ActiveScanError("Live checkpoint has another active controller; retry after it stops") from err
+        yield
+    finally:
+        if acquired:
+            if os.name == "nt":
+                os.lseek(descriptor, 0, os.SEEK_SET)
+                msvcrt.locking(descriptor, msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(descriptor, fcntl.LOCK_UN)
+        os.close(descriptor)
 
 
 def _create_tls_context() -> ssl.SSLContext:
@@ -91,9 +130,12 @@ class OfflineSyntheticDispatcher(ProbeDispatcher):
             return self.dns_resolution_hooks[target_host]()
         if target_host in self.dns_map:
             return self.dns_map[target_host]
-        # If looks like an IP, return as-is
-        if re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", target_host):
+        # Literal addresses, including IPv6, need no synthetic DNS lookup.
+        try:
+            ipaddress.ip_address(target_host)
             return target_host
+        except ValueError:
+            pass
         # Default deterministic IP
         h = hashlib.sha256(target_host.encode("utf-8")).hexdigest()
         return f"198.51.100.{int(h[:2], 16) % 250 + 1}"
@@ -218,7 +260,12 @@ class StandardSocketDispatcher(ProbeDispatcher):
 
     def resolve_target(self, target_host: str) -> str:
         try:
-            return socket.gethostbyname(target_host)
+            return str(ipaddress.ip_address(target_host))
+        except ValueError:
+            pass
+        try:
+            addresses = socket.getaddrinfo(target_host, None, type=socket.SOCK_STREAM)
+            return str(ipaddress.ip_address(addresses[0][4][0]))
         except Exception as err:
             raise ActiveScanError(f"DNS resolution failed for {target_host}: {err}") from err
 
@@ -231,6 +278,8 @@ class StandardSocketDispatcher(ProbeDispatcher):
         timeout: float = 2.0,
         vantage: str = "external",
     ) -> ActiveServiceAssessment:
+        if protocol != Protocol.TCP.value:
+            raise ActiveScanError("Live UDP probing is unavailable; no TCP fallback is permitted")
         probe_key = ActiveScanSession.make_probe_key(vantage, protocol, target_host, port)
         timestamp = utc_now()
         probe_id = hashlib.sha256(f"{probe_key}:{timestamp}".encode()).hexdigest()[:24]
@@ -254,7 +303,6 @@ class StandardSocketDispatcher(ProbeDispatcher):
                     with ctx.wrap_socket(sock, server_hostname=target_host) as ssock:
                         cipher = ssock.cipher()
                         proto_ver = ssock.version()
-                        ssock.getpeercert(binary_form=True)
 
                         observed_tls = ObservedTLS(
                             version=proto_ver,
@@ -355,11 +403,151 @@ class ActiveScanner:
         dispatcher: ProbeDispatcher,
         scope: dict[str, Any] | None = None,
         sleeper: Callable[[float], None] = time.sleep,
+        checkpoint: Path | str | None = None,
     ) -> None:
         self.session = session
         self.dispatcher = dispatcher
-        self.scope = scope or {}
+        # Any custom dispatcher may have network side effects. Only the exact
+        # built-in synthetic dispatcher can bypass live admission and locking.
+        self._live_dispatcher = type(dispatcher) is not OfflineSyntheticDispatcher
+        self.scope = scope if scope is not None else {}
         self.sleeper = sleeper
+        # A live checkpoint and its controller lock must share the same name
+        # even when a caller supplies a symlink or a relative path.
+        self.checkpoint = Path(checkpoint).resolve() if checkpoint is not None else None
+
+    def _validate_run(self) -> None:
+        budget = self.session.budget
+        if not self.session.approved_targets or not self.session.approved_ports:
+            raise ActiveScanError("A scan needs explicit targets and TCP ports")
+        if any(not isinstance(target, str) or not target.strip() for target in self.session.approved_targets):
+            raise ActiveScanError("Targets must be nonempty hostnames or IP addresses")
+        if any(not isinstance(port, int) or isinstance(port, bool) or not 1 <= port <= 65535
+               for port in self.session.approved_ports):
+            raise ActiveScanError("TCP ports must be integers from 1 through 65535")
+        if (len({target.lower() for target in self.session.approved_targets}) != len(self.session.approved_targets)
+                or len(set(self.session.approved_ports)) != len(self.session.approved_ports)):
+            raise ActiveScanError("Duplicate targets or TCP ports would repeat probe side effects")
+        if (not isinstance(budget.timeout_seconds, (int, float)) or isinstance(budget.timeout_seconds, bool) or
+                not math.isfinite(budget.timeout_seconds) or budget.timeout_seconds <= 0 or
+                not isinstance(budget.rate_limit_pps, (int, float)) or isinstance(budget.rate_limit_pps, bool) or
+                not math.isfinite(budget.rate_limit_pps) or budget.rate_limit_pps < 0):
+            raise ActiveScanError("Probe timeout must be positive and rate limit nonnegative")
+        if (budget.max_total_seconds is not None and
+                (not isinstance(budget.max_total_seconds, (int, float)) or
+                 isinstance(budget.max_total_seconds, bool) or
+                 not math.isfinite(budget.max_total_seconds) or budget.max_total_seconds <= 0)):
+            raise ActiveScanError("Execution duration must be positive")
+        if budget.max_targets is not None and (isinstance(budget.max_targets, bool) or
+                                               not isinstance(budget.max_targets, int) or
+                                               budget.max_targets <= 0 or
+                                               len(self.session.approved_targets) > budget.max_targets):
+            raise ActiveScanError("Approved target count exceeds its cumulative target cap")
+        if isinstance(budget.max_retries, bool) or not isinstance(budget.max_retries, int) or budget.max_retries < 0:
+            raise ActiveScanError("Retry limit must be a nonnegative integer")
+        if (isinstance(budget.max_probes, bool) or not isinstance(budget.max_probes, int) or
+                budget.max_probes <= 0):
+            raise ActiveScanError("A positive cumulative probe cap is required")
+        if not isinstance(self.scope, dict):
+            raise ActiveScanError("Scope must be a JSON object")
+        if self._live_dispatcher:
+            if self.checkpoint is None:
+                raise ActiveScanError("Live scanning requires a durable checkpoint path")
+            if budget.rate_limit_pps <= 0:
+                raise ActiveScanError("Live scanning requires a positive probe rate limit")
+            if budget.max_total_seconds is None:
+                raise ActiveScanError("Live scanning requires an explicit execution duration")
+            ranges = self.scope.get("ip_ranges")
+            if not isinstance(ranges, list) or not ranges:
+                raise ActiveScanError("Live scanning requires explicit approved IP ranges")
+            try:
+                for key in ("domains",):
+                    value = self.scope.get(key, [])
+                    if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+                        raise ValueError(f"{key} must be a list of strings")
+                for item in ranges:
+                    ipaddress.ip_network(item, strict=False)
+                exclusions = self.scope.get("exclusions", {})
+                if not isinstance(exclusions, dict):
+                    raise ValueError("exclusions must be an object")
+                exc_domains = exclusions.get("domains", [])
+                if not isinstance(exc_domains, list) or any(not isinstance(item, str) for item in exc_domains):
+                    raise ValueError("exclusions.domains must be a list of strings")
+                exc_ranges = exclusions.get("ip_ranges", [])
+                if not isinstance(exc_ranges, list):
+                    raise ValueError("exclusions.ip_ranges must be a list")
+                for item in exc_ranges:
+                    ipaddress.ip_network(item, strict=False)
+            except (TypeError, ValueError) as err:
+                raise ActiveScanError(f"Invalid live IP scope: {err}") from err
+
+    def _live_plan_digest(self) -> str:
+        plan = {
+            "session_id": self.session.session_id,
+            "scope_reference": self.session.scope_reference,
+            "approved_targets": self.session.approved_targets,
+            "approved_ports": self.session.approved_ports,
+            "vantage": self.session.vantage,
+            # Normalize numeric budget fields exactly as checkpoint loading does.
+            # JSON distinguishes 10 from 10.0, though both admit the same rate.
+            "budget": ScanBudget.from_dict(self.session.budget.to_dict()).to_dict(),
+            "scope": self.scope,
+        }
+        encoded = json.dumps(plan, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        return hashlib.sha256(encoded).hexdigest()
+
+    def _validate_live_ledger(self) -> None:
+        """Reject a contradictory checkpoint before any resumed network activity."""
+        session = self.session
+        completed = session.completed_probe_keys
+        pending = session.pending_probe_keys
+        ports = set(session.approved_ports)
+        targets = {target.lower() for target in session.approved_targets}
+        prefix = f"{session.vantage}:{Protocol.TCP.value}:"
+
+        def planned_key(key: str) -> bool:
+            if not isinstance(key, str) or not key.startswith(prefix):
+                return False
+            host, separator, port_text = key[len(prefix):].rpartition(":")
+            return bool(
+                separator and host in targets and port_text.isdecimal()
+                and int(port_text) in ports
+                and key == ActiveScanSession.make_probe_key(
+                    session.vantage, Protocol.TCP.value, host, int(port_text)
+                )
+            )
+
+        if completed & pending or any(not planned_key(key) for key in completed | pending):
+            raise ActiveScanError("Live checkpoint has overlapping or out-of-plan probe keys")
+        if (
+            not isinstance(session.total_probes_dispatched, int)
+            or isinstance(session.total_probes_dispatched, bool)
+            or not isinstance(session.total_side_effects, int)
+            or isinstance(session.total_side_effects, bool)
+            or session.total_probes_dispatched != len(completed) + len(pending)
+            or session.total_side_effects != len(completed)
+            or session.total_probes_dispatched > session.budget.max_probes
+            or not isinstance(session.elapsed_seconds, (int, float))
+            or isinstance(session.elapsed_seconds, bool)
+            or not math.isfinite(session.elapsed_seconds)
+            or session.elapsed_seconds < 0
+        ):
+            raise ActiveScanError("Live checkpoint probe accounting is inconsistent")
+
+        assessment_keys: set[str] = set()
+        for assessment in session.assessments:
+            key = ActiveScanSession.make_probe_key(
+                assessment.vantage, assessment.protocol, assessment.target_host, assessment.port
+            )
+            if (
+                key not in completed or key in assessment_keys
+                or assessment.target_host.lower() not in targets
+                or not self._is_ip_in_scope(assessment.resolved_ip)
+            ):
+                raise ActiveScanError("Live checkpoint assessment evidence is inconsistent")
+            assessment_keys.add(key)
+        if assessment_keys != completed:
+            raise ActiveScanError("Live checkpoint lacks assessment evidence for completed probes")
 
     def _is_ip_in_scope(self, ip_str: str) -> bool:
         """Verify whether an IP address falls within approved scope networks and not excluded."""
@@ -400,6 +588,15 @@ class ActiveScanner:
             if host_lower == exc_domain.lower() or host_lower.endswith("." + exc_domain.lower()):
                 return False
 
+        # A literal address is governed by the CIDR allowlist, even when the
+        # same engagement also lists domain suffixes for hostname targets.
+        try:
+            ipaddress.ip_address(host)
+        except ValueError:
+            pass
+        else:
+            return self._is_ip_in_scope(host)
+
         domains = self.scope.get("domains", [])
         if not domains:
             return True
@@ -413,22 +610,60 @@ class ActiveScanner:
 
     def run(self) -> ActiveScanSession:
         """Execute or resume bounded active assessment across approved targets and ports."""
+        self._validate_run()
+        if self._live_dispatcher:
+            with _live_checkpoint_lock(Path(self.checkpoint)):
+                return self._run_validated()
+        return self._run_validated()
+
+    def _run_validated(self) -> ActiveScanSession:
+        if self.session.bound_plan_sha256 and not self._live_dispatcher:
+            raise ActiveScanError("A live checkpoint cannot resume with a synthetic dispatcher")
+        if self._live_dispatcher:
+            digest = self._live_plan_digest()
+            if self.session.bound_plan_sha256 is None:
+                if self.session.total_probes_dispatched or self.session.completed_probe_keys or self.session.pending_probe_keys:
+                    raise ActiveScanError("Prior live activity has no bound plan; reconcile before continuing")
+                if Path(self.checkpoint).exists():
+                    raise ActiveScanError("Live scan checkpoint already exists; resume it or choose a new path")
+                self.session.bound_plan_sha256 = digest
+            elif self.session.bound_plan_sha256 != digest:
+                raise ActiveScanError("Live plan or scope changed since checkpoint; a new approved plan is required")
+            elif not Path(self.checkpoint).exists():
+                raise ActiveScanError("Bound live session has no checkpoint; reconcile before continuing")
+            else:
+                try:
+                    durable = ActiveScanSession.load_checkpoint(self.checkpoint)
+                except (OSError, ValueError, TypeError, KeyError) as err:
+                    raise ActiveScanError("Live checkpoint cannot be verified; reconcile before continuing") from err
+                if durable.to_dict() != self.session.to_dict():
+                    raise ActiveScanError("Live checkpoint differs from supplied session; reload before continuing")
+            self._validate_live_ledger()
+        if self.session.pending_probe_keys:
+            self.session.status = "requires_reconciliation"
+            if self.checkpoint is not None:
+                self.session.save_checkpoint(self.checkpoint)
+            return self.session
         budget = self.session.budget
         inter_probe_interval = 1.0 / budget.rate_limit_pps if budget.rate_limit_pps > 0 else 0.0
+        # On a resume, conservatively wait one full interval before the next
+        # dispatch. The prior controller may have stopped before its sleep.
+        prior_dispatch = self.session.total_probes_dispatched > 0
         start_time = time.monotonic()
-        targets_assessed = 0
+        elapsed_before_run = self.session.elapsed_seconds
+
+        def persist() -> None:
+            self.session.elapsed_seconds = elapsed_before_run + (time.monotonic() - start_time)
+            if self.checkpoint is not None:
+                self.session.save_checkpoint(self.checkpoint)
 
         self.session.status = "in_progress"
+        persist()
 
         for target_host in self.session.approved_targets:
             # A quarantined target stays halted across checkpoint resumes.
             if any(q.target_host.lower() == target_host.lower() for q in self.session.quarantined_targets):
                 continue
-
-            # Check target budget
-            if budget.max_targets and targets_assessed >= budget.max_targets:
-                self.session.status = "budget_exhausted"
-                break
 
             # 1. Validate target host against scope
             if self.scope and not self._is_host_in_scope(target_host):
@@ -441,6 +676,7 @@ class ActiveScanner:
                         timestamp_utc=utc_now(),
                     )
                 )
+                persist()
                 continue
 
             # A resumed target remains pinned to the address used by its prior
@@ -462,6 +698,16 @@ class ActiveScanner:
                         timestamp_utc=utc_now(),
                     )
                 )
+                persist()
+                continue
+
+            # A fully completed target needs no further DNS lookup or network
+            # activity. This also makes a repeated resume side-effect free.
+            if all(
+                ActiveScanSession.make_probe_key(self.session.vantage, Protocol.TCP.value, target_host, port)
+                in self.session.completed_probe_keys
+                for port in self.session.approved_ports
+            ):
                 continue
 
             # 2. Resolve target and check for DNS change / out-of-scope shift
@@ -477,6 +723,7 @@ class ActiveScanner:
                         timestamp_utc=utc_now(),
                     )
                 )
+                persist()
                 continue
 
             if prior_ip is not None and resolved_ip != prior_ip:
@@ -489,6 +736,7 @@ class ActiveScanner:
                         timestamp_utc=utc_now(),
                     )
                 )
+                persist()
                 continue
 
             if self.scope and not self._is_ip_in_scope(resolved_ip):
@@ -502,26 +750,41 @@ class ActiveScanner:
                         timestamp_utc=utc_now(),
                     )
                 )
+                persist()
                 continue
 
-            targets_assessed += 1
             probes_for_target = 0
 
             for port in self.session.approved_ports:
-                # 3. Check time budget
-                if budget.max_total_seconds is not None:
-                    elapsed = time.monotonic() - start_time
-                    if elapsed >= budget.max_total_seconds:
-                        self.session.status = "budget_exhausted"
-                        return self.session
-
-                # 4. Check Resumability: skip already completed probe keys
+                # 3. Skip completed operations before checking whether another
+                # dispatch is within the remaining cumulative budget.
                 probe_key = ActiveScanSession.make_probe_key(
                     self.session.vantage, Protocol.TCP.value, target_host, port
                 )
                 if probe_key in self.session.completed_probe_keys:
-                    # Idempotent skip: do not repeat side effect
                     continue
+
+                # 4. Check time budget
+                if budget.max_total_seconds is not None:
+                    elapsed = elapsed_before_run + (time.monotonic() - start_time)
+                    if elapsed >= budget.max_total_seconds:
+                        self.session.status = "budget_exhausted"
+                        persist()
+                        return self.session
+
+                if self.session.total_probes_dispatched >= budget.max_probes:
+                    self.session.status = "budget_exhausted"
+                    persist()
+                    return self.session
+
+                if prior_dispatch and inter_probe_interval > 0:
+                    self.sleeper(inter_probe_interval)
+                    if budget.max_total_seconds is not None and (
+                        elapsed_before_run + (time.monotonic() - start_time) >= budget.max_total_seconds
+                    ):
+                        self.session.status = "budget_exhausted"
+                        persist()
+                        return self.session
 
                 # 5. Confirm the target still resolves to the approved address before
                 # each additional side effect. Dispatch always uses the pinned IP.
@@ -538,6 +801,7 @@ class ActiveScanner:
                                 timestamp_utc=utc_now(),
                             )
                         )
+                        persist()
                         break
                     if current_ip != resolved_ip or (self.scope and not self._is_ip_in_scope(current_ip)):
                         self.session.quarantined_targets.append(
@@ -549,32 +813,64 @@ class ActiveScanner:
                                 timestamp_utc=utc_now(),
                             )
                         )
+                        persist()
                         break
 
-                # 6. Dispatch probe
-                assessment = self.dispatcher.dispatch_probe(
-                    target_host=target_host,
-                    resolved_ip=resolved_ip,
-                    port=port,
-                    protocol=Protocol.TCP.value,
-                    timeout=budget.timeout_seconds,
-                    vantage=self.session.vantage,
-                )
+                # DNS resolution can consume the remaining duration. Recheck
+                # immediately before reserving a side effect and bound its
+                # socket timeout by the time still available.
+                probe_timeout = budget.timeout_seconds
+                if budget.max_total_seconds is not None:
+                    remaining_seconds = budget.max_total_seconds - (
+                        elapsed_before_run + (time.monotonic() - start_time)
+                    )
+                    if remaining_seconds <= 0:
+                        self.session.status = "budget_exhausted"
+                        persist()
+                        return self.session
+                    probe_timeout = min(probe_timeout, remaining_seconds)
+
+                # Reserve the attempt durably before the network side effect. A
+                # crash or error leaves it pending for external reconciliation.
+                self.session.pending_probe_keys.add(probe_key)
+                self.session.total_probes_dispatched += 1
+                prior_dispatch = True
+                persist()
+                try:
+                    assessment = self.dispatcher.dispatch_probe(
+                        target_host=target_host,
+                        resolved_ip=resolved_ip,
+                        port=port,
+                        protocol=Protocol.TCP.value,
+                        timeout=probe_timeout,
+                        vantage=self.session.vantage,
+                    )
+                    if (
+                        not isinstance(assessment, ActiveServiceAssessment)
+                        or assessment.target_host != target_host
+                        or assessment.resolved_ip != resolved_ip
+                        or assessment.port != port
+                        or assessment.protocol != Protocol.TCP.value
+                        or assessment.vantage != self.session.vantage
+                    ):
+                        raise ActiveScanError("Probe result does not match its reserved target, port, and vantage")
+                except Exception:
+                    self.session.status = "requires_reconciliation"
+                    persist()
+                    return self.session
 
                 # Record assessment and update session side-effect ledger
+                self.session.pending_probe_keys.remove(probe_key)
                 self.session.completed_probe_keys.add(probe_key)
                 self.session.assessments.append(assessment)
-                self.session.total_probes_dispatched += 1
                 self.session.total_side_effects += 1
                 probes_for_target += 1
-
-                # 7. Enforce rate limiting
-                if inter_probe_interval > 0:
-                    self.sleeper(inter_probe_interval)
+                persist()
 
         if self.session.status == "in_progress":
-            self.session.status = "completed"
+            self.session.status = "partial" if self.session.quarantined_targets else "completed"
         self.session.completed_at = utc_now()
+        persist()
         return self.session
 
 
@@ -583,13 +879,13 @@ def compare_active_scans(baseline: ActiveScanSession, current: ActiveScanSession
     baseline_open: dict[str, ActiveServiceAssessment] = {}
     for a in baseline.assessments:
         if a.port_state == PortState.OPEN.value:
-            key = f"{a.target_host}:{a.port}"
+            key = f"{a.target_host}:{a.protocol}:{a.port}"
             baseline_open[key] = a
 
     current_open: dict[str, ActiveServiceAssessment] = {}
     current_all: dict[str, ActiveServiceAssessment] = {}
     for a in current.assessments:
-        key = f"{a.target_host}:{a.port}"
+        key = f"{a.target_host}:{a.protocol}:{a.port}"
         current_all[key] = a
         if a.port_state == PortState.OPEN.value:
             current_open[key] = a
@@ -606,6 +902,7 @@ def compare_active_scans(baseline: ActiveScanSession, current: ActiveScanSession
             item = {
                 "target_host": base_a.target_host,
                 "port": base_a.port,
+                "protocol": base_a.protocol,
                 "previous_state": base_a.port_state,
                 "current_state": curr_a.port_state if curr_a else "not_probed",
                 "service": base_a.inferred_fingerprint.service_name if base_a.inferred_fingerprint else "unknown",
@@ -621,6 +918,7 @@ def compare_active_scans(baseline: ActiveScanSession, current: ActiveScanSession
                 {
                     "target_host": curr_a.target_host,
                     "port": curr_a.port,
+                    "protocol": curr_a.protocol,
                     "state": curr_a.port_state,
                     "service": curr_a.inferred_fingerprint.service_name if curr_a.inferred_fingerprint else "unknown",
                 }
@@ -633,6 +931,7 @@ def compare_active_scans(baseline: ActiveScanSession, current: ActiveScanSession
                     {
                         "target_host": curr_a.target_host,
                         "port": curr_a.port,
+                        "protocol": curr_a.protocol,
                         "previous_product": base_fp.product,
                         "previous_version": base_fp.version,
                         "current_product": curr_fp.product,
@@ -646,6 +945,7 @@ def compare_active_scans(baseline: ActiveScanSession, current: ActiveScanSession
                 {
                     "target_host": curr_a.target_host,
                     "port": curr_a.port,
+                    "protocol": curr_a.protocol,
                     "state": curr_a.port_state,
                     "service": curr_a.inferred_fingerprint.service_name if curr_a.inferred_fingerprint else "unknown",
                 }

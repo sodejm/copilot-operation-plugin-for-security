@@ -2,15 +2,21 @@
 
 from __future__ import annotations
 
-import json
+import os
+import tempfile
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from cops.evidence.canonical import canonical, utc_now
+from cops.evidence.canonical import canonical, decode_json, utc_now
 
 from .models import EvidenceProvenance
+
+
+# A complete TCP sweep can exceed the evidence module's smaller default limit.
+# Keep checkpoint reads and writes bounded to the same explicit ceiling.
+MAX_ACTIVE_CHECKPOINT_BYTES = 256 * 1024 * 1024
 
 
 class ScanVantage(str, Enum):
@@ -202,7 +208,7 @@ class ActiveServiceAssessment:
             probe_id=data["probe_id"],
             target_host=data["target_host"],
             resolved_ip=data["resolved_ip"],
-            port=int(data["port"]),
+            port=data["port"],
             protocol=data.get("protocol", Protocol.TCP.value),
             vantage=data.get("vantage", ScanVantage.EXTERNAL.value),
             port_state=data.get("port_state", PortState.OPEN.value),
@@ -225,18 +231,36 @@ class ScanBudget:
     max_retries: int = 1
     rate_limit_pps: float = 10.0
     max_targets: int | None = None
+    max_probes: int | None = 1024
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ScanBudget:
+        def number(name: str, default: float | None) -> float | None:
+            value = data.get(name, default)
+            if value is None and default is None:
+                return None
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(f"{name} must be a number")
+            return float(value)
+
+        def integer(name: str, default: int | None) -> int | None:
+            value = data.get(name, default)
+            if value is None and default is None:
+                return None
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise ValueError(f"{name} must be an integer")
+            return value
+
         return cls(
-            timeout_seconds=float(data.get("timeout_seconds", 2.0)),
-            max_total_seconds=float(data["max_total_seconds"]) if data.get("max_total_seconds") is not None else None,
-            max_retries=int(data.get("max_retries", 1)),
-            rate_limit_pps=float(data.get("rate_limit_pps", 10.0)),
-            max_targets=int(data["max_targets"]) if data.get("max_targets") is not None else None,
+            timeout_seconds=number("timeout_seconds", 2.0),
+            max_total_seconds=number("max_total_seconds", None),
+            max_retries=integer("max_retries", 1),
+            rate_limit_pps=number("rate_limit_pps", 10.0),
+            max_targets=integer("max_targets", None),
+            max_probes=integer("max_probes", 1024),
         )
 
 
@@ -276,12 +300,15 @@ class ActiveScanSession:
     budget: ScanBudget = field(default_factory=ScanBudget)
     started_at: str = field(default_factory=utc_now)
     completed_at: str | None = None
-    status: str = "in_progress"  # in_progress, completed, budget_exhausted, interrupted
+    status: str = "in_progress"  # in_progress, completed, budget_exhausted, requires_reconciliation
     completed_probe_keys: set[str] = field(default_factory=set)
+    pending_probe_keys: set[str] = field(default_factory=set)
     assessments: list[ActiveServiceAssessment] = field(default_factory=list)
     quarantined_targets: list[TargetShiftQuarantine] = field(default_factory=list)
     total_probes_dispatched: int = 0
     total_side_effects: int = 0
+    elapsed_seconds: float = 0.0
+    bound_plan_sha256: str | None = None
 
     @staticmethod
     def make_probe_key(vantage: str, protocol: str, host: str, port: int) -> str:
@@ -300,10 +327,13 @@ class ActiveScanSession:
             "completed_at": self.completed_at,
             "status": self.status,
             "completed_probe_keys": sorted(self.completed_probe_keys),
+            "pending_probe_keys": sorted(self.pending_probe_keys),
             "assessments": [a.to_dict() for a in self.assessments],
             "quarantined_targets": [q.to_dict() for q in self.quarantined_targets],
             "total_probes_dispatched": self.total_probes_dispatched,
             "total_side_effects": self.total_side_effects,
+            "elapsed_seconds": self.elapsed_seconds,
+            "bound_plan_sha256": self.bound_plan_sha256,
         }
 
     @classmethod
@@ -312,29 +342,53 @@ class ActiveScanSession:
             session_id=data["session_id"],
             scope_reference=data["scope_reference"],
             approved_targets=list(data["approved_targets"]),
-            approved_ports=[int(p) for p in data["approved_ports"]],
+            approved_ports=list(data["approved_ports"]),
             vantage=data.get("vantage", ScanVantage.EXTERNAL.value),
             budget=ScanBudget.from_dict(data.get("budget", {})),
             started_at=data.get("started_at", utc_now()),
             completed_at=data.get("completed_at"),
             status=data.get("status", "in_progress"),
             completed_probe_keys=set(data.get("completed_probe_keys", [])),
+            pending_probe_keys=set(data.get("pending_probe_keys", [])),
             assessments=[ActiveServiceAssessment.from_dict(a) for a in data.get("assessments", [])],
             quarantined_targets=[TargetShiftQuarantine.from_dict(q) for q in data.get("quarantined_targets", [])],
-            total_probes_dispatched=int(data.get("total_probes_dispatched", 0)),
-            total_side_effects=int(data.get("total_side_effects", 0)),
+            total_probes_dispatched=data.get("total_probes_dispatched", 0),
+            total_side_effects=data.get("total_side_effects", 0),
+            elapsed_seconds=data.get("elapsed_seconds", 0.0),
+            bound_plan_sha256=data.get("bound_plan_sha256"),
         )
         return session
 
     def save_checkpoint(self, path: Path | str) -> None:
         p = Path(path)
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_bytes(canonical(self.to_dict()) + b"\n")
+        temporary: str | None = None
+        try:
+            with tempfile.NamedTemporaryFile(dir=p.parent, prefix=f".{p.name}.", delete=False) as stream:
+                temporary = stream.name
+                stream.write(canonical(self.to_dict(), max_bytes=MAX_ACTIVE_CHECKPOINT_BYTES - 1) + b"\n")
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, p)
+            temporary = None
+            if os.name != "nt":
+                directory_fd = os.open(p.parent, os.O_RDONLY)
+                try:
+                    os.fsync(directory_fd)
+                finally:
+                    os.close(directory_fd)
+        finally:
+            if temporary is not None:
+                os.unlink(temporary)
 
     @classmethod
     def load_checkpoint(cls, path: Path | str) -> ActiveScanSession:
         p = Path(path)
-        data = json.loads(p.read_text(encoding="utf-8"))
+        with p.open("rb") as stream:
+            raw = stream.read(MAX_ACTIVE_CHECKPOINT_BYTES + 1)
+        if len(raw) > MAX_ACTIVE_CHECKPOINT_BYTES:
+            raise ValueError("Active scan checkpoint exceeds the size limit")
+        data = decode_json(raw, max_bytes=MAX_ACTIVE_CHECKPOINT_BYTES)
         return cls.from_dict(data)
 
 

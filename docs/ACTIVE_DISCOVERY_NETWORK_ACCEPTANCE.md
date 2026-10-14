@@ -52,5 +52,18 @@ confirmed remediation. This harness only exercises TCP connection assessment;
 it does not prove behavior across an external network, TLS, or a production
 engagement.
 
+The 2026-10-14 run passed again after adding a mandatory live duration and
+durable side-effect reservations. It observed 214.0 ms between two five-per-second
+probes, one accepted connection per listener after an interrupted run resumed,
+two DNS answers with no probe to the shifted address, and one confirmed remediated
+exposure out of two. The interruption checkpoint was `in_progress` with one
+completed probe and no pending probe; the resumed checkpoint was `completed` with
+two probes. These results cover this isolated Linux harness only. The focused
+tests exercise uncertain pending operations and rejected plan/scope changes;
+native Windows and macOS scanning and UDP service inventory remain unverified.
+The checkpoint format now permits up to 256 MiB, with bounded reads, so a
+checkpoint above the ordinary 1 MiB JSON limit can resume. A full 65,535-port
+TCP run has not been measured for duration, memory use, or checkpoint size.
+
 Run `python3 -m pytest tests/test_active_discovery.py -q` for the simulated
 edge cases and `make check` for the repository baseline.

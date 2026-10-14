@@ -17,6 +17,7 @@ import threading
 import time
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Callable
 
 from cops.discovery import (
     ActiveScanner,
@@ -70,7 +71,7 @@ def session(name: str, host: str, ports: list[int], budget: ScanBudget | None = 
         scope_reference="disposable-loopback-acceptance",
         approved_targets=[host],
         approved_ports=ports,
-        budget=budget or ScanBudget(timeout_seconds=0.3, rate_limit_pps=100),
+        budget=budget or ScanBudget(timeout_seconds=0.3, rate_limit_pps=100, max_total_seconds=60),
     )
 
 
@@ -78,11 +79,18 @@ def scan(
     scan_session: ActiveScanSession,
     dispatcher: StandardSocketDispatcher | None = None,
     ip_range: str = "127.0.0.1/32",
+    checkpoint: Path | None = None,
+    sleeper: Callable[[float], None] = time.sleep,
 ) -> ActiveScanSession:
+    if checkpoint is None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            return scan(scan_session, dispatcher, ip_range, Path(temp_dir) / "checkpoint.json", sleeper)
     return ActiveScanner(
         session=scan_session,
         dispatcher=dispatcher or StandardSocketDispatcher(),
         scope={"ip_ranges": [ip_range]},
+        checkpoint=checkpoint,
+        sleeper=sleeper,
     ).run()
 
 
@@ -173,7 +181,7 @@ def check_rate_limit() -> dict[str, object]:
                 "rate-limit",
                 "127.0.0.1",
                 ports,
-                ScanBudget(timeout_seconds=0.3, rate_limit_pps=5),
+                ScanBudget(timeout_seconds=0.3, rate_limit_pps=5, max_total_seconds=60),
             ),
             dispatcher,
         )
@@ -258,27 +266,38 @@ def check_dns_shift() -> dict[str, object]:
 def check_partial_resume() -> dict[str, object]:
     with listener() as first, listener() as second, tempfile.TemporaryDirectory() as temp_dir:
         ports = [first.getsockname()[1], second.getsockname()[1]]
-        partial = scan(
-            session(
-                "partial-resume",
-                "127.0.0.1",
-                ports,
-                ScanBudget(timeout_seconds=0.3, max_total_seconds=0.1, rate_limit_pps=5),
-            )
-        )
-        require(partial.status == "budget_exhausted", "Time budget did not stop scan")
-        require(partial.total_probes_dispatched == 1, "Partial scan dispatched too many probes")
         checkpoint = Path(temp_dir) / "checkpoint.json"
-        partial.save_checkpoint(checkpoint)
-        restored = ActiveScanSession.load_checkpoint(checkpoint)
-        restored.budget.max_total_seconds = 2.0
-        completed = scan(restored)
+
+        def interrupt_after_first(_: float) -> None:
+            raise KeyboardInterrupt("simulated controller interruption after durable probe result")
+
+        try:
+            scan(
+                session(
+                    "partial-resume",
+                    "127.0.0.1",
+                    ports,
+                    ScanBudget(timeout_seconds=0.3, max_total_seconds=2.0, rate_limit_pps=5),
+                ),
+                checkpoint=checkpoint,
+                sleeper=interrupt_after_first,
+            )
+        except KeyboardInterrupt:
+            pass
+        else:
+            raise AssertionError("Controller interruption did not stop scan")
+        partial = ActiveScanSession.load_checkpoint(checkpoint)
+        require(partial.status == "in_progress", "Interrupted scan did not retain progress")
+        require(not partial.pending_probe_keys, "Completed probe left an uncertain pending operation")
+        require(partial.total_probes_dispatched == 1, "Interrupted scan dispatched too many probes")
+        interrupted_status = partial.status
+        completed = scan(partial, checkpoint=checkpoint)
         accepted = [accepted_count(first), accepted_count(second)]
         require(completed.status == "completed", "Resumed scan did not complete")
         require(completed.total_probes_dispatched == 2, "Resumed scan did not cover both ports")
         require(accepted == [1, 1], "Resume repeated or skipped a socket connection")
         return {
-            "partial_status": partial.status,
+            "partial_status": interrupted_status,
             "partial_probes": 1,
             "resumed_status": completed.status,
             "total_probes": completed.total_probes_dispatched,
