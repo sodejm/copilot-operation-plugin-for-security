@@ -7,9 +7,6 @@
   "required": [
     "schema_version",
     "tenant_id",
-    "assessed_at",
-    "max_age_hours",
-    "source_coverage",
     "nodes",
     "edges"
   ],
@@ -20,18 +17,6 @@
     "tenant_id": {
       "type": "string",
       "minLength": 1
-    },
-    "assessed_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
-    "max_age_hours": {"const": 24},
-    "source_coverage": {
-      "type": "object",
-      "required": [
-        "users", "groups", "applications", "service_principals", "managed_identities",
-        "federated_credentials", "agent_blueprints", "agent_identities", "resources",
-        "directory_roles", "role_assignments", "oauth_grants"
-      ],
-      "propertyNames": {"$ref": "#/$defs/source_id"},
-      "additionalProperties": {"$ref": "#/$defs/source_coverage"}
     },
     "nodes": {
       "type": "array",
@@ -47,43 +32,6 @@
     }
   },
   "$defs": {
-    "source_id": {
-      "enum": [
-        "users", "groups", "applications", "service_principals", "managed_identities",
-        "federated_credentials", "agent_blueprints", "agent_identities", "resources",
-        "directory_roles", "role_assignments", "oauth_grants"
-      ]
-    },
-    "source_coverage": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["status", "reason", "path", "sha256", "completeness", "exported_at"],
-      "properties": {
-        "status": {"enum": ["fresh", "unknown"]},
-        "reason": {"type": ["string", "null"]},
-        "path": {"type": ["string", "null"]},
-        "sha256": {"type": ["string", "null"]},
-        "completeness": {"enum": ["full", "partial", "unknown", null]},
-        "exported_at": {"type": ["string", "null"]}
-      },
-      "allOf": [{
-        "if": {"properties": {"status": {"const": "fresh"}}},
-        "then": {"properties": {
-          "reason": {"const": null},
-          "path": {"type": "string", "minLength": 1},
-          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-          "completeness": {"const": "full"},
-          "exported_at": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$"
-          }
-        }},
-        "else": {"properties": {"reason": {
-          "enum": ["not_listed", "missing_file", "incomplete", "invalid_timestamp", "future_timestamp", "stale"]
-        }}}
-      }]
-    },
     "node": {
       "type": "object",
       "additionalProperties": false,
@@ -92,10 +40,7 @@
         "node_type",
         "display_name",
         "tenant_id",
-        "properties",
-        "evidence_source",
-        "evidence_status",
-        "evidence_reasons"
+        "properties"
       ],
       "properties": {
         "node_id": {
@@ -125,26 +70,8 @@
         },
         "properties": {
           "type": "object"
-        },
-        "evidence_source": {"anyOf": [{"$ref": "#/$defs/source_id"}, {"type": "null"}]},
-        "evidence_status": {"enum": ["fresh", "unknown"]},
-        "evidence_reasons": {"type": "array", "items": {"type": "string"}}
-      },
-      "allOf": [
-        {
-          "if": {"properties": {"evidence_status": {"const": "fresh"}}},
-          "then": {"properties": {"evidence_reasons": {"maxItems": 0}}},
-          "else": {"properties": {"evidence_reasons": {"minItems": 1}}}
-        },
-        {
-          "if": {"properties": {"node_type": {"const": "tenant"}}},
-          "then": {"properties": {"evidence_source": {"const": null}}},
-          "else": {
-            "if": {"properties": {"evidence_status": {"const": "fresh"}}},
-            "then": {"properties": {"evidence_source": {"$ref": "#/$defs/source_id"}}}
-          }
         }
-      ]
+      }
     },
     "edge": {
       "type": "object",
@@ -155,12 +82,7 @@
         "target_id",
         "relation",
         "grant_type",
-        "scope",
-        "provenance",
-        "pim_state",
-        "evidence_sources",
-        "evidence_status",
-        "evidence_reasons"
+        "scope"
       ],
       "properties": {
         "edge_id": {
@@ -204,19 +126,8 @@
         },
         "provenance": {
           "type": "string"
-        },
-        "evidence_sources": {"type": "array", "items": {"$ref": "#/$defs/source_id"}},
-        "evidence_status": {"enum": ["fresh", "unknown"]},
-        "evidence_reasons": {"type": "array", "items": {"type": "string"}}
-      },
-      "allOf": [{
-        "if": {"properties": {"evidence_status": {"const": "fresh"}}},
-        "then": {"properties": {
-          "evidence_sources": {"minItems": 1},
-          "evidence_reasons": {"maxItems": 0}
-        }},
-        "else": {"properties": {"evidence_reasons": {"minItems": 1}}}
-      }]
+        }
+      }
     }
   }
 }

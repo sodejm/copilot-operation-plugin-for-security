@@ -1,6 +1,6 @@
 # Entra Identity Workbench playback
 
-This playbook exercises the complete offline workflow with the checked-in `contoso-corp` fixture: manifest intake, checksum validation, graph construction, hypothesis analysis, JSON Schema validation, report rendering, deterministic rerun, and invalid-manifest rejection.
+This playbook exercises the complete offline workflow with the checked-in `contoso-corp` fixture: manifest intake, checksum validation, graph construction, hypothesis analysis, cross-field freshness and provenance validation, report rendering, deterministic rerun, and invalid-manifest rejection.
 
 ## Run the playback
 
@@ -43,7 +43,7 @@ entra-playback-review/
 A successful exit means the script verified all of the following:
 
 - all source hashes in the manifest matched;
-- graph and report artifacts satisfied their JSON Schemas;
+- graph and report artifacts passed cross-field freshness and provenance validation;
 - the graph contained 18 nodes and 13 edges;
 - the report contained 7 nonempty hypotheses;
 - a second assessment was semantically equivalent;

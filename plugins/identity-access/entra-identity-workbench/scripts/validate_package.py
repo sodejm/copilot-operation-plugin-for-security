@@ -46,6 +46,8 @@ def validate() -> int:
         PLUGIN_ROOT / "schemas" / "manifest.schema.json",
         PLUGIN_ROOT / "schemas" / "graph.schema.json",
         PLUGIN_ROOT / "schemas" / "report.schema.json",
+        PLUGIN_ROOT / "schemas" / "graph.v2.schema.json",
+        PLUGIN_ROOT / "schemas" / "report.v2.schema.json",
     ]
 
     for p in json_files:

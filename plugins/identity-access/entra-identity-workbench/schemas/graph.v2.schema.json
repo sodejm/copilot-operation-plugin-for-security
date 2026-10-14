@@ -1,0 +1,222 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "graph.v2.schema.json",
+  "title": "Entra Identity Graph Schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "tenant_id",
+    "assessed_at",
+    "max_age_hours",
+    "source_coverage",
+    "nodes",
+    "edges"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "entra.identity-graph/v2"
+    },
+    "tenant_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "assessed_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "max_age_hours": {"const": 24},
+    "source_coverage": {
+      "type": "object",
+      "required": [
+        "users", "groups", "applications", "service_principals", "managed_identities",
+        "federated_credentials", "agent_blueprints", "agent_identities", "resources",
+        "directory_roles", "role_assignments", "oauth_grants"
+      ],
+      "propertyNames": {"$ref": "#/$defs/source_id"},
+      "additionalProperties": {"$ref": "#/$defs/source_coverage"}
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/node"
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/edge"
+      }
+    }
+  },
+  "$defs": {
+    "source_id": {
+      "enum": [
+        "users", "groups", "applications", "service_principals", "managed_identities",
+        "federated_credentials", "agent_blueprints", "agent_identities", "resources",
+        "directory_roles", "role_assignments", "oauth_grants"
+      ]
+    },
+    "source_coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "reason", "path", "sha256", "completeness", "exported_at"],
+      "properties": {
+        "status": {"enum": ["fresh", "unknown"]},
+        "reason": {"type": ["string", "null"]},
+        "path": {"type": ["string", "null"]},
+        "sha256": {"type": ["string", "null"]},
+        "completeness": {"enum": ["full", "partial", "unknown", null]},
+        "exported_at": {"type": ["string", "null"]}
+      },
+      "allOf": [{
+        "if": {"properties": {"status": {"const": "fresh"}}},
+        "then": {"properties": {
+          "reason": {"const": null},
+          "path": {"type": "string", "minLength": 1},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "completeness": {"const": "full"},
+          "exported_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$"
+          }
+        }},
+        "else": {"properties": {"reason": {
+          "enum": ["not_listed", "missing_file", "incomplete", "invalid_timestamp", "future_timestamp", "stale"]
+        }}}
+      }]
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "node_id",
+        "node_type",
+        "display_name",
+        "tenant_id",
+        "properties",
+        "evidence_source",
+        "evidence_status",
+        "evidence_reasons"
+      ],
+      "properties": {
+        "node_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "node_type": {
+          "enum": [
+            "tenant",
+            "user",
+            "group",
+            "app_registration",
+            "service_principal",
+            "managed_identity",
+            "agent_blueprint",
+            "agent_identity",
+            "federated_credential",
+            "directory_role",
+            "resource"
+          ]
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "tenant_id": {
+          "type": "string"
+        },
+        "properties": {
+          "type": "object"
+        },
+        "evidence_source": {"anyOf": [{"$ref": "#/$defs/source_id"}, {"type": "null"}]},
+        "evidence_status": {"enum": ["fresh", "unknown"]},
+        "evidence_reasons": {"type": "array", "items": {"type": "string"}}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"evidence_status": {"const": "fresh"}}},
+          "then": {"properties": {"evidence_reasons": {"maxItems": 0}}},
+          "else": {"properties": {"evidence_reasons": {"minItems": 1}}}
+        },
+        {
+          "if": {"properties": {"node_type": {"const": "tenant"}}},
+          "then": {"properties": {"evidence_source": {"const": null}}},
+          "else": {
+            "if": {"properties": {"evidence_status": {"const": "fresh"}}},
+            "then": {"properties": {"evidence_source": {"$ref": "#/$defs/source_id"}}}
+          }
+        }
+      ]
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "edge_id",
+        "source_id",
+        "target_id",
+        "relation",
+        "grant_type",
+        "scope",
+        "provenance",
+        "pim_state",
+        "evidence_sources",
+        "evidence_status",
+        "evidence_reasons"
+      ],
+      "properties": {
+        "edge_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "relation": {
+          "enum": [
+            "member_of",
+            "owns",
+            "instantiates",
+            "sponsored_by",
+            "federated_with",
+            "assigned_azure_role",
+            "assigned_directory_role",
+            "consented_api_permission",
+            "accesses_resource"
+          ]
+        },
+        "grant_type": {
+          "enum": [
+            "direct",
+            "inherited",
+            "delegated_obo",
+            "application_autonomous"
+          ]
+        },
+        "pim_state": {
+          "enum": ["active", "eligible", "none"]
+        },
+        "scope": {
+          "type": "string"
+        },
+        "provenance": {
+          "type": "string"
+        },
+        "evidence_sources": {"type": "array", "items": {"$ref": "#/$defs/source_id"}},
+        "evidence_status": {"enum": ["fresh", "unknown"]},
+        "evidence_reasons": {"type": "array", "items": {"type": "string"}}
+      },
+      "allOf": [{
+        "if": {"properties": {"evidence_status": {"const": "fresh"}}},
+        "then": {"properties": {
+          "evidence_sources": {"minItems": 1},
+          "evidence_reasons": {"maxItems": 0}
+        }},
+        "else": {"properties": {"evidence_reasons": {"minItems": 1}}}
+      }]
+    }
+  }
+}
