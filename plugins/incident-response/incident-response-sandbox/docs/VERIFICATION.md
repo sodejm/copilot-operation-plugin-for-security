@@ -24,7 +24,18 @@ output. A passing gate does not substitute for the manual comparisons below.
 
 ```bash
 P=plugins/incident-response/incident-response-sandbox
-COPS_IR_RUN=$(mktemp -d)
+python3 "$P/scripts/run_demo.py"
+```
+
+The runner uses the current UTC clock and verifies plan, dry-run, execution,
+replay rejection, expiry rejection, successful rollback, and cleanup. See the
+[operator playback](PLAYBOOK.md) for the result fields and contract definitions.
+To retain intermediate artifacts for inspection, run the manual flow:
+
+```bash
+P=plugins/incident-response/incident-response-sandbox
+COPS_IR_RUN=$(mktemp -d "${TMPDIR:-/tmp}/cops-ir.XXXXXX")
+chmod 700 "$COPS_IR_RUN"
 cp "$P/fixtures/synthetic/fixture.json" "$COPS_IR_RUN/fixture.json"
 chmod 600 "$COPS_IR_RUN/fixture.json"
 COPS_IR_EXPIRY=$(python3 -c 'from datetime import UTC, datetime, timedelta; print((datetime.now(UTC) + timedelta(hours=1)).isoformat())')
@@ -32,7 +43,10 @@ python3 "$P/scripts/ir.py" plan --action isolate-host --tenant example-tenant --
 python3 "$P/scripts/ir.py" dry-run "$COPS_IR_RUN/plan.json" "$COPS_IR_RUN/fixture.json" > "$COPS_IR_RUN/receipt.json"
 python3 "$P/scripts/ir.py" execute "$COPS_IR_RUN/plan.json" "$COPS_IR_RUN/receipt.json" "$COPS_IR_RUN/fixture.json"
 # Expected refusal: repeat the consumed execution; retain its nonzero exit code.
-python3 "$P/scripts/ir.py" execute "$COPS_IR_RUN/plan.json" "$COPS_IR_RUN/receipt.json" "$COPS_IR_RUN/fixture.json"
+if python3 "$P/scripts/ir.py" execute "$COPS_IR_RUN/plan.json" "$COPS_IR_RUN/receipt.json" "$COPS_IR_RUN/fixture.json"; then
+  echo "unexpected replay acceptance" >&2
+  exit 1
+fi
 ```
 
 Inspect the private fixture before and after dry-run, and after execute. The original package fixture must stay unchanged. Compare plan/receipt hashes, scope, expiry, revision, execution ledger, target state, and reported provenance. Repeat with a fresh fixture, nonce, and receipt.

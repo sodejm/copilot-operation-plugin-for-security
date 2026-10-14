@@ -37,6 +37,7 @@ def lab_ctx(tmp_path):
         observation_provider=lambda environment, nonce: environment_observation(environment, nonce, inventory),
         observation_trust_store=observation_trust_store(tmp_path),
         case_journal=LaboratoryCaseJournal(tmp_path / "case-journal.sqlite3"),
+        evidence_dir=tmp_path / "evidence",
     )
     return {"inventory": inventory, "harness": harness}
 

@@ -17,8 +17,8 @@
     "The report never authorizes live execution or establishes security posture, exploitability, or complete coverage."
   ],
   "demo": {
-    "description": "Reconcile a synthetic approved Kubernetes context with a sanitized local observation.",
-    "command": ["$PYTHON", "plugins/offensive-security/kubernetes-assessment-workbench/scripts/assess.py", "plugins/offensive-security/kubernetes-assessment-workbench/fixtures/synthetic/context.json"],
+    "description": "Verify matching, limited-evidence, and rejected context-switch playbacks through the offline CLI.",
+    "command": ["$PYTHON", "plugins/offensive-security/kubernetes-assessment-workbench/scripts/demo.py"],
     "timeout_seconds": 30
   },
   "validation": [{

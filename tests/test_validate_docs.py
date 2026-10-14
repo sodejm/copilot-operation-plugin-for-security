@@ -64,7 +64,17 @@ def write_qualification_docs(tmp_path, monkeypatch):
         json.dumps({"plugins": [{"id": "one-plugin", "path": "plugins/testing/one-plugin"}]})
     )
     (package / "package.json").write_text(json.dumps({"maturity": "experimental"}))
-    (package / "README.md").write_text("[Verify](docs/VERIFICATION.md)\n")
+    (package / "README.md").write_text(
+        "[Verify](docs/VERIFICATION.md)\n[Run](docs/PLAYBOOK.md)\n"
+        "## Usage and playback\nRun the offline fixture.\n"
+        "## Design and data flow\n"
+        "| Artifact | Purpose | Producer | Consumer | Validation |\n"
+        "|---|---|---|---|---|\n"
+        "| Input | Bounds the case | Operator | Runner | Schema check |\n"
+        "| Report | Records results | Runner | Reviewer | Semantic assertions |\n"
+    )
+    (package / "docs/PLAYBOOK.md").write_text("```bash\npython3 -m cops demo one-plugin\n```\n")
+    (tmp_path / "docs/plugin-playbacks.md").write_text("[Run](../plugins/testing/one-plugin/docs/PLAYBOOK.md)\n")
     (package / "docs/VERIFICATION.md").write_text(
         "## Scope and prerequisites\n"
         "## Baseline checks\n"
@@ -147,6 +157,22 @@ def test_verification_requires_run_recovery_and_discovery_instructions(tmp_path,
     assert any("missing baseline command: python -m cops check one-plugin" in error for error in errors)
     assert any("README.md must link to docs/VERIFICATION.md" in error for error in errors)
     assert any("verification index must link" in error for error in errors)
+
+
+def test_verification_discovery_ignores_links_inside_fences(tmp_path, monkeypatch):
+    package = write_qualification_docs(tmp_path, monkeypatch)
+    (package / "README.md").write_text("```markdown\n[Verify](docs/VERIFICATION.md)\n```\n")
+    (tmp_path / "docs/plugin-verification.md").write_text(
+        "```markdown\n[Verify](../plugins/testing/one-plugin/docs/VERIFICATION.md)\n```\n"
+    )
+
+    errors: list[str] = []
+    validate_docs.validate_plugin_verification(errors)
+
+    assert errors == [
+        "one-plugin: README.md must link to docs/VERIFICATION.md",
+        "one-plugin: verification index must link to plugins/testing/one-plugin/docs/VERIFICATION.md",
+    ]
 
 
 def test_public_maturity_rejects_stale_tables_details_and_cards(tmp_path, monkeypatch):
@@ -233,3 +259,125 @@ def test_internal_links_include_plugin_verification_playbooks(tmp_path, monkeypa
     assert errors == [
         f"plugins/testing/one-plugin/docs/VERIFICATION.md:{line_number}: Broken relative link to: missing.md"
     ]
+
+
+def test_playback_contract_accepts_catalog_documentation(tmp_path, monkeypatch):
+    write_qualification_docs(tmp_path, monkeypatch)
+    errors: list[str] = []
+    validate_docs.validate_plugin_playbacks(errors)
+    assert errors == []
+
+
+def test_playback_contract_requires_playbook_and_discovery(tmp_path, monkeypatch):
+    package = write_qualification_docs(tmp_path, monkeypatch)
+    (package / "docs/PLAYBOOK.md").unlink()
+    readme = package / "README.md"
+    readme.write_text(readme.read_text().replace("[Run](docs/PLAYBOOK.md)\n", ""))
+    errors: list[str] = []
+    validate_docs.validate_plugin_playbacks(errors)
+    assert errors == [
+        "one-plugin: README.md must link to docs/PLAYBOOK.md",
+        "one-plugin: missing docs/PLAYBOOK.md",
+    ]
+
+
+def test_playback_contract_rejects_wrong_command_and_unlinked_index(tmp_path, monkeypatch):
+    package = write_qualification_docs(tmp_path, monkeypatch)
+    (package / "docs/PLAYBOOK.md").write_text("python3 -m cops demo different-plugin\n")
+    (tmp_path / "docs/plugin-playbacks.md").write_text("one-plugin\n")
+    errors: list[str] = []
+    validate_docs.validate_plugin_playbacks(errors)
+    assert errors == [
+        "one-plugin: PLAYBOOK.md must include its runnable cops demo command",
+        "one-plugin: playback index must link to docs/PLAYBOOK.md",
+    ]
+
+
+def test_playback_discovery_ignores_links_inside_fences(tmp_path, monkeypatch):
+    package = write_qualification_docs(tmp_path, monkeypatch)
+    readme = package / "README.md"
+    readme.write_text(
+        readme.read_text().replace(
+            "[Run](docs/PLAYBOOK.md)",
+            "```markdown\n[Run](docs/PLAYBOOK.md)\n```",
+        )
+    )
+    (tmp_path / "docs/plugin-playbacks.md").write_text(
+        "```markdown\n[Run](../plugins/testing/one-plugin/docs/PLAYBOOK.md)\n```\n"
+    )
+
+    errors: list[str] = []
+    validate_docs.validate_plugin_playbacks(errors)
+
+    assert errors == [
+        "one-plugin: README.md must link to docs/PLAYBOOK.md",
+        "one-plugin: playback index must link to docs/PLAYBOOK.md",
+    ]
+
+
+def test_playback_contract_requires_usage_design_and_substantive_schema_table(tmp_path, monkeypatch):
+    package = write_qualification_docs(tmp_path, monkeypatch)
+    (package / "README.md").write_text(
+        "[Verify](docs/VERIFICATION.md)\n[Run](docs/PLAYBOOK.md)\n"
+        "## Notes\n"
+        "| Artifact | Purpose | Producer | Consumer |\n"
+        "|---|---|---|---|\n"
+        "| Input | Bounds the case | Operator | Runner |\n"
+    )
+
+    errors: list[str] = []
+    validate_docs.validate_plugin_playbacks(errors)
+
+    assert errors == [
+        "one-plugin: README.md must include a usage section",
+        "one-plugin: README.md must include a design or data-flow section",
+        "one-plugin: README.md must include a substantive data-contract table covering "
+        "artifact, purpose, producer, consumer, and validation",
+    ]
+
+
+def test_playback_contract_accepts_alternative_headings_and_combined_table_columns(tmp_path, monkeypatch):
+    package = write_qualification_docs(tmp_path, monkeypatch)
+    readme = package / "README.md"
+    readme.write_text(
+        readme.read_text()
+        .replace("## Usage and playback", "## Operator workflow")
+        .replace("## Design and data flow", "## Data contracts and flow")
+        .replace(
+            "| Artifact | Purpose | Producer | Consumer | Validation |\n"
+            "|---|---|---|---|---|\n"
+            "| Input | Bounds the case | Operator | Runner | Schema check |\n"
+            "| Report | Records results | Runner | Reviewer | Semantic assertions |",
+            "| Record or field | Purpose and producer | Consumer and validation |\n"
+            "|---|---|---|\n"
+            "| Input | Operator supplies scope | Runner rejects invalid scope |\n"
+            "| Report | Runner records results | Reviewer checks semantic assertions |",
+        )
+    )
+
+    errors: list[str] = []
+    validate_docs.validate_plugin_playbacks(errors)
+
+    assert errors == []
+
+
+def test_playback_contract_accepts_start_here_as_usage_heading(tmp_path, monkeypatch):
+    package = write_qualification_docs(tmp_path, monkeypatch)
+    readme = package / "README.md"
+    readme.write_text(readme.read_text().replace("## Usage and playback", "## Start here"))
+
+    errors: list[str] = []
+    validate_docs.validate_plugin_playbacks(errors)
+
+    assert errors == []
+
+
+def test_internal_links_include_package_readme_and_practitioner_playbook(tmp_path, monkeypatch):
+    package = write_qualification_docs(tmp_path, monkeypatch)
+    for relative in ("README.md", "docs/PLAYBOOK.md"):
+        path = package / relative
+        path.write_text(path.read_text() + "[Missing](absent.md)\n")
+    errors: list[str] = []
+    validate_docs.validate_internal_links(errors)
+    assert len(errors) == 2
+    assert all("Broken relative link to: absent.md" in error for error in errors)

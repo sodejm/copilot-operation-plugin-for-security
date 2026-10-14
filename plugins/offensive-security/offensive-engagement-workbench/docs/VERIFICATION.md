@@ -24,10 +24,17 @@ output. A passing gate does not substitute for the manual comparisons below.
 
 ```bash
 P=plugins/offensive-security/offensive-engagement-workbench
-python3 "$P/scripts/demo.py" --tool-version python3=3.11.9
+COPS_ENGAGEMENT_RUN=$(mktemp -d)
+python3 "$P/scripts/demo.py" --tool-version python3=3.11.9 \
+  --output-dir "$COPS_ENGAGEMENT_RUN"
 ```
 
-The tool version argument matches the synthetic fixture's pinned metadata; record the actual Python version separately. Independently inspect engagement scope, targets, tools/versions, limits, and validity windows. Compare the plan/handoff with those facts. Repeat with a sanitized engagement and independently prepared scope/prerequisite oracle.
+The tool version argument matches the synthetic fixture's pinned metadata;
+record the actual Python version separately. Inspect the six files in
+`$COPS_ENGAGEMENT_RUN`, including the approval-pending handoff and final result.
+Independently inspect engagement scope, targets, tools/versions, limits, and
+validity windows. Compare the plan and handoff with those facts. Repeat with a
+sanitized engagement and independently prepared scope/prerequisite oracle.
 
 Exercise the advisory workflow with synthetic catalogs. These fixtures test the
 advisor's rules; they provide no evidence of real host availability or access.
@@ -104,7 +111,7 @@ exit successfully with no eligible model; inspect its fields. See
 ## Acceptance criteria
 
 - Intake and handoff preserve engagement, specialist, action, target, time, tool/version, and evidence bindings.
-- The action plan is immutable and its digest agrees across handoffs; valid planning remains approval-required and performs no operation.
+- The action plan is immutable and its digest agrees across handoffs; valid planning remains approval-required. The playback runs only its local inert observation child and performs no planned assessment operation.
 - Package tests reject missing tools, stale windows, scope expansion, incompatible prerequisites, and invalid approval/hash assumptions.
 - Fresh eligible model advice matches the fixture's supported pair; stale and denied catalogs produce no recommendation. Advice remains advisory and supplies no execution approval or automatic model switch.
 - Host installation resolves the repository SDK dependency explicitly. Offline success cannot establish worker readiness, signed approval, or live execution.

@@ -1,0 +1,198 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/sodejm/copilot-operation-plugin-for-security/main/plugins/detection-hunting/sentinel-hunt-workbench/schemas/hunt.schema.json",
+  "title": "Sentinel Hunt Workbench hunt definition",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id", "version", "title", "hypothesis", "authorized_use",
+    "defensive_objective", "surface_support", "telemetry", "entities",
+    "parameters", "stages", "joins", "queries", "expected_evidence",
+    "disconfirming_evidence", "confounders", "stopping_rules",
+    "analyst_guidance", "attck_mappings", "tests", "references",
+    "provenance", "qualification_state", "offline_assurance_disclaimer"
+  ],
+  "properties": {
+    "id": {"type": "string", "pattern": "^H(0[1-9]|1[0-2])$"},
+    "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "title": {"$ref": "#/$defs/nonEmptyString"},
+    "hypothesis": {"$ref": "#/$defs/nonEmptyString"},
+    "authorized_use": {"const": "defensive_only"},
+    "defensive_objective": {"$ref": "#/$defs/nonEmptyString"},
+    "surface_support": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sentinel_analytics", "sentinel_data_lake", "defender_advanced_hunting"],
+      "properties": {
+        "sentinel_analytics": {"$ref": "#/$defs/supportState"},
+        "sentinel_data_lake": {"$ref": "#/$defs/supportState"},
+        "defender_advanced_hunting": {"$ref": "#/$defs/supportState"}
+      }
+    },
+    "telemetry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required", "optional", "timestamps", "latency_assumptions"],
+      "properties": {
+        "required": {"$ref": "#/$defs/threeStrings"},
+        "optional": {"$ref": "#/$defs/stringArray"},
+        "timestamps": {
+          "type": "array", "minItems": 3,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["stream", "event_time", "ingestion_time"],
+            "properties": {
+              "stream": {"$ref": "#/$defs/nonEmptyString"},
+              "event_time": {"$ref": "#/$defs/nonEmptyString"},
+              "ingestion_time": {"$ref": "#/$defs/nonEmptyString"}
+            }
+          }
+        },
+        "latency_assumptions": {"$ref": "#/$defs/stringArray"}
+      }
+    },
+    "entities": {
+      "type": "array", "minItems": 2,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["class", "identifier", "normalization", "collision_risk"],
+        "properties": {
+          "class": {"$ref": "#/$defs/nonEmptyString"},
+          "identifier": {"$ref": "#/$defs/nonEmptyString"},
+          "normalization": {"$ref": "#/$defs/nonEmptyString"},
+          "collision_risk": {"$ref": "#/$defs/nonEmptyString"}
+        }
+      }
+    },
+    "parameters": {
+      "type": "array", "minItems": 5,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["name", "type", "required"],
+        "properties": {
+          "name": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+          "type": {"$ref": "#/$defs/nonEmptyString"},
+          "required": {"type": "boolean"},
+          "default": {}
+        }
+      }
+    },
+    "stages": {
+      "type": "array", "minItems": 3,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": [
+          "id", "order", "stream", "table", "event_time",
+          "required_fields", "event_id_fields", "entity_extractors",
+          "join_in", "join_out", "evidence_output"
+        ],
+        "properties": {
+          "id": {"type": "string", "pattern": "^S[0-9]{2}$"},
+          "order": {"type": "integer", "minimum": 1},
+          "stream": {"$ref": "#/$defs/nonEmptyString"},
+          "table": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
+          "event_time": {"$ref": "#/$defs/nonEmptyString"},
+          "aad_tenant_field": {"$ref": "#/$defs/nonEmptyString"},
+          "required_fields": {"$ref": "#/$defs/stringArray"},
+          "event_id_fields": {"$ref": "#/$defs/stringArray"},
+          "entity_extractors": {
+            "type": "object", "minProperties": 1,
+            "additionalProperties": {"$ref": "#/$defs/nonEmptyString"}
+          },
+          "join_in": {"type": ["string", "null"]},
+          "join_out": {"type": ["string", "null"]},
+          "evidence_output": {"$ref": "#/$defs/stringArray"},
+          "validity_fields": {"$ref": "#/$defs/stringArray"}
+        }
+      }
+    },
+    "joins": {
+      "type": "array", "minItems": 2,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["from", "to", "key", "type", "time_window", "cardinality", "collision_risk"],
+        "properties": {
+          "from": {"type": "string", "pattern": "^S[0-9]{2}$"},
+          "to": {"type": "string", "pattern": "^S[0-9]{2}$"},
+          "key": {"$ref": "#/$defs/nonEmptyString"},
+          "type": {"const": "inner"},
+          "time_window": {"$ref": "#/$defs/nonEmptyString"},
+          "cardinality": {"const": "bounded_many_to_many_requires_fanout_review"},
+          "collision_risk": {"$ref": "#/$defs/nonEmptyString"}
+        }
+      }
+    },
+    "queries": {
+      "type": "object", "minProperties": 1,
+      "propertyNames": {"enum": ["sentinel_analytics", "sentinel_data_lake", "defender_advanced_hunting"]},
+      "additionalProperties": {
+        "type": "object", "additionalProperties": false,
+        "required": ["kind", "language", "content", "stage_contract", "offline_assurance"],
+        "properties": {
+          "kind": {"$ref": "#/$defs/nonEmptyString"},
+          "language": {"const": "KQL"},
+          "content": {"$ref": "#/$defs/nonEmptyString"},
+          "stage_contract": {"$ref": "#/$defs/stringArray"},
+          "offline_assurance": {"$ref": "#/$defs/nonEmptyString"}
+        }
+      }
+    },
+    "expected_evidence": {"$ref": "#/$defs/stringArray"},
+    "disconfirming_evidence": {"$ref": "#/$defs/stringArray"},
+    "confounders": {"$ref": "#/$defs/stringArray"},
+    "stopping_rules": {"$ref": "#/$defs/stringArray"},
+    "analyst_guidance": {"$ref": "#/$defs/stringArray"},
+    "attck_mappings": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "name", "rationale", "version"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^T[0-9]{4}(\\.[0-9]{3})?$"},
+          "name": {"$ref": "#/$defs/nonEmptyString"},
+          "rationale": {"$ref": "#/$defs/nonEmptyString"},
+          "version": {"$ref": "#/$defs/nonEmptyString"}
+        }
+      }
+    },
+    "tests": {
+      "type": "object", "additionalProperties": false,
+      "required": ["curated_scenarios", "generated_perturbations", "semantic_mutations"],
+      "properties": {
+        "curated_scenarios": {"const": 48},
+        "generated_perturbations": {"const": 250},
+        "semantic_mutations": {"const": 12}
+      }
+    },
+    "references": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["kind", "title", "url"],
+        "properties": {
+          "kind": {"$ref": "#/$defs/nonEmptyString"},
+          "title": {"$ref": "#/$defs/nonEmptyString"},
+          "url": {"type": "string", "pattern": "^https://"}
+        }
+      }
+    },
+    "provenance": {
+      "type": "object", "additionalProperties": false,
+      "required": ["as_of", "license_review", "query_authorship", "schema_basis"],
+      "properties": {
+        "as_of": {"type": "string", "format": "date"},
+        "license_review": {"const": "pending_human_review"},
+        "query_authorship": {"$ref": "#/$defs/nonEmptyString"},
+        "schema_basis": {"$ref": "#/$defs/nonEmptyString"}
+      }
+    },
+    "qualification_state": {"enum": ["draft", "schema_checked", "static_checked", "fixture_executed", "emulator_executed", "human_reviewed", "offline_qualified", "deprecated", "withdrawn"]},
+    "offline_assurance_disclaimer": {"$ref": "#/$defs/nonEmptyString"}
+  },
+  "$defs": {
+    "nonEmptyString": {"type": "string", "minLength": 1},
+    "stringArray": {"type": "array", "items": {"$ref": "#/$defs/nonEmptyString"}},
+    "threeStrings": {"type": "array", "minItems": 3, "uniqueItems": true, "items": {"$ref": "#/$defs/nonEmptyString"}},
+    "supportState": {"enum": ["supported", "unsupported", "unverified"]}
+  }
+}

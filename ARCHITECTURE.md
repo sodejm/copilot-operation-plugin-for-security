@@ -122,6 +122,13 @@ The repository maintains strict quality guardrails:
 - **`AGENTS.md`**: Canonical instructions for contributors and automated agents.
 - **`Makefile` & `scripts/agent/check.py`**: Runs pre-commit validation, including syntax checks, contract verification, adapter synchronization, and pytest-bdd scenarios.
 - **`make check`**: The universal gate that must pass before any change is merged.
+- **Catalog playback acceptance**: The portable operator scenario reads the
+  canonical plugin catalog and runs every manifest-backed demo through `cops demo`
+  twice, then runs exported playbacks with an isolated copy of `cops/` and
+  `catalog/`. Package runners verify domain results and failure cases; the shared
+  runner checks public entry points and exported runtime completeness. Documentation validation requires each
+  README to link its runnable playbook and checks local documentation links.
+  See [Runnable Plugin Workflows](docs/plugin-playbacks.md).
 
 To get started with development, explore the **[Contributing Guide](CONTRIBUTING.md)** and **[Repository Layout](docs/REPOSITORY_LAYOUT.md)**.
 

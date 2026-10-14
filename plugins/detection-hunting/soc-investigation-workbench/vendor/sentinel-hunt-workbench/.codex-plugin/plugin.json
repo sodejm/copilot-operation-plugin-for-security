@@ -1,0 +1,34 @@
+{
+  "author": {
+    "name": "Sentinel Hunt Workbench contributors",
+    "url": "https://github.com/sodejm/copilot-operation-plugin-for-security"
+  },
+  "description": "Offline-qualified, surface-specific Microsoft Sentinel threat-hunt authoring and adversarial validation.",
+  "homepage": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "interface": {
+    "displayName": "COPS Sentinel Hunt Workbench",
+    "shortDescription": "Author and stress-test Sentinel hunts offline.",
+    "longDescription": "Plan, author, adapt, review, render, and deterministically stress-test defensive Microsoft hunting workflows without connecting to a live tenant.",
+    "developerName": "Sentinel Hunt Workbench contributors",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Sentinel hunt planning",
+      "Bounded KQL authoring",
+      "Deterministic offline qualification"
+    ],
+    "defaultPrompt": [
+      "Plan a defensive Sentinel hunt with explicit evidence, stopping rules, and supported surfaces."
+    ]
+  },
+  "keywords": [
+    "defensive-security",
+    "kql",
+    "microsoft-sentinel",
+    "threat-hunting"
+  ],
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "name": "sentinel-hunt-workbench",
+  "repository": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "skills": "./skills/",
+  "version": "1.0.0"
+}

@@ -24,6 +24,34 @@ python3 -m cops check security-logging-advisor
 ### What to look for
 Running the demo scans a realistic synthetic application fixture and generates an evidence-linked recommendations report. It flags missing audit events (such as authentication failures, password resets, and permission changes) and suggests structured JSON event schemas. Because this runs completely offline, you can safely explore how the advisor works before scanning your own codebase.
 
+To exercise the collector directly and validate a manually authored recommendation
+template, run the deterministic manifest playback from the repository root:
+
+```bash
+python3 plugins/logging-telemetry/security-logging-advisor/scripts/run_playback.py
+```
+
+The playback scans a disposable synthetic repository twice, checks the collector's
+semantic repeatability, validates the recommendation document's
+required structure, and exercises partial-scan and malformed-recommendation failure
+paths. The validator checks required structure; it does not generate or
+approve an LLM verdict. See the [playbook](docs/PLAYBOOK.md#deterministic-manifest-playback)
+for the data contract and interpretation.
+
+## Design and data flow
+
+The collector turns a bounded source tree into an inventory of logging frameworks
+and security-event coverage. A separate advisory step consumes that inventory and
+authors recommendations; the playback supplies a synthetic recommendation so it
+can verify the contract without presenting generated advice as an analyst verdict.
+
+| Contract or artifact | Purpose | Key fields | Producer | Consumer | Validation | Example |
+| --- | --- | --- | --- | --- | --- | --- |
+| Source tree | Bound the files inspected for logging evidence | Relative path, file type, size | Operator or playback fixture | Offline collector | Containment, file-size, and supported-type gates | Synthetic service with an authentication handler |
+| Scan inventory | Record observed frameworks and missing security events | Files scanned, frameworks, event coverage, partial-scan status | Offline collector | Advisor workflow and reviewer | Schema checks plus repeatable semantic comparison | Authentication failures absent from the fixture |
+| Recommendation document | Capture prioritized, evidence-linked advice | Priority, evidence reference, recommendation, event schema | Advisor workflow; a fixed fixture in playback | Engineer or security reviewer | Required structure and evidence-reference checks | P1 structured authentication-failure event |
+| Playback summary | Record qualification assertions without retaining the temporary tree | Repeatability, failure-path results, artifact counts | `scripts/run_playback.py` | Maintainer | Explicit semantic assertions; any mismatch exits nonzero | `semantic_repeatability: true` |
+
 ---
 
 ## When to Use & Engineering Playbook
