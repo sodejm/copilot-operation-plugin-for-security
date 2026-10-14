@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import argparse
 import ssl
 import sys
 from pathlib import Path
@@ -16,6 +17,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from cops.discovery import (
+    ActiveScanError,
     ActiveScanner,
     ActiveScanSession,
     ActiveServiceAssessment,
@@ -31,6 +33,7 @@ from cops.discovery import (
     infer_service_fingerprint,
 )
 from cops.discovery.active_scanner import StandardSocketDispatcher, _create_tls_context
+from cops.discovery.cli import command_active_discovery
 
 scenarios("../../specs/features/network_active_discovery.feature")
 
@@ -178,6 +181,184 @@ def then_probes_skipped(bdd_ctx):
 @then("zero redundant probe side effects are dispatched to already assessed ports")
 def then_zero_redundant_side_effects(bdd_ctx):
     assert bdd_ctx["dispatcher"].side_effect_count == 1
+
+
+class RecordingLiveDispatcher(StandardSocketDispatcher):
+    """Observe live admission and reservations without opening a socket."""
+
+    def __init__(self, resolved_ip="198.51.100.10", checkpoint=None, fail=False):
+        self.resolved_ip = resolved_ip
+        self.checkpoint = checkpoint
+        self.fail = fail
+        self.resolutions = 0
+        self.probes = 0
+        self.reservation_seen = False
+
+    def resolve_target(self, target_host):
+        self.resolutions += 1
+        return self.resolved_ip
+
+    def dispatch_probe(self, target_host, resolved_ip, port, protocol="tcp", timeout=2.0, vantage="external"):
+        self.probes += 1
+        if self.checkpoint is not None:
+            reserved = ActiveScanSession.load_checkpoint(self.checkpoint)
+            self.reservation_seen = (
+                ActiveScanSession.make_probe_key(vantage, protocol, target_host, port)
+                in reserved.pending_probe_keys
+            )
+        if self.fail:
+            raise OSError("uncertain probe outcome")
+        return ActiveServiceAssessment(
+            probe_id=f"recorded-{port}",
+            target_host=target_host,
+            resolved_ip=resolved_ip,
+            port=port,
+            protocol=protocol,
+            vantage=vantage,
+        )
+
+
+def live_session(targets=None, ports=None):
+    return ActiveScanSession(
+        session_id="bdd-live-01",
+        scope_reference="BDD-SCOPE-01",
+        approved_targets=targets or ["app.corp.internal"],
+        approved_ports=ports or [80],
+        budget=ScanBudget(rate_limit_pps=10, max_probes=2, max_total_seconds=30),
+    )
+
+
+@given("a live TCP assessment of approved hosts and ports")
+def given_live_assessment(bdd_ctx, tmp_path):
+    bdd_ctx["checkpoint"] = tmp_path / "live-checkpoint.json"
+
+
+@when("the operator omits the approved IP ranges, a positive rate limit, or a checkpoint path")
+def when_live_boundary_missing(bdd_ctx):
+    outcomes = []
+    for missing in ("IP ranges", "rate limit", "checkpoint"):
+        session = live_session()
+        scope = dict(bdd_ctx["scope"])
+        checkpoint = bdd_ctx["checkpoint"]
+        if missing == "IP ranges":
+            scope.pop("ip_ranges")
+        elif missing == "rate limit":
+            session.budget.rate_limit_pps = 0
+        else:
+            checkpoint = None
+        dispatcher = RecordingLiveDispatcher()
+        with pytest.raises(ActiveScanError) as exc:
+            ActiveScanner(session, dispatcher, scope=scope, checkpoint=checkpoint).run()
+        outcomes.append((missing, str(exc.value), dispatcher.probes))
+    bdd_ctx["admission_outcomes"] = outcomes
+
+
+@then("the scanner refuses admission before dispatching a probe")
+def then_live_refused(bdd_ctx):
+    for missing, error, probes in bdd_ctx["admission_outcomes"]:
+        assert missing.split()[0].lower() in error.lower()
+        assert probes == 0
+
+
+@then("literal IPv4 and IPv6 targets are evaluated against their approved IP ranges even when domain limits are present")
+def then_literal_addresses_obey_cidr(bdd_ctx, tmp_path):
+    for address, cidr in (("198.51.101.10", "198.51.100.0/24"), ("2001:db8:2::10", "2001:db8:1::/64")):
+        dispatcher = RecordingLiveDispatcher(resolved_ip=address)
+        result = ActiveScanner(
+            live_session(targets=[address]),
+            dispatcher,
+            scope={"domains": ["corp.internal"], "ip_ranges": [cidr]},
+            checkpoint=tmp_path / f"literal-{address.replace(':', '_')}.json",
+        ).run()
+        assert result.status == "partial"
+        assert result.quarantined_targets[0].reason == "outside_scope"
+        assert dispatcher.resolutions == dispatcher.probes == 0
+
+
+@given("an operator selects all 65,535 TCP ports")
+def given_full_tcp_selection(bdd_ctx, tmp_path):
+    bdd_ctx["full_plan"] = tmp_path / "full-tcp-plan.json"
+
+
+@when("the operator has not explicitly allowed a full TCP selection and budgeted every target-port pair")
+def when_full_tcp_unbounded(bdd_ctx):
+    args = argparse.Namespace(
+        active_command="plan", targets="198.51.100.10", ports="all", vantage="external",
+        rate_limit=10, timeout=2, max_total_seconds=300,
+        scope_ref="BDD-SCOPE-01", output=bdd_ctx["full_plan"],
+        allow_full_tcp=False, max_probes=65535,
+    )
+    with pytest.raises(ValueError, match="--allow-full-tcp"):
+        command_active_discovery(args)
+    args.allow_full_tcp = True
+    args.max_probes = 65534
+    with pytest.raises(ValueError, match="--max-probes"):
+        command_active_discovery(args)
+    bdd_ctx["full_plan_args"] = args
+
+
+@then("planning rejects the request")
+def then_full_tcp_rejected(bdd_ctx):
+    assert not bdd_ctx["full_plan"].exists()
+
+
+@then("a separately scoped UDP assessment is not implied by TCP selection")
+def then_full_tcp_does_not_imply_udp(bdd_ctx):
+    args = bdd_ctx["full_plan_args"]
+    args.max_probes = 65535
+    assert command_active_discovery(args) == 0
+    plan = ActiveScanSession.load_checkpoint(bdd_ctx["full_plan"])
+    assert len(plan.approved_ports) == 65535
+    assert "udp" not in plan.to_dict()
+
+
+@given("a live probe reserved in a durable checkpoint before network dispatch")
+def given_reserved_live_probe(bdd_ctx, tmp_path):
+    bdd_ctx["checkpoint"] = tmp_path / "uncertain-live.json"
+    bdd_ctx["dispatcher"] = RecordingLiveDispatcher(checkpoint=bdd_ctx["checkpoint"], fail=True)
+
+
+@when("execution crashes or returns an uncertain error")
+def when_live_probe_uncertain(bdd_ctx):
+    first = ActiveScanner(
+        live_session(), bdd_ctx["dispatcher"], scope=bdd_ctx["scope"],
+        checkpoint=bdd_ctx["checkpoint"],
+    ).run()
+    bdd_ctx["first_live"] = first
+    resumed = ActiveScanSession.load_checkpoint(bdd_ctx["checkpoint"])
+    next_dispatcher = RecordingLiveDispatcher()
+    bdd_ctx["resumed_live"] = ActiveScanner(
+        resumed, next_dispatcher, scope=bdd_ctx["scope"],
+        checkpoint=bdd_ctx["checkpoint"],
+    ).run()
+    bdd_ctx["resume_dispatcher"] = next_dispatcher
+
+
+@then("the probe remains pending and restart does not dispatch it again")
+def then_uncertain_probe_pending(bdd_ctx):
+    assert bdd_ctx["dispatcher"].reservation_seen
+    assert bdd_ctx["first_live"].status == "requires_reconciliation"
+    assert bdd_ctx["resumed_live"].status == "requires_reconciliation"
+    assert len(bdd_ctx["resumed_live"].pending_probe_keys) == 1
+    assert bdd_ctx["resumed_live"].total_probes_dispatched == 1
+    assert bdd_ctx["resume_dispatcher"].resolutions == bdd_ctx["resume_dispatcher"].probes == 0
+
+
+@then("a changed plan or scope cannot resume under the old checkpoint")
+def then_changed_plan_scope_rejected(bdd_ctx):
+    for changed_scope, changed_ports in (
+        ({"domains": ["corp.internal"], "ip_ranges": ["198.51.100.0/25"]}, [80]),
+        (bdd_ctx["scope"], [80, 443]),
+    ):
+        resumed = ActiveScanSession.load_checkpoint(bdd_ctx["checkpoint"])
+        resumed.approved_ports = changed_ports
+        dispatcher = RecordingLiveDispatcher()
+        with pytest.raises(ActiveScanError, match="plan or scope changed"):
+            ActiveScanner(
+                resumed, dispatcher, scope=changed_scope,
+                checkpoint=bdd_ctx["checkpoint"],
+            ).run()
+        assert dispatcher.resolutions == dispatcher.probes == 0
 
 
 # Scenario 3: Distinguishing reachable services, inferred fingerprints, and observed configuration

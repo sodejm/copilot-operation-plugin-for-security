@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import sys
 from pathlib import Path
 from typing import Any
@@ -95,7 +96,9 @@ def build_active_parser(parser: argparse.ArgumentParser) -> None:
     # 1. plan
     plan_p = active_subs.add_parser("plan", help="Create an active scanning session plan with budgets and targets.")
     plan_p.add_argument("--targets", "-t", required=True, help="Comma-separated target hosts/IPs or path to JSON.")
-    plan_p.add_argument("--ports", "-p", default="80,443,22", help="Comma-separated ports (default: 80,443,22).")
+    plan_p.add_argument("--ports", "-p", default="80,443,22", help="TCP ports, ranges, or 'all' (default: 80,443,22).")
+    plan_p.add_argument("--allow-full-tcp", action="store_true", help="Explicitly allow all 65,535 TCP ports in the plan.")
+    plan_p.add_argument("--max-probes", type=int, default=1024, help="Cumulative probe cap across resumes (default: 1024).")
     plan_p.add_argument(
         "--vantage",
         default="external",
@@ -576,20 +579,86 @@ def command_active_discovery(args: argparse.Namespace, root: Path | None = None)
     """Handle active discovery CLI subcommands."""
     active_cmd = getattr(args, "active_command", None)
 
+    def output_overwrites_checkpoint(output: str | None, checkpoint: str | None) -> bool:
+        if not output or not checkpoint:
+            return False
+        output_path = Path(output)
+        checkpoint_path = Path(checkpoint)
+        return output_path.resolve() == checkpoint_path.resolve() or (
+            output_path.exists() and checkpoint_path.exists() and output_path.samefile(checkpoint_path)
+        )
+
+    def load_scope(path: str | None) -> dict[str, Any] | None:
+        if path is None:
+            return None
+        raw = json.loads(Path(path).read_text(encoding="utf-8"))
+        if not isinstance(raw, dict):
+            raise ValueError("Scope file must contain a JSON object")
+        scope = raw.get("scope", raw)
+        if not isinstance(scope, dict):
+            raise ValueError("Scope must contain a JSON object")
+        return scope
+
+    def parse_tcp_ports(spec: str, allow_full: bool) -> list[int]:
+        if spec.strip().lower() == "all":
+            ports = list(range(1, 65536))
+        else:
+            ports_set: set[int] = set()
+            for item in spec.split(","):
+                item = item.strip()
+                if not item:
+                    raise ValueError("TCP port selection contains an empty item")
+                parts = item.split("-")
+                if len(parts) > 2 or any(not part.isdecimal() for part in parts):
+                    raise ValueError(f"Invalid TCP port selection: {item}")
+                low = int(parts[0])
+                high = int(parts[-1])
+                if low < 1 or high > 65535 or low > high:
+                    raise ValueError(f"TCP port selection outside 1-65535: {item}")
+                ports_set.update(range(low, high + 1))
+            ports = sorted(ports_set)
+        if len(ports) == 65535 and not allow_full:
+            raise ValueError("Full TCP selection requires --allow-full-tcp")
+        return ports
+
     if active_cmd == "plan":
         # Resolve targets
         raw_targets = args.targets
         if Path(raw_targets).is_file():
             t_data = json.loads(Path(raw_targets).read_text(encoding="utf-8"))
-            targets = t_data if isinstance(t_data, list) else t_data.get("targets", [])
+            if isinstance(t_data, list):
+                targets = t_data
+            elif isinstance(t_data, dict):
+                targets = t_data.get("targets")
+            else:
+                raise ValueError("Targets file must be a JSON list or an object with a targets list")
         else:
-            targets = [t.strip() for t in raw_targets.split(",") if t.strip()]
+            targets = [t.strip() for t in raw_targets.split(",")]
+        if not isinstance(targets, list) or not targets or any(
+            not isinstance(target, str) or not target.strip() for target in targets
+        ):
+            raise ValueError("Targets must be a nonempty list of nonempty hostnames or IP addresses")
+        targets = [target.strip() for target in targets]
 
-        ports = [int(p.strip()) for p in args.ports.split(",") if p.strip()]
+        ports = parse_tcp_ports(args.ports, getattr(args, "allow_full_tcp", False))
+        max_probes = getattr(args, "max_probes", 1024)
+        if isinstance(max_probes, bool) or not isinstance(max_probes, int) or max_probes <= 0:
+            raise ValueError("--max-probes must be positive")
+        if len(ports) == 65535 and max_probes < len(targets) * len(ports):
+            raise ValueError("Full TCP selection requires --max-probes to cover every selected target and port")
+        if not math.isfinite(args.timeout) or args.timeout <= 0:
+            raise ValueError("--timeout must be positive and finite")
+        if not math.isfinite(args.rate_limit) or args.rate_limit < 0:
+            raise ValueError("--rate-limit must be nonnegative and finite")
+        if args.max_total_seconds is not None and (
+            not math.isfinite(args.max_total_seconds) or args.max_total_seconds <= 0
+        ):
+            raise ValueError("--max-total-seconds must be positive and finite")
         budget = ScanBudget(
             timeout_seconds=args.timeout,
             max_total_seconds=args.max_total_seconds,
             rate_limit_pps=args.rate_limit,
+            max_probes=max_probes,
         )
         h = hashlib.sha256(f"{args.scope_ref}:{sorted(targets)}:{sorted(ports)}".encode()).hexdigest()[:16]
         session = ActiveScanSession(
@@ -609,13 +678,12 @@ def command_active_discovery(args: argparse.Namespace, root: Path | None = None)
         return 0
 
     if active_cmd == "scan":
+        if args.mode == "live" and output_overwrites_checkpoint(args.output, args.checkpoint):
+            raise ValueError("Live scan output must use a path distinct from its durable checkpoint")
         session_path = Path(args.session)
         session = ActiveScanSession.load_checkpoint(session_path)
 
-        scope_dict = None
-        if args.scope and Path(args.scope).is_file():
-            sc_raw = json.loads(Path(args.scope).read_text(encoding="utf-8"))
-            scope_dict = sc_raw.get("scope", sc_raw)
+        scope_dict = load_scope(args.scope)
 
         if args.mode == "synthetic":
             mock_targets = {}
@@ -625,30 +693,29 @@ def command_active_discovery(args: argparse.Namespace, root: Path | None = None)
         else:
             dispatcher = StandardSocketDispatcher()
 
-        scanner = ActiveScanner(session=session, dispatcher=dispatcher, scope=scope_dict)
+        scanner = ActiveScanner(session=session, dispatcher=dispatcher, scope=scope_dict, checkpoint=args.checkpoint)
         completed_session = scanner.run()
-
-        if args.checkpoint:
-            completed_session.save_checkpoint(args.checkpoint)
 
         out_json = json.dumps(completed_session.to_dict(), indent=2)
         if args.output:
             Path(args.output).write_text(out_json, encoding="utf-8")
             print(
-                f"Active scan complete (status: {completed_session.status}, probes: {completed_session.total_probes_dispatched}) saved to {args.output}"
+                f"Active scan status: {completed_session.status} (probes: {completed_session.total_probes_dispatched}) saved to {args.output}"
             )
         else:
             print(out_json)
-        return 0
+        return 0 if completed_session.status == "completed" else 2
 
     if active_cmd == "resume":
+        if args.mode == "live" and output_overwrites_checkpoint(args.output, args.checkpoint):
+            raise ValueError("Live resume output must use a path distinct from its durable checkpoint")
         checkpoint_path = Path(args.checkpoint)
         session = ActiveScanSession.load_checkpoint(checkpoint_path)
 
-        scope_dict = None
-        if args.scope and Path(args.scope).is_file():
-            sc_raw = json.loads(Path(args.scope).read_text(encoding="utf-8"))
-            scope_dict = sc_raw.get("scope", sc_raw)
+        scope_dict = load_scope(args.scope)
+        save_chk = args.checkpoint_out or args.checkpoint
+        if args.mode == "live" and Path(save_chk).resolve() != checkpoint_path.resolve():
+            raise ValueError("Live resume must update its original checkpoint")
 
         if args.mode == "synthetic":
             mock_targets = {}
@@ -658,19 +725,16 @@ def command_active_discovery(args: argparse.Namespace, root: Path | None = None)
         else:
             dispatcher = StandardSocketDispatcher()
 
-        scanner = ActiveScanner(session=session, dispatcher=dispatcher, scope=scope_dict)
+        scanner = ActiveScanner(session=session, dispatcher=dispatcher, scope=scope_dict, checkpoint=save_chk)
         resumed_session = scanner.run()
-
-        save_chk = args.checkpoint_out or args.checkpoint
-        resumed_session.save_checkpoint(save_chk)
 
         out_json = json.dumps(resumed_session.to_dict(), indent=2)
         if args.output:
             Path(args.output).write_text(out_json, encoding="utf-8")
-            print(f"Resumed active scan complete (status: {resumed_session.status}) saved to {args.output}")
+            print(f"Resumed active scan status: {resumed_session.status} saved to {args.output}")
         else:
             print(out_json)
-        return 0
+        return 0 if resumed_session.status == "completed" else 2
 
     if active_cmd == "diff":
         base_session = ActiveScanSession.load_checkpoint(args.baseline)

@@ -28,11 +28,41 @@ from cops.discovery import (
     import_nmap_xml,
     infer_service_fingerprint,
 )
-from cops.discovery.active_scanner import StandardSocketDispatcher, _create_tls_context
+from cops.discovery.active_scanner import (
+    ActiveScanError,
+    ProbeDispatcher,
+    StandardSocketDispatcher,
+    _create_tls_context,
+    _live_checkpoint_lock,
+)
 from cops.discovery.cli import command_active_discovery
 
 
 class TestActiveDiscoveryModelsAndFingerprinting(unittest.TestCase):
+    def test_checkpoint_round_trips_beyond_default_evidence_limit(self):
+        session = ActiveScanSession(
+            session_id="full-tcp-checkpoint",
+            scope_reference="approved-engagement",
+            approved_targets=["198.51.100.10"],
+            approved_ports=list(range(1, 1201)),
+            budget=ScanBudget(max_probes=1200),
+        )
+        session.assessments = [
+            ActiveServiceAssessment(
+                probe_id=f"probe-{port}", target_host="198.51.100.10",
+                resolved_ip="198.51.100.10", port=port,
+                observed_config=ObservedConfiguration(raw_banner="B" * 1024),
+            )
+            for port in session.approved_ports
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            checkpoint = Path(directory) / "checkpoint.json"
+            session.save_checkpoint(checkpoint)
+            self.assertGreater(checkpoint.stat().st_size, 1024 * 1024)
+            restored = ActiveScanSession.load_checkpoint(checkpoint)
+        self.assertEqual(len(restored.assessments), 1200)
+        self.assertEqual(restored.assessments[-1].port, 1200)
+
     def test_live_tls_probe_requires_tls_12_or_newer(self):
         context = _create_tls_context()
         self.assertEqual(context.minimum_version, ssl.TLSVersion.TLSv1_2)
@@ -131,6 +161,355 @@ class TestStandardSocketDispatcherErrors(unittest.TestCase):
                     assessment = dispatcher.dispatch_probe("127.0.0.1", "127.0.0.1", 12345)
                 self.assertEqual(assessment.port_state, expected_state)
                 self.assertEqual(assessment.reachability, expected_reachability)
+
+
+class RecordingSocketDispatcher(StandardSocketDispatcher):
+    """Exercise live admission and checkpoints without opening network sockets."""
+
+    def __init__(self, resolved_ip="198.51.100.10", fail=False):
+        self.resolved_ip = resolved_ip
+        self.fail = fail
+        self.resolutions = 0
+        self.probes = []
+
+    def resolve_target(self, target_host):
+        self.resolutions += 1
+        return self.resolved_ip
+
+    def dispatch_probe(self, target_host, resolved_ip, port, protocol="tcp", timeout=2.0, vantage="external"):
+        self.probes.append((target_host, resolved_ip, port))
+        if self.fail:
+            raise OSError("uncertain probe outcome")
+        return ActiveServiceAssessment(
+            probe_id=f"recorded-{port}",
+            target_host=target_host,
+            resolved_ip=resolved_ip,
+            port=port,
+            protocol=protocol,
+            vantage=vantage,
+        )
+
+
+class RecordingCustomDispatcher(ProbeDispatcher):
+    """Custom dispatchers must receive the same admission as live sockets."""
+
+    def __init__(self):
+        self.recording = RecordingSocketDispatcher()
+
+    @property
+    def resolutions(self):
+        return self.recording.resolutions
+
+    @property
+    def probes(self):
+        return self.recording.probes
+
+    def resolve_target(self, target_host):
+        return self.recording.resolve_target(target_host)
+
+    def dispatch_probe(self, target_host, resolved_ip, port, protocol="tcp", timeout=2.0, vantage="external"):
+        return self.recording.dispatch_probe(target_host, resolved_ip, port, protocol, timeout, vantage)
+
+
+class TestLiveScanSafety(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp_dir.cleanup)
+        self.checkpoint = Path(self.temp_dir.name) / "checkpoint.json"
+        self.scope = {"domains": ["corp.internal"], "ip_ranges": ["198.51.100.0/24"]}
+
+    def session(self, ports=None, max_probes=3):
+        return ActiveScanSession(
+            session_id="live-regression",
+            scope_reference="approved-engagement",
+            approved_targets=["app.corp.internal"],
+            approved_ports=ports or [80],
+            budget=ScanBudget(rate_limit_pps=10, max_probes=max_probes, max_total_seconds=60),
+        )
+
+    def scanner(self, session, dispatcher=None, scope=None, checkpoint=None):
+        return ActiveScanner(
+            session=session,
+            dispatcher=dispatcher or RecordingSocketDispatcher(),
+            scope=self.scope if scope is None else scope,
+            checkpoint=self.checkpoint if checkpoint is None else checkpoint,
+            sleeper=lambda _: None,
+        )
+
+    def test_live_admission_requires_durable_checkpoint_rate_and_ip_scope(self):
+        cases = (
+            (None, self.scope, 10, "checkpoint"),
+            (self.checkpoint, self.scope, 0, "rate"),
+            (self.checkpoint, {"domains": ["corp.internal"]}, 10, "IP ranges"),
+            (self.checkpoint, {"ip_ranges": ["not-a-cidr"]}, 10, "IP scope"),
+        )
+        for checkpoint, scope, rate, message in cases:
+            with self.subTest(message=message):
+                session = self.session()
+                session.budget.rate_limit_pps = rate
+                dispatcher = RecordingSocketDispatcher()
+                scanner = self.scanner(session, dispatcher, scope, checkpoint)
+                if checkpoint is None:
+                    scanner.checkpoint = None
+                with self.assertRaisesRegex(ActiveScanError, message):
+                    scanner.run()
+                self.assertEqual(dispatcher.probes, [])
+
+        session = self.session()
+        session.budget.max_total_seconds = None
+        dispatcher = RecordingSocketDispatcher()
+        with self.assertRaisesRegex(ActiveScanError, "execution duration"):
+            self.scanner(session, dispatcher).run()
+        self.assertEqual(dispatcher.probes, [])
+
+    def test_custom_dispatcher_cannot_bypass_live_admission(self):
+        dispatcher = RecordingCustomDispatcher()
+        scanner = self.scanner(self.session(), dispatcher)
+        scanner.checkpoint = None
+        with self.assertRaisesRegex(ActiveScanError, "checkpoint"):
+            scanner.run()
+        self.assertEqual(dispatcher.resolutions, 0)
+        self.assertEqual(dispatcher.probes, [])
+
+        scanner = self.scanner(self.session(), dispatcher)
+        result = scanner.run()
+        self.assertEqual(result.status, "completed")
+        self.assertEqual(len(dispatcher.probes), 1)
+        self.assertIsNotNone(result.bound_plan_sha256)
+        self.assertEqual(ActiveScanSession.load_checkpoint(self.checkpoint).to_dict(), result.to_dict())
+
+    def test_resolution_consuming_duration_does_not_dispatch(self):
+        clock = [0.0]
+
+        class SlowResolver(RecordingSocketDispatcher):
+            def resolve_target(self, target_host):
+                clock[0] += 2.0
+                return super().resolve_target(target_host)
+
+        session = self.session()
+        session.budget.max_total_seconds = 1.0
+        dispatcher = SlowResolver()
+        with patch("cops.discovery.active_scanner.time.monotonic", side_effect=lambda: clock[0]):
+            result = self.scanner(session, dispatcher).run()
+        self.assertEqual(result.status, "budget_exhausted")
+        self.assertEqual(dispatcher.probes, [])
+        self.assertEqual(result.total_probes_dispatched, 0)
+
+    def test_literal_ipv4_and_ipv6_obey_cidr_despite_domain_allowlist(self):
+        for address, cidr in (("198.51.101.10", "198.51.100.0/24"), ("2001:db8:2::10", "2001:db8:1::/64")):
+            with self.subTest(address=address):
+                session = self.session()
+                session.approved_targets = [address]
+                dispatcher = RecordingSocketDispatcher(resolved_ip=address)
+                checkpoint = Path(self.temp_dir.name) / f"{address.replace(':', '_')}.json"
+                result = self.scanner(
+                    session, dispatcher, {"domains": ["corp.internal"], "ip_ranges": [cidr]}, checkpoint
+                ).run()
+                self.assertEqual(result.status, "partial")
+                self.assertEqual(result.quarantined_targets[0].reason, "outside_scope")
+                self.assertEqual(dispatcher.resolutions, 0)
+                self.assertEqual(dispatcher.probes, [])
+
+    def test_live_checkpoint_binds_plan_and_scope_before_resuming(self):
+        first = self.scanner(self.session()).run()
+        self.assertEqual(first.status, "completed")
+        for changed_scope, changed_ports in (
+            ({"domains": ["corp.internal"], "ip_ranges": ["198.51.100.0/25"]}, [80]),
+            (self.scope, [80, 443]),
+        ):
+            with self.subTest(changed_scope=changed_scope, changed_ports=changed_ports):
+                resumed = ActiveScanSession.load_checkpoint(self.checkpoint)
+                resumed.approved_ports = changed_ports
+                dispatcher = RecordingSocketDispatcher()
+                with self.assertRaisesRegex(ActiveScanError, "plan or scope changed"):
+                    self.scanner(resumed, dispatcher, changed_scope).run()
+                self.assertEqual(dispatcher.resolutions, 0)
+                self.assertEqual(dispatcher.probes, [])
+
+    def test_uncertain_probe_is_reserved_and_not_retried_on_resume(self):
+        dispatcher = RecordingSocketDispatcher(fail=True)
+        first = self.scanner(self.session(), dispatcher).run()
+        self.assertEqual(first.status, "requires_reconciliation")
+        self.assertEqual(first.total_probes_dispatched, 1)
+        self.assertEqual(len(first.pending_probe_keys), 1)
+        self.assertEqual(len(dispatcher.probes), 1)
+
+        resumed = ActiveScanSession.load_checkpoint(self.checkpoint)
+        next_dispatcher = RecordingSocketDispatcher()
+        second = self.scanner(resumed, next_dispatcher).run()
+        self.assertEqual(second.status, "requires_reconciliation")
+        self.assertEqual(next_dispatcher.resolutions, 0)
+        self.assertEqual(next_dispatcher.probes, [])
+
+    def test_pending_checkpoint_status_is_reconciled_durably(self):
+        self.scanner(self.session(), RecordingSocketDispatcher(fail=True)).run()
+        data = json.loads(self.checkpoint.read_text(encoding="utf-8"))
+        data["status"] = "in_progress"  # Crash before status update reached disk.
+        self.checkpoint.write_text(json.dumps(data), encoding="utf-8")
+
+        dispatcher = RecordingSocketDispatcher()
+        result = self.scanner(ActiveScanSession.load_checkpoint(self.checkpoint), dispatcher).run()
+        self.assertEqual(result.status, "requires_reconciliation")
+        self.assertEqual(ActiveScanSession.load_checkpoint(self.checkpoint).status, "requires_reconciliation")
+        self.assertEqual(dispatcher.resolutions, 0)
+        self.assertEqual(dispatcher.probes, [])
+
+    def test_probe_cap_persists_across_restart(self):
+        first = self.scanner(self.session(ports=[80, 443], max_probes=1)).run()
+        self.assertEqual(first.status, "budget_exhausted")
+        self.assertEqual(first.total_probes_dispatched, 1)
+
+        dispatcher = RecordingSocketDispatcher()
+        second = self.scanner(ActiveScanSession.load_checkpoint(self.checkpoint), dispatcher).run()
+        self.assertEqual(second.status, "budget_exhausted")
+        self.assertEqual(second.total_probes_dispatched, 1)
+        self.assertEqual(dispatcher.probes, [])
+
+    def test_completed_resume_does_not_resolve_or_probe(self):
+        self.scanner(self.session()).run()
+        dispatcher = RecordingSocketDispatcher()
+        resumed = self.scanner(ActiveScanSession.load_checkpoint(self.checkpoint), dispatcher).run()
+        self.assertEqual(resumed.status, "completed")
+        self.assertEqual(dispatcher.resolutions, 0)
+        self.assertEqual(dispatcher.probes, [])
+
+    def test_inconsistent_live_checkpoint_fails_before_network_activity(self):
+        self.scanner(self.session()).run()
+        for corruption in ("missing_assessment", "duplicate_assessment", "wrong_ip", "wrong_count", "unknown_probe"):
+            with self.subTest(corruption=corruption):
+                session = ActiveScanSession.load_checkpoint(self.checkpoint)
+                if corruption == "missing_assessment":
+                    session.assessments.clear()
+                elif corruption == "duplicate_assessment":
+                    session.assessments.append(session.assessments[0])
+                elif corruption == "wrong_ip":
+                    session.assessments[0].resolved_ip = "203.0.113.1"
+                elif corruption == "wrong_count":
+                    session.total_probes_dispatched += 1
+                else:
+                    session.pending_probe_keys.add("external:tcp:other.corp.internal:80")
+                dispatcher = RecordingSocketDispatcher()
+                with self.assertRaisesRegex(ActiveScanError, "Live checkpoint"):
+                    self.scanner(session, dispatcher).run()
+                self.assertEqual(dispatcher.resolutions, 0)
+                self.assertEqual(dispatcher.probes, [])
+
+    def test_stale_bound_session_cannot_replace_newer_checkpoint(self):
+        completed = self.scanner(self.session()).run()
+        saved = self.checkpoint.read_bytes()
+        stale = self.session()
+        stale.started_at = completed.started_at
+        stale.bound_plan_sha256 = completed.bound_plan_sha256
+        dispatcher = RecordingSocketDispatcher()
+        with self.assertRaisesRegex(ActiveScanError, "Live checkpoint differs"):
+            self.scanner(stale, dispatcher).run()
+        self.assertEqual(self.checkpoint.read_bytes(), saved)
+        self.assertEqual(dispatcher.resolutions, 0)
+        self.assertEqual(dispatcher.probes, [])
+
+    def test_concurrent_live_controller_cannot_dispatch(self):
+        dispatcher = RecordingSocketDispatcher()
+        with _live_checkpoint_lock(self.checkpoint):
+            with self.assertRaisesRegex(ActiveScanError, "another active controller"):
+                self.scanner(self.session(), dispatcher).run()
+        self.assertEqual(dispatcher.resolutions, 0)
+        self.assertEqual(dispatcher.probes, [])
+
+    def test_checkpoint_alias_uses_same_controller_lock(self):
+        alias = self.checkpoint.with_name("checkpoint-alias.json")
+        alias.symlink_to(self.checkpoint)
+        dispatcher = RecordingSocketDispatcher()
+        scanner = self.scanner(self.session(), dispatcher, checkpoint=alias)
+        self.assertEqual(scanner.checkpoint, self.checkpoint.resolve())
+        with _live_checkpoint_lock(self.checkpoint):
+            with self.assertRaisesRegex(ActiveScanError, "another active controller"):
+                scanner.run()
+        self.assertEqual(dispatcher.probes, [])
+
+    def test_fractional_checkpoint_accounting_fails_closed(self):
+        self.scanner(self.session()).run()
+        for field, value in (("total_probes_dispatched", 1.9), ("elapsed_seconds", "0.1")):
+            with self.subTest(field=field):
+                data = json.loads(self.checkpoint.read_text(encoding="utf-8"))
+                data[field] = value
+                self.checkpoint.write_text(json.dumps(data), encoding="utf-8")
+                dispatcher = RecordingSocketDispatcher()
+                with self.assertRaisesRegex(ActiveScanError, "Live checkpoint probe accounting"):
+                    self.scanner(ActiveScanSession.load_checkpoint(self.checkpoint), dispatcher).run()
+                self.assertEqual(dispatcher.resolutions, 0)
+                self.assertEqual(dispatcher.probes, [])
+                data[field] = 1 if field == "total_probes_dispatched" else 0.0
+                self.checkpoint.write_text(json.dumps(data), encoding="utf-8")
+
+        data = json.loads(self.checkpoint.read_text(encoding="utf-8"))
+        data["budget"]["max_probes"] = 1.9
+        self.checkpoint.write_text(json.dumps(data), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "max_probes must be an integer"):
+            ActiveScanSession.load_checkpoint(self.checkpoint)
+
+    def test_untrusted_probe_result_identity_requires_reconciliation(self):
+        class WrongIdentity(RecordingSocketDispatcher):
+            def dispatch_probe(self, *args, **kwargs):
+                result = super().dispatch_probe(*args, **kwargs)
+                result.port = 443
+                return result
+
+        result = self.scanner(self.session(), WrongIdentity()).run()
+        self.assertEqual(result.status, "requires_reconciliation")
+        self.assertEqual(len(result.pending_probe_keys), 1)
+        self.assertEqual(result.assessments, [])
+
+    def test_new_live_run_cannot_overwrite_existing_checkpoint(self):
+        self.checkpoint.write_text("prior checkpoint", encoding="utf-8")
+        dispatcher = RecordingSocketDispatcher()
+        with self.assertRaisesRegex(ActiveScanError, "already exists"):
+            self.scanner(self.session(), dispatcher).run()
+        self.assertEqual(self.checkpoint.read_text(encoding="utf-8"), "prior checkpoint")
+        self.assertEqual(dispatcher.probes, [])
+
+    def test_duplicate_targets_and_ports_cannot_repeat_network_effects(self):
+        for targets, ports in ((["app.corp.internal", "APP.CORP.INTERNAL"], [80]),
+                               (["app.corp.internal"], [80, 80])):
+            with self.subTest(targets=targets, ports=ports):
+                session = self.session(ports=ports)
+                session.approved_targets = targets
+                dispatcher = RecordingSocketDispatcher()
+                with self.assertRaisesRegex(ActiveScanError, "Duplicate"):
+                    self.scanner(session, dispatcher).run()
+                self.assertEqual(dispatcher.probes, [])
+
+    def test_bound_session_requires_its_durable_checkpoint(self):
+        self.scanner(self.session()).run()
+        resumed = ActiveScanSession.load_checkpoint(self.checkpoint)
+        self.checkpoint.unlink()
+        dispatcher = RecordingSocketDispatcher()
+        with self.assertRaisesRegex(ActiveScanError, "no checkpoint"):
+            self.scanner(resumed, dispatcher).run()
+        self.assertEqual(dispatcher.probes, [])
+
+    def test_resume_waits_full_rate_interval_before_next_probe(self):
+        first = self.scanner(self.session(ports=[80, 443])).run()
+        self.assertEqual(first.status, "completed")
+        # Simulate a completed first probe and interruption before a second
+        # dispatch; the saved bound plan and counters remain unchanged.
+        resumed = ActiveScanSession.load_checkpoint(self.checkpoint)
+        resumed.completed_probe_keys.remove(
+            ActiveScanSession.make_probe_key(resumed.vantage, "tcp", "app.corp.internal", 443)
+        )
+        resumed.assessments = [assessment for assessment in resumed.assessments if assessment.port == 80]
+        resumed.total_probes_dispatched = 1
+        resumed.total_side_effects = 1
+        resumed.save_checkpoint(self.checkpoint)
+        sleeps = []
+        dispatcher = RecordingSocketDispatcher()
+        scanner = ActiveScanner(
+            resumed, dispatcher, scope=self.scope, checkpoint=self.checkpoint,
+            sleeper=sleeps.append,
+        )
+        result = scanner.run()
+        self.assertEqual(result.status, "completed")
+        self.assertEqual(sleeps, [0.1])
+        self.assertEqual([probe[2] for probe in dispatcher.probes], [443])
 
 
 class TestActiveScannerExecutionAndBudgets(unittest.TestCase):
@@ -382,7 +761,7 @@ class TestActiveScannerExecutionAndBudgets(unittest.TestCase):
         scanner = ActiveScanner(session=session, dispatcher=dispatcher, scope=self.scope, sleeper=mock_sleep)
 
         scanner.run()
-        self.assertEqual(len(sleep_calls), 2)
+        self.assertEqual(len(sleep_calls), 1)
         self.assertAlmostEqual(sleep_calls[0], 0.2, places=2)
 
 
@@ -549,6 +928,16 @@ class TestActiveDiscoveryCLI(unittest.TestCase):
         self.addCleanup(self.temp_dir.cleanup)
         self.root = Path(self.temp_dir.name)
 
+    def test_cli_plan_allows_unthrottled_synthetic_scan(self):
+        plan_out = self.root / "plan-zero-rate.json"
+        args = argparse.Namespace(
+            active_command="plan", targets="198.51.100.10", ports="80",
+            vantage="external", rate_limit=0.0, timeout=2.0,
+            max_total_seconds=None, scope_ref="ENG-01", output=str(plan_out),
+        )
+        self.assertEqual(command_active_discovery(args), 0)
+        self.assertEqual(ActiveScanSession.load_checkpoint(plan_out).budget.rate_limit_pps, 0.0)
+
     def test_cli_plan_scan_resume_diff_pipeline(self):
         plan_out = str(self.root / "plan.json")
         scan_out = str(self.root / "scan.json")
@@ -609,6 +998,81 @@ class TestActiveDiscoveryCLI(unittest.TestCase):
         self.assertTrue(Path(delta_out).is_file())
         delta = json.loads(Path(delta_out).read_text(encoding="utf-8"))
         self.assertIn("remediation_rate", delta)
+
+    def test_cli_does_not_write_checkpoint_after_scanner_returns(self):
+        plan_path = self.root / "plan.json"
+        checkpoint_path = self.root / "checkpoint.json"
+        planned = ActiveScanSession(
+            session_id="cli-checkpoint-ownership",
+            scope_reference="approved-engagement",
+            approved_targets=["198.51.100.10"],
+            approved_ports=[80],
+        )
+        planned.save_checkpoint(plan_path)
+
+        def complete_scan(scanner):
+            newer = ActiveScanSession.from_dict(scanner.session.to_dict())
+            newer.status = "completed"
+            newer.save_checkpoint(scanner.checkpoint)
+            return scanner.session
+
+        scan_args = argparse.Namespace(
+            active_command="scan", session=str(plan_path), scope=None,
+            mode="synthetic", offline_targets=None,
+            checkpoint=str(checkpoint_path), output=None,
+        )
+        with patch("cops.discovery.cli.ActiveScanner.run", complete_scan):
+            self.assertEqual(command_active_discovery(scan_args), 2)
+        self.assertEqual(ActiveScanSession.load_checkpoint(checkpoint_path).status, "completed")
+
+        resume_args = argparse.Namespace(
+            active_command="resume", checkpoint=str(checkpoint_path), scope=None,
+            mode="synthetic", offline_targets=None, checkpoint_out=None, output=None,
+        )
+
+        def resume_with_newer_checkpoint(scanner):
+            newer = ActiveScanSession.from_dict(scanner.session.to_dict())
+            newer.status = "requires_reconciliation"
+            newer.save_checkpoint(scanner.checkpoint)
+            return scanner.session
+
+        with patch("cops.discovery.cli.ActiveScanner.run", resume_with_newer_checkpoint):
+            self.assertEqual(command_active_discovery(resume_args), 0)
+        self.assertEqual(
+            ActiveScanSession.load_checkpoint(checkpoint_path).status, "requires_reconciliation"
+        )
+
+    def test_live_output_cannot_overwrite_checkpoint_or_alias(self):
+        plan_path = self.root / "plan.json"
+        checkpoint_path = self.root / "checkpoint.json"
+        ActiveScanSession(
+            session_id="cli-output-separation",
+            scope_reference="approved-engagement",
+            approved_targets=["198.51.100.10"],
+            approved_ports=[80],
+        ).save_checkpoint(plan_path)
+        scan_args = argparse.Namespace(
+            active_command="scan", session=str(plan_path), scope=None,
+            mode="live", offline_targets=None,
+            checkpoint=str(checkpoint_path), output=str(checkpoint_path),
+        )
+        with self.assertRaisesRegex(ValueError, "distinct"):
+            command_active_discovery(scan_args)
+        self.assertFalse(checkpoint_path.exists())
+
+        ActiveScanSession.load_checkpoint(plan_path).save_checkpoint(checkpoint_path)
+        alias = self.root / "checkpoint-alias.json"
+        alias.symlink_to(checkpoint_path)
+        resume_args = argparse.Namespace(
+            active_command="resume", checkpoint=str(checkpoint_path), scope=None,
+            mode="live", offline_targets=None, checkpoint_out=None, output=str(alias),
+        )
+        with self.assertRaisesRegex(ValueError, "distinct"):
+            command_active_discovery(resume_args)
+        self.assertEqual(
+            ActiveScanSession.load_checkpoint(checkpoint_path).session_id,
+            "cli-output-separation",
+        )
 
 
 if __name__ == "__main__":

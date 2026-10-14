@@ -12,20 +12,20 @@ Execute authorized, bounded active network assessment across approved hosts, por
 1. **Approved Assessment Configuration**:
    - Explicit scan vantages: `external` (perimeter), `internal` (VPC/LAN), `egress_point`, `cloud_tenant`.
    - Explicit rate limits: `rate_limit_pps` with automated probe spacing to prevent denial of service or perimeter disruption.
-   - Resource and execution budgets: per-probe timeouts (`timeout_seconds`), overall execution budget (`max_total_seconds`), and target caps (`max_targets`).
+   - Resource and execution budgets: per-probe timeouts (`timeout_seconds`), mandatory live execution duration (`max_total_seconds`), cumulative probe cap (`max_probes`), and target caps (`max_targets`).
 
 2. **Resumable Execution & Side-Effect Checkpoints**:
-   - Checkpoints probe execution state after every probe or upon budget exhaustion.
-   - Resumption verifies that the approved target set has not been altered or expanded.
-   - Skips previously completed probes (`completed_probe_keys`) without repeating network side effects.
+   - A live checkpoint binds the plan, scope, cumulative time, completed probes, and uncertain pending probes. Keep its path durable and protected from unrelated local writers.
+   - Resumption rejects a changed plan or scope and skips completed probes (`completed_probe_keys`) without repeating network side effects.
+   - A probe reserved before dispatch but lacking a result requires reconciliation; it is never retried automatically.
 
 3. **Grounded Service Identification with Visible Uncertainty**:
-   - Clearly separates **Observed Configuration** (verbatim banners, HTTP status, raw response headers, TLS cipher suites, X.509 certificates) from **Inferred Fingerprints** (deduced product names, versions, operating systems).
+   - Clearly separates **Observed Configuration** from **Inferred Fingerprints**. The built-in live dispatcher currently checks TCP reachability and, on ports 443/8443, TLS version and cipher. Imports and synthetic results may contain other fields; the live dispatcher does not collect banners, HTTP headers, certificates, or UDP responses.
    - Calibrates confidence (`high`, `medium`, `low`, `uncertain`, `provisional`).
    - Explicitly records `uncertainty_reasons` (e.g. reverse proxy fronting, CDN masking, certificate hostname mismatch, or empty banner responses).
 
 4. **Scope Quarantine & DNS Rebind Defense**:
-   - Enforces scope boundary checks prior to each probe.
+   - Requires explicit approved IP ranges for live scans and checks target addresses against them before dispatch.
    - Resolves target hostnames and validates that the resolved IP address remains within authorized CIDR boundaries.
    - Detects dynamic DNS shifts or DNS rebind conditions, immediately quarantining the target and halting outbound probes.
 
@@ -43,13 +43,21 @@ python3 -m cops discovery active plan \
   --vantage external \
   --rate-limit 10.0 \
   --timeout 2.0 \
+  --max-total-seconds 120 \
+  --max-probes 6 \
   --scope-ref "ROE-2026-001" \
   --output session_plan.json
 ```
 
+For all TCP ports, use `--ports all --allow-full-tcp` and set `--max-probes`
+to at least the selected target count times 65,535. UDP is a separate scope;
+this command does not scan it. `--scope-ref` is a reference, not proof of
+authorization; verify the engagement scope before live execution.
+
 ### 2. Execute Bounded Scan with Scope Enforcement
 ```bash
 python3 -m cops discovery active scan session_plan.json \
+  --mode live \
   --scope engagement_scope.json \
   --checkpoint session_checkpoint.json \
   --output scan_results.json
@@ -58,9 +66,14 @@ python3 -m cops discovery active scan session_plan.json \
 ### 3. Resume Interrupted or Partial Session
 ```bash
 python3 -m cops discovery active resume session_checkpoint.json \
+  --mode live \
   --scope engagement_scope.json \
   --output scan_completed.json
 ```
+
+An incomplete result returns exit status 2. Inspect its status and checkpoint:
+an uncertain pending probe requires an operator to reconcile the external effect
+before any new plan. The default mode is synthetic and performs no network scan.
 
 ### 4. Compare Baseline and Re-test for Exposure Remediation
 ```bash
