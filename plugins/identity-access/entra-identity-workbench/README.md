@@ -28,7 +28,7 @@ For a separate export, create a manifest conforming to `schemas/manifest.schema.
 1. **Intake:** `ingest_tenant_export` validates the manifest, confines source paths to the manifest directory, verifies hashes, and parses the declared sources.
 2. **Graph construction:** `build_identity_graph` normalizes identities and relationships and records source coverage and freshness.
 3. **Assessment:** `analyze_identity_graph` derives bounded exposure hypotheses from observed graph structure.
-4. **Reporting:** JSON and Markdown renderers produce a machine-readable report and a review copy. JSON Schema validation is applied before the playback succeeds.
+4. **Reporting:** JSON and Markdown renderers produce a machine-readable report and a review copy. Freshness and provenance cross-field checks run before playback succeeds.
 
 No stage enriches missing evidence with a live lookup. Missing, stale, or incomplete sources remain coverage limits in the output.
 
@@ -37,10 +37,12 @@ No stage enriches missing evidence with a live lookup. Missing, stale, or incomp
 | Contract or artifact | Purpose | Key fields | Producer and consumer | Definition and validation |
 | --- | --- | --- | --- | --- |
 | Export manifest | Binds one tenant export to named, hashed source files | `schema_version`, `tenant_id`, `exported_at`, `sources` | Export preparer → ingestion | `schemas/manifest.schema.json`; structural checks plus file SHA-256 verification |
-| Identity graph | Normalized evidence for structural traversal | `tenant_id`, `assessed_at`, `source_coverage`, `nodes`, `edges` | Graph builder → analyzer and reviewer | `schemas/graph.schema.json`; `validate_graph_artifact` |
-| Exposure report | Prioritized review hypotheses with evidence and caveats | `summary`, `source_coverage`, `hypotheses` | Analyzer → JSON/Markdown renderer and analyst | `schemas/report.schema.json`; `validate_report_artifact` |
+| Identity graph | Normalized evidence for structural traversal | `tenant_id`, `assessed_at`, `source_coverage`, `nodes`, `edges` | Graph builder → analyzer and reviewer | `schemas/graph.v2.schema.json`; `validate_graph_artifact` |
+| Exposure report | Prioritized review hypotheses with evidence and caveats | `summary`, `source_coverage`, `hypotheses` | Analyzer → JSON/Markdown renderer and analyst | `schemas/report.v2.schema.json`; `validate_report_artifact` |
 | `report.md` | Human review view of the JSON report | Summary, coverage, hypotheses | Renderer → analyst | Derived from the validated in-memory graph and hypotheses |
 | `playback-summary.json` | Retained playback acceptance result | counts, rerun result, expected-failure result | Demo → package validator or reviewer | Written only after semantic assertions pass |
+
+The original `graph.schema.json` and `report.schema.json` retain the v1 contract for historical artifacts. Current exports use v2 and require assessment time and complete source coverage; consumers should select the schema from `schema_version`.
 
 ## Reading the output
 
