@@ -6,6 +6,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
+import shutil
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -46,6 +49,57 @@ def run(out):
     return r
 
 
+def make_junction(link: Path, target: Path) -> None:
+    result = subprocess.run(
+        ["cmd", "/d", "/c", "mklink", "/J", str(link), str(target)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    require(result.returncode == 0, f"could not create Windows junction: {result.stderr.strip()}")
+
+
+def verify_windows_reparse_rejection(workspace: Path) -> None:
+    if os.name != "nt":
+        return
+
+    input_target = workspace / "input-target"
+    shutil.copytree(ROOT / "fixtures/illustrative", input_target)
+    input_junction = workspace / "input-junction"
+    make_junction(input_junction, input_target)
+    try:
+        output = workspace / "reparse-input-output"
+        require(
+            cli(["analyze", str(input_junction / "input.json"), "--output-dir", str(output)]) == 2,
+            "junction-backed input was accepted",
+        )
+        require(not (output / "completion.json").exists(), "junction-backed input emitted a completion marker")
+    finally:
+        os.rmdir(input_junction)
+
+    output_target = workspace / "output-target"
+    output_target.mkdir()
+    output_junction = workspace / "output-junction"
+    make_junction(output_junction, output_target)
+    try:
+        redirected = output_junction / "reports"
+        require(
+            cli(
+                [
+                    "analyze",
+                    str(ROOT / "fixtures/illustrative/input.json"),
+                    "--output-dir",
+                    str(redirected),
+                ]
+            )
+            == 2,
+            "junction-backed output parent was accepted",
+        )
+        require(not (output_target / "reports").exists(), "junction-backed output received report artifacts")
+    finally:
+        os.rmdir(output_junction)
+
+
 def playback(w):
     a = run(w / "run-1")
     b = run(w / "run-2")
@@ -57,6 +111,7 @@ def playback(w):
     bad.write_text("{}\n")
     require(cli(["analyze", str(bad), "--output-dir", str(w / "invalid-output")]) == 2, "invalid input was accepted")
     require(not (w / "invalid-output/completion.json").exists(), "failed analysis emitted a completion marker")
+    verify_windows_reparse_rejection(w)
     return {
         "supported_paths": 1,
         "candidate_paths": 1,

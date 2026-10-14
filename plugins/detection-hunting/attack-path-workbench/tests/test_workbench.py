@@ -16,11 +16,14 @@ import tempfile
 import threading
 import time
 import tracemalloc
+import types
 import unittest
 from pathlib import Path
 from unittest import mock
 
 from attackpath import cli as cli_module
+from attackpath import ingestion as ingestion_module
+from attackpath import windows_io
 from attackpath.azure import report as azure_report
 from attackpath.core import (
     GateError,
@@ -89,6 +92,78 @@ class WorkbenchTests(unittest.TestCase):
         self.assertIsNone(report["actions"][0]["owner"])
         self.assertEqual("transition", report["actions"][0]["target_type"])
         self.assertEqual(report["actions"][0]["target_id"], supported["steps"][0]["edge_id"])
+
+    def test_windows_reader_dispatches_before_posix_capability_check(self) -> None:
+        windows_io = types.ModuleType("attackpath.windows_io")
+
+        class FakeWindowsIOError(OSError):
+            pass
+
+        calls = []
+
+        def fake_read(root, relative_parts, limit, remaining):
+            calls.append((root, relative_parts, limit, remaining))
+            return b"evidence", (1, 2, 3)
+
+        windows_io.WindowsIOError = FakeWindowsIOError
+        windows_io.read_regular = fake_read
+        with (
+            mock.patch.object(ingestion_module.os, "name", "nt"),
+            mock.patch.dict(sys.modules, {"attackpath.windows_io": windows_io}),
+        ):
+            result = ingestion_module.read_regular(Path("evidence-root"), "input.json", 64)
+
+        self.assertEqual(b"evidence", result.data)
+        self.assertEqual((1, 2, 3), result.identity)
+        self.assertEqual([("evidence-root", ["input.json"], 64, 64)], [(str(root), *rest) for root, *rest in calls])
+
+    def test_windows_components_reject_streams_separators_and_controls(self) -> None:
+        windows_io._validate_component("report.json")
+        for component in ("", ".", "..", "report:stream", "a/b", "a\\b", "bad\x00name", "bad\tname"):
+            with self.subTest(component=component):
+                with self.assertRaisesRegex(windows_io.WindowsIOError, "invalid Windows path component"):
+                    windows_io._validate_component(component)
+
+    def test_windows_writer_rejects_root_output_before_opening(self) -> None:
+        with (
+            mock.patch.object(windows_io, "_root_and_parts", return_value=("C:\\", ())),
+            mock.patch.object(windows_io, "_open_root") as open_root,
+        ):
+            with self.assertRaisesRegex(windows_io.WindowsIOError, "output path must name a new directory"):
+                windows_io._walk(Path("root"), create_final_directory=True)
+        open_root.assert_not_called()
+
+    def test_windows_completion_checks_output_identity_before_rename(self) -> None:
+        calls = mock.Mock()
+        with (
+            mock.patch.object(
+                windows_io,
+                "_verify_output_identity",
+                side_effect=lambda *_args: calls.verify(),
+            ),
+            mock.patch.object(
+                windows_io,
+                "_rename_into_directory",
+                side_effect=lambda *_args: calls.rename(),
+            ),
+        ):
+            windows_io._publish_completion(Path("report"), 10, (1, 2, 3), 11)
+
+        self.assertEqual([mock.call.verify(), mock.call.rename()], calls.mock_calls)
+
+    def test_windows_completion_does_not_rename_after_identity_failure(self) -> None:
+        with (
+            mock.patch.object(
+                windows_io,
+                "_verify_output_identity",
+                side_effect=windows_io.WindowsIOError("changed"),
+            ),
+            mock.patch.object(windows_io, "_rename_into_directory") as rename,
+        ):
+            with self.assertRaisesRegex(windows_io.WindowsIOError, "changed"):
+                windows_io._publish_completion(Path("report"), 10, (1, 2, 3), 11)
+
+        rename.assert_not_called()
 
     def test_finding_on_crown_jewel_is_direct_structural_path(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -572,11 +647,13 @@ class WorkbenchTests(unittest.TestCase):
                 env=env,
             )
             self.assertEqual(res.returncode, 0, f"CLI failed: {res.stderr}")
-            self.assertEqual(stat.S_IMODE(out_dir.stat().st_mode), 0o700)
+            if os.name == "posix":
+                self.assertEqual(stat.S_IMODE(out_dir.stat().st_mode), 0o700)
             for name in (*cli_module.LEGACY_REPORT_FILES, "completion.json"):
                 f = out_dir / name
                 self.assertTrue(f.exists(), f"missing report file: {name}")
-                self.assertEqual(stat.S_IMODE(f.stat().st_mode), 0o600)
+                if os.name == "posix":
+                    self.assertEqual(stat.S_IMODE(f.stat().st_mode), 0o600)
             self.assert_complete_legacy_report_set(out_dir)
 
             # Pre-existing directory is rejected safely

@@ -307,7 +307,17 @@ def write_files(output, contents, limit):
     total = sum(len(v) for v in encoded.values())
     if total > limit:
         raise AzureError("output_byte_limit")
-    completion = encoded.pop("completion.json", None)
+    completion = encoded.get("completion.json")
+    if os.name == "nt":
+        from ..windows_io import WindowsIOError
+        from ..windows_io import write_files as windows_write_files
+
+        try:
+            windows_write_files(output, encoded, f".completion-{secrets.token_hex(16)}.tmp")
+        except WindowsIOError:
+            raise AzureError("unsafe_or_existing_output") from None
+        return
+    encoded.pop("completion.json", None)
     parts = absolute_parts(output)
     if (
         not parts
