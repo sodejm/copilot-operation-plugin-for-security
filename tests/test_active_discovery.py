@@ -79,6 +79,27 @@ class TestActiveDiscoveryModelsAndFingerprinting(unittest.TestCase):
         self.assertEqual(fp.confidence, ConfidenceLevel.HIGH.value)
         self.assertIn("ssh_protocol_banner", fp.evidence_sources)
 
+    def test_generic_220_banner_does_not_identify_smtp_or_ftp_by_port(self):
+        for port in (21, 25, 465, 587):
+            with self.subTest(port=port):
+                fp = infer_service_fingerprint(
+                    "198.51.100.10", port, "tcp", ObservedConfiguration(raw_banner="220 Welcome\r\n")
+                )
+                self.assertEqual(fp.service_name, f"unknown-{port}")
+                self.assertEqual(fp.confidence, ConfidenceLevel.UNCERTAIN.value)
+
+    def test_protocol_specific_220_banner_identifies_service_on_nonstandard_port(self):
+        for port, banner, service in (
+            (2525, "220 mail.example.com ESMTP Postfix\r\n", "smtp"),
+            (2121, "220 FTP service ready\r\n", "ftp"),
+        ):
+            with self.subTest(port=port):
+                fp = infer_service_fingerprint(
+                    "198.51.100.10", port, "tcp", ObservedConfiguration(raw_banner=banner)
+                )
+                self.assertEqual(fp.service_name, service)
+                self.assertEqual(fp.confidence, ConfidenceLevel.HIGH.value)
+
     def test_http_nginx_fingerprint_with_proxy_uncertainty(self):
         obs = ObservedConfiguration(
             http_status=200,

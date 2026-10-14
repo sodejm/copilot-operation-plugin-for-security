@@ -74,5 +74,10 @@ the port number. This verifies basic bounded UDP behavior in the isolated Linux
 environment. Protocol-specific UDP identification, external networks, native
 Windows and macOS operation, and full-range scan performance remain unverified.
 
+TCP fingerprint tests also reject a generic `220` greeting on conventional SMTP
+and FTP ports as insufficient to identify the service. A protocol-specific banner
+can identify SMTP or FTP on a nonstandard port. These are simulated fingerprint
+tests, not proof of live service validation or banner authenticity.
+
 Run `python3 -m pytest tests/test_active_discovery.py -q` for the simulated
 edge cases and `make check` for the repository baseline.
