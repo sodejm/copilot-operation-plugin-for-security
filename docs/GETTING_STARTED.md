@@ -2,13 +2,13 @@
 
 Welcome! This guide is designed to take you from a fresh repository clone to running real, verified cybersecurity tools in under five minutes.
 
-Everything in this guide runs **100% offline** on your local machine using standard Python. You do not need an active cloud subscription, API tokens, or an AI assistant installed to explore and test these tools.
+After setup, the core commands and plugin checks in this guide run offline on your local machine. Cloning the repository and downloading contributor dependencies require network access unless you have local copies. You do not need a cloud subscription, API tokens, or an AI assistant to run the offline examples.
 
 ---
 
 ## 1. Check Your Local Setup
 
-Before diving in, make sure you have **Python 3.11 or newer** installed. Run the built-in diagnostic tool from the repository root:
+Install **Python 3.11 or newer** and obtain a repository copy using the [quickstart](../README.md#five-minute-quickstart). Run the diagnostic tool from the repository root:
 
 ```bash
 python3 -m cops doctor
@@ -16,8 +16,9 @@ python3 -m cops doctor
 
 ### What to look for
 - **Python version**: You should see your Python interpreter confirmed as 3.11 or newer.
-- **Catalog health**: Confirms that all seventeen security plugins and host marketplaces are synchronized.
-- **Offline status**: Confirms that local tools run without external network dependencies.
+- **Catalog health**: Checks the catalog, package manifests, and generated marketplace indexes for consistency.
+
+The default check does not run plugins or audit network behavior. Add `--contributor` to check for selected test modules and tool paths; see the [diagnostic limits](troubleshooting.md).
 
 If any check reports an issue, the output will give you clear, actionable instructions on how to resolve it.
 
@@ -67,7 +68,7 @@ python3 -m cops info host-assessment-workbench
 | **Validate detection query syntax and catch regressions** | `detection-quality-workbench` | Offline parser, syntax checker, and regression runner for Sentinel and Splunk. |
 | **Review code diffs and pull requests for security weaknesses** | `patch-security-review` | Static diff inspection for authorization flaws, injection, and security defects. |
 | **Enrich observable indicators with threat intelligence** | `threat-intelligence-enrichment` | Provenance-tracked indicator correlation against MISP/TAXII offline feeds. |
-| **Verify telemetry pipelines and avoid SIEM blind spots** | `telemetry-proof-pack` | End-to-end health verification for Cribl Stream, Splunk, and Sentinel routes. |
+| **Review supplied telemetry records for missing evidence** | `telemetry-proof-pack` | Uses a run manifest and JSON exports to correlate synthetic marker records across five stages; does not inspect live pipelines. |
 | **Rehearse incident containment with cryptographic execution receipts** | `incident-response-sandbox` | Approval-gated containment planning, blast-radius calculation, and receipts. |
 | **Plan and validate an authorized offensive engagement** | `offensive-engagement-workbench` | Offline engagement scope, scenario, and execution-authorization contracts. |
 | **Classify a local Linux host assessment export** | `host-assessment-workbench` | Eight-surface coverage and source-reported canary results from a versioned local export. |
@@ -104,7 +105,7 @@ python3 -m cops demo attack-surface-planner
 
 ## 4. Validate Package Integrity
 
-You can run the exact same verification checks that power our automated CI pipelines on your own machine.
+Run each plugin's defined checks locally. The full repository suite also requires the contributor setup below.
 
 To run checks for a single plugin:
 
@@ -123,9 +124,11 @@ python3 -m cops check
 ```
 
 ### What these checks test
-- **Syntax and Logic**: Validates query structures, parameter definitions, and scripts.
-- **Adversarial Perturbations**: In `sentinel-hunt-workbench`, the test suite runs 144 semantic mutations to ensure hunts catch real attacks and resist noise.
-- **Schema Contracts**: Ensures all JSON outputs and receipts conform strictly to published schemas.
+- **Package Checks**: Each plugin defines checks for its artifacts, contracts, and test cases. Coverage differs by package.
+- **Sentinel Fixtures and Mutations**: `sentinel-hunt-workbench` checks reference invariants against 576 curated and 3,000 generated perturbation cases, plus 144 query marker mutations. It does not parse or execute KQL or establish real attack coverage.
+- **Schema Contracts**: Where a package defines schema checks, they validate the supplied fixtures and test outputs against those schemas.
+
+Passing checks mean the assertions passed for the tested cases. They do not prove all code correct or validate a live environment.
 
 To assemble a scoped, evidence-aware assessment from existing local contracts,
 see the [offline engagement reporting guide](ENGAGEMENT_REPORTING.md). This
@@ -147,7 +150,7 @@ Each plugin's `README.md` and `docs/PLAYBOOK.md` provide detailed step-by-step i
 
 ## 6. Contributor Setup
 
-Want to write a new hunt, add a detection rule, or contribute a new plugin? Setting up your full development environment is easy:
+To contribute a hunt, detection rule, or plugin, set up the test environment below. Downloading dependencies requires network access; for prepared local packages, follow the [offline installation instructions](troubleshooting.md).
 
 ```bash
 # 1. Create and activate a Python virtual environment

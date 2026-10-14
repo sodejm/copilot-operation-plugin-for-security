@@ -29,7 +29,7 @@ Whether your team works in **GitHub Copilot**, **Claude Code**, or **Codex / Cha
 
 ## Five-Minute Quickstart
 
-All you need is **Python 3.11 or newer**. These commands use only the Python standard library and make zero external network calls:
+The core commands require **Python 3.11 or newer** and use the Python standard library. Cloning the repository requires Git and network access; you can also use an existing local copy. After setup, the `cops` commands below run locally without external network calls:
 
 ```bash
 # 1. Clone the repository and enter the directory
@@ -42,7 +42,7 @@ python3 -m cops doctor
 # 3. List all 17 available security plugins and their status
 python3 -m cops list
 
-# 4. Route any natural language task to the best specialist agent
+# 4. Recommend a specialist profile for a natural language task
 python3 -m cops route "Optimize Microsoft Sentinel KQL query for sign-in anomalies"
 
 # 5. Inspect details and operational playbooks for a plugin
@@ -56,9 +56,9 @@ python3 -m cops check sentinel-hunt-workbench
 ```
 
 ### What these commands do for you
-- `cops doctor`: Quickly checks that your Python environment is ready and your package catalogs are in sync.
+- `cops doctor`: Checks the Python version, catalog and package manifests, and generated marketplace indexes. It does not run plugins or audit their network behavior.
 - `cops list`: Displays the seventeen available security plugins, their maturity stage, and their validation status.
-- `cops route`: Deterministically routes any natural language task to the optimal specialist profile with zero LLM token cost.
+- `cops route`: Uses local keyword rules to recommend a specialist profile without an LLM or external API call. It does not launch an agent.
 - `cops demo`: Runs a self-contained, offline walkthrough using synthetic test data.
 - `cops check`: Executes deterministic verification suites (syntax checks, schema tests, mutation tests) right on your machine.
 
@@ -71,7 +71,7 @@ Each package lives in its own self-contained directory under `plugins/<category>
 | Security Plugin | Category | Maturity | What it solves | Try it out |
 | :--- | :--- | :---: | :--- | :--- |
 | **[Security Logging Advisor](plugins/logging-telemetry/security-logging-advisor/README.md)** | Logging & Telemetry | <span class="badge badge-stable">Stable</span> | Audits codebases for security logging gaps, flags sensitive data leaks, and prioritizes CVE reachability. | `python3 -m cops demo security-logging-advisor` |
-| **[Telemetry Proof Pack](plugins/logging-telemetry/telemetry-proof-pack/README.md)** | Logging & Telemetry | <span class="badge badge-beta">Beta</span> | Verifies end-to-end telemetry routes and pipeline health from Cribl Stream to Splunk and Sentinel. | `python3 -m cops check telemetry-proof-pack` |
+| **[Telemetry Proof Pack](plugins/logging-telemetry/telemetry-proof-pack/README.md)** | Logging & Telemetry | <span class="badge badge-beta">Beta</span> | Correlates supplied synthetic marker records across source, Cribl routing, destination, query, and alert stages. | `python3 -m cops check telemetry-proof-pack` |
 | **[SOC Investigation Workbench](plugins/detection-hunting/soc-investigation-workbench/README.md)** | Detection & Hunting | <span class="badge badge-beta">Beta</span> | Guides alert triage using competing hypotheses, question ranking, and evidence dependency graphs. | `python3 -m cops demo soc-investigation-workbench` |
 | **[Sentinel Hunt Workbench](plugins/detection-hunting/sentinel-hunt-workbench/README.md)** | Detection & Hunting | <span class="badge badge-beta">Beta</span> | Authors, adapts, and stress-tests 12 defensive Microsoft Sentinel and Defender KQL threat hunts offline. | `python3 -m cops demo sentinel-hunt-workbench` |
 | **[Attack Path Workbench](plugins/detection-hunting/attack-path-workbench/README.md)** | Detection & Hunting | <span class="badge badge-experimental">Experimental</span> | Traces multi-hop cloud lateral movement paths from local exports to crown jewels and finds choke points. | `python3 -m cops demo attack-path-workbench` |
@@ -94,7 +94,7 @@ For in-depth guidance on choosing the right plugin for your operational scenario
 
 ## 21 Specialist Cybersecurity Agent Profiles & Dynamic Routing
 
-COPS centralizes **21 specialist cybersecurity agent profiles** in [`agents/`](agents/README.md) across offensive, defensive, forensics, identity, and governance disciplines. The deterministic zero-token router dynamically matches incoming tasks to the best specialist profile:
+COPS centralizes **21 specialist cybersecurity agent profiles** in [`agents/`](agents/README.md) across offensive, defensive, forensics, identity, and governance disciplines. The deterministic router uses local keyword rules to recommend a specialist profile:
 
 ```bash
 # Route any security request or natural language task:
@@ -104,7 +104,7 @@ python3 -m cops route "Optimize this Sentinel KQL query for low ingestion cost"
 python3 -m cops specialists
 ```
 
-For high-risk operations (e.g. penetration testing, red team emulation, active containment, or cloud privilege escalation), COPS automatically activates **Triad Orchestration** (Primary Specialist + Domain Skeptic + Evidence Auditor) with mandatory interactive operator authorization. Read the **[Specialist Agents Guide](docs/specialist-agents.md)** for architecture details.
+When the selected profile is marked critical, or you pass `--critical`, the router returns a proposed **Triad Orchestration** plan with a Primary Specialist, Domain Skeptic, Evidence Auditor, and handoff steps. It does not launch agents or execute the task. Read the **[Specialist Agents Guide](docs/specialist-agents.md)** for routing, handoff, and authorization boundaries.
 
 Add `--suggest-model --model-catalog model-catalog.json` to receive offline model
 and reasoning-effort suggestions from fresh host evidence. Daybreak, Fable,
@@ -126,7 +126,7 @@ COPS capability logic, queries, and investigation workflows are formally mapped 
 
 ## How Universal Portability Works
 
-Different AI assistants expect different file structures, manifests, and skill formats. COPS removes that headache through automated, drift-free synchronization:
+Different AI assistants expect different file structures, manifests, and skill formats. COPS generates host indexes from the catalog and checks for drift:
 
 1. **One Source of Truth**: The central inventory in `catalog/plugins.json` defines all package metadata, versions, and categories.
 2. **Standardized Packages**: Each plugin maintains its core Agent Plugins v1.0.0 manifest (`plugin.json`), host manifests (`.claude-plugin/`, `.codex-plugin/`), and reusable skills.
@@ -134,7 +134,7 @@ Different AI assistants expect different file structures, manifests, and skill f
    - **GitHub Copilot**: `.github/plugin/marketplace.json`
    - **Claude Code**: `.claude-plugin/marketplace.json`
    - **Codex / ChatGPT**: `.agents/plugins/marketplace.json`
-4. **Guaranteed Consistency**: Our test gates verify that host indexes never drift out of sync with the catalog.
+4. **Consistency Checks**: Validation reports differences between the catalog and generated host indexes when the checks run.
 
 Learn more in the **[Portability Architecture](docs/PORTABILITY.md)** and **[Repository Layout](docs/REPOSITORY_LAYOUT.md)** guides.
 
@@ -142,7 +142,7 @@ Learn more in the **[Portability Architecture](docs/PORTABILITY.md)** and **[Rep
 
 ## Contributor Setup
 
-If you want to contribute new plugins, skills, or core features:
+To contribute new plugins, skills, or core features, install the test dependencies below. Installation requires network access unless you have prepared local packages; see the [offline installation instructions](docs/troubleshooting.md).
 
 ```bash
 # Set up a dedicated virtual environment
@@ -185,7 +185,7 @@ cancellation, or cleanup.
 In security engineering, confidence comes from verification:
 
 - **Offline Safety**: Demos and checks run against local synthetic test data. They never make unreviewed network calls or write to remote production services.
-- **Clear Status Separation**: We clearly separate what has been **validated locally** from what remains **unverified** in a live cloud environment. A passing offline test proves code correctness—it does not claim your production SIEM is currently receiving live alerts.
+- **Clear Status Separation**: We clearly separate what has been **validated locally** from what remains **unverified** in a live cloud environment. A passing offline test means its assertions passed for the tested cases. It does not prove all code correct, establish real attack coverage, or confirm that a production SIEM receives alerts.
 - **Data Privacy**: Tools treat all input code and logs as sensitive data. They do not store credentials or transmit telemetry to third parties.
 - **Truth-in-Advertising**: Capabilities are audited into four operational readiness modes (`planned`, `import`, `laboratory`, `live-validated`), with zero false live claims.
 - **Authenticated Execution Authority**: High-consequence execution requires a signed full-plan snapshot, the expected worker identity, an active engagement, an independent verifier trust store, and an owner-provisioned worker capability inventory. See the [Authenticated Execution Guide](docs/AUTHENTICATED_EXECUTION.md).
