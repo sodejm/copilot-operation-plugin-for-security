@@ -55,6 +55,7 @@ private payloads and real identifiers must never be copied into this document.
 | Operator-supplied synthetic case → runner → agent fixture proposal → authorization gate → MCP stdio fixture → observed state/report | Case text and MCP tool output are untrusted data. The agent child proposes but has no MCP pipe; only the runner can forward a proposal after case-scoped checks. The separate child processes share the host's OS authority, so their stdio boundary is not an OS network sandbox. |
 | Synthetic provider plan and response fixture → exact plan gate → assessment budget ledger → normalized content-free report | Provider-shaped input remains untrusted. Exact environment, scope, endpoint, model, canary, tool and request-digest binding precede reservation and fixture processing. The importer makes no network request and executes no proposed tool. |
 | Ordinary-language goal plus Engagement → exact target resolver → selection result | Goal text is untrusted intent, not authority. The resolver accepts one exact included target or a recorded engagement selection, rejects quoted examples and ambiguity, and reports that no executable path or assessment exists. Engagement review remains unverified. |
+| Approved dispatch grant → worker egress broker → operator gateway → provider handler | The opt-in v2 broker accepts a bounded POST only to one configured gateway origin and path with an exact TLS SPIFFE identity. It verifies the signed grant against the plan, worker identity, provider scope, and request digest, then durably consumes the one-use dispatch and authorization IDs before sending. The gateway independently verifies those bindings and owns provider credentials. Repository tests use an emulator; no production gateway or credential path is provisioned. |
 | Local asset context and service attack notice registry → bounded offline matcher → applicability report | Asset claims and notice content remain untrusted. Exact allowlists and prerequisite evidence produce conservative classifications, not vulnerability or exploitability findings. The matcher performs no network access or input-directed execution. |
 
 ```mermaid
@@ -150,9 +151,32 @@ receipt covers only the temporary local budget ledger. The importer has no
 provider client, credential lookup, network operation, live mode or paid mode.
 It cannot authenticate a response, verify tenant identity, establish actual
 usage or cost, prove remote cancellation or cleanup, or measure model behavior.
-The shared egress broker permits only `GET` and `HEAD`, which cannot carry a
-provider inference request. Live assessment requires a separately authorized
-execution boundary with exact POST origin, path, body and identity binding.
+The default shared egress broker permits only `GET` and `HEAD`. An opt-in v2
+gateway route supports a bounded POST to an operator-configured gateway, as
+described below. The offline importer does not use that route. Neither component
+establishes production worker readiness or authorizes a paid provider request.
+
+### Operator gateway dispatch boundary
+
+The v2 broker accepts a signed dispatch grant and a bounded body only when the
+operator has configured the exact action plan and digest, worker SPIFFE identity,
+gateway HTTPS origin and path, gateway SPIFFE identity, trust store, and durable
+replay store. The grant binds the provider, account or project, region, model,
+gateway endpoint, provider request target, body digest and byte count. The
+broker rechecks the grant immediately before consuming its one-use dispatch and
+authorization IDs. TLS checks the gateway hostname and configured SPIFFE URI;
+redirects and automatic retries are denied. A legacy replay database missing
+the authorization ID constraint fails closed until its history is migrated.
+
+The gateway emulator independently verifies the signed grant and worker identity
+and consumes it before invoking a provider-shaped handler. The handler can return
+only a bounded JSON response. These tests establish local protocol behavior, not
+the identity, credentials, isolation, or retention of a deployed gateway. A
+production gateway would own scoped provider credentials and must compare the
+grant to its configured provider endpoint before any provider call. The worker
+must not receive those credentials. A consumed grant followed by a disconnect
+has an uncertain outcome and must not be replayed automatically. Provider usage,
+billing, remote cancellation, and deletion require independent evidence.
 
 ### Service attack notice boundary
 
@@ -451,19 +475,11 @@ validation before the affected release/capability expansion and schedule P2 with
 
 - Attack path / prerequisite: A substituted endpoint, tenant/account, project/subscription, model, request digest, canary, or tool request is accepted as the authorized case; a forged completed response or usage record is reported as provider truth; nested prompt or response content reaches the report; or a tool proposal is confused with tool execution.
 - Inherent impact: High if fixture evidence is used to authorize or describe live provider activity; likelihood: Medium; priority: P1 before any live expansion.
-- Existing evidence / limitation: The offline importer accepts only bounded, strict plan, case, and provider-shaped response documents. It requires exact binding before ledger reservation and response normalization, uses reserved `.invalid` endpoints, treats tool requests as proposals only, and reports partial responses as `no_effect` with unknown usage while keeping the reservation conservative. The report is assembled from allowlisted fields and excludes response text, prompts, endpoint URLs, account identifiers, canary values, and credentials. Synthetic tests exercise each supported provider family plus binding, budget, tool, partial-response, and malformed-input paths. The shared egress contract permits only `GET` and `HEAD`, so it cannot dispatch provider inference requests.
+- Existing evidence / limitation: The offline importer accepts only bounded, strict plan, case, and provider-shaped response documents. It requires exact binding before ledger reservation and response normalization, uses reserved `.invalid` endpoints, treats tool requests as proposals only, and reports partial responses as `no_effect` with unknown usage while keeping the reservation conservative. The report is assembled from allowlisted fields and excludes response text, prompts, endpoint URLs, account identifiers, canary values, and credentials. Synthetic tests exercise each supported provider family plus binding, budget, tool, partial-response, and malformed-input paths. The default egress contract permits only `GET` and `HEAD`; the opt-in v2 gateway route is separately scoped and has only emulator evidence.
 - Proposed mitigation and validation: Keep provider-specific parsing and negative binding tests pinned to versioned schemas. Before adding live capability, separately authorize an exact provider origin, path, method, body class, credential identity, tenant/account and model; integrate export redaction at the send boundary; reconcile provider usage and billing independently; record cancellation request, observed stop and final usage separately; and verify remote cleanup and retention with provider evidence. Require exact-revision human security review.
 - Residual risk / status: Offline fixtures cannot authenticate a provider response, establish tenant or project ownership, prove usage or billing, verify remote cancellation or cleanup, or evaluate model and tool safety. A same-authority actor can rewrite fixtures and expected results together. No live or paid provider evidence is present.
 
-### T27: Ordinary-language goal confused with authority or assessment
-
-- Attack path / prerequisite: A goal contains several targets, a quoted or illustrative example, an excluded target, an unknown endpoint, or extra instructions, and the resolver guesses scope or silently drops intent. A target name matching request boilerplate or a Unicode lookalike may also cause a false or ambiguous selection. A caller may mistake a selected target for authorization or completed assessment.
-- Inherent impact: High if a future executor trusts the selection without separate authorization; likelihood: Medium; priority: P1 before execution integration.
-- Existing evidence / limitation: The offline resolver requires a supported positive assessment instruction, including a direct polite question, and one exact included target or a matching recorded `metadata.goal_selection.target`. It binds targets only from the parsed request subject, not the verb, polite framing, or supported detail. ASCII case variations count as the same target without equating Unicode lookalikes. It rejects recognized quotation and example forms, conflicting and multiple targets, excluded targets, overlapping network exclusions, selected domains at or beneath excluded domains, and details it cannot interpret. Duplicate ASCII case-insensitive target entries count as one selection without changing the contract digest. A raw scope-count cap runs before potentially expensive intake validation. It does not infer a target from unique scope membership. It retains unbound requested intent and a canonical contract digest, explicitly labels review unverified, and returns `needs_execution_path` and `not_assessed` without an ActionPlan. When contract validation succeeds, clarification responses also carry the Engagement ID and digest; invalid contracts do not. Engagement metadata is validated but not independently signed, and language recognition is deliberately narrow. The result contains an internal target identifier and must remain within the private review boundary.
-- Proposed mitigation and validation: Keep positive and negative tests for exact, conflicting, multiple, excluded, quoted, and illustrative targets. Before adding headless execution, verify an actual worker adapter and operation, authenticated selection provenance, immutable plan persistence, idempotent lifecycle state, failure recovery, and exact authorization binding. Require exact-revision human security review.
-- Residual risk / status: Unrecognized phrasing requires clarification, and an Engagement author can change metadata within the same trust boundary. This increment performs no semantic interpretation, executable planning, approval, worker dispatch, action, or resume. No live-target evidence is present.
-
-### T28: Service notice scope or applicability overclaim
+### T27: Service notice scope or applicability overclaim
 
 - Attack path / prerequisite: A forged asset document, broadened product or version scope, stale notice, or port-only observation is treated as evidence of vulnerability or permission to investigate a live target.
 - Inherent impact: Medium; likelihood: Medium; priority: P2.
@@ -471,7 +487,7 @@ validation before the affected release/capability expansion and schedule P2 with
 - Proposed mitigation and validation: Keep malformed, insufficient-evidence, stale, withdrawn, fixed-version and wrong-product tests. Review primary sources monthly and after high-impact publications. Require separate authorization and live evidence before any target interaction or finding.
 - Residual risk / status: A same-authority actor can change the registry, asset fixture, and expected result together. Human source review and downstream interpretation remain trust boundaries; no live asset state, vulnerability, exploitability, or authorization is established.
 
-### T29: Synthetic playback or vendored snapshot overclaim
+### T28: Synthetic playback or vendored snapshot overclaim
 
 - Attack path / prerequisite: A source-only dependency hides a broken exported package, an exit-zero no-op is treated as a successful demo, or a validated vendored snapshot is described as trusted, current or safe.
 - Inherent impact: High if synthetic or snapshot evidence is used as release or live-operating evidence; likelihood: Medium; priority: P1 before the affected release.
@@ -479,6 +495,22 @@ validation before the affected release/capability expansion and schedule P2 with
 - Playback boundaries: The attack-surface playback stages only bounded, declared regular source files. Engagement evidence records a stable dispatcher identifier and allowlisted flags without raw process arguments. Patch-review Git commands discard inherited Git environment settings and disable hooks, external attributes and filesystem monitors; synthetic repository creation also uses an empty template and disables signing. The SOC playback removes default temporary artifacts on success or failure and returns its assessment inline; explicit output directories retain artifacts for inspection. Threat-intelligence playback success requires the exact expected provider request counts, including retry exhaustion. Focused regressions exercise each boundary.
 - Proposed mitigation and validation: Rebuild and test release artifacts independently, review the exact release revision, inspect upstream provenance and license terms, and keep synthetic playback results separate from authorized live-integration evidence.
 - Residual risk / status: The isolated playback uses the framework and test runtime copied from the same checkout, not an installed release artifact. Synthetic inputs make no live-service claim, and a same-authority actor can alter implementation, fixtures and expectations together. Vendor digests establish consistency, not upstream authenticity, freshness, vulnerability status or legal license approval. Exact-revision human security review remains pending.
+
+### T29: Gateway dispatch replay, identity substitution, or credential scope escape
+
+- Attack path / prerequisite: A worker or gateway accepts a forged, expired, reused, or mismatched dispatch grant; a redirected POST reaches a direct provider destination; a gateway uses credentials outside the approved account, project, region, or model; or an uncertain request is automatically retried and charged twice.
+- Inherent impact: High; likelihood: Medium before deployment controls are verified; priority: P1.
+- Existing evidence / limitation: The v2 broker binds a bounded POST body to a signed plan-scoped grant, exact gateway URL and TLS SPIFFE URI, rechecks authorization immediately before sending, and consumes both dispatch and authorization IDs in a durable replay store. The emulator independently checks plan, worker, provider scope, and request digest before its handler runs. An optional gateway-local handler binds opaque credential references to exact verified endpoints and resolves them only after grant consumption. Synthetic tests cover replay, scope and identity mismatch, direct egress, oversized bodies, malformed responses, uncertain outcomes, credential scope mismatch, and redacted resolver failure. The repository does not provision the production gateway, provider credentials, worker route, or provider-side billing and deletion evidence.
+- Proposed mitigation and validation: Verify production worker isolation, SSH host key, gateway TLS identity, signer custody, replay-store durability, credential resolver scope, provider endpoint mapping, retention, and log redaction on the intended host. Exercise cancellation, timeout, duplicate delivery, and reconciliation with a separate engagement authorization and exact-revision human security review before a real canary.
+- Residual risk / status: A compromised gateway or same-authority replay store can bypass local checks. An authorization consumed before a disconnect may have produced an effect or charge; local cleanup cannot establish provider cancellation, billing, or deletion. Live execution remains disabled by default and no paid provider call has been made.
+
+### T30: Ordinary-language goal confused with authority or assessment
+
+- Attack path / prerequisite: A goal contains several targets, a quoted or illustrative example, an excluded target, an unknown endpoint, or extra instructions, and the resolver guesses scope or silently drops intent. A target name matching request boilerplate or a Unicode lookalike may also cause a false or ambiguous selection. A caller may mistake a selected target for authorization or completed assessment.
+- Inherent impact: High if a future executor trusts the selection without separate authorization; likelihood: Medium; priority: P1 before execution integration.
+- Existing evidence / limitation: The offline resolver requires a supported positive assessment instruction, including a direct polite question, and one exact included target or a matching recorded `metadata.goal_selection.target`. It binds targets only from the parsed request subject, not the verb, polite framing, or supported detail. ASCII case variations count as the same target without equating Unicode lookalikes. It rejects recognized quotation and example forms, conflicting and multiple targets, excluded targets, overlapping network exclusions, selected domains at or beneath excluded domains, and details it cannot interpret. Duplicate ASCII case-insensitive target entries count as one selection without changing the contract digest. A raw scope-count cap runs before potentially expensive intake validation. It does not infer a target from unique scope membership. It retains unbound requested intent and a canonical contract digest, explicitly labels review unverified, and returns `needs_execution_path` and `not_assessed` without an ActionPlan. When contract validation succeeds, clarification responses also carry the Engagement ID and digest; invalid contracts do not. Engagement metadata is validated but not independently signed, and language recognition is deliberately narrow. The result contains an internal target identifier and must remain within the private review boundary.
+- Proposed mitigation and validation: Keep positive and negative tests for exact, conflicting, multiple, excluded, quoted, and illustrative targets. Before adding headless execution, verify an actual worker adapter and operation, authenticated selection provenance, immutable plan persistence, idempotent lifecycle state, failure recovery, and exact authorization binding. Require exact-revision human security review.
+- Residual risk / status: Unrecognized phrasing requires clarification, and an Engagement author can change metadata within the same trust boundary. This increment performs no semantic interpretation, executable planning, approval, worker dispatch, action, or resume. No live-target evidence is present.
 
 ## STRIDE and privacy coverage
 
