@@ -244,9 +244,11 @@ def check_ipv6() -> dict[str, object]:
             return {"status": "unavailable", "reason": "IPv6 loopback is disabled in this namespace"}
         raise
 
-    with listener("::1") as tcp_open, udp_probe_server(True, "::1") as udp_open, udp_probe_server(
-        False, "::1"
-    ) as udp_silent:
+    with (
+        listener("::1") as tcp_open,
+        udp_probe_server(True, "::1") as udp_open,
+        udp_probe_server(False, "::1") as udp_silent,
+    ):
         tcp_port = tcp_open.getsockname()[1]
         udp_ports = [udp_open.server_address[1], udp_silent.server_address[1]]
         result = scan(
