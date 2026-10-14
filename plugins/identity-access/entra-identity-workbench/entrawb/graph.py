@@ -473,5 +473,5 @@ def build_identity_graph(
         edges=edges,
         sources=sources,
         source_coverage=coverage,
-        assessed_at=as_of.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        assessed_at=as_of.isoformat().replace("+00:00", "Z"),
     )
