@@ -86,9 +86,10 @@ python3 -m cops engagement goal \
 
 The command accepts a direct request beginning with assess, scan, inspect,
 test, enumerate, discover, evaluate, probe, or check, including a few polite
-forms. It accepts one exact target or "the selected endpoint", optionally
+forms, including direct polite questions such as "Can you assess the selected
+endpoint?". It accepts one exact target or "the selected endpoint", optionally
 followed by "for exposed services" and "safely". Other target or task details
-return `needs_input` instead of being silently dropped. Statements, questions,
+return `needs_input` instead of being silently dropped. Statements, informational questions,
 negated requests, excluded targets, multiple targets, and target text inside
 quotes or illustrative clauses also return `needs_input` with a specific next
 action. A selected IP range overlapping an excluded address or range also

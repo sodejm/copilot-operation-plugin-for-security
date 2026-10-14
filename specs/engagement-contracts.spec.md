@@ -49,8 +49,10 @@ a versioned Engagement. This initial interface resolves a target only; it does n
 create an ActionPlan or claim execution readiness.
 
 - The request must begin with a supported, positive assessment instruction.
-  Questions, negation, and statements that merely mention a target do not select
-  one. Details outside the supported grammar are rejected instead of ignored.
+  Direct polite questions such as `Can you assess the selected endpoint?` are
+  accepted. Informational questions, negation, and statements that merely
+  mention a target do not select one. Details outside the supported grammar
+  are rejected instead of ignored.
 - The target must be an exact, explicitly named member of
   `scope.included_targets`, or the exact target recorded in the
   `metadata.goal_selection.target` field. A unique included target is not an
@@ -71,7 +73,10 @@ create an ActionPlan or claim execution readiness.
 - Terminal engagements and expired windows are rejected. Upcoming windows may
   select a target but do not confer execution readiness. Requests longer than
   4,096 characters, more than 1,024 combined scope targets, or more than 1 MiB
-  of Engagement JSON are rejected; duplicate JSON keys are rejected.
+  of Engagement JSON are rejected; duplicate JSON keys are rejected. The scope
+  count is checked before potentially expensive intake validation. Duplicate
+  representations of one included target count as one target mention, without
+  changing the original Engagement or its digest.
 
 ### 4. RunResult Contract (`cops.run-result/v1`)
 Represents the execution outcome of an action plan.

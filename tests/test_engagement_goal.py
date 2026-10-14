@@ -137,6 +137,7 @@ def test_long_goal_is_rejected_before_target_matching(engagement: dict[str, obje
         "I would like to assess 10.0.0.5 safely.",
         "I'd like to assess 10.0.0.5 safely.",
         "Help me assess 10.0.0.5 safely.",
+        "Can you assess 10.0.0.5 safely?",
     ],
 )
 def test_polite_goal_resolves_direct_target(engagement: dict[str, object], goal: str) -> None:
@@ -160,6 +161,47 @@ def test_direct_target_can_be_selected_without_metadata(engagement: dict[str, ob
     result = resolve_engagement_goal(goal="Assess api.internal.", engagement=unselected)
     assert result["resolution"]["target_source"] == "goal"
     assert result["resolution"]["targets"] == ["api.internal"]
+
+
+def test_polite_question_selects_recorded_target(engagement: dict[str, object]) -> None:
+    result = resolve_engagement_goal(goal="Can you assess the selected endpoint?", engagement=engagement)
+    assert result["resolution"]["targets"] == ["10.0.0.5"]
+    assert result["coverage"]["status"] == "not_assessed"
+
+
+def test_duplicate_scope_representations_are_one_target(engagement: dict[str, object]) -> None:
+    changed = copy.deepcopy(engagement)
+    changed["scope"]["included_targets"] = ["10.0.0.5", "api.internal", "API.INTERNAL"]  # type: ignore[index]
+    changed["metadata"] = {}
+    result = resolve_engagement_goal(goal="Assess api.internal.", engagement=changed)
+    assert result["resolution"]["targets"] == ["api.internal"]
+
+
+def test_scope_limit_precedes_intake_validation(engagement: dict[str, object], monkeypatch) -> None:
+    changed = copy.deepcopy(engagement)
+    changed["scope"]["included_targets"] = ["10.0.0.5"] * 1025  # type: ignore[index]
+
+    def unexpected_validation(_engagement):
+        pytest.fail("intake validation ran before the scope-size preflight")
+
+    monkeypatch.setattr("cops.engagement.goals.validate_engagement_intake", unexpected_validation)
+    with pytest.raises(GoalResolutionError) as error:
+        resolve_engagement_goal(goal="Assess the selected endpoint.", engagement=changed)
+    assert error.value.code == "scope_too_large"
+
+
+def test_scope_limit_precedes_invalid_exclusion_validation(engagement: dict[str, object], monkeypatch) -> None:
+    changed = copy.deepcopy(engagement)
+    changed["scope"]["included_targets"] = ["10.0.0.5"] * 1025  # type: ignore[index]
+    changed["scope"]["excluded_targets"] = "invalid"  # type: ignore[index]
+
+    def unexpected_validation(_engagement):
+        pytest.fail("intake validation ran before the scope-size preflight")
+
+    monkeypatch.setattr("cops.engagement.goals.validate_engagement_intake", unexpected_validation)
+    with pytest.raises(GoalResolutionError) as error:
+        resolve_engagement_goal(goal="Assess the selected endpoint.", engagement=changed)
+    assert error.value.code == "scope_too_large"
 
 
 def test_unsupported_details_are_rejected_without_echoing_them(
