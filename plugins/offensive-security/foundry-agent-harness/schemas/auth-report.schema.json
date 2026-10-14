@@ -722,7 +722,8 @@
                 "none",
                 "hung_server",
                 "missing_identity_telemetry",
-                "observer_failure"
+                "observer_failure",
+                "lost_response_after_effect"
               ]
             }
           }

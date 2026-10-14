@@ -34,6 +34,7 @@ from .auth_fixture_server import (
     SERVER_INFO,
     SYNTHETIC_GRANT_ALIASES,
     TEST_IDENTITY,
+    TOOL_DESCRIPTORS,
     TOOL_INPUT_SCHEMAS,
     TOOL_PERMISSIONS,
     TOOLS,
@@ -458,9 +459,9 @@ def _unsupported_result(case: AuthCase, plan_digest: str) -> dict[str, Any]:
     }
 
 
-def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget, source_root: Path) -> tuple[dict[str, Any], bool]:
+def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget, source_root: Path) -> tuple[dict[str, Any], bool, bool]:
     if case.surface != "local_synthetic_fixture":
-        return _unsupported_result(case, plan_digest), False
+        return _unsupported_result(case, plan_digest), False, False
 
     observations: list[dict[str, Any]] = []
     events: list[dict[str, Any]] = []
@@ -470,6 +471,8 @@ def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget, sourc
     process_exit_observed = False
     workdir_path: Path | None = None
     interrupted = [False]
+    dispatched: tuple[dict[str, Any], str] | None = None
+    uncertain_execution = False
 
     try:
         with _private_directory("cops-auth-lab-", interrupted) as workdir_path:
@@ -503,11 +506,35 @@ def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget, sourc
                     server,
                     expected_tools=frozenset(TOOLS),
                     expected_server_info=SERVER_INFO,
+                    expected_capabilities={"tools": {}},
                     expected_input_schemas=TOOL_INPUT_SCHEMAS,
+                    expected_tool_descriptors=TOOL_DESCRIPTORS,
                 )
                 mcp.initialize()
                 events = _read_effects(ledger, budget)
                 environment_verified = True
+
+                def observe_effects(forwarded: dict[str, Any], tool: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+                    observed = _read_effects(ledger, budget)
+                    if observed[:len(events)] != events:
+                        raise LabError("Independent effect ledger changed previously observed events")
+                    delta = observed[len(events):]
+                    for event in delta:
+                        if any(event[key] != forwarded[key] for key in (
+                            "case_id",
+                            "attempt_id",
+                            "request_id",
+                            "canary_id",
+                            "plan_digest",
+                            "test_identity",
+                            "tenant",
+                            "resource",
+                            "principal",
+                            "operation",
+                        )) or event["tool"] != tool:
+                            raise LabError("Independent effect correlation mismatch")
+                    return observed, delta
+
                 for index, (attempt, expected_decision, expected_reason) in enumerate(
                     zip(case.attempts, case.expected_decisions, case.expected_reasons, strict=True),
                     start=1,
@@ -540,26 +567,13 @@ def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget, sourc
                         raise LabError("Peer delegation process rejected the fixed request")
                     peer_observation = peer_value["result"]
                     forwarded = _validate_peer(peer_observation, original, attempt["peer_action"])
-                    decision = mcp.call(attempt["tool"], forwarded)
+                    def mark_dispatch_attempt() -> None:
+                        nonlocal dispatched
+                        dispatched = (forwarded, attempt["tool"])
+
+                    decision = mcp.call(attempt["tool"], forwarded, on_dispatch_attempt=mark_dispatch_attempt)
                     identity_present = _validate_decision(decision, forwarded)
-                    observed = _read_effects(ledger, budget)
-                    if observed[:len(events)] != events:
-                        raise LabError("Independent effect ledger changed previously observed events")
-                    delta = observed[len(events):]
-                    for event in delta:
-                        if any(event[key] != forwarded[key] for key in (
-                            "case_id",
-                            "attempt_id",
-                            "request_id",
-                            "canary_id",
-                            "plan_digest",
-                            "test_identity",
-                            "tenant",
-                            "resource",
-                            "principal",
-                            "operation",
-                        )) or event["tool"] != attempt["tool"]:
-                            raise LabError("Independent effect correlation mismatch")
+                    observed, delta = observe_effects(forwarded, attempt["tool"])
                     observations.append(
                         {
                             "schema_version": "cops.agent-mcp-auth-observation/v1",
@@ -581,6 +595,7 @@ def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget, sourc
                         }
                     )
                     events = observed
+                    dispatched = None
                     if not identity_present:
                         failure = "missing_identity_telemetry"
                         break
@@ -618,6 +633,15 @@ def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget, sourc
                         except (OSError, ValueError, subprocess.SubprocessError):
                             closed.append(False)
                 process_exit_observed = bool(spawned) and len(closed) == len(spawned) and all(closed)
+                if dispatched is not None:
+                    uncertain_execution = True
+                    try:
+                        # The tool may have committed an effect before its response
+                        # disappeared. Retain only independently correlated events.
+                        observed, _ = observe_effects(*dispatched)
+                        events = observed
+                    except (_BatchBudgetStop, LabError, OSError, ValueError, TypeError):
+                        pass
     except KeyboardInterrupt:
         interrupted[0] = True
     except (OSError, ValueError):
@@ -699,7 +723,7 @@ def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget, sourc
         "expectation_met": outcome == case.expected_outcome and expectations_match,
         "revocation_window": revocation_window,
     }
-    return result, cancelled
+    return result, cancelled, uncertain_execution
 
 
 def run_auth_cases(
@@ -742,7 +766,9 @@ def _run_bound_batch(normalized, supplied_plan, consumed, worker_identity, sourc
             except _BatchBudgetStop:
                 break
             try:
-                result, case_cancelled = _run_auth_case(case, supplied_plan.plan_digest, budget, source_root)
+                result, case_cancelled, uncertain_execution = _run_auth_case(
+                    case, supplied_plan.plan_digest, budget, source_root,
+                )
             except (Exception, SystemExit):
                 # A request may have reached the fixture before its result was
                 # returned. Keep earlier observations and stop without retrying
@@ -753,7 +779,12 @@ def _run_bound_batch(normalized, supplied_plan, consumed, worker_identity, sourc
                 }
                 break
             results.append(result)
-            if case_cancelled or budget.stop_reason is not None:
+            if uncertain_execution:
+                execution_failure = {
+                    "case_id": case.case_id, "reason": "case_execution_failed",
+                    "effect_status": "uncertain",
+                }
+            if case_cancelled or budget.stop_reason is not None or uncertain_execution:
                 cancelled = case_cancelled
                 interrupted_case = case.case_id
                 break
@@ -784,7 +815,8 @@ def _run_bound_batch(normalized, supplied_plan, consumed, worker_identity, sourc
             "reconcile_uncertain_execution_effects_before_new_approval" if execution_failure
             else "approve_a_new_plan_for_pending_cases" if pending else None
         ),
-        "planned_case_count": len(normalized), "completed_case_count": len(results),
+        "planned_case_count": len(normalized),
+        "completed_case_count": len(results) - int(interrupted_case is not None),
         "all_expectations_met": all_expectations_met,
         "security_pass": all_expectations_met and all(result["security_pass"] for result in results),
         "results": results, "redacted": all(result["redacted"] is True for result in results),

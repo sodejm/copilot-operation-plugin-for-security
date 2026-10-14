@@ -32,11 +32,53 @@ python3 "$P/foundryharness/cli.py" lab --json --output "$COPS_FOUNDRY_RUN/lab.js
 
 Inventory the scenario and laboratory case files before loading them. Compare loaded IDs/counts, expected denials, observed mock effects, and cleanup receipts with the files. Repeat with a bounded synthetic scenario whose required refusal and allowed effect an independent reviewer has specified.
 
+## Delegation authorization batch (#236)
+
+The legacy `evaluate` and `lab` commands above do not exercise the signed,
+two-tenant delegation workflow. Follow the [delegation authorization playbook](PLAYBOOK.md#run-and-inspect-delegation-authorization)
+to build and inspect one immutable plan, issue one signed COPS assessment
+authorization, and run the selected batch unattended with `auth-lab`. The
+approval authorizes the assessment run only; the target fixture independently
+requires its synthetic grant. No per-case approval is expected. This fixed local
+fixture is not the full plain-language coordinator or durable crash-resume path
+tracked by issue #283.
+
+Before the run, compare the plan's selected case IDs, tool inventory, fixture
+hashes, identities, and aggregate limits with the checked-in cases. Keep the
+plan, signed receipt, trust store, approval database, and report in private
+storage. After the run, reconcile every planned case and attempt against the
+report; require both positive delegated controls, cross-tenant denials in both
+directions, and zero independently observed effects for each hostile peer
+probe. Inspect `assessment_authorization`, `observations` (peer and target),
+`observed_effects`, `cleanup`, `evidence_complete`, `security_pass`,
+`pending_case_ids`, `recovery_actions`, and `next_action`. Missing identity or
+effect telemetry, unavailable observation, unsupported behavior, failed setup,
+or failed cleanup is inconclusive even when the declared expectation matches.
+Follow all recovery actions before authorizing a new run; a consumed receipt is
+not retryable, and an uncertain external effect must be reconciled first.
+
+Exercise `lost_response_after_effect` with an allowed write followed by another
+case. Confirm the independent ledger retains the write, the batch stops, the
+interrupted and unstarted cases remain pending, and the consumed receipt cannot
+be replayed. Reconcile the uncertain effect before approving a new plan.
+
+Record the exact command, revision, Python and OS versions, plan and case
+digests, case-by-case outcomes, independent effect observations, and cleanup
+result in the private run record. The fixture covers the legacy MCP
+`initialize` handshake and exact capability/tool descriptors over local
+synthetic stdio only. It rejects a paginated tool inventory rather than
+assuming the first page is complete. The pinned server name and version are
+advertised metadata, not cryptographic peer authentication. Do not infer remote
+HTTP, OAuth, hosted-provider, cross-provider interoperability, current
+per-request metadata, Windows runtime, or OS-enforced network-isolation
+support from this exercise.
+
 ## Acceptance criteria
 
 - Every intended scenario is loaded; warnings/skipped malformed files are coverage gaps even when the command exits zero.
 - Expected unauthorized calls are denied by the independent gate, and allowed mock effects match the scenario contract.
 - All required laboratory expectations and cleanup receipts pass, with failures represented explicitly. Local subprocess fixtures cannot certify host/network isolation.
+- The #236 authorization batch reconciles every planned case and attempt, its two-tenant controls, all four hostile peer probes, independent effects, and cleanup. It passes only when each result has complete evidence and `security_pass` is true; otherwise report the exact inconclusive or failed cases.
 - Package tests cover authorization misuse, malformed scenarios, laboratory failure, and cleanup. No provider or model result is inferred from mock output.
 
 Compare observed results with an independently prepared expected answer. Record

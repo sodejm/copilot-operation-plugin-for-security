@@ -162,6 +162,7 @@
             "type": "string",
             "enum": [
               "hung_server",
+              "lost_response_after_effect",
               "missing_identity_telemetry",
               "none",
               "observer_failure"

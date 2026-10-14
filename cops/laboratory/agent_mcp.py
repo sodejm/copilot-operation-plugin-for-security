@@ -39,7 +39,7 @@ SERVER_INFO = {"name": "cops-auth-fixture", "version": "1"}
 TEST_IDENTITY = "synthetic-fixture-runner"
 TOOLS = ("canary/read", "canary/write")
 FLOWS = ("delegated", "autonomous")
-FAULT_MODES = ("none", "hung_server", "missing_identity_telemetry", "observer_failure")
+FAULT_MODES = ("none", "hung_server", "missing_identity_telemetry", "observer_failure", "lost_response_after_effect")
 PEER_ACTIONS = (
     "trusted_forward", "mutate_tenant", "omit_tenant", "mutate_operation", "substitute_receipt"
 )

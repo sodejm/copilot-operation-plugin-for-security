@@ -18,7 +18,7 @@ PROTOCOL_VERSION = "2025-11-25"
 SERVER_INFO = {"name": "cops-auth-fixture", "version": "1"}
 TOOLS = ("canary/read", "canary/write")
 FLOWS = ("delegated", "autonomous")
-FAULT_MODES = ("none", "hung_server", "missing_identity_telemetry", "observer_failure")
+FAULT_MODES = ("none", "hung_server", "missing_identity_telemetry", "observer_failure", "lost_response_after_effect")
 PEER_ACTIONS = ("trusted_forward", "mutate_tenant", "omit_tenant", "mutate_operation", "substitute_receipt")
 TEST_IDENTITY = "synthetic-fixture-runner"
 SERVER_IDENTITY = "fixed-target-authorization-service"
@@ -177,6 +177,14 @@ TOOL_INPUT_SCHEMA = {
     },
 }
 TOOL_INPUT_SCHEMAS = {name: TOOL_INPUT_SCHEMA for name in TOOLS}
+TOOL_DESCRIPTORS = {
+    name: {
+        "name": name,
+        "description": "Synthetic local canary operation",
+        "inputSchema": TOOL_INPUT_SCHEMAS[name],
+    }
+    for name in TOOLS
+}
 TOOL_PERMISSIONS = (
     {"tool": "canary/read", "operation": "read", "granted_scopes": ["canary:read"]},
     {"tool": "canary/write", "operation": "write", "granted_scopes": ["canary:write"]},
@@ -332,16 +340,7 @@ def main() -> int:
             elif not initialized:
                 raise ValueError("MCP client has not completed initialization")
             elif method == "tools/list":
-                result = {
-                    "tools": [
-                        {
-                            "name": name,
-                            "description": "Synthetic local canary operation",
-                            "inputSchema": TOOL_INPUT_SCHEMAS[name],
-                        }
-                        for name in TOOLS
-                    ]
-                }
+                result = {"tools": list(TOOL_DESCRIPTORS.values())}
             elif method == "tools/call":
                 params = request["params"]
                 name = params["name"]
@@ -353,6 +352,8 @@ def main() -> int:
                 decision = _decision(name, args, used)
                 if decision["decision"] == "allowed":
                     _append_effect(args)
+                    if args["fault_mode"] == "lost_response_after_effect":
+                        os._exit(17)
                 result = _tool_result(decision)
             else:
                 raise ValueError("Unknown MCP method")

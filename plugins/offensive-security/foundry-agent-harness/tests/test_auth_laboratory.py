@@ -14,6 +14,7 @@ sys.path.insert(0, str(PLUGIN_ROOT))
 
 from foundryharness import auth_approval, auth_laboratory  # noqa: E402
 from foundryharness.laboratory import LabError  # noqa: E402
+from cops.execution.store import ApprovalStoreConflictError  # noqa: E402
 from tests.test_auth_assessment_approval import authorized_batch, patch_executor  # noqa: E402
 
 
@@ -205,6 +206,38 @@ def test_incomplete_runtime_evidence_is_inconclusive_with_cleanup(tmp_path, faul
     assert result["security_pass"] is False
     assert result["evidence_complete"] is False
     assert result["cleanup"] == {"process_exit_observed": True, "private_directory_removed": True}
+
+
+def test_lost_response_after_effect_stops_batch_for_reconciliation(tmp_path):
+    first = case_data()
+    first["attempts"][0]["fault_mode"] = "lost_response_after_effect"
+    second = case_data("read-control")
+    cases = [auth_laboratory.AuthCase.from_dict(row) for row in (first, second)]
+    cases, context = authorized_batch(tmp_path, cases)
+
+    report = auth_approval.run_auth_cases(cases, **context)
+    schema = json.loads((PLUGIN_ROOT / "schemas/auth-report.schema.json").read_text())
+    jsonschema.validate(report, schema)
+    assert report["assessment_authorization"]["consumed_once_for_batch"] is True
+    assert report["execution_failure"] == {
+        "case_id": first["case_id"], "reason": "case_execution_failed", "effect_status": "uncertain",
+    }
+    assert report["next_action"] == "reconcile_uncertain_execution_effects_before_new_approval"
+    assert report["pending_case_ids"] == [first["case_id"], second["case_id"]]
+    assert report["completed_case_count"] == 0
+    assert report["security_pass"] is False
+    assert len(report["results"]) == 1
+    result = report["results"][0]
+    assert result["outcome"] == "inconclusive"
+    assert result["evidence_complete"] is False
+    assert result["cleanup"] == {"process_exit_observed": True, "private_directory_removed": True}
+    assert len(result["observed_effects"]) == 1
+    effect = result["observed_effects"][0]
+    assert effect["case_id"] == first["case_id"]
+    assert effect["kind"] == "canary_write"
+    assert effect["plan_digest"] == report["assessment_authorization"]["plan_digest"]
+    with pytest.raises(ApprovalStoreConflictError):
+        auth_approval.run_auth_cases(cases, **context)
 
 
 def test_cancellation_returns_pending_work_and_consumes_approval(tmp_path, monkeypatch):

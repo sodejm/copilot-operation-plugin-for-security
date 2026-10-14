@@ -190,10 +190,10 @@ class _ObservedProcess(_OriginalProcess):
         if ({interrupt_at!r} == "first_spawn" and len(_started_processes) == 1
                 or {interrupt_at!r} == "second_spawn" and len(_started_processes) == 2):
             _test_boundary()
-    def exchange(self, payload):
+    def exchange(self, payload, **kwargs):
         if {interrupt_at!r} == "exchange":
             _test_boundary()
-        return super().exchange(payload)
+        return super().exchange(payload, **kwargs)
     def close(self):
         if {interrupt_at!r} == "cleanup":
             _test_boundary()

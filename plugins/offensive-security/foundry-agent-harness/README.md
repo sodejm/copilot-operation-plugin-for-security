@@ -14,6 +14,12 @@ The package has three workflows:
 
 These commands require the COPS source checkout and its Python dependencies. The portable plugin's scenario simulator, local laboratory, and package validator continue to run with the standard library alone.
 
+The issue #236 delegation laboratory exercises this bounded MCP protocol surface:
+
+| Protocol | Version exercised | Transport | Fixture evidence | Support boundary |
+| :--- | :--- | :--- | :--- | :--- |
+| MCP | [`2025-11-25`](https://modelcontextprotocol.io/specification/2025-11-25) (legacy `initialize` handshake) | Local synthetic stdio | Handshake, pinned advertised server name/version, protocol, complete capability object, and complete unpaginated tool descriptors; pagination is rejected. Advertised metadata is not cryptographic server authentication. | Modern `2026-07-28` per-request metadata behavior is unsupported. No live provider, remote HTTP, OAuth, or broad interoperability claim. |
+
 ```bash
 python3 plugins/offensive-security/foundry-agent-harness/foundryharness/cli.py auth-plan \
   --plan-id plan-mcp-auth --engagement-id eng-mcp-auth \

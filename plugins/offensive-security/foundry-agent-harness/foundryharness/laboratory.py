@@ -210,7 +210,10 @@ class _JsonLineProcess:
         if on_spawn is not None:
             on_spawn(self)
 
-    def exchange(self, payload: dict[str, Any], *, response: bool = True) -> dict[str, Any] | None:
+    def exchange(
+        self, payload: dict[str, Any], *, response: bool = True,
+        on_dispatch_attempt: Callable[[], None] | None = None,
+    ) -> dict[str, Any] | None:
         if self.admission_check is not None:
             self.admission_check()
         if self.process.stdin is None or self.process.stdout is None:
@@ -218,6 +221,8 @@ class _JsonLineProcess:
         read_limit = 65537
         if response and self.response_bytes_remaining is not None:
             read_limit = min(read_limit, self.response_bytes_remaining())
+        if on_dispatch_attempt is not None:
+            on_dispatch_attempt()
         try:
             self.process.stdin.write((json.dumps(payload, separators=(",", ":")) + "\n").encode("utf-8"))
             self.process.stdin.flush()
@@ -338,18 +343,32 @@ class _McpClient:
         *,
         expected_tools: frozenset[str] = FIXTURE_TOOLS,
         expected_server_info: dict[str, str] | None = None,
+        expected_capabilities: dict[str, Any] | None = None,
         expected_input_schemas: dict[str, dict[str, Any]] | None = None,
+        expected_tool_descriptors: dict[str, dict[str, Any]] | None = None,
     ) -> None:
         self.process = process
         self.next_id = 1
         self.expected_tools = expected_tools
-        self.expected_server_info = expected_server_info or {"name": "cops-local-fixture", "version": "1"}
+        self.expected_server_info = (
+            expected_server_info
+            if expected_server_info is not None
+            else {"name": "cops-local-fixture", "version": "1"}
+        )
+        self.expected_capabilities = expected_capabilities
         self.expected_input_schemas = expected_input_schemas
+        self.expected_tool_descriptors = expected_tool_descriptors
 
-    def request(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
+    def request(
+        self, method: str, params: dict[str, Any], *,
+        on_dispatch_attempt: Callable[[], None] | None = None,
+    ) -> dict[str, Any]:
         request_id = self.next_id
         self.next_id += 1
-        response = self.process.exchange({"jsonrpc": "2.0", "id": request_id, "method": method, "params": params})
+        response = self.process.exchange(
+            {"jsonrpc": "2.0", "id": request_id, "method": method, "params": params},
+            on_dispatch_attempt=on_dispatch_attempt,
+        )
         if response is None or response.get("jsonrpc") != "2.0" or response.get("id") != request_id:
             raise LabError("MCP response ID or envelope mismatch")
         if "error" in response:
@@ -373,11 +392,14 @@ class _McpClient:
             result.get("protocolVersion") != PROTOCOL_VERSION
             or not isinstance(capabilities, dict)
             or not isinstance(capabilities.get("tools"), dict)
+            or (self.expected_capabilities is not None and capabilities != self.expected_capabilities)
             or result.get("serverInfo") != self.expected_server_info
         ):
             raise LabError("MCP fixture identity, protocol, or capability mismatch")
         self.process.exchange({"jsonrpc": "2.0", "method": "notifications/initialized"}, response=False)
         listed = self.request("tools/list", {})
+        if "nextCursor" in listed:
+            raise LabError("MCP fixture tool inventory pagination is unsupported")
         tools = listed.get("tools")
         if not isinstance(tools, list) or not all(
             isinstance(tool, dict) and isinstance(tool.get("name"), str) for tool in tools
@@ -393,13 +415,23 @@ class _McpClient:
             }
             if advertised != self.expected_input_schemas:
                 raise LabError("MCP fixture input schemas do not match the fixed client contract")
+        if self.expected_tool_descriptors is not None:
+            advertised_descriptors = {tool["name"]: tool for tool in tools}
+            if advertised_descriptors != self.expected_tool_descriptors:
+                raise LabError("MCP fixture tool descriptors do not match the fixed client contract")
 
-    def call(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    def call(
+        self, name: str, arguments: dict[str, Any], *,
+        on_dispatch_attempt: Callable[[], None] | None = None,
+    ) -> dict[str, Any]:
         if self.expected_input_schemas is not None:
             if name not in self.expected_input_schemas:
                 raise LabError("MCP call uses a tool outside the fixed client contract")
             _validate_json_schema_value(arguments, self.expected_input_schemas[name])
-        result = self.request("tools/call", {"name": name, "arguments": arguments})
+        result = self.request(
+            "tools/call", {"name": name, "arguments": arguments},
+            on_dispatch_attempt=on_dispatch_attempt,
+        )
         content_items = result.get("content")
         if (
             not isinstance(result.get("isError"), bool)
