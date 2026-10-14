@@ -8,13 +8,12 @@ from __future__ import annotations
 
 import ipaddress
 import re
+from collections.abc import Collection
 from dataclasses import asdict, dataclass
-from typing import Collection
 
 from cops.evidence.canonical import EvidenceError, digest, timestamp
 
 from .active_models import ActiveScanSession, ActiveServiceAssessment, ObservedConfiguration
-
 
 _LABEL = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 _VANTAGES = frozenset({"external", "internal", "egress_point", "cloud_tenant"})
@@ -116,10 +115,9 @@ def _observed_services(observation: ObservedConfiguration) -> set[tuple[str, str
         services.add(("pop3", "network-messaging-services", "POP3 authentication and access boundaries"))
     if re.match(r"^-ERR[^\r\n]{0,200}\bRedis\b", banner, re.I):
         services.add(("redis", "network-data-services", "Redis configuration and access boundaries"))
-    if (
-        type(observation.http_status) is int
-        and 100 <= observation.http_status <= 599
-    ) or re.match(r"^HTTP/\d(?:\.\d)? [1-5]\d\d\b", banner):
+    if (type(observation.http_status) is int and 100 <= observation.http_status <= 599) or re.match(
+        r"^HTTP/\d(?:\.\d)? [1-5]\d\d\b", banner
+    ):
         services.add(("http", "web-api-inventory-and-replay", "HTTP exposure and authentication boundaries"))
     return services
 
@@ -147,13 +145,25 @@ def prepare_service_entry_handoff(
         )
     except ValueError:
         return ServiceEntryHandoff(
-            "blocked_scope", None, False, None, None, probe_id,
-            "Discovery endpoint is malformed", "Repair the discovery evidence and revalidate engagement scope",
+            "blocked_scope",
+            None,
+            False,
+            None,
+            None,
+            probe_id,
+            "Discovery endpoint is malformed",
+            "Repair the discovery evidence and revalidate engagement scope",
         )
     if endpoint not in approved_endpoints:
         return ServiceEntryHandoff(
-            "blocked_scope", endpoint, False, None, None, probe_id,
-            "Exact endpoint is outside the approved set", "Update and approve scope before any follow-on action",
+            "blocked_scope",
+            endpoint,
+            False,
+            None,
+            None,
+            probe_id,
+            "Exact endpoint is outside the approved set",
+            "Update and approve scope before any follow-on action",
         )
     quarantined = set()
     for host in quarantined_hosts:
@@ -161,13 +171,23 @@ def prepare_service_entry_handoff(
             quarantined.add(_canonical_host(host))
         except ValueError:
             return ServiceEntryHandoff(
-                "blocked_scope", endpoint, False, None, None, probe_id,
+                "blocked_scope",
+                endpoint,
+                False,
+                None,
+                None,
+                probe_id,
                 "Quarantine contains a malformed host identity",
                 "Reconcile the quarantine against trusted scope before any follow-on action",
             )
     if endpoint.host in quarantined:
         return ServiceEntryHandoff(
-            "blocked_scope", endpoint, False, None, None, probe_id,
+            "blocked_scope",
+            endpoint,
+            False,
+            None,
+            None,
+            probe_id,
             "The host was quarantined after an identity or resolution change",
             "Resolve the quarantine against trusted scope before any follow-on action",
         )
@@ -177,25 +197,45 @@ def prepare_service_entry_handoff(
         timestamp(assessment.timestamp_utc)
     except EvidenceError:
         return ServiceEntryHandoff(
-            "invalid_evidence", endpoint, False, None, None, probe_id,
+            "invalid_evidence",
+            endpoint,
+            False,
+            None,
+            None,
+            probe_id,
             "Discovery evidence has no valid probe identity or timestamp",
             "Repair or repeat discovery within approved scope",
         )
     if assessment.port_state != "open" or assessment.reachability != "reachable":
         return ServiceEntryHandoff(
-            "unavailable", endpoint, False, None, None, probe_id,
+            "unavailable",
+            endpoint,
+            False,
+            None,
+            None,
+            probe_id,
             "The endpoint is not confirmed open and reachable from this vantage",
             "Retest only within the existing approved scan plan",
         )
     if assessment.error_message is not None or not isinstance(assessment.observed_config, ObservedConfiguration):
         return ServiceEntryHandoff(
-            "invalid_evidence", endpoint, False, None, None, probe_id,
+            "invalid_evidence",
+            endpoint,
+            False,
+            None,
+            None,
+            probe_id,
             "The probe reported an error or has malformed observation data",
             "Reconcile the probe failure before routing",
         )
     if endpoint.transport != "tcp":
         return ServiceEntryHandoff(
-            "unverified_protocol", endpoint, True, None, None, probe_id,
+            "unverified_protocol",
+            endpoint,
+            True,
+            None,
+            None,
+            probe_id,
             "No UDP service identification is supported by this handoff",
             "Record the unassessed path or obtain approval for bounded UDP validation",
         )
@@ -214,20 +254,35 @@ def prepare_service_entry_handoff(
         )
     except (EvidenceError, AttributeError, TypeError, ValueError):
         return ServiceEntryHandoff(
-            "invalid_evidence", endpoint, False, None, None, probe_id,
+            "invalid_evidence",
+            endpoint,
+            False,
+            None,
+            None,
+            probe_id,
             "Observation cannot be safely bound to a bounded evidence digest",
             "Repair or repeat discovery within approved scope",
         )
     services = _observed_services(observation)
     if not services:
         return ServiceEntryHandoff(
-            "unverified_protocol", endpoint, True, None, None, probe_id,
+            "unverified_protocol",
+            endpoint,
+            True,
+            None,
+            None,
+            probe_id,
             "Open port has no recognized protocol response; a fingerprint or port association is insufficient",
             "Record the unassessed path or obtain approval for a bounded identification action",
         )
     if len(services) != 1:
         return ServiceEntryHandoff(
-            "conflicting_evidence", endpoint, True, None, None, probe_id,
+            "conflicting_evidence",
+            endpoint,
+            True,
+            None,
+            None,
+            probe_id,
             "Observed responses indicate multiple service families",
             "Reconcile conflicting evidence before specialist routing",
         )
@@ -262,7 +317,12 @@ def prepare_service_entry_handoff(
         ),
     )
     return ServiceEntryHandoff(
-        "candidate", endpoint, True, service, specialist, probe_id,
+        "candidate",
+        endpoint,
+        True,
+        service,
+        specialist,
+        probe_id,
         "Observed protocol response supports a candidate, not a vulnerability or successful use",
         "Bind this plan to the existing approved run, or request one bounded plan approval",
         plan=plan,
