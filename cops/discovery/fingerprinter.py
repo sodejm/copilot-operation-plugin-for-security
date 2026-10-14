@@ -26,7 +26,7 @@ def infer_service_fingerprint(
     tls = observed_config.tls
 
     # 1. SSH Analysis
-    if raw_banner.startswith("SSH-"):
+    if protocol == "tcp" and raw_banner.startswith("SSH-"):
         evidence_sources.append("ssh_protocol_banner")
         match = re.match(r"^SSH-([0-9.]+)-([^\s_]+)(?:_([^\s]+))?(?:\s+(.*))?", raw_banner.strip())
         if match:
@@ -52,10 +52,10 @@ def infer_service_fingerprint(
 
     # 2. HTTP / HTTPS Analysis
     server_header = headers.get("server") or headers.get("Server")
-    is_http_response = observed_config.http_status is not None or server_header is not None or tls is not None
+    is_http_response = protocol == "tcp" and (observed_config.http_status is not None or bool(headers))
 
-    if is_http_response or port in (80, 443, 8080, 8443):
-        service_name = "https" if (tls is not None or port in (443, 8443)) else "http"
+    if is_http_response:
+        service_name = "https" if tls is not None else "http"
         evidence_sources.append("http_service_probe")
         product = None
         version = None
@@ -150,7 +150,7 @@ def infer_service_fingerprint(
                     confidence = ConfidenceLevel.LOW.value
 
         if not product and not uncertainty_reasons:
-            uncertainty_reasons.append("HTTP port open but no descriptive product banner or Server header returned")
+            uncertainty_reasons.append("HTTP response had no descriptive product banner or Server header")
             confidence = ConfidenceLevel.PROVISIONAL.value
 
         return InferredFingerprint(
@@ -163,8 +163,27 @@ def infer_service_fingerprint(
             evidence_sources=evidence_sources,
         )
 
+    # A TLS handshake establishes encryption, but cannot identify the application protocol.
+    if protocol == "tcp" and tls is not None:
+        uncertainty_reasons.append("TLS handshake did not identify the application protocol")
+        if tls.valid_until:
+            try:
+                exp_dt = datetime.fromisoformat(tls.valid_until.replace("Z", "+00:00"))
+                if exp_dt < datetime.now(UTC):
+                    uncertainty_reasons.append("TLS certificate is expired; target service configuration may be unmaintained")
+            except (TypeError, ValueError):
+                uncertainty_reasons.append("TLS certificate expiry date could not be parsed")
+        return InferredFingerprint(
+            service_name="tls",
+            product=None,
+            version=None,
+            confidence=ConfidenceLevel.UNCERTAIN.value,
+            uncertainty_reasons=uncertainty_reasons,
+            evidence_sources=["tls_handshake"],
+        )
+
     # 3. SMTP Analysis
-    if raw_banner.startswith("220") and ("smtp" in raw_banner.lower() or port in (25, 465, 587)):
+    if protocol == "tcp" and raw_banner.startswith("220") and ("smtp" in raw_banner.lower() or port in (25, 465, 587)):
         evidence_sources.append("smtp_banner")
         product = "SMTP Server"
         version = None
@@ -186,7 +205,7 @@ def infer_service_fingerprint(
         )
 
     # 4. FTP Analysis
-    if raw_banner.startswith("220") and ("ftp" in raw_banner.lower() or port == 21):
+    if protocol == "tcp" and raw_banner.startswith("220") and ("ftp" in raw_banner.lower() or port == 21):
         evidence_sources.append("ftp_banner")
         product = "FTP Server"
         m = re.search(r"(vsftpd|proftpd|pure-ftpd)(?:\s+([0-9.]+))?", raw_banner, re.IGNORECASE)
@@ -204,25 +223,14 @@ def infer_service_fingerprint(
             evidence_sources=evidence_sources,
         )
 
-    # 5. Fallback for unclassified open port
-    default_names = {
-        21: "ftp",
-        22: "ssh",
-        25: "smtp",
-        53: "dns",
-        80: "http",
-        443: "https",
-        3306: "mysql",
-        3389: "rdp",
-        5432: "postgresql",
-        6379: "redis",
-        8080: "http-alt",
-        8443: "https-alt",
-    }
-    svc = default_names.get(port, f"unknown-{port}")
-    uncertainty_reasons.append("Port accepted TCP connection but emitted no descriptive protocol banner")
+    # A port number alone cannot establish which service answered.
+    uncertainty_reasons.append(
+        "Port accepted TCP connection but emitted no descriptive protocol banner"
+        if protocol == "tcp"
+        else "UDP datagram response did not identify an application protocol"
+    )
     return InferredFingerprint(
-        service_name=svc,
+        service_name=f"unknown-{port}",
         product=None,
         version=None,
         confidence=ConfidenceLevel.UNCERTAIN.value,

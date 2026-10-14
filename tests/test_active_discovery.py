@@ -35,7 +35,7 @@ from cops.discovery.active_scanner import (
     _create_tls_context,
     _live_checkpoint_lock,
 )
-from cops.discovery.cli import command_active_discovery
+from cops.discovery.cli import build_active_parser, command_active_discovery
 
 
 class TestActiveDiscoveryModelsAndFingerprinting(unittest.TestCase):
@@ -97,7 +97,7 @@ class TestActiveDiscoveryModelsAndFingerprinting(unittest.TestCase):
             http_headers={"Server": "cloudflare", "cf-ray": "823902348092-IAD"},
         )
         fp = infer_service_fingerprint("edge.example.com", 443, "tcp", obs)
-        self.assertEqual(fp.service_name, "https")
+        self.assertEqual(fp.service_name, "http")
         self.assertEqual(fp.product, "Cloudflare Edge Proxy")
         self.assertEqual(fp.confidence, ConfidenceLevel.UNCERTAIN.value)
         self.assertTrue(any("Cloudflare reverse proxy fronting origin" in r for r in fp.uncertainty_reasons))
@@ -134,6 +134,24 @@ class TestActiveDiscoveryModelsAndFingerprinting(unittest.TestCase):
                 fp = infer_service_fingerprint("target.example.com", 443, "tcp", ObservedConfiguration(tls=tls))
                 self.assertEqual(fp.confidence, ConfidenceLevel.UNCERTAIN.value)
                 self.assertTrue(any("expiry date could not be parsed" in reason for reason in fp.uncertainty_reasons))
+
+    def test_tls_handshake_does_not_claim_http(self):
+        fp = infer_service_fingerprint(
+            "target.example.com", 443, "tcp", ObservedConfiguration(tls=ObservedTLS(version="TLSv1.3"))
+        )
+        self.assertEqual(fp.service_name, "tls")
+        self.assertEqual(fp.evidence_sources, ["tls_handshake"])
+        self.assertEqual(fp.confidence, ConfidenceLevel.UNCERTAIN.value)
+
+    def test_port_association_is_not_http_evidence(self):
+        for protocol in ("tcp", "udp"):
+            with self.subTest(protocol=protocol):
+                fp = infer_service_fingerprint("198.51.100.10", 443, protocol, ObservedConfiguration())
+                self.assertEqual(fp.service_name, "unknown-443")
+                self.assertEqual(fp.evidence_sources, ["port_association"])
+                self.assertEqual(fp.confidence, ConfidenceLevel.UNCERTAIN.value)
+                self.assertNotIn("http_service_probe", fp.evidence_sources)
+                self.assertNotIn("tls_handshake", fp.evidence_sources)
 
     def test_generic_open_port_without_banner_is_uncertain(self):
         obs = ObservedConfiguration()
@@ -365,6 +383,37 @@ class TestLiveScanSafety(unittest.TestCase):
         second = self.scanner(ActiveScanSession.load_checkpoint(self.checkpoint), dispatcher).run()
         self.assertEqual(second.status, "budget_exhausted")
         self.assertEqual(second.total_probes_dispatched, 1)
+        self.assertEqual(dispatcher.probes, [])
+
+    def test_mixed_tcp_udp_uses_separate_keys_and_shared_budget(self):
+        session = self.session(ports=[53], max_probes=1)
+        session.approved_udp_ports = [53]
+        first = self.scanner(session).run()
+        self.assertEqual(first.status, "budget_exhausted")
+        self.assertEqual(first.completed_probe_keys, {"external:tcp:app.corp.internal:53"})
+        self.assertEqual(first.total_probes_dispatched, 1)
+
+        resumed = ActiveScanSession.load_checkpoint(self.checkpoint)
+        dispatcher = RecordingSocketDispatcher()
+        second = self.scanner(resumed, dispatcher).run()
+        self.assertEqual(second.status, "budget_exhausted")
+        self.assertEqual(second.total_probes_dispatched, 1)
+        self.assertEqual(dispatcher.probes, [])
+
+    def test_udp_only_plan_and_plan_binding(self):
+        session = self.session()
+        session.approved_ports = []
+        session.approved_udp_ports = [53]
+        first = self.scanner(session).run()
+        self.assertEqual(first.status, "completed")
+        self.assertEqual(first.assessments[0].protocol, "udp")
+        self.assertEqual(first.completed_probe_keys, {"external:udp:app.corp.internal:53"})
+
+        changed = ActiveScanSession.load_checkpoint(self.checkpoint)
+        changed.approved_udp_ports = [53, 123]
+        dispatcher = RecordingSocketDispatcher()
+        with self.assertRaisesRegex(ActiveScanError, "plan or scope changed"):
+            self.scanner(changed, dispatcher).run()
         self.assertEqual(dispatcher.probes, [])
 
     def test_completed_resume_does_not_resolve_or_probe(self):
@@ -947,6 +996,56 @@ class TestActiveDiscoveryCLI(unittest.TestCase):
         )
         self.assertEqual(command_active_discovery(args), 0)
         self.assertEqual(ActiveScanSession.load_checkpoint(plan_out).budget.rate_limit_pps, 0.0)
+
+    def test_cli_plan_udp_selection_does_not_add_default_tcp_ports(self):
+        parser = argparse.ArgumentParser()
+        build_active_parser(parser)
+        udp_plan = self.root / "udp-only.json"
+        args = parser.parse_args(
+            ["plan", "--targets", "198.51.100.10", "--udp-ports", "53", "--output", str(udp_plan)]
+        )
+        self.assertEqual(command_active_discovery(args), 0)
+        session = ActiveScanSession.load_checkpoint(udp_plan)
+        self.assertEqual(session.approved_ports, [])
+        self.assertEqual(session.approved_udp_ports, [53])
+
+        tcp_plan = self.root / "default-tcp.json"
+        args = parser.parse_args(["plan", "--targets", "198.51.100.10", "--output", str(tcp_plan)])
+        self.assertEqual(command_active_discovery(args), 0)
+        session = ActiveScanSession.load_checkpoint(tcp_plan)
+        self.assertEqual(session.approved_ports, [22, 80, 443])
+        self.assertEqual(session.approved_udp_ports, [])
+
+    def test_cli_plan_binds_udp_only_selection_and_budget(self):
+        plan_out = self.root / "udp-plan.json"
+        args = argparse.Namespace(
+            active_command="plan",
+            targets="198.51.100.10",
+            ports="",
+            udp_ports="53,161",
+            allow_full_udp=False,
+            max_probes=2,
+            vantage="external",
+            rate_limit=10.0,
+            timeout=1.0,
+            max_total_seconds=5.0,
+            scope_ref="ENG-UDP",
+            output=str(plan_out),
+        )
+        self.assertEqual(command_active_discovery(args), 0)
+        plan = ActiveScanSession.load_checkpoint(plan_out)
+        self.assertEqual(plan.approved_ports, [])
+        self.assertEqual(plan.approved_udp_ports, [53, 161])
+        self.assertEqual(plan.budget.max_probes, 2)
+
+        args.udp_ports = "all"
+        args.max_probes = 65535
+        with self.assertRaisesRegex(ValueError, "--allow-full-udp"):
+            command_active_discovery(args)
+        args.allow_full_udp = True
+        args.max_probes = 65534
+        with self.assertRaisesRegex(ValueError, "--max-probes"):
+            command_active_discovery(args)
 
     def test_cli_plan_scan_resume_diff_pipeline(self):
         plan_out = str(self.root / "plan.json")

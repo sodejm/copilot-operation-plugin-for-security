@@ -1,7 +1,7 @@
 # Active discovery disposable-network acceptance
 
-The active discovery acceptance harness exercises real TCP listeners and a local
-UDP DNS responder in a disposable Linux network namespace. It fails if the
+The active discovery acceptance harness exercises real TCP listeners, a local
+UDP DNS responder, and bounded UDP probes in a disposable Linux network namespace. It fails if the
 namespace has an interface other than loopback. Use it to verify scanner behavior
 without scanning an engagement target or exposing a host port.
 
@@ -48,7 +48,7 @@ tests an address change between probes; it does not test an operating system's
 DNS cache or a production resolver. The no-route case tests a namespace with no
 external interface, not a firewall timeout. Filtered retests and missing retests
 are covered by the focused simulated tests and remain `unverified_exposures`, not
-confirmed remediation. This harness only exercises TCP connection assessment;
+confirmed remediation. That initial harness run only exercised TCP connection assessment;
 it does not prove behavior across an external network, TLS, or a production
 engagement.
 
@@ -60,10 +60,19 @@ exposure out of two. The interruption checkpoint was `in_progress` with one
 completed probe and no pending probe; the resumed checkpoint was `completed` with
 two probes. These results cover this isolated Linux harness only. The focused
 tests exercise uncertain pending operations and rejected plan/scope changes;
-native Windows and macOS scanning and UDP service inventory remain unverified.
+native Windows and macOS scanning remain unverified.
 The checkpoint format now permits up to 256 MiB, with bounded reads, so a
 checkpoint above the ordinary 1 MiB JSON limit can resume. A full 65,535-port
 TCP run has not been measured for duration, memory use, or checkpoint size.
+
+A later 2026-10-14 run passed with one live UDP reply and one silent UDP socket.
+The responder observed exactly one empty datagram per approved port. The scanner
+reported the responding port as `open` with a response length and SHA-256 digest;
+it reported the silent port as `unknown` because silence cannot distinguish open
+from filtered. Neither result claimed a DNS or other application protocol from
+the port number. This verifies basic bounded UDP behavior in the isolated Linux
+environment. Protocol-specific UDP identification, external networks, native
+Windows and macOS operation, and full-range scan performance remain unverified.
 
 Run `python3 -m pytest tests/test_active_discovery.py -q` for the simulated
 edge cases and `make check` for the repository baseline.
