@@ -45,7 +45,9 @@ class ServiceEntryValidationTests(unittest.TestCase):
         self.assertEqual(result.service, "ssh")
         self.assertEqual(result.specialist, "network-remote-and-file-services")
         self.assertEqual(result.plan.endpoint, self.endpoint)
-        self.assertEqual(result.plan.action, "Validate SSH configuration and authentication boundaries on the exact endpoint")
+        self.assertEqual(
+            result.plan.action, "Validate SSH configuration and authentication boundaries on the exact endpoint"
+        )
         self.assertTrue(result.plan.requires_execution_authorization)
         self.assertTrue(result.plan.requires_budget)
         self.assertIsNone(result.verified_finding)
@@ -142,7 +144,9 @@ class ServiceEntryValidationTests(unittest.TestCase):
 
     def test_quarantined_host_cannot_create_plan(self) -> None:
         result = prepare_service_entry_handoff(
-            assessment(), approved_endpoints={self.endpoint}, quarantined_hosts={"LAB.EXAMPLE"},
+            assessment(),
+            approved_endpoints={self.endpoint},
+            quarantined_hosts={"LAB.EXAMPLE"},
         )
         self.assertEqual(result.status, "blocked_scope")
         self.assertIsNone(result.plan)
@@ -179,7 +183,8 @@ class ServiceEntryValidationTests(unittest.TestCase):
     def test_udp_banner_does_not_route_to_tcp_specialist(self) -> None:
         udp_endpoint = ApprovedEndpoint("lab.example", "192.0.2.10", 2222, "udp", "internal")
         result = prepare_service_entry_handoff(
-            assessment(protocol="udp"), approved_endpoints={udp_endpoint},
+            assessment(protocol="udp"),
+            approved_endpoints={udp_endpoint},
         )
         self.assertEqual(result.status, "unverified_protocol")
         self.assertIsNone(result.plan)
