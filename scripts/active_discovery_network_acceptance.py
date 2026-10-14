@@ -287,7 +287,12 @@ def check_udp_dns() -> dict[str, object]:
         )
         require(all(assessment.port_state == "open" for assessment in result.assessments), "DNS replies were missed")
         fingerprints = [assessment.inferred_fingerprint for assessment in result.assessments]
-        require(fingerprints[0].service_name == "dns" and fingerprints[0].product is None and fingerprints[0].version is None, "Matching DNS response was mislabeled")
+        require(
+            fingerprints[0].service_name == "dns"
+            and fingerprints[0].product is None
+            and fingerprints[0].version is None,
+            "Matching DNS response was mislabeled",
+        )
         require(fingerprints[2].service_name == "dns", "Matching truncated DNS response was rejected")
         require(
             all(fingerprints[index].service_name == f"unknown-{ports[index]}" for index in (1, 3, 4, 5, 6)),

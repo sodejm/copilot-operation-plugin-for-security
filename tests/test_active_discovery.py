@@ -1094,7 +1094,17 @@ class TestActiveDiscoveryCLI(unittest.TestCase):
         build_active_parser(parser)
         output = self.root / "dns-plan.json"
         args = parser.parse_args(
-            ["plan", "--targets", "198.51.100.10", "--udp-ports", "5353", "--udp-dns-probe-ports", "5353", "--output", str(output)]
+            [
+                "plan",
+                "--targets",
+                "198.51.100.10",
+                "--udp-ports",
+                "5353",
+                "--udp-dns-probe-ports",
+                "5353",
+                "--output",
+                str(output),
+            ]
         )
         self.assertEqual(command_active_discovery(args), 0)
         session = ActiveScanSession.load_checkpoint(output)
