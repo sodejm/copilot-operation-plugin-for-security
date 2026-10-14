@@ -31,6 +31,8 @@ Exports can contain names, user principal names, application identifiers, and re
 
 Set each source's `exported_at` to its actual collection time; if omitted, the manifest-level `exported_at` is used. Timestamps may have up to six fractional-second digits; greater precision cannot be assessed reliably and is marked invalid. The assessment uses a 24-hour window measured from its UTC `assessed_at`. Only an available, fully collected source with a valid timestamp inside that window is `fresh`. Missing, partial, future-dated, invalid-time, and older sources are `unknown` with a reason in `source_coverage`. Their nodes and edges are not current evidence for a hypothesis. A hash match proves file integrity relative to the manifest, not collection completeness or freshness.
 
+Graph and report export and v2 artifact validation reject an `assessed_at` more than five minutes ahead of the validating host's UTC clock. Keep that clock accurate. Historical artifacts retain their original assessment time; `fresh` describes evidence at that time, not at the time the artifact is read. These checks cannot establish whether the collector supplied truthful timestamps.
+
 ## Design and data flow
 
 1. **Intake:** `ingest_tenant_export` validates the manifest, confines source paths to the manifest directory, verifies hashes, and parses the declared sources.
