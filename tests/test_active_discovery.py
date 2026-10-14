@@ -89,6 +89,17 @@ class TestActiveDiscoveryModelsAndFingerprinting(unittest.TestCase):
                 self.assertEqual(fp.service_name, f"unknown-{port}")
                 self.assertEqual(fp.confidence, ConfidenceLevel.UNCERTAIN.value)
 
+    def test_udp_dns_requires_a_validated_query_response(self):
+        for valid, expected in ((True, "dns"), (False, "unknown-5353")):
+            with self.subTest(valid=valid):
+                observed = ObservedConfiguration(
+                    protocol_metadata={"probe_payload": "dns_root_ns_query", "dns_response_validated": valid}
+                )
+                fingerprint = infer_service_fingerprint("198.51.100.10", 5353, "udp", observed)
+                self.assertEqual(fingerprint.service_name, expected)
+                self.assertIsNone(fingerprint.product)
+                self.assertIsNone(fingerprint.version)
+
     def test_protocol_specific_220_banner_identifies_service_on_nonstandard_port(self):
         for port, banner, service in (
             (2525, "220 mail.example.com ESMTP Postfix\r\n", "smtp"),
@@ -317,6 +328,50 @@ class TestLiveScanSafety(unittest.TestCase):
         self.assertEqual(len(dispatcher.probes), 1)
         self.assertIsNotNone(result.bound_plan_sha256)
         self.assertEqual(ActiveScanSession.load_checkpoint(self.checkpoint).to_dict(), result.to_dict())
+
+    def test_dns_probe_profile_is_checked_for_custom_and_mutating_dispatchers(self):
+        dns_session = self.session()
+        dns_session.approved_ports = []
+        dns_session.approved_udp_ports = [53]
+        dns_session.udp_dns_probe_ports = [53]
+        custom = RecordingCustomDispatcher()
+        with self.assertRaisesRegex(ActiveScanError, "DNS probe selection differs"):
+            self.scanner(dns_session, custom).run()
+        self.assertEqual(custom.resolutions, 0)
+        self.assertEqual(custom.probes, [])
+
+        class MutatingDispatcher(RecordingSocketDispatcher):
+            def __init__(self):
+                super().__init__()
+                self.udp_dns_probe_ports = frozenset()
+
+            def resolve_target(self, target_host):
+                self.udp_dns_probe_ports = frozenset({53})
+                return super().resolve_target(target_host)
+
+        plain_session = self.session()
+        plain_session.approved_ports = []
+        plain_session.approved_udp_ports = [53]
+        changing = MutatingDispatcher()
+        with self.assertRaisesRegex(ActiveScanError, "DNS probe selection differs"):
+            self.scanner(plain_session, changing).run()
+        self.assertEqual(changing.probes, [])
+        self.assertEqual(plain_session.total_probes_dispatched, 0)
+
+    def test_resumed_ledger_rejects_unapproved_dns_payload_evidence(self):
+        session = self.session()
+        session.approved_ports = []
+        session.approved_udp_ports = [53]
+        self.scanner(session).run()
+        saved = ActiveScanSession.load_checkpoint(self.checkpoint)
+        saved.assessments[0].observed_config.protocol_metadata["probe_payload"] = "dns_root_ns_query"
+        saved.save_checkpoint(self.checkpoint)
+
+        dispatcher = RecordingSocketDispatcher()
+        with self.assertRaisesRegex(ActiveScanError, "Live checkpoint probe evidence"):
+            self.scanner(ActiveScanSession.load_checkpoint(self.checkpoint), dispatcher).run()
+        self.assertEqual(dispatcher.resolutions, 0)
+        self.assertEqual(dispatcher.probes, [])
 
     def test_resolution_consuming_duration_does_not_dispatch(self):
         clock = [0.0]
@@ -1033,6 +1088,39 @@ class TestActiveDiscoveryCLI(unittest.TestCase):
         session = ActiveScanSession.load_checkpoint(tcp_plan)
         self.assertEqual(session.approved_ports, [22, 80, 443])
         self.assertEqual(session.approved_udp_ports, [])
+
+    def test_cli_plan_dns_probe_requires_explicit_udp_selection(self):
+        parser = argparse.ArgumentParser()
+        build_active_parser(parser)
+        output = self.root / "dns-plan.json"
+        args = parser.parse_args(
+            ["plan", "--targets", "198.51.100.10", "--udp-ports", "5353", "--udp-dns-probe-ports", "5353", "--output", str(output)]
+        )
+        self.assertEqual(command_active_discovery(args), 0)
+        session = ActiveScanSession.load_checkpoint(output)
+        self.assertEqual(session.udp_dns_probe_ports, [5353])
+        self.assertEqual(session.approved_ports, [])
+        self.assertEqual(ActiveScanSession.from_dict(session.to_dict()).udp_dns_probe_ports, [5353])
+        dns_digest = ActiveScanner(session, StandardSocketDispatcher([5353]))._live_plan_digest()
+        with self.assertRaisesRegex(ActiveScanError, "selection differs"):
+            ActiveScanner(session, StandardSocketDispatcher([]))._validate_run()
+
+        class InheritedDnsDispatcher(StandardSocketDispatcher):
+            pass
+
+        session.udp_dns_probe_ports = []
+        with self.assertRaisesRegex(ActiveScanError, "selection differs"):
+            ActiveScanner(session, InheritedDnsDispatcher([5353]))._validate_run()
+        empty_digest = ActiveScanner(session, StandardSocketDispatcher([]))._live_plan_digest()
+        self.assertNotEqual(dns_digest, empty_digest)
+
+        args.udp_dns_probe_ports = "53"
+        with self.assertRaisesRegex(ValueError, "subset"):
+            command_active_discovery(args)
+
+        session.udp_dns_probe_ports = [53]
+        with self.assertRaisesRegex(ActiveScanError, "approved UDP ports"):
+            ActiveScanner(session, StandardSocketDispatcher(session.udp_dns_probe_ports))._validate_run()
 
     def test_cli_plan_binds_udp_only_selection_and_budget(self):
         plan_out = self.root / "udp-plan.json"
