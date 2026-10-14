@@ -109,27 +109,29 @@ GRANTS = {
     },
 }
 SYNTHETIC_GRANT_ALIASES = (*GRANTS, "receipt-approved-synthetic")
-ARGUMENT_FIELDS = frozenset({
-    "case_id",
-    "grant",
-    "flow",
-    "principal",
-    "agent",
-    "downstream_service",
-    "audience",
-    "tenant",
-    "resource",
-    "operation",
-    "scopes",
-    "depth",
-    "tick",
-    "attempt_id",
-    "request_id",
-    "canary_id",
-    "plan_digest",
-    "test_identity",
-    "fault_mode",
-})
+ARGUMENT_FIELDS = frozenset(
+    {
+        "case_id",
+        "grant",
+        "flow",
+        "principal",
+        "agent",
+        "downstream_service",
+        "audience",
+        "tenant",
+        "resource",
+        "operation",
+        "scopes",
+        "depth",
+        "tick",
+        "attempt_id",
+        "request_id",
+        "canary_id",
+        "plan_digest",
+        "test_identity",
+        "fault_mode",
+    }
+)
 REQUIRED_ARGUMENT_FIELDS = ARGUMENT_FIELDS - {"tenant"}
 ARGUMENT_ALIASES = {
     "grant": set(SYNTHETIC_GRANT_ALIASES),
@@ -243,7 +245,8 @@ def _valid_arguments(args: dict[str, Any]) -> bool:
         and 1 <= len(args["case_id"]) <= 64
         and re.fullmatch(ID_PATTERN, args["case_id"]) is not None
         and all(
-            isinstance(args[key], str) and 1 <= len(args[key]) <= 128
+            isinstance(args[key], str)
+            and 1 <= len(args[key]) <= 128
             and re.fullmatch(ID_PATTERN, args[key]) is not None
             for key in ("attempt_id", "request_id", "canary_id")
         )

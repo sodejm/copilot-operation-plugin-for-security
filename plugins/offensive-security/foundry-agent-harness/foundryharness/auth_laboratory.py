@@ -20,7 +20,17 @@ from .bounded_json import JSONInputError, decode_json, read_regular_file
 from .laboratory import LabError
 
 CASE_REQUIRED_FIELDS = frozenset(
-    {"schema_version", "case_id", "title", "grant", "flow", "attempts", "expected_decisions", "expected_reasons", "expected_effect_count"}
+    {
+        "schema_version",
+        "case_id",
+        "title",
+        "grant",
+        "flow",
+        "attempts",
+        "expected_decisions",
+        "expected_reasons",
+        "expected_effect_count",
+    }
 )
 CASE_OPTIONAL_FIELDS = frozenset({"surface", "expected_outcome"})
 ATTEMPT_REQUIRED_FIELDS = frozenset(
@@ -233,11 +243,19 @@ def validate_default_auth_coverage(cases: list[AuthCase]) -> None:
     for grant_name in ("delegated-write", "delegated-write-fabrikam", "autonomous-write"):
         grant = GRANTS[grant_name]
         attempt = {
-            "principal": grant["principal"], "agent": grant["agent"],
-            "downstream_service": "service-canary", "audience": "mcp://auth-fixture",
-            "tenant": grant["tenant"], "resource": "res-canary", "operation": "write",
-            "scopes": ["canary:write"], "depth": 1, "tick": 1, "tool": "canary/write",
-            "peer_action": "trusted_forward", "fault_mode": "none",
+            "principal": grant["principal"],
+            "agent": grant["agent"],
+            "downstream_service": "service-canary",
+            "audience": "mcp://auth-fixture",
+            "tenant": grant["tenant"],
+            "resource": "res-canary",
+            "operation": "write",
+            "scopes": ["canary:write"],
+            "depth": 1,
+            "tick": 1,
+            "tool": "canary/write",
+            "peer_action": "trusted_forward",
+            "fault_mode": "none",
         }
         required.append((grant_name, grant["mode"], attempt, "allowed", "allowed", 1, "pass"))
         if grant_name != "autonomous-write":
@@ -257,9 +275,13 @@ def validate_default_auth_coverage(cases: list[AuthCase]) -> None:
     for grant, flow, attempt, decision, reason, effects, outcome in required:
         if not any(
             case.surface == "local_synthetic_fixture"
-            and case.grant == grant and case.flow == flow and case.attempts == (attempt,)
-            and case.expected_decisions == (decision,) and case.expected_reasons == (reason,)
-            and case.expected_effect_count == effects and case.expected_outcome == outcome
+            and case.grant == grant
+            and case.flow == flow
+            and case.attempts == (attempt,)
+            and case.expected_decisions == (decision,)
+            and case.expected_reasons == (reason,)
+            and case.expected_effect_count == effects
+            and case.expected_outcome == outcome
             for case in cases
         ):
             raise LabError("Default authorization cases lack required two-tenant or hostile-peer coverage")

@@ -152,7 +152,7 @@ class _BatchBudget:
         previous = self.ledgers.get(ledger, b"")
         if not raw.startswith(previous):
             raise LabError("Effect observer ledger changed previously observed bytes")
-        self.account_response(raw[len(previous):])
+        self.account_response(raw[len(previous) :])
         self.ledgers[ledger] = raw
 
     def report(self) -> dict[str, Any]:
@@ -203,7 +203,6 @@ def _defer_cancellation(interrupted: list[bool]):
             signal.signal(number, handler)
 
 
-
 @contextmanager
 def _private_directory(prefix: str, interrupted: list[bool]):
     directory = None
@@ -245,8 +244,11 @@ def build_auth_plan(
     """Compile the exact fixed batch with the trusted data-only planner."""
     return _build_trusted_auth_plan(
         [case.to_dict() for case in _coerce_cases(cases)],
-        plan_id=plan_id, engagement_id=engagement_id, created_at=created_at,
-        source_root=Path(__file__).resolve().parent, _sources=_sources,
+        plan_id=plan_id,
+        engagement_id=engagement_id,
+        created_at=created_at,
+        source_root=Path(__file__).resolve().parent,
+        _sources=_sources,
     )
 
 
@@ -282,14 +284,19 @@ def _read_effects(ledger: Path, budget: _BatchBudget) -> list[dict[str, Any]]:
             or event["operation"] not in {"read", "write"}
             or event["kind"] != "canary_" + event["operation"]
             or event["tool"] != "canary/" + event["operation"]
-            or any(not isinstance(event[key], str) or event[key] not in ARGUMENT_ALIASES[key]
-                   for key in ("principal", "tenant", "resource"))
+            or any(
+                not isinstance(event[key], str) or event[key] not in ARGUMENT_ALIASES[key]
+                for key in ("principal", "tenant", "resource")
+            )
             or not isinstance(event["case_id"], str)
             or not 1 <= len(event["case_id"]) <= 64
             or re.fullmatch(ID_PATTERN, event["case_id"]) is None
-            or any(not isinstance(event[key], str) or not 1 <= len(event[key]) <= 128
-                   or re.fullmatch(ID_PATTERN, event[key]) is None
-                   for key in ("attempt_id", "request_id", "canary_id"))
+            or any(
+                not isinstance(event[key], str)
+                or not 1 <= len(event[key]) <= 128
+                or re.fullmatch(ID_PATTERN, event[key]) is None
+                for key in ("attempt_id", "request_id", "canary_id")
+            )
             or not isinstance(event["plan_digest"], str)
             or re.fullmatch(r"[0-9a-f]{64}", event["plan_digest"]) is None
             or event["redacted"] is not True
@@ -303,11 +310,7 @@ def _request(case: AuthCase, attempt: dict[str, Any], index: int, plan_digest: s
         "case_id": case.case_id,
         "grant": case.grant,
         "flow": case.flow,
-        **{
-            key: value
-            for key, value in attempt.items()
-            if key not in {"tool", "peer_action", "fault_mode"}
-        },
+        **{key: value for key, value in attempt.items() if key not in {"tool", "peer_action", "fault_mode"}},
         **_attempt_ids(case, index),
         "plan_digest": plan_digest,
         "test_identity": TEST_IDENTITY,
@@ -339,9 +342,12 @@ def _validate_request(value: dict[str, Any]) -> None:
         or not isinstance(value["case_id"], str)
         or not 1 <= len(value["case_id"]) <= 64
         or re.fullmatch(ID_PATTERN, value["case_id"]) is None
-        or any(not isinstance(value[key], str) or not 1 <= len(value[key]) <= 128
-               or re.fullmatch(ID_PATTERN, value[key]) is None
-               for key in ("attempt_id", "request_id", "canary_id"))
+        or any(
+            not isinstance(value[key], str)
+            or not 1 <= len(value[key]) <= 128
+            or re.fullmatch(ID_PATTERN, value[key]) is None
+            for key in ("attempt_id", "request_id", "canary_id")
+        )
         or not isinstance(value["plan_digest"], str)
         or re.fullmatch(r"[0-9a-f]{64}", value["plan_digest"]) is None
     ):
@@ -372,9 +378,7 @@ def _validate_peer(
     if value["forwarded_request_digest"] != digest(forwarded):
         raise LabError("Peer forwarded-request digest mismatch")
     changed = {
-        key
-        for key in set(original) | set(forwarded)
-        if original.get(key, object()) != forwarded.get(key, object())
+        key for key in set(original) | set(forwarded) if original.get(key, object()) != forwarded.get(key, object())
     }
     expected_changes = {
         "trusted_forward": set(),
@@ -456,7 +460,9 @@ def _unsupported_result(case: AuthCase, plan_digest: str) -> dict[str, Any]:
     }
 
 
-def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget, source_root: Path) -> tuple[dict[str, Any], bool, bool]:
+def _run_auth_case(
+    case: AuthCase, plan_digest: str, budget: _BatchBudget, source_root: Path
+) -> tuple[dict[str, Any], bool, bool]:
     if case.surface != "local_synthetic_fixture":
         return _unsupported_result(case, plan_digest), False, False
 
@@ -483,10 +489,12 @@ def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget, sourc
             closed: list[bool] = []
             spawned: list[_JsonLineProcess] = []
             try:
+
                 def start(script: str) -> _JsonLineProcess:
                     with _defer_cancellation(interrupted):
                         process = _JsonLineProcess(
-                            script, workdir,
+                            script,
+                            workdir,
                             response_timeout_seconds=1,
                             admission_check=budget.admit,
                             response_timeout_provider=budget.response_timeout,
@@ -517,24 +525,32 @@ def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget, sourc
                 events = _read_effects(ledger, budget)
                 environment_verified = True
 
-                def observe_effects(forwarded: dict[str, Any], tool: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+                def observe_effects(
+                    forwarded: dict[str, Any], tool: str
+                ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
                     observed = _read_effects(ledger, budget)
-                    if observed[:len(events)] != events:
+                    if observed[: len(events)] != events:
                         raise LabError("Effect observer ledger changed previously observed events")
-                    delta = observed[len(events):]
+                    delta = observed[len(events) :]
                     for event in delta:
-                        if any(event[key] != forwarded[key] for key in (
-                            "case_id",
-                            "attempt_id",
-                            "request_id",
-                            "canary_id",
-                            "plan_digest",
-                            "test_identity",
-                            "tenant",
-                            "resource",
-                            "principal",
-                            "operation",
-                        )) or event["tool"] != tool:
+                        if (
+                            any(
+                                event[key] != forwarded[key]
+                                for key in (
+                                    "case_id",
+                                    "attempt_id",
+                                    "request_id",
+                                    "canary_id",
+                                    "plan_digest",
+                                    "test_identity",
+                                    "tenant",
+                                    "resource",
+                                    "principal",
+                                    "operation",
+                                )
+                            )
+                            or event["tool"] != tool
+                        ):
                             raise LabError("Effect observer ledger correlation mismatch")
                     return observed, delta
 
@@ -570,6 +586,7 @@ def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget, sourc
                         raise LabError("Peer delegation process rejected the fixed request")
                     peer_observation = peer_value["result"]
                     forwarded = _validate_peer(peer_observation, original, attempt["peer_action"])
+
                     def mark_dispatch_attempt(
                         forwarded_request: dict[str, Any] = forwarded,
                         tool_name: str = attempt["tool"],
@@ -724,13 +741,22 @@ def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget, sourc
         and all(row["redacted"] is True for row in observations)
     )
     missing_context = any(row["target"]["decision"] == "inconclusive" for row in observations)
-    outcome = "inconclusive" if missing_context else "pass" if expectations_match else "fail" if evidence_complete else "inconclusive"
+    outcome = (
+        "inconclusive"
+        if missing_context
+        else "pass"
+        if expectations_match
+        else "fail"
+        if evidence_complete
+        else "inconclusive"
+    )
     revocation_window = None
     revoked_at = GRANTS[case.grant].get("revoked_at")
     if revoked_at is not None:
         ticks = [row["peer"]["forwarded_request"]["tick"] for row in observations]
         denied_ticks = [
-            row["peer"]["forwarded_request"]["tick"] for row in observations
+            row["peer"]["forwarded_request"]["tick"]
+            for row in observations
             if row["target"]["reason"] == "revoked_grant"
         ]
         revocation_window = {
@@ -741,7 +767,8 @@ def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget, sourc
             "pre_revocation_control_observed": any(
                 row["peer"]["forwarded_request"]["tick"] < revoked_at
                 and row["target"]["decision"] == "allowed"
-                and row["observed_effect_count"] == 1 for row in observations
+                and row["observed_effect_count"] == 1
+                for row in observations
             ),
             "post_revocation_denial_observed": bool(denied_ticks),
             "observed_denial_lag_ticks": min(denied_ticks) - revoked_at if denied_ticks else None,
@@ -755,7 +782,14 @@ def _run_auth_case(case: AuthCase, plan_digest: str, budget: _BatchBudget, sourc
         "grant_alias": case.grant,
         "flow": case.flow,
         "outcome": outcome,
-        "reason": failure or ("missing_context" if missing_context else "expectations_met" if expectations_match else "expectation_mismatch"),
+        "reason": failure
+        or (
+            "missing_context"
+            if missing_context
+            else "expectations_met"
+            if expectations_match
+            else "expectation_mismatch"
+        ),
         "environment_verified": environment_verified,
         "evidence_complete": evidence_complete,
         "security_pass": outcome == "pass" and expectations_match,
@@ -790,8 +824,12 @@ def run_auth_cases(
     try:
         return admit_and_run(
             [case.to_dict() if isinstance(case, AuthCase) else case for case in cases],
-            plan=plan, authorization=authorization, engagement=engagement,
-            trust_store=trust_store, worker_identity=worker_identity, approval_store=approval_store,
+            plan=plan,
+            authorization=authorization,
+            engagement=engagement,
+            trust_store=trust_store,
+            worker_identity=worker_identity,
+            approval_store=approval_store,
             source_root=Path(__file__).resolve().parent,
         )
     except ApprovalStoreConflictError:
@@ -815,21 +853,26 @@ def _run_bound_batch(normalized, supplied_plan, consumed, worker_identity, sourc
                 break
             try:
                 result, case_cancelled, uncertain_execution = _run_auth_case(
-                    case, supplied_plan.plan_digest, budget, source_root,
+                    case,
+                    supplied_plan.plan_digest,
+                    budget,
+                    source_root,
                 )
             except (Exception, SystemExit):
                 # A request may have reached the fixture before its result was
                 # returned. Keep earlier observations and stop without retrying
                 # or exposing exception payloads from untrusted runtime code.
                 execution_failure = {
-                    "case_id": case.case_id, "reason": "case_execution_failed",
+                    "case_id": case.case_id,
+                    "reason": "case_execution_failed",
                     "effect_status": "uncertain",
                 }
                 break
             results.append(result)
             if uncertain_execution:
                 execution_failure = {
-                    "case_id": case.case_id, "reason": "case_execution_failed",
+                    "case_id": case.case_id,
+                    "reason": "case_execution_failed",
                     "effect_status": "uncertain",
                 }
             if case_cancelled or budget.stop_reason is not None or uncertain_execution:
@@ -838,11 +881,13 @@ def _run_bound_batch(normalized, supplied_plan, consumed, worker_identity, sourc
                 break
     except KeyboardInterrupt:
         cancelled = True
-    pending = [case.case_id for case in normalized[len(results):]]
+    pending = [case.case_id for case in normalized[len(results) :]]
     if interrupted_case is not None:
         pending.insert(0, interrupted_case)
     all_expectations_met = (
-        not cancelled and execution_failure is None and budget.stop_reason is None
+        not cancelled
+        and execution_failure is None
+        and budget.stop_reason is None
         and len(results) == len(normalized)
         and all(result["expectation_met"] for result in results)
     )
@@ -850,22 +895,30 @@ def _run_bound_batch(normalized, supplied_plan, consumed, worker_identity, sourc
         "schema_version": "cops.agent-mcp-auth-run/v1",
         "environment": "local-synthetic-mcp-auth-fixture",
         "assessment_authorization": {
-            "signed_receipt_verified": True, "authorization_ref": consumed.authorization_id,
-            "plan_id": supplied_plan.plan_id, "plan_digest": supplied_plan.plan_digest,
-            "engagement_id": supplied_plan.engagement_id, "worker_identity": worker_identity,
+            "signed_receipt_verified": True,
+            "authorization_ref": consumed.authorization_id,
+            "plan_id": supplied_plan.plan_id,
+            "plan_digest": supplied_plan.plan_digest,
+            "engagement_id": supplied_plan.engagement_id,
+            "worker_identity": worker_identity,
             "consumed_once_for_batch": True,
         },
         "test_identity": TEST_IDENTITY,
-        "cancelled": cancelled, "budget": budget.report(),
+        "cancelled": cancelled,
+        "budget": budget.report(),
         "execution_failure": execution_failure,
         "pending_case_ids": pending,
         "next_action": (
-            "reconcile_uncertain_execution_effects_before_new_approval" if execution_failure
-            else "approve_a_new_plan_for_pending_cases" if pending else None
+            "reconcile_uncertain_execution_effects_before_new_approval"
+            if execution_failure
+            else "approve_a_new_plan_for_pending_cases"
+            if pending
+            else None
         ),
         "planned_case_count": len(normalized),
         "completed_case_count": len(results) - int(interrupted_case is not None),
         "all_expectations_met": all_expectations_met,
         "security_pass": all_expectations_met and all(result["security_pass"] for result in results),
-        "results": results, "redacted": all(result["redacted"] is True for result in results),
+        "results": results,
+        "redacted": all(result["redacted"] is True for result in results),
     }

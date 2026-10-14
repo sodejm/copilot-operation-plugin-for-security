@@ -214,8 +214,7 @@ def target_authority_checks(context):
 @then("both fixed processes and private evidence are cleaned up")
 def auth_cleanup(context):
     assert all(
-        result["cleanup"]["process_exit_observed"] is True
-        and result["cleanup"]["private_directory_removed"] is True
+        result["cleanup"]["process_exit_observed"] is True and result["cleanup"]["private_directory_removed"] is True
         for result in context["auth_report"]["results"]
     )
 

@@ -18,11 +18,23 @@ from typing import Any
 OBSERVER_IDENTITY = "fixed-effect-observer"
 TARGET_IDENTITY = "fixed-target-authorization-service"
 TEST_IDENTITY = "synthetic-fixture-runner"
-REQUEST_FIELDS = frozenset({
-    "command", "case_id", "attempt_id", "request_id", "canary_id",
-    "plan_digest", "test_identity", "principal", "tool", "tenant",
-    "resource", "operation", "fault_mode",
-})
+REQUEST_FIELDS = frozenset(
+    {
+        "command",
+        "case_id",
+        "attempt_id",
+        "request_id",
+        "canary_id",
+        "plan_digest",
+        "test_identity",
+        "principal",
+        "tool",
+        "tenant",
+        "resource",
+        "operation",
+        "fault_mode",
+    }
+)
 ID_PATTERN = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*\Z")
 
 
@@ -75,10 +87,22 @@ def _effect(request: Any, canaries: dict[str, str]) -> dict[str, Any]:
         return {"recorded": False}
     event = {
         "schema_version": "cops.agent-mcp-auth-ledger-event/v1",
-        **{key: request[key] for key in (
-            "case_id", "attempt_id", "request_id", "canary_id", "plan_digest",
-            "test_identity", "principal", "tool", "tenant", "resource", "operation",
-        )},
+        **{
+            key: request[key]
+            for key in (
+                "case_id",
+                "attempt_id",
+                "request_id",
+                "canary_id",
+                "plan_digest",
+                "test_identity",
+                "principal",
+                "tool",
+                "tenant",
+                "resource",
+                "operation",
+            )
+        },
         "server_identity": TARGET_IDENTITY,
         "kind": f"canary_{operation}",
         "redacted": True,

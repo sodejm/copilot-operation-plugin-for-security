@@ -70,8 +70,10 @@ def test_bundled_authorization_cases_have_correlated_target_effect_evidence(tmp_
             assert normalized["effect"]["trust_relation"] == "separate_process_same_trust_boundary"
             assert normalized["effect"]["observer_identity"] == "fixed-effect-observer"
             assert normalized["effect"]["observation_channel"] == "separate_process_private_ledger"
+
     def decisions(name):
         return [row["target"]["decision"] for row in results[name]["observations"]]
+
     assert decisions("one-time-replay") == ["allowed", "denied"]
     assert len(results["one-time-replay"]["observed_effects"]) == 1
     assert decisions("reusable-grant") == ["allowed", "allowed"]
@@ -86,13 +88,20 @@ def test_bundled_authorization_cases_have_correlated_target_effect_evidence(tmp_
     revocation = results["revoked-grant"]
     assert [row["target"]["reason"] for row in revocation["observations"]] == ["allowed", "revoked_grant"]
     assert revocation["revocation_window"] == {
-        "clock": "synthetic_logical_ticks", "revoked_at_tick": 3,
-        "observed_start_tick": 2, "observed_end_tick": 3,
-        "pre_revocation_control_observed": True, "post_revocation_denial_observed": True,
-        "observed_denial_lag_ticks": 0, "provider_propagation_measured": False,
+        "clock": "synthetic_logical_ticks",
+        "revoked_at_tick": 3,
+        "observed_start_tick": 2,
+        "observed_end_tick": 3,
+        "pre_revocation_control_observed": True,
+        "post_revocation_denial_observed": True,
+        "observed_denial_lag_ticks": 0,
+        "provider_propagation_measured": False,
     }
-    assert all(result["observed_effects"] == [] for name, result in results.items()
-               if name.startswith("wrong-") or name in {"cross-tenant", "expired-grant", "excess-depth", "confused-deputy"})
+    assert all(
+        result["observed_effects"] == []
+        for name, result in results.items()
+        if name.startswith("wrong-") or name in {"cross-tenant", "expired-grant", "excess-depth", "confused-deputy"}
+    )
 
 
 def test_normalized_observation_accepts_provider_specific_identifiers(tmp_path):
@@ -100,14 +109,21 @@ def test_normalized_observation_accepts_provider_specific_identifiers(tmp_path):
     record = result["normalized_observations"][0]
     record["correlation"]["test_identity"] = "provider.example/tenant-a/service-7"
     record["request"].update(
-        principal="oidc:subject-287", agent="agent:researcher", peer="peer:broker-1",
-        tenant="org:tenant-711", resource="urn:example:record:9",
-        operation="records.update", audience="https://api.example.test/records",
-        downstream_service="service:records", tool="record/update",
-        requested_scopes=["records:write"], authorization_alias="grant:opaque-handle-1",
+        principal="oidc:subject-287",
+        agent="agent:researcher",
+        peer="peer:broker-1",
+        tenant="org:tenant-711",
+        resource="urn:example:record:9",
+        operation="records.update",
+        audience="https://api.example.test/records",
+        downstream_service="service:records",
+        tool="record/update",
+        requested_scopes=["records:write"],
+        authorization_alias="grant:opaque-handle-1",
     )
     record["target_authority"].update(
-        server_identity="https://api.example.test/mcp", phase="provider_policy",
+        server_identity="https://api.example.test/mcp",
+        phase="provider_policy",
         reason="scope_and_tenant_permitted",
     )
     schema = json.loads((PLUGIN_ROOT / "schemas/auth-normalized-observation.schema.json").read_text())
@@ -117,10 +133,13 @@ def test_normalized_observation_accepts_provider_specific_identifiers(tmp_path):
         jsonschema.validate(record, schema)
 
 
-@pytest.mark.parametrize("tenant,principal,grant", [
-    ("tenant-contoso-01", "principal-alice", "delegated-write"),
-    ("tenant-fabrikam-02", "principal-bob", "delegated-write-fabrikam"),
-])
+@pytest.mark.parametrize(
+    "tenant,principal,grant",
+    [
+        ("tenant-contoso-01", "principal-alice", "delegated-write"),
+        ("tenant-fabrikam-02", "principal-bob", "delegated-write-fabrikam"),
+    ],
+)
 def test_two_tenants_have_positive_controls_and_cross_tenant_denials(tmp_path, tenant, principal, grant):
     data = case_data()
     data["grant"] = grant
@@ -135,16 +154,21 @@ def test_two_tenants_have_positive_controls_and_cross_tenant_denials(tmp_path, t
     assert denied["observed_effects"] == []
 
 
-@pytest.mark.parametrize("action,decision,reason,outcome", [
-    ("mutate_tenant", "denied", "tenant_mismatch", "pass"),
-    ("omit_tenant", "denied", "missing_tenant", "pass"),
-    ("mutate_operation", "denied", "operation_mismatch", "pass"),
-    ("substitute_receipt", "denied", "unrecognized_grant_or_actor", "pass"),
-])
+@pytest.mark.parametrize(
+    "action,decision,reason,outcome",
+    [
+        ("mutate_tenant", "denied", "tenant_mismatch", "pass"),
+        ("omit_tenant", "denied", "missing_tenant", "pass"),
+        ("mutate_operation", "denied", "operation_mismatch", "pass"),
+        ("substitute_receipt", "denied", "unrecognized_grant_or_actor", "pass"),
+    ],
+)
 def test_hostile_peer_is_observed_and_cannot_expand_target_authority(tmp_path, action, decision, reason, outcome):
     data = case_data()
     data["attempts"][0]["peer_action"] = action
-    data.update(expected_decisions=[decision], expected_reasons=[reason], expected_effect_count=0, expected_outcome=outcome)
+    data.update(
+        expected_decisions=[decision], expected_reasons=[reason], expected_effect_count=0, expected_outcome=outcome
+    )
     result = run_data(tmp_path, data)["results"][0]
     assert result["outcome"] == outcome
     assert result["observations"][0]["peer"]["peer_identity"] == "hostile-forwarding-peer"
@@ -193,16 +217,30 @@ def test_denied_read_is_secure_only_without_independent_disclosure(tmp_path, mon
                 case = executor._coerce_cases([data])[0]
                 # Independent telemetry records disclosure despite a claimed denial.
                 request = executor._request(case, case.attempts[0], 1, context["plan"].plan_digest)
-                events.append({
-                    "schema_version": "cops.agent-mcp-auth-ledger-event/v1",
-                    **{name: request[name] for name in (
-                        "attempt_id", "request_id", "canary_id", "plan_digest", "test_identity",
-                    )},
-                    "case_id": case.case_id, "principal": request["principal"],
-                    "tool": "canary/read", "server_identity": executor.SERVER_IDENTITY,
-                    "kind": "canary_read", "tenant": request["tenant"],
-                    "resource": request["resource"], "operation": "read", "redacted": True,
-                })
+                events.append(
+                    {
+                        "schema_version": "cops.agent-mcp-auth-ledger-event/v1",
+                        **{
+                            name: request[name]
+                            for name in (
+                                "attempt_id",
+                                "request_id",
+                                "canary_id",
+                                "plan_digest",
+                                "test_identity",
+                            )
+                        },
+                        "case_id": case.case_id,
+                        "principal": request["principal"],
+                        "tool": "canary/read",
+                        "server_identity": executor.SERVER_IDENTITY,
+                        "kind": "canary_read",
+                        "tenant": request["tenant"],
+                        "resource": request["resource"],
+                        "operation": "read",
+                        "redacted": True,
+                    }
+                )
             return events
 
         executor._read_effects = observe_disclosure
@@ -254,7 +292,9 @@ def test_lost_response_after_effect_stops_batch_for_reconciliation(tmp_path):
     jsonschema.validate(report, schema)
     assert report["assessment_authorization"]["consumed_once_for_batch"] is True
     assert report["execution_failure"] == {
-        "case_id": first["case_id"], "reason": "case_execution_failed", "effect_status": "uncertain",
+        "case_id": first["case_id"],
+        "reason": "case_execution_failed",
+        "effect_status": "uncertain",
     }
     assert report["next_action"] == "reconcile_uncertain_execution_effects_before_new_approval"
     assert report["pending_case_ids"] == [first["case_id"], second["case_id"]]
@@ -318,10 +358,18 @@ def test_unsupported_surface_cannot_launch_fixture(tmp_path, monkeypatch):
     assert report["security_pass"] is False
 
 
-@pytest.mark.parametrize("field,value", [
-    ("grant", []), ("flow", {}), ("expected_decisions", [[]]), ("expected_reasons", [[]]),
-    ("surface", []), ("expected_outcome", {}), ("case_id", "a" * 65),
-])
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("grant", []),
+        ("flow", {}),
+        ("expected_decisions", [[]]),
+        ("expected_reasons", [[]]),
+        ("surface", []),
+        ("expected_outcome", {}),
+        ("case_id", "a" * 65),
+    ],
+)
 def test_case_loader_rejects_malformed_values(tmp_path, field, value):
     data = case_data()
     data[field] = value
@@ -366,11 +414,14 @@ def test_unsigned_entrypoint_is_disabled():
         auth_laboratory.run_auth_case(case)
 
 
-@pytest.mark.parametrize("filename,decision,outcome", [
-    ("auth-authorized.json", "allowed", "pass"),
-    ("auth-denied.json", "denied", "pass"),
-    ("auth-inconclusive.json", "denied", "inconclusive"),
-])
+@pytest.mark.parametrize(
+    "filename,decision,outcome",
+    [
+        ("auth-authorized.json", "allowed", "pass"),
+        ("auth-denied.json", "denied", "pass"),
+        ("auth-inconclusive.json", "denied", "inconclusive"),
+    ],
+)
 def test_documented_reports_match_schema(filename, decision, outcome):
     schema = json.loads((PLUGIN_ROOT / "schemas/auth-report.schema.json").read_text())
     report = json.loads((PLUGIN_ROOT / "examples" / filename).read_text())

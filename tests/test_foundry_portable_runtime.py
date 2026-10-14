@@ -32,9 +32,16 @@ def test_exported_harness_keeps_offline_commands_and_explains_auth_dependency(tm
 
     result = subprocess.run(
         [
-            sys.executable, "-I", str(exported / "foundryharness/cli.py"),
-            "auth-plan", "--plan-id", "portable-check", "--engagement-id", "portable-check",
-            "--created-at", "2026-10-12T00:00:00Z",
+            sys.executable,
+            "-I",
+            str(exported / "foundryharness/cli.py"),
+            "auth-plan",
+            "--plan-id",
+            "portable-check",
+            "--engagement-id",
+            "portable-check",
+            "--created-at",
+            "2026-10-12T00:00:00Z",
         ],
         cwd=tmp_path,
         capture_output=True,
@@ -76,7 +83,10 @@ def test_package_gate_rejects_invalid_authorization_schema(tmp_path, schema_name
     path.write_text(json.dumps(schema))
     result = subprocess.run(
         [sys.executable, "-I", str(copied / "scripts/validate_package.py")],
-        cwd=tmp_path, capture_output=True, text=True, timeout=20,
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=20,
     )
     assert result.returncode != 0
     assert "Traceback" not in result.stderr
@@ -86,9 +96,13 @@ def inject_execution_marker(source: Path, marker: Path):
     text = source.read_text()
     anchor = "from __future__ import annotations\n"
     assert anchor in text
-    source.write_text(text.replace(
-        anchor, anchor + f"\n__import__('pathlib').Path({str(marker)!r}).touch()\n", 1,
-    ))
+    source.write_text(
+        text.replace(
+            anchor,
+            anchor + f"\n__import__('pathlib').Path({str(marker)!r}).touch()\n",
+            1,
+        )
+    )
 
 
 @pytest.mark.parametrize("name", (*SOURCE_FILES, "provider_assessment.py"))
@@ -99,7 +113,10 @@ def test_package_gate_does_not_execute_assessment_sources(tmp_path, name):
     inject_execution_marker(copied / "foundryharness" / name, marker)
     result = subprocess.run(
         [sys.executable, "-I", str(copied / "scripts/validate_package.py")],
-        cwd=tmp_path, capture_output=True, text=True, timeout=20,
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=20,
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert not marker.exists(), f"package gate executed {name} before approval"
@@ -109,9 +126,16 @@ def test_normal_cops_check_keeps_package_sources_inert(tmp_path, capsys):
     from cops.cli import main
 
     copied = tmp_path / "repository"
-    tracked = subprocess.run(
-        ["git", "ls-files", "-z"], cwd=ROOT, capture_output=True, check=True,
-    ).stdout.decode().split("\0")
+    tracked = (
+        subprocess.run(
+            ["git", "ls-files", "-z"],
+            cwd=ROOT,
+            capture_output=True,
+            check=True,
+        )
+        .stdout.decode()
+        .split("\0")
+    )
     for name in filter(None, tracked):
         source = ROOT / name
         if source.is_file():
@@ -138,7 +162,10 @@ def test_data_only_package_gate_rejects_invalid_case(tmp_path, directory):
     case_path.write_text(json.dumps(data))
     result = subprocess.run(
         [sys.executable, "-I", str(copied / "scripts/validate_package.py")],
-        cwd=tmp_path, capture_output=True, text=True, timeout=20,
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=20,
     )
     assert result.returncode != 0
 
@@ -158,27 +185,39 @@ def test_data_only_package_gate_rejects_invalid_provider_fixture(tmp_path, defec
     path.write_text(json.dumps(data))
     result = subprocess.run(
         [sys.executable, "-I", str(copied / "scripts/validate_package.py")],
-        cwd=tmp_path, capture_output=True, text=True, timeout=20,
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=20,
     )
     assert result.returncode != 0
     assert "Traceback" not in result.stderr
 
 
-@pytest.mark.parametrize("raw", [
-    b'{"schema_version":"secret-a","schema_version":"secret-b"}',
-    b'{"number":NaN}', b'{"number":Infinity}', b'{"number":1e999}',
-    b'{"text":"\\ud800"}', b'{"text":"\xff"}',
-    b'[' * 42 + b'0' + b']' * 42,
-    b'[' + b'0,' * 10001 + b'0]',
-    b' ' * (64 * 1024 + 1),
-])
+@pytest.mark.parametrize(
+    "raw",
+    [
+        b'{"schema_version":"secret-a","schema_version":"secret-b"}',
+        b'{"number":NaN}',
+        b'{"number":Infinity}',
+        b'{"number":1e999}',
+        b'{"text":"\\ud800"}',
+        b'{"text":"\xff"}',
+        b"[" * 42 + b"0" + b"]" * 42,
+        b"[" + b"0," * 10001 + b"0]",
+        b" " * (64 * 1024 + 1),
+    ],
+)
 def test_data_only_package_gate_rejects_unbounded_or_ambiguous_json(tmp_path, raw):
     copied = tmp_path / "plugin"
     shutil.copytree(PLUGIN, copied, ignore=shutil.ignore_patterns("__pycache__"))
     next((copied / "auth_cases").glob("*.json")).write_bytes(raw)
     result = subprocess.run(
         [sys.executable, "-I", str(copied / "scripts/validate_package.py")],
-        cwd=tmp_path, capture_output=True, text=True, timeout=20,
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=20,
     )
     assert result.returncode != 0
     assert "secret-a" not in result.stdout + result.stderr
@@ -186,14 +225,23 @@ def test_data_only_package_gate_rejects_unbounded_or_ambiguous_json(tmp_path, ra
     assert "Traceback" not in result.stderr
 
 
-@pytest.mark.parametrize("defect", [
-    "boolean_integer", "missing_default_coverage", "symlink", "unbounded_pattern",
-])
+@pytest.mark.parametrize(
+    "defect",
+    [
+        "boolean_integer",
+        "missing_default_coverage",
+        "symlink",
+        "unbounded_pattern",
+    ],
+)
 def test_data_only_package_gate_preserves_authorization_case_constraints(tmp_path, defect):
     copied = tmp_path / "plugin"
     shutil.copytree(PLUGIN, copied, ignore=shutil.ignore_patterns("__pycache__"))
-    case_path = next(path for path in (copied / "auth_cases").glob("*.json")
-                     if json.loads(path.read_text())["case_id"] == "delegated-control")
+    case_path = next(
+        path
+        for path in (copied / "auth_cases").glob("*.json")
+        if json.loads(path.read_text())["case_id"] == "delegated-control"
+    )
     data = json.loads(case_path.read_text())
     if defect == "boolean_integer":
         data["attempts"][0]["depth"] = True
@@ -217,7 +265,10 @@ def test_data_only_package_gate_preserves_authorization_case_constraints(tmp_pat
         schema_path.write_text(json.dumps(schema))
     result = subprocess.run(
         [sys.executable, "-I", str(copied / "scripts/validate_package.py")],
-        cwd=tmp_path, capture_output=True, text=True, timeout=20,
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=20,
     )
     assert result.returncode != 0
     assert "Traceback" not in result.stderr
@@ -233,7 +284,7 @@ def test_data_only_package_gate_preserves_authorization_case_constraints(tmp_pat
         (b'{"number":1e999}', "invalid_json"),
         (b'{"unicode":"\\ud800"}', "invalid_json"),
         (b'{"unicode":"\xff"}', "invalid_json"),
-        (b'[[[[0]]]]', "payload_limit"),
+        (b"[[[[0]]]]", "payload_limit"),
     ],
 )
 def test_portable_fixture_decoder_rejects_hostile_json(raw, code, monkeypatch):
@@ -250,7 +301,7 @@ def test_portable_fixture_decoder_bounds_bytes_and_ignores_quoted_braces(monkeyp
     monkeypatch.syspath_prepend(str(PLUGIN))
     from foundryharness.bounded_json import JSONInputError, decode_json
 
-    raw = b'{"text":"[[[\\\"{{{","nested":[]}'
+    raw = b'{"text":"[[[\\"{{{","nested":[]}'
     assert decode_json(raw, max_depth=2) == {"text": '[[["{{{', "nested": []}
     with pytest.raises(JSONInputError, match="response_limit"):
         decode_json(raw, max_bytes=len(raw) - 1)

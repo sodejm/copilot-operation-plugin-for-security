@@ -43,12 +43,17 @@ TEST_IDENTITY = "synthetic-fixture-runner"
 TOOLS = ("canary/read", "canary/write")
 FLOWS = ("delegated", "autonomous")
 FAULT_MODES = ("none", "hung_server", "missing_identity_telemetry", "observer_failure", "lost_response_after_effect")
-PEER_ACTIONS = (
-    "trusted_forward", "mutate_tenant", "omit_tenant", "mutate_operation", "substitute_receipt"
-)
+PEER_ACTIONS = ("trusted_forward", "mutate_tenant", "omit_tenant", "mutate_operation", "substitute_receipt")
 GRANTS = (
-    "delegated-write", "delegated-write-fabrikam", "autonomous-write", "one-time-write",
-    "reusable-write", "expired-write", "revoked-write", "read-only", "read-only-fabrikam",
+    "delegated-write",
+    "delegated-write-fabrikam",
+    "autonomous-write",
+    "one-time-write",
+    "reusable-write",
+    "expired-write",
+    "revoked-write",
+    "read-only",
+    "read-only-fabrikam",
 )
 SYNTHETIC_GRANT_ALIASES = (*GRANTS, "receipt-approved-synthetic")
 ARGUMENT_ALIASES = {
@@ -65,24 +70,57 @@ ARGUMENT_ALIASES = {
 }
 SCOPES = frozenset(("canary:read", "canary:write", "canary:admin"))
 ID_PATTERN = r"[a-z0-9]+(?:-[a-z0-9]+)*"
-_CASE_REQUIRED = frozenset((
-    "schema_version", "case_id", "title", "grant", "flow", "attempts",
-    "expected_decisions", "expected_reasons", "expected_effect_count",
-))
+_CASE_REQUIRED = frozenset(
+    (
+        "schema_version",
+        "case_id",
+        "title",
+        "grant",
+        "flow",
+        "attempts",
+        "expected_decisions",
+        "expected_reasons",
+        "expected_effect_count",
+    )
+)
 _CASE_OPTIONAL = frozenset(("surface", "expected_outcome"))
-_ATTEMPT_REQUIRED = frozenset((
-    "principal", "agent", "downstream_service", "audience", "resource", "operation",
-    "scopes", "depth", "tick", "tool",
-))
+_ATTEMPT_REQUIRED = frozenset(
+    (
+        "principal",
+        "agent",
+        "downstream_service",
+        "audience",
+        "resource",
+        "operation",
+        "scopes",
+        "depth",
+        "tick",
+        "tool",
+    )
+)
 _ATTEMPT_OPTIONAL = frozenset(("tenant", "peer_action", "fault_mode"))
 DECISIONS = frozenset(("allowed", "denied", "inconclusive"))
-REASONS = frozenset((
-    "allowed", "missing_context", "unrecognized_grant_or_actor", "expired_grant",
-    "revoked_grant", "one_time_replay", "flow_mismatch", "principal_or_agent_binding",
-    "downstream_service_mismatch", "audience_mismatch", "tenant_mismatch", "missing_tenant",
-    "resource_mismatch", "delegation_depth_exceeded", "tool_not_permitted",
-    "operation_mismatch", "scope_mismatch",
-))
+REASONS = frozenset(
+    (
+        "allowed",
+        "missing_context",
+        "unrecognized_grant_or_actor",
+        "expired_grant",
+        "revoked_grant",
+        "one_time_replay",
+        "flow_mismatch",
+        "principal_or_agent_binding",
+        "downstream_service_mismatch",
+        "audience_mismatch",
+        "tenant_mismatch",
+        "missing_tenant",
+        "resource_mismatch",
+        "delegation_depth_exceeded",
+        "tool_not_permitted",
+        "operation_mismatch",
+        "scope_mismatch",
+    )
+)
 SURFACES = frozenset(("local_synthetic_fixture", "unsupported_provider_surface"))
 OUTCOMES = frozenset(("pass", "fail", "inconclusive", "unsupported"))
 
@@ -180,10 +218,16 @@ def normalize_case_inputs(cases: Iterable[dict[str, Any]]) -> tuple[dict[str, An
                 raise ValueError("Authorization attempt delegation depth is invalid")
             if type(attempt["tick"]) is not int or not 0 <= attempt["tick"] <= 10:
                 raise ValueError("Authorization attempt expiry tick is invalid")
-            normalized_attempts.append({**attempt, "scopes": list(scopes), "peer_action": peer_action, "fault_mode": fault_mode})
+            normalized_attempts.append(
+                {**attempt, "scopes": list(scopes), "peer_action": peer_action, "fault_mode": fault_mode}
+            )
         for field, allowed in (("expected_decisions", DECISIONS), ("expected_reasons", REASONS)):
             values = case[field]
-            if type(values) is not list or len(values) != len(attempts) or any(not _member(value, allowed) for value in values):
+            if (
+                type(values) is not list
+                or len(values) != len(attempts)
+                or any(not _member(value, allowed) for value in values)
+            ):
                 raise ValueError("Authorization case expectations are invalid")
         effect_count = case["expected_effect_count"]
         if type(effect_count) is not int or not 0 <= effect_count <= len(attempts):
@@ -194,12 +238,21 @@ def normalize_case_inputs(cases: Iterable[dict[str, Any]]) -> tuple[dict[str, An
             raise ValueError("Authorization case surface or outcome is invalid")
         if surface == "unsupported_provider_surface" and outcome != "unsupported":
             raise ValueError("Unsupported provider cases must expect an unsupported outcome")
-        rows.append({
-            "schema_version": case["schema_version"], "case_id": case_id, "title": title,
-            "grant": case["grant"], "flow": case["flow"], "attempts": normalized_attempts,
-            "expected_decisions": list(case["expected_decisions"]), "expected_reasons": list(case["expected_reasons"]),
-            "expected_effect_count": effect_count, "surface": surface, "expected_outcome": outcome,
-        })
+        rows.append(
+            {
+                "schema_version": case["schema_version"],
+                "case_id": case_id,
+                "title": title,
+                "grant": case["grant"],
+                "flow": case["flow"],
+                "attempts": normalized_attempts,
+                "expected_decisions": list(case["expected_decisions"]),
+                "expected_reasons": list(case["expected_reasons"]),
+                "expected_effect_count": effect_count,
+                "surface": surface,
+                "expected_outcome": outcome,
+            }
+        )
         seen.add(case_id)
     if not rows:
         raise ValueError("Authorization laboratory requires at least one case")
@@ -219,7 +272,9 @@ def load_case_inputs(path: str | Path) -> tuple[dict[str, Any], ...]:
             raise JSONInputError("Authorization cases must be regular files or a directory")
         if not 1 <= len(paths) <= 100:
             raise JSONInputError("Authorization laboratory requires one to 100 case files")
-        return normalize_case_inputs(decode_json(read_regular_file(item, max_bytes=65536), max_bytes=65536) for item in paths)
+        return normalize_case_inputs(
+            decode_json(read_regular_file(item, max_bytes=65536), max_bytes=65536) for item in paths
+        )
     except OSError as exc:
         raise JSONInputError("Authorization cases could not be read") from exc
 
@@ -232,26 +287,44 @@ def _tool_input_schema() -> dict[str, Any]:
     properties = {
         "grant": {"type": "string", "enum": list(SYNTHETIC_GRANT_ALIASES)},
         "flow": {"type": "string", "enum": list(FLOWS)},
-        **{field: {"type": "string", "enum": sorted(ARGUMENT_ALIASES[field])} for field in (
-            "principal", "agent", "downstream_service", "audience", "tenant", "resource", "operation"
-        )},
-        "scopes": {"type": "array", "minItems": 1, "maxItems": 1, "uniqueItems": True,
-                   "items": {"type": "string", "enum": sorted(SCOPES)}},
+        **{
+            field: {"type": "string", "enum": sorted(ARGUMENT_ALIASES[field])}
+            for field in ("principal", "agent", "downstream_service", "audience", "tenant", "resource", "operation")
+        },
+        "scopes": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 1,
+            "uniqueItems": True,
+            "items": {"type": "string", "enum": sorted(SCOPES)},
+        },
         "depth": {"type": "integer", "minimum": 0, "maximum": 3},
         "tick": {"type": "integer", "minimum": 0, "maximum": 10},
         "case_id": {"type": "string", "pattern": f"^{ID_PATTERN}$", "maxLength": 64},
-        **{field: {"type": "string", "pattern": f"^{ID_PATTERN}$", "maxLength": 128} for field in ("attempt_id", "request_id", "canary_id")},
+        **{
+            field: {"type": "string", "pattern": f"^{ID_PATTERN}$", "maxLength": 128}
+            for field in ("attempt_id", "request_id", "canary_id")
+        },
         "plan_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$", "maxLength": 64},
         "test_identity": {"type": "string", "const": TEST_IDENTITY},
         "fault_mode": {"type": "string", "enum": list(FAULT_MODES)},
     }
-    return {"type": "object", "additionalProperties": False,
-            "required": sorted(set(properties) - {"tenant"}), "properties": properties}
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": sorted(set(properties) - {"tenant"}),
+        "properties": properties,
+    }
 
 
 def build_auth_plan(
-    cases: Iterable[dict[str, Any]], *, plan_id: str, engagement_id: str, created_at: str,
-    source_root: str | Path | None = None, _sources: dict[str, bytes] | None = None,
+    cases: Iterable[dict[str, Any]],
+    *,
+    plan_id: str,
+    engagement_id: str,
+    created_at: str,
+    source_root: str | Path | None = None,
+    _sources: dict[str, bytes] | None = None,
 ) -> ActionPlan:
     rows = normalize_case_inputs(cases)
     if _sources is None:
@@ -260,56 +333,110 @@ def build_auth_plan(
         sources = capture_source_bytes(source_root)
     else:
         sources = _sources
-    if type(sources) is not dict or set(sources) != set(SOURCE_FILES) or any(type(raw) is not bytes or len(raw) > 1048576 for raw in sources.values()):
+    if (
+        type(sources) is not dict
+        or set(sources) != set(SOURCE_FILES)
+        or any(type(raw) is not bytes or len(raw) > 1048576 for raw in sources.values())
+    ):
         raise ValueError("Authorization planning requires the complete bounded source snapshot")
     planned_cases = []
     for case in rows:
         attempts = []
         for index, attempt in enumerate(case["attempts"], start=1):
             attempt_id = f"{case['case_id']}-{index}"
-            attempts.append({
-                "attempt_id": attempt_id, "request_id": f"request-{attempt_id}", "canary_id": f"canary-{attempt_id}",
-                "request": {"case_id": case["case_id"], "grant": case["grant"], "flow": case["flow"], **attempt},
-                "expectation": {"decision": case["expected_decisions"][index - 1], "reason": case["expected_reasons"][index - 1],
-                                "effect_delta": int(case["expected_decisions"][index - 1] == "allowed")},
-            })
-        planned_cases.append({
-            "schema_version": "cops.agent-mcp-auth-planned-case/v1", "surface": case["surface"],
-            "case_id": case["case_id"], "title": case["title"], "attempts": attempts,
-            "expected_effect_count": case["expected_effect_count"], "expected_outcome": case["expected_outcome"],
-        })
+            attempts.append(
+                {
+                    "attempt_id": attempt_id,
+                    "request_id": f"request-{attempt_id}",
+                    "canary_id": f"canary-{attempt_id}",
+                    "request": {"case_id": case["case_id"], "grant": case["grant"], "flow": case["flow"], **attempt},
+                    "expectation": {
+                        "decision": case["expected_decisions"][index - 1],
+                        "reason": case["expected_reasons"][index - 1],
+                        "effect_delta": int(case["expected_decisions"][index - 1] == "allowed"),
+                    },
+                }
+            )
+        planned_cases.append(
+            {
+                "schema_version": "cops.agent-mcp-auth-planned-case/v1",
+                "surface": case["surface"],
+                "case_id": case["case_id"],
+                "title": case["title"],
+                "attempts": attempts,
+                "expected_effect_count": case["expected_effect_count"],
+                "expected_outcome": case["expected_outcome"],
+            }
+        )
     tool_schema = _tool_input_schema()
     manifest = {
-        "schema_version": "cops.agent-mcp-auth-manifest/v1", "test_identity": TEST_IDENTITY,
+        "schema_version": "cops.agent-mcp-auth-manifest/v1",
+        "test_identity": TEST_IDENTITY,
         "case_input_sha256": digest(list(rows)),
-        "adapter": {"adapter_id": ADAPTER_ID,
-                    "source_sha256": {name: hashlib.sha256(sources[name]).hexdigest() for name in SOURCE_FILES},
-                    "protocol_version": PROTOCOL_VERSION, "server_info": SERVER_INFO, "transport": "stdio",
-                    "tools": list(TOOLS), "tool_input_schemas": {tool: tool_schema for tool in TOOLS},
-                    "tool_permissions": [
-                        {"tool": "canary/read", "operation": "read", "granted_scopes": ["canary:read"]},
-                        {"tool": "canary/write", "operation": "write", "granted_scopes": ["canary:write"]},
-                    ], "peer_actions": list(PEER_ACTIONS)},
+        "adapter": {
+            "adapter_id": ADAPTER_ID,
+            "source_sha256": {name: hashlib.sha256(sources[name]).hexdigest() for name in SOURCE_FILES},
+            "protocol_version": PROTOCOL_VERSION,
+            "server_info": SERVER_INFO,
+            "transport": "stdio",
+            "tools": list(TOOLS),
+            "tool_input_schemas": {tool: tool_schema for tool in TOOLS},
+            "tool_permissions": [
+                {"tool": "canary/read", "operation": "read", "granted_scopes": ["canary:read"]},
+                {"tool": "canary/write", "operation": "write", "granted_scopes": ["canary:write"]},
+            ],
+            "peer_actions": list(PEER_ACTIONS),
+        },
         "cases": planned_cases,
-        "fault_modes": {"supported": list(FAULT_MODES), "hung_server_timeout_seconds": 1,
-                        "missing_identity_telemetry_outcome": "inconclusive", "observer_failure_outcome": "inconclusive"},
-        "limits": {"max_cases": 100, "max_attempts_per_case": 6, "max_ledger_bytes": 65536,
-                   "max_response_bytes": 65536, "network_egress": False},
-        "cleanup": {"terminate_fixture_processes": True, "verify_process_exit": True,
-                    "remove_private_work_directory": True, "verify_private_directory_removal": True},
+        "fault_modes": {
+            "supported": list(FAULT_MODES),
+            "hung_server_timeout_seconds": 1,
+            "missing_identity_telemetry_outcome": "inconclusive",
+            "observer_failure_outcome": "inconclusive",
+        },
+        "limits": {
+            "max_cases": 100,
+            "max_attempts_per_case": 6,
+            "max_ledger_bytes": 65536,
+            "max_response_bytes": 65536,
+            "network_egress": False,
+        },
+        "cleanup": {
+            "terminate_fixture_processes": True,
+            "verify_process_exit": True,
+            "remove_private_work_directory": True,
+            "verify_private_directory_removal": True,
+        },
     }
     return ActionPlan.create(
-        plan_id=plan_id, engagement_id=engagement_id, created_at=created_at,
-        scenario_id=SCENARIO_ID, target=TARGET, specialist_id=SPECIALIST_ID,
-        operations=[{
-            "step_id": "auth-lab-batch", "tool": "foundry-agent-harness/auth-lab", "tool_version": "1",
-            "action": "run_authorization_batch", "arguments": manifest, "timeout_seconds": 120,
-            "cleanup": manifest["cleanup"], "idempotent": False,
-            "expected_evidence": ["peer forwarding observation", "target authorization decision", "independent canary ledger",
-                                  "process exit observation", "private directory removal observation"],
-            "side_effects": ["private staged source and work directories", "local synthetic canary ledger writes"],
-        }],
+        plan_id=plan_id,
+        engagement_id=engagement_id,
+        created_at=created_at,
+        scenario_id=SCENARIO_ID,
+        target=TARGET,
+        specialist_id=SPECIALIST_ID,
+        operations=[
+            {
+                "step_id": "auth-lab-batch",
+                "tool": "foundry-agent-harness/auth-lab",
+                "tool_version": "1",
+                "action": "run_authorization_batch",
+                "arguments": manifest,
+                "timeout_seconds": 120,
+                "cleanup": manifest["cleanup"],
+                "idempotent": False,
+                "expected_evidence": [
+                    "peer forwarding observation",
+                    "target authorization decision",
+                    "independent canary ledger",
+                    "process exit observation",
+                    "private directory removal observation",
+                ],
+                "side_effects": ["private staged source and work directories", "local synthetic canary ledger writes"],
+            }
+        ],
         limits={"max_duration_seconds": 120, "max_output_bytes": 1048576, "egress_allowed": False},
-        credential_references=[], platform_prerequisites=["python-standard-library", "local-stdio-processes"],
+        credential_references=[],
+        platform_prerequisites=["python-standard-library", "local-stdio-processes"],
         batch={"mode": "sequential", "max_operations": 1, "fail_fast": False},
     )

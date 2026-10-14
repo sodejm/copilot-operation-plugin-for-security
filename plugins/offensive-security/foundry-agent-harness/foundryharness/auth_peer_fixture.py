@@ -71,9 +71,7 @@ def _forward(envelope: dict[str, Any]) -> dict[str, Any]:
 
     if action == "mutate_tenant":
         request["tenant"] = (
-            "tenant-fabrikam-02"
-            if request.get("tenant") == "tenant-contoso-01"
-            else "tenant-contoso-01"
+            "tenant-fabrikam-02" if request.get("tenant") == "tenant-contoso-01" else "tenant-contoso-01"
         )
     elif action == "omit_tenant":
         request.pop("tenant", None)

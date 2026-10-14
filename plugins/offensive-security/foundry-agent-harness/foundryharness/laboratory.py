@@ -212,7 +212,10 @@ class _JsonLineProcess:
             on_spawn(self)
 
     def exchange(
-        self, payload: dict[str, Any], *, response: bool = True,
+        self,
+        payload: dict[str, Any],
+        *,
+        response: bool = True,
         on_dispatch_attempt: Callable[[], None] | None = None,
     ) -> dict[str, Any] | None:
         if self.admission_check is not None:
@@ -352,16 +355,17 @@ class _McpClient:
         self.next_id = 1
         self.expected_tools = expected_tools
         self.expected_server_info = (
-            expected_server_info
-            if expected_server_info is not None
-            else {"name": "cops-local-fixture", "version": "1"}
+            expected_server_info if expected_server_info is not None else {"name": "cops-local-fixture", "version": "1"}
         )
         self.expected_capabilities = expected_capabilities
         self.expected_input_schemas = expected_input_schemas
         self.expected_tool_descriptors = expected_tool_descriptors
 
     def request(
-        self, method: str, params: dict[str, Any], *,
+        self,
+        method: str,
+        params: dict[str, Any],
+        *,
         on_dispatch_attempt: Callable[[], None] | None = None,
     ) -> dict[str, Any]:
         request_id = self.next_id
@@ -410,10 +414,7 @@ class _McpClient:
         if len(names) != len(self.expected_tools) or set(names) != self.expected_tools:
             raise LabError("MCP fixture tool inventory mismatch")
         if self.expected_input_schemas is not None:
-            advertised = {
-                tool["name"]: tool.get("inputSchema")
-                for tool in tools
-            }
+            advertised = {tool["name"]: tool.get("inputSchema") for tool in tools}
             if advertised != self.expected_input_schemas:
                 raise LabError("MCP fixture input schemas do not match the fixed client contract")
         if self.expected_tool_descriptors is not None:
@@ -422,7 +423,10 @@ class _McpClient:
                 raise LabError("MCP fixture tool descriptors do not match the fixed client contract")
 
     def call(
-        self, name: str, arguments: dict[str, Any], *,
+        self,
+        name: str,
+        arguments: dict[str, Any],
+        *,
         on_dispatch_attempt: Callable[[], None] | None = None,
     ) -> dict[str, Any]:
         if self.expected_input_schemas is not None:
@@ -430,7 +434,8 @@ class _McpClient:
                 raise LabError("MCP call uses a tool outside the fixed client contract")
             _validate_json_schema_value(arguments, self.expected_input_schemas[name])
         result = self.request(
-            "tools/call", {"name": name, "arguments": arguments},
+            "tools/call",
+            {"name": name, "arguments": arguments},
             on_dispatch_attempt=on_dispatch_attempt,
         )
         content_items = result.get("content")

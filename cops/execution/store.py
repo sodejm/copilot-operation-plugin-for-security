@@ -655,9 +655,11 @@ class ApprovalStore:
         import json
         import math
 
-        if (type(minimum_remaining_seconds) not in (int, float)
-                or not math.isfinite(minimum_remaining_seconds)
-                or minimum_remaining_seconds < 0):
+        if (
+            type(minimum_remaining_seconds) not in (int, float)
+            or not math.isfinite(minimum_remaining_seconds)
+            or minimum_remaining_seconds < 0
+        ):
             raise ApprovalStoreConflictError("minimum remaining authorization window must be finite and nonnegative")
 
         with self._get_connection() as conn:
@@ -734,9 +736,7 @@ class ApprovalStore:
                     )
 
                 if (expiry_dt - now_dt).total_seconds() < minimum_remaining_seconds:
-                    raise ApprovalStoreConflictError(
-                        "authorization has insufficient time for startup and cleanup"
-                    )
+                    raise ApprovalStoreConflictError("authorization has insufficient time for startup and cleanup")
 
                 # Atomically mark consumed
                 conn.execute(

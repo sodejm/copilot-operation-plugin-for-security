@@ -40,7 +40,10 @@ def authorized_batch(tmp_path: Path, cases=None):
     )
     signer, trust_store, engagement = make_test_authorization_context(plan)
     authorization = create_execution_authorization(
-        plan, signer=signer, engagement=engagement, worker_identity="fixture-worker",
+        plan,
+        signer=signer,
+        engagement=engagement,
+        worker_identity="fixture-worker",
     )
     store = ApprovalStore(tmp_path / "approval" / "authorization.sqlite3")
     store.store_authorization(authorization)
@@ -79,8 +82,11 @@ def test_trusted_planner_matches_runtime_case_and_tool_contracts():
     rows = agent_mcp.load_case_inputs(PLUGIN_ROOT / "auth_cases")
     assert rows == tuple(case.to_dict() for case in cases)
     plan = agent_mcp.build_auth_plan(
-        rows, plan_id="plan-contract-parity", engagement_id="eng-contract-parity",
-        created_at="2026-10-12T00:00:00Z", source_root=PLUGIN_ROOT / "foundryharness",
+        rows,
+        plan_id="plan-contract-parity",
+        engagement_id="eng-contract-parity",
+        created_at="2026-10-12T00:00:00Z",
+        source_root=PLUGIN_ROOT / "foundryharness",
     )
     manifest = plan.approved_snapshot()["operations"][0]["arguments"]
     adapter = manifest["adapter"]
@@ -95,7 +101,9 @@ def test_trusted_planner_matches_runtime_case_and_tool_contracts():
 
 @pytest.mark.parametrize("mutation", ["tool_schema", "permission", "peer", "cleanup", "budget"])
 def test_signed_but_changed_execution_contract_is_rejected_before_consumption(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutation: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
 ):
     cases, context = authorized_batch(tmp_path)
     snapshot = context["plan"].approved_snapshot()
@@ -114,7 +122,10 @@ def test_signed_but_changed_execution_contract_is_rejected_before_consumption(
     plan = ActionPlan.create(**snapshot)
     signer, trust_store, engagement = make_test_authorization_context(plan)
     authorization = create_execution_authorization(
-        plan, signer=signer, engagement=engagement, worker_identity="fixture-worker",
+        plan,
+        signer=signer,
+        engagement=engagement,
+        worker_identity="fixture-worker",
     )
     context["approval_store"].store_authorization(authorization)
     context.update(plan=plan, authorization=authorization, engagement=engagement, trust_store=trust_store)
@@ -134,7 +145,10 @@ def test_missing_signed_approval_cannot_launch_fixture(tmp_path: Path, monkeypat
 
 @pytest.mark.parametrize("field,value", [("tick", 2), ("depth", 2), ("operation", "read")])
 def test_case_mutation_invalidates_signed_manifest(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, field: str, value: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+    value: object,
 ):
     cases, context = authorized_batch(tmp_path)
     data = json.loads((PLUGIN_ROOT / "auth_cases/delegated-control.json").read_text())
@@ -220,6 +234,7 @@ def test_duration_budget_reserves_cleanup_and_stops_next_case(tmp_path: Path, mo
     cases += auth_laboratory.load_auth_cases(PLUGIN_ROOT / "auth_cases/wrong-audience.json")
     cases, context = authorized_batch(tmp_path, cases)
     clock = [0.0]
+
     def configure(executor):
         executor.time = SimpleNamespace(monotonic=lambda: clock[0])
         original = executor._run_auth_case
@@ -272,7 +287,10 @@ def fail_source_snapshot_cleanup(monkeypatch):
 @pytest.mark.parametrize("failure", [RuntimeError, SystemExit])
 @pytest.mark.parametrize("cleanup_fails", [False, True])
 def test_later_case_failure_preserves_evidence_and_requires_effect_reconciliation(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure, cleanup_fails,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure,
+    cleanup_fails,
 ):
     import jsonschema
 
@@ -314,7 +332,8 @@ def test_later_case_failure_preserves_evidence_and_requires_effect_reconciliatio
     assert len(report["results"][0]["observed_effects"]) == 1
     assert report["pending_case_ids"] == ["uncertain-failure", "unstarted-after-failure"]
     assert report["execution_failure"] == {
-        "case_id": "uncertain-failure", "reason": "case_execution_failed",
+        "case_id": "uncertain-failure",
+        "reason": "case_execution_failed",
         "effect_status": "uncertain",
     }
     assert report["next_action"] == "reconcile_uncertain_execution_effects_before_new_approval"
@@ -323,7 +342,8 @@ def test_later_case_failure_preserves_evidence_and_requires_effect_reconciliatio
     assert report["security_pass"] is False
     assert report["budget"]["observed_output_bytes"] > 0
     assert report["source_snapshot"] == {
-        "verified": True, "private_directory_removed": True,
+        "verified": True,
+        "private_directory_removed": True,
         "reason": "source_snapshot_cleanup_failure" if cleanup_fails else None,
         "failures": ["source_snapshot_cleanup_failure"] if cleanup_fails else [],
     }
@@ -352,7 +372,8 @@ def test_initialization_and_cleanup_failures_preserve_both_recovery_obligations(
     report = auth_approval.run_auth_cases(cases, **context)
     assert report["source_snapshot"]["reason"] == "source_snapshot_setup_or_execution_failure"
     assert report["source_snapshot"]["failures"] == [
-        "source_snapshot_setup_or_execution_failure", "source_snapshot_cleanup_failure",
+        "source_snapshot_setup_or_execution_failure",
+        "source_snapshot_cleanup_failure",
     ]
     assert report["recovery_actions"] == [
         "inspect_execution_initialization_before_new_approval",
@@ -376,18 +397,32 @@ def test_cli_runs_one_signed_batch_and_rejects_receipt_reuse(tmp_path: Path):
     cli = [sys.executable, str(PLUGIN_ROOT / "foundryharness/cli.py")]
     plan_path = tmp_path / "plan.json"
     compiled = subprocess.run(
-        cli + [
-            "auth-plan", "--cases", str(cases_path), "--plan-id", "plan-cli-auth-test",
-            "--engagement-id", "eng-cli-auth-test", "--created-at", "2026-10-12T00:00:00Z",
-            "--output", str(plan_path),
+        cli
+        + [
+            "auth-plan",
+            "--cases",
+            str(cases_path),
+            "--plan-id",
+            "plan-cli-auth-test",
+            "--engagement-id",
+            "eng-cli-auth-test",
+            "--created-at",
+            "2026-10-12T00:00:00Z",
+            "--output",
+            str(plan_path),
         ],
-        capture_output=True, text=True, timeout=15,
+        capture_output=True,
+        text=True,
+        timeout=15,
     )
     assert compiled.returncode == 0, compiled.stderr
     plan = ActionPlan.from_dict(json.loads(plan_path.read_text()))
     signer, _, engagement = make_test_authorization_context(plan)
     authorization = create_execution_authorization(
-        plan, signer=signer, engagement=engagement, worker_identity="fixture-worker",
+        plan,
+        signer=signer,
+        engagement=engagement,
+        worker_identity="fixture-worker",
     )
     engagement_path = tmp_path / "engagement.json"
     authorization_path = tmp_path / "authorization.json"
@@ -397,10 +432,22 @@ def test_cli_runs_one_signed_batch_and_rejects_receipt_reuse(tmp_path: Path):
     ApprovalStore(store_path).store_authorization(authorization)
     trust_path = write_test_authorization_trust_store(tmp_path / "trust.json")
     arguments = cli + [
-        "auth-lab", "--cases", str(cases_path), "--plan", str(plan_path),
-        "--engagement", str(engagement_path), "--authorization", str(authorization_path),
-        "--trust-store", str(trust_path), "--worker-identity", "fixture-worker",
-        "--approval-store", str(store_path), "--json",
+        "auth-lab",
+        "--cases",
+        str(cases_path),
+        "--plan",
+        str(plan_path),
+        "--engagement",
+        str(engagement_path),
+        "--authorization",
+        str(authorization_path),
+        "--trust-store",
+        str(trust_path),
+        "--worker-identity",
+        "fixture-worker",
+        "--approval-store",
+        str(store_path),
+        "--json",
     ]
     environment = {**os.environ, **authorization_secret_environment()}
     completed = subprocess.run(arguments, capture_output=True, text=True, env=environment, timeout=30)
@@ -409,7 +456,10 @@ def test_cli_runs_one_signed_batch_and_rejects_receipt_reuse(tmp_path: Path):
     assert report["all_expectations_met"] is True
     assert report["security_pass"] is True
     assert report["source_snapshot"] == {
-        "verified": True, "private_directory_removed": True, "reason": None, "failures": [],
+        "verified": True,
+        "private_directory_removed": True,
+        "reason": None,
+        "failures": [],
     }
     assert report["assessment_authorization"]["consumed_once_for_batch"] is True
     assert report["completed_case_count"] == 2

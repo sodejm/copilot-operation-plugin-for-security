@@ -45,10 +45,15 @@ def cli_context(tmp_path: Path, data: dict | None = None):
     arguments = ["auth-lab", "--cases", str(case_path)]
     for name, path in paths.items():
         arguments.extend((f"--{name}", str(path)))
-    arguments.extend((
-        "--worker-identity", "fixture-worker", "--approval-store",
-        str(context["approval_store"].db_path), "--json",
-    ))
+    arguments.extend(
+        (
+            "--worker-identity",
+            "fixture-worker",
+            "--approval-store",
+            str(context["approval_store"].db_path),
+            "--json",
+        )
+    )
     return arguments, paths, context
 
 
@@ -99,7 +104,10 @@ def test_cli_rejects_changed_source_without_importing_it(tmp_path, monkeypatch, 
         destination.write(f"\nfrom pathlib import Path\nPath({str(marker)!r}).write_text('unapproved')\n")
     result = subprocess.run(
         [sys.executable, str(source / "cli.py"), *arguments],
-        env=cli_environment(), capture_output=True, text=True, timeout=10,
+        env=cli_environment(),
+        capture_output=True,
+        text=True,
+        timeout=10,
     )
     assert result.returncode == 2
     assert "does not exactly bind" in result.stderr
@@ -115,10 +123,23 @@ def test_cli_plans_all_execution_sources_as_inert_bytes(tmp_path, filename):
         destination.write(f"\nfrom pathlib import Path\nPath({str(marker)!r}).write_text('unapproved')\n")
     case_path = PLUGIN_ROOT / "auth_cases/delegated-control.json"
     result = subprocess.run(
-        [sys.executable, str(source / "cli.py"), "auth-plan", "--cases", str(case_path),
-         "--plan-id", "plan-inert-source", "--engagement-id", "eng-inert-source",
-         "--created-at", "2026-10-12T00:00:00Z"],
-        env=cli_environment(), capture_output=True, text=True, timeout=10,
+        [
+            sys.executable,
+            str(source / "cli.py"),
+            "auth-plan",
+            "--cases",
+            str(case_path),
+            "--plan-id",
+            "plan-inert-source",
+            "--engagement-id",
+            "eng-inert-source",
+            "--created-at",
+            "2026-10-12T00:00:00Z",
+        ],
+        env=cli_environment(),
+        capture_output=True,
+        text=True,
+        timeout=10,
     )
     assert result.returncode == 0, result.stderr
     assert not marker.exists(), "Planning imported an execution source before approval"
@@ -126,8 +147,7 @@ def test_cli_plans_all_execution_sources_as_inert_bytes(tmp_path, filename):
     import hashlib
 
     assert plan["operations"][0]["arguments"]["adapter"]["source_sha256"] == {
-        name: hashlib.sha256((source / name).read_bytes()).hexdigest()
-        for name in agent_mcp.SOURCE_FILES
+        name: hashlib.sha256((source / name).read_bytes()).hexdigest() for name in agent_mcp.SOURCE_FILES
     }
 
 
@@ -140,7 +160,10 @@ def test_signed_controller_initialization_failure_returns_redacted_failed_report
     arguments, _, context = cli_context(tmp_path)
     result = subprocess.run(
         [sys.executable, str(source / "cli.py"), *arguments],
-        env=cli_environment(), capture_output=True, text=True, timeout=10,
+        env=cli_environment(),
+        capture_output=True,
+        text=True,
+        timeout=10,
     )
     assert result.returncode == 1, result.stderr
     report = json.loads(result.stdout)
@@ -151,7 +174,8 @@ def test_signed_controller_initialization_failure_returns_redacted_failed_report
     assert report["completed_case_count"] == 0
     assert report["pending_case_ids"] == ["delegated-control"]
     assert report["source_snapshot"] == {
-        "verified": True, "private_directory_removed": True,
+        "verified": True,
+        "private_directory_removed": True,
         "reason": "source_snapshot_setup_or_execution_failure",
         "failures": ["source_snapshot_setup_or_execution_failure"],
     }
@@ -169,7 +193,7 @@ def test_sigterm_cli_observes_child_exits_and_private_directory_removal(tmp_path
     acknowledge = tmp_path / "continue"
     # This signed test controller exposes exact lifecycle boundaries to the
     # parent process; it does not replace the installed cancellation handlers.
-    hook = f'''
+    hook = f"""
 import json
 _OriginalProcess = _JsonLineProcess
 _started_processes = []
@@ -201,14 +225,17 @@ class _ObservedProcess(_OriginalProcess):
             _test_boundary()
         return super().close()
 _JsonLineProcess = _ObservedProcess
-'''
+"""
     with (source / "auth_approval.py").open("a") as destination:
         destination.write(hook)
     monkeypatch.setattr(auth_approval, "__file__", str(source / "auth_approval.py"))
     arguments, _, context = cli_context(tmp_path)
     process = subprocess.Popen(
         [sys.executable, str(source / "cli.py"), *arguments],
-        env=cli_environment(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        env=cli_environment(),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
     )
     try:
         deadline = time.monotonic() + 10
@@ -224,7 +251,9 @@ _JsonLineProcess = _ObservedProcess
         assert report["cancelled"] is True
         assert report["security_pass"] is False
         assert report["source_snapshot"]["private_directory_removed"] is True
-        assert context["approval_store"].get_authorization(context["authorization"].authorization_id).status == "consumed"
+        assert (
+            context["approval_store"].get_authorization(context["authorization"].authorization_id).status == "consumed"
+        )
         assert children
         for child in children:
             with pytest.raises(ProcessLookupError):
@@ -302,7 +331,8 @@ def test_sigint_during_startup_or_cleanup_observes_exits_and_removal(tmp_path, m
     assert report["all_expectations_met"] is False
     assert report["pending_case_ids"] == [cases[0].case_id]
     assert report["results"][0]["cleanup"] == {
-        "process_exit_observed": True, "private_directory_removed": True,
+        "process_exit_observed": True,
+        "private_directory_removed": True,
     }
     assert launched and all(
         child.process.poll() is not None and not directory.exists() and not source.exists()
@@ -348,7 +378,11 @@ def test_cli_returns_failure_for_incomplete_or_inconclusive_security_evidence(tm
 @pytest.mark.parametrize("input_name", ["plan", "engagement", "authorization", "trust-store"])
 @pytest.mark.parametrize("bad_input", ["duplicate", "deep", "nonfinite", "invalid_utf8", "oversized", "symlink"])
 def test_cli_rejects_malformed_inputs_before_consumption_or_launch(
-    tmp_path, monkeypatch, capsys, input_name, bad_input,
+    tmp_path,
+    monkeypatch,
+    capsys,
+    input_name,
+    bad_input,
 ):
     arguments, paths, context = cli_context(tmp_path)
     path = paths[input_name]
@@ -381,7 +415,10 @@ def test_near_expiry_receipt_is_not_consumed_and_launches_nothing(tmp_path, monk
     signer, trust, engagement = make_test_authorization_context(context["plan"])
     now = datetime.now(UTC)
     receipt = create_execution_authorization(
-        context["plan"], signer=signer, engagement=engagement, worker_identity="fixture-worker",
+        context["plan"],
+        signer=signer,
+        engagement=engagement,
+        worker_identity="fixture-worker",
         issued_at=now.isoformat().replace("+00:00", "Z"),
         authorized_until_utc=(now + timedelta(seconds=8)).isoformat().replace("+00:00", "Z"),
     )
@@ -403,12 +440,14 @@ def test_consumption_clock_is_observed_after_acquiring_write_lock(tmp_path, monk
     @contextmanager
     def observed_connection():
         with connection() as conn:
+
             class Proxy:
                 def execute(self, statement, *args):
                     result = conn.execute(statement, *args)
                     if statement == "BEGIN IMMEDIATE":
                         locked[0] = True
                     return result
+
             yield Proxy()
 
     def clock_after_lock():
@@ -419,7 +458,9 @@ def test_consumption_clock_is_observed_after_acquiring_write_lock(tmp_path, monk
     monkeypatch.setattr(store_module, "utc_now", clock_after_lock)
     with pytest.raises(ApprovalStoreConflictError, match="expired"):
         store.atomically_consume(
-            receipt.authorization_id, expected_authorization=receipt, worker_identity="fixture-worker",
+            receipt.authorization_id,
+            expected_authorization=receipt,
+            worker_identity="fixture-worker",
         )
     assert store.get_authorization(receipt.authorization_id).status == "expired"
 
@@ -433,8 +474,11 @@ def test_response_reads_respect_exact_remaining_byte_budget(tmp_path, monkeypatc
     process = SimpleNamespace(stdin=io.BytesIO(), stdout=io.BytesIO(raw))
     monkeypatch.setattr(laboratory.subprocess, "Popen", lambda *_args, **_kwargs: process)
     child = laboratory._JsonLineProcess(
-        "auth_peer_fixture.py", str(tmp_path), admission_check=budget.admit,
-        account_response=budget.account_response, response_bytes_remaining=budget.remaining_bytes,
+        "auth_peer_fixture.py",
+        str(tmp_path),
+        admission_check=budget.admit,
+        account_response=budget.account_response,
+        response_bytes_remaining=budget.remaining_bytes,
     )
     if over_by:
         with pytest.raises(auth_approval._BatchBudgetStop, match="output_budget_exhausted"):
@@ -453,10 +497,17 @@ def test_ledger_reads_respect_exact_remaining_byte_budget(tmp_path, over_by):
     budget = auth_approval._BatchBudget(context["plan"], context["authorization"].authorized_until_utc)
     event = {field: "test" for field in auth_approval.LEDGER_FIELDS}
     event.update(
-        schema_version="cops.agent-mcp-auth-ledger-event/v1", server_identity=auth_approval.SERVER_IDENTITY,
-        test_identity=auth_approval.TEST_IDENTITY, kind="canary_write", operation="write", redacted=True,
-        tool="canary/write", principal="principal-alice", tenant="tenant-contoso-01",
-        resource="res-canary", plan_digest="a" * 64,
+        schema_version="cops.agent-mcp-auth-ledger-event/v1",
+        server_identity=auth_approval.SERVER_IDENTITY,
+        test_identity=auth_approval.TEST_IDENTITY,
+        kind="canary_write",
+        operation="write",
+        redacted=True,
+        tool="canary/write",
+        principal="principal-alice",
+        tenant="tenant-contoso-01",
+        resource="res-canary",
+        plan_digest="a" * 64,
     )
     raw = (json.dumps(event) + "\n").encode()
     ledger = tmp_path / "effects.jsonl"
@@ -471,10 +522,17 @@ def test_ledger_reads_respect_exact_remaining_byte_budget(tmp_path, over_by):
         assert budget.output_bytes == len(raw)
 
 
-@pytest.mark.parametrize("case_id", [
-    "delegated-control-fabrikam", "cross-tenant-reverse", "peer-mutate-tenant",
-    "peer-omit-tenant", "peer-mutate-operation", "peer-substitute-receipt",
-])
+@pytest.mark.parametrize(
+    "case_id",
+    [
+        "delegated-control-fabrikam",
+        "cross-tenant-reverse",
+        "peer-mutate-tenant",
+        "peer-omit-tenant",
+        "peer-mutate-operation",
+        "peer-substitute-receipt",
+    ],
+)
 def test_coverage_gate_rejects_same_count_with_missing_required_behavior(case_id):
     cases = auth_laboratory.load_auth_cases(PLUGIN_ROOT / "auth_cases")
     auth_laboratory.validate_default_auth_coverage(cases)
