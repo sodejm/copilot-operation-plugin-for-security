@@ -127,7 +127,18 @@ def main():
         ]
         if changed_python:
             run(python, "-m", "ruff", "format", "--check", *changed_python)
-        run(python, "-m", "coverage", "run", "--branch", "-m", "pytest")
+        # Approved controller snapshots are verified copies removed during the test.
+        # Counting them duplicates source coverage and leaves no file for reporting.
+        run(
+            python,
+            "-m",
+            "coverage",
+            "run",
+            "--branch",
+            "--omit=*/cops-auth-source-*/*",
+            "-m",
+            "pytest",
+        )
         run(python, "-m", "coverage", "report")
     elif stack == "best":
         run("uv", "pip", "install", "--python", python, ".[dev]")
