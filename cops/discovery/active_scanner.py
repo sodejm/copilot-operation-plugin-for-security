@@ -453,11 +453,7 @@ class StandardSocketDispatcher(ProbeDispatcher):
         probe_id = hashlib.sha256(f"{probe_key}:{timestamp}".encode()).hexdigest()[:24]
         dns_probe = port in self.udp_dns_probe_ports
         query_id = os.urandom(2) if dns_probe else b""
-        payload = (
-            query_id + b"\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x01"
-            if dns_probe
-            else b""
-        )
+        payload = query_id + b"\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x01" if dns_probe else b""
         probe_name = "dns_root_ns_query" if dns_probe else "empty_datagram"
         start_time = time.monotonic()
         sock = None
@@ -695,9 +691,7 @@ class ActiveScanner:
             return
         configured = getattr(self.dispatcher, "udp_dns_probe_ports", None)
         if self.session.udp_dns_probe_ports or configured is not None:
-            if not isinstance(configured, frozenset) or configured != frozenset(
-                self.session.udp_dns_probe_ports
-            ):
+            if not isinstance(configured, frozenset) or configured != frozenset(self.session.udp_dns_probe_ports):
                 raise ActiveScanError("Live UDP DNS probe selection differs from the approved plan")
 
     def _validate_probe_evidence(self, assessment: ActiveServiceAssessment) -> None:
@@ -709,16 +703,13 @@ class ActiveScanner:
             if "probe_payload" in metadata and metadata["probe_payload"] == "dns_root_ns_query":
                 raise ActiveScanError("Probe result claims an out-of-plan DNS payload")
             return
-        expected = (
-            "dns_root_ns_query"
-            if assessment.port in self.session.udp_dns_probe_ports
-            else "empty_datagram"
-        )
+        expected = "dns_root_ns_query" if assessment.port in self.session.udp_dns_probe_ports else "empty_datagram"
         if "probe_payload" in metadata and metadata["probe_payload"] != expected:
             raise ActiveScanError("Probe result claims an out-of-plan UDP payload")
-        if any(
-            isinstance(key, str) and key.startswith("dns_response_") for key in metadata
-        ) and expected != "dns_root_ns_query":
+        if (
+            any(isinstance(key, str) and key.startswith("dns_response_") for key in metadata)
+            and expected != "dns_root_ns_query"
+        ):
             raise ActiveScanError("Probe result claims unapproved DNS response evidence")
         if assessment.port_state == PortState.OPEN.value and expected == "dns_root_ns_query":
             if metadata.get("probe_payload") != expected or not isinstance(

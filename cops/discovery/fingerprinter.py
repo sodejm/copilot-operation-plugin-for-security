@@ -35,7 +35,9 @@ def infer_service_fingerprint(
             product=None,
             version=None,
             confidence=ConfidenceLevel.MEDIUM.value,
-            uncertainty_reasons=["Matching DNS response does not authenticate the server or establish a product or version"],
+            uncertainty_reasons=[
+                "Matching DNS response does not authenticate the server or establish a product or version"
+            ],
             evidence_sources=["matched_dns_query_response"],
         )
 
