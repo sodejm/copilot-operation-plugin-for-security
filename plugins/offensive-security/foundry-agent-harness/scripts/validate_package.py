@@ -83,7 +83,11 @@ def required_auth_coverage():
         if not isinstance(case_id, str) or not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", case_id):
             raise PackageError("Invalid required authorization coverage")
         if not isinstance(contract, dict) or set(contract) != {
-            "grant", "flow", "expected_decisions", "expected_reasons", "expected_effect_count"
+            "grant",
+            "flow",
+            "expected_decisions",
+            "expected_reasons",
+            "expected_effect_count",
         }:
             raise PackageError("Invalid required authorization coverage")
         grant, flow = contract["grant"], contract["flow"]
