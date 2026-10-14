@@ -495,11 +495,17 @@ def assert_exact_gateway_post(scope_context):
     assert scope_context["gateway_response"].status == 200
 
 
-@then("it exposes no provider origin or provider credential to the worker")
+@then(
+    "it treats the provider target only as signed authorization data and exposes no provider credential to the worker"
+)
 def assert_gateway_worker_scope(scope_context):
     fixture = scope_context["gateway"]
-    _, _, headers = fixture["peer"].requests[0]
+    _, request_target, headers = fixture["peer"].requests[0]
+    grant, _ = decode_gateway_dispatch_envelope(fixture["peer"].request_bodies[0])
     assert fixture["config"].gateway_url == _GATEWAY_URL
+    assert request_target == "/v2/dispatch"
+    assert grant == fixture["grant"]
+    assert grant.request_target == _PROVIDER_TARGET
     assert "Authorization" not in headers
     assert "Proxy-Authorization" not in headers
     assert _PROVIDER_TARGET not in repr(fixture["mediator"].observations)

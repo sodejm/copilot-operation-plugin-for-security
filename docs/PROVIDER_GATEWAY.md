@@ -27,8 +27,11 @@ The worker-side broker permits one bounded `POST` only to the configured HTTPS
 gateway origin and exact path. TLS must authenticate the hostname and configured
 gateway SPIFFE resource identity. Redirects, automatic retries, direct provider
 destinations, changed DNS destinations, oversized bodies, and body digest
-mismatches are denied. The gateway is responsible for provider credentials;
-the worker and assessment report must never receive their values. A gateway
+mismatches are denied. The signed grant visible to the worker includes the exact
+provider request target as authorization data, but the broker never treats that
+target as a permitted network destination. The gateway is responsible for
+provider credentials; the worker and assessment report must never receive their
+values. A gateway
 implementation must independently compare the grant with its configured
 provider endpoint and credential scope before calling the provider. This
 repository's gateway emulator exercises that check without issuing a real

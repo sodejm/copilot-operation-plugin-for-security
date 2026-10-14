@@ -1008,8 +1008,10 @@ def test_gateway_broker_binds_signed_grant_and_consumes_it_once(tmp_path) -> Non
 
     assert response.status == 200
     assert first.requests[0][0:2] == ("POST", "/v2/dispatch")
-    assert decode_gateway_dispatch_envelope(first.request_bodies[0]) == (grant, body)
-    assert b"api.openai.com" in first.request_bodies[0]
+    sent_grant, sent_body = decode_gateway_dispatch_envelope(first.request_bodies[0])
+    assert sent_grant == grant
+    assert sent_grant.request_target == "https://api.openai.com/v1/responses"
+    assert sent_body == body
 
     with pytest.raises(EgressMediationError, match="authorization callback"):
         broker._dispatch(request, deadline=time.monotonic() + 5)

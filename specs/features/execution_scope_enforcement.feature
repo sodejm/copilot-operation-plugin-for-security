@@ -41,7 +41,7 @@ Feature: Execution Scope and Network Egress Enforcement
     And the worker has a matching bounded request body
     When the worker completes gateway transport preflight
     Then it sends exactly one HTTPS POST to the bound gateway origin and request target
-    And it exposes no provider origin or provider credential to the worker
+    And it treats the provider target only as signed authorization data and exposes no provider credential to the worker
 
   Scenario: Rejecting an invalid gateway POST before consuming approval
     Given a pending one-use authorization and a signed dispatch descriptor

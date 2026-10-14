@@ -30,7 +30,7 @@ Enforces actual network destinations and resource identities at execution time a
 
 6. **Operator Gateway POST Protocol (`cops.operator-gateway-dispatch/v2`)**:
    - Provider dispatch is a separate, versioned broker capability. It does not widen the `GET`/`HEAD` mediation protocol.
-   - The capability permits exactly one HTTPS `POST` to one configured gateway origin and one exact request target. The worker does not receive a provider origin, provider credential, redirect destination, or proxy/tunnel capability.
+   - The capability permits exactly one HTTPS `POST` to one configured gateway origin and one exact request target. The signed dispatch descriptor supplies the exact provider request target as authorization data, while the broker prevents that target from becoming a worker network destination. The worker does not receive a provider credential, redirect destination, or proxy/tunnel capability.
    - The request body has a configured maximum byte length. The worker verifies its SHA-256 digest and byte length against the signed dispatch descriptor before the first byte leaves the broker.
    - The configured gateway TLS peer must present the exact allowlisted SPIFFE URI identity. Hostname, resolved addresses, connected peer address, origin, and request target remain subject to the existing scope and identity checks.
    - Redirect status responses, a changed origin or target, a second request, and every retry are rejected. A timeout or transport failure after transmission is recorded as an unknown outcome and is never resent.
