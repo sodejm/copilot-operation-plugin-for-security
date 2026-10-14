@@ -1,4 +1,5 @@
 """Shared fail-closed limits and descriptor-anchored reads for local evidence."""
+
 from __future__ import annotations
 
 import json
@@ -14,10 +15,22 @@ class IngestError(ValueError):
     """A stable code; source values and filesystem paths are never included."""
 
 
-DEFAULTS = {"file_bytes": 4 * 1024 * 1024, "total_bytes": 64 * 1024 * 1024,
-            "files": 64, "line_bytes": 1024 * 1024, "records": 50000, "json_depth": 32}
-CEILINGS = {"file_bytes": 16 * 1024 * 1024, "total_bytes": 256 * 1024 * 1024,
-            "files": 256, "line_bytes": 4 * 1024 * 1024, "records": 200000, "json_depth": 64}
+DEFAULTS = {
+    "file_bytes": 4 * 1024 * 1024,
+    "total_bytes": 64 * 1024 * 1024,
+    "files": 64,
+    "line_bytes": 1024 * 1024,
+    "records": 50000,
+    "json_depth": 32,
+}
+CEILINGS = {
+    "file_bytes": 16 * 1024 * 1024,
+    "total_bytes": 256 * 1024 * 1024,
+    "files": 256,
+    "line_bytes": 4 * 1024 * 1024,
+    "records": 200000,
+    "json_depth": 64,
+}
 
 
 @dataclass(frozen=True)
@@ -65,8 +78,13 @@ class RunBudget:
         self.records += amount
 
     def receipt(self):
-        return {"limits": self.limits.export(), "bytes": self.bytes,
-                "files": self.files, "records": self.records, "lines": self.lines}
+        return {
+            "limits": self.limits.export(),
+            "bytes": self.bytes,
+            "files": self.files,
+            "records": self.records,
+            "lines": self.lines,
+        }
 
 
 @dataclass(frozen=True)
@@ -86,18 +104,38 @@ def _absolute_parts(root):
 
 
 def read_regular(root, relative, limit, budget: RunBudget | None = None, *, count_file=True) -> FileRead:
-    if (not isinstance(relative, str) or not relative or len(relative) > 2048
-            or relative.startswith("/") or "\\" in relative or any(ord(c) < 32 for c in relative)
-            or any(part in ("", ".", "..") for part in relative.split("/"))):
+    if (
+        not isinstance(relative, str)
+        or not relative
+        or len(relative) > 2048
+        or relative.startswith("/")
+        or "\\" in relative
+        or any(ord(c) < 32 for c in relative)
+        or any(part in ("", ".", "..") for part in relative.split("/"))
+    ):
         raise IngestError("unsafe_path")
     if type(limit) is not int or limit <= 0 or limit > CEILINGS["file_bytes"]:
         raise IngestError("invalid_limit")
-    parts = _absolute_parts(root) + relative.split("/")
     if budget is not None and count_file and budget.files >= budget.limits.files:
         raise IngestError("file_count_limit")
     remaining = budget.limits.total_bytes - budget.bytes if budget else limit
     if remaining < 0:
         raise IngestError("total_byte_limit")
+    if os.name == "nt":
+        from .windows_io import WindowsIOError
+        from .windows_io import read_regular as windows_read_regular
+
+        try:
+            data, identity = windows_read_regular(Path(root), relative.split("/"), limit, remaining)
+        except OverflowError as error:
+            raise IngestError(str(error)) from None
+        except WindowsIOError:
+            raise IngestError("unsafe_file") from None
+        if budget:
+            budget.bytes += len(data)
+            budget.files += int(count_file)
+        return FileRead(data, identity)
+    parts = _absolute_parts(root) + relative.split("/")
     descriptors = []
     try:
         descriptors.append(os.open("/", os.O_RDONLY | os.O_DIRECTORY))
@@ -127,9 +165,10 @@ def read_regular(root, relative, limit, budget: RunBudget | None = None, *, coun
                 raise IngestError("file_limit" if limit <= remaining else "total_byte_limit")
             chunks.append(chunk)
         after = os.fstat(fd)
+
         def identity(item):
-            return (item.st_dev, item.st_ino, item.st_nlink, item.st_size,
-                                         item.st_mtime_ns, item.st_ctime_ns)
+            return (item.st_dev, item.st_ino, item.st_nlink, item.st_size, item.st_mtime_ns, item.st_ctime_ns)
+
         if identity(before) != identity(after) or size != after.st_size:
             raise IngestError("file_changed")
         if budget:
@@ -241,8 +280,14 @@ def _check_array_cardinality(raw: bytes, path: tuple[str, ...], cap: int):
         raise IngestError("invalid_json")
 
 
-def parse_json(raw: bytes, limits: Limits, *, max_bytes: int, record_cap: int | None = None,
-               record_path: tuple[str, ...] = ("records",)):
+def parse_json(
+    raw: bytes,
+    limits: Limits,
+    *,
+    max_bytes: int,
+    record_cap: int | None = None,
+    record_path: tuple[str, ...] = ("records",),
+):
     """Pre-scan depth before the recursive JSON decoder."""
     if len(raw) > max_bytes:
         raise IngestError("file_limit")

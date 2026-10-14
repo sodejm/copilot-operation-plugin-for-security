@@ -124,10 +124,7 @@ def _subject_files() -> list[Path]:
 def release_subject() -> dict[str, Any]:
     """Build the exact deterministic subject to which evidence must bind."""
 
-    artifacts = {
-        str(path.relative_to(PACKAGE_ROOT)): sha256_file(path)
-        for path in _subject_files()
-    }
+    artifacts = {str(path.relative_to(PACKAGE_ROOT)): sha256_file(path) for path in _subject_files()}
     subject_payload = {
         "schema": SUBJECT_SCHEMA,
         "qualifier_version": QUALIFIER_VERSION,
@@ -381,9 +378,7 @@ def _validate_model_host(
         findings.add(f"model host evidence {host_name}.records must be an array")
         records = []
     if len(records) != expected["runs_per_host"]:
-        findings.add(
-            f"model host evidence {host_name} must contain exactly {expected['runs_per_host']} records"
-        )
+        findings.add(f"model host evidence {host_name} must contain exactly {expected['runs_per_host']} records")
 
     expected_keys = {
         (task_id, repetition)
@@ -468,7 +463,9 @@ def _validate_model_host(
     if stage_omissions:
         findings.add(f"model host evidence {host_name} has {stage_omissions} silent stage omission(s)")
     if deterministic_failures:
-        findings.add(f"model host evidence {host_name} has {deterministic_failures} deterministic validation failure(s)")
+        findings.add(
+            f"model host evidence {host_name} has {deterministic_failures} deterministic validation failure(s)"
+        )
 
     derived_median = median(completeness_values) if completeness_values else None
     derived_minimum = min(completeness_values) if completeness_values else None
@@ -710,7 +707,9 @@ def _validate_integrity_payload(
     if kind == "sbom":
         if payload.get("bomFormat") != "CycloneDX" or payload.get("specVersion") not in {"1.5", "1.6", "1.7"}:
             findings.add("sbom payload must be a supported CycloneDX document")
-        properties = payload.get("metadata", {}).get("properties", []) if isinstance(payload.get("metadata"), dict) else []
+        properties = (
+            payload.get("metadata", {}).get("properties", []) if isinstance(payload.get("metadata"), dict) else []
+        )
         binding = {
             item.get("value")
             for item in properties
@@ -780,7 +779,9 @@ def _validate_release_archive(
             expected_names = [f"sentinel-hunt-workbench/{name}" for name in sorted(subject["artifacts"])]
             if [entry.filename for entry in entries] != expected_names:
                 raise ValueError("archive inventory or order differs from the release subject")
-            for entry, digest in zip(entries, (subject["artifacts"][name] for name in sorted(subject["artifacts"])), strict=False):
+            for entry, digest in zip(
+                entries, (subject["artifacts"][name] for name in sorted(subject["artifacts"])), strict=False
+            ):
                 if (
                     entry.date_time != (1980, 1, 1, 0, 0, 0)
                     or entry.compress_type != zipfile.ZIP_STORED

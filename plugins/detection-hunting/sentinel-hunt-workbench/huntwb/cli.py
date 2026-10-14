@@ -82,7 +82,9 @@ def main(argv: list[str] | None = None) -> int:
             _emit(release_report(args.seed, _load_external_evidence(args.evidence)))
         return 0
     except HuntWorkbenchError as error:
-        print(json.dumps({"status": "failed", "error": str(error), "error_type": type(error).__name__}), file=sys.stderr)
+        print(
+            json.dumps({"status": "failed", "error": str(error), "error_type": type(error).__name__}), file=sys.stderr
+        )
         return error.exit_code
     except Exception as error:  # pragma: no cover - defensive CLI boundary
         print(json.dumps({"status": "failed", "error": str(error), "error_type": "InternalError"}), file=sys.stderr)

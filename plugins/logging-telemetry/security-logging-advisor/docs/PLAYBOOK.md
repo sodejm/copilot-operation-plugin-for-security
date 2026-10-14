@@ -117,3 +117,64 @@ python3 -m cops demo security-logging-advisor
 # Package validation
 python3 plugins/logging-telemetry/security-logging-advisor/scripts/validate-plugin.py
 ```
+
+## 5. Deterministic Manifest Playback
+
+Use this playback when changing repository-context collection or the recommendation
+document contract. It requires Python 3 and the repository checkout. It uses only
+standard-library code and creates its synthetic source tree under a private
+temporary directory.
+
+From the repository root, run:
+
+```bash
+python3 plugins/logging-telemetry/security-logging-advisor/scripts/run_playback.py
+```
+
+The manifest pins the expected repository signals and the
+required recommendation sections and fields. The runner creates a small Python and
+Flask service with Terraform AWS configuration, invokes the actual
+`collect-repository-context.py` script twice, and requires semantically identical
+JSON output after normalizing unordered report collections.
+It then validates the checked-in, manually authored recommendation fixture against
+the manifest. A one-file scan must disclose incomplete coverage, and an in-memory
+copy of the recommendation with a required field removed must fail validation.
+
+```mermaid
+flowchart LR
+    A[scripts/playback/manifest.json] --> B[disposable source fixture]
+    B --> C[context collector run 1]
+    B --> D[context collector run 2]
+    C --> E[collector assertions]
+    D --> E
+    A --> F[manual recommendation fixture]
+    F --> G[structure validation]
+    B --> H[one-file partial scan]
+    H --> I[require incomplete coverage disclosure]
+```
+
+| Purpose | Key fields | Producer | Consumer | Definition | Validation | Example |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| Playback contract | `schema_version`, `recommendation`, `required_headings`, `required_fields`, `expected` | Maintainer | Playback runner | Pins expected collector signals and the report structure. | The runner rejects missing or mismatched contract values. | `expected.framework: Python Framework: Flask` |
+| Collector report | `languages`, `frameworks_and_libraries`, `iac_and_cloud`, `secrets_findings` | Repository-context collector | Advisor and playback assertions | Describes bounded, locally observed repository signals. | Two complete runs must match semantically; required signals and file counts are asserted. | `iac_and_cloud: [Terraform, AWS]` |
+| Coverage state | `coverage`, `incomplete_coverage`, `partial_scan_notice`, `scanned_files_count` | Repository-context collector | Analyst | States whether configured file limits truncated collection. | Full playback must be complete; the one-file run must state incomplete coverage. | `incomplete_coverage: true` |
+| Recommendation document | required headings plus `Priority`, `Logging Tier`, `Acceptance Criteria`, `Assumptions or Prerequisites` | Human analyst fixture | Structural validator and reviewer | Records a proposed logging improvement using the package template. | Every required heading and field must appear; the negative copy omits one field and must fail. | `Priority: High` |
+| Playback result | `status`, `scanned_files_count`, `recommendation_author`, `failure_paths` | Playback runner | Maintainer | Summarizes the deterministic checks without claiming recommendation truth. | Success requires repeatability and both negative paths. | `status: passed` |
+
+Interpret the collector output as repository evidence. A detected framework, cloud,
+or logging library means the bounded collector found a configured pattern in the
+synthetic files. It does not show that an event reaches a live sink. The manual
+recommendation demonstrates the report format and required structure. Its validation
+does not determine severity, correctness, production readiness, or whether an LLM
+would produce the same recommendation.
+
+The playback is safe to rerun: every source fixture and generated report is created
+in a new temporary directory and removed on exit. A nonzero exit identifies a
+manifest, collector, semantic assertion, rerun, partial-coverage, or recommendation
+contract failure. Run `scripts/test_playback.py` for the same workflow under the
+test runner.
+
+The synthetic fixture covers Python, Flask, Terraform, AWS, and the Python logging
+library. It is not coverage of every language, framework, cloud, secret pattern, or
+runtime sink supported by the collector. It performs no live SIEM query and makes
+no claim about deployed telemetry delivery, retention, alerting, or compliance.

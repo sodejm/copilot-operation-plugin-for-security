@@ -109,3 +109,65 @@ Review results in this order:
 8. Confirm `expectation_met` for every case. Result `case_id` values are stable SHA-256 references produced by `report_case_id`, not source case IDs; they support correlation but do not provide anonymity. The report deliberately excludes response content, prompts, endpoints, account identifiers, canaries, and credentials.
 
 The four provider families share one plan and report vocabulary, but their input envelopes are validated and normalized separately. This demonstrates deterministic fixture handling only. It cannot authenticate a provider response, verify tenant identity, establish actual usage or cost, prove remote cancellation or cleanup, or measure model safety. The shared egress broker permits only `GET` and `HEAD` and cannot carry provider inference requests; no live or paid command is available here.
+
+## Deterministic manifest playback
+
+Use the playback when changing the legacy scenario simulator, its six bundled
+scenarios, or the authorization gate. It checks the documented fixture behavior
+without a model, provider, network destination, or live tool. Python 3 and the
+repository checkout are the only prerequisites.
+
+Run the repository smoke demo independently:
+
+```bash
+python3 -m cops demo foundry-agent-harness
+```
+
+From the repository root, run:
+
+```bash
+python3 plugins/offensive-security/foundry-agent-harness/scripts/run_playback.py
+```
+
+The manifest pins the scenario directory, six scenario IDs, and four outcome
+dimensions. The runner copies the scenarios to a private temporary directory,
+invokes the actual `evaluate` CLI twice, normalizes run identifiers and UTC
+evaluation times, and compares the complete remaining reports. It then copies one scenario, removes its
+required environment approval, and verifies that evaluation fails before a valid
+result is produced. Temporary inputs and reports are removed automatically.
+
+```mermaid
+flowchart LR
+    A[scripts/playback/manifest.json] --> B[copy six scenarios]
+    B --> C[evaluate CLI run 1]
+    B --> D[evaluate CLI run 2]
+    C --> E[semantic assertions]
+    D --> E
+    B --> F[remove approval from copied scenario]
+    F --> G[require input rejection]
+```
+
+| Purpose | Key fields | Producer | Consumer | Definition | Validation | Example |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| Playback contract | `schema_version`, `scenarios`, `expected.scenario_ids`, `expected.outcome_vocabulary`, `expected.summary` | Maintainer | Playback runner | Pins the fixture set and expected aggregate behavior. | Unknown top-level and expected keys, missing or duplicate IDs, and unsupported outcome vocabularies are rejected. | `expected.summary.denied_tool_call_count: 6` |
+| Scenario input | `scenario_id`, `approved_test_environment`, `mock_attack`, `requested_tool_calls` | Bundled fixture author | `evaluate` CLI | Describes one synthetic proposal and its local authorization context. | Existing scenario schema and loader validate each copied file. | `cross-tenant-access` |
+| Authorization result | `outcome_level`, `authorization_decision`, `attempted_tool`, `gate_denial_reason` | Simulator and gate | Playback assertions | Separates proposals, gate denials, and effects recorded by the mock sandbox. | Every bundled playback case must attempt one call, deny it, and record no effect in the summary. | `authorization_decision: deny` |
+| Outcome dimensions | `model_output_only`, `attempted_tool_call`, `denied_tool_call`, `executed_mock_effect` | Manifest | Analyst | Defines the complete vocabulary used to interpret simulator evidence. | The runner requires the exact supported set. | `attempted_tool_call` |
+| Final report | `findings`, `summary`, `environment` | `evaluate` CLI | Analyst and playback runner | Aggregates the six scenario results. | The runner checks exact IDs, mock environment, counts, decisions, and normalized rerun equality. | `summary.total_scenarios: 6` |
+
+A passing summary means the current simulator attempted and denied the six pinned
+synthetic calls, observed no mock effect, and reproduced the same semantic report
+on a second run. `model_output_only: 0` means the pinned cases all contain a call
+proposal; it does not mean a model was queried. The failure-path message confirms
+that a scenario without the required approval marker is rejected.
+
+The script can be rerun without cleanup. It creates a new temporary directory and
+does not modify the bundled scenarios. A nonzero exit identifies a manifest,
+evaluation, semantic assertion, rerun, or failure-path error. Inspect that message
+before using the report as fixture evidence.
+
+This playback assesses the deterministic simulator and in-memory mock gate only.
+It does not execute a model, MCP server, provider request, live tool, or attack. It
+does not establish production authorization behavior or model safety. Use the
+process-backed `lab` workflow for the separate local MCP fixture, and use a
+separately authorized integration assessment for any deployed system claim.

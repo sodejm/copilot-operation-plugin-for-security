@@ -86,6 +86,8 @@ def main(argv: list[str] | None = None) -> int:
                 rule = Rule.from_dict(data)
                 print(f"Validated rule: {rule.rule_id} ({rule.platform}) - {rule.name}")
                 count += 1
+            if count == 0:
+                raise QualityError(f"No rule definitions found in: {args.rules_dir}")
             print(f"\nAll {count} detection rules validated successfully.")
             return 0
 
@@ -97,6 +99,16 @@ def main(argv: list[str] | None = None) -> int:
 
             rule_files = {p.stem: p for p in args.rules_dir.glob("*.json")}
             fixture_files = {p.stem: p for p in args.fixtures_dir.glob("*.json")}
+            if not rule_files:
+                raise QualityError(f"No rule definitions found in: {args.rules_dir}")
+            if not fixture_files:
+                raise QualityError(f"No fixture suites found in: {args.fixtures_dir}")
+            missing_fixtures = sorted(rule_files.keys() - fixture_files.keys())
+            orphaned_fixtures = sorted(fixture_files.keys() - rule_files.keys())
+            if missing_fixtures or orphaned_fixtures:
+                raise QualityError(
+                    f"Rule/fixture mismatch: missing fixtures={missing_fixtures}; orphaned fixtures={orphaned_fixtures}"
+                )
 
             print("Running Detection Quality Test Suite...")
             print(f"{'Rule ID':<35} {'Platform':<15} {'Precision':<12} {'Recall':<10} {'Errors':<8} {'Status'}")
@@ -104,10 +116,7 @@ def main(argv: list[str] | None = None) -> int:
 
             all_passed = True
             for name, r_path in sorted(rule_files.items()):
-                f_path = fixture_files.get(name)
-                if not f_path:
-                    print(f"Warning: No matching fixture suite for {name}", file=sys.stderr)
-                    continue
+                f_path = fixture_files[name]
 
                 rule = Rule.from_dict(json.loads(r_path.read_text(encoding="utf-8")))
                 suite = FixtureSuite.from_dict(json.loads(f_path.read_text(encoding="utf-8")))

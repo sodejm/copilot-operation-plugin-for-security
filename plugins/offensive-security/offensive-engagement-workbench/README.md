@@ -2,8 +2,71 @@
 
 `offensive-engagement-workbench` provides authorized adversarial assessment intake, scope boundary validation, execution mode classification, and reviewable immutable action planning for the Copilot Operations Plugin for Security (COPS) ecosystem.
 
-Follow the [end-to-end verification playbook](docs/VERIFICATION.md) to qualify this
-package's documented workflow and prepare evidence for a maturity review.
+Use the [deterministic playback guide](docs/PLAYBOOK.md) for the runnable offline
+demonstration. Follow the [end-to-end verification guide](docs/VERIFICATION.md)
+for the broader package qualification workflow.
+
+## Deterministic planning playback
+
+From the repository root, run:
+
+```bash
+python3 -m cops demo offensive-engagement-workbench
+```
+
+The manifest command writes six artifacts under
+`build/playbacks/offensive-engagement-workbench` and prints this completion
+record:
+
+```json
+{
+  "engagement_id": "eng-synthetic-e03",
+  "mode": "planning",
+  "network_requests": 0,
+  "operations_count": 1,
+  "status": "passed",
+  "target": "10.100.0.10"
+}
+```
+
+The playback validates the synthetic engagement, compiles one draft action,
+proposes an approval-pending specialist handoff, and sends a small plan summary
+to a local isolated Python subprocess. The child only echoes a structured
+observation; it has no network code and does not execute the planned operation.
+The parent accepts success only after checking the complete observation and
+hashing the child's raw stdout and stderr. This exercises the package boundary
+without claiming authorization, target reachability, worker readiness, or a
+live assessment result.
+
+### Design rationale and data flow
+
+The workflow separates planning contracts from process evidence so each
+boundary can be checked independently. Validated intake feeds an immutable
+draft plan; the repository handoff router produces a pending proposal; a local
+isolated child observes only a compact plan summary; and the parent validates
+and hashes the raw process output before writing the completion marker.
+
+```text
+fixture -> validated engagement -> draft action plan -> proposed handoff
+                                      |
+                                      v
+                              local inert child
+                                      |
+                                      v
+                       semantic checks + hashes -> result
+```
+
+| Artifact | Purpose | Producer | Consumer | Validation |
+| --- | --- | --- | --- | --- |
+| `engagement.json` | Preserve normalized planning scope. | Intake validator | Action-plan builder and operator | Valid contract with mode `planning`. |
+| `action-plan.json` | Record one bounded draft operation. | Action-plan builder | Handoff router and operator | One operation for `10.100.0.10`, draft status, and no egress. |
+| `handoff.json` | Route the proposal without granting execution. | Specialist handoff router | Specialist and operator | Proposed status, pending approval, and matching plan digest. |
+| `inert-observation.json` | Record the compact request seen by the child. | Local isolated child | Parent validator | Exact semantic match, one operation, and zero network requests. |
+| `execution-evidence.json` | Bind the process result to captured bytes without retaining command-line data. | Parent runner | Operator and tests | Stable `python-isolated` identity and allowlisted `-I` flag are recorded only for the built-in dispatcher after the runner verifies its exact executable, flag position, child program, and argument count. Zero exit code, empty stderr, byte counts, and SHA-256 hashes are also required. Raw executable paths, inline program text, and arbitrary dispatcher arguments are omitted. |
+| `playback-result.json` | Mark successful completion. | Parent runner | Catalog demo and operator | Exact documented six-field summary; written last. |
+
+The [playback guide](docs/PLAYBOOK.md) defines each artifact's key fields,
+producer, consumer, validation rule, and example in detail.
 
 ## Features
 
@@ -44,6 +107,11 @@ COPS publishes discovery metadata for these host surfaces. To install in an assi
 | Agent Plugins v1.0.0 clients | Export with `python3 scripts/agent/export_portable.py --output dist/agent-plugins` | Exported `plugin.json` and `skills/` | Client support for Agent Plugins v1.0.0 and its runtime sandbox. |
 
 The adapters and portable package are structurally checked, and the local workflow is validated offline. The package remains **experimental**: `host_installation` and `live_integration` are **unverified** in the repository's `package.json` for this package. After registering it, verify discovery and run a safe offline demo in the specific host before relying on that installation. Host permissions and plugin loading differ; see repository docs `docs/PORTABILITY.md` and `docs/COMPATIBILITY.md`.
+
+The exported planning playback uses the shared COPS runtime and catalog, and its
+specialist proposal reads the canonical `agents/registry.json`. Portable
+acceptance supplies those framework files explicitly; the exported package does
+not search for or fall back to a source checkout.
 
 Planning and inventory inspection are portable CLI workflows. Authenticated external adapter execution has narrower platform requirements: the worker requires Linux with executable `/proc/self/fd`, while inert execution requires POSIX secure directory descriptors. Unsupported workers fail closed. These runtime limits and separate deployment checks are detailed in repository docs `docs/COMPATIBILITY.md` and `docs/AUTHENTICATED_EXECUTION.md`. Offline validation does not establish host installation or live execution readiness.
 

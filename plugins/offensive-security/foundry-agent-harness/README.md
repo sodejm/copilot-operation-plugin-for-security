@@ -11,6 +11,18 @@ The package has four workflows:
 | Delegation authorization laboratory | `auth-plan`, `auth-lab` | One signed batch approval binds a fixed peer and MCP target fixture. The runner correlates forwarded requests, target decisions, and a separately read canary effect ledger written by a local observer process. |
 | AI provider assessment | `python scripts/run_provider_assessment.py` (from the package directory) | Fixed OpenAI, Azure OpenAI, AWS Bedrock, and GCP Vertex shaped response fixtures pass through exact plan binding, post-gate provider-envelope validation, normalization, and the shared assessment budget ledger. No request leaves the host. |
 
+## Design and data flow
+
+Each workflow accepts a versioned synthetic input, applies an authorization or normalization boundary, and emits evidence that distinguishes proposed calls from calls actually forwarded and effects actually observed.
+
+| Contract or artifact | Purpose | Key fields | Producer | Consumer | Validation | Example |
+| --- | --- | --- | --- | --- | --- | --- |
+| Scenario or laboratory case | Define synthetic content, proposed calls, and expected outcome | Case ID, inputs, tools, policy, expectation | Package maintainer | Simulator or laboratory runner | Schema, unique ID, and expected-outcome checks | Strict case denies a resource change |
+| Authorization decision | Record whether a proposed call may cross the gate | Call, policy rule, decision, reason | Gate | Runner and reviewer | Call-to-policy binding and explicit denial reason | Exfiltration proposal denied |
+| MCP observation | Separate proposal, forwarding, effect, and cleanup evidence | Attempted, denied, executed calls, state before/after | Fixture MCP process and runner | Laboratory report | Bounded protocol, expected outcome, and full-state reset | Authorized synthetic resource change then reset |
+| Provider assessment record | Normalize an admitted provider-shaped fixture | Provider, binding result, usage, tool proposal, budget | Provider assessment runner | Reviewer | Exact request binding, provider schema, and budget checks | AWS fixture reports a tool proposal without execution |
+| Playback summary | Qualify scenario coverage and deterministic failure handling | Counts, outcome matrix, rerun comparison, malformed-case result | `scripts/run_playback.py` | Maintainer | Semantic assertions and normalized rerun equality | Six attack proposals attempted and denied |
+
 ## Run the delegation authorization laboratory
 
 These commands require the COPS source checkout and its Python dependencies. The portable plugin's scenario simulator, local laboratory, and package validator continue to run with the standard library alone.
@@ -92,6 +104,20 @@ The fixed fixture processes have bounded stdio responses and run in a temporary 
 ```
 
 The six legacy scenarios use a deterministic simulator and an in-memory mock sandbox. The `model_response_summary` field is simulator text, despite its historical schema name. An `executed_mock_effect` is a local mock effect, not evidence of a real agent action. The simulator's rollback ledger does not apply to the separate MCP laboratory; the laboratory verifies a fixture reset after each case.
+
+Run the manifest playback to verify all six bundled scenarios, their authorization
+outcomes, repeatability, and a malformed-scenario failure path:
+
+```bash
+python3 plugins/offensive-security/foundry-agent-harness/scripts/run_playback.py
+```
+
+The playback uses copied fixtures in a private temporary directory. It runs the
+actual `evaluate` command twice, removes run-specific report identifiers before
+comparison, and requires all six synthetic attack proposals to be attempted and
+denied with no model or real tool execution. See the [analyst
+playbook](docs/PLAYBOOK.md#deterministic-manifest-playback) for the data flow,
+schema, result interpretation, and limitations.
 
 ## Assess synthetic provider fixtures
 

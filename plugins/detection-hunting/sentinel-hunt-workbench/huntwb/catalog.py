@@ -323,10 +323,7 @@ def build_profiles() -> list[dict[str, Any]]:
     shared = {
         "version": "1.0.0",
         "as_of": AS_OF,
-        "profile_provenance": [
-            {"url": reference, "accessed": AS_OF}
-            for reference in PROFILE_REFERENCES
-        ],
+        "profile_provenance": [{"url": reference, "accessed": AS_OF} for reference in PROFILE_REFERENCES],
         "allowed_operators": [
             "between",
             "count",
@@ -500,15 +497,86 @@ HUNT_SPECS: list[dict[str, Any]] = [
         "objective": "Correlate spray-like authentication evidence to later account activity without treating shared egress or a successful sign-in as proof of compromise.",
         "entities": ["account", "source_ip", "cloud_resource"],
         "stages": [
-            _stage("authentication_failures", "SigninLogs", "TimeGenerated", "account", "tostring(UserId)", ["UserId", "ResultType", "IPAddress", "Id"], ["Id"], join_out="tostring(UserId)", aad_tenant_field="AADTenantId", predicate='ResultType != "0"', evidence="failed authentication"),
-            _stage("authentication_success", "SigninLogs", "TimeGenerated", "account", "tostring(UserId)", ["UserId", "ResultType", "IPAddress", "Id"], ["Id"], join_in="tostring(UserId)", join_out="tostring(UserId)", aad_tenant_field="AADTenantId", predicate='ResultType == "0"', evidence="successful authentication"),
-            _stage("identity_risk", "AADUserRiskEvents", "TimeGenerated", "account", "tostring(UserId)", ["UserId", "RiskEventType", "Id"], ["Id", "TimeGenerated"], join_in="tostring(UserId)", join_out="tostring(UserId)", predicate="isnotempty(RiskEventType)", evidence="identity risk event"),
-            _stage("post_auth_activity", "CloudAppEvents", "TimeGenerated", "account", "tostring(AccountObjectId)", ["AccountObjectId", "ActionType", "ObjectId", "ReportId"], ["ReportId", "TimeGenerated"], join_in="tostring(AccountObjectId)", predicate="isnotempty(ActionType)", evidence="post-authentication cloud activity"),
+            _stage(
+                "authentication_failures",
+                "SigninLogs",
+                "TimeGenerated",
+                "account",
+                "tostring(UserId)",
+                ["UserId", "ResultType", "IPAddress", "Id"],
+                ["Id"],
+                join_out="tostring(UserId)",
+                aad_tenant_field="AADTenantId",
+                predicate='ResultType != "0"',
+                evidence="failed authentication",
+            ),
+            _stage(
+                "authentication_success",
+                "SigninLogs",
+                "TimeGenerated",
+                "account",
+                "tostring(UserId)",
+                ["UserId", "ResultType", "IPAddress", "Id"],
+                ["Id"],
+                join_in="tostring(UserId)",
+                join_out="tostring(UserId)",
+                aad_tenant_field="AADTenantId",
+                predicate='ResultType == "0"',
+                evidence="successful authentication",
+            ),
+            _stage(
+                "identity_risk",
+                "AADUserRiskEvents",
+                "TimeGenerated",
+                "account",
+                "tostring(UserId)",
+                ["UserId", "RiskEventType", "Id"],
+                ["Id", "TimeGenerated"],
+                join_in="tostring(UserId)",
+                join_out="tostring(UserId)",
+                predicate="isnotempty(RiskEventType)",
+                evidence="identity risk event",
+            ),
+            _stage(
+                "post_auth_activity",
+                "CloudAppEvents",
+                "TimeGenerated",
+                "account",
+                "tostring(AccountObjectId)",
+                ["AccountObjectId", "ActionType", "ObjectId", "ReportId"],
+                ["ReportId", "TimeGenerated"],
+                join_in="tostring(AccountObjectId)",
+                predicate="isnotempty(ActionType)",
+                evidence="post-authentication cloud activity",
+            ),
         ],
-        "confounders": ["NAT or proxy concentration", "service accounts", "MFA and conditional-access outcomes", "shared egress"],
-        "disconfirming": ["No bounded successful authentication", "risk event belongs to a different immutable user ID", "subsequent activity is approved automation"],
-        "stopping": ["Stop escalation when immutable-account correlation fails", "Escalate only after an analyst validates authentication context and downstream activity"],
-        "attck": [("T1110.003", "Password Spraying", "The first stage observes failures across authentication activity; downstream stages address use of a targeted principal."), ("T1078", "Valid Accounts", "A bounded successful authentication and later activity may be consistent with valid-account misuse, but do not establish it.")],
+        "confounders": [
+            "NAT or proxy concentration",
+            "service accounts",
+            "MFA and conditional-access outcomes",
+            "shared egress",
+        ],
+        "disconfirming": [
+            "No bounded successful authentication",
+            "risk event belongs to a different immutable user ID",
+            "subsequent activity is approved automation",
+        ],
+        "stopping": [
+            "Stop escalation when immutable-account correlation fails",
+            "Escalate only after an analyst validates authentication context and downstream activity",
+        ],
+        "attck": [
+            (
+                "T1110.003",
+                "Password Spraying",
+                "The first stage observes failures across authentication activity; downstream stages address use of a targeted principal.",
+            ),
+            (
+                "T1078",
+                "Valid Accounts",
+                "A bounded successful authentication and later activity may be consistent with valid-account misuse, but do not establish it.",
+            ),
+        ],
     },
     {
         "id": "H02",
@@ -517,14 +585,68 @@ HUNT_SPECS: list[dict[str, Any]] = [
         "objective": "Expose identity-session sequences requiring review while preserving proxy, guest, and clock-skew uncertainty.",
         "entities": ["account", "session", "cloud_resource"],
         "stages": [
-            _stage("identity_session", "SigninLogs", "TimeGenerated", "account", "tostring(UserId)", ["UserId", "SessionId", "Id", "ResultType"], ["Id"], join_out="tostring(UserId)", aad_tenant_field="AADTenantId", predicate='ResultType == "0" and isnotempty(SessionId)', evidence="authenticated identity session"),
-            _stage("directory_change", "AuditLogs", "TimeGenerated", "account", "tostring(InitiatedBy.user.id)", ["InitiatedBy", "OperationName", "Id"], ["Id"], join_in="tostring(InitiatedBy.user.id)", join_out="tostring(InitiatedBy.user.id)", aad_tenant_field="AADTenantId", predicate="isnotempty(OperationName)", evidence="directory or policy change"),
-            _stage("resource_use", "CloudAppEvents", "TimeGenerated", "account", "tostring(AccountObjectId)", ["AccountObjectId", "ActionType", "ObjectId", "ReportId"], ["ReportId", "TimeGenerated"], join_in="tostring(AccountObjectId)", predicate="isnotempty(ObjectId)", evidence="cloud resource use"),
+            _stage(
+                "identity_session",
+                "SigninLogs",
+                "TimeGenerated",
+                "account",
+                "tostring(UserId)",
+                ["UserId", "SessionId", "Id", "ResultType"],
+                ["Id"],
+                join_out="tostring(UserId)",
+                aad_tenant_field="AADTenantId",
+                predicate='ResultType == "0" and isnotempty(SessionId)',
+                evidence="authenticated identity session",
+            ),
+            _stage(
+                "directory_change",
+                "AuditLogs",
+                "TimeGenerated",
+                "account",
+                "tostring(InitiatedBy.user.id)",
+                ["InitiatedBy", "OperationName", "Id"],
+                ["Id"],
+                join_in="tostring(InitiatedBy.user.id)",
+                join_out="tostring(InitiatedBy.user.id)",
+                aad_tenant_field="AADTenantId",
+                predicate="isnotempty(OperationName)",
+                evidence="directory or policy change",
+            ),
+            _stage(
+                "resource_use",
+                "CloudAppEvents",
+                "TimeGenerated",
+                "account",
+                "tostring(AccountObjectId)",
+                ["AccountObjectId", "ActionType", "ObjectId", "ReportId"],
+                ["ReportId", "TimeGenerated"],
+                join_in="tostring(AccountObjectId)",
+                predicate="isnotempty(ObjectId)",
+                evidence="cloud resource use",
+            ),
         ],
-        "confounders": ["Travel and proxy changes", "guest users", "approved account administration", "token reuse by legitimate clients"],
-        "disconfirming": ["Directory operation initiated by a different immutable ID", "Resource use precedes the change after clock correction", "Change is tied to an approved request"],
-        "stopping": ["Stop when the immutable principal linkage is absent", "Escalate after validating session, change, and resource context"],
-        "attck": [("T1078", "Valid Accounts", "The sequence may be consistent with abuse of an authenticated account; correlation is not confirmation.")],
+        "confounders": [
+            "Travel and proxy changes",
+            "guest users",
+            "approved account administration",
+            "token reuse by legitimate clients",
+        ],
+        "disconfirming": [
+            "Directory operation initiated by a different immutable ID",
+            "Resource use precedes the change after clock correction",
+            "Change is tied to an approved request",
+        ],
+        "stopping": [
+            "Stop when the immutable principal linkage is absent",
+            "Escalate after validating session, change, and resource context",
+        ],
+        "attck": [
+            (
+                "T1078",
+                "Valid Accounts",
+                "The sequence may be consistent with abuse of an authenticated account; correlation is not confirmation.",
+            )
+        ],
     },
     {
         "id": "H03",
@@ -533,14 +655,71 @@ HUNT_SPECS: list[dict[str, Any]] = [
         "objective": "Preserve process lineage across endpoint streams and resist PID reuse, reboot, and device-rename ambiguity.",
         "entities": ["device", "process", "file", "network_destination"],
         "stages": [
-            _stage("process_start", "DeviceProcessEvents", "TimeGenerated", "process", "tostring(ProcessUniqueId)", ["DeviceId", "ProcessUniqueId", "FileName", "ReportId"], ["DeviceId", "ReportId", "TimeGenerated"], join_out="tostring(ProcessUniqueId)", predicate="isnotempty(ProcessUniqueId)", evidence="process creation"),
-            _stage("file_activity", "DeviceFileEvents", "TimeGenerated", "file", "tostring(SHA1)", ["DeviceId", "InitiatingProcessUniqueId", "FileName", "SHA1", "ReportId"], ["DeviceId", "ReportId", "TimeGenerated"], join_in="tostring(InitiatingProcessUniqueId)", join_out="tostring(InitiatingProcessUniqueId)", predicate="isnotempty(InitiatingProcessUniqueId)", evidence="file evidence from process"),
-            _stage("network_activity", "DeviceNetworkEvents", "TimeGenerated", "network_destination", "tostring(RemoteIP)", ["DeviceId", "InitiatingProcessUniqueId", "RemoteIP", "ReportId"], ["DeviceId", "ReportId", "TimeGenerated"], join_in="tostring(InitiatingProcessUniqueId)", predicate="isnotempty(RemoteIP)", evidence="network connection from process"),
+            _stage(
+                "process_start",
+                "DeviceProcessEvents",
+                "TimeGenerated",
+                "process",
+                "tostring(ProcessUniqueId)",
+                ["DeviceId", "ProcessUniqueId", "FileName", "ReportId"],
+                ["DeviceId", "ReportId", "TimeGenerated"],
+                join_out="tostring(ProcessUniqueId)",
+                predicate="isnotempty(ProcessUniqueId)",
+                evidence="process creation",
+            ),
+            _stage(
+                "file_activity",
+                "DeviceFileEvents",
+                "TimeGenerated",
+                "file",
+                "tostring(SHA1)",
+                ["DeviceId", "InitiatingProcessUniqueId", "FileName", "SHA1", "ReportId"],
+                ["DeviceId", "ReportId", "TimeGenerated"],
+                join_in="tostring(InitiatingProcessUniqueId)",
+                join_out="tostring(InitiatingProcessUniqueId)",
+                predicate="isnotempty(InitiatingProcessUniqueId)",
+                evidence="file evidence from process",
+            ),
+            _stage(
+                "network_activity",
+                "DeviceNetworkEvents",
+                "TimeGenerated",
+                "network_destination",
+                "tostring(RemoteIP)",
+                ["DeviceId", "InitiatingProcessUniqueId", "RemoteIP", "ReportId"],
+                ["DeviceId", "ReportId", "TimeGenerated"],
+                join_in="tostring(InitiatingProcessUniqueId)",
+                predicate="isnotempty(RemoteIP)",
+                evidence="network connection from process",
+            ),
         ],
-        "confounders": ["legitimate administration tools", "software installers", "security scanners", "enterprise management agents"],
-        "disconfirming": ["Process unique IDs do not match", "Device IDs differ despite matching display names", "Network event predates process evidence"],
-        "stopping": ["Stop on process-identity or device-identity collision", "Escalate after signer, prevalence, and destination review"],
-        "attck": [("T1059", "Command and Scripting Interpreter", "Process evidence can help review interpreter use when present; the hunt is broader than the technique."), ("T1105", "Ingress Tool Transfer", "File plus network evidence may support transfer investigation but is not proof of transfer.")],
+        "confounders": [
+            "legitimate administration tools",
+            "software installers",
+            "security scanners",
+            "enterprise management agents",
+        ],
+        "disconfirming": [
+            "Process unique IDs do not match",
+            "Device IDs differ despite matching display names",
+            "Network event predates process evidence",
+        ],
+        "stopping": [
+            "Stop on process-identity or device-identity collision",
+            "Escalate after signer, prevalence, and destination review",
+        ],
+        "attck": [
+            (
+                "T1059",
+                "Command and Scripting Interpreter",
+                "Process evidence can help review interpreter use when present; the hunt is broader than the technique.",
+            ),
+            (
+                "T1105",
+                "Ingress Tool Transfer",
+                "File plus network evidence may support transfer investigation but is not proof of transfer.",
+            ),
+        ],
     },
     {
         "id": "H04",
@@ -549,14 +728,67 @@ HUNT_SPECS: list[dict[str, Any]] = [
         "objective": "Prevent stale or reassigned indicators from silently driving incident conclusions.",
         "entities": ["indicator", "domain", "device", "network_destination"],
         "stages": [
-            _stage("indicator", "ThreatIntelligenceIndicator", "TimeGenerated", "indicator", "tostring(IndicatorId)", ["IndicatorId", "DomainName", "Active", "ValidUntil"], ["IndicatorId", "TimeGenerated"], join_out="tostring(DomainName)", predicate="Active == true and ValidUntil >= start_time", evidence="active time-bounded indicator", validity_field="ValidUntil"),
-            _stage("dns_observation", "DnsEvents", "TimeGenerated", "domain", "tostring(Name)", ["Name", "ClientIP"], ["Name", "ClientIP", "TimeGenerated"], join_in="tostring(Name)", join_out="tostring(ClientIP)", predicate="isnotempty(Name)", evidence="DNS observation"),
-            _stage("endpoint_connection", "DeviceNetworkEvents", "TimeGenerated", "device", "tostring(DeviceId)", ["DeviceId", "LocalIP", "RemoteIP", "ReportId"], ["DeviceId", "ReportId", "TimeGenerated"], join_in="tostring(LocalIP)", predicate="isnotempty(DeviceId)", evidence="endpoint network evidence"),
+            _stage(
+                "indicator",
+                "ThreatIntelligenceIndicator",
+                "TimeGenerated",
+                "indicator",
+                "tostring(IndicatorId)",
+                ["IndicatorId", "DomainName", "Active", "ValidUntil"],
+                ["IndicatorId", "TimeGenerated"],
+                join_out="tostring(DomainName)",
+                predicate="Active == true and ValidUntil >= start_time",
+                evidence="active time-bounded indicator",
+                validity_field="ValidUntil",
+            ),
+            _stage(
+                "dns_observation",
+                "DnsEvents",
+                "TimeGenerated",
+                "domain",
+                "tostring(Name)",
+                ["Name", "ClientIP"],
+                ["Name", "ClientIP", "TimeGenerated"],
+                join_in="tostring(Name)",
+                join_out="tostring(ClientIP)",
+                predicate="isnotempty(Name)",
+                evidence="DNS observation",
+            ),
+            _stage(
+                "endpoint_connection",
+                "DeviceNetworkEvents",
+                "TimeGenerated",
+                "device",
+                "tostring(DeviceId)",
+                ["DeviceId", "LocalIP", "RemoteIP", "ReportId"],
+                ["DeviceId", "ReportId", "TimeGenerated"],
+                join_in="tostring(LocalIP)",
+                predicate="isnotempty(DeviceId)",
+                evidence="endpoint network evidence",
+            ),
         ],
-        "confounders": ["expired or reassigned infrastructure", "wildcard indicators", "sinkholes", "low-confidence feeds"],
-        "disconfirming": ["Observation occurs after indicator expiry", "Indicator is inactive", "DNS and endpoint addresses represent different hosts"],
-        "stopping": ["Stop when validity or identity cannot be established", "Escalate after feed confidence and infrastructure ownership review"],
-        "attck": [("T1071.001", "Web Protocols", "Network indicators may support investigation of web-protocol activity; an indicator match alone is insufficient.")],
+        "confounders": [
+            "expired or reassigned infrastructure",
+            "wildcard indicators",
+            "sinkholes",
+            "low-confidence feeds",
+        ],
+        "disconfirming": [
+            "Observation occurs after indicator expiry",
+            "Indicator is inactive",
+            "DNS and endpoint addresses represent different hosts",
+        ],
+        "stopping": [
+            "Stop when validity or identity cannot be established",
+            "Escalate after feed confidence and infrastructure ownership review",
+        ],
+        "attck": [
+            (
+                "T1071.001",
+                "Web Protocols",
+                "Network indicators may support investigation of web-protocol activity; an indicator match alone is insufficient.",
+            )
+        ],
     },
     {
         "id": "H05",
@@ -565,14 +797,61 @@ HUNT_SPECS: list[dict[str, Any]] = [
         "objective": "Correlate persistence configuration, execution, principal, and network context while preserving deployment confounders.",
         "entities": ["device", "process", "registry_object", "network_destination"],
         "stages": [
-            _stage("persistence_change", "DeviceRegistryEvents", "TimeGenerated", "registry_object", "tostring(RegistryKey)", ["DeviceId", "InitiatingProcessUniqueId", "RegistryKey", "ReportId"], ["DeviceId", "ReportId", "TimeGenerated"], join_out="tostring(InitiatingProcessUniqueId)", predicate="isnotempty(RegistryKey)", evidence="registry persistence change"),
-            _stage("triggering_process", "DeviceProcessEvents", "TimeGenerated", "process", "tostring(ProcessUniqueId)", ["DeviceId", "ProcessUniqueId", "FileName", "ReportId"], ["DeviceId", "ReportId", "TimeGenerated"], join_in="tostring(ProcessUniqueId)", join_out="tostring(ProcessUniqueId)", predicate="isnotempty(ProcessUniqueId)", evidence="process execution"),
-            _stage("network_context", "DeviceNetworkEvents", "TimeGenerated", "network_destination", "tostring(RemoteIP)", ["DeviceId", "InitiatingProcessUniqueId", "RemoteIP", "ReportId"], ["DeviceId", "ReportId", "TimeGenerated"], join_in="tostring(InitiatingProcessUniqueId)", predicate="isnotempty(RemoteIP)", evidence="network context"),
+            _stage(
+                "persistence_change",
+                "DeviceRegistryEvents",
+                "TimeGenerated",
+                "registry_object",
+                "tostring(RegistryKey)",
+                ["DeviceId", "InitiatingProcessUniqueId", "RegistryKey", "ReportId"],
+                ["DeviceId", "ReportId", "TimeGenerated"],
+                join_out="tostring(InitiatingProcessUniqueId)",
+                predicate="isnotempty(RegistryKey)",
+                evidence="registry persistence change",
+            ),
+            _stage(
+                "triggering_process",
+                "DeviceProcessEvents",
+                "TimeGenerated",
+                "process",
+                "tostring(ProcessUniqueId)",
+                ["DeviceId", "ProcessUniqueId", "FileName", "ReportId"],
+                ["DeviceId", "ReportId", "TimeGenerated"],
+                join_in="tostring(ProcessUniqueId)",
+                join_out="tostring(ProcessUniqueId)",
+                predicate="isnotempty(ProcessUniqueId)",
+                evidence="process execution",
+            ),
+            _stage(
+                "network_context",
+                "DeviceNetworkEvents",
+                "TimeGenerated",
+                "network_destination",
+                "tostring(RemoteIP)",
+                ["DeviceId", "InitiatingProcessUniqueId", "RemoteIP", "ReportId"],
+                ["DeviceId", "ReportId", "TimeGenerated"],
+                join_in="tostring(InitiatingProcessUniqueId)",
+                predicate="isnotempty(RemoteIP)",
+                evidence="network context",
+            ),
         ],
         "confounders": ["software deployment", "enterprise management", "installers", "repair tasks"],
-        "disconfirming": ["Change and execution use different immutable process IDs", "Approved deployment explains all stages", "Device identities differ"],
-        "stopping": ["Stop when the process lineage is not preserved", "Escalate after publisher, change-control, and destination review"],
-        "attck": [("T1547.001", "Registry Run Keys / Startup Folder", "Registry persistence evidence may be consistent with this technique when the affected key is relevant.")],
+        "disconfirming": [
+            "Change and execution use different immutable process IDs",
+            "Approved deployment explains all stages",
+            "Device identities differ",
+        ],
+        "stopping": [
+            "Stop when the process lineage is not preserved",
+            "Escalate after publisher, change-control, and destination review",
+        ],
+        "attck": [
+            (
+                "T1547.001",
+                "Registry Run Keys / Startup Folder",
+                "Registry persistence evidence may be consistent with this technique when the affected key is relevant.",
+            )
+        ],
     },
     {
         "id": "H06",
@@ -581,14 +860,61 @@ HUNT_SPECS: list[dict[str, Any]] = [
         "objective": "Provide evidence for beacon review without equating periodic traffic with command-and-control.",
         "entities": ["device", "domain", "process", "network_destination"],
         "stages": [
-            _stage("network_pattern", "DeviceNetworkEvents", "TimeGenerated", "network_destination", "tostring(RemoteUrl)", ["DeviceId", "RemoteUrl", "InitiatingProcessUniqueId", "ReportId"], ["DeviceId", "ReportId", "TimeGenerated"], join_out="tostring(RemoteUrl)", predicate="isnotempty(RemoteUrl)", evidence="repeated destination candidate"),
-            _stage("dns_resolution", "DnsEvents", "TimeGenerated", "domain", "tostring(Name)", ["Name", "Computer"], ["Name", "Computer", "TimeGenerated"], join_in="tostring(Name)", join_out="tostring(Computer)", predicate="isnotempty(Name)", evidence="DNS resolution history"),
-            _stage("originating_process", "DeviceProcessEvents", "TimeGenerated", "device", "tostring(DeviceId)", ["DeviceId", "ProcessUniqueId", "FileName", "ReportId"], ["DeviceId", "ReportId", "TimeGenerated"], join_in="tostring(DeviceId)", predicate="isnotempty(ProcessUniqueId)", evidence="candidate originating process"),
+            _stage(
+                "network_pattern",
+                "DeviceNetworkEvents",
+                "TimeGenerated",
+                "network_destination",
+                "tostring(RemoteUrl)",
+                ["DeviceId", "RemoteUrl", "InitiatingProcessUniqueId", "ReportId"],
+                ["DeviceId", "ReportId", "TimeGenerated"],
+                join_out="tostring(RemoteUrl)",
+                predicate="isnotempty(RemoteUrl)",
+                evidence="repeated destination candidate",
+            ),
+            _stage(
+                "dns_resolution",
+                "DnsEvents",
+                "TimeGenerated",
+                "domain",
+                "tostring(Name)",
+                ["Name", "Computer"],
+                ["Name", "Computer", "TimeGenerated"],
+                join_in="tostring(Name)",
+                join_out="tostring(Computer)",
+                predicate="isnotempty(Name)",
+                evidence="DNS resolution history",
+            ),
+            _stage(
+                "originating_process",
+                "DeviceProcessEvents",
+                "TimeGenerated",
+                "device",
+                "tostring(DeviceId)",
+                ["DeviceId", "ProcessUniqueId", "FileName", "ReportId"],
+                ["DeviceId", "ReportId", "TimeGenerated"],
+                join_in="tostring(DeviceId)",
+                predicate="isnotempty(ProcessUniqueId)",
+                evidence="candidate originating process",
+            ),
         ],
         "confounders": ["jitter and sleep cycles", "CDNs", "software updates", "sparse or intermittent sensors"],
-        "disconfirming": ["DNS device name cannot be mapped to immutable device ID", "Traffic belongs to an approved updater", "Intervals are not stable under missing-data analysis"],
-        "stopping": ["Stop when device mapping is ambiguous", "Escalate after periodicity, process provenance, and destination review"],
-        "attck": [("T1071.001", "Web Protocols", "Repeated domain communication can support web-protocol C2 review, but periodicity is not causality.")],
+        "disconfirming": [
+            "DNS device name cannot be mapped to immutable device ID",
+            "Traffic belongs to an approved updater",
+            "Intervals are not stable under missing-data analysis",
+        ],
+        "stopping": [
+            "Stop when device mapping is ambiguous",
+            "Escalate after periodicity, process provenance, and destination review",
+        ],
+        "attck": [
+            (
+                "T1071.001",
+                "Web Protocols",
+                "Repeated domain communication can support web-protocol C2 review, but periodicity is not causality.",
+            )
+        ],
     },
     {
         "id": "H07",
@@ -597,14 +923,67 @@ HUNT_SPECS: list[dict[str, Any]] = [
         "objective": "Correlate mailbox administration to later activity while preserving delegate, migration, and automation explanations.",
         "entities": ["account", "mailbox", "cloud_resource"],
         "stages": [
-            _stage("mailbox_change", "OfficeActivity", "TimeGenerated", "mailbox", "tostring(UserId)", ["UserId", "Operation", "OfficeObjectId", "Id"], ["Id"], join_out="tostring(UserId)", predicate="isnotempty(Operation)", evidence="mailbox rule or delegation change"),
-            _stage("successful_signin", "SigninLogs", "TimeGenerated", "account", "tostring(UserId)", ["UserId", "UserPrincipalName", "ResultType", "Id"], ["Id"], join_in="tostring(UserPrincipalName)", join_out="tostring(UserId)", aad_tenant_field="AADTenantId", predicate='ResultType == "0"', evidence="successful sign-in"),
-            _stage("follow_on_activity", "CloudAppEvents", "TimeGenerated", "cloud_resource", "tostring(ObjectId)", ["AccountObjectId", "ActionType", "ObjectId", "ReportId"], ["ReportId", "TimeGenerated"], join_in="tostring(AccountObjectId)", predicate="isnotempty(ActionType)", evidence="follow-on cloud activity"),
+            _stage(
+                "mailbox_change",
+                "OfficeActivity",
+                "TimeGenerated",
+                "mailbox",
+                "tostring(UserId)",
+                ["UserId", "Operation", "OfficeObjectId", "Id"],
+                ["Id"],
+                join_out="tostring(UserId)",
+                predicate="isnotempty(Operation)",
+                evidence="mailbox rule or delegation change",
+            ),
+            _stage(
+                "successful_signin",
+                "SigninLogs",
+                "TimeGenerated",
+                "account",
+                "tostring(UserId)",
+                ["UserId", "UserPrincipalName", "ResultType", "Id"],
+                ["Id"],
+                join_in="tostring(UserPrincipalName)",
+                join_out="tostring(UserId)",
+                aad_tenant_field="AADTenantId",
+                predicate='ResultType == "0"',
+                evidence="successful sign-in",
+            ),
+            _stage(
+                "follow_on_activity",
+                "CloudAppEvents",
+                "TimeGenerated",
+                "cloud_resource",
+                "tostring(ObjectId)",
+                ["AccountObjectId", "ActionType", "ObjectId", "ReportId"],
+                ["ReportId", "TimeGenerated"],
+                join_in="tostring(AccountObjectId)",
+                predicate="isnotempty(ActionType)",
+                evidence="follow-on cloud activity",
+            ),
         ],
-        "confounders": ["legitimate delegates", "migration tools", "administrator automation", "mailbox lifecycle tasks"],
-        "disconfirming": ["Change actor differs from mailbox principal", "Approved migration explains operation", "No bounded follow-on activity"],
-        "stopping": ["Stop when principal mapping cannot be established", "Escalate after rule semantics and delegation approval review"],
-        "attck": [("T1114.003", "Email Forwarding Rule", "Mailbox-rule evidence may be consistent with forwarding-rule collection when rule semantics support it.")],
+        "confounders": [
+            "legitimate delegates",
+            "migration tools",
+            "administrator automation",
+            "mailbox lifecycle tasks",
+        ],
+        "disconfirming": [
+            "Change actor differs from mailbox principal",
+            "Approved migration explains operation",
+            "No bounded follow-on activity",
+        ],
+        "stopping": [
+            "Stop when principal mapping cannot be established",
+            "Escalate after rule semantics and delegation approval review",
+        ],
+        "attck": [
+            (
+                "T1114.003",
+                "Email Forwarding Rule",
+                "Mailbox-rule evidence may be consistent with forwarding-rule collection when rule semantics support it.",
+            )
+        ],
     },
     {
         "id": "H08",
@@ -613,14 +992,62 @@ HUNT_SPECS: list[dict[str, Any]] = [
         "objective": "Surface collection-like activity without treating sync, backup, eDiscovery, or collaboration as malicious by default.",
         "entities": ["account", "cloud_file", "device", "network_destination"],
         "stages": [
-            _stage("cloud_file_activity", "OfficeActivity", "TimeGenerated", "cloud_file", "tostring(OfficeObjectId)", ["UserId", "Operation", "OfficeObjectId", "Id"], ["Id"], join_out="tostring(UserId)", predicate="isnotempty(OfficeObjectId)", evidence="cloud file activity"),
-            _stage("identity_session", "SigninLogs", "TimeGenerated", "account", "tostring(UserId)", ["UserId", "UserPrincipalName", "ResultType", "Id"], ["Id"], join_in="tostring(UserPrincipalName)", join_out="tostring(UserPrincipalName)", aad_tenant_field="AADTenantId", predicate='ResultType == "0"', evidence="authenticated account session"),
-            _stage("device_network_context", "DeviceNetworkEvents", "TimeGenerated", "device", "tostring(DeviceId)", ["DeviceId", "InitiatingProcessAccountUpn", "RemoteUrl", "ReportId"], ["DeviceId", "ReportId", "TimeGenerated"], join_in="tostring(InitiatingProcessAccountUpn)", predicate="isnotempty(DeviceId)", evidence="device network context"),
+            _stage(
+                "cloud_file_activity",
+                "OfficeActivity",
+                "TimeGenerated",
+                "cloud_file",
+                "tostring(OfficeObjectId)",
+                ["UserId", "Operation", "OfficeObjectId", "Id"],
+                ["Id"],
+                join_out="tostring(UserId)",
+                predicate="isnotempty(OfficeObjectId)",
+                evidence="cloud file activity",
+            ),
+            _stage(
+                "identity_session",
+                "SigninLogs",
+                "TimeGenerated",
+                "account",
+                "tostring(UserId)",
+                ["UserId", "UserPrincipalName", "ResultType", "Id"],
+                ["Id"],
+                join_in="tostring(UserPrincipalName)",
+                join_out="tostring(UserPrincipalName)",
+                aad_tenant_field="AADTenantId",
+                predicate='ResultType == "0"',
+                evidence="authenticated account session",
+            ),
+            _stage(
+                "device_network_context",
+                "DeviceNetworkEvents",
+                "TimeGenerated",
+                "device",
+                "tostring(DeviceId)",
+                ["DeviceId", "InitiatingProcessAccountUpn", "RemoteUrl", "ReportId"],
+                ["DeviceId", "ReportId", "TimeGenerated"],
+                join_in="tostring(InitiatingProcessAccountUpn)",
+                predicate="isnotempty(DeviceId)",
+                evidence="device network context",
+            ),
         ],
         "confounders": ["sync clients", "backup", "eDiscovery", "service accounts", "bulk collaboration"],
-        "disconfirming": ["Device principal differs", "Activity volume is consistent with approved sync", "No session-to-device relationship can be established"],
-        "stopping": ["Stop when UPN mapping is ambiguous or renamed", "Escalate after volume, file sensitivity, and business-context review"],
-        "attck": [("T1213.002", "Sharepoint", "Cloud-file enumeration or download may support SharePoint data-source collection review.")],
+        "disconfirming": [
+            "Device principal differs",
+            "Activity volume is consistent with approved sync",
+            "No session-to-device relationship can be established",
+        ],
+        "stopping": [
+            "Stop when UPN mapping is ambiguous or renamed",
+            "Escalate after volume, file sensitivity, and business-context review",
+        ],
+        "attck": [
+            (
+                "T1213.002",
+                "Sharepoint",
+                "Cloud-file enumeration or download may support SharePoint data-source collection review.",
+            )
+        ],
     },
     {
         "id": "H09",
@@ -629,15 +1056,81 @@ HUNT_SPECS: list[dict[str, Any]] = [
         "objective": "Build a four-stage phishing investigation chain while handling link scanners, rewriting, forwarding, and delayed interaction.",
         "entities": ["message", "account", "url", "device", "process"],
         "stages": [
-            _stage("message_delivery", "EmailEvents", "TimeGenerated", "message", "tostring(NetworkMessageId)", ["NetworkMessageId", "RecipientEmailAddress", "DeliveryLocation", "ReportId"], ["NetworkMessageId", "ReportId", "TimeGenerated"], join_out="tostring(NetworkMessageId)", predicate="isnotempty(NetworkMessageId)", evidence="message delivery"),
-            _stage("url_click", "UrlClickEvents", "TimeGenerated", "url", "tostring(Url)", ["NetworkMessageId", "AccountUpn", "Url", "ReportId"], ["ReportId", "TimeGenerated"], join_in="tostring(NetworkMessageId)", join_out="tostring(AccountUpn)", predicate="isnotempty(Url)", evidence="URL click"),
-            _stage("authentication", "SigninLogs", "TimeGenerated", "account", "tostring(UserId)", ["UserPrincipalName", "UserId", "ResultType", "Id"], ["Id"], join_in="tostring(UserPrincipalName)", join_out="tostring(UserId)", aad_tenant_field="AADTenantId", predicate='ResultType == "0"', evidence="successful authentication"),
-            _stage("endpoint_execution", "DeviceProcessEvents", "TimeGenerated", "process", "tostring(ProcessUniqueId)", ["AccountObjectId", "DeviceId", "ProcessUniqueId", "ReportId"], ["DeviceId", "ReportId", "TimeGenerated"], join_in="tostring(AccountObjectId)", predicate="isnotempty(ProcessUniqueId)", evidence="endpoint process activity"),
+            _stage(
+                "message_delivery",
+                "EmailEvents",
+                "TimeGenerated",
+                "message",
+                "tostring(NetworkMessageId)",
+                ["NetworkMessageId", "RecipientEmailAddress", "DeliveryLocation", "ReportId"],
+                ["NetworkMessageId", "ReportId", "TimeGenerated"],
+                join_out="tostring(NetworkMessageId)",
+                predicate="isnotempty(NetworkMessageId)",
+                evidence="message delivery",
+            ),
+            _stage(
+                "url_click",
+                "UrlClickEvents",
+                "TimeGenerated",
+                "url",
+                "tostring(Url)",
+                ["NetworkMessageId", "AccountUpn", "Url", "ReportId"],
+                ["ReportId", "TimeGenerated"],
+                join_in="tostring(NetworkMessageId)",
+                join_out="tostring(AccountUpn)",
+                predicate="isnotempty(Url)",
+                evidence="URL click",
+            ),
+            _stage(
+                "authentication",
+                "SigninLogs",
+                "TimeGenerated",
+                "account",
+                "tostring(UserId)",
+                ["UserPrincipalName", "UserId", "ResultType", "Id"],
+                ["Id"],
+                join_in="tostring(UserPrincipalName)",
+                join_out="tostring(UserId)",
+                aad_tenant_field="AADTenantId",
+                predicate='ResultType == "0"',
+                evidence="successful authentication",
+            ),
+            _stage(
+                "endpoint_execution",
+                "DeviceProcessEvents",
+                "TimeGenerated",
+                "process",
+                "tostring(ProcessUniqueId)",
+                ["AccountObjectId", "DeviceId", "ProcessUniqueId", "ReportId"],
+                ["DeviceId", "ReportId", "TimeGenerated"],
+                join_in="tostring(AccountObjectId)",
+                predicate="isnotempty(ProcessUniqueId)",
+                evidence="endpoint process activity",
+            ),
         ],
-        "confounders": ["safe-link rewriting", "automated scanners", "delayed clicks", "forwarded messages", "legitimate post-click activity"],
-        "disconfirming": ["Click is scanner-attributed", "Authentication belongs to another immutable account", "Endpoint process precedes the message chain"],
-        "stopping": ["Stop when message or account linkage fails", "Escalate after URL, authentication, device, and process review"],
-        "attck": [("T1566.002", "Spearphishing Link", "The message and click stages may support investigation of link-based phishing; delivery and click are not proof of compromise.")],
+        "confounders": [
+            "safe-link rewriting",
+            "automated scanners",
+            "delayed clicks",
+            "forwarded messages",
+            "legitimate post-click activity",
+        ],
+        "disconfirming": [
+            "Click is scanner-attributed",
+            "Authentication belongs to another immutable account",
+            "Endpoint process precedes the message chain",
+        ],
+        "stopping": [
+            "Stop when message or account linkage fails",
+            "Escalate after URL, authentication, device, and process review",
+        ],
+        "attck": [
+            (
+                "T1566.002",
+                "Spearphishing Link",
+                "The message and click stages may support investigation of link-based phishing; delivery and click are not proof of compromise.",
+            )
+        ],
     },
     {
         "id": "H10",
@@ -646,14 +1139,68 @@ HUNT_SPECS: list[dict[str, Any]] = [
         "objective": "Distinguish application abuse candidates from CI/CD, credential rotation, and multi-tenant application behavior.",
         "entities": ["service_principal", "application", "cloud_resource"],
         "stages": [
-            _stage("application_change", "AuditLogs", "TimeGenerated", "service_principal", "tostring(InitiatedBy.app.servicePrincipalId)", ["InitiatedBy", "OperationName", "Id"], ["Id"], join_out="tostring(InitiatedBy.app.servicePrincipalId)", aad_tenant_field="AADTenantId", predicate="isnotempty(InitiatedBy.app.servicePrincipalId)", evidence="consent or credential change"),
-            _stage("service_principal_signin", "AADServicePrincipalSignInLogs", "TimeGenerated", "service_principal", "tostring(ServicePrincipalId)", ["ServicePrincipalId", "AppId", "ResultType", "Id"], ["Id"], join_in="tostring(ServicePrincipalId)", join_out="tostring(ServicePrincipalId)", aad_tenant_field="AADTenantId", predicate='ResultType == "0"', evidence="service-principal authentication"),
-            _stage("resource_activity", "CloudAppEvents", "TimeGenerated", "cloud_resource", "tostring(ObjectId)", ["AccountObjectId", "OAuthAppId", "ObjectId", "ReportId"], ["ReportId", "TimeGenerated"], join_in="tostring(AccountObjectId)", predicate="isnotempty(ObjectId)", evidence="cloud resource activity"),
+            _stage(
+                "application_change",
+                "AuditLogs",
+                "TimeGenerated",
+                "service_principal",
+                "tostring(InitiatedBy.app.servicePrincipalId)",
+                ["InitiatedBy", "OperationName", "Id"],
+                ["Id"],
+                join_out="tostring(InitiatedBy.app.servicePrincipalId)",
+                aad_tenant_field="AADTenantId",
+                predicate="isnotempty(InitiatedBy.app.servicePrincipalId)",
+                evidence="consent or credential change",
+            ),
+            _stage(
+                "service_principal_signin",
+                "AADServicePrincipalSignInLogs",
+                "TimeGenerated",
+                "service_principal",
+                "tostring(ServicePrincipalId)",
+                ["ServicePrincipalId", "AppId", "ResultType", "Id"],
+                ["Id"],
+                join_in="tostring(ServicePrincipalId)",
+                join_out="tostring(ServicePrincipalId)",
+                aad_tenant_field="AADTenantId",
+                predicate='ResultType == "0"',
+                evidence="service-principal authentication",
+            ),
+            _stage(
+                "resource_activity",
+                "CloudAppEvents",
+                "TimeGenerated",
+                "cloud_resource",
+                "tostring(ObjectId)",
+                ["AccountObjectId", "OAuthAppId", "ObjectId", "ReportId"],
+                ["ReportId", "TimeGenerated"],
+                join_in="tostring(AccountObjectId)",
+                predicate="isnotempty(ObjectId)",
+                evidence="cloud resource activity",
+            ),
         ],
-        "confounders": ["CI/CD automation", "scheduled application rotation", "multi-tenant applications", "approved integrations"],
-        "disconfirming": ["Application, object, and service-principal identifiers do not map", "Change is approved rotation", "Resource access predates authentication"],
-        "stopping": ["Stop when application identity mapping is ambiguous", "Escalate after permission, consent, credential, and resource review"],
-        "attck": [("T1098.003", "Additional Cloud Roles", "Application and consent changes can support account-manipulation review when the changed permissions correspond to added cloud access.")],
+        "confounders": [
+            "CI/CD automation",
+            "scheduled application rotation",
+            "multi-tenant applications",
+            "approved integrations",
+        ],
+        "disconfirming": [
+            "Application, object, and service-principal identifiers do not map",
+            "Change is approved rotation",
+            "Resource access predates authentication",
+        ],
+        "stopping": [
+            "Stop when application identity mapping is ambiguous",
+            "Escalate after permission, consent, credential, and resource review",
+        ],
+        "attck": [
+            (
+                "T1098.003",
+                "Additional Cloud Roles",
+                "Application and consent changes can support account-manipulation review when the changed permissions correspond to added cloud access.",
+            )
+        ],
     },
     {
         "id": "H11",
@@ -662,15 +1209,74 @@ HUNT_SPECS: list[dict[str, Any]] = [
         "objective": "Trace remote-service evidence while accounting for jump hosts, administrators, orchestration, and shared infrastructure.",
         "entities": ["account", "source_device", "target_device", "process", "network_destination"],
         "stages": [
-            _stage("source_authentication", "IdentityLogonEvents", "TimeGenerated", "account", "tostring(AccountObjectId)", ["AccountObjectId", "TargetDeviceName", "ReportId"], ["ReportId", "TimeGenerated"], join_out="tostring(AccountObjectId)", predicate="isnotempty(TargetDeviceName)", evidence="source-side authentication"),
-            _stage("target_logon", "DeviceLogonEvents", "TimeGenerated", "target_device", "tostring(DeviceId)", ["AccountObjectId", "DeviceId", "LogonId", "ReportId"], ["DeviceId", "ReportId", "TimeGenerated"], join_in="tostring(AccountObjectId)", join_out="tostring(AccountObjectId)", predicate="isnotempty(DeviceId)", evidence="target-device logon"),
-            _stage("remote_execution", "DeviceProcessEvents", "TimeGenerated", "process", "tostring(ProcessUniqueId)", ["AccountObjectId", "DeviceId", "ProcessUniqueId", "ReportId"], ["DeviceId", "ReportId", "TimeGenerated"], join_in="tostring(AccountObjectId)", join_out="tostring(ProcessUniqueId)", predicate="isnotempty(ProcessUniqueId)", evidence="process execution"),
-            _stage("outbound_activity", "DeviceNetworkEvents", "TimeGenerated", "network_destination", "tostring(RemoteIP)", ["InitiatingProcessUniqueId", "DeviceId", "RemoteIP", "ReportId"], ["DeviceId", "ReportId", "TimeGenerated"], join_in="tostring(InitiatingProcessUniqueId)", predicate="isnotempty(RemoteIP)", evidence="outbound network evidence"),
+            _stage(
+                "source_authentication",
+                "IdentityLogonEvents",
+                "TimeGenerated",
+                "account",
+                "tostring(AccountObjectId)",
+                ["AccountObjectId", "TargetDeviceName", "ReportId"],
+                ["ReportId", "TimeGenerated"],
+                join_out="tostring(AccountObjectId)",
+                predicate="isnotempty(TargetDeviceName)",
+                evidence="source-side authentication",
+            ),
+            _stage(
+                "target_logon",
+                "DeviceLogonEvents",
+                "TimeGenerated",
+                "target_device",
+                "tostring(DeviceId)",
+                ["AccountObjectId", "DeviceId", "LogonId", "ReportId"],
+                ["DeviceId", "ReportId", "TimeGenerated"],
+                join_in="tostring(AccountObjectId)",
+                join_out="tostring(AccountObjectId)",
+                predicate="isnotempty(DeviceId)",
+                evidence="target-device logon",
+            ),
+            _stage(
+                "remote_execution",
+                "DeviceProcessEvents",
+                "TimeGenerated",
+                "process",
+                "tostring(ProcessUniqueId)",
+                ["AccountObjectId", "DeviceId", "ProcessUniqueId", "ReportId"],
+                ["DeviceId", "ReportId", "TimeGenerated"],
+                join_in="tostring(AccountObjectId)",
+                join_out="tostring(ProcessUniqueId)",
+                predicate="isnotempty(ProcessUniqueId)",
+                evidence="process execution",
+            ),
+            _stage(
+                "outbound_activity",
+                "DeviceNetworkEvents",
+                "TimeGenerated",
+                "network_destination",
+                "tostring(RemoteIP)",
+                ["InitiatingProcessUniqueId", "DeviceId", "RemoteIP", "ReportId"],
+                ["DeviceId", "ReportId", "TimeGenerated"],
+                join_in="tostring(InitiatingProcessUniqueId)",
+                predicate="isnotempty(RemoteIP)",
+                evidence="outbound network evidence",
+            ),
         ],
         "confounders": ["jump hosts", "authorized administrators", "orchestration tools", "shared infrastructure"],
-        "disconfirming": ["Target device names map to different immutable device IDs", "Process belongs to a different account", "Approved orchestration explains the full chain"],
-        "stopping": ["Stop when immutable account or device mapping fails", "Escalate after remote-service type and administrative authorization review"],
-        "attck": [("T1021", "Remote Services", "Ordered remote authentication and execution evidence may support remote-services investigation.")],
+        "disconfirming": [
+            "Target device names map to different immutable device IDs",
+            "Process belongs to a different account",
+            "Approved orchestration explains the full chain",
+        ],
+        "stopping": [
+            "Stop when immutable account or device mapping fails",
+            "Escalate after remote-service type and administrative authorization review",
+        ],
+        "attck": [
+            (
+                "T1021",
+                "Remote Services",
+                "Ordered remote authentication and execution evidence may support remote-services investigation.",
+            )
+        ],
     },
     {
         "id": "H12",
@@ -679,21 +1285,80 @@ HUNT_SPECS: list[dict[str, Any]] = [
         "objective": "Correlate Azure control-plane, identity, and sensitive-resource evidence while preserving break-glass, managed-identity, and deployment-pipeline explanations.",
         "entities": ["account", "subscription", "key_vault_resource", "source_ip"],
         "stages": [
-            _stage("privilege_change", "AzureActivity", "TimeGenerated", "account", "tostring(Caller)", ["Caller", "OperationNameValue", "ResourceId", "CorrelationId"], ["CorrelationId", "TimeGenerated"], join_out="tostring(Caller)", predicate="isnotempty(OperationNameValue)", evidence="Azure control-plane privilege-related change"),
-            _stage("authentication", "SigninLogs", "TimeGenerated", "account", "tostring(UserId)", ["UserPrincipalName", "UserId", "ResultType", "Id"], ["Id"], join_in="tostring(UserPrincipalName)", join_out="tostring(UserId)", aad_tenant_field="AADTenantId", predicate='ResultType == "0"', evidence="successful authentication"),
-            _stage("sensitive_resource_access", "AZKVAuditLogs", "TimeGenerated", "key_vault_resource", "tostring(OperationName)", ["identity_claim_oid_g", "OperationName", "CallerIpAddress", "CorrelationId"], ["CorrelationId", "TimeGenerated"], join_in="tostring(identity_claim_oid_g)", predicate="isnotempty(OperationName)", evidence="Key Vault operation"),
+            _stage(
+                "privilege_change",
+                "AzureActivity",
+                "TimeGenerated",
+                "account",
+                "tostring(Caller)",
+                ["Caller", "OperationNameValue", "ResourceId", "CorrelationId"],
+                ["CorrelationId", "TimeGenerated"],
+                join_out="tostring(Caller)",
+                predicate="isnotempty(OperationNameValue)",
+                evidence="Azure control-plane privilege-related change",
+            ),
+            _stage(
+                "authentication",
+                "SigninLogs",
+                "TimeGenerated",
+                "account",
+                "tostring(UserId)",
+                ["UserPrincipalName", "UserId", "ResultType", "Id"],
+                ["Id"],
+                join_in="tostring(UserPrincipalName)",
+                join_out="tostring(UserId)",
+                aad_tenant_field="AADTenantId",
+                predicate='ResultType == "0"',
+                evidence="successful authentication",
+            ),
+            _stage(
+                "sensitive_resource_access",
+                "AZKVAuditLogs",
+                "TimeGenerated",
+                "key_vault_resource",
+                "tostring(OperationName)",
+                ["identity_claim_oid_g", "OperationName", "CallerIpAddress", "CorrelationId"],
+                ["CorrelationId", "TimeGenerated"],
+                join_in="tostring(identity_claim_oid_g)",
+                predicate="isnotempty(OperationName)",
+                evidence="Key Vault operation",
+            ),
         ],
-        "confounders": ["break-glass use", "managed identities", "deployment pipelines", "delayed log arrival", "approved privileged access"],
-        "disconfirming": ["Caller UPN cannot be mapped to immutable user ID", "Key Vault identity differs", "Approved change window and pipeline explain all stages"],
-        "stopping": ["Stop when identity mapping or ordering is ambiguous", "Escalate after entitlement, approval, resource sensitivity, and identity review"],
-        "attck": [("T1098", "Account Manipulation", "Privilege-related account changes may support account-manipulation review when the operation grants or changes access."), ("T1078.004", "Cloud Accounts", "Authenticated cloud resource use may support cloud-account misuse investigation; it does not prove misuse.")],
+        "confounders": [
+            "break-glass use",
+            "managed identities",
+            "deployment pipelines",
+            "delayed log arrival",
+            "approved privileged access",
+        ],
+        "disconfirming": [
+            "Caller UPN cannot be mapped to immutable user ID",
+            "Key Vault identity differs",
+            "Approved change window and pipeline explain all stages",
+        ],
+        "stopping": [
+            "Stop when identity mapping or ordering is ambiguous",
+            "Escalate after entitlement, approval, resource sensitivity, and identity review",
+        ],
+        "attck": [
+            (
+                "T1098",
+                "Account Manipulation",
+                "Privilege-related account changes may support account-manipulation review when the operation grants or changes access.",
+            ),
+            (
+                "T1078.004",
+                "Cloud Accounts",
+                "Authenticated cloud resource use may support cloud-account misuse investigation; it does not prove misuse.",
+            ),
+        ],
     },
 ]
 
 
 def _event_id_expression(fields: list[str]) -> str:
     parts = ", ".join(f"tostring({field})" for field in fields)
-    return f"strcat_array(pack_array({parts}), \"|\")"
+    return f'strcat_array(pack_array({parts}), "|")'
 
 
 def _query_for_hunt(spec: dict[str, Any]) -> str:
@@ -781,8 +1446,8 @@ def _query_for_hunt(spec: dict[str, Any]) -> str:
         [
             "WorkspaceScope",
             "TenantScope",
-            'EvidenceCompleteness=\"all required synthetic stages present\"',
-            'CorrelationStatement=\"correlated evidence; not proof of causation or compromise\"',
+            'EvidenceCompleteness="all required synthetic stages present"',
+            'CorrelationStatement="correlated evidence; not proof of causation or compromise"',
         ]
     )
     lines.extend([f"| project {', '.join(projection)}", "| order by Stage1Time asc"])
@@ -824,17 +1489,12 @@ def build_hunts() -> list[dict[str, Any]]:
     hunts: list[dict[str, Any]] = []
     for spec in HUNT_SPECS:
         query = _query_for_hunt(spec)
-        stages = [
-            _stage_contract(stage, index)
-            for index, stage in enumerate(spec["stages"], start=1)
-        ]
+        stages = [_stage_contract(stage, index) for index, stage in enumerate(spec["stages"], start=1)]
         reference_urls = sorted(
             set(
                 COMMON_REFERENCES
                 + [
-                    TABLES[stage["table"]]["schema_source"].format(
-                        table=stage["table"].lower()
-                    )
+                    TABLES[stage["table"]]["schema_source"].format(table=stage["table"].lower())
                     for stage in spec["stages"]
                 ]
             )
@@ -856,9 +1516,7 @@ def build_hunts() -> list[dict[str, Any]]:
                 "telemetry": {
                     "required": [stage["name"] for stage in spec["stages"]],
                     "optional": [],
-                    "timestamps": [
-                        _timestamp_contract(stage) for stage in spec["stages"]
-                    ],
+                    "timestamps": [_timestamp_contract(stage) for stage in spec["stages"]],
                     "latency_assumptions": [
                         "Streams can arrive late or out of order; event time controls correlation.",
                         "No production latency or retention behavior has been measured.",
@@ -930,9 +1588,24 @@ def build_hunts() -> list[dict[str, Any]]:
 
 CURATED_CATEGORIES = [
     ("true_positive", 8, "ordered synthetic evidence satisfies every required hop", "match"),
-    ("benign_counterfactual", 10, "benign explanation or disconfirming fact prevents an incident conclusion", "no_escalation"),
-    ("entity_integrity", 8, "tenant, workspace, account, device, process, or address collision is isolated", "no_match"),
-    ("temporal_data_quality", 8, "late, duplicate, missing, malformed, or out-of-order data is handled explicitly", "defined_invariant"),
+    (
+        "benign_counterfactual",
+        10,
+        "benign explanation or disconfirming fact prevents an incident conclusion",
+        "no_escalation",
+    ),
+    (
+        "entity_integrity",
+        8,
+        "tenant, workspace, account, device, process, or address collision is isolated",
+        "no_match",
+    ),
+    (
+        "temporal_data_quality",
+        8,
+        "late, duplicate, missing, malformed, or out-of-order data is handled explicitly",
+        "defined_invariant",
+    ),
     ("schema_surface", 4, "unknown or incompatible schema or surface fails closed", "validation_failure"),
     ("scale_resource", 4, "fanout or resource-risk boundary is reported", "resource_guard"),
     ("hostile_privacy", 3, "hostile content remains inert and sensitive values are not logged", "safe_handling"),
@@ -1105,11 +1778,7 @@ def build_curated_fixtures(hunt: dict[str, Any]) -> dict[str, Any]:
                 hunt["id"], ordinal, category, variant, len(hunt["stages"])
             )
             expected_stage_counts = {
-                f"S{index:02d}": sum(
-                    1
-                    for event in events
-                    if event.get("stage") == f"S{index:02d}"
-                )
+                f"S{index:02d}": sum(1 for event in events if event.get("stage") == f"S{index:02d}")
                 for index in range(1, len(hunt["stages"]) + 1)
             }
             scenarios.append(
@@ -1141,9 +1810,7 @@ def build_curated_fixtures(hunt: dict[str, Any]) -> dict[str, Any]:
         "version": "1.0.0",
         "synthetic_only": True,
         "scenario_count": len(scenarios),
-        "category_counts": {
-            category: count for category, count, _purpose, _outcome in CURATED_CATEGORIES
-        },
+        "category_counts": {category: count for category, count, _purpose, _outcome in CURATED_CATEGORIES},
         "scenarios": scenarios,
     }
 
@@ -1170,7 +1837,12 @@ def build_evaluation_tasks(hunts: list[dict[str, Any]]) -> dict[str, Any]:
                         "kind": kind,
                         "surface": "sentinel_analytics",
                         "prompt_ref": f"hidden/{hunt['id']}/{kind}-{repetition}.txt",
-                        "required_gates": ["defensive_boundary", "no_fabricated_validation", "no_silent_stage_omission", "deterministic_validation"],
+                        "required_gates": [
+                            "defensive_boundary",
+                            "no_fabricated_validation",
+                            "no_silent_stage_omission",
+                            "deterministic_validation",
+                        ],
                     }
                 )
     return {
@@ -1197,9 +1869,7 @@ def generate_catalog() -> dict[str, int]:
     return {
         "profiles": len(profiles),
         "hunts": len(hunts),
-        "curated_scenarios": sum(
-            hunt["tests"]["curated_scenarios"] for hunt in hunts
-        ),
+        "curated_scenarios": sum(hunt["tests"]["curated_scenarios"] for hunt in hunts),
         "model_tasks": tasks["task_count"],
         "model_runs_required": tasks["expected_run_count"],
     }

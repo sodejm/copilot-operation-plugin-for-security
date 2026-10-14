@@ -91,6 +91,7 @@ soc-investigation-workbench     detection-hunting         beta          validate
 sentinel-hunt-workbench         detection-hunting         beta          validated  unverified  unverified    
 attack-path-workbench           detection-hunting         experimental  validated  unverified  unverified    
 attack-surface-planner          offensive-security        experimental  validated  unverified  unverified    
+kubernetes-assessment-workbench offensive-security        experimental  validated  unverified  unverified
 entra-identity-workbench        identity-access           beta          validated  unverified  unverified    
 ad-assessment-workbench         identity-access           experimental  validated  unverified  unverified
 exposure-triage-workbench       vulnerability-management  beta          validated  unverified  unverified    
@@ -145,14 +146,19 @@ When the selected profile is marked critical, or you pass `--critical`, the rout
 
 Every plugin includes a self-contained, offline demonstration that exercises real operational logic against synthetic local test data:
 
+Follow [the malicious-access walkthrough](investigate-malicious-access.md) for a
+complete investigation, or choose a package from the
+[runnable workflow index](plugin-playbacks.md). Each playback checks expected
+results and exits with a nonzero status if an assertion fails.
+
 ```bash
-# 1. Audit code for logging gaps and sensitive data leaks
+# 1. Collect logging evidence and validate an analyst-authored recommendation
 python3 -m cops demo security-logging-advisor
 
 # 2. Walk through a structured SOC investigation with competing hypotheses
 python3 -m cops demo soc-investigation-workbench
 
-# 3. Explain Sentinel KQL hunt workflows and evidence contracts
+# 3. Render Sentinel hunts and correlate local result fixtures
 python3 -m cops demo sentinel-hunt-workbench
 
 # 4. Trace cloud lateral movement paths to crown jewels

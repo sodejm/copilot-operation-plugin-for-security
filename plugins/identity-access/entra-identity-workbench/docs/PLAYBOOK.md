@@ -1,124 +1,62 @@
-# Analyst Playbook: Entra ID & AI Agent Exposure Review
+# Entra Identity Workbench playback
 
-This playbook guides security analysts, IAM administrators, and cloud engineers through evaluating privilege exposures, unmonitored AI agents, and over-permissioned service principals using the **Entra Identity Workbench**.
+This playbook exercises the complete offline workflow with the checked-in `contoso-corp` fixture: manifest intake, checksum validation, graph construction, hypothesis analysis, JSON Schema validation, report rendering, deterministic rerun, and invalid-manifest rejection.
 
----
+## Run the playback
 
-## 1. Objectives & Overview
+Run the registered manifest demo from the repository root:
 
-Modern cloud environments combine traditional human directory accounts with automated workloads, machine identities, and autonomous AI agents. As organizations deploy AI agent frameworks (such as Microsoft Foundry or custom orchestration runtimes), agents often acquire persistent service credentials or direct Azure RBAC privileges that exceed their intended operational scope.
-
-The Entra Identity Workbench enables you to perform deterministic, offline evaluations of these relationships. By modeling identity graphs from verified tenant exports, analysts can uncover privilege escalations, unowned principals, and risky cross-tenant trusts before adversaries can exploit them.
-
----
-
-## 2. Investigation Workflow
-
-```mermaid
-flowchart TD
-    P1[Phase 1: Ingestion & Integrity Verification] --> P2[Phase 2: Graph Construction & Entity Typing]
-    P2 --> P3[Phase 3: Automated Exposure Analysis]
-    P3 --> P4[Phase 4: Hypotheses Triage & SOC Correlation]
-    P4 --> P5[Phase 5: Remediation & Drift Verification]
+```bash
+python3 -m cops demo entra-identity-workbench
 ```
 
-### Phase 1: Ingestion & Integrity Verification
+Use a path that does not exist because the script deliberately refuses an existing workspace:
 
-1. **Verify Export Manifest**:
-   Ensure the export bundle contains a `manifest.json` following schema `entra.export-manifest/v1`. Collect the 12 supported sources with tenant-approved, read-only Microsoft Graph and Azure resource/RBAC permissions. The offline workbench needs local file read access only; it does not need cloud credentials or mutation permissions.
-   Mark a source `full` only after checking tenant scope and pagination. Use an empty JSON array for a complete source with no records, and record each source's collection-completion time in `exported_at` when it differs from the manifest timestamp.
-   Remove secrets and unnecessary personal data before calculating hashes. Pseudonymize join IDs consistently, then protect both exports and generated reports under the tenant's access and retention rules.
-2. **Execute Ingestion**:
-   ```bash
-   python3 -m entrawb.cli analyze --manifest path/to/tenant-export/manifest.json
-   ```
-3. **Verify Checksums**:
-   The engine computes SHA-256 digests for each present data file (users, groups, apps, service principals, managed identities, federated credentials, agent blueprints, agent identities, resources, directory roles, role assignments, and OAuth grants). A hash mismatch halts ingestion. A missing file or source is reported as unknown coverage with its manifest path and reason; it is never interpreted as an empty export.
-4. **Check Freshness and Coverage**:
-   Review the report's Evidence Coverage & Freshness table. Each source must be complete and no more than 24 hours old at assessment time. An invalid or future timestamp, partial export, or stale source makes dependent graph paths unknown. The CLI uses current UTC time; the synthetic demo deliberately uses a historical assessment time.
+```bash
+python3 plugins/identity-access/entra-identity-workbench/scripts/run_demo.py \
+  --workspace /tmp/entra-playback-review
+```
 
----
+Without `--workspace`, the script uses and removes a private temporary directory automatically.
 
-### Phase 2: Graph Construction & Entity Typing
+## Artifact layout
 
-The workbench ingests all entities and classifies them strictly according to verified schema properties:
+```text
+entra-playback-review/
+├── expected-failure.json
+├── expected-failure.txt
+├── playback-summary.json
+├── run-1/
+│   ├── graph.json
+│   ├── report.json
+│   └── report.md
+└── run-2/
+    ├── graph.json
+    ├── report.json
+    └── report.md
+```
 
-| Principal Type | Key Identifiers | Typical Exposure Surface |
-| :--- | :--- | :--- |
-| **Human User** | `is_guest: false/true`, UPN | Direct or inherited directory administrator roles, inactive accounts |
-| **Service Principal** | App ID, `service_principal_type` | Unowned enterprise apps, legacy Foundry automation credentials |
-| **Managed Identity** | `identity_type` (User vs. System Assigned) | High-privilege RBAC roles assigned to compute workloads |
-| **Agent Blueprint** | Declared tools, models, intended privilege | Declarative specification drift against runtime entitlements |
-| **Agent Identity** | Linked blueprint, runtime sponsor | Over-privileged execution tokens operating autonomously |
+`graph.json` is the intermediate assessment model. `report.json` is the durable machine-readable result, and `report.md` is its analyst view. The second run must match the first after excluding the report generation timestamp.
 
----
+## Acceptance checks
 
-### Phase 3: Automated Exposure Analysis
+A successful exit means the script verified all of the following:
 
-The workbench evaluates the normalized graph across six critical exposure patterns:
+- all source hashes in the manifest matched;
+- graph and report artifacts satisfied their JSON Schemas;
+- the graph contained 18 nodes and 13 edges;
+- the report contained 7 nonempty hypotheses;
+- a second assessment was semantically equivalent;
+- an empty manifest failed and did not produce a valid assessment.
 
-1. **Broad Application Consent (`broad_app_consent`)**
-   - *Pattern*: Application holds high-risk permissions such as `Directory.AccessAsUser.All` or `RoleManagement.ReadWrite.Directory`.
-   - *Risk*: Allows autonomous identity takeover or tenant-wide administrative escalation without user interaction.
+Inspect `source_coverage` before interpreting a hypothesis. Trace its evidence references into `graph.json`; treat stale or missing sources as unresolved evidence, not a negative finding.
 
-2. **Ownerless Principals (`ownerless_principal`)**
-   - *Pattern*: Applications or service principals with active role assignments or API permissions that have zero registered owners.
-   - *Risk*: Orphaned automation objects are prime targets for persistence and credential hijacking.
+## Failures, reruns, and cleanup
 
-3. **Stale or Wildcard Federated Trust (`stale_federated_trust`)**
-   - *Pattern*: Workload Identity Federation (OIDC) configured with wildcard subjects (e.g., `repo:contoso/*:*`).
-   - *Risk*: Any branch or unauthorized workflow run in the external CI/CD provider can exchange tokens for Azure credentials.
+Manifest shape, unsafe paths, hash mismatches, unsupported source types, and invalid artifacts fail closed. The retained `expected-failure.txt` records the rejected-input exception class without including sensitive content.
 
-4. **Privileged Managed Identities (`privileged_managed_identity`)**
-   - *Pattern*: User-assigned or system-assigned managed identities holding `Owner`, `Contributor`, or `Key Vault Administrator` roles.
-   - *Risk*: SSRF or workload compromise yields instantaneous lateral movement into critical cloud assets.
+For a rerun, use a new workspace or delete a disposable workspace after review. Never merge files from two runs. Remove retained synthetic output with your normal temporary-file cleanup process; the default mode cleans itself.
 
-5. **AI Agent Privilege Mismatch (`agent_privilege_mismatch`)**
-   - *Pattern*: Agent blueprint specifies `read_only` or `low` privilege, but the runtime `Agent ID` holds `Contributor` or `Global Administrator`.
-   - *Risk*: Autonomous agent tools can write, modify, or exfiltrate sensitive data outside their approved operational boundaries.
+## Production use limits
 
-6. **Cross-Tenant Exposure (`cross_tenant_exposure`)**
-   - *Pattern*: External guest accounts or cross-tenant principals assigned local privileged directory roles.
-   - *Risk*: Compromise of external tenant credentials propagates administrative impact into the local tenant.
-
----
-
-### Phase 4: Hypothesis Triage & SOC Correlation
-
-Because graph relationships prove structural reachability rather than confirmed exploitation, correlate each finding with active telemetry:
-
-First resolve unknown source coverage. A missing hypothesis cannot clear an exposure when the required source is missing, incomplete, or stale. Use the graph's `evidence_sources`, `evidence_status`, and `evidence_reasons` to identify which export must be refreshed; keep the original path and checksum as provenance.
-
-1. **Check Sign-In Telemetry**:
-   - Query Microsoft Entra `SignInLogs` and `ServicePrincipalSignInLogs` for the affected principal ID.
-   - Verify whether authentication originates from expected IP ranges or managed infrastructure.
-2. **Review Audit Logs**:
-   - Inspect `AuditLogs` for recent credential additions, consent grants, or role assignment modifications.
-3. **Inspect Agent Tool Calls**:
-   - For flagged Agent Identities, examine agent runtime execution logs to determine whether high-privilege tools were actually invoked.
-
----
-
-### Phase 5: Hardening & Remediation
-
-Follow least-privilege remediation steps based on the hypothesis findings:
-
-- **For Over-Privileged Agents**: Revoke tenant or resource role assignments. Align permissions directly with the tools declared in the agent blueprint.
-- **For Wildcard Federated Credentials**: Restrict the `subject` claim to a specific repository, branch, or production environment tag.
-- **For Ownerless Principals**: Identify the current application custodian and assign verified owners. If abandoned, revoke credentials and disable the principal.
-- **For High-Risk App Grants**: Replace broad autonomous permissions (`Directory.AccessAsUser.All`) with scoped, least-privilege API permissions.
-
----
-
-## 3. Review Checklist
-
-Before signing off on an Entra Identity exposure assessment:
-
-- [ ] All source file hashes match the manifest digests exactly.
-- [ ] Each required source is complete and within the 24-hour freshness window, or unknown coverage and its reason are documented.
-- [ ] Exports and reports are redacted, access-controlled, and retained under the tenant policy.
-- [ ] No entities have been classified based on heuristic naming patterns.
-- [ ] Group inheritance chains are resolved transitively.
-- [ ] Active and eligible PIM assignments are clearly distinguished.
-- [ ] Cross-tenant boundary isolations have been verified.
-- [ ] Every flagged critical hypothesis has a designated IAM or engineering owner.
+Replace the fixture only with an authorized, local export and preserve its manifest and hashes with the assessment record. This playback proves the offline pipeline works for the synthetic contract. It does not prove live Microsoft integration, production export completeness, exploitability, or tenant security.

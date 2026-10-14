@@ -172,3 +172,102 @@ Before promoting new detection rules or pipeline routes to production:
 3. Review the stage evidence, collection gaps, source permissions, and capture window before using the report in a change review. Keep exports and reports only under your organization's access and retention controls.
 
 For rule behavior against labeled positive and negative fixtures, use the Detection Quality & Regression Workbench (`plugins/detection-hunting/detection-quality-workbench`). That workbench measures fixture precision and recall; this pack correlates supplied operational stage records. Neither alone measures production detection rates.
+
+## 6. Offline End-to-End Playback
+
+### Purpose, audience, and prerequisites
+
+Pipeline engineers, detection engineers, and reviewers use this playback to
+exercise complete supplied-evidence traces without querying a provider. Run it
+from the COPS repository root with Python 3.11 or later. It needs no service
+credentials or network access and uses only synthetic package fixtures.
+
+Run the manifest demo:
+
+```bash
+python3 -m cops demo telemetry-proof-pack
+```
+
+The default output is a mode-`0700` temporary directory. Retain reports in a
+controlled directory when a reviewer needs them:
+
+```bash
+out_dir="$(mktemp -d "${TMPDIR:-/tmp}/telemetry-proof-playback.XXXXXX")"
+python3 plugins/logging-telemetry/telemetry-proof-pack/scripts/run_demo.py \
+  --out-dir "$out_dir"
+python3 -m json.tool "$out_dir/playback-summary.json"
+```
+
+### Data flow and decisions
+
+```mermaid
+flowchart LR
+    M[Manifest] --> V[Load and validate]
+    E[Five supplied stage records] --> V
+    V --> C[Correlate marker and time window]
+    C --> J[JSON and Markdown reports]
+    J --> A[Assert expected health]
+    A --> R[Repeat and compare]
+```
+
+The playback requires two `healthy` routes
+(`cribl-splunk-route`, `cribl-sentinel-route`), one `degraded` rule-miss trace
+(`hec-indexed-rule-missed`), and two `broken` traces
+(`missing-cribl-stage`, `cross-tenant-collision`). Those health labels describe
+the supplied files. They do not diagnose a live service. The second pass must
+produce the same substantive report content.
+
+### Artifact contract
+
+| Artifact | Purpose and key fields | Producer to consumer | Version and validation |
+| :--- | :--- | :--- | :--- |
+| `playback-summary.json` | Overall decision; `status`, `scenarios`, `rerun_equivalent` | demo runner to operator or CI | `cops.telemetry-proof-playback/v1`; validates the exact scenario set, expected health, reports, and rerun |
+| `scenarios/<scenario>/report.json` | Machine-readable trace; `pipeline_health`, `stages_breakdown`, `summary`, `synthetic_marker`, evidence hashes | correlator to automation or reviewer | `cops.proof-report/v1`; parsed and asserted by the runner |
+| `scenarios/<scenario>/report.md` | Human-readable stage interpretation and evidence limitations | report renderer to engineer | Derived from the validated JSON report; existence and nonempty content are required |
+
+Example summary entry:
+
+```json
+{
+  "schema_version": "cops.telemetry-proof-playback/v1",
+  "status": "passed",
+  "scenarios": [
+    {
+      "scenario": "cribl-splunk-route",
+      "expected_health": "healthy",
+      "actual_health": "healthy",
+      "observed_stages": 5,
+      "json_report": "scenarios/cribl-splunk-route/report.json",
+      "markdown_report": "scenarios/cribl-splunk-route/report.md",
+      "passed": true
+    }
+  ],
+  "rerun_equivalent": true
+}
+```
+
+### Failure, resume, rerun, and cleanup
+
+Missing manifests or evidence directories fail closed with exit `2`; they are
+never reported as an empty success. Malformed evidence, an unexpected health
+state, a missing or empty report, or a rerun mismatch also exits `2`. Treat any
+partial directory as diagnostic evidence. Correct the fixture or package and
+rerun the full command into the retained directory; the fixed report names are
+replaced.
+
+For troubleshooting, confirm Python 3.11 or later, inspect the named scenario's
+manifest and evidence files, and compare marker, tenant or workspace, capture
+window, clock skew, and record timestamps. A missing export is still an evidence
+gap. Do not infer a provider outage from it.
+
+After review, remove a disposable retained directory with `rm -rf "$out_dir"`.
+Store retained reports and source exports only under the applicable access and
+retention controls.
+
+### Evidence limits
+
+This playback correlates offline JSON fixtures. It makes no Cribl, Splunk, or
+Microsoft API call, does not run a scheduled query, and cannot authenticate an
+export or prove collection completeness, native runtime behavior, service
+availability, or a production alert rate. Collect and validate those facts
+separately through authorized provider workflows.

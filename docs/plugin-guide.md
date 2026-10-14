@@ -8,6 +8,10 @@ description: "A comprehensive guide to selecting, evaluating, and running each o
 
 COPS packages **seventeen specialized cybersecurity plugins** across six core disciplines. Each plugin is self-contained under `plugins/<category>/<plugin-id>/` and includes deterministic Python tools, reusable AI skills, and a practitioner playbook.
 
+Use the [runnable workflow index](plugin-playbacks.md) for checked examples and
+the [malicious-access walkthrough](investigate-malicious-access.md) for a complete
+investigation from intake to disposition.
+
 Use this guide to determine which plugin best matches your operational requirements.
 Follow [plugin verification and maturity](plugin-verification.md) to run a complete
 qualification workflow and record evidence before proposing a status change.
@@ -159,7 +163,7 @@ qualification workflow and record evidence before proposing a status change.
 - **When to use**: Before planning a Kubernetes assessment, compare an explicitly approved context, namespaces, and surfaces with a sanitized local observation.
 - **Key Capabilities**: Exact context tuple checks, local Namespace name and UID anchor comparison, namespace access and environment fact reporting.
 - **Boundaries**: Reads a local JSON record only. Matching local assertions do not establish live cluster identity or readiness; missing or denied access stays visible, and the report never grants execution.
-- **Playbook**: `plugins/offensive-security/kubernetes-assessment-workbench/README.md`
+- **Playbook**: `plugins/offensive-security/kubernetes-assessment-workbench/docs/PLAYBOOK.md`
 - **Verification**: [End-to-end playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/offensive-security/kubernetes-assessment-workbench/docs/VERIFICATION.md)
 
 #### Offensive Engagement Workbench

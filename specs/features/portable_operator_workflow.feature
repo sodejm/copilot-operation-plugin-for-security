@@ -8,10 +8,15 @@ Feature: Portable operator workflow
     When I list the available cybersecurity packages
     Then every catalog package is shown with offline, host, and live support states
 
-  Scenario: Exercise every package through its safe demo
+  Scenario: Exercise every package through its safe demo and a repeated run
     Given the canonical COPS package catalog
     When I run each package's declared offline demo
     Then every demo succeeds without shell interpretation
+
+  Scenario: Run exported playbacks with their declared framework runtime
+    Given the canonical COPS package catalog
+    When I export and run every playback with an isolated COPS runtime
+    Then all exported playbacks verify their results without source package files
 
   Scenario: Reject a command that escapes its package
     Given the canonical COPS package catalog

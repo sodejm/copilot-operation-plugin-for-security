@@ -40,26 +40,35 @@ def _load_json_or_file(source: Any) -> dict[str, Any]:
 def command_laboratory(args: argparse.Namespace, root: Path = ROOT) -> int:
     """Handle `cops lab <register|verify|reset|matrix|run>`."""
     cmd = getattr(args, "lab_command", None)
-    harness = LaboratoryHarness()
 
     try:
+        harness = LaboratoryHarness(evidence_dir=getattr(args, "evidence_dir", None))
         if cmd == "register":
             doc = _load_json_or_file(args.environment)
             env = harness.register_environment(doc)
             output_data = env.to_dict()
 
         elif cmd == "verify":
-            raise ValueError(
-                "laboratory verification requires an operator-owned observation provider "
-                "and a verified SSH endpoint inventory; use the Python harness API"
-            )
+            doc = _load_json_or_file(args.environment)
+            env = harness.register_environment(doc)
+            if not getattr(args, "mock", False):
+                raise ValueError(
+                    "real laboratory verification requires an operator-owned observation provider "
+                    "and verified SSH endpoint inventory; use the Python harness API"
+                )
+            tools = [item.strip() for item in (getattr(args, "tools", None) or "").split(",") if item.strip()]
+            output_data = harness.verify_environment(env, required_tools=tools or None, mock_checks=True).to_dict()
 
         elif cmd == "reset":
-            raise ValueError(
-                "laboratory reset requires an operator-owned observation provider, "
-                "a challenged worker reset receipt, and a verified SSH endpoint inventory; "
-                "use the Python harness API"
-            )
+            doc = _load_json_or_file(args.environment)
+            env = harness.register_environment(doc)
+            if not getattr(args, "mock", False):
+                raise ValueError(
+                    "real laboratory reset requires an operator-owned observation provider, "
+                    "a challenged worker reset receipt, and verified SSH endpoint inventory; "
+                    "use the Python harness API"
+                )
+            output_data = harness.simulate_reset(env).to_dict()
 
         elif cmd == "matrix":
             output_data = {

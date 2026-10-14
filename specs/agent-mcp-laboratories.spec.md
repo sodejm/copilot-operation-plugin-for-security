@@ -32,6 +32,10 @@ Reports separate `model_text`, `attempted_calls`, `denied_calls`, `executed_call
 - Legacy fixture reads are executed calls without state mutation. The approved authorization fixture requires an independent disclosure witness for permitted reads and an observed state effect for permitted writes.
 - The CLI emits a versioned JSON run report and a concise human summary, with a nonzero status for unmet expectations.
 - Focused tests, the package validator, `python3 -m cops check foundry-agent-harness`, and `make check` pass.
+- The manifest playback invokes the actual legacy `evaluate` command over the six
+  pinned scenarios, requires one attempted and denied call per scenario with no
+  mock effects or model execution, compares normalized reruns, and proves that a
+  copied scenario without environment approval is rejected.
 
 The package validator and `cops check foundry-agent-harness` inspect bounded JSON, case schemas, required default authorization coverage, and skill frontmatter without importing assessment execution sources or starting fixture processes. Schema admission checks every node, including unused definitions, rejects unsupported constraints, and bounds local reference traversal. These checks reject invalid definitions and do not establish runtime behavior; execution and local observer-ledger effects are verified by the dedicated tests and approved laboratory runs.
 
