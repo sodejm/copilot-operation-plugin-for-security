@@ -1001,9 +1001,7 @@ class TestActiveDiscoveryCLI(unittest.TestCase):
         parser = argparse.ArgumentParser()
         build_active_parser(parser)
         udp_plan = self.root / "udp-only.json"
-        args = parser.parse_args(
-            ["plan", "--targets", "198.51.100.10", "--udp-ports", "53", "--output", str(udp_plan)]
-        )
+        args = parser.parse_args(["plan", "--targets", "198.51.100.10", "--udp-ports", "53", "--output", str(udp_plan)])
         self.assertEqual(command_active_discovery(args), 0)
         session = ActiveScanSession.load_checkpoint(udp_plan)
         self.assertEqual(session.approved_ports, [])
