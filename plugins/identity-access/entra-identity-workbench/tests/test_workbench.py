@@ -581,6 +581,37 @@ def test_artifact_validation_rechecks_fresh_source_window(contoso_manifest_path:
             validate(altered)
 
 
+def test_future_assessment_cannot_make_future_sources_fresh(contoso_manifest_path: Path):
+    """Relative source age must not make an untrusted future artifact current."""
+    manifest, sources = ingest_tenant_export(contoso_manifest_path)
+    graph = build_identity_graph(manifest, sources, as_of=FIXTURE_AS_OF)
+    future = "2099-01-01T12:00:00Z"
+
+    for name, document, validate in (
+        ("graph", graph.to_dict(), validate_graph_artifact),
+        ("report", render_json_report(graph, analyze_identity_graph(graph)), validate_report_artifact),
+    ):
+        altered = deepcopy(document)
+        altered["assessed_at"] = future
+        for item in altered["source_coverage"].values():
+            if item["status"] == "fresh":
+                item["exported_at"] = future
+        schema = json.loads((PLUGIN_ROOT / "schemas" / f"{name}.v2.schema.json").read_text())
+        assert Draft202012Validator(schema, format_checker=FormatChecker()).is_valid(altered)
+        with pytest.raises(EntraError, match="assessment time is in the future"):
+            validate(altered)
+
+    future_coverage = deepcopy(graph.source_coverage)
+    for item in future_coverage.values():
+        if item["status"] == "fresh":
+            item["exported_at"] = future
+    future_graph = replace(graph, assessed_at=future, source_coverage=future_coverage)
+    with pytest.raises(EntraError, match="assessment time is in the future"):
+        future_graph.to_dict()
+    with pytest.raises(EntraError, match="assessment time is in the future"):
+        render_json_report(future_graph, [])
+
+
 def test_markdown_report_escapes_export_derived_text(contoso_manifest_path: Path):
     manifest, sources = ingest_tenant_export(contoso_manifest_path)
     graph = build_identity_graph(manifest, sources, as_of=FIXTURE_AS_OF)

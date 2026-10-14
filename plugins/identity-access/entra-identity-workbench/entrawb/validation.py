@@ -14,6 +14,9 @@ _TIMESTAMP = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 
 
+_MAX_ASSESSMENT_CLOCK_SKEW = timedelta(minutes=5)
+
+
 def _timestamp(value: Any, *, utc_only: bool = False) -> datetime:
     if not isinstance(value, str) or not _TIMESTAMP.fullmatch(value) or (utc_only and not value.endswith("Z")):
         raise EntraError("Export requires an RFC 3339 assessment time in UTC and valid source timestamps")
@@ -34,6 +37,8 @@ def _validate_freshness_metadata(assessed_at: Any, max_age_hours: Any, coverage:
     from .graph import SOURCE_IDS
 
     assessed = _timestamp(assessed_at, utc_only=True)
+    if assessed > datetime.now(UTC) + _MAX_ASSESSMENT_CLOCK_SKEW:
+        raise EntraError("Export assessment time is in the future")
     if type(max_age_hours) is not int or max_age_hours != 24:
         raise EntraError("Export requires a 24-hour freshness limit")
     if not isinstance(coverage, dict) or set(coverage) != set(SOURCE_IDS):
