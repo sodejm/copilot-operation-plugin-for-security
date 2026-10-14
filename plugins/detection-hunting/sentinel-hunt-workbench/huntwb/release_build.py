@@ -55,9 +55,7 @@ def secret_findings(relative: str, content: bytes) -> list[dict[str, str]]:
     """Return only pattern names and paths; never echo possible secret values."""
 
     return [
-        {"path": relative, "pattern": name}
-        for name, pattern in _SECRET_PATTERNS.items()
-        if pattern.search(content)
+        {"path": relative, "pattern": name} for name, pattern in _SECRET_PATTERNS.items() if pattern.search(content)
     ]
 
 
@@ -188,7 +186,9 @@ def build_release_artifacts(seed: int = 20260916) -> dict[str, Any]:
     envelope_path = _release_file("local-evidence.json", envelope)
     report = release_report(seed, load_json(envelope_path))
     if report["gates"]["release_integrity"]["status"] != "passed":
-        raise ContentError(f"generated integrity evidence failed validation: {report['gates']['release_integrity']['findings']}")
+        raise ContentError(
+            f"generated integrity evidence failed validation: {report['gates']['release_integrity']['findings']}"
+        )
     for name in ("contract_and_schema", "static_validation", "reference_fixture_execution", "adapter_integrity"):
         if report["gates"][name]["status"] != "passed":
             raise ContentError(f"local release gate failed: {name}")

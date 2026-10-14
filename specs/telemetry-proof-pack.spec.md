@@ -50,3 +50,28 @@ systems or establish that a live pipeline or detection is healthy.
 - The package README, playbook, and tracing skill document collection rights,
   source timestamp limits, privacy, and the distinct role of the Detection
   Quality & Regression Workbench.
+
+## Offline playback contract
+
+`python3 -m cops demo telemetry-proof-pack` invokes the package playback runner.
+By default, it creates a mode-`0700` temporary output directory;
+`scripts/run_demo.py --out-dir <directory>` retains the same artifacts in an
+operator-selected private directory.
+
+The playback must evaluate exactly two healthy routes (`cribl-splunk-route` and
+`cribl-sentinel-route`), one degraded rule-miss trace
+(`hec-indexed-rule-missed`), and two broken traces (`missing-cribl-stage` and
+`cross-tenant-collision`). It writes and parses each versioned JSON report,
+requires the paired Markdown report to be nonempty, writes
+`cops.telemetry-proof-playback/v1` `playback-summary.json`, and repeats the
+evaluation to require equivalent substantive results.
+
+A missing manifest or evidence directory, malformed evidence, unexpected health
+state, missing or empty report, or rerun difference must exit nonzero. An empty
+fixture discovery is never a successful run. Partial output is diagnostic
+evidence; after correction, rerun the complete command.
+
+This contract correlates supplied offline records. It does not query Cribl,
+Splunk, or Microsoft services, authenticate the supplied exports, validate a
+native query runtime, prove collection completeness, or establish production
+pipeline health.

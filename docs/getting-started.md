@@ -8,23 +8,25 @@ description: "Go from a fresh repository clone to running verified, offline-firs
 
 Welcome to **COPS (Copilot Operations Plugins for Security)**! This guide takes you from a fresh clone to running real, verified cybersecurity tools in under five minutes.
 
-Everything in this guide runs **100% offline** on your local machine using standard Python. You do not need an active cloud subscription, API tokens, or an AI assistant installed to explore, test, and validate these tools.
+After setup, the core commands and plugin checks below run offline on your local machine. Cloning the repository and downloading optional dependencies require network access unless you have local copies. You do not need a cloud subscription, API tokens, or an AI assistant to run the offline examples.
 
 ---
 
 ## Prerequisites
 
-COPS requires only **Python 3.11 or newer**. That's it!
+The core commands require **Python 3.11 or newer**. To clone the repository, you also need Git and network access; an existing local repository copy also works.
 
 - No external pip dependencies are needed for running the CLI, doctor, demos, or offline plugin checks.
 - Optional contributor dependencies (for running the full repository test suite) are specified in `requirements.txt`.
 - Signed laboratory receipt verification requires the optional `laboratory` extra (`python -m pip install '.[laboratory]'`).
 
+Installing optional dependencies requires network access or prepared local packages. See the [offline installation instructions](troubleshooting.md).
+
 ---
 
 ## Five-Minute Quickstart
 
-Open your terminal and run these commands from the repository root:
+Open your terminal in the directory where you want to clone the repository. If you already have a copy, enter its root directory and start at step 2:
 
 ```bash
 # 1. Clone the repository and navigate into it
@@ -40,7 +42,7 @@ python3 -m cops list
 # 4. Inspect details and operational playbooks for a specific plugin
 python3 -m cops info sentinel-hunt-workbench
 
-# 5. Route a natural language security task to the best specialist agent
+# 5. Recommend a specialist profile for a natural language security task
 python3 -m cops route "Optimize Microsoft Sentinel KQL query for sign-in anomalies"
 
 # 6. Run a safe, offline demonstration using synthetic test data
@@ -64,7 +66,8 @@ python3 -m cops doctor
 1. **Python Interpreter**: Confirms that your active Python interpreter is version 3.11 or newer.
 2. **Catalog Integrity**: Verifies that all 17 package manifests match their catalog declarations.
 3. **Marketplace Synchronization**: Ensures that generated host indexes (`.github/plugin/marketplace.json`, `.claude-plugin/marketplace.json`, `.agents/plugins/marketplace.json`) are in sync with `catalog/plugins.json`.
-4. **Offline Readiness**: Confirms that local tools execute without unverified external network requirements.
+
+The default check does not run plugins or audit their network behavior. With `--contributor`, it also checks for the `pytest` and `pytest_bdd` modules and the `git` executable, and reports whether the optional `make` and `gh` executables are present. Use `make check-prerequisites` to check Python and the test dependencies in `requirements.txt`, including their minimum versions.
 
 If any check reports an issue, the output provides clear, actionable instructions on how to resolve it. See the [Troubleshooting Guide](troubleshooting.md) for detailed help.
 
@@ -88,6 +91,7 @@ soc-investigation-workbench     detection-hunting         beta          validate
 sentinel-hunt-workbench         detection-hunting         beta          validated  unverified  unverified    
 attack-path-workbench           detection-hunting         experimental  validated  unverified  unverified    
 attack-surface-planner          offensive-security        experimental  validated  unverified  unverified    
+kubernetes-assessment-workbench offensive-security        experimental  validated  unverified  unverified
 entra-identity-workbench        identity-access           beta          validated  unverified  unverified    
 ad-assessment-workbench         identity-access           experimental  validated  unverified  unverified
 exposure-triage-workbench       vulnerability-management  beta          validated  unverified  unverified    
@@ -115,7 +119,7 @@ For recommendations on when to reach for each plugin, consult the [Plugin Select
 
 ## Step 3: Routing Tasks with Specialist Agents (`cops route`)
 
-COPS includes 21 specialist cybersecurity agent profiles. The deterministic, zero-token router matches any natural language task or security question to the most qualified specialist profile:
+COPS includes 21 specialist cybersecurity agent profiles. The router uses weighted local keyword rules to recommend a profile without an LLM or external API call. It does not launch an agent:
 
 ```bash
 # Example 1: Detection Engineering
@@ -134,7 +138,7 @@ To list all 21 specialist profiles and their domain specializations:
 python3 -m cops specialists
 ```
 
-For high-risk operations (e.g. penetration testing, red team emulation, active containment rehearsal), COPS automatically activates **Triad Orchestration** (Primary Specialist + Domain Skeptic + Evidence Auditor) with mandatory interactive operator approval. See [Specialist Agents](specialist-agents.md) for details.
+When the selected profile is marked critical, or you pass `--critical`, the router returns a proposed **Triad Orchestration** plan with a Primary Specialist, Domain Skeptic, Evidence Auditor, and handoff steps. It does not start agents or prompt for authorization by default. See [Specialist Agents](specialist-agents.md) for the separate routing, handoff, and authorization steps.
 
 ---
 
@@ -142,14 +146,19 @@ For high-risk operations (e.g. penetration testing, red team emulation, active c
 
 Every plugin includes a self-contained, offline demonstration that exercises real operational logic against synthetic local test data:
 
+Follow [the malicious-access walkthrough](investigate-malicious-access.md) for a
+complete investigation, or choose a package from the
+[runnable workflow index](plugin-playbacks.md). Each playback checks expected
+results and exits with a nonzero status if an assertion fails.
+
 ```bash
-# 1. Audit code for logging gaps and sensitive data leaks
+# 1. Collect logging evidence and validate an analyst-authored recommendation
 python3 -m cops demo security-logging-advisor
 
 # 2. Walk through a structured SOC investigation with competing hypotheses
 python3 -m cops demo soc-investigation-workbench
 
-# 3. Explain Sentinel KQL hunt workflows and evidence contracts
+# 3. Render Sentinel hunts and correlate local result fixtures
 python3 -m cops demo sentinel-hunt-workbench
 
 # 4. Trace cloud lateral movement paths to crown jewels
@@ -171,7 +180,7 @@ python3 -m cops demo ad-assessment-workbench
 
 ## Step 5: Validating Package Integrity (`cops check`)
 
-To verify the code correctness, schemas, and regression tests of a plugin locally:
+To run a plugin's defined offline checks locally:
 
 ```bash
 # Check a single package
@@ -181,7 +190,7 @@ python3 -m cops check sentinel-hunt-workbench
 python3 -m cops check
 ```
 
-Passing checks verify deterministic logic, contract schemas, and offline regression suites.
+Passing checks mean the assertions passed for the tested cases. Coverage depends on the package. For example, Sentinel Hunt Workbench checks reference invariants and query markers against synthetic fixtures; it does not parse or execute KQL. These results do not prove all code correct or establish real attack coverage.
 
 ---
 
@@ -191,7 +200,7 @@ Passing checks verify deterministic logic, contract schemas, and offline regress
   package and use its evidence record to propose a maturity change.
 
 - Consult the [Plugin Selection Guide](plugin-guide.md) to choose the right plugin for your operational needs.
-- Explore the [21 Specialist Agent Profiles](specialist-agents.md) and Triad orchestration.
+- Explore the [21 Specialist Agent Profiles](specialist-agents.md), triad plans, and handoff records.
 - Read the [ATT&CK Matrix (v18.0)](COVERAGE_MATRIX.md) for mapped defensive techniques.
 - Set up a contributor environment with the [Contributor Guide](contributing.md).
 - Resolve any environment questions with the [Troubleshooting Guide](troubleshooting.md).

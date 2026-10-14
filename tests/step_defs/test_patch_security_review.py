@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -121,3 +123,48 @@ def role_assignment_candidate(repo):
     assert "directory role" in candidate["impact"]
     assert candidate["confidence"] == "limited"
     assert result["validated_findings"] == []
+
+
+@pytest.fixture
+def playback():
+    return {}
+
+
+@given("inherited Git configuration that installs a commit hook")
+def inherited_commit_hook(playback, tmp_path):
+    hooks = tmp_path / "global-hooks"
+    hooks.mkdir()
+    sentinel = tmp_path / "hook-executed.sentinel"
+    hook = hooks / "post-commit"
+    hook.write_text('#!/bin/sh\nprintf "executed\\n" > "$COPS_HOOK_SENTINEL"\n', encoding="utf-8")
+    hook.chmod(0o700)
+
+    config = tmp_path / "inherited.gitconfig"
+    config.write_text(f"[core]\n\thooksPath = {hooks.as_posix()}\n", encoding="utf-8")
+    env = os.environ.copy()
+    env.update(
+        {
+            "COPS_HOOK_SENTINEL": str(sentinel),
+            "GIT_CONFIG_GLOBAL": str(config),
+        }
+    )
+    playback.update(env=env, sentinel=sentinel)
+
+
+@when("the offline playback creates and reviews its synthetic commits")
+def run_offline_playback(playback):
+    completed = subprocess.run(
+        [sys.executable, "-O", str(PACKAGE / "scripts" / "demo.py")],
+        cwd=PACKAGE.parents[2],
+        check=True,
+        capture_output=True,
+        text=True,
+        env=playback["env"],
+    )
+    playback["result"] = json.loads(completed.stdout)
+
+
+@then("the inherited hook is not executed")
+def inherited_hook_not_executed(playback):
+    assert playback["result"]["malicious"]["candidate_count"] == 1
+    assert playback["sentinel"].exists() is False

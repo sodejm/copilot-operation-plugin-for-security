@@ -18,13 +18,19 @@ Whenever unexpected behavior occurs, run the built-in diagnostic tool first:
 python3 -m cops doctor
 ```
 
-For contributor environments with test dependencies, run:
+`cops doctor` checks the Python version, catalog and package manifests, and generated marketplace indexes. It does not run plugins or audit their network behavior.
+
+For contributor environments, also run:
 
 ```bash
-.venv/bin/python scripts/agent/doctor.py
+.venv/bin/python -m cops doctor --contributor
 ```
 
-`cops doctor` inspects your Python version, verifies catalog synchronization, checks test dependencies, and validates tool paths.
+The contributor check looks for the `pytest` and `pytest_bdd` modules and the `git` executable. It also reports whether the optional `make` and `gh` executables are present. It does not check all contributor dependency versions. To check Python and the test dependencies in `requirements.txt`, including their minimum versions, run:
+
+```bash
+make check-prerequisites PYTHON=.venv/bin/python
+```
 
 ---
 

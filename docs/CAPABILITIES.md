@@ -12,7 +12,7 @@ COPS currently packages seventeen specialized security plugins across defensive 
 | :--- | :--- | :---: | :--- | :--- |
 | **[Security Logging Advisor](../plugins/logging-telemetry/security-logging-advisor/README.md)** | Logging & Telemetry | **Stable** | Audits application codebases for missing audit trails, sensitive data leaks (PII, tokens), and CVE reachability. | Inspects local code and configs; does not ingest live SIEM streams or connect to runtime clusters. |
 | **[SOC Investigation Workbench](../plugins/detection-hunting/soc-investigation-workbench/README.md)** | Detection & Hunting | **Beta** | Guides analysts through complex alert triage using competing hypotheses, question ranking, and evidence graphs. | Decision-support and reasoning framework; does not execute automated SOAR containment actions directly. |
-| **[Sentinel Hunt Workbench](../plugins/detection-hunting/sentinel-hunt-workbench/README.md)** | Detection & Hunting | **Beta** | Authors, adapts, and stress-tests 12 defensive threat hunts across Microsoft Sentinel, Defender XDR, and Data Lake. | Evaluates query logic against synthetic event streams; does not connect to live customer tenants. |
+| **[Sentinel Hunt Workbench](../plugins/detection-hunting/sentinel-hunt-workbench/README.md)** | Detection & Hunting | **Beta** | Authors, adapts, and stress-tests 12 defensive threat hunts across Microsoft Sentinel, Defender XDR, and Data Lake. | Checks reference invariants and query markers against synthetic fixtures; does not parse or execute KQL or connect to live customer tenants. |
 | **[Attack Path Workbench](../plugins/detection-hunting/attack-path-workbench/README.md)** | Detection & Hunting | **Experimental** | Traces multi-hop identity and lateral movement paths from cloud exports to high-value crown jewels. | Operates on offline export manifests; does not perform active network scanning or live exploitation. |
 | **[Attack Surface Planner](../plugins/offensive-security/attack-surface-planner/README.md)** | Offensive Security | **Experimental** | Reconciles authorized rules-of-engagement scopes with local exports to create passive, bounded review plans. | Planning only; makes zero network calls, runs zero exploits, and requires human-signed authorization. |
 | **[Kubernetes Assessment Workbench](../plugins/offensive-security/kubernetes-assessment-workbench/README.md)** | Offensive Security | **Experimental** | Reconciles an approved Kubernetes context, namespace scope, and selected surfaces with a sanitized local observation. | Local JSON only; reports uncertainty and cannot establish live cluster identity or authorize execution. |
@@ -24,7 +24,7 @@ COPS currently packages seventeen specialized security plugins across defensive 
 | **[Detection Quality Workbench](../plugins/detection-hunting/detection-quality-workbench/README.md)** | Detection & Hunting | **Beta** | Validates detection syntax, regressions, and quality metrics across Microsoft Sentinel KQL and Splunk SPL. | Offline parser and regression engine; does not execute queries against live search clusters. |
 | **[Patch Security Review](../plugins/vulnerability-management/patch-security-review/README.md)** | Vulnerability Management | **Beta** | Analyzes code patches and pull request diffs for dangerous patterns, authorization flaws, and regression risks. | Static diff inspection; does not execute dynamic application security or runtime exploit payloads. |
 | **[Threat Intelligence Enrichment](../plugins/detection-hunting/threat-intelligence-enrichment/README.md)** | Detection & Hunting | **Experimental** | Enriches network, host, and hash indicators with provenance-tracked threat intelligence metadata. | Local offline correlation against cached feeds; live threat intelligence API calls require separate opt-in. |
-| **[Telemetry Proof Pack](../plugins/logging-telemetry/telemetry-proof-pack/README.md)** | Logging & Telemetry | **Beta** | Verifies end-to-end telemetry routes and event delivery health from Cribl Stream to Splunk and Sentinel. | Validates pipeline topology models and synthetic health proofs; does not inspect live stream buffers. |
+| **[Telemetry Proof Pack](../plugins/logging-telemetry/telemetry-proof-pack/README.md)** | Logging & Telemetry | **Beta** | Correlates supplied synthetic marker records across source, Cribl routing, destination, query, and alert stages. | Requires a run manifest and JSON evidence exports; does not collect evidence or inspect live pipelines. |
 | **[Incident Response Sandbox](../plugins/incident-response/incident-response-sandbox/README.md)** | Incident Response | **Experimental** | Rehearses containment workflows, calculates blast radius, and generates cryptographic execution receipts. | Approval-gated rehearsal only; does not execute destructive containment actions on live infrastructure. |
 | **[Host Assessment Workbench](../plugins/offensive-security/host-assessment-workbench/README.md)** | Offensive Security | **Experimental** | Classifies imported Linux privilege-boundary observations and synthetic canary results. | Offline import only; reported crossings are not independently verified live execution evidence. |
 
@@ -63,8 +63,8 @@ Every security package in COPS is built from three complementary layers:
 
 ```mermaid
 flowchart TD
-    subgraph L3["3. Autonomous Agents (Judgment & Context)"]
-        AG["High-level personas that coordinate complex workflows,<br/>ask clarifying questions, and assemble reports."]
+    subgraph L3["3. Specialist Profiles (Judgment & Context)"]
+        AG["Guidance for an AI assistant to coordinate workflows,<br/>ask clarifying questions, and assemble reports."]
     end
 
     subgraph L2["2. Reusable Skills (Workflows & Guidance)"]
@@ -81,13 +81,13 @@ flowchart TD
 
 1. **Deterministic Tools**: Python scripts and strict JSON schemas that validate evidence, compute hashes, parse graphs, and check syntax deterministically. These do the heavy mathematical and data validation work without relying on LLM guesswork.
 2. **Reusable Skills**: Structured operational recipes (defined in `SKILL.md` files conforming to the `agentskills.io` standard). These teach AI assistants *when* to trigger specific actions and *how* to guide analysts through complex workflows.
-3. **Autonomous Specialist Agents**: 21 callable specialist profiles housed in [`agents/`](../agents/README.md) across offensive, defensive, forensics, identity, and governance domains, orchestrated dynamically via `python3 -m cops route`:
+3. **Specialist Agent Profiles**: 21 profiles housed in [`agents/`](../agents/README.md) across offensive, defensive, forensics, identity, and governance domains. `python3 -m cops route` recommends a profile; starting an agent is a separate action in the host assistant:
    - **Offensive Security**: Penetration testing (`cops-pentest-specialist`), red team emulation (`cops-redteam-operator`), attack surface planning (`cops-attack-surface-planner`), offline Kubernetes context review (`cops-kubernetes-specialist`), Linux host assessment (`cops-host-specialist`), AI red teaming (`cops-ai-adversary-specialist`).
    - **Defensive & Detection**: Microsoft Sentinel KQL engineering (`cops-sentinel-kql-engineer`), threat hunting (`cops-threat-hunter`), SOC alert triage (`cops-soc-analyst`), detection-as-code (`cops-detection-engineer`).
    - **Incident Response & Forensics**: Blast radius and containment rehearsal (`cops-incident-responder`), tamper-evident evidence capture (`cops-forensic-collector`), static malware triage (`cops-malware-analyst`).
    - **Identity & Exposure**: Entra ID and cloud IAM governance (`cops-identity-specialist`), offline Active Directory relationship assessment (`cops-ad-specialist`), SBOM CVE reachability (`cops-exposure-analyst`), secure code review (`cops-appsec-engineer`), cyber threat intelligence (`cops-threat-intel-analyst`).
    - **Governance & Efficacy**: Purple team coordination (`cops-purple-team-coordinator`), audit telemetry architecture (`cops-logging-architect`), GRC compliance control auditing (`cops-compliance-auditor`).
-   - **Triad Orchestration**: Critical tasks automatically assemble a 3-agent team (Primary Specialist + Domain Skeptic + Evidence Auditor) with mandatory interactive operator authorization.
+   - **Triad Orchestration Plans**: A critical profile or `--critical` produces proposed roles (Primary Specialist + Domain Skeptic + Evidence Auditor) and handoff steps. The router does not start agents or execute the task; see the [routing and authorization boundaries](specialist-agents.md).
 
 ---
 

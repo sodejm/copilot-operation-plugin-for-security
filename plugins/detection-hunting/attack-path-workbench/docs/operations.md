@@ -10,13 +10,48 @@ The illustrative fixture includes one supported structural route, one candidate 
 
 ## Filesystem permissions and output boundary
 
-Report directories are created with owner-only permissions (`0700`) and individual report files (`report.json`, `graph.json`, `report.md`, `remediation-ledger.json`, `completion.json`) with mode `0600`.
+On POSIX systems, report directories are created with owner-only permissions
+(`0700`) and individual report files (`report.json`, `graph.json`, `report.md`,
+`remediation-ledger.json`, `completion.json`) with mode `0600`. On Windows,
+the new directory and files inherit their access control lists from the parent.
+Use a private parent whose ACL grants access only to the intended analysts.
 
-Publish reports beneath an analyst-owned, private parent directory that untrusted accounts cannot mutate during a run. The CLI uses descriptor-anchored directory creation and file writes, then confirms that the requested path still names the opened directory. Existing paths, symlink redirections, and concurrent directory swaps fail without publishing a completion marker at the displaced path.
+Publish reports beneath an analyst-owned, private parent directory that untrusted
+accounts cannot mutate during a run. On POSIX systems, the CLI uses directory file
+descriptors and `O_NOFOLLOW`. On Windows, it opens a filesystem anchor and traverses
+each component relative to held handles; existing ancestors receive only
+list/read-attributes/synchronize access, while add/write access is requested only
+for the new report directory. Reparse points are rejected on both input and output
+paths. The CLI confirms that the requested path still names the opened directory.
+Existing paths and redirections fail closed. Immediately before publishing on
+Windows, the CLI reopens the requested output path and compares its filesystem
+identity with the held directory; a swap observed then fails without publishing
+the completion marker. It repeats that check after publication.
 
 ## Complete and partial report sets
 
-The writer synchronizes the new output-directory entry, the four legacy report files, and their directory entries before it publishes `completion.json` without replacing an existing marker. Publication is bound to the open staging file, so replacing its temporary pathname cannot substitute different marker bytes. The writer immediately synchronizes the public marker before attempting staging cleanup. A consumer may treat a set as complete only when the marker validates against `schemas/completion-v1.schema.json`, its `run_id` equals `report.json`'s run ID, and its exact four SHA-256 digests match the stored report bytes. The marker's `status` concerns the durability of the four-report set; search coverage remains governed by `report.json`'s search receipt.
+The writer synchronizes the four legacy report files before it publishes
+`completion.json` without replacing an existing marker. Publication is bound to
+the open staging file, so replacing its temporary pathname cannot substitute
+different marker bytes. POSIX also synchronizes the new output-directory entry
+and report directory entries, and uses a held-directory link operation. Windows uses
+`NtSetInformationFile(FileRenameInformation)` with replacement disabled and the
+held output-directory handle as the rename root. It flushes the staged marker
+before the rename; Windows does not use an unsupported directory-handle flush as
+a success condition. A consumer may treat a set as complete only when the
+marker validates against `schemas/completion-v1.schema.json`, its `run_id` equals
+`report.json`'s run ID, and its exact four SHA-256 digests match the stored report
+bytes. The marker's `status` concerns the durability of the four-report set; search
+coverage remains governed by `report.json`'s search receipt.
+
+The held Windows directory handle binds publication to the directory that the CLI
+created, but pathname checks cannot make an untrusted parent immutable. A
+concurrent rename after the prepublication check can move that directory before
+the marker rename; the marker then lands in the held directory and the
+postpublication check makes the CLI fail. This is why the private-parent access
+control requirement is part of the security boundary. On Windows, a successful
+marker rename is atomic publication, but the platform path does not claim the
+directory-entry durability guarantee provided by the POSIX synchronization path.
 
 If a report write, report-directory synchronization, or final output-path check fails before marker publication, the CLI exits with status 2 and does not print success JSON. It preserves earlier report files as partial evidence and may leave an internal `.completion-*.tmp` staging file after a later failure. A staging file is never completion evidence. Do not publish or automate from a partial set; inspect it for failure diagnosis, then rerun to a fresh output directory.
 

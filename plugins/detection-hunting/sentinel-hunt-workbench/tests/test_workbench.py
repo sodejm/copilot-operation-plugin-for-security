@@ -112,9 +112,7 @@ class WorkbenchTests(unittest.TestCase):
                 "bomFormat": "CycloneDX",
                 "specVersion": "1.6",
                 "version": 1,
-                "metadata": {
-                    "properties": [{"name": "huntwb.release_subject_sha256", "value": subject_hash}]
-                },
+                "metadata": {"properties": [{"name": "huntwb.release_subject_sha256", "value": subject_hash}]},
                 "components": [
                     {"type": "file", "name": name, "hashes": [{"alg": "SHA-256", "content": digest}]}
                     for name, digest in sorted(artifacts.items())
@@ -161,15 +159,16 @@ class WorkbenchTests(unittest.TestCase):
             wrappers[kind] = wrapper_pointer
             index[kind] = wrapper_pointer
         return self._write_json(evidence_dir / "release-integrity.index.json", index), wrappers
+
     def test_authoritative_reference_requires_exact_hostname(self) -> None:
-        self.assertEqual(_reference_record("https://learn.microsoft.com/docs")['kind'], "authoritative")
+        self.assertEqual(_reference_record("https://learn.microsoft.com/docs")["kind"], "authoritative")
         for url in (
             "https://learn.microsoft.com.evil.example/docs",
             "https://evil.example/learn.microsoft.com/docs",
             "https://learn.microsoft.com@evil.example/docs",
         ):
             with self.subTest(url=url):
-                self.assertEqual(_reference_record(url)['kind'], "vendor_framework")
+                self.assertEqual(_reference_record(url)["kind"], "vendor_framework")
 
     def test_package_inventory_and_adapters(self) -> None:
         report = validate_package()
@@ -179,9 +178,11 @@ class WorkbenchTests(unittest.TestCase):
 
     def test_host_routers_keep_contribution_policy_outside_hunt_authority(self) -> None:
         files, _ = _expected_files()
-        routers = [body.decode() for path, body in files.items() if path.endswith(
-            ("AGENTS.md", "sentinel-hunt-workbench.agent.md", "sentinel-hunt-workbench.md")
-        )]
+        routers = [
+            body.decode()
+            for path, body in files.items()
+            if path.endswith(("AGENTS.md", "sentinel-hunt-workbench.agent.md", "sentinel-hunt-workbench.md"))
+        ]
         self.assertEqual(len(routers), 3)
         for router in routers:
             with self.subTest(host=router.splitlines()[6]):
@@ -308,7 +309,7 @@ class WorkbenchTests(unittest.TestCase):
             # Oversized evidence (> 4 MiB) fails
             evidence_path = folder / "oversized_evidence.json"
             with open(evidence_path, "wb") as f:
-                f.write(b'{"key": "' + b'A' * (4_194_304 + 10) + b'"}')
+                f.write(b'{"key": "' + b"A" * (4_194_304 + 10) + b'"}')
             with self.assertRaises(ContentError) as ctx:
                 _load_external_evidence(str(evidence_path))
             self.assertIn("byte limit", str(ctx.exception))
@@ -316,7 +317,7 @@ class WorkbenchTests(unittest.TestCase):
             # Oversized parameter file (> 1 MiB) fails
             param_path = folder / "oversized_params.json"
             with open(param_path, "wb") as f:
-                f.write(b'{"key": "' + b'B' * (1_048_576 + 10) + b'"}')
+                f.write(b'{"key": "' + b"B" * (1_048_576 + 10) + b'"}')
             with self.assertRaises(ContentError) as ctx:
                 load_parameter_file(str(param_path))
             self.assertIn("byte limit", str(ctx.exception))
@@ -364,7 +365,12 @@ class WorkbenchTests(unittest.TestCase):
         }
         stale_report = release_report(external_evidence=stale_envelope)
         self.assertEqual(stale_report["gates"]["release_integrity"]["status"], "failed")
-        self.assertTrue(any("current release subject" in finding for finding in stale_report["gates"]["release_integrity"]["findings"]))
+        self.assertTrue(
+            any(
+                "current release subject" in finding
+                for finding in stale_report["gates"]["release_integrity"]["findings"]
+            )
+        )
         self._assert_external_assurance_is_withheld(stale_report)
 
         with tempfile.TemporaryDirectory() as directory:

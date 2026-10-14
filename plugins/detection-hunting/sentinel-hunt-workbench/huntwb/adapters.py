@@ -47,10 +47,7 @@ def _json_bytes(value: Any) -> bytes:
 
 
 def _canonical_bundle_hash(skill_files: list[Path]) -> str:
-    inventory = {
-        str(path.relative_to(SKILLS_DIR)): sha256_file(path)
-        for path in skill_files
-    }
+    inventory = {str(path.relative_to(SKILLS_DIR)): sha256_file(path) for path in skill_files}
     return sha256_bytes(canonical_json(inventory).encode("utf-8"))
 
 
@@ -94,8 +91,7 @@ def _openai_manifest() -> dict[str, Any]:
             "url": REPOSITORY_URL,
         },
         "description": (
-            "Offline-qualified, surface-specific Microsoft Sentinel threat-hunt "
-            "authoring and adversarial validation."
+            "Offline-qualified, surface-specific Microsoft Sentinel threat-hunt authoring and adversarial validation."
         ),
         "homepage": REPOSITORY_URL,
         "keywords": [
@@ -116,10 +112,7 @@ def _claude_manifest() -> dict[str, Any]:
     return {
         "name": "sentinel-hunt-workbench",
         "version": PACKAGE_VERSION,
-        "description": (
-            "Offline, defensive Microsoft Sentinel hunt authoring and "
-            "adversarial qualification."
-        ),
+        "description": ("Offline, defensive Microsoft Sentinel hunt authoring and adversarial qualification."),
         "author": {"name": "Sentinel Hunt Workbench contributors"},
         "repository": REPOSITORY_URL,
         "license": "PolyForm-Noncommercial-1.0.0",
@@ -133,13 +126,9 @@ def _expected_files() -> tuple[dict[str, bytes], str]:
     files: dict[str, bytes] = {
         "openai/.codex-plugin/plugin.json": _json_bytes(_openai_manifest()),
         "openai/AGENTS.md": _router_body("ChatGPT and Codex", bundle_hash),
-        "github-copilot/.github/agents/sentinel-hunt-workbench.agent.md": _router_body(
-            "GitHub Copilot", bundle_hash
-        ),
+        "github-copilot/.github/agents/sentinel-hunt-workbench.agent.md": _router_body("GitHub Copilot", bundle_hash),
         "claude-code/.claude-plugin/plugin.json": _json_bytes(_claude_manifest()),
-        "claude-code/agents/sentinel-hunt-workbench.md": _router_body(
-            "Claude Code", bundle_hash
-        ),
+        "claude-code/agents/sentinel-hunt-workbench.md": _router_body("Claude Code", bundle_hash),
     }
     for source in skill_files:
         skill = source.parent.name
@@ -229,17 +218,11 @@ def verify_adapters() -> dict[str, Any]:
         raise ContentError("adapter manifest drift detected")
 
     expected_paths = set(expected_files) | {"manifest.json"}
-    actual_paths = {
-        str(path.relative_to(ADAPTERS_DIR))
-        for path in ADAPTERS_DIR.rglob("*")
-        if path.is_file()
-    }
+    actual_paths = {str(path.relative_to(ADAPTERS_DIR)) for path in ADAPTERS_DIR.rglob("*") if path.is_file()}
     missing = sorted(expected_paths - actual_paths)
     extra = sorted(actual_paths - expected_paths)
     if missing or extra:
-        raise ContentError(
-            f"adapter inventory drift detected; missing={missing}, extra={extra}"
-        )
+        raise ContentError(f"adapter inventory drift detected; missing={missing}, extra={extra}")
 
     for relative, expected_body in expected_files.items():
         target = ADAPTERS_DIR / relative

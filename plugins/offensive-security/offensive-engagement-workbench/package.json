@@ -17,12 +17,14 @@
     "Network egress is prohibited outside explicitly approved live execution scopes."
   ],
   "demo": {
-    "description": "Demonstrate bounded engagement validation and reviewable action plan compilation without network requests.",
+    "description": "Run the planning-only engagement playback through a local inert subprocess and write validated evidence artifacts without network requests.",
     "command": [
       "$PYTHON",
       "plugins/offensive-security/offensive-engagement-workbench/scripts/demo.py",
       "--tool-version",
-      "python3=3.11.9"
+      "python3=3.11.9",
+      "--output-dir",
+      "build/playbacks/offensive-engagement-workbench"
     ],
     "timeout_seconds": 30
   },

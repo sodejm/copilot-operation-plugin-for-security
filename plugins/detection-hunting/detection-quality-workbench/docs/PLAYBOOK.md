@@ -127,7 +127,113 @@ Before signing off on a detection rule change:
 
 - [ ] All declared `required_fields` are verified present in production log sources.
 - [ ] Labeled fixtures include at least 2 positive cases, 2 negative cases, and 1 boundary case.
-- [ ] No false positives occurred on standard administrative baselines.
+- [ ] No false positives occurred on the synthetic benign fixtures.
 - [ ] Schema drift test case successfully flags missing required attributes.
 - [ ] Rule version was incremented following semantic versioning guidelines.
 - [ ] Precision and recall on test fixtures are documented with the mandatory disclaimer alert.
+
+## 4. Offline End-to-End Playback
+
+### Purpose, audience, and prerequisites
+
+Detection engineers, SIEM administrators, and reviewers use this playback to
+verify the complete packaged rule-to-fixture workflow. Run it from the COPS
+repository root with Python 3.11 or later. It uses standard-library Python,
+synthetic fixtures, and no provider credentials or network access.
+
+Run the manifest demo:
+
+```bash
+python3 -m cops demo detection-quality-workbench
+```
+
+The default output is a mode-`0700` temporary directory. Retain the reports in a
+private review directory when needed:
+
+```bash
+out_dir="$(mktemp -d "${TMPDIR:-/tmp}/detection-quality-playback.XXXXXX")"
+python3 plugins/detection-hunting/detection-quality-workbench/scripts/run_demo.py \
+  --out-dir "$out_dir"
+python3 -m json.tool "$out_dir/playback-summary.json"
+```
+
+### Data flow and decisions
+
+```mermaid
+flowchart LR
+    R[Rule contracts] --> P[Match exact fixture basenames]
+    F[Nonempty fixture suites] --> P
+    P --> S[Static dependencies and schema checks]
+    S --> E[Reference predicate evaluation]
+    E --> J[JSON and Markdown reports]
+    J --> A[Assert TP, TN, schema error, zero FP/FN]
+    A --> D[Repeat and compare]
+```
+
+The playback rejects empty rule or fixture directories, empty suites, and
+unpaired rule or fixture files. Each packaged platform must exercise a true
+positive, true negative, and schema-error path, including an actual
+`missing_field_error`, with zero false positives and zero false negatives. The
+second pass must produce the same result.
+
+### Artifact contract
+
+| Artifact | Purpose and key fields | Producer to consumer | Version and validation |
+| :--- | :--- | :--- | :--- |
+| `playback-summary.json` | Overall decision; `status`, `rules`, per-rule metrics, `rerun_equivalent` | demo runner to operator or CI | `cops.detection-quality-playback/v1`; validates pair coverage, required paths, zero FP/FN, report presence, and rerun |
+| `rules/<fixture-stem>/report.json` | Case results and metrics; `rule`, `metrics`, `static_analysis`, `case_results` | evaluator to automation or reviewer | `cops.detection-quality-report/v2`; parsed and asserted by the runner |
+| `rules/<fixture-stem>/report.md` | Human-readable dependency, metric, and case review | report renderer to detection engineer | Derived from the v2 JSON report; existence and nonempty content are required |
+
+The summary is defined by this shape:
+
+```json
+{
+  "schema_version": "cops.detection-quality-playback/v1",
+  "status": "passed",
+  "rules": [
+    {
+      "rule_id": "RULE-KQL-ENTRA-ANOMALOUS-SIGNIN",
+      "platform": "sentinel_kql",
+      "metrics": {
+        "true_positives": 4,
+        "true_negatives": 5,
+        "false_positives": 0,
+        "false_negatives": 0,
+        "schema_error_cases": 2
+      },
+      "json_report": "rules/kql-entra-anomalous-signin/report.json",
+      "markdown_report": "rules/kql-entra-anomalous-signin/report.md",
+      "passed": true
+    }
+  ],
+  "rerun_equivalent": true
+}
+```
+
+### Failure, resume, rerun, and cleanup
+
+The runner exits `0` only when every packaged pair, required behavior path,
+report artifact, and rerun assertion passes. A missing, extra, empty, malformed,
+or mismatched rule or fixture set; missing required behavior; FP/FN; missing
+report; or rerun difference exits `2`. Partial output is diagnostic evidence.
+Repair the input or package, then rerun the whole command into the retained
+directory; fixed report names are replaced.
+
+For troubleshooting, confirm Python 3.11 or later, compare rule and fixture
+basenames, validate each JSON document, and inspect `case_results` for
+`missing_field_error`, false-positive, or false-negative outcomes. Do not remove
+the intentional schema-drift fixture merely to produce numeric precision and
+recall.
+
+After review, remove a disposable retained directory with `rm -rf "$out_dir"`.
+Keep retained artifacts under the organization's evidence access and retention
+controls.
+
+### Evidence limits
+
+This playback evaluates Python reference predicates over labeled synthetic
+fixtures. It does not parse, compile, or execute KQL or SPL in a native engine;
+query a Microsoft or Splunk service; inspect real telemetry; or prove scheduled
+rule firing, suppression, production precision, recall, latency, or
+availability. Validate those properties separately in an authorized test
+environment.

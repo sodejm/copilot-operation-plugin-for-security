@@ -76,9 +76,7 @@ EXPECTED_CURATED_COUNTS = {
 }
 SEMVER_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
 PLACEHOLDER_RE = re.compile(r"\{\{([a-z][a-z0-9_]*)\}\}")
-TABLE_REFERENCE_RE = re.compile(
-    r"workspace\(workspace_id\)\.([A-Za-z_][A-Za-z0-9_]*)"
-)
+TABLE_REFERENCE_RE = re.compile(r"workspace\(workspace_id\)\.([A-Za-z_][A-Za-z0-9_]*)")
 
 
 def _require(condition: bool, message: str) -> None:
@@ -457,13 +455,11 @@ def validate_hunt(hunt: dict[str, Any], profiles: dict[str, dict[str, Any]]) -> 
         f"{context}: telemetry stream names must be unique",
     )
     _require(
-        isinstance(telemetry["timestamps"], list)
-        and len(telemetry["timestamps"]) >= 3,
+        isinstance(telemetry["timestamps"], list) and len(telemetry["timestamps"]) >= 3,
         f"{context}: timestamp semantics required per stream",
     )
     _require(
-        isinstance(telemetry["latency_assumptions"], list)
-        and telemetry["latency_assumptions"],
+        isinstance(telemetry["latency_assumptions"], list) and telemetry["latency_assumptions"],
         f"{context}: latency assumptions required",
     )
 
@@ -472,9 +468,7 @@ def validate_hunt(hunt: dict[str, Any], profiles: dict[str, dict[str, Any]]) -> 
         isinstance(entities, list) and len(entities) >= 2,
         f"{context}: at least two entity classes required",
     )
-    entity_classes = [
-        entity.get("class") for entity in entities if isinstance(entity, dict)
-    ]
+    entity_classes = [entity.get("class") for entity in entities if isinstance(entity, dict)]
     _require(
         len(set(entity_classes)) >= 2 and None not in entity_classes,
         f"{context}: entity classes must be explicit and distinct",
@@ -488,11 +482,7 @@ def validate_hunt(hunt: dict[str, Any], profiles: dict[str, dict[str, Any]]) -> 
 
     parameters = hunt["parameters"]
     _require(isinstance(parameters, list), f"{context}: parameters must be a list")
-    parameter_names = [
-        parameter.get("name")
-        for parameter in parameters
-        if isinstance(parameter, dict)
-    ]
+    parameter_names = [parameter.get("name") for parameter in parameters if isinstance(parameter, dict)]
     _require(
         len(parameter_names) == len(set(parameter_names)),
         f"{context}: duplicate parameter names",
@@ -514,8 +504,7 @@ def validate_hunt(hunt: dict[str, Any], profiles: dict[str, dict[str, Any]]) -> 
         f"{context}: at least three correlation stages required",
     )
     _require(
-        [stage.get("order") for stage in stages]
-        == list(range(1, len(stages) + 1)),
+        [stage.get("order") for stage in stages] == list(range(1, len(stages) + 1)),
         f"{context}: stage order must be contiguous",
     )
     stream_names = [stage.get("stream") for stage in stages]
@@ -556,8 +545,7 @@ def validate_hunt(hunt: dict[str, Any], profiles: dict[str, dict[str, Any]]) -> 
             join_context,
         )
         _require(
-            join["from"] == stage_ids[index]
-            and join["to"] == stage_ids[index + 1],
+            join["from"] == stage_ids[index] and join["to"] == stage_ids[index + 1],
             f"{join_context}: join must connect adjacent ordered stages",
         )
         _require(
@@ -674,11 +662,7 @@ def validate_fixture(fixture: dict[str, Any], hunt: dict[str, Any]) -> None:
     )
 
     scenario_ids: set[str] = set()
-    supported_surfaces = {
-        surface
-        for surface, state in hunt["surface_support"].items()
-        if state == "supported"
-    }
+    supported_surfaces = {surface for surface, state in hunt["surface_support"].items() if state == "supported"}
     stage_ids = {stage["id"] for stage in hunt["stages"]}
     for scenario in scenarios:
         scenario_context = f"{context}.{scenario.get('id', '<unknown>')}"
@@ -718,8 +702,7 @@ def validate_fixture(fixture: dict[str, Any], hunt: dict[str, Any]) -> None:
             f"{scenario_context}: unsupported applicable surface",
         )
         _require(
-            isinstance(scenario["prohibited_conclusions"], list)
-            and scenario["prohibited_conclusions"],
+            isinstance(scenario["prohibited_conclusions"], list) and scenario["prohibited_conclusions"],
             f"{scenario_context}: prohibited conclusions required",
         )
         _require(
@@ -773,15 +756,9 @@ def validate_library() -> dict[str, Any]:
         "offline_only": True,
         "profiles": len(profiles),
         "hunts": len(hunts),
-        "curated_scenarios": sum(
-            hunt["tests"]["curated_scenarios"] for hunt in hunts.values()
-        ),
-        "generated_perturbations_declared": sum(
-            hunt["tests"]["generated_perturbations"] for hunt in hunts.values()
-        ),
-        "semantic_mutations_declared": sum(
-            hunt["tests"]["semantic_mutations"] for hunt in hunts.values()
-        ),
+        "curated_scenarios": sum(hunt["tests"]["curated_scenarios"] for hunt in hunts.values()),
+        "generated_perturbations_declared": sum(hunt["tests"]["generated_perturbations"] for hunt in hunts.values()),
+        "semantic_mutations_declared": sum(hunt["tests"]["semantic_mutations"] for hunt in hunts.values()),
     }
 
 

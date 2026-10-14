@@ -4,6 +4,8 @@ A deterministic testing and validation workbench for Microsoft Sentinel KQL and 
 
 Follow the [end-to-end verification playbook](docs/VERIFICATION.md) to qualify this
 package's documented workflow and prepare evidence for a maturity review.
+Use the [Detection Engineer Playbook](docs/PLAYBOOK.md) for the complete offline
+playback, artifact contract, failure recovery, and evidence limits.
 
 ## Why This Workbench Exists
 
@@ -46,6 +48,18 @@ flowchart LR
     D --> Q
     P --> Q
 ```
+
+## Design and data flow
+
+Rule contracts declare detection intent and telemetry dependencies. The reference evaluator applies those contracts to labeled fixtures and renders metrics and schema failures as offline regression evidence.
+
+| Contract or artifact | Purpose | Key fields | Producer | Consumer | Validation | Example |
+| --- | --- | --- | --- | --- | --- | --- |
+| Rule contract | Describe detection intent and required telemetry | Rule ID, platform, query, required fields, expected signals | Detection engineer | Static analyzer and evaluator | Rule schema and platform constraints | Sentinel anomalous sign-in rule |
+| Labeled fixture suite | Supply positive, negative, and boundary cases | Rule ID, case ID, label, telemetry, expected result | Detection engineer or playback fixture | Evaluator | Fixture schema, unique cases, and rule binding | Benign PowerShell administration case |
+| Case evaluation | Record match and schema status per fixture | Case ID, expected, actual, missing fields | Reference evaluator | Metrics and report renderer | Deterministic predicate and required-field checks | Positive sign-in case matched |
+| Quality report | Summarize fixture precision, recall, and drift | TP, FP, TN, FN, schema errors, readiness | Reporter | Detection reviewer | Report schema and metric consistency | Recall unavailable when schema errors exist |
+| Playback summary | Qualify all bundled rules and failure paths | Rule results, artifact paths, mutation rejection, rerun digest | `scripts/run_demo.py` | Maintainer | Semantic result assertions and repeatability | Both bundled rules meet fixture expectations |
 
 ## Key Capabilities
 
@@ -106,11 +120,26 @@ detection-quality-workbench/
 
 ### 1. Run the Demonstration
 
-Run the automated evaluation across all bundled Sentinel KQL and Splunk SPL rules:
+Run the automated evaluation across all bundled Sentinel KQL and Splunk SPL rules
+from the repository root:
 
 ```bash
-python3 plugins/detection-hunting/detection-quality-workbench/scripts/run_demo.py
+python3 -m cops demo detection-quality-workbench
 ```
+
+The demo uses a private temporary directory by default. Retain the JSON and
+Markdown reports in a controlled directory with:
+
+```bash
+python3 plugins/detection-hunting/detection-quality-workbench/scripts/run_demo.py \
+  --out-dir /path/to/private-review-directory
+```
+
+A successful run proves every bundled rule has a matching nonempty fixture
+suite, both positive and benign paths were evaluated, the intentional
+missing-field path was reported, no false positive or false negative occurred,
+and a second evaluation produced the same result. A nonzero exit means one of
+those assertions failed.
 
 ### 2. Validate Rule Contracts via CLI
 
@@ -156,7 +185,7 @@ The bundled suites include deliberate missing-field cases. `test-suite` displays
 ## Boundaries & Operational Integrity
 
 - **Offline Analysis**: The workbench operates completely offline with standard-library Python. It requires no live cloud credentials or search cluster connections.
-- **Reference Evaluation vs. Production Firing**: Syntactic validity and fixture matching do not guarantee that a scheduled query fired in production. Ingestion delays and query timeouts must be monitored separately.
+- **Reference Evaluation vs. Production Firing**: Contract validation and fixture matching do not establish native query validity or prove that a scheduled query fired in production. Ingestion delays and query timeouts must be monitored separately.
 
 ### Fixture edge-case semantics
 
