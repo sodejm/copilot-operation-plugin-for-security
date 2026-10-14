@@ -9,8 +9,11 @@ from pathlib import Path
 from typing import Any
 
 from cops.catalog import ROOT
+from cops.contracts import ContractError
+from cops.evidence.canonical import EvidenceError, decode_json
 
-from .errors import EngagementIntakeError
+from .errors import EngagementIntakeError, GoalResolutionError
+from .goals import RESULT_VERSION, resolve_engagement_goal
 from .intake import create_engagement_contract, validate_engagement_intake
 from .planning import build_action_plan
 
@@ -156,6 +159,118 @@ def command_engagement_plan(args: argparse.Namespace) -> int:
     else:
         print(rendered)
 
+    return 0
+
+
+def _goal_failure_document(*, code: str, message: str, next_action: str) -> dict[str, Any]:
+    return {
+        "result_version": RESULT_VERSION,
+        "status": "needs_input",
+        "error": {"code": code, "message": message},
+        "coverage": {
+            "status": "not_assessed",
+            "assessed_targets": [],
+            "not_assessed_targets": [],
+            "reason": "No target was selected and no assessment activity occurred.",
+        },
+        "next_action": {"type": "correct_goal_input", "instruction": next_action},
+    }
+
+
+def command_engagement_goal(args: argparse.Namespace) -> int:
+    """Handle offline target selection for `cops engagement goal`."""
+    eng_path = Path(args.engagement)
+    if not eng_path.is_file():
+        failure = _goal_failure_document(
+            code="engagement_not_found",
+            message=f"Engagement file not found: {eng_path}",
+            next_action="Supply an existing cops.engagement/v1 JSON file with --engagement.",
+        )
+        if args.json:
+            print(json.dumps(failure, indent=2, sort_keys=True))
+        else:
+            print(f"error: {failure['error']['message']}", file=sys.stderr)
+        return 2
+
+    try:
+        with eng_path.open("rb") as engagement_file:
+            raw_bytes = engagement_file.read(1024 * 1024 + 1)
+        if len(raw_bytes) > 1024 * 1024:
+            raise GoalResolutionError(
+                "Engagement file exceeds the supported size",
+                code="engagement_too_large",
+                next_action="Supply an engagement JSON file of at most 1 MiB.",
+            )
+        raw_bytes.decode("utf-8")
+        raw_engagement = decode_json(raw_bytes, max_bytes=1024 * 1024)
+        result = resolve_engagement_goal(
+            goal=args.goal,
+            engagement=raw_engagement,
+        )
+    except (OSError, UnicodeError) as err:
+        failure = _goal_failure_document(
+            code="engagement_unreadable",
+            message=f"Engagement file could not be read as UTF-8 text: {err}",
+            next_action="Supply a readable UTF-8 engagement JSON file and retry.",
+        )
+        if args.json:
+            print(json.dumps(failure, indent=2, sort_keys=True))
+        else:
+            print(f"error: {failure['error']['message']}", file=sys.stderr)
+        return 2
+    except json.JSONDecodeError as err:
+        failure = _goal_failure_document(
+            code="invalid_engagement_json",
+            message=f"Engagement JSON decode failed: {err}",
+            next_action="Correct the engagement JSON and retry.",
+        )
+        if args.json:
+            print(json.dumps(failure, indent=2, sort_keys=True))
+        else:
+            print(f"error: {failure['error']['message']}", file=sys.stderr)
+        return 2
+    except EvidenceError as err:
+        failure = _goal_failure_document(
+            code="invalid_engagement_json",
+            message=f"Engagement JSON is invalid: {err.code}",
+            next_action="Correct the engagement JSON and retry.",
+        )
+        if args.json:
+            print(json.dumps(failure, indent=2, sort_keys=True))
+        else:
+            print(f"error: {failure['error']['message']}", file=sys.stderr)
+        return 2
+    except GoalResolutionError as err:
+        failure = _goal_failure_document(
+            code=err.code,
+            message=str(err),
+            next_action=err.next_action,
+        )
+        if args.json:
+            print(json.dumps(failure, indent=2, sort_keys=True))
+        else:
+            print(f"error: goal selection failed: {err}", file=sys.stderr)
+            print(f"next action: {err.next_action}", file=sys.stderr)
+        return 1
+    except (EngagementIntakeError, ContractError) as err:
+        failure = _goal_failure_document(
+            code="invalid_engagement",
+            message=str(err),
+            next_action="Correct the engagement contract and retry goal selection.",
+        )
+        if args.json:
+            print(json.dumps(failure, indent=2, sort_keys=True))
+        else:
+            print(f"error: goal selection failed: {err}", file=sys.stderr)
+        return 1
+
+    if args.json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+    else:
+        print(f"Selected target: {result['resolution']['targets'][0]}")
+        print("Execution: unavailable")
+        print("Coverage: not_assessed")
+        print(f"Next action: {result['next_action']['instruction']}")
     return 0
 
 
