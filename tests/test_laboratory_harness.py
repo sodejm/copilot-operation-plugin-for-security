@@ -637,8 +637,7 @@ def test_mismatched_worker_result_is_never_recorded_as_trusted_cleanup(tmp_path:
     assert record["state"] == "unknown"
     assert harness.evidence_store is not None
     evidence = [
-        json.loads(harness.evidence_store.resolve(item).read_text())
-        for item in record["payload"]["durable_evidence"]
+        json.loads(harness.evidence_store.resolve(item).read_text()) for item in record["payload"]["durable_evidence"]
     ]
     assert not any(item.get("basis") == "trusted worker result" for item in evidence)
     assert not any(item.get("cleanup_status") == "completed" for item in evidence)
