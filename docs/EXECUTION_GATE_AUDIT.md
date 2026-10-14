@@ -12,7 +12,7 @@ This audit covers the repository contracts for closed issues [#82–#87](https:/
 | #87 cancellation and cleanup | `tests/test_cleanup_recovery.py` and `tests/test_isolated_worker.py` cover cancellation and journal recovery. | Observed provider-side cancellation, retained resource cleanup, and reconciliation of uncertain attempts. |
 | #90 laboratory | `tests/test_provider_assessment.py` and `tests/test_assessment_budget.py` cover offline provider fixtures, budget admission, malformed responses, uncertain usage, and report redaction. | A controlled emulator and gateway deployment for the exact revision before a real canary. |
 
-No existing gate defect was demonstrated by this audit's source review and focused local tests. The new gateway POST and provider assessment tests extend the local contracts. They do not close the operational gate: a real canary still needs an engagement-specific authorization, approved request digest and budget, independent production worker and gateway evidence, credential and residency review, billing reconciliation, and exact-revision security review.
+No existing gate defect was demonstrated by this audit's source review and focused local tests. The regression test added by this audit verifies that the v1 broker rejects a direct provider POST before DNS resolution or connection. Provider gateway dispatch is a separate implementation. These tests do not close the operational gate: a real canary still needs an engagement-specific authorization, approved request digest and budget, independent production worker and gateway evidence, credential and residency review, billing reconciliation, and exact-revision security review.
 
 The audit's focused suite ran under Python 3.11.17 in a virtual environment:
 
