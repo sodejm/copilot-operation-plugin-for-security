@@ -14,6 +14,7 @@ class GoalResolutionError(EngagementIntakeError):
         super().__init__(message)
         self.code = code
         self.next_action = next_action
+        self.engagement_binding: dict[str, str] | None = None
 
 
 class MissingOwnerError(EngagementIntakeError):

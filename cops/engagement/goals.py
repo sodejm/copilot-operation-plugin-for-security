@@ -115,6 +115,30 @@ def _reject_overlapping_exclusions(target: str, excluded: list[str]) -> None:
     try:
         target_network = ipaddress.ip_network(target, strict=False)
     except ValueError:
+        target_network = None
+    if target_network is None:
+        # ScopeGuard excludes a domain and all its descendants. Reject that
+        # overlap at selection time too, before presenting a target as usable.
+        if "/" not in target and ":" not in target:
+            domain = _target_key(target).lstrip(".").rstrip(".")
+            for exclusion in excluded:
+                if "/" in exclusion or ":" in exclusion:
+                    continue
+                excluded_domain = _target_key(exclusion).lstrip(".").rstrip(".")
+                if not excluded_domain:
+                    continue
+                if domain == excluded_domain:
+                    raise _fail(
+                        "Selected target is excluded by the engagement",
+                        code="excluded_target",
+                        next_action="Select an included target that is not excluded by the engagement.",
+                    )
+                if domain.endswith("." + excluded_domain):
+                    raise _fail(
+                        "Selected domain is beneath an excluded domain",
+                        code="overlapping_exclusion",
+                        next_action="Select an included domain outside excluded domain scope.",
+                    )
         return
     for exclusion in excluded:
         try:
@@ -261,11 +285,12 @@ def _validate_goal_detail(goal: str, target: str, target_source: str) -> dict[st
     supported_detail = _supported_detail_pattern(subject)
     detail = goal[intent.end() :].strip()
     if re.fullmatch(supported_detail, detail, _ASCII_CASE_INSENSITIVE) is None:
+        retry_subject = target if target_source == "goal" else "the selected endpoint"
         raise _fail(
             "Goal contains a target or instruction this resolver cannot interpret",
             code="unsupported_goal_detail",
             next_action=(
-                "Use one direct request such as 'Assess the selected endpoint safely.' "
+                f"Use one direct request such as 'Assess {retry_subject} safely.' "
                 "Record the assessment limits in the reviewed engagement contract."
             ),
         )
@@ -335,34 +360,6 @@ def resolve_engagement_goal(
             next_action="Provide an engagement with at most 1024 included and excluded target entries in total.",
         )
     validated = validate_engagement_intake(dict(raw_engagement))
-    lifecycle_status = validated["status"]
-    if lifecycle_status not in {"planned", "active"}:
-        raise _fail(
-            "Engagement is no longer in a selectable lifecycle state",
-            code="engagement_inactive",
-            next_action="Supply a current planned or active engagement and request selection again.",
-        )
-    now = datetime.now(UTC)
-    window = validated["window"]
-    if timestamp(window["authorized_until_utc"]) <= now:
-        raise _fail(
-            "Engagement authorization window has expired",
-            code="engagement_window_expired",
-            next_action="Refresh and review the engagement window before requesting goal selection.",
-        )
-    window_status = "upcoming" if timestamp(window["started_at"]) > now else "open"
-    metadata = validated.get("metadata", {})
-    selection = metadata.get("goal_selection", {}) if isinstance(metadata, dict) else {}
-    if not isinstance(selection, dict):
-        raise _fail(
-            "metadata.goal_selection must be an object",
-            code="invalid_selection",
-            next_action="Record one exact included target in metadata.goal_selection.target.",
-        )
-
-    target, target_source = _resolve_target(stripped_goal[intent.end() :].strip(), validated, selection)
-    requested_intent = _validate_goal_detail(stripped_goal, target, target_source)
-
     try:
         contract_digest = "sha256:" + digest(validated)
     except EvidenceError as err:
@@ -371,6 +368,41 @@ def resolve_engagement_goal(
             code="engagement_too_large",
             next_action="Supply a bounded cops.engagement/v1 contract and retry selection.",
         ) from err
+
+    try:
+        lifecycle_status = validated["status"]
+        if lifecycle_status not in {"planned", "active"}:
+            raise _fail(
+                "Engagement is no longer in a selectable lifecycle state",
+                code="engagement_inactive",
+                next_action="Supply a current planned or active engagement and request selection again.",
+            )
+        now = datetime.now(UTC)
+        window = validated["window"]
+        if timestamp(window["authorized_until_utc"]) <= now:
+            raise _fail(
+                "Engagement authorization window has expired",
+                code="engagement_window_expired",
+                next_action="Refresh and review the engagement window before requesting goal selection.",
+            )
+        window_status = "upcoming" if timestamp(window["started_at"]) > now else "open"
+        metadata = validated.get("metadata", {})
+        selection = metadata.get("goal_selection", {}) if isinstance(metadata, dict) else {}
+        if not isinstance(selection, dict):
+            raise _fail(
+                "metadata.goal_selection must be an object",
+                code="invalid_selection",
+                next_action="Record one exact included target in metadata.goal_selection.target.",
+            )
+
+        target, target_source = _resolve_target(stripped_goal[intent.end() :].strip(), validated, selection)
+        requested_intent = _validate_goal_detail(stripped_goal, target, target_source)
+    except GoalResolutionError as err:
+        err.engagement_binding = {
+            "engagement_id": validated["engagement_id"],
+            "contract_digest": contract_digest,
+        }
+        raise
 
     return {
         "result_version": RESULT_VERSION,
