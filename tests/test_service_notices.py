@@ -80,9 +80,7 @@ def test_all_platform_mappings_are_conditional_and_source_backed() -> None:
         "operating_system": "macOS Tahoe",
         "product": "macOS Tahoe",
         "version": "26.6",
-        "services": [
-            {"name": "Screen Sharing", "transport": "tcp", "reachable": True, "configured": True}
-        ],
+        "services": [{"name": "Screen Sharing", "transport": "tcp", "reachable": True, "configured": True}],
         "evidence": ["screen_sharing_enabled"],
     }
     report = assess_asset(registry, apple, as_of=date(2026, 10, 14))
@@ -265,7 +263,7 @@ def test_bounded_loader_rejects_parse_errors_and_oversized_input(tmp_path: Path)
         load_json_file(nested, label="asset input")
 
     enormous_integer = tmp_path / "enormous-integer.json"
-    enormous_integer.write_text("{\"value\": " + "9" * 5000 + "}", encoding="utf-8")
+    enormous_integer.write_text('{"value": ' + "9" * 5000 + "}", encoding="utf-8")
     with pytest.raises(ServiceNoticeError, match="invalid JSON number"):
         load_json_file(enormous_integer, label="asset input")
 
