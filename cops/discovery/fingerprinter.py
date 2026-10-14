@@ -183,8 +183,10 @@ def infer_service_fingerprint(
         )
 
     # 3. SMTP Analysis. A generic 220 greeting is shared by multiple protocols.
-    if protocol == "tcp" and raw_banner.startswith("220") and re.search(
-        r"\b(?:esmtp|smtp|postfix|exim)\b", raw_banner, re.IGNORECASE
+    if (
+        protocol == "tcp"
+        and raw_banner.startswith("220")
+        and re.search(r"\b(?:esmtp|smtp|postfix|exim)\b", raw_banner, re.IGNORECASE)
     ):
         evidence_sources.append("smtp_banner")
         product = "SMTP Server"
@@ -207,8 +209,10 @@ def infer_service_fingerprint(
         )
 
     # 4. FTP Analysis
-    if protocol == "tcp" and raw_banner.startswith("220") and re.search(
-        r"\b(?:ftp|vsftpd|proftpd|pure-ftpd)\b", raw_banner, re.IGNORECASE
+    if (
+        protocol == "tcp"
+        and raw_banner.startswith("220")
+        and re.search(r"\b(?:ftp|vsftpd|proftpd|pure-ftpd)\b", raw_banner, re.IGNORECASE)
     ):
         evidence_sources.append("ftp_banner")
         product = "FTP Server"
