@@ -34,6 +34,7 @@ Feature: Bounded service entry-point validation handoff
     When COPS prepares session handoffs
     Then it returns no specialist plan
     And it names the session or evidence repair needed before routing
+    And duplicate assessment records for one completed probe are rejected as an invalid session
 
   Scenario: An observed service without a registered route stays unsupported
     Given an approved endpoint with a recorded HTTP protocol response
