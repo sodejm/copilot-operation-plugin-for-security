@@ -11,8 +11,8 @@ from .errors import (
     MissingOwnerError,
     ScopeAmbiguityError,
 )
-from .intake import create_engagement_contract, validate_engagement_intake
 from .goals import resolve_engagement_goal
+from .intake import create_engagement_contract, validate_engagement_intake
 from .planning import build_action_plan
 
 __all__ = [
