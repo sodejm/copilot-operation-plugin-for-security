@@ -4,6 +4,7 @@ This module deliberately contains no provider client or credential handling.  A
 broker can only carry a signed, bounded request envelope to its configured
 operator gateway; the gateway independently verifies and consumes the grant.
 """
+
 from __future__ import annotations
 
 import base64
@@ -79,9 +80,14 @@ def _require_spiffe(value: object) -> str:
     except ValueError as err:
         raise _deny() from err
     if (
-        host is None or not host.isascii() or parsed.netloc != host or port is not None
-        or not parsed.path.startswith("/") or parsed.path == "/"
-        or parsed.query or parsed.fragment
+        host is None
+        or not host.isascii()
+        or parsed.netloc != host
+        or port is not None
+        or not parsed.path.startswith("/")
+        or parsed.path == "/"
+        or parsed.query
+        or parsed.fragment
         or any(ord(ch) < 0x21 or ord(ch) > 0x7E for ch in value)
     ):
         raise _deny()
@@ -97,7 +103,14 @@ def _require_request_target(value: object) -> str:
         port = parsed.port
     except ValueError as err:
         raise _deny() from err
-    if parsed.scheme != "https" or not parsed.netloc or parsed.username or parsed.password or parsed.query or parsed.fragment:
+    if (
+        parsed.scheme != "https"
+        or not parsed.netloc
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+    ):
         raise _deny()
     # urlsplit().hostname is lowercased, so comparing it to itself cannot
     # detect a noncanonical authority. Keep the signed target byte-exact.
@@ -143,10 +156,26 @@ class GatewayDispatchGrant:
     signature: str = ""
 
     _FIELDS = (
-        "schema_version", "dispatch_id", "authorization_id", "action_plan_id", "plan_digest",
-        "worker_spiffe_id", "provider", "account_or_project_kind", "account_or_project", "region",
-        "model", "gateway_endpoint_id", "request_target", "body_sha256", "body_bytes", "issued_at",
-        "expires_at", "key_id", "algorithm", "signature",
+        "schema_version",
+        "dispatch_id",
+        "authorization_id",
+        "action_plan_id",
+        "plan_digest",
+        "worker_spiffe_id",
+        "provider",
+        "account_or_project_kind",
+        "account_or_project",
+        "region",
+        "model",
+        "gateway_endpoint_id",
+        "request_target",
+        "body_sha256",
+        "body_bytes",
+        "issued_at",
+        "expires_at",
+        "key_id",
+        "algorithm",
+        "signature",
     )
 
     def unsigned_dict(self) -> dict[str, object]:
@@ -161,8 +190,15 @@ class GatewayDispatchGrant:
         if self.schema_version != GATEWAY_DISPATCH_SCHEMA or self.algorithm != GATEWAY_DISPATCH_ALGORITHM:
             raise _deny()
         for field in (
-            self.dispatch_id, self.authorization_id, self.action_plan_id, self.provider,
-            self.account_or_project, self.region, self.model, self.gateway_endpoint_id, self.key_id,
+            self.dispatch_id,
+            self.authorization_id,
+            self.action_plan_id,
+            self.provider,
+            self.account_or_project,
+            self.region,
+            self.model,
+            self.gateway_endpoint_id,
+            self.key_id,
         ):
             _require_token(field)
         if self.account_or_project_kind not in {"account", "project"}:
@@ -231,7 +267,9 @@ class GatewayDispatchTrustStore:
         parent_fd = -1
         try:
             parent_fd = open_directory_no_symlinks(source.parent)
-            descriptor = os.open(source.name, os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0), dir_fd=parent_fd)
+            descriptor = os.open(
+                source.name, os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0), dir_fd=parent_fd
+            )
             metadata = os.fstat(descriptor)
             if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.geteuid() or metadata.st_mode & 0o077:
                 raise _deny()
@@ -247,14 +285,22 @@ class GatewayDispatchTrustStore:
                 os.close(parent_fd)
         try:
             parsed = json.loads(raw.decode("utf-8"))
-            if not isinstance(parsed, dict) or set(parsed) != {"schema_version", "keys"} or parsed["schema_version"] != GATEWAY_DISPATCH_TRUST_SCHEMA:
+            if (
+                not isinstance(parsed, dict)
+                or set(parsed) != {"schema_version", "keys"}
+                or parsed["schema_version"] != GATEWAY_DISPATCH_TRUST_SCHEMA
+            ):
                 raise _deny()
             entries = parsed["keys"]
             if not isinstance(entries, list) or not entries:
                 raise _deny()
             keys: dict[str, bytes] = {}
             for entry in entries:
-                if not isinstance(entry, dict) or set(entry) != {"key_id", "algorithm", "public_key_hex"} or entry["algorithm"] != GATEWAY_DISPATCH_ALGORITHM:
+                if (
+                    not isinstance(entry, dict)
+                    or set(entry) != {"key_id", "algorithm", "public_key_hex"}
+                    or entry["algorithm"] != GATEWAY_DISPATCH_ALGORITHM
+                ):
                     raise _deny()
                 key_id = _require_token(entry["key_id"])
                 key_hex = entry["public_key_hex"]
@@ -392,7 +438,9 @@ class GatewayDispatchEndpoint:
 class GatewayDispatchTransportAuthorizer:
     """Verify an exact signed grant before the broker sends its envelope."""
 
-    def __init__(self, *, trust_store: GatewayDispatchTrustStore, endpoints: Mapping[str, GatewayDispatchEndpoint]) -> None:
+    def __init__(
+        self, *, trust_store: GatewayDispatchTrustStore, endpoints: Mapping[str, GatewayDispatchEndpoint]
+    ) -> None:
         if not isinstance(endpoints, Mapping) or not endpoints:
             raise _deny()
         normalized: dict[str, GatewayDispatchEndpoint] = {}
@@ -535,11 +583,17 @@ class GatewayDispatchEmulator:
             raise _deny()
         descriptor_digest, consumed_at = self._replay_store.consume(grant, current_time_iso=current_time_iso)
         invocation = GatewayDispatchInvocation(
-            dispatch_id=grant.dispatch_id, authorization_id=grant.authorization_id,
-            action_plan_id=grant.action_plan_id, plan_digest=grant.plan_digest,
-            gateway_endpoint_id=endpoint.gateway_endpoint_id, gateway_identity=endpoint.gateway_identity,
-            descriptor_digest=descriptor_digest, body_sha256=grant.body_sha256, body_bytes=grant.body_bytes,
-            body=body, endpoint=endpoint,
+            dispatch_id=grant.dispatch_id,
+            authorization_id=grant.authorization_id,
+            action_plan_id=grant.action_plan_id,
+            plan_digest=grant.plan_digest,
+            gateway_endpoint_id=endpoint.gateway_endpoint_id,
+            gateway_identity=endpoint.gateway_identity,
+            descriptor_digest=descriptor_digest,
+            body_sha256=grant.body_sha256,
+            body_bytes=grant.body_bytes,
+            body=body,
+            endpoint=endpoint,
         )
         response = None
         if self._handler is not None:
@@ -557,11 +611,19 @@ class GatewayDispatchEmulator:
                 raise GatewayDispatchError("gateway dispatch failed after authorization consumption")
         receipt_id = hashlib.sha256(f"{descriptor_digest}:{consumed_at}".encode("ascii")).hexdigest()
         return GatewayDispatchReceipt(
-            gateway_receipt_id=receipt_id, dispatch_id=grant.dispatch_id, authorization_id=grant.authorization_id,
-            action_plan_id=grant.action_plan_id, plan_digest=grant.plan_digest,
-            gateway_endpoint_id=endpoint.gateway_endpoint_id, gateway_identity=endpoint.gateway_identity,
-            descriptor_digest=descriptor_digest, body_sha256=grant.body_sha256, body_bytes=grant.body_bytes,
-            decision="accepted", consumed_at=consumed_at, response=response,
+            gateway_receipt_id=receipt_id,
+            dispatch_id=grant.dispatch_id,
+            authorization_id=grant.authorization_id,
+            action_plan_id=grant.action_plan_id,
+            plan_digest=grant.plan_digest,
+            gateway_endpoint_id=endpoint.gateway_endpoint_id,
+            gateway_identity=endpoint.gateway_identity,
+            descriptor_digest=descriptor_digest,
+            body_sha256=grant.body_sha256,
+            body_bytes=grant.body_bytes,
+            decision="accepted",
+            consumed_at=consumed_at,
+            response=response,
         )
 
     def dispatch_envelope(
@@ -569,18 +631,30 @@ class GatewayDispatchEmulator:
     ) -> GatewayDispatchReceipt:
         grant, body = decode_gateway_dispatch_envelope(envelope)
         return self.dispatch(
-            grant=grant, presented_worker_spiffe_id=presented_worker_spiffe_id,
-            request_target=grant.request_target, body=body, current_time_iso=current_time_iso,
+            grant=grant,
+            presented_worker_spiffe_id=presented_worker_spiffe_id,
+            request_target=grant.request_target,
+            body=body,
+            current_time_iso=current_time_iso,
         )
 
 
 def encode_gateway_dispatch_envelope(*, grant: GatewayDispatchGrant, body: bytes) -> bytes:
     grant.validate()
-    if not isinstance(body, bytes) or len(body) != grant.body_bytes or hashlib.sha256(body).hexdigest() != grant.body_sha256:
+    if (
+        not isinstance(body, bytes)
+        or len(body) != grant.body_bytes
+        or hashlib.sha256(body).hexdigest() != grant.body_sha256
+    ):
         raise _deny()
     return canonical(
-        {"schema_version": GATEWAY_DISPATCH_ENVELOPE_SCHEMA, "grant": grant.to_dict(), "body_base64": base64.b64encode(body).decode("ascii"),
-         "body_sha256": grant.body_sha256, "body_bytes": len(body)},
+        {
+            "schema_version": GATEWAY_DISPATCH_ENVELOPE_SCHEMA,
+            "grant": grant.to_dict(),
+            "body_base64": base64.b64encode(body).decode("ascii"),
+            "body_sha256": grant.body_sha256,
+            "body_bytes": len(body),
+        },
         max_bytes=16 * 1024 * 1024 + _MAX_GRANT_BYTES,
     )
 
@@ -590,10 +664,18 @@ def decode_gateway_dispatch_envelope(value: bytes) -> tuple[GatewayDispatchGrant
         raise _deny()
     try:
         parsed = json.loads(value.decode("utf-8"))
-        if not isinstance(parsed, dict) or set(parsed) != {"schema_version", "grant", "body_base64", "body_sha256", "body_bytes"} or parsed["schema_version"] != GATEWAY_DISPATCH_ENVELOPE_SCHEMA:
+        if (
+            not isinstance(parsed, dict)
+            or set(parsed) != {"schema_version", "grant", "body_base64", "body_sha256", "body_bytes"}
+            or parsed["schema_version"] != GATEWAY_DISPATCH_ENVELOPE_SCHEMA
+        ):
             raise _deny()
         grant = GatewayDispatchGrant.from_dict(parsed["grant"])
-        if not isinstance(parsed["body_base64"], str) or type(parsed["body_bytes"]) is not int or parsed["body_bytes"] < 0:
+        if (
+            not isinstance(parsed["body_base64"], str)
+            or type(parsed["body_bytes"]) is not int
+            or parsed["body_bytes"] < 0
+        ):
             raise _deny()
         body = base64.b64decode(parsed["body_base64"], validate=True)
         if len(body) != parsed["body_bytes"] or parsed["body_sha256"] != hashlib.sha256(body).hexdigest():

@@ -4,6 +4,7 @@ Only a handler installed behind GatewayDispatchEmulator may use this module.
 The emulator verifies and consumes a signed grant before invoking the handler.
 No resolver, provider transport, or credential is supplied by default.
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
@@ -67,10 +68,7 @@ class GatewayScopedProviderHandler:
             raise GatewayDispatchError("gateway credential configuration is invalid")
         checked_bindings: dict[str, GatewayCredentialBinding] = {}
         for endpoint_id, binding in bindings.items():
-            if (
-                not isinstance(binding, GatewayCredentialBinding)
-                or endpoint_id != binding.endpoint.gateway_endpoint_id
-            ):
+            if not isinstance(binding, GatewayCredentialBinding) or endpoint_id != binding.endpoint.gateway_endpoint_id:
                 raise GatewayDispatchError("gateway credential configuration is invalid")
             checked_bindings[endpoint_id] = binding
         checked_transports: dict[str, ProviderTransport] = {}

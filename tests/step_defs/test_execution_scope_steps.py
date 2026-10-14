@@ -388,9 +388,9 @@ def _gateway_fixture(tmp_path, *, authorization_id="auth-1", dispatch_id="dispat
         ),
         key,
     )
-    trust = GatewayDispatchTrustStore({
-        "bdd-key": key.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
-    })
+    trust = GatewayDispatchTrustStore(
+        {"bdd-key": key.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)}
+    )
     endpoint = GatewayDispatchEndpoint(
         gateway_endpoint_id="endpoint-1",
         gateway_identity=_IDENTITY_URI,
@@ -431,11 +431,13 @@ def _gateway_fixture(tmp_path, *, authorization_id="auth-1", dispatch_id="dispat
 
 
 def _gateway_document(grant, body):
-    return json.dumps({
-        "version": GATEWAY_POST_BROKER_PROTOCOL,
-        "grant": grant.to_dict(),
-        "body_base64": base64.b64encode(body).decode("ascii"),
-    }).encode("ascii")
+    return json.dumps(
+        {
+            "version": GATEWAY_POST_BROKER_PROTOCOL,
+            "grant": grant.to_dict(),
+            "body_base64": base64.b64encode(body).decode("ascii"),
+        }
+    ).encode("ascii")
 
 
 def _dispatch_bdd(fixture, *, config=None, body=None):
@@ -446,14 +448,16 @@ def _dispatch_bdd(fixture, *, config=None, body=None):
     )
 
 
-@given(parsers.parse('a signed dispatch descriptor for authorization "{authorization_id}" and dispatch "{dispatch_id}"'))
+@given(
+    parsers.parse('a signed dispatch descriptor for authorization "{authorization_id}" and dispatch "{dispatch_id}"')
+)
 def signed_gateway_descriptor(scope_context, tmp_path, authorization_id, dispatch_id):
-    scope_context["gateway"] = _gateway_fixture(
-        tmp_path, authorization_id=authorization_id, dispatch_id=dispatch_id
-    )
+    scope_context["gateway"] = _gateway_fixture(tmp_path, authorization_id=authorization_id, dispatch_id=dispatch_id)
 
 
-@given("the descriptor binds one gateway origin, request target, SPIFFE identity, account, project, region, model, endpoint, body digest, and body length")
+@given(
+    "the descriptor binds one gateway origin, request target, SPIFFE identity, account, project, region, model, endpoint, body digest, and body length"
+)
 def bound_gateway_descriptor(scope_context):
     fixture = scope_context["gateway"]
     grant = fixture["grant"]
@@ -520,8 +524,8 @@ def invalidate_gateway_binding(scope_context):
         elif kind == "identity":
             config = replace(config, gateway_spiffe_id="spiffe://identity.example.test/other")
         elif kind == "digest":
-            body = b'{' + body[1:]
-            body = body[:-1] + b'!'
+            body = b"{" + body[1:]
+            body = body[:-1] + b"!"
         else:
             body += b"!"
         with pytest.raises((EgressMediationError, RuntimeError)):
@@ -600,8 +604,10 @@ def gateway_claimed_dispatch(scope_context, tmp_path, dispatch_id):
     attempts = []
     emulator = _gateway_emulator(case, lambda invocation: attempts.append(invocation) or None)
     emulator.dispatch(
-        grant=case["grant"], presented_worker_spiffe_id=_WORKER_SPIFFE_ID,
-        request_target=_PROVIDER_TARGET, body=case["body"],
+        grant=case["grant"],
+        presented_worker_spiffe_id=_WORKER_SPIFFE_ID,
+        request_target=_PROVIDER_TARGET,
+        body=case["body"],
     )
     scope_context["claimed_gateway"] = (case, emulator, attempts)
 
@@ -612,8 +618,10 @@ def replay_gateway_dispatch(scope_context, dispatch_id):
     assert case["grant"].dispatch_id == dispatch_id
     with pytest.raises(GatewayDispatchReplayError) as error:
         emulator.dispatch(
-            grant=case["grant"], presented_worker_spiffe_id=_WORKER_SPIFFE_ID,
-            request_target=_PROVIDER_TARGET, body=case["body"],
+            grant=case["grant"],
+            presented_worker_spiffe_id=_WORKER_SPIFFE_ID,
+            request_target=_PROVIDER_TARGET,
+            body=case["body"],
         )
     scope_context["gateway_replay_error"] = error.value
 
@@ -632,9 +640,7 @@ def assert_gateway_replay_redacted(scope_context):
 
 @given("the loopback-only gateway emulator receives a valid dispatch")
 def valid_synthetic_gateway_dispatch(scope_context, tmp_path):
-    scope_context["synthetic_gateway"] = _gateway_fixture(
-        tmp_path, body=b'{"prompt":"sensitive-payload"}'
-    )
+    scope_context["synthetic_gateway"] = _gateway_fixture(tmp_path, body=b'{"prompt":"sensitive-payload"}')
 
 
 @when("it validates the descriptor and returns a synthetic outcome")
@@ -650,8 +656,10 @@ def return_synthetic_gateway_outcome(scope_context):
 
     emulator = _gateway_emulator(case, handler)
     receipt = emulator.dispatch(
-        grant=case["grant"], presented_worker_spiffe_id=_WORKER_SPIFFE_ID,
-        request_target=_PROVIDER_TARGET, body=case["body"],
+        grant=case["grant"],
+        presented_worker_spiffe_id=_WORKER_SPIFFE_ID,
+        request_target=_PROVIDER_TARGET,
+        body=case["body"],
     )
     scope_context["synthetic_receipt"] = receipt
     scope_context["synthetic_invocations"] = invocations
@@ -668,10 +676,18 @@ def assert_synthetic_gateway_metadata(scope_context):
     assert len(scope_context["synthetic_invocations"]) == 1
 
 
-@then("it contains no provider credential, raw request body, authorization header, raw provider response, or provider network destination")
+@then(
+    "it contains no provider credential, raw request body, authorization header, raw provider response, or provider network destination"
+)
 def assert_synthetic_gateway_redaction(scope_context):
     receipt = scope_context["synthetic_receipt"]
     invocation = scope_context["synthetic_invocations"][0]
     evidence = repr(receipt) + repr(invocation) + repr(receipt.response)
-    for secret in ("provider-secret-credential", "sensitive-payload", "sensitive-output", "Authorization", _PROVIDER_TARGET):
+    for secret in (
+        "provider-secret-credential",
+        "sensitive-payload",
+        "sensitive-output",
+        "Authorization",
+        _PROVIDER_TARGET,
+    ):
         assert secret not in evidence

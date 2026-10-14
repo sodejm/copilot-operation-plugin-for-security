@@ -776,9 +776,7 @@ class HTTPSExecutionMediator:
             raise EgressProtocolError("gateway dispatch SPIFFE identity is invalid")
         parsed_identity = urlsplit(policy.expected_spiffe_id)
         expected_path = "/cops/v1/" + "/".join(
-            part
-            for name, value in policy.expected_identity.as_dict().items()
-            for part in (name, quote(value, safe=""))
+            part for name, value in policy.expected_identity.as_dict().items() for part in (name, quote(value, safe=""))
         )
         if (
             parsed_identity.scheme != "spiffe"
@@ -1395,6 +1393,7 @@ class ExecutionEgressBroker:
             body_bytes=len(envelope),
             max_body_bytes=self._max_request_bytes,
         )
+
         def before_send() -> None:
             current_endpoint = config.authorizer.verify_for_transport(
                 grant=grant,
