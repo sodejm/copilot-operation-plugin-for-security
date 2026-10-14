@@ -625,6 +625,38 @@ def test_subprocess_broker_requests_receive_fail_closed_denials(attempt: str) ->
     assert mediator.observations[-1].decision == "blocked"
 
 
+def test_v1_broker_rejects_direct_provider_post_before_resolution() -> None:
+    resolver = ScriptedResolver({})
+    connector = FakeConnector()
+    mediator = _mediator(
+        resolver,
+        connector,
+        domains=("api.openai.com",),
+        approved_origin=("api.openai.com", 443),
+    )
+    broker = ExecutionEgressBroker(mediator)
+    document = {
+        "version": BROKER_PROTOCOL,
+        "method": "POST",
+        "url": "https://api.openai.com/v1/responses",
+        "headers": {},
+        "body": "{}",
+    }
+
+    with broker.open_channel() as channel:
+        completed = subprocess.run(
+            [sys.executable, "-c", _BROKER_CHILD, json.dumps(document)],
+            check=True,
+            capture_output=True,
+            env={**os.environ, **channel.environment},
+            pass_fds=channel.pass_fds,
+        )
+
+    assert json.loads(completed.stdout) == {"error": "egress_denied", "ok": False}
+    assert resolver.calls == []
+    assert connector.opened == []
+
+
 def _receive_line(client: socket.socket) -> dict[str, object]:
     received = b""
     while not received.endswith(b"\n"):
