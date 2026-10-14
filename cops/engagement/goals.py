@@ -180,9 +180,7 @@ def _resolve_target(goal_subject: str, engagement: dict[str, Any], selection: di
         _reject_overlapping_exclusions(canonical_selection, excluded)
         return canonical_selection, "engagement_selection"
 
-    direct_candidates = [
-        target for target in included if _matches_supported_subject(goal_subject, re.escape(target))
-    ]
+    direct_candidates = [target for target in included if _matches_supported_subject(goal_subject, re.escape(target))]
     if len(direct_candidates) == 1:
         if selection_error is not None:
             raise selection_error
@@ -274,7 +272,9 @@ def _validate_goal_detail(goal: str, target: str, target_source: str) -> dict[st
     return {
         "verb": intent.group("verb").lower(),
         "detail": (
-            "exposed_services" if re.search(r"\bfor\s+exposed\s+services\b", detail, _ASCII_CASE_INSENSITIVE) else "unspecified"
+            "exposed_services"
+            if re.search(r"\bfor\s+exposed\s+services\b", detail, _ASCII_CASE_INSENSITIVE)
+            else "unspecified"
         ),
         "safe_mode_requested": bool(re.search(r"\bsafely\b", detail, _ASCII_CASE_INSENSITIVE)),
         "status": "unbound",
