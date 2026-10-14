@@ -101,6 +101,11 @@ scanner against local TCP and UDP listeners. They check an IPv4 UDP reply and
 silence, validated and rejected DNS replies, a server-first SSH banner, and
 IPv6 TCP and UDP behavior when the runner exposes `::1`. An unavailable IPv6
 loopback is reported as a skip, not evidence that IPv6 scanning passed. These
+checks require a closed control on Linux and macOS. A Windows runner returned a
+TCP connection timeout for an unbound IPv6 loopback port; the scanner correctly
+reported `filtered`, since that observation cannot establish `closed`. The
+Windows check accepts this state only with the recorded timeout and still
+requires the open TCP and both UDP controls to pass. These
 native checks do not establish routed-network reachability or full-range scan
 performance. A developer sandbox that denies local socket binds skips the local
 test; CI requires live socket access and fails if binds are denied.

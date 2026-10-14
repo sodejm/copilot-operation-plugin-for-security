@@ -257,11 +257,23 @@ def check_ipv6() -> dict[str, object]:
         )
         assessments = result.assessments
         states = [assessment.port_state for assessment in assessments]
+        # Some Windows runners time out when connecting to an unbound IPv6
+        # loopback port. A timeout is filtered, not proof that it is closed.
+        closed_control_states = {PortState.CLOSED.value}
+        if sys.platform == "win32":
+            closed_control_states.add(PortState.FILTERED.value)
         require(
-            states == [PortState.OPEN.value, PortState.CLOSED.value, PortState.OPEN.value, PortState.UNKNOWN.value],
+            states[0] == PortState.OPEN.value
+            and states[1] in closed_control_states
+            and states[2:] == [PortState.OPEN.value, PortState.UNKNOWN.value],
             "IPv6 TCP or UDP states were misclassified: "
             + repr([(item.protocol, item.port, item.port_state, item.error_message) for item in assessments]),
         )
+        if states[1] == PortState.FILTERED.value:
+            require(
+                assessments[1].error_message == "Socket connection timed out",
+                "IPv6 closed-control uncertainty was not tied to a TCP timeout",
+            )
         require(all(assessment.resolved_ip == "::1" for assessment in assessments), "IPv6 target was not retained")
         require(accepted_count(tcp_open) == 1, "IPv6 listener received an unexpected connection count")
         require(udp_open.datagrams == [b""] and udp_silent.datagrams == [b""], "IPv6 UDP probes changed")

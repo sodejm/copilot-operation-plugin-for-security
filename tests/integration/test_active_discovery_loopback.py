@@ -3,6 +3,7 @@
 import errno
 import os
 import socket
+import sys
 
 import pytest
 
@@ -42,5 +43,9 @@ def test_native_ipv6_loopback_probes() -> None:
     if result["status"] == "unavailable":
         pytest.skip(result["reason"])
 
-    assert result["tcp_states"] == ["open", "closed"]
+    assert result["tcp_states"][0] == "open"
+    if sys.platform == "win32":
+        assert result["tcp_states"][1] in {"closed", "filtered"}
+    else:
+        assert result["tcp_states"][1] == "closed"
     assert result["udp_states"] == ["open", "unknown"]
