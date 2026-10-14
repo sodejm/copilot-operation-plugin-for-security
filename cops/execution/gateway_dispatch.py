@@ -487,6 +487,7 @@ class GatewayDispatchInvocation:
     body_sha256: str
     body_bytes: int
     body: bytes = dataclass_field(repr=False)
+    endpoint: GatewayDispatchEndpoint = dataclass_field(repr=False)
 
 
 class GatewayDispatchEmulator:
@@ -538,16 +539,22 @@ class GatewayDispatchEmulator:
             action_plan_id=grant.action_plan_id, plan_digest=grant.plan_digest,
             gateway_endpoint_id=endpoint.gateway_endpoint_id, gateway_identity=endpoint.gateway_identity,
             descriptor_digest=descriptor_digest, body_sha256=grant.body_sha256, body_bytes=grant.body_bytes,
-            body=body,
+            body=body, endpoint=endpoint,
         )
         response = None
         if self._handler is not None:
+            failed = False
             try:
                 response = self._handler(invocation)
                 if response is not None and not isinstance(response, GatewayDispatchResponse):
                     raise GatewayDispatchError("gateway dispatch response is invalid")
-            except Exception as err:
-                raise GatewayDispatchError("gateway dispatch failed after authorization consumption") from err
+            except Exception:
+                # Handler failures may contain provider secrets or response text.
+                # Raise after leaving the exception scope so the public error has
+                # neither an explicit cause nor a stored implicit context.
+                failed = True
+            if failed:
+                raise GatewayDispatchError("gateway dispatch failed after authorization consumption")
         receipt_id = hashlib.sha256(f"{descriptor_digest}:{consumed_at}".encode("ascii")).hexdigest()
         return GatewayDispatchReceipt(
             gateway_receipt_id=receipt_id, dispatch_id=grant.dispatch_id, authorization_id=grant.authorization_id,

@@ -56,6 +56,7 @@ from cops.execution.gateway_dispatch import (
     decode_gateway_dispatch_envelope,
     sign_gateway_dispatch,
 )
+from cops.execution.gateway_credentials import GatewayCredentialBinding, GatewayScopedProviderHandler
 from cops.execution.scope_guard import ScopeDefinition, ScopeGuard, ScopeViolationError
 
 IDENTITY = AuthenticatedServiceIdentity(
@@ -90,7 +91,10 @@ def _identity_uri(identity: AuthenticatedServiceIdentity = IDENTITY) -> str:
     return f"spiffe://{TRUST_DOMAIN}/cops/v1/{'/'.join(parts)}"
 
 
-def _dispatch_grant(*, dispatch_id: str = "dispatch-1", authorization_id: str = "approval-1") -> tuple[GatewayDispatchGrant, GatewayDispatchTrustStore, bytes]:
+def _dispatch_grant(
+    *, dispatch_id: str = "dispatch-1", authorization_id: str = "approval-1",
+    provider: str = "openai", request_target: str = "https://api.openai.com/v1/responses",
+) -> tuple[GatewayDispatchGrant, GatewayDispatchTrustStore, bytes]:
     body = b'{"model":"approved"}'
     now = datetime.now(UTC)
     key = Ed25519PrivateKey.generate()
@@ -101,13 +105,13 @@ def _dispatch_grant(*, dispatch_id: str = "dispatch-1", authorization_id: str = 
         action_plan_id="plan-1",
         plan_digest="a" * 64,
         worker_spiffe_id="spiffe://identity.example.test/worker/approved",
-        provider="openai",
+        provider=provider,
         account_or_project_kind="project",
         account_or_project="project-1",
         region="us-east-1",
         model="model-1",
         gateway_endpoint_id="endpoint-1",
-        request_target="https://api.openai.com/v1/responses",
+        request_target=request_target,
         body_sha256=hashlib.sha256(body).hexdigest(),
         body_bytes=len(body),
         issued_at=now.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
@@ -124,17 +128,23 @@ def _dispatch_grant(*, dispatch_id: str = "dispatch-1", authorization_id: str = 
     return sign_gateway_dispatch(grant, key), trust, body
 
 
-def _dispatch_authorizer(trust: GatewayDispatchTrustStore) -> GatewayDispatchTransportAuthorizer:
-    endpoint = GatewayDispatchEndpoint(
+def _dispatch_endpoint(
+    *, provider: str = "openai", request_target: str = "https://api.openai.com/v1/responses",
+) -> GatewayDispatchEndpoint:
+    return GatewayDispatchEndpoint(
         gateway_endpoint_id="endpoint-1",
         gateway_identity=_identity_uri(),
-        provider="openai",
+        provider=provider,
         account_or_project_kind="project",
         account_or_project="project-1",
         region="us-east-1",
         model="model-1",
-        request_target="https://api.openai.com/v1/responses",
+        request_target=request_target,
     )
+
+
+def _dispatch_authorizer(trust: GatewayDispatchTrustStore) -> GatewayDispatchTransportAuthorizer:
+    endpoint = _dispatch_endpoint()
     return GatewayDispatchTransportAuthorizer(trust_store=trust, endpoints={"endpoint-1": endpoint})
 
 
@@ -1188,6 +1198,121 @@ def test_gateway_emulator_does_not_replay_after_oversized_response(tmp_path) -> 
             request_target=grant.request_target,
             body=body,
         )
+
+
+@pytest.mark.parametrize(("provider", "request_target"), [
+    ("openai", "https://api.openai.com/v1/responses"),
+    ("azure_openai", "https://approved.openai.azure.com/openai/v1/responses"),
+    ("bedrock", "https://bedrock-runtime.us-east-1.amazonaws.com/model/model-1/converse"),
+    ("vertex", "https://us-east1-aiplatform.googleapis.com/v1/projects/project-1/locations/us-east1/publishers/google/models/model-1:generateContent"),
+])
+def test_gateway_credential_scope_dispatches_once_after_grant_consumption(
+    tmp_path, provider: str, request_target: str,
+) -> None:
+    grant, trust, body = _dispatch_grant(provider=provider, request_target=request_target)
+    endpoint = _dispatch_endpoint(provider=provider, request_target=request_target)
+    events: list[tuple[object, ...]] = []
+    secret = "provider-secret-never-in-evidence"
+
+    def resolve(credential_ref: str) -> str:
+        events.append(("resolve", credential_ref))
+        return secret
+
+    def transport(actual_endpoint: GatewayDispatchEndpoint, actual_body: bytes, credential: str | bytes) -> GatewayDispatchResponse:
+        events.append(("transport", actual_endpoint, actual_body, credential))
+        return GatewayDispatchResponse(200, "application/json", b'{"usage":{"total_tokens":1}}')
+
+    handler = GatewayScopedProviderHandler(
+        bindings={endpoint.gateway_endpoint_id: GatewayCredentialBinding(endpoint, "vault://approved")},
+        credential_resolver=resolve,
+        transports={provider: transport},
+    )
+    gateway = GatewayDispatchEmulator(
+        authorizer=GatewayDispatchTransportAuthorizer(
+            trust_store=trust, endpoints={endpoint.gateway_endpoint_id: endpoint},
+        ),
+        replay_store=GatewayDispatchReplayStore(tmp_path / "credential-replay.sqlite"),
+        action_plan_id=grant.action_plan_id, plan_digest=grant.plan_digest,
+        worker_spiffe_id=grant.worker_spiffe_id, handler=handler,
+    )
+
+    receipt = gateway.dispatch(
+        grant=grant, presented_worker_spiffe_id=grant.worker_spiffe_id,
+        request_target=request_target, body=body,
+    )
+    assert receipt.decision == "accepted"
+    assert events == [
+        ("resolve", "vault://approved"),
+        ("transport", endpoint, body, secret),
+    ]
+    assert secret not in repr(receipt)
+    assert secret not in repr(handler)
+    assert secret not in repr(GatewayCredentialBinding(endpoint, "vault://approved"))
+    with pytest.raises(GatewayDispatchReplayError):
+        gateway.dispatch(
+            grant=grant, presented_worker_spiffe_id=grant.worker_spiffe_id,
+            request_target=request_target, body=body,
+        )
+    assert len(events) == 2
+
+
+def test_gateway_credential_scope_mismatch_consumes_grant_without_resolving(tmp_path) -> None:
+    grant, trust, body = _dispatch_grant()
+    endpoint = _dispatch_endpoint()
+    resolved: list[str] = []
+    handler = GatewayScopedProviderHandler(
+        bindings={endpoint.gateway_endpoint_id: GatewayCredentialBinding(replace(endpoint, model="other-model"), "vault://wrong")},
+        credential_resolver=lambda ref: resolved.append(ref) or "secret",
+        transports={"openai": lambda _endpoint, _body, _credential: GatewayDispatchResponse(200, "application/json", b"{}")},
+    )
+    gateway = GatewayDispatchEmulator(
+        authorizer=GatewayDispatchTransportAuthorizer(trust_store=trust, endpoints={endpoint.gateway_endpoint_id: endpoint}),
+        replay_store=GatewayDispatchReplayStore(tmp_path / "mismatch-replay.sqlite"),
+        action_plan_id=grant.action_plan_id, plan_digest=grant.plan_digest,
+        worker_spiffe_id=grant.worker_spiffe_id, handler=handler,
+    )
+
+    with pytest.raises(GatewayDispatchError, match="failed after authorization consumption"):
+        gateway.dispatch(
+            grant=grant, presented_worker_spiffe_id=grant.worker_spiffe_id,
+            request_target=grant.request_target, body=body,
+        )
+    assert resolved == []
+    with pytest.raises(GatewayDispatchReplayError):
+        gateway.dispatch(
+            grant=grant, presented_worker_spiffe_id=grant.worker_spiffe_id,
+            request_target=grant.request_target, body=body,
+        )
+
+
+def test_gateway_credential_failure_has_no_secret_exception_chain(tmp_path) -> None:
+    grant, trust, body = _dispatch_grant()
+    endpoint = _dispatch_endpoint()
+    secret = "provider-secret-never-in-traceback"
+
+    def fail_resolve(_ref: str) -> str:
+        raise RuntimeError(secret)
+
+    handler = GatewayScopedProviderHandler(
+        bindings={endpoint.gateway_endpoint_id: GatewayCredentialBinding(endpoint, "vault://approved")},
+        credential_resolver=fail_resolve,
+        transports={"openai": lambda _endpoint, _body, _credential: GatewayDispatchResponse(200, "application/json", b"{}")},
+    )
+    gateway = GatewayDispatchEmulator(
+        authorizer=GatewayDispatchTransportAuthorizer(trust_store=trust, endpoints={endpoint.gateway_endpoint_id: endpoint}),
+        replay_store=GatewayDispatchReplayStore(tmp_path / "failure-replay.sqlite"),
+        action_plan_id=grant.action_plan_id, plan_digest=grant.plan_digest,
+        worker_spiffe_id=grant.worker_spiffe_id, handler=handler,
+    )
+
+    with pytest.raises(GatewayDispatchError, match="failed after authorization consumption") as error:
+        gateway.dispatch(
+            grant=grant, presented_worker_spiffe_id=grant.worker_spiffe_id,
+            request_target=grant.request_target, body=body,
+        )
+    assert error.value.__cause__ is None
+    assert error.value.__context__ is None
+    assert secret not in repr(error.value)
 
 
 def _receive_line(client: socket.socket) -> dict[str, object]:

@@ -44,7 +44,8 @@ Enforces actual network destinations and resource identities at execution time a
 
 8. **Synthetic Gateway Emulator Boundary**:
    - The laboratory emulator is loopback-only and validates the signed descriptor, mTLS identity, fixed target, digest, size, replay behavior, and redacted receipt shape.
-   - It has no provider credential, provider destination, or forwarding path. Its evidence records only identifiers, hashes, byte counts, decision codes, and bounded status metadata.
+   - By default it has no provider credential resolver or forwarding path. A separately installed gateway-local handler may resolve an opaque credential reference for the exact verified endpoint only after the one-use grant is consumed, with a caller-supplied synthetic transport. This does not implement a production gateway service or provider route.
+   - Its evidence records only identifiers, hashes, byte counts, decision codes, and bounded status metadata. Credential resolver and provider transport exceptions must not be exposed in receipts or chained public errors.
 
 ## Deployment boundary
 

@@ -32,10 +32,17 @@ the worker and assessment report must never receive their values. A gateway
 implementation must independently compare the grant with its configured
 provider endpoint and credential scope before calling the provider. This
 repository's gateway emulator exercises that check without issuing a real
-provider request or retrieving credentials. Emulator handlers may return a
+provider request. By default it has no credential resolver or provider transport.
+An operator may install the local `GatewayScopedProviderHandler` in the emulator
+with an exact endpoint-to-credential-reference binding, resolver, and synthetic
+transport. It resolves the credential only after scope verification and one-use
+grant consumption. The supplied transport still needs its own TLS, IAM, and
+destination enforcement before any production use. Emulator handlers may return a
 bounded JSON response only after the grant is consumed. Dispatch receipts hide
 request and response bodies in their printed representation; operators must keep
-any retained body out of logs and assessment evidence.
+any retained body and credential resolver failures out of logs and assessment
+evidence. The gateway raises a generic error without preserving the underlying
+provider exception chain.
 
 ## Operational controls before a real canary
 
