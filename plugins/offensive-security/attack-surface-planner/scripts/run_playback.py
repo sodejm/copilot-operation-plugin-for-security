@@ -5,13 +5,15 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from attack_surface_planner import core as planner_core  # noqa: E402
 
 
 def run(command: list[str]) -> subprocess.CompletedProcess[str]:
@@ -23,19 +25,47 @@ def require(condition: bool, message: str) -> None:
         raise SystemExit(f"playback validation failed: {message}")
 
 
+def stage_declared_inputs(source: Path, fixture: Path) -> Path:
+    """Stage the bounded manifest and only the source files it declares."""
+    try:
+        manifest_bytes = planner_core._read_regular(source, planner_core.MAX_MANIFEST_BYTES)
+        manifest = planner_core._json(manifest_bytes, "manifest")
+        if not isinstance(manifest, dict):
+            raise planner_core.GateError("manifest must be an object")
+        sources = planner_core._list(manifest.get("sources"), "sources", maximum=16)
+        declared: list[tuple[Path, bytes]] = []
+        for item in sources:
+            if not isinstance(item, dict):
+                raise planner_core.GateError("source entry must be an object")
+            relative = planner_core._text(item.get("path"), "source path", maximum=240)
+            destination = Path(*planner_core._relative_path(relative))
+            data = planner_core._read_source(source.parent, relative)
+            declared.append((destination, data))
+    except planner_core.GateError as error:
+        raise SystemExit(f"playback input gate: {error}") from error
+
+    fixture.mkdir()
+    copied_scope = fixture / source.name
+    copied_scope.write_bytes(manifest_bytes)
+    for relative, data in declared:
+        destination = fixture / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(data)
+    return copied_scope
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path, default=ROOT / "scripts/playback/manifest.json")
     args = parser.parse_args()
     contract = json.loads(args.manifest.read_text(encoding="utf-8"))
-    source = (args.manifest.parent / contract["scope_manifest"]).resolve()
+    source = args.manifest.parent / contract["scope_manifest"]
     expected = contract["expected"]
 
     with tempfile.TemporaryDirectory(prefix="cops-planner-playback-") as raw:
         work = Path(raw)
         fixture = work / "fixture"
-        shutil.copytree(source.parent, fixture)
-        copied_scope = fixture / source.name
+        copied_scope = stage_declared_inputs(source, fixture)
         command = [sys.executable, str(ROOT / "scripts/plan.py"), str(copied_scope)]
         first, second = run(command), run(command)
         if first.returncode or second.returncode:

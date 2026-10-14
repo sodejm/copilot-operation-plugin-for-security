@@ -62,7 +62,7 @@ fixture -> validated engagement -> draft action plan -> proposed handoff
 | `action-plan.json` | Record one bounded draft operation. | Action-plan builder | Handoff router and operator | One operation for `10.100.0.10`, draft status, and no egress. |
 | `handoff.json` | Route the proposal without granting execution. | Specialist handoff router | Specialist and operator | Proposed status, pending approval, and matching plan digest. |
 | `inert-observation.json` | Record the compact request seen by the child. | Local isolated child | Parent validator | Exact semantic match, one operation, and zero network requests. |
-| `execution-evidence.json` | Bind the process result to captured bytes. | Parent runner | Operator and tests | Zero exit code, empty stderr, byte counts, and SHA-256 hashes. |
+| `execution-evidence.json` | Bind the process result to captured bytes without retaining command-line data. | Parent runner | Operator and tests | Stable `python-isolated` identity and allowlisted `-I` flag are recorded only for the built-in dispatcher after the runner verifies its exact executable, flag position, child program, and argument count. Zero exit code, empty stderr, byte counts, and SHA-256 hashes are also required. Raw executable paths, inline program text, and arbitrary dispatcher arguments are omitted. |
 | `playback-result.json` | Mark successful completion. | Parent runner | Catalog demo and operator | Exact documented six-field summary; written last. |
 
 The [playback guide](docs/PLAYBOOK.md) defines each artifact's key fields,

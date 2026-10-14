@@ -61,6 +61,8 @@ sys.stdout.buffer.write(
 )
 """.strip()
 
+_DISPATCHER_IDENTITY = "python-isolated"
+
 
 class InertSubprocessDispatcher:
     """Dispatch a plan summary to an isolated local Python process."""
@@ -79,6 +81,33 @@ class InertSubprocessDispatcher:
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise PlaybackError(f"inert subprocess dispatch failed: {exc}") from exc
         return DispatchResult(argv, completed.returncode, completed.stdout, completed.stderr)
+
+
+def _validated_dispatch_evidence(
+    dispatcher: Dispatcher,
+    result: DispatchResult,
+) -> dict[str, Any]:
+    """Return sanitized evidence only for the exact inert subprocess contract."""
+    _require(
+        type(dispatcher) is InertSubprocessDispatcher,
+        "inert subprocess evidence requires the built-in dispatcher",
+    )
+    argv = result.argv
+    _require(bool(argv), "inert subprocess dispatcher did not report an executable")
+    _require(
+        argv[0] == sys.executable,
+        "inert subprocess dispatcher must use the current Python runtime",
+    )
+    _require(
+        len(argv) > 1 and argv[1] == "-I",
+        "inert subprocess dispatcher must place -I immediately after the executable",
+    )
+    _require(len(argv) == 4, "inert subprocess dispatcher argument shape is not approved")
+    _require(
+        argv[2] == "-c" and argv[3] == _CHILD_PROGRAM,
+        "inert subprocess dispatcher child program is not approved",
+    )
+    return {"dispatcher": _DISPATCHER_IDENTITY, "flags": ["-I"]}
 
 
 def _read_manifest(source: Path | dict[str, Any]) -> dict[str, Any]:
@@ -178,7 +207,8 @@ def run_playback(
         "operations": operations,
         "target": target,
     }
-    dispatch_result = (dispatcher or InertSubprocessDispatcher()).dispatch(request)
+    active_dispatcher = dispatcher or InertSubprocessDispatcher()
+    dispatch_result = active_dispatcher.dispatch(request)
     _require(dispatch_result.returncode == 0, "inert subprocess returned a non-zero status")
     _require(dispatch_result.stderr == b"", "inert subprocess wrote to stderr")
     try:
@@ -197,8 +227,9 @@ def run_playback(
     }
     _require(observation == expected_observation, "inert subprocess observation failed semantic validation")
 
+    dispatch_evidence = _validated_dispatch_evidence(active_dispatcher, dispatch_result)
     evidence = {
-        "argv": list(dispatch_result.argv),
+        **dispatch_evidence,
         "returncode": dispatch_result.returncode,
         "stderr_bytes": len(dispatch_result.stderr),
         "stderr_sha256": _sha256(dispatch_result.stderr),

@@ -233,7 +233,7 @@ python3 -m unittest discover -s plugins/offensive-security/attack-surface-planne
 
 ### Design and data flow
 
-The manifest pins the synthetic scope manifest and expected semantics. The runner copies the fixture directory into a disposable private directory so relative export paths continue to resolve, invokes `scripts/plan.py` twice, parses both reports, and checks the results. Data flows from four operator-supplied JSON exports through the scope gate to the source ledger, surface map, passive test proposals, and final JSON report. No output is used as execution authority.
+The manifest pins the synthetic scope manifest and expected semantics. The runner reads that scope manifest through the planner's bounded regular-file gate. It then reads only the four declared source paths through the planner's traversal, symlink, file-type, and size gates and writes those validated bytes into a disposable private directory. Unrelated sibling files and directories are not inspected or staged. The runner invokes `scripts/plan.py` twice, parses both reports, and checks the results. Data flows from four operator-supplied JSON exports through the scope gate to the source ledger, surface map, passive test proposals, and final JSON report. No output is used as execution authority.
 
 | Purpose | Key fields | Producer | Consumer | Definition | Validation | Example |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -245,6 +245,6 @@ The manifest pins the synthetic scope manifest and expected semantics. The runne
 
 ### Interpretation, failures, and reruns
 
-A `status` of `passed` means the current implementation reproduced the manifest's expected fixture semantics. It does not prove that an external asset exists or is exploitable. Excluded and unresolved entries remain quarantined from the proposal list. The negative case must return code 2 and an `input gate` error for active mode. JSON parse errors, changed counts, changed ordering, non-passive methods, or unequal reruns fail the playback with a nonzero exit.
+A `status` of `passed` means the current implementation reproduced the manifest's expected fixture semantics. It does not prove that an external asset exists or is exploitable. Excluded and unresolved entries remain quarantined from the proposal list. The negative case must return code 2 and an `input gate` error for active mode. Declared FIFOs, symlinks, traversal paths, and oversized files fail before staging; unrelated files beside the declared inputs are outside the playback input set. JSON parse errors, changed counts, changed ordering, non-passive methods, or unequal reruns fail the playback with a nonzero exit.
 
 Reruns create fresh temporary directories and do not reuse prior output. The standard temporary-directory cleanup runs on success and exceptions. If a process is forcibly terminated, remove any `cops-planner-playback-*` directory left in the operating system temporary directory. The playback covers pinned local exports and planner semantics only; it does not validate export freshness, ownership assertions, live systems, or authorization outside the fixture.
