@@ -266,9 +266,8 @@ def test_bounded_loader_rejects_parse_errors_and_oversized_input(tmp_path: Path)
 
     enormous_integer = tmp_path / "enormous-integer.json"
     enormous_integer.write_text("{\"value\": " + "9" * 5000 + "}", encoding="utf-8")
-    if sys.version_info >= (3, 11):
-        with pytest.raises(ServiceNoticeError, match="invalid JSON number"):
-            load_json_file(enormous_integer, label="asset input")
+    with pytest.raises(ServiceNoticeError, match="invalid JSON number"):
+        load_json_file(enormous_integer, label="asset input")
 
 
 @pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="named pipes are unavailable")
