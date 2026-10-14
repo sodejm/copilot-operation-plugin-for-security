@@ -167,6 +167,16 @@ def test_stale_withdrawn_and_superseded_notices_cannot_be_candidates() -> None:
         assert result["status"] == "not_applicable"
 
 
+@pytest.mark.parametrize("as_of", [date(2025, 1, 1), date(2026, 10, 13)])
+def test_dates_before_reviewed_source_snapshot_are_unknown(as_of: date) -> None:
+    registry = load_registry(REGISTRY_PATH)
+    report = assess_asset(registry, _dell_asset(), as_of=as_of)
+    result = _result(report, "COPS-SAN-2026-002")
+    assert result["status"] == "unknown"
+    assert "historical_source_snapshot" in result["missing_evidence"]
+    assert all(item["status"] != "candidate" for item in report["results"])
+
+
 def test_registry_validation_rejects_duplicates_bad_sources_and_version_overlap() -> None:
     registry = load_registry(REGISTRY_PATH)
 
@@ -174,6 +184,15 @@ def test_registry_validation_rejects_duplicates_bad_sources_and_version_overlap(
     duplicate["notices"].append(copy.deepcopy(duplicate["notices"][0]))
     with pytest.raises(ServiceNoticeError, match="duplicate notice id"):
         validate_registry(duplicate)
+
+    duplicate_prerequisite = copy.deepcopy(registry)
+    prerequisites = duplicate_prerequisite["notices"][1]["prerequisites"]
+    conflicting = copy.deepcopy(prerequisites[0])
+    conflicting["key"] = conflicting["key"].upper()
+    conflicting["description"] = "A distinct condition requiring its own evidence."
+    prerequisites.append(conflicting)
+    with pytest.raises(ServiceNoticeError, match="duplicate keys"):
+        validate_registry(duplicate_prerequisite)
 
     unsupported_source = copy.deepcopy(registry)
     unsupported_source["notices"][0]["sources"][0]["url"] = "https://example.com/advisory"

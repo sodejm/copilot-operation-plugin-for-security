@@ -21,10 +21,11 @@ that a host was exploited, or that an action is authorized.
   cannot produce a candidate. Missing evidence and unknown versions are
   `unknown`, not a presumed match.
 - Withdrawn and superseded notices cannot generate candidates. Notices past
-  their review date require fresh source review before a candidate is emitted.
-- Registry validation rejects malformed/duplicate records, unsupported source
-  URLs, invalid dates and version overlap. Inputs are bounded and parsed without
-  network requests or code execution.
+  their review due date require fresh source review before a candidate is emitted.
+  Historical requests before the current source-review snapshot remain `unknown`.
+- Registry validation rejects malformed/duplicate records and prerequisite keys,
+  unsupported source URLs, invalid dates and version overlap. Inputs are bounded
+  and parsed without network requests or code execution.
 - The CLI provides machine-readable validation, listing, and assessment so a
   coordinator can consume the registry without a manual research step.
 - Tests cover positive, fixed, wrong-product, insufficient, stale, withdrawn,
@@ -32,33 +33,9 @@ that a host was exploited, or that an action is authorized.
 
 ## Scenarios
 
-```gherkin
-Feature: Conservative service attack notice assessment
-  Scenario: Advisory context merits a targeted investigation
-    Given a Dell RecoverPoint for VMs 6.0.3 asset with reachable Tomcat Manager
-    When its service context is assessed offline
-    Then the Dell notice is a candidate for targeted investigation
-    And the result does not claim exploitability
-
-  Scenario: A service port alone is insufficient
-    Given an asset with only a TCP service observation
-    When its service context is assessed offline
-    Then no notice is a candidate
-    And missing product, version, and configuration evidence is reported
-
-  Scenario: Named vendor version is a candidate and unlisted version is unknown
-    Given a Dell RecoverPoint for VMs 6.0.3.1 asset with reachable Tomcat Manager
-    When its service context is assessed offline
-    Then the Dell notice is a candidate for targeted investigation
-    And an unlisted 6.0.2 version remains unknown pending product-specific source review
-
-  Scenario: Fixed, unrelated, and stale contexts are not candidates
-    Given fixed or unrelated assets or a notice past its review date
-    When their service contexts are assessed offline
-    Then each result states why no current candidate is established
-```
-
-The CLI and Python acceptance tests are the executable check for these
-scenarios. The source review dates are operational metadata; tests cannot prove
-that a public advisory remains current. A maintainer must recheck cited primary
+The [executable feature](features/service_attack_notices.feature) binds the
+positive, port-only, version, non-candidate, and historical-request scenarios
+to [pytest-bdd steps](../tests/step_defs/test_service_attack_notices_steps.py).
+The source review dates are operational metadata; tests cannot prove that a
+public advisory remains current. A maintainer must recheck cited primary
 sources on the stated cadence and update the versioned registry.
