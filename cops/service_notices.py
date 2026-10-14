@@ -288,10 +288,14 @@ def _validate_notice(value: Any, index: int) -> str:
     prerequisites = notice["prerequisites"]
     if not isinstance(prerequisites, list) or not prerequisites:
         raise ServiceNoticeError(f"{path}.prerequisites must be a non-empty list")
+    prerequisite_keys: set[str] = set()
     for prerequisite_index, prerequisite_value in enumerate(prerequisites):
         prerequisite_path = f"{path}.prerequisites[{prerequisite_index}]"
         prerequisite = _object(prerequisite_value, prerequisite_path, {"key", "description"})
-        _text(prerequisite["key"], f"{prerequisite_path}.key")
+        key = _text(prerequisite["key"], f"{prerequisite_path}.key").casefold()
+        if key in prerequisite_keys:
+            raise ServiceNoticeError(f"{path}.prerequisites contains duplicate keys")
+        prerequisite_keys.add(key)
         _text(prerequisite["description"], f"{prerequisite_path}.description")
 
     mappings = notice["attack_mappings"]
@@ -429,6 +433,14 @@ def _result(notice: dict[str, Any], status: str, reasons: list[str], missing: li
 
 
 def _assess_notice(notice: dict[str, Any], asset: dict[str, Any], *, as_of: date) -> dict[str, Any]:
+    if as_of < date.fromisoformat(notice["review_date"]):
+        return _result(
+            notice,
+            "unknown",
+            ["The requested date predates this reviewed source snapshot."],
+            ["historical_source_snapshot"],
+            "Use a source snapshot that was reviewed on or before the requested date.",
+        )
     lifecycle = notice["lifecycle"]["state"]
     if lifecycle != "active":
         return _result(

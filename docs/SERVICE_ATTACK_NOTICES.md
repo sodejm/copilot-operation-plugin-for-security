@@ -61,8 +61,11 @@ Missing versions are always `unknown`. A listening port alone cannot produce a
 candidate. Product names, operating systems, versions, services, transports,
 and prerequisite evidence use exact registry allowlists rather than inference.
 The CLI always assesses freshness using the current date. Python acceptance
-tests pass a fixed date to the pure assessor for deterministic historical cases;
-those tests do not establish current source freshness.
+tests pass a fixed date to the pure assessor for deterministic cases. A request
+before a notice's current `review_date` returns `unknown` and calls for a
+historical source snapshot; the current reviewed sources cannot establish a
+past conclusion. Dates after `review_due` also return `unknown` until sources
+are reviewed again. Tests do not establish current source freshness.
 
 Dell's [DSA-2026-079](https://www.dell.com/support/kbdoc/en-us/000426773/dsa-2026-079)
 names affected RecoverPoint for VMs 5.3 and 6.0 releases and a remediation path
