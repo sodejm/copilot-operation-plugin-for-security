@@ -267,7 +267,7 @@ class ActionPlan:
     def create(
         cls,
         *,
-        plan_id: str,
+        plan_id: str | None,
         engagement_id: str,
         scenario_id: str,
         target: str,
@@ -284,7 +284,6 @@ class ActionPlan:
         batch = batch or {"mode": "sequential", "max_operations": len(operations), "fail_fast": True}
         snapshot = {
             "schema_version": "cops.action-plan/v1",
-            "plan_id": plan_id,
             "engagement_id": engagement_id,
             "scenario_id": scenario_id,
             "target": target,
@@ -298,6 +297,10 @@ class ActionPlan:
         }
         if offline_research is not None:
             snapshot["offline_research"] = offline_research
+        if plan_id is None:
+            # A resumable identity must change with every immutable planning input.
+            plan_id = f"plan-cops-{build_action_plan_digest(snapshot=snapshot)[:24]}"
+        snapshot["plan_id"] = plan_id
         computed_digest = build_action_plan_digest(snapshot=snapshot)
         plan = cls(
             schema_version="cops.action-plan/v1",

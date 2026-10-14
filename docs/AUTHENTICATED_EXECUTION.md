@@ -136,6 +136,12 @@ python3 -m cops engagement plan \
 
 The planner records the supplied exact version in the immutable operation. It does not inspect installed executables or prove the measurement is accurate. Plan compilation rejects a missing or blank version for the scenario operation tool; the CLI also rejects malformed entries and conflicting repeated values for the same tool.
 
+When the caller does not supply a plan ID, the planner derives one from the
+immutable plan inputs, including the operation, tool version, and limits. A
+change to those inputs therefore creates a different plan ID for checkpoint and
+resume matching. Callers may still supply an explicit ID; the full plan digest,
+not the ID alone, binds execution authorization to the reviewed plan.
+
 This planning input and the worker capability inventory have independent provenance. The planner caller supplies the version that reviewers approve and sign. The worker owner later provisions a measurement of the worker. Execution verifies that the signed plan's exact tool version matches that worker inventory; one artifact must not be derived from the other merely to make the comparison pass.
 
 ## Provision the worker capability inventory
