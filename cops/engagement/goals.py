@@ -18,20 +18,22 @@ MAX_GOAL_CHARS = 4096
 MAX_SCOPE_TARGETS = 1024
 _TARGET_LEFT_BOUNDARY = r"A-Za-z0-9_.:/-"
 _TARGET_RIGHT_BOUNDARY = r"A-Za-z0-9_:/-"
+_ASCII_CASE_INSENSITIVE = re.ASCII | re.IGNORECASE
+_SELECTED_SUBJECT = r"the\s+selected(?:\s+production)?\s+endpoint"
 _ILLUSTRATIVE = re.compile(
     r"(?<![A-Za-z0-9_])(?:for\s+example|for\s+instance|e\.g\.|such\s+as|example\s+target)(?![A-Za-z0-9_])",
-    re.IGNORECASE,
+    _ASCII_CASE_INSENSITIVE,
 )
 _DIRECT_ASSESSMENT = re.compile(
     r"\A\s*(?:(?:please|can\s+you|could\s+you|would\s+you|help\s+me(?:\s+to)?|"
     r"i\s+(?:want|need)\s+(?:you\s+)?to|i(?:'d|\s+would)\s+like\s+(?:you\s+)?to)\s+)?"
     r"(?P<verb>assess|scan|inspect|test|enumerate|discover|evaluate|probe|check)\b",
-    re.IGNORECASE,
+    _ASCII_CASE_INSENSITIVE,
 )
 _NEGATED_ASSESSMENT = re.compile(
     r"\b(?:do\s+not|don['’]t|never|avoid|stop)\b.{0,60}?"
     r"\b(?:assess|scan|inspect|test|enumerate|discover|evaluate|run|perform|start|execute|probe|check)\b",
-    re.IGNORECASE,
+    _ASCII_CASE_INSENSITIVE,
 )
 
 
@@ -80,9 +82,22 @@ def _target_occurrences(text: str, target: str) -> list[tuple[int, int]]:
     pattern = re.compile(
         rf"(?<![{_TARGET_LEFT_BOUNDARY}]){re.escape(target)}"
         rf"(?![{_TARGET_RIGHT_BOUNDARY}]|\.[A-Za-z0-9_-])",
-        re.IGNORECASE,
+        _ASCII_CASE_INSENSITIVE,
     )
     return [(match.start(), match.end()) for match in pattern.finditer(text)]
+
+
+def _target_key(target: str) -> str:
+    """Fold ASCII target spelling without equating Unicode lookalikes."""
+    return target.lower() if target.isascii() else target
+
+
+def _supported_detail_pattern(subject: str) -> str:
+    return rf"{subject}(?:\s+for\s+exposed\s+services)?(?:\s+safely)?[.!?]?"
+
+
+def _matches_supported_subject(goal_subject: str, subject: str) -> bool:
+    return re.fullmatch(_supported_detail_pattern(subject), goal_subject, _ASCII_CASE_INSENSITIVE) is not None
 
 
 def _inside(span: tuple[int, int], containers: list[tuple[int, int]]) -> bool:
@@ -91,6 +106,12 @@ def _inside(span: tuple[int, int], containers: list[tuple[int, int]]) -> bool:
 
 def _reject_overlapping_exclusions(target: str, excluded: list[str]) -> None:
     """Do not select a network that could later include an excluded address."""
+    if any(_target_key(target) == _target_key(exclusion) for exclusion in excluded):
+        raise _fail(
+            "Selected target is excluded by the engagement",
+            code="excluded_target",
+            next_action="Select an included target that is not excluded by the engagement.",
+        )
     try:
         target_network = ipaddress.ip_network(target, strict=False)
     except ValueError:
@@ -111,35 +132,88 @@ def _reject_overlapping_exclusions(target: str, excluded: list[str]) -> None:
             )
 
 
-def _resolve_target(goal: str, engagement: dict[str, Any], selection: dict[str, Any]) -> tuple[str, str]:
+def _resolve_target(goal_subject: str, engagement: dict[str, Any], selection: dict[str, Any]) -> tuple[str, str]:
     included: list[str] = []
     seen_included: set[str] = set()
     for raw_target in engagement["scope"]["included_targets"]:
         target = str(raw_target).strip()
-        identity = target.casefold()
+        identity = _target_key(target)
         if identity not in seen_included:
             included.append(target)
             seen_included.add(identity)
     excluded = [str(target).strip() for target in engagement["scope"].get("excluded_targets", [])]
-    non_authoritative = [*_quoted_spans(goal), *_illustrative_spans(goal)]
+    selected_target = selection.get("target")
+    selection_error: GoalResolutionError | None = None
+    if selected_target is not None and not isinstance(selected_target, str):
+        selection_error = _fail(
+            "metadata.goal_selection.target must be a string",
+            code="invalid_selection",
+            next_action="Record one exact included target in metadata.goal_selection.target.",
+        )
+    canonical_selection = (
+        next(
+            (target for target in included if _target_key(target) == _target_key(selected_target.strip())),
+            None,
+        )
+        if isinstance(selected_target, str)
+        else None
+    )
+    if isinstance(selected_target, str) and canonical_selection is None:
+        selection_error = _fail(
+            "metadata.goal_selection.target is not an exact included target",
+            code="selection_out_of_scope",
+            next_action="Change metadata.goal_selection.target to an exact member of scope.included_targets.",
+        )
 
-    referenced_exclusions = [target for target in excluded if _target_occurrences(goal, target)]
+    # Only a complete, supported subject can bind a target. This keeps valid
+    # hostnames such as "assess", "you", or "services" in the engagement from
+    # being mistaken for target references in request framing or detail text.
+    if _matches_supported_subject(goal_subject, _SELECTED_SUBJECT):
+        if selection_error is not None:
+            raise selection_error
+        if canonical_selection is None:
+            raise _fail(
+                "Goal requests the selected endpoint, but the engagement has no recorded target selection",
+                code="missing_target_selection",
+                next_action="Record one exact included target in metadata.goal_selection.target.",
+            )
+        _reject_overlapping_exclusions(canonical_selection, excluded)
+        return canonical_selection, "engagement_selection"
+
+    direct_candidates = [
+        target for target in included if _matches_supported_subject(goal_subject, re.escape(target))
+    ]
+    if len(direct_candidates) == 1:
+        if selection_error is not None:
+            raise selection_error
+        target = direct_candidates[0]
+        if canonical_selection is not None and _target_key(canonical_selection) != _target_key(target):
+            raise _fail(
+                "The explicitly named target conflicts with metadata.goal_selection.target",
+                code="conflicting_target_selection",
+                next_action="Make the direct goal target and recorded engagement selection identical.",
+            )
+        _reject_overlapping_exclusions(target, excluded)
+        return target, "goal"
+
+    # Unsupported wording still gets a specific error when it references
+    # exclusions, quoted examples, or several targets. It cannot bind scope.
+    non_authoritative = [*_quoted_spans(goal_subject), *_illustrative_spans(goal_subject)]
+    referenced_exclusions = [target for target in excluded if _target_occurrences(goal_subject, target)]
     if referenced_exclusions:
         raise _fail(
             f"Goal references excluded target(s): {', '.join(referenced_exclusions)}",
             code="excluded_target",
             next_action="Remove excluded targets and name exactly one included target.",
         )
-
     explicit: list[str] = []
     non_authoritative_targets: list[str] = []
     for target in included:
-        occurrences = _target_occurrences(goal, target)
+        occurrences = _target_occurrences(goal_subject, target)
         if any(_inside(occurrence, non_authoritative) for occurrence in occurrences):
             non_authoritative_targets.append(target)
         if any(not _inside(occurrence, non_authoritative) for occurrence in occurrences):
             explicit.append(target)
-
     if non_authoritative_targets:
         raise _fail(
             "Quoted or illustrative target text cannot select engagement scope: "
@@ -155,30 +229,10 @@ def _resolve_target(goal: str, engagement: dict[str, Any], selection: dict[str, 
             next_action="Submit one goal per exact included target.",
         )
 
-    selected_target = selection.get("target")
-    if selected_target is not None and not isinstance(selected_target, str):
-        raise _fail(
-            "metadata.goal_selection.target must be a string",
-            code="invalid_selection",
-            next_action="Record one exact included target in metadata.goal_selection.target.",
-        )
-    canonical_selection = (
-        next(
-            (target for target in included if target.casefold() == selected_target.strip().casefold()),
-            None,
-        )
-        if selected_target is not None
-        else None
-    )
-    if selected_target is not None and canonical_selection is None:
-        raise _fail(
-            "metadata.goal_selection.target is not an exact included target",
-            code="selection_out_of_scope",
-            next_action="Change metadata.goal_selection.target to an exact member of scope.included_targets.",
-        )
-
+    if selection_error is not None:
+        raise selection_error
     if explicit:
-        if canonical_selection is not None and canonical_selection.casefold() != explicit[0].casefold():
+        if canonical_selection is not None and _target_key(canonical_selection) != _target_key(explicit[0]):
             raise _fail(
                 "The explicitly named target conflicts with metadata.goal_selection.target",
                 code="conflicting_target_selection",
@@ -205,10 +259,10 @@ def _validate_goal_detail(goal: str, target: str, target_source: str) -> dict[st
             code="missing_assessment_intent",
             next_action="Start with a direct request such as 'Assess the selected endpoint'.",
         )
-    subject = re.escape(target) if target_source == "goal" else r"the\s+selected(?:\s+production)?\s+endpoint"
-    supported_detail = rf"{subject}(?:\s+for\s+exposed\s+services)?(?:\s+safely)?[.!?]?"
+    subject = re.escape(target) if target_source == "goal" else _SELECTED_SUBJECT
+    supported_detail = _supported_detail_pattern(subject)
     detail = goal[intent.end() :].strip()
-    if re.fullmatch(supported_detail, detail, re.IGNORECASE) is None:
+    if re.fullmatch(supported_detail, detail, _ASCII_CASE_INSENSITIVE) is None:
         raise _fail(
             "Goal contains a target or instruction this resolver cannot interpret",
             code="unsupported_goal_detail",
@@ -220,9 +274,9 @@ def _validate_goal_detail(goal: str, target: str, target_source: str) -> dict[st
     return {
         "verb": intent.group("verb").lower(),
         "detail": (
-            "exposed_services" if re.search(r"\bfor\s+exposed\s+services\b", detail, re.IGNORECASE) else "unspecified"
+            "exposed_services" if re.search(r"\bfor\s+exposed\s+services\b", detail, _ASCII_CASE_INSENSITIVE) else "unspecified"
         ),
-        "safe_mode_requested": bool(re.search(r"\bsafely\b", detail, re.IGNORECASE)),
+        "safe_mode_requested": bool(re.search(r"\bsafely\b", detail, _ASCII_CASE_INSENSITIVE)),
         "status": "unbound",
     }
 
@@ -251,7 +305,9 @@ def resolve_engagement_goal(
             code="negated_assessment",
             next_action="State the assessment you want as a positive instruction, with explicit limits in the engagement contract.",
         )
-    if not _DIRECT_ASSESSMENT.search(goal):
+    stripped_goal = goal.strip()
+    intent = _DIRECT_ASSESSMENT.match(stripped_goal)
+    if intent is None:
         raise _fail(
             "Goal is not a direct request for an assessment action",
             code="missing_assessment_intent",
@@ -304,8 +360,8 @@ def resolve_engagement_goal(
             next_action="Record one exact included target in metadata.goal_selection.target.",
         )
 
-    target, target_source = _resolve_target(goal.strip(), validated, selection)
-    requested_intent = _validate_goal_detail(goal.strip(), target, target_source)
+    target, target_source = _resolve_target(stripped_goal[intent.end() :].strip(), validated, selection)
+    requested_intent = _validate_goal_detail(stripped_goal, target, target_source)
 
     try:
         contract_digest = "sha256:" + digest(validated)

@@ -163,6 +163,69 @@ def test_direct_target_can_be_selected_without_metadata(engagement: dict[str, ob
     assert result["resolution"]["targets"] == ["api.internal"]
 
 
+def test_ascii_case_variation_selects_exact_target(engagement: dict[str, object]) -> None:
+    unselected = copy.deepcopy(engagement)
+    unselected["scope"]["included_targets"] = ["wiki"]  # type: ignore[index]
+    unselected["metadata"] = {}
+    result = resolve_engagement_goal(goal="ASSESS WIKI.", engagement=unselected)
+    assert result["resolution"]["targets"] == ["wiki"]
+
+
+@pytest.mark.parametrize("lookalike", ["wiKi", "wıkı", "wİkİ"])
+def test_unicode_lookalike_cannot_select_ascii_target(
+    engagement: dict[str, object], lookalike: str
+) -> None:
+    unselected = copy.deepcopy(engagement)
+    unselected["scope"]["included_targets"] = ["wiki"]  # type: ignore[index]
+    unselected["metadata"] = {}
+    with pytest.raises(GoalResolutionError) as error:
+        resolve_engagement_goal(goal=f"Assess {lookalike}.", engagement=unselected)
+    assert error.value.code == "missing_target_selection"
+
+
+def test_unicode_lookalike_cannot_select_via_engagement_metadata(engagement: dict[str, object]) -> None:
+    changed = copy.deepcopy(engagement)
+    changed["scope"]["included_targets"] = ["wiki"]  # type: ignore[index]
+    changed["metadata"]["goal_selection"]["target"] = "wiKi"  # type: ignore[index]
+    with pytest.raises(GoalResolutionError) as error:
+        resolve_engagement_goal(goal="Assess the selected endpoint.", engagement=changed)
+    assert error.value.code == "selection_out_of_scope"
+
+
+@pytest.mark.parametrize(
+    ("goal", "other_target"),
+    [
+        ("Assess 10.0.0.5.", "assess"),
+        ("Can you assess the selected endpoint?", "you"),
+        ("Assess 10.0.0.5 for exposed services.", "services"),
+    ],
+)
+def test_request_framing_and_detail_cannot_select_another_target(
+    engagement: dict[str, object], goal: str, other_target: str
+) -> None:
+    changed = copy.deepcopy(engagement)
+    changed["scope"]["included_targets"].append(other_target)  # type: ignore[index]
+    result = resolve_engagement_goal(goal=goal, engagement=changed)
+    assert result["resolution"]["targets"] == ["10.0.0.5"]
+
+
+def test_excluded_target_in_request_verb_does_not_block_explicit_target(
+    engagement: dict[str, object],
+) -> None:
+    changed = copy.deepcopy(engagement)
+    changed["scope"]["excluded_targets"].append("assess")  # type: ignore[index]
+    result = resolve_engagement_goal(goal="Assess 10.0.0.5.", engagement=changed)
+    assert result["resolution"]["targets"] == ["10.0.0.5"]
+
+
+def test_request_can_select_target_named_like_verb(engagement: dict[str, object]) -> None:
+    changed = copy.deepcopy(engagement)
+    changed["scope"]["included_targets"].append("assess")  # type: ignore[index]
+    changed["metadata"] = {}
+    result = resolve_engagement_goal(goal="Assess assess.", engagement=changed)
+    assert result["resolution"]["targets"] == ["assess"]
+
+
 def test_polite_question_selects_recorded_target(engagement: dict[str, object]) -> None:
     result = resolve_engagement_goal(goal="Can you assess the selected endpoint?", engagement=engagement)
     assert result["resolution"]["targets"] == ["10.0.0.5"]
@@ -292,6 +355,24 @@ def test_goal_rejects_out_of_scope_metadata_selection(engagement: dict[str, obje
     with pytest.raises(GoalResolutionError) as error:
         resolve_engagement_goal(goal="Assess the selected endpoint.", engagement=changed)
     assert error.value.code == "selection_out_of_scope"
+
+
+@pytest.mark.parametrize(
+    ("goal", "code"),
+    [
+        ("Assess 10.0.0.1.", "excluded_target"),
+        ("Assess 10.0.0.5 and api.internal.", "ambiguous_targets"),
+        ('Assess the selected endpoint; for example, "10.0.0.5".', "non_authoritative_target"),
+    ],
+)
+def test_goal_scope_error_precedes_stale_selection(
+    engagement: dict[str, object], goal: str, code: str
+) -> None:
+    changed = copy.deepcopy(engagement)
+    changed["metadata"]["goal_selection"]["target"] = "stale.internal"  # type: ignore[index]
+    with pytest.raises(GoalResolutionError) as error:
+        resolve_engagement_goal(goal=goal, engagement=changed)
+    assert error.value.code == code
 
 
 @pytest.mark.parametrize(
