@@ -34,3 +34,35 @@ Feature: Execution Scope and Network Egress Enforcement
     Given an adapter receives an egress broker capability
     When the adapter executes in the worker network sandbox
     Then direct IPv4 and IPv6 connections are denied and mediated broker requests remain available
+
+  Scenario: Dispatching one exact POST through an operator gateway
+    Given a signed dispatch descriptor for authorization "auth-1" and dispatch "dispatch-1"
+    And the descriptor binds one gateway origin, request target, SPIFFE identity, account, project, region, model, endpoint, body digest, and body length
+    And the worker has a matching bounded request body
+    When the worker completes gateway transport preflight
+    Then it sends exactly one HTTPS POST to the bound gateway origin and request target
+    And it treats the provider target only as signed authorization data and exposes no provider credential to the worker
+
+  Scenario: Rejecting an invalid gateway POST before consuming approval
+    Given a pending one-use authorization and a signed dispatch descriptor
+    When the gateway origin, request target, SPIFFE identity, body digest, or body length fails validation
+    Then the worker sends no request
+    And the authorization remains unconsumed
+
+  Scenario: Rejecting redirects and retries for a gateway POST
+    Given an approved gateway POST dispatch has been transmitted once
+    When the gateway returns a redirect or the connection result is unknown
+    Then the dispatch is recorded with a redacted rejected or unknown outcome
+    And the worker does not follow a redirect or send another request
+
+  Scenario: Rejecting a replayed dispatch at the gateway
+    Given a gateway has durably claimed dispatch "dispatch-1"
+    When it receives another request for dispatch "dispatch-1"
+    Then it rejects the request before an upstream provider attempt
+    And it emits only redacted replay evidence
+
+  Scenario: Keeping synthetic gateway evidence free of provider data
+    Given the loopback-only gateway emulator receives a valid dispatch
+    When it validates the descriptor and returns a synthetic outcome
+    Then its evidence contains only identifiers, hashes, byte counts, decision codes, and bounded status metadata
+    And it contains no provider credential, raw request body, authorization header, raw provider response, or provider network destination
