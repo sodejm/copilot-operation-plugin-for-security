@@ -86,6 +86,25 @@ DNS response identification in this disposable namespace. Other UDP services,
 other malformed-response variants, external networks, and native Windows/macOS
 operation remain unverified.
 
+Another 2026-10-14 run exercised the actual scanner against `::1/128` in the
+same disposable network namespace. A live TCP listener was `open`, a closed TCP
+port was `closed`, a responding UDP listener was `open`, and a silent UDP
+listener was `unknown`. The TCP listener accepted one connection and each UDP
+listener received one empty datagram. All four assessments retained `::1` as
+the resolved address. The harness reports `unavailable` if IPv6 loopback is
+disabled. This verifies bounded IPv6 loopback probes on this Linux image; it
+does not establish IPv6 behavior across a routed network or native Windows and
+macOS scanning.
+
+The repository's Linux, macOS, and Windows operator-smoke jobs also run the
+scanner against local TCP and UDP listeners. They check an IPv4 UDP reply and
+silence, validated and rejected DNS replies, a server-first SSH banner, and
+IPv6 TCP and UDP behavior when the runner exposes `::1`. An unavailable IPv6
+loopback is reported as a skip, not evidence that IPv6 scanning passed. These
+native checks do not establish routed-network reachability or full-range scan
+performance. A developer sandbox that denies local socket binds skips the local
+test; CI requires live socket access and fails if binds are denied.
+
 TCP fingerprint tests also reject a generic `220` greeting on conventional SMTP
 and FTP ports as insufficient to identify the service. A protocol-specific banner
 can identify SMTP or FTP on a nonstandard port. The 2026-10-14 isolated Linux run

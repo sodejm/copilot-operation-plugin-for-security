@@ -43,7 +43,8 @@ def require_isolated_network() -> None:
 
 @contextmanager
 def listener(address: str = "127.0.0.1"):
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    family = socket.AF_INET6 if address == "::1" else socket.AF_INET
+    server = socket.socket(family, socket.SOCK_STREAM)
     try:
         server.bind((address, 0))
         server.listen(8)
@@ -184,8 +185,8 @@ def shifted_dns_server():
 class ProbeUdpServer(socketserver.UDPServer):
     allow_reuse_address = False
 
-    def __init__(self, respond: bool) -> None:
-        super().__init__(("127.0.0.1", 0), self.Answer)
+    def __init__(self, respond: bool, address: str = "127.0.0.1") -> None:
+        super().__init__((address, 0), self.Answer)
         self.respond = respond
         self.datagrams: list[bytes] = []
 
@@ -197,9 +198,14 @@ class ProbeUdpServer(socketserver.UDPServer):
                 reply_socket.sendto(b"acceptance-response", self.client_address)
 
 
+class IPv6ProbeUdpServer(ProbeUdpServer):
+    address_family = socket.AF_INET6
+
+
 @contextmanager
-def udp_probe_server(respond: bool):
-    server = ProbeUdpServer(respond)
+def udp_probe_server(respond: bool, address: str = "127.0.0.1"):
+    server_type = IPv6ProbeUdpServer if address == "::1" else ProbeUdpServer
+    server = server_type(respond, address)
     thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01})
     thread.start()
     try:
@@ -226,6 +232,49 @@ def check_udp() -> dict[str, object]:
         )
         require("cannot be distinguished" in result.assessments[1].error_message, "Silent UDP result lost uncertainty")
         return {"states": states, "listener_datagrams": [1, 1], "payload": "empty_datagram"}
+
+
+def check_ipv6() -> dict[str, object]:
+    """Exercise the actual scanner against live IPv6 TCP and UDP loopback sockets."""
+    try:
+        with listener("::1") as closed_socket:
+            closed_port = closed_socket.getsockname()[1]
+    except OSError as err:
+        if err.errno in (errno.EAFNOSUPPORT, errno.EADDRNOTAVAIL):
+            return {"status": "unavailable", "reason": "IPv6 loopback is disabled in this namespace"}
+        raise
+
+    with listener("::1") as tcp_open, udp_probe_server(True, "::1") as udp_open, udp_probe_server(
+        False, "::1"
+    ) as udp_silent:
+        tcp_port = tcp_open.getsockname()[1]
+        udp_ports = [udp_open.server_address[1], udp_silent.server_address[1]]
+        result = scan(
+            session("ipv6-loopback", "::1", [tcp_port, closed_port], udp_ports=udp_ports),
+            ip_range="::1/128",
+        )
+        assessments = result.assessments
+        states = [assessment.port_state for assessment in assessments]
+        require(
+            states == [PortState.OPEN.value, PortState.CLOSED.value, PortState.OPEN.value, PortState.UNKNOWN.value],
+            "IPv6 TCP or UDP states were misclassified",
+        )
+        require(all(assessment.resolved_ip == "::1" for assessment in assessments), "IPv6 target was not retained")
+        require(accepted_count(tcp_open) == 1, "IPv6 listener received an unexpected connection count")
+        require(udp_open.datagrams == [b""] and udp_silent.datagrams == [b""], "IPv6 UDP probes changed")
+        require(
+            assessments[2].observed_config.protocol_metadata.get("probe_payload") == "empty_datagram",
+            "IPv6 UDP payload provenance was lost",
+        )
+        require("cannot be distinguished" in assessments[3].error_message, "IPv6 UDP silence lost uncertainty")
+        return {
+            "status": "passed",
+            "target": "::1/128",
+            "tcp_states": states[:2],
+            "udp_states": states[2:],
+            "tcp_listener_accepts": 1,
+            "udp_listener_datagrams": [1, 1],
+        }
 
 
 class DnsProbeServer(socketserver.UDPServer):
@@ -528,6 +577,7 @@ def main() -> None:
         "unreachable": check_unreachable(),
         "dns_shift": check_dns_shift(),
         "udp": check_udp(),
+        "ipv6": check_ipv6(),
         "udp_dns": check_udp_dns(),
         "partial_resume": check_partial_resume(),
         "remediation": check_remediation(),
