@@ -69,14 +69,15 @@ class TestActiveDiscoveryModelsAndFingerprinting(unittest.TestCase):
         context = _create_tls_context()
         self.assertEqual(context.minimum_version, ssl.TLSVersion.TLSv1_2)
 
-    def test_ssh_fingerprint_high_confidence(self):
+    def test_ssh_fingerprint_preserves_banner_uncertainty(self):
         obs = ObservedConfiguration(raw_banner="SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.6\r\n")
         fp = infer_service_fingerprint("ssh.corp.internal", 22, "tcp", obs)
         self.assertEqual(fp.service_name, "ssh")
         self.assertEqual(fp.product, "OpenSSH")
         self.assertEqual(fp.version, "8.9p1")
-        self.assertEqual(fp.os_inferred, "Ubuntu Linux")
-        self.assertEqual(fp.confidence, ConfidenceLevel.HIGH.value)
+        self.assertIsNone(fp.os_inferred)
+        self.assertEqual(fp.confidence, ConfidenceLevel.MEDIUM.value)
+        self.assertTrue(any("self-reported" in reason for reason in fp.uncertainty_reasons))
         self.assertIn("ssh_protocol_banner", fp.evidence_sources)
 
     def test_generic_220_banner_does_not_identify_smtp_or_ftp_by_port(self):
@@ -96,7 +97,7 @@ class TestActiveDiscoveryModelsAndFingerprinting(unittest.TestCase):
             with self.subTest(port=port):
                 fp = infer_service_fingerprint("198.51.100.10", port, "tcp", ObservedConfiguration(raw_banner=banner))
                 self.assertEqual(fp.service_name, service)
-                self.assertEqual(fp.confidence, ConfidenceLevel.HIGH.value)
+                self.assertEqual(fp.confidence, ConfidenceLevel.MEDIUM.value)
 
     def test_http_nginx_fingerprint_with_proxy_uncertainty(self):
         obs = ObservedConfiguration(

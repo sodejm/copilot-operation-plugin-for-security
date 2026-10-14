@@ -76,8 +76,17 @@ Windows and macOS operation, and full-range scan performance remain unverified.
 
 TCP fingerprint tests also reject a generic `220` greeting on conventional SMTP
 and FTP ports as insufficient to identify the service. A protocol-specific banner
-can identify SMTP or FTP on a nonstandard port. These are simulated fingerprint
-tests, not proof of live service validation or banner authenticity.
+can identify SMTP or FTP on a nonstandard port. The 2026-10-14 isolated Linux run
+also observed a live SSH listener sending `SSH-2.0-OpenSSH_9.2p1 test-build` on
+an ephemeral port. The scanner made one connection, sent no application payload,
+preserved the original banner bytes, and reported SSH version `9.2p1` with medium
+confidence. For non-TLS TCP ports, this optional server-first read waits at most
+50 ms and stores at most 512 received bytes per probe. The local probe record has
+a SHA-256 reference for traceability; it does not authenticate the remote service
+or attest the scanner environment. Banner text and product/version claims are
+self-reported and may be hostile or misleading. The run did not establish
+request-driven HTTP service identification, TLS peer authentication, native
+Windows or macOS operation, or full-range scan performance.
 
 Run `python3 -m pytest tests/test_active_discovery.py -q` for the simulated
 edge cases and `make check` for the repository baseline.

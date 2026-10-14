@@ -403,13 +403,14 @@ def when_fingerprints_evaluated(bdd_ctx):
     bdd_ctx["fingerprints"]["tls"] = infer_service_fingerprint("app.corp.internal", 443, "tcp", tls_obs)
 
 
-@then("SSH banners produce high-confidence product and OS inferences")
-def then_ssh_high_confidence(bdd_ctx):
+@then("SSH banners identify a self-reported product and version without inferring the host OS")
+def then_ssh_banner_uncertainty(bdd_ctx):
     fp = bdd_ctx["fingerprints"]["ssh"]
     assert fp.product == "OpenSSH"
     assert fp.version == "8.9p1"
-    assert fp.os_inferred == "Ubuntu Linux"
-    assert fp.confidence == ConfidenceLevel.HIGH.value
+    assert fp.os_inferred is None
+    assert fp.confidence == ConfidenceLevel.MEDIUM.value
+    assert any("self-reported" in reason for reason in fp.uncertainty_reasons)
 
 
 @then("HTTP server headers fronted by reverse proxies record explicit uncertainty reasons")

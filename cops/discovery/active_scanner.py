@@ -8,6 +8,7 @@ import ipaddress
 import json
 import math
 import os
+import select
 import socket
 import ssl
 import time
@@ -32,6 +33,7 @@ from .active_models import (
     TargetShiftQuarantine,
 )
 from .fingerprinter import infer_service_fingerprint
+from .models import EvidenceProvenance
 
 
 class ActiveScanError(Exception):
@@ -73,12 +75,26 @@ def _live_checkpoint_lock(path: Path) -> Iterator[None]:
 
 
 def _create_tls_context() -> ssl.SSLContext:
-    """Create a client TLS context that cannot negotiate deprecated protocol versions."""
+    """Create a TLS observation context; this does not authenticate the peer."""
     context = ssl.create_default_context()
     context.minimum_version = ssl.TLSVersion.TLSv1_2
     context.check_hostname = False
     context.verify_mode = ssl.CERT_NONE
     return context
+
+
+def _record_local_probe(assessment: ActiveServiceAssessment) -> ActiveServiceAssessment:
+    """Hash the local result for traceability without claiming remote attestation."""
+    record = json.dumps(assessment.to_dict(), sort_keys=True, separators=(",", ":")).encode("utf-8")
+    assessment.provenance = EvidenceProvenance(
+        source_id=assessment.probe_id,
+        source_type="unattested_local_socket_observation",
+        sha256=hashlib.sha256(record).hexdigest(),
+        timestamp=assessment.timestamp_utc,
+        path_or_uri=f"probe://{assessment.probe_id}",
+        raw_record_ref="assessment_without_provenance",
+    )
+    return assessment
 
 
 class ScopeViolationError(ActiveScanError):
@@ -279,7 +295,7 @@ class StandardSocketDispatcher(ProbeDispatcher):
         vantage: str = "external",
     ) -> ActiveServiceAssessment:
         if protocol == Protocol.UDP.value:
-            return self._dispatch_udp(target_host, resolved_ip, port, timeout, vantage)
+            return _record_local_probe(self._dispatch_udp(target_host, resolved_ip, port, timeout, vantage))
         if protocol != Protocol.TCP.value:
             raise ActiveScanError(f"Unsupported live probe protocol: {protocol}")
         probe_key = ActiveScanSession.make_probe_key(vantage, protocol, target_host, port)
@@ -297,9 +313,12 @@ class StandardSocketDispatcher(ProbeDispatcher):
             observed_tls = None
             http_status = None
             http_headers = {}
+            protocol_metadata: dict[str, Any] = {}
 
-            # If TLS port (443, 8443) or requested
+            # A passive, bounded server-first read uses no application request.
+            # TLS ports instead start their handshake immediately.
             if port in (443, 8443):
+                protocol_metadata["tls_certificate_validation"] = "not_performed"
                 ctx = _create_tls_context()
                 try:
                     with ctx.wrap_socket(sock, server_hostname=target_host) as ssock:
@@ -313,6 +332,25 @@ class StandardSocketDispatcher(ProbeDispatcher):
                 except (OSError, ssl.SSLError):
                     # Failed TLS negotiation leaves observed_tls unset.
                     pass
+            else:
+                banner_wait = min(timeout, 0.05)
+                protocol_metadata["banner_probe"] = "server_first_no_payload"
+                protocol_metadata["banner_wait_seconds"] = banner_wait
+                try:
+                    readable, _, _ = select.select([sock], [], [], banner_wait)
+                    if readable:
+                        response = sock.recv(512)
+                        if response:
+                            banner_bytes = response.hex()
+                            decoded = response.decode("utf-8", errors="replace")
+                            raw_banner = "".join(
+                                char if char.isprintable() or char in "\r\n\t" else "\ufffd" for char in decoded
+                            )
+                            protocol_metadata["banner_bytes_observed"] = len(response)
+                except (OSError, TimeoutError):
+                    # An established TCP connection remains open even if its
+                    # optional banner cannot be read.
+                    protocol_metadata["banner_read_error"] = "read_failed"
 
             observed_config = ObservedConfiguration(
                 raw_banner=raw_banner,
@@ -320,38 +358,43 @@ class StandardSocketDispatcher(ProbeDispatcher):
                 http_status=http_status,
                 http_headers=http_headers,
                 tls=observed_tls,
+                protocol_metadata=protocol_metadata,
             )
 
             fingerprint = infer_service_fingerprint(target_host, port, protocol, observed_config)
 
-            return ActiveServiceAssessment(
-                probe_id=probe_id,
-                target_host=target_host,
-                resolved_ip=resolved_ip,
-                port=port,
-                protocol=protocol,
-                vantage=vantage,
-                port_state=PortState.OPEN.value,
-                reachability=ServiceReachability.REACHABLE.value,
-                observed_config=observed_config,
-                inferred_fingerprint=fingerprint,
-                latency_ms=latency_ms,
-                timestamp_utc=timestamp,
+            return _record_local_probe(
+                ActiveServiceAssessment(
+                    probe_id=probe_id,
+                    target_host=target_host,
+                    resolved_ip=resolved_ip,
+                    port=port,
+                    protocol=protocol,
+                    vantage=vantage,
+                    port_state=PortState.OPEN.value,
+                    reachability=ServiceReachability.REACHABLE.value,
+                    observed_config=observed_config,
+                    inferred_fingerprint=fingerprint,
+                    latency_ms=latency_ms,
+                    timestamp_utc=timestamp,
+                )
             )
         except TimeoutError:
-            return ActiveServiceAssessment(
-                probe_id=probe_id,
-                target_host=target_host,
-                resolved_ip=resolved_ip,
-                port=port,
-                protocol=protocol,
-                vantage=vantage,
-                port_state=PortState.FILTERED.value,
-                reachability=ServiceReachability.FILTERED.value,
-                observed_config=ObservedConfiguration(),
-                latency_ms=timeout * 1000.0,
-                timestamp_utc=timestamp,
-                error_message="Socket connection timed out",
+            return _record_local_probe(
+                ActiveServiceAssessment(
+                    probe_id=probe_id,
+                    target_host=target_host,
+                    resolved_ip=resolved_ip,
+                    port=port,
+                    protocol=protocol,
+                    vantage=vantage,
+                    port_state=PortState.FILTERED.value,
+                    reachability=ServiceReachability.FILTERED.value,
+                    observed_config=ObservedConfiguration(),
+                    latency_ms=timeout * 1000.0,
+                    timestamp_utc=timestamp,
+                    error_message="Socket connection timed out",
+                )
             )
         except OSError as err:
             refused = err.errno == errno.ECONNREFUSED
@@ -361,31 +404,33 @@ class StandardSocketDispatcher(ProbeDispatcher):
                 errno.ENETDOWN,
                 errno.EHOSTDOWN,
             }
-            return ActiveServiceAssessment(
-                probe_id=probe_id,
-                target_host=target_host,
-                resolved_ip=resolved_ip,
-                port=port,
-                protocol=protocol,
-                vantage=vantage,
-                port_state=(
-                    PortState.CLOSED.value
-                    if refused
-                    else PortState.UNREACHABLE.value
-                    if no_route
-                    else PortState.UNKNOWN.value
-                ),
-                reachability=(
-                    ServiceReachability.REACHABLE.value
-                    if refused
-                    else ServiceReachability.UNREACHABLE.value
-                    if no_route
-                    else ServiceReachability.UNKNOWN.value
-                ),
-                observed_config=ObservedConfiguration(),
-                latency_ms=None,
-                timestamp_utc=timestamp,
-                error_message=str(err),
+            return _record_local_probe(
+                ActiveServiceAssessment(
+                    probe_id=probe_id,
+                    target_host=target_host,
+                    resolved_ip=resolved_ip,
+                    port=port,
+                    protocol=protocol,
+                    vantage=vantage,
+                    port_state=(
+                        PortState.CLOSED.value
+                        if refused
+                        else PortState.UNREACHABLE.value
+                        if no_route
+                        else PortState.UNKNOWN.value
+                    ),
+                    reachability=(
+                        ServiceReachability.REACHABLE.value
+                        if refused
+                        else ServiceReachability.UNREACHABLE.value
+                        if no_route
+                        else ServiceReachability.UNKNOWN.value
+                    ),
+                    observed_config=ObservedConfiguration(),
+                    latency_ms=None,
+                    timestamp_utc=timestamp,
+                    error_message=str(err),
+                )
             )
         finally:
             if sock:

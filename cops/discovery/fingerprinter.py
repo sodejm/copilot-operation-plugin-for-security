@@ -30,22 +30,15 @@ def infer_service_fingerprint(
         evidence_sources.append("ssh_protocol_banner")
         match = re.match(r"^SSH-([0-9.]+)-([^\s_]+)(?:_([^\s]+))?(?:\s+(.*))?", raw_banner.strip())
         if match:
-            proto_ver, prod, ver, comment = match.groups()
-            os_inferred = None
-            if comment:
-                if "ubuntu" in comment.lower():
-                    os_inferred = "Ubuntu Linux"
-                elif "debian" in comment.lower():
-                    os_inferred = "Debian Linux"
-                elif "freebsd" in comment.lower():
-                    os_inferred = "FreeBSD"
+            _, prod, ver, _ = match.groups()
+            uncertainty_reasons.append("SSH banner is self-reported and does not verify product, version, or host OS")
 
             return InferredFingerprint(
                 service_name="ssh",
                 product=prod or "OpenSSH",
                 version=ver,
-                os_inferred=os_inferred,
-                confidence=ConfidenceLevel.HIGH.value,
+                os_inferred=None,
+                confidence=ConfidenceLevel.MEDIUM.value,
                 uncertainty_reasons=uncertainty_reasons,
                 evidence_sources=evidence_sources,
             )
@@ -96,16 +89,11 @@ def infer_service_fingerprint(
                 m = re.search(r"Apache/([0-9.]+)", server_header, re.IGNORECASE)
                 if m:
                     version = m.group(1)
-                if "ubuntu" in server_header.lower():
-                    os_inferred = "Ubuntu Linux"
-                elif "debian" in server_header.lower():
-                    os_inferred = "Debian Linux"
             elif "microsoft-iis" in server_header.lower():
                 product = "Microsoft IIS"
                 m = re.search(r"Microsoft-IIS/([0-9.]+)", server_header, re.IGNORECASE)
                 if m:
                     version = m.group(1)
-                os_inferred = "Windows Server"
             else:
                 product = server_header.split()[0]
                 confidence = ConfidenceLevel.LOW.value
@@ -191,19 +179,17 @@ def infer_service_fingerprint(
         evidence_sources.append("smtp_banner")
         product = "SMTP Server"
         version = None
-        os_inferred = None
         if "postfix" in raw_banner.lower():
             product = "Postfix"
-            if "ubuntu" in raw_banner.lower():
-                os_inferred = "Ubuntu Linux"
         elif "exim" in raw_banner.lower():
             product = "Exim"
+        uncertainty_reasons.append("SMTP greeting is self-reported and does not verify product or host OS")
         return InferredFingerprint(
             service_name="smtp",
             product=product,
             version=version,
-            os_inferred=os_inferred,
-            confidence=ConfidenceLevel.HIGH.value,
+            os_inferred=None,
+            confidence=ConfidenceLevel.MEDIUM.value,
             uncertainty_reasons=uncertainty_reasons,
             evidence_sources=evidence_sources,
         )
@@ -222,11 +208,12 @@ def infer_service_fingerprint(
             version = m.group(2)
         else:
             version = None
+        uncertainty_reasons.append("FTP greeting is self-reported and does not verify product or host OS")
         return InferredFingerprint(
             service_name="ftp",
             product=product,
             version=version,
-            confidence=ConfidenceLevel.HIGH.value,
+            confidence=ConfidenceLevel.MEDIUM.value,
             uncertainty_reasons=uncertainty_reasons,
             evidence_sources=evidence_sources,
         )

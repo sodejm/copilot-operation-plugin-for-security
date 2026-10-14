@@ -226,6 +226,41 @@ def check_udp() -> dict[str, object]:
         return {"states": states, "listener_datagrams": [1, 1], "payload": "empty_datagram"}
 
 
+def check_server_first_banner() -> dict[str, object]:
+    """Identify a service from bytes sent without any application request."""
+    with listener() as server:
+        port = server.getsockname()[1]
+        received: list[bytes] = []
+
+        def serve_once() -> None:
+            connection, _ = server.accept()
+            with connection:
+                connection.sendall(b"SSH-2.0-OpenSSH_9.2p1 test-build\r\n")
+                connection.settimeout(0.3)
+                try:
+                    received.append(connection.recv(1))
+                except TimeoutError:
+                    received.append(b"")
+
+        thread = threading.Thread(target=serve_once)
+        thread.start()
+        try:
+            result = scan(session("server-first-banner", "127.0.0.1", [port]))
+        finally:
+            thread.join(timeout=1)
+        require(not thread.is_alive(), "Banner listener did not stop")
+        assessment = result.assessments[0]
+        require(assessment.port_state == PortState.OPEN.value, "Banner listener was not reached")
+        require(assessment.inferred_fingerprint.service_name == "ssh", "Live banner did not identify SSH")
+        require(assessment.inferred_fingerprint.version == "9.2p1", "Live SSH version was not observed")
+        require(received == [b""], "Scanner sent an unexpected application payload")
+        require(
+            assessment.observed_config.banner_bytes == b"SSH-2.0-OpenSSH_9.2p1 test-build\r\n".hex(),
+            "Original banner bytes were not preserved",
+        )
+        return {"service": "ssh", "confidence": assessment.inferred_fingerprint.confidence, "sent_payload_bytes": 0}
+
+
 def check_rate_limit() -> dict[str, object]:
     with listener() as first, listener() as second:
         ports = [first.getsockname()[1], second.getsockname()[1]]
@@ -402,6 +437,7 @@ def check_remediation() -> dict[str, object]:
 def main() -> None:
     require_isolated_network()
     cases = {
+        "server_first_banner": check_server_first_banner(),
         "rate_limit": check_rate_limit(),
         "unreachable": check_unreachable(),
         "dns_shift": check_dns_shift(),

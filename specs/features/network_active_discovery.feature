@@ -37,7 +37,7 @@ Feature: Network Active Discovery and Service Identification
   Scenario: Distinguishing reachable services, inferred fingerprints, and observed configuration with visible uncertainty
     Given target endpoints with varying service configurations and reverse proxies
     When the service identification engine evaluates observed response banners and TLS handshakes
-    Then SSH banners produce high-confidence product and OS inferences
+    Then SSH banners identify a self-reported product and version without inferring the host OS
     And HTTP server headers fronted by reverse proxies record explicit uncertainty reasons
     And mismatched TLS certificate subjects lower inference confidence
 
