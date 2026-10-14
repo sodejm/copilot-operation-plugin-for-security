@@ -87,6 +87,12 @@ Invoke this planner under the following concrete triggers:
 5. **Verify Remediated Exposures**:
    - Evaluate remediation delta between baseline and re-test sessions: `python3 -m cops discovery active diff ...`.
 
+#### Service entry-point handoff
+
+`cops.discovery.prepare_session_service_handoffs` turns a recorded active scan session into offline service-validation candidates. The coordinator must supply exact approved endpoints from validated engagement scope; the scan checkpoint is evidence, not scope authority. The handoff preserves host, resolved IP, port, transport, and vantage, carries forward resolution quarantines, and routes only a recognized protocol response. A port-derived fingerprint or TLS certificate without a protocol response leaves the service unverified. The current live socket dispatcher generally records reachability and TLS metadata without a service banner, so its output usually needs a separately authorized identification action before specialist routing.
+
+Each candidate includes a digest-bound proposal for the relevant service specialist, expected proof, rollback, and stop conditions. Preparing it sends no traffic and grants no execution authority or budget. The coordinator must bind the proposal to the approved run, recheck scope and target identity, then authorize and account for each executed action and retry. An open port is exposure; a routed candidate is neither a verified weakness nor a successful use. Report unavailable, conflicting, and unverified services as such. This handoff does not yet complete the issue's native service validation or controlled proof acceptance.
+
 ### Phase 2d: Infrastructure & Identity Services Assessment
 **Skill**: [`network-infrastructure-services`](../skills/network-infrastructure-services/SKILL.md)
 
