@@ -182,8 +182,10 @@ def infer_service_fingerprint(
             evidence_sources=["tls_handshake"],
         )
 
-    # 3. SMTP Analysis
-    if protocol == "tcp" and raw_banner.startswith("220") and ("smtp" in raw_banner.lower() or port in (25, 465, 587)):
+    # 3. SMTP Analysis. A generic 220 greeting is shared by multiple protocols.
+    if protocol == "tcp" and raw_banner.startswith("220") and re.search(
+        r"\b(?:esmtp|smtp|postfix|exim)\b", raw_banner, re.IGNORECASE
+    ):
         evidence_sources.append("smtp_banner")
         product = "SMTP Server"
         version = None
@@ -205,7 +207,9 @@ def infer_service_fingerprint(
         )
 
     # 4. FTP Analysis
-    if protocol == "tcp" and raw_banner.startswith("220") and ("ftp" in raw_banner.lower() or port == 21):
+    if protocol == "tcp" and raw_banner.startswith("220") and re.search(
+        r"\b(?:ftp|vsftpd|proftpd|pure-ftpd)\b", raw_banner, re.IGNORECASE
+    ):
         evidence_sources.append("ftp_banner")
         product = "FTP Server"
         m = re.search(r"(vsftpd|proftpd|pure-ftpd)(?:\s+([0-9.]+))?", raw_banner, re.IGNORECASE)
@@ -223,11 +227,15 @@ def infer_service_fingerprint(
             evidence_sources=evidence_sources,
         )
 
-    # A port number alone cannot establish which service answered.
+    # A port number or generic greeting cannot establish which service answered.
     uncertainty_reasons.append(
-        "Port accepted TCP connection but emitted no descriptive protocol banner"
-        if protocol == "tcp"
-        else "UDP datagram response did not identify an application protocol"
+        "TCP response did not identify an application protocol"
+        if protocol == "tcp" and raw_banner
+        else (
+            "Port accepted TCP connection but emitted no descriptive protocol banner"
+            if protocol == "tcp"
+            else "UDP datagram response did not identify an application protocol"
+        )
     )
     return InferredFingerprint(
         service_name=f"unknown-{port}",
@@ -235,5 +243,5 @@ def infer_service_fingerprint(
         version=None,
         confidence=ConfidenceLevel.UNCERTAIN.value,
         uncertainty_reasons=uncertainty_reasons,
-        evidence_sources=["port_association"],
+        evidence_sources=["tcp_banner" if raw_banner and protocol == "tcp" else "port_association"],
     )
