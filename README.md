@@ -22,6 +22,10 @@ for a complete case with malicious, benign, and insufficient-evidence outcomes.
 The [runnable workflow index](docs/plugin-playbacks.md) links every plugin's
 usage, design, schema reference, and checked playback.
 
+The [service attack notice registry](docs/SERVICE_ATTACK_NOTICES.md) provides a
+versioned, source-scoped offline assessment contract for service inventory and
+endpoint-validation evidence.
+
 Use the [plugin verification playbooks](docs/plugin-verification.md) to test each
 package end to end, record qualification evidence, and update its maturity status
 after review.

@@ -551,6 +551,21 @@ def build_parser() -> argparse.ArgumentParser:
     generate = subparsers.add_parser("generate", help="generate host indexes from the catalog")
     generate.add_argument("--check", action="store_true", help="fail instead of writing when indexes are stale")
 
+    service_notices = subparsers.add_parser(
+        "service-notices",
+        help="validate and assess the offline service attack notice registry",
+    )
+    service_notices_sub = service_notices.add_subparsers(dest="service_notices_command", required=True)
+    service_notices_validate = service_notices_sub.add_parser("validate", help="validate the local notice registry")
+    service_notices_validate.add_argument("--json", action="store_true", help="output structured JSON")
+    service_notices_list = service_notices_sub.add_parser("list", help="list local service attack notices")
+    service_notices_list.add_argument("--json", action="store_true", help="output structured JSON")
+    service_notices_assess = service_notices_sub.add_parser(
+        "assess", help="assess one bounded local asset context against every notice"
+    )
+    service_notices_assess.add_argument("--input", required=True, type=Path, help="bounded local asset JSON")
+    service_notices_assess.add_argument("--json", action="store_true", help="output structured JSON")
+
     cov_parser = subparsers.add_parser("coverage", help="inspect ATT&CK coverage, gap analysis, and Attack Flow")
     cov_parser.add_argument("--matrix", action="store_true", help="render the Markdown coverage matrix")
     cov_parser.add_argument("--output", type=Path, help="write coverage matrix to file")
@@ -916,6 +931,10 @@ def main(argv: list[str] | None = None, *, root: Path = ROOT) -> int:
             return command_check(args.plugin_ids, root)
         if args.command == "generate":
             return command_generate(check=args.check, root=root)
+        if args.command == "service-notices":
+            from .service_notices import command_service_notices
+
+            return command_service_notices(args, root=root)
         if args.command == "coverage":
             return command_coverage(
                 matrix=args.matrix,

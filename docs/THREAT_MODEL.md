@@ -54,6 +54,7 @@ private payloads and real identifiers must never be copied into this document.
 | Approved local corpus → private Linux worker workspace → offline research adapter → run result | The signed plan binds corpus, inventory, isolation, and executable digests. The worker checks a fresh namespace observation before approval consumption and before each external adapter starts; its own measurements do not independently attest host controls. |
 | Operator-supplied synthetic case → runner → agent fixture proposal → authorization gate → MCP stdio fixture → observed state/report | Case text and MCP tool output are untrusted data. The agent child proposes but has no MCP pipe; only the runner can forward a proposal after case-scoped checks. The separate child processes share the host's OS authority, so their stdio boundary is not an OS network sandbox. |
 | Synthetic provider plan and response fixture → exact plan gate → assessment budget ledger → normalized content-free report | Provider-shaped input remains untrusted. Exact environment, scope, endpoint, model, canary, tool and request-digest binding precede reservation and fixture processing. The importer makes no network request and executes no proposed tool. |
+| Local asset context and service attack notice registry → bounded offline matcher → applicability report | Asset claims and notice content remain untrusted. Exact allowlists and prerequisite evidence produce conservative classifications, not vulnerability or exploitability findings. The matcher performs no network access or input-directed execution. |
 
 ```mermaid
 flowchart LR
@@ -152,6 +153,29 @@ The shared egress broker permits only `GET` and `HEAD`, which cannot carry a
 provider inference request. Live assessment requires a separately authorized
 execution boundary with exact POST origin, path, body and identity binding.
 
+### Service attack notice boundary
+
+The service attack notice command reads a versioned local registry and one
+bounded local asset JSON document. Its parser accepts regular UTF-8 files only,
+limits bytes and nesting, rejects duplicate keys and non-finite values, and
+validates exact fields. It rejects non-regular paths before opening and uses
+no-follow and nonblocking open flags where the host supports them. A local
+actor who can replace paths during the open remains an unresolved file-integrity
+risk on hosts without those flags. Registry sources must use allowlisted HTTPS primary
+source hosts, but URLs are metadata: the command never fetches them. Input is
+data and cannot select code, commands, paths, or network destinations.
+
+Assessment uses exact product, operating-system, and version allowlists. A
+candidate additionally requires source-scoped service reachability,
+configuration, and contextual prerequisites. A port observation alone is
+insufficient. Missing or unlisted versions, missing evidence, and stale notices
+remain unknown. Withdrawn and superseded notices cannot become candidates.
+Candidate means only that a targeted investigation may be appropriate; it does
+not establish a vulnerability, exploitability, initial access, or authorization
+to scan. The matcher labels asset input as unverified. It cannot authenticate
+either the asset claims or the source research and depends on human monthly
+and high-impact review.
+
 ## Implementation evidence inventory
 
 - `cops/execution/store.py`: inspect at the baseline revision; evidence scope is limited to this component.
@@ -185,6 +209,7 @@ execution boundary with exact POST origin, path, body and identity binding.
 - `plugins/offensive-security/foundry-agent-harness/foundryharness/fixture_agent.py` and `mcp_fixture_server.py`: deterministic proposal and synthetic MCP state fixtures; neither establishes live model or host isolation behavior.
 - `plugins/offensive-security/foundry-agent-harness/tests/test_laboratory.py` and `specs/agent-mcp-laboratories.spec.md`: exact bundled-case inventory, synthetic case behavior, untrusted-config rejection, reset coverage and the local laboratory contract; malformed-protocol, timeout and reset-failure tests remain pending. No live endpoint or OS network-isolation evidence.
 - `cops/provider_assessment.py`, the Foundry Agent Harness `provider_fixtures/` and provider schemas, `tests/test_provider_assessment.py`, and `specs/ai-provider-assessment.spec.md`: bounded offline import, exact request binding, provider-specific state normalization, shared budget-ledger behavior, fixed report projection, and synthetic negative coverage. No provider request, credential, tool execution, billing, or remote cleanup evidence.
+- `catalog/service_attack_notices.json`, `cops/service_notices.py`, and `tests/test_service_notices.py`: versioned primary-source metadata, bounded parsing, exact allowlist assessment, lifecycle suppression, and synthetic positive and negative tests; no live asset or source verification.
 
 ## Threat register and prioritization
 
@@ -426,7 +451,15 @@ validation before the affected release/capability expansion and schedule P2 with
 - Proposed mitigation and validation: Keep provider-specific parsing and negative binding tests pinned to versioned schemas. Before adding live capability, separately authorize an exact provider origin, path, method, body class, credential identity, tenant/account and model; integrate export redaction at the send boundary; reconcile provider usage and billing independently; record cancellation request, observed stop and final usage separately; and verify remote cleanup and retention with provider evidence. Require exact-revision human security review.
 - Residual risk / status: Offline fixtures cannot authenticate a provider response, establish tenant or project ownership, prove usage or billing, verify remote cancellation or cleanup, or evaluate model and tool safety. A same-authority actor can rewrite fixtures and expected results together. No live or paid provider evidence is present.
 
-### T27: Synthetic playback or vendored snapshot overclaim
+### T27: Service notice scope or applicability overclaim
+
+- Attack path / prerequisite: A forged asset document, broadened product or version scope, stale notice, or port-only observation is treated as evidence of vulnerability or permission to investigate a live target.
+- Inherent impact: Medium; likelihood: Medium; priority: P2.
+- Existing evidence / limitation: Bounded strict parsing, exact product and version allowlists, mandatory reachability, configuration and contextual prerequisites, and lifecycle suppression constrain the offline matcher. Candidate output explicitly proposes investigation only. The tool cannot authenticate asset claims or independently refresh source research.
+- Proposed mitigation and validation: Keep malformed, insufficient-evidence, stale, withdrawn, fixed-version and wrong-product tests. Review primary sources monthly and after high-impact publications. Require separate authorization and live evidence before any target interaction or finding.
+- Residual risk / status: A same-authority actor can change the registry, asset fixture, and expected result together. Human source review and downstream interpretation remain trust boundaries; no live asset state, vulnerability, exploitability, or authorization is established.
+
+### T28: Synthetic playback or vendored snapshot overclaim
 
 - Attack path / prerequisite: A source-only dependency hides a broken exported package, an exit-zero no-op is treated as a successful demo, or a validated vendored snapshot is described as trusted, current or safe.
 - Inherent impact: High if synthetic or snapshot evidence is used as release or live-operating evidence; likelihood: Medium; priority: P1 before the affected release.
