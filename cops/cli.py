@@ -772,6 +772,14 @@ def build_parser() -> argparse.ArgumentParser:
     e_plan.add_argument("--output", help="path to save ActionPlan JSON file")
     e_plan.add_argument("--json", action="store_true", help="output JSON to stdout")
 
+    e_goal = eng_sub.add_parser(
+        "goal",
+        help="resolve one ordinary-language assessment goal to an in-scope target offline",
+    )
+    e_goal.add_argument("goal", help="ordinary-language goal naming one exact included target")
+    e_goal.add_argument("--engagement", required=True, help="path to engagement contract JSON file")
+    e_goal.add_argument("--json", action="store_true", help="output structured JSON")
+
     e_info = eng_sub.add_parser("info", help="display details of an engagement contract")
     e_info.add_argument("file", help="path to engagement JSON file")
     e_info.add_argument("--json", action="store_true", help="output structured JSON")
@@ -1027,6 +1035,7 @@ def main(argv: list[str] | None = None, *, root: Path = ROOT) -> int:
         if args.command == "engagement":
             from .engagement.cli import (
                 command_engagement_create,
+                command_engagement_goal,
                 command_engagement_handoff,
                 command_engagement_info,
                 command_engagement_plan,
@@ -1039,6 +1048,8 @@ def main(argv: list[str] | None = None, *, root: Path = ROOT) -> int:
                 return command_engagement_validate(args)
             if args.engagement_command == "plan":
                 return command_engagement_plan(args)
+            if args.engagement_command == "goal":
+                return command_engagement_goal(args)
             if args.engagement_command == "info":
                 return command_engagement_info(args)
             if args.engagement_command == "handoff":

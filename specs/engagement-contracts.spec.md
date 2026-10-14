@@ -42,6 +42,37 @@ Represents an immutable, planned sequence of operations bound to a scenario and 
   - `plan_digest` must match the SHA-256 canonical digest of the complete immutable approved snapshot: schema version, plan and engagement identifiers, scenario, target, specialist, operations and exact tool versions, limits, credential references, creation time, platform prerequisites, and batch semantics. Mutable lifecycle state is excluded from the digest.
   - `credential_references` must never contain raw tokens, keys, or passwords.
 
+#### Plain-language goal selection
+
+`cops engagement goal` validates one ordinary-language assessment request against
+a versioned Engagement. This initial interface resolves a target only; it does not
+create an ActionPlan or claim execution readiness.
+
+- The request must begin with a supported, positive assessment instruction.
+  Questions, negation, and statements that merely mention a target do not select
+  one. Details outside the supported grammar are rejected instead of ignored.
+- The target must be an exact, explicitly named member of
+  `scope.included_targets`, or the exact target recorded in the
+  `metadata.goal_selection.target` field. A unique included target is not an
+  implicit selection. Engagement metadata is not independently signed.
+- Target text inside quotation marks or after an illustrative marker such as
+  `for example`, `e.g.`, or `such as` is non-authoritative. Conflicting,
+  excluded, illustrative, quoted, and multiple target references are rejected.
+- A selected IP range that overlaps any excluded address or range is rejected;
+  selecting a broad range must never imply authority over its exclusions.
+- One result selects at most one target. The `needs_execution_path` response
+  records the target and its source, unbound requested intent, a canonical
+  engagement digest with unverified review status, `not_assessed` coverage, unavailable
+  execution readiness, and the next action to bind a verified scenario and worker
+  operation. It contains no ActionPlan, authorization, or run result.
+- Goal selection does not contact targets, dispatch a worker, request approval,
+  or assess a system. Host adapters must preserve the same boundary until a
+  separately verified execution path exists.
+- Terminal engagements and expired windows are rejected. Upcoming windows may
+  select a target but do not confer execution readiness. Requests longer than
+  4,096 characters, more than 1,024 combined scope targets, or more than 1 MiB
+  of Engagement JSON are rejected; duplicate JSON keys are rejected.
+
 ### 4. RunResult Contract (`cops.run-result/v1`)
 Represents the execution outcome of an action plan.
 - **Identifier:** `res-[a-z0-9_-]{4,64}`

@@ -64,12 +64,32 @@ python3 -m cops demo sentinel-hunt-workbench
 python3 -m cops check sentinel-hunt-workbench
 ```
 
+Given an Engagement contract, you can resolve a narrow ordinary-language
+assessment request to an exact in-scope target:
+
+```bash
+python3 -m cops engagement goal \
+  "Assess 10.100.0.10 for exposed services safely." \
+  --engagement engagement.json \
+  --json
+```
+
+The command accepts one exact target named directly in the request, or the
+engagement's recorded `metadata.goal_selection.target` when the request says
+"the selected endpoint". It rejects ambiguous, excluded, quoted, illustrative,
+and unsupported instructions. The result retains the requested verb and the
+contract digest, while marking review and action binding as unverified. It reports `needs_execution_path` and
+`not_assessed`: no executable plan, approval, worker action, or recovery
+checkpoint is created. See [Authenticated Execution](docs/AUTHENTICATED_EXECUTION.md#resolve-an-ordinary-language-goal-offline)
+for the current boundary and remaining work.
+
 ### What these commands do for you
 - `cops doctor`: Checks the Python version, catalog and package manifests, and generated marketplace indexes. It does not run plugins or audit their network behavior.
 - `cops list`: Displays the eighteen available security plugins, their maturity stage, and their validation status.
 - `cops route`: Uses local keyword rules to recommend a specialist profile without an LLM or external API call. It does not launch an agent.
 - `cops demo`: Runs a self-contained, offline walkthrough using synthetic test data.
 - `cops check`: Executes deterministic verification suites (syntax checks, schema tests, mutation tests) right on your machine.
+- `cops engagement goal`: Resolves a narrow request to one in-scope target and reports that execution is unavailable and coverage is `not_assessed`.
 
 ---
 
