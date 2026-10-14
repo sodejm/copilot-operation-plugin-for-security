@@ -49,8 +49,10 @@ class TestActiveDiscoveryModelsAndFingerprinting(unittest.TestCase):
         )
         session.assessments = [
             ActiveServiceAssessment(
-                probe_id=f"probe-{port}", target_host="198.51.100.10",
-                resolved_ip="198.51.100.10", port=port,
+                probe_id=f"probe-{port}",
+                target_host="198.51.100.10",
+                resolved_ip="198.51.100.10",
+                port=port,
                 observed_config=ObservedConfiguration(raw_banner="B" * 1024),
             )
             for port in session.approved_ports
@@ -468,8 +470,7 @@ class TestLiveScanSafety(unittest.TestCase):
         self.assertEqual(dispatcher.probes, [])
 
     def test_duplicate_targets_and_ports_cannot_repeat_network_effects(self):
-        for targets, ports in ((["app.corp.internal", "APP.CORP.INTERNAL"], [80]),
-                               (["app.corp.internal"], [80, 80])):
+        for targets, ports in ((["app.corp.internal", "APP.CORP.INTERNAL"], [80]), (["app.corp.internal"], [80, 80])):
             with self.subTest(targets=targets, ports=ports):
                 session = self.session(ports=ports)
                 session.approved_targets = targets
@@ -503,7 +504,10 @@ class TestLiveScanSafety(unittest.TestCase):
         sleeps = []
         dispatcher = RecordingSocketDispatcher()
         scanner = ActiveScanner(
-            resumed, dispatcher, scope=self.scope, checkpoint=self.checkpoint,
+            resumed,
+            dispatcher,
+            scope=self.scope,
+            checkpoint=self.checkpoint,
             sleeper=sleeps.append,
         )
         result = scanner.run()
@@ -931,9 +935,15 @@ class TestActiveDiscoveryCLI(unittest.TestCase):
     def test_cli_plan_allows_unthrottled_synthetic_scan(self):
         plan_out = self.root / "plan-zero-rate.json"
         args = argparse.Namespace(
-            active_command="plan", targets="198.51.100.10", ports="80",
-            vantage="external", rate_limit=0.0, timeout=2.0,
-            max_total_seconds=None, scope_ref="ENG-01", output=str(plan_out),
+            active_command="plan",
+            targets="198.51.100.10",
+            ports="80",
+            vantage="external",
+            rate_limit=0.0,
+            timeout=2.0,
+            max_total_seconds=None,
+            scope_ref="ENG-01",
+            output=str(plan_out),
         )
         self.assertEqual(command_active_discovery(args), 0)
         self.assertEqual(ActiveScanSession.load_checkpoint(plan_out).budget.rate_limit_pps, 0.0)
@@ -1017,17 +1027,26 @@ class TestActiveDiscoveryCLI(unittest.TestCase):
             return scanner.session
 
         scan_args = argparse.Namespace(
-            active_command="scan", session=str(plan_path), scope=None,
-            mode="synthetic", offline_targets=None,
-            checkpoint=str(checkpoint_path), output=None,
+            active_command="scan",
+            session=str(plan_path),
+            scope=None,
+            mode="synthetic",
+            offline_targets=None,
+            checkpoint=str(checkpoint_path),
+            output=None,
         )
         with patch("cops.discovery.cli.ActiveScanner.run", complete_scan):
             self.assertEqual(command_active_discovery(scan_args), 2)
         self.assertEqual(ActiveScanSession.load_checkpoint(checkpoint_path).status, "completed")
 
         resume_args = argparse.Namespace(
-            active_command="resume", checkpoint=str(checkpoint_path), scope=None,
-            mode="synthetic", offline_targets=None, checkpoint_out=None, output=None,
+            active_command="resume",
+            checkpoint=str(checkpoint_path),
+            scope=None,
+            mode="synthetic",
+            offline_targets=None,
+            checkpoint_out=None,
+            output=None,
         )
 
         def resume_with_newer_checkpoint(scanner):
@@ -1038,9 +1057,7 @@ class TestActiveDiscoveryCLI(unittest.TestCase):
 
         with patch("cops.discovery.cli.ActiveScanner.run", resume_with_newer_checkpoint):
             self.assertEqual(command_active_discovery(resume_args), 0)
-        self.assertEqual(
-            ActiveScanSession.load_checkpoint(checkpoint_path).status, "requires_reconciliation"
-        )
+        self.assertEqual(ActiveScanSession.load_checkpoint(checkpoint_path).status, "requires_reconciliation")
 
     def test_live_output_cannot_overwrite_checkpoint_or_alias(self):
         plan_path = self.root / "plan.json"
@@ -1052,9 +1069,13 @@ class TestActiveDiscoveryCLI(unittest.TestCase):
             approved_ports=[80],
         ).save_checkpoint(plan_path)
         scan_args = argparse.Namespace(
-            active_command="scan", session=str(plan_path), scope=None,
-            mode="live", offline_targets=None,
-            checkpoint=str(checkpoint_path), output=str(checkpoint_path),
+            active_command="scan",
+            session=str(plan_path),
+            scope=None,
+            mode="live",
+            offline_targets=None,
+            checkpoint=str(checkpoint_path),
+            output=str(checkpoint_path),
         )
         with self.assertRaisesRegex(ValueError, "distinct"):
             command_active_discovery(scan_args)
@@ -1064,8 +1085,13 @@ class TestActiveDiscoveryCLI(unittest.TestCase):
         alias = self.root / "checkpoint-alias.json"
         alias.symlink_to(checkpoint_path)
         resume_args = argparse.Namespace(
-            active_command="resume", checkpoint=str(checkpoint_path), scope=None,
-            mode="live", offline_targets=None, checkpoint_out=None, output=str(alias),
+            active_command="resume",
+            checkpoint=str(checkpoint_path),
+            scope=None,
+            mode="live",
+            offline_targets=None,
+            checkpoint_out=None,
+            output=str(alias),
         )
         with self.assertRaisesRegex(ValueError, "distinct"):
             command_active_discovery(resume_args)

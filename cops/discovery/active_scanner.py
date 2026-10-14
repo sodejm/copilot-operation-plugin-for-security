@@ -12,10 +12,10 @@ import socket
 import ssl
 import time
 from abc import ABC, abstractmethod
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 from cops.evidence.canonical import utc_now
 
@@ -422,31 +422,43 @@ class ActiveScanner:
             raise ActiveScanError("A scan needs explicit targets and TCP ports")
         if any(not isinstance(target, str) or not target.strip() for target in self.session.approved_targets):
             raise ActiveScanError("Targets must be nonempty hostnames or IP addresses")
-        if any(not isinstance(port, int) or isinstance(port, bool) or not 1 <= port <= 65535
-               for port in self.session.approved_ports):
+        if any(
+            not isinstance(port, int) or isinstance(port, bool) or not 1 <= port <= 65535
+            for port in self.session.approved_ports
+        ):
             raise ActiveScanError("TCP ports must be integers from 1 through 65535")
-        if (len({target.lower() for target in self.session.approved_targets}) != len(self.session.approved_targets)
-                or len(set(self.session.approved_ports)) != len(self.session.approved_ports)):
+        if len({target.lower() for target in self.session.approved_targets}) != len(
+            self.session.approved_targets
+        ) or len(set(self.session.approved_ports)) != len(self.session.approved_ports):
             raise ActiveScanError("Duplicate targets or TCP ports would repeat probe side effects")
-        if (not isinstance(budget.timeout_seconds, (int, float)) or isinstance(budget.timeout_seconds, bool) or
-                not math.isfinite(budget.timeout_seconds) or budget.timeout_seconds <= 0 or
-                not isinstance(budget.rate_limit_pps, (int, float)) or isinstance(budget.rate_limit_pps, bool) or
-                not math.isfinite(budget.rate_limit_pps) or budget.rate_limit_pps < 0):
+        if (
+            not isinstance(budget.timeout_seconds, (int, float))
+            or isinstance(budget.timeout_seconds, bool)
+            or not math.isfinite(budget.timeout_seconds)
+            or budget.timeout_seconds <= 0
+            or not isinstance(budget.rate_limit_pps, (int, float))
+            or isinstance(budget.rate_limit_pps, bool)
+            or not math.isfinite(budget.rate_limit_pps)
+            or budget.rate_limit_pps < 0
+        ):
             raise ActiveScanError("Probe timeout must be positive and rate limit nonnegative")
-        if (budget.max_total_seconds is not None and
-                (not isinstance(budget.max_total_seconds, (int, float)) or
-                 isinstance(budget.max_total_seconds, bool) or
-                 not math.isfinite(budget.max_total_seconds) or budget.max_total_seconds <= 0)):
+        if budget.max_total_seconds is not None and (
+            not isinstance(budget.max_total_seconds, (int, float))
+            or isinstance(budget.max_total_seconds, bool)
+            or not math.isfinite(budget.max_total_seconds)
+            or budget.max_total_seconds <= 0
+        ):
             raise ActiveScanError("Execution duration must be positive")
-        if budget.max_targets is not None and (isinstance(budget.max_targets, bool) or
-                                               not isinstance(budget.max_targets, int) or
-                                               budget.max_targets <= 0 or
-                                               len(self.session.approved_targets) > budget.max_targets):
+        if budget.max_targets is not None and (
+            isinstance(budget.max_targets, bool)
+            or not isinstance(budget.max_targets, int)
+            or budget.max_targets <= 0
+            or len(self.session.approved_targets) > budget.max_targets
+        ):
             raise ActiveScanError("Approved target count exceeds its cumulative target cap")
         if isinstance(budget.max_retries, bool) or not isinstance(budget.max_retries, int) or budget.max_retries < 0:
             raise ActiveScanError("Retry limit must be a nonnegative integer")
-        if (isinstance(budget.max_probes, bool) or not isinstance(budget.max_probes, int) or
-                budget.max_probes <= 0):
+        if isinstance(budget.max_probes, bool) or not isinstance(budget.max_probes, int) or budget.max_probes <= 0:
             raise ActiveScanError("A positive cumulative probe cap is required")
         if not isinstance(self.scope, dict):
             raise ActiveScanError("Scope must be a JSON object")
@@ -508,13 +520,13 @@ class ActiveScanner:
         def planned_key(key: str) -> bool:
             if not isinstance(key, str) or not key.startswith(prefix):
                 return False
-            host, separator, port_text = key[len(prefix):].rpartition(":")
+            host, separator, port_text = key[len(prefix) :].rpartition(":")
             return bool(
-                separator and host in targets and port_text.isdecimal()
+                separator
+                and host in targets
+                and port_text.isdecimal()
                 and int(port_text) in ports
-                and key == ActiveScanSession.make_probe_key(
-                    session.vantage, Protocol.TCP.value, host, int(port_text)
-                )
+                and key == ActiveScanSession.make_probe_key(session.vantage, Protocol.TCP.value, host, int(port_text))
             )
 
         if completed & pending or any(not planned_key(key) for key in completed | pending):
@@ -540,7 +552,8 @@ class ActiveScanner:
                 assessment.vantage, assessment.protocol, assessment.target_host, assessment.port
             )
             if (
-                key not in completed or key in assessment_keys
+                key not in completed
+                or key in assessment_keys
                 or assessment.target_host.lower() not in targets
                 or not self._is_ip_in_scope(assessment.resolved_ip)
             ):
@@ -622,7 +635,11 @@ class ActiveScanner:
         if self._live_dispatcher:
             digest = self._live_plan_digest()
             if self.session.bound_plan_sha256 is None:
-                if self.session.total_probes_dispatched or self.session.completed_probe_keys or self.session.pending_probe_keys:
+                if (
+                    self.session.total_probes_dispatched
+                    or self.session.completed_probe_keys
+                    or self.session.pending_probe_keys
+                ):
                     raise ActiveScanError("Prior live activity has no bound plan; reconcile before continuing")
                 if Path(self.checkpoint).exists():
                     raise ActiveScanError("Live scan checkpoint already exists; resume it or choose a new path")

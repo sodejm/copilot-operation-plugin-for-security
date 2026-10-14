@@ -203,8 +203,7 @@ class RecordingLiveDispatcher(StandardSocketDispatcher):
         if self.checkpoint is not None:
             reserved = ActiveScanSession.load_checkpoint(self.checkpoint)
             self.reservation_seen = (
-                ActiveScanSession.make_probe_key(vantage, protocol, target_host, port)
-                in reserved.pending_probe_keys
+                ActiveScanSession.make_probe_key(vantage, protocol, target_host, port) in reserved.pending_probe_keys
             )
         if self.fail:
             raise OSError("uncertain probe outcome")
@@ -260,7 +259,9 @@ def then_live_refused(bdd_ctx):
         assert probes == 0
 
 
-@then("literal IPv4 and IPv6 targets are evaluated against their approved IP ranges even when domain limits are present")
+@then(
+    "literal IPv4 and IPv6 targets are evaluated against their approved IP ranges even when domain limits are present"
+)
 def then_literal_addresses_obey_cidr(bdd_ctx, tmp_path):
     for address, cidr in (("198.51.101.10", "198.51.100.0/24"), ("2001:db8:2::10", "2001:db8:1::/64")):
         dispatcher = RecordingLiveDispatcher(resolved_ip=address)
@@ -283,10 +284,17 @@ def given_full_tcp_selection(bdd_ctx, tmp_path):
 @when("the operator has not explicitly allowed a full TCP selection and budgeted every target-port pair")
 def when_full_tcp_unbounded(bdd_ctx):
     args = argparse.Namespace(
-        active_command="plan", targets="198.51.100.10", ports="all", vantage="external",
-        rate_limit=10, timeout=2, max_total_seconds=300,
-        scope_ref="BDD-SCOPE-01", output=bdd_ctx["full_plan"],
-        allow_full_tcp=False, max_probes=65535,
+        active_command="plan",
+        targets="198.51.100.10",
+        ports="all",
+        vantage="external",
+        rate_limit=10,
+        timeout=2,
+        max_total_seconds=300,
+        scope_ref="BDD-SCOPE-01",
+        output=bdd_ctx["full_plan"],
+        allow_full_tcp=False,
+        max_probes=65535,
     )
     with pytest.raises(ValueError, match="--allow-full-tcp"):
         command_active_discovery(args)
@@ -321,14 +329,18 @@ def given_reserved_live_probe(bdd_ctx, tmp_path):
 @when("execution crashes or returns an uncertain error")
 def when_live_probe_uncertain(bdd_ctx):
     first = ActiveScanner(
-        live_session(), bdd_ctx["dispatcher"], scope=bdd_ctx["scope"],
+        live_session(),
+        bdd_ctx["dispatcher"],
+        scope=bdd_ctx["scope"],
         checkpoint=bdd_ctx["checkpoint"],
     ).run()
     bdd_ctx["first_live"] = first
     resumed = ActiveScanSession.load_checkpoint(bdd_ctx["checkpoint"])
     next_dispatcher = RecordingLiveDispatcher()
     bdd_ctx["resumed_live"] = ActiveScanner(
-        resumed, next_dispatcher, scope=bdd_ctx["scope"],
+        resumed,
+        next_dispatcher,
+        scope=bdd_ctx["scope"],
         checkpoint=bdd_ctx["checkpoint"],
     ).run()
     bdd_ctx["resume_dispatcher"] = next_dispatcher
@@ -355,7 +367,9 @@ def then_changed_plan_scope_rejected(bdd_ctx):
         dispatcher = RecordingLiveDispatcher()
         with pytest.raises(ActiveScanError, match="plan or scope changed"):
             ActiveScanner(
-                resumed, dispatcher, scope=changed_scope,
+                resumed,
+                dispatcher,
+                scope=changed_scope,
                 checkpoint=bdd_ctx["checkpoint"],
             ).run()
         assert dispatcher.resolutions == dispatcher.probes == 0
