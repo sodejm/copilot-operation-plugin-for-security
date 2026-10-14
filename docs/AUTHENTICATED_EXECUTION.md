@@ -95,7 +95,11 @@ quotes or illustrative clauses also return `needs_input` with a specific next
 action. A selected IP range overlapping an excluded address or range also
 returns `needs_input`. It does not infer a target merely because the Engagement has only one
 included target. After an illustrative marker, the remainder of the request is
-non-authoritative, including periods inside IP addresses and hostnames.
+non-authoritative, including periods inside IP addresses and hostnames. Target
+matching examines the request subject after the assessment verb; words in the
+request framing or supported detail cannot select a target. ASCII target names
+match without regard to letter case, while Unicode lookalikes do not select an
+ASCII target.
 
 Successful resolution returns `needs_execution_path`, the selected target,
 the requested verb and supported detail with status `unbound`, the Engagement
