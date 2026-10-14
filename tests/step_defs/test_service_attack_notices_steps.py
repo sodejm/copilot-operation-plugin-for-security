@@ -25,9 +25,7 @@ def _dell_asset(version: str) -> dict[str, object]:
         "operating_system": "Dell RecoverPoint for VMs appliance",
         "product": "Dell RecoverPoint for VMs",
         "version": version,
-        "services": [
-            {"name": "Tomcat Manager", "transport": "tcp", "reachable": True, "configured": True}
-        ],
+        "services": [{"name": "Tomcat Manager", "transport": "tcp", "reachable": True, "configured": True}],
         "evidence": ["tomcat_manager_hard_coded_credential_risk_context"],
     }
 
@@ -73,7 +71,9 @@ def given_non_candidate_contexts(notice_context: dict[str, object]) -> None:
 @when("its service context is assessed offline")
 def when_assessed(notice_context: dict[str, object]) -> None:
     notice_context["report"] = assess_asset(
-        notice_context["registry"], notice_context["asset"], as_of=REVIEW_DATE  # type: ignore[arg-type]
+        notice_context["registry"],
+        notice_context["asset"],
+        as_of=REVIEW_DATE,  # type: ignore[arg-type]
     )
 
 
@@ -88,7 +88,9 @@ def when_all_assessed(notice_context: dict[str, object]) -> None:
 @when("its service context is assessed before the registry review date")
 def when_assessed_historically(notice_context: dict[str, object]) -> None:
     notice_context["report"] = assess_asset(
-        notice_context["registry"], notice_context["asset"], as_of=date(2026, 10, 13)  # type: ignore[arg-type]
+        notice_context["registry"],
+        notice_context["asset"],
+        as_of=date(2026, 10, 13),  # type: ignore[arg-type]
     )
 
 
