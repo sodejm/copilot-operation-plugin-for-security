@@ -36,9 +36,7 @@ def assessment(**changes: object) -> ActiveServiceAssessment:
 
 
 def scan_session(observed: ActiveServiceAssessment, *, with_provenance: bool = True) -> ActiveScanSession:
-    key = ActiveScanSession.make_probe_key(
-        observed.vantage, observed.protocol, observed.target_host, observed.port
-    )
+    key = ActiveScanSession.make_probe_key(observed.vantage, observed.protocol, observed.target_host, observed.port)
     session = ActiveScanSession(
         session_id="session-285",
         scope_reference="scope-285",
