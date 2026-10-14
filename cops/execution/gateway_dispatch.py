@@ -72,8 +72,18 @@ def _require_hash(value: object) -> str:
 def _require_spiffe(value: object) -> str:
     if not isinstance(value, str) or len(value) > 255 or not value.startswith("spiffe://"):
         raise _deny()
-    parsed = urlsplit(value)
-    if not parsed.netloc or parsed.query or parsed.fragment or any(ord(ch) < 0x21 or ord(ch) > 0x7E for ch in value):
+    try:
+        parsed = urlsplit(value)
+        host = parsed.hostname
+        port = parsed.port
+    except ValueError as err:
+        raise _deny() from err
+    if (
+        host is None or not host.isascii() or parsed.netloc != host or port is not None
+        or not parsed.path.startswith("/") or parsed.path == "/"
+        or parsed.query or parsed.fragment
+        or any(ord(ch) < 0x21 or ord(ch) > 0x7E for ch in value)
+    ):
         raise _deny()
     return value
 
@@ -81,10 +91,17 @@ def _require_spiffe(value: object) -> str:
 def _require_request_target(value: object) -> str:
     if not isinstance(value, str) or len(value) > 2048 or value != value.strip():
         raise _deny()
-    parsed = urlsplit(value)
+    try:
+        parsed = urlsplit(value)
+        host = parsed.hostname
+        port = parsed.port
+    except ValueError as err:
+        raise _deny() from err
     if parsed.scheme != "https" or not parsed.netloc or parsed.username or parsed.password or parsed.query or parsed.fragment:
         raise _deny()
-    if parsed.hostname is None or parsed.hostname != parsed.hostname.lower() or parsed.port is not None:
+    # urlsplit().hostname is lowercased, so comparing it to itself cannot
+    # detect a noncanonical authority. Keep the signed target byte-exact.
+    if host is None or parsed.netloc != host or port is not None or not host.isascii():
         raise _deny()
     canonical_target = f"https://{parsed.netloc}{parsed.path or '/'}"
     if canonical_target != value:
@@ -380,7 +397,7 @@ class GatewayDispatchTransportAuthorizer:
             raise _deny()
         normalized: dict[str, GatewayDispatchEndpoint] = {}
         for endpoint_id, endpoint in endpoints.items():
-            if endpoint_id != endpoint.gateway_endpoint_id or not isinstance(endpoint, GatewayDispatchEndpoint):
+            if not isinstance(endpoint, GatewayDispatchEndpoint) or endpoint_id != endpoint.gateway_endpoint_id:
                 raise _deny()
             normalized[endpoint_id] = endpoint
         self._trust_store = trust_store

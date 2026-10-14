@@ -138,6 +138,37 @@ def _dispatch_authorizer(trust: GatewayDispatchTrustStore) -> GatewayDispatchTra
     return GatewayDispatchTransportAuthorizer(trust_store=trust, endpoints={"endpoint-1": endpoint})
 
 
+@pytest.mark.parametrize("target", [
+    "https://API.openai.com/v1/responses",
+    "https://api.openai.com:443/v1/responses",
+    "https://api.openai.com:invalid/v1/responses",
+    "https://api.openai.com\\@attacker.example/v1/responses",
+])
+def test_gateway_dispatch_rejects_noncanonical_provider_target(target: str) -> None:
+    grant, _, _ = _dispatch_grant()
+    with pytest.raises(GatewayDispatchValidationError):
+        replace(grant, request_target=target, signature="").validate(require_signature=False)
+
+
+@pytest.mark.parametrize("identity", [
+    "spiffe://IDENTITY.example.test/worker/approved",
+    "spiffe://identity.example.test:443/worker/approved",
+    "spiffe://user@identity.example.test/worker/approved",
+    "spiffe://[identity.example.test/worker/approved",
+    "spiffe://identity.example.test/",
+])
+def test_gateway_dispatch_rejects_noncanonical_worker_identity(identity: str) -> None:
+    grant, _, _ = _dispatch_grant()
+    with pytest.raises(GatewayDispatchValidationError):
+        replace(grant, worker_spiffe_id=identity, signature="").validate(require_signature=False)
+
+
+def test_gateway_dispatch_rejects_malformed_endpoint_mapping() -> None:
+    _, trust, _ = _dispatch_grant()
+    with pytest.raises(GatewayDispatchValidationError):
+        GatewayDispatchTransportAuthorizer(trust_store=trust, endpoints={"endpoint-1": object()})  # type: ignore[arg-type]
+
+
 def _certificate(*uris: str) -> dict[str, object]:
     return {
         "subjectAltName": (
