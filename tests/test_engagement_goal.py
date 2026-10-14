@@ -384,6 +384,54 @@ def test_goal_rejects_selected_network_overlapping_excluded_host(engagement: dic
     assert error.value.code == "overlapping_exclusion"
 
 
+@pytest.mark.parametrize(
+    "goal",
+    ["Assess api.corp.internal safely.", "Assess the selected endpoint safely."],
+)
+@pytest.mark.parametrize("exclusion", ["corp.internal", ".CORP.INTERNAL"])
+def test_goal_rejects_selected_subdomain_of_excluded_domain(
+    engagement: dict[str, object], goal: str, exclusion: str
+) -> None:
+    changed = copy.deepcopy(engagement)
+    changed["scope"]["included_targets"] = ["api.corp.internal"]  # type: ignore[index]
+    changed["scope"]["excluded_targets"] = [exclusion]  # type: ignore[index]
+    changed["metadata"]["goal_selection"]["target"] = "api.corp.internal"  # type: ignore[index]
+    with pytest.raises(GoalResolutionError) as error:
+        resolve_engagement_goal(goal=goal, engagement=changed)
+    assert error.value.code == "overlapping_exclusion"
+
+
+def test_goal_rejects_normalized_exact_excluded_domain(engagement: dict[str, object]) -> None:
+    changed = copy.deepcopy(engagement)
+    changed["scope"]["included_targets"] = ["corp.internal"]  # type: ignore[index]
+    changed["scope"]["excluded_targets"] = [".CORP.INTERNAL"]  # type: ignore[index]
+    changed["metadata"] = {}
+    with pytest.raises(GoalResolutionError) as error:
+        resolve_engagement_goal(goal="Assess corp.internal.", engagement=changed)
+    assert error.value.code == "excluded_target"
+
+
+def test_excluded_domain_does_not_match_unrelated_suffix(engagement: dict[str, object]) -> None:
+    changed = copy.deepcopy(engagement)
+    changed["scope"]["included_targets"] = ["api.notcorp.internal"]  # type: ignore[index]
+    changed["scope"]["excluded_targets"] = ["corp.internal"]  # type: ignore[index]
+    changed["metadata"] = {}
+    result = resolve_engagement_goal(goal="Assess api.notcorp.internal.", engagement=changed)
+    assert result["resolution"]["targets"] == ["api.notcorp.internal"]
+
+
+def test_unsupported_detail_recommends_a_retryable_direct_target(engagement: dict[str, object]) -> None:
+    changed = copy.deepcopy(engagement)
+    changed["metadata"] = {}
+    with pytest.raises(GoalResolutionError) as error:
+        resolve_engagement_goal(goal="Assess api.internal quickly.", engagement=changed)
+    assert error.value.code == "unsupported_goal_detail"
+    assert "Assess api.internal safely." in error.value.next_action
+    assert resolve_engagement_goal(goal="Assess api.internal safely.", engagement=changed)["resolution"]["targets"] == [
+        "api.internal"
+    ]
+
+
 def test_goal_cli_reports_selection_and_unavailable_execution(engagement: dict[str, object], tmp_path) -> None:
     engagement_path = tmp_path / "engagement.json"
     engagement_path.write_text(json.dumps(engagement), encoding="utf-8")
@@ -426,6 +474,14 @@ def test_goal_cli_reports_precise_next_action_for_ambiguity(engagement: dict[str
     assert result["status"] == "needs_input"
     assert result["error"]["code"] == "ambiguous_targets"
     assert result["next_action"]["instruction"] == "Submit one goal per exact included target."
+    binding = result["engagement_binding"]
+    assert binding["engagement_id"] == engagement["engagement_id"]
+    assert (
+        binding["contract_digest"]
+        == resolve_engagement_goal(goal="Assess 10.0.0.5.", engagement=engagement)["resolution"]["engagement_binding"][
+            "contract_digest"
+        ]
+    )
 
 
 def test_goal_cli_reports_unreadable_engagement_as_structured_failure(tmp_path) -> None:
@@ -473,6 +529,7 @@ def test_goal_cli_reports_invalid_contract_schema_as_structured_failure(
     assert result["status"] == "needs_input"
     assert result["error"]["code"] == "invalid_engagement"
     assert result["coverage"]["status"] == "not_assessed"
+    assert "engagement_binding" not in result
 
 
 @pytest.mark.parametrize(

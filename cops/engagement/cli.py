@@ -162,8 +162,10 @@ def command_engagement_plan(args: argparse.Namespace) -> int:
     return 0
 
 
-def _goal_failure_document(*, code: str, message: str, next_action: str) -> dict[str, Any]:
-    return {
+def _goal_failure_document(
+    *, code: str, message: str, next_action: str, engagement_binding: dict[str, str] | None = None
+) -> dict[str, Any]:
+    result = {
         "result_version": RESULT_VERSION,
         "status": "needs_input",
         "error": {"code": code, "message": message},
@@ -175,6 +177,9 @@ def _goal_failure_document(*, code: str, message: str, next_action: str) -> dict
         },
         "next_action": {"type": "correct_goal_input", "instruction": next_action},
     }
+    if engagement_binding is not None:
+        result["engagement_binding"] = engagement_binding
+    return result
 
 
 def command_engagement_goal(args: argparse.Namespace) -> int:
@@ -245,6 +250,7 @@ def command_engagement_goal(args: argparse.Namespace) -> int:
             code=err.code,
             message=str(err),
             next_action=err.next_action,
+            engagement_binding=err.engagement_binding,
         )
         if args.json:
             print(json.dumps(failure, indent=2, sort_keys=True))
