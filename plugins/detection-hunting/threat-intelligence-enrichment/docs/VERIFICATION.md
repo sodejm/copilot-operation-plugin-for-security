@@ -27,14 +27,22 @@ P=plugins/detection-hunting/threat-intelligence-enrichment
 python3 "$P/scripts/run_demo.py"
 ```
 
-Independently inspect the source MISP fixture and its original restrictions/timestamps before reviewing normalized output. The example.org claim is historical synthetic input and should require no network requests. Repeat the normalization/cache workflow described in the README using a sanitized local feed with independently annotated expected claims.
+The runner injects provider-shaped responses into the production enrichment
+function. It records transport attempts but opens no sockets. Inspect the
+synthetic MISP attributes, TAXII object, and Microsoft failures in the script
+before reviewing the normalized output. The `example.org` claims are historical
+synthetic input, not current intelligence. Repeat the normalization/cache workflow
+described in the README using a sanitized local feed with independently annotated
+expected claims.
 
 ## Acceptance criteria
 
 - Normalized claims retain source identity, original timestamps, evidence, and distribution/restriction constraints.
 - Stale claims remain stale; a normalized assertion does not become verified maliciousness or current reputation.
 - Package tests cover denied lookups/cache boundaries, missing provenance, malformed feeds, unsupported TAXII/pattern input, and stale evidence.
-- The demo reports local/offline behavior with zero network requests. Unsupported enrichment stays explicit.
+- The demo reports injected-transport attempts separately from real network
+  access, flags TAXII pagination as partial, and preserves the Microsoft failure.
+  Unsupported enrichment stays explicit.
 
 Compare observed results with an independently prepared expected answer. Record
 each criterion separately; identify failures, unperformed steps, and blockers.

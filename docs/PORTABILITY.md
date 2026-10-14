@@ -8,7 +8,7 @@ Writing separate security playbooks, skills, and configuration files for each as
 
 ## The Core Concept
 
-Every security tool in COPS is authored as a **host-neutral, self-contained package**. You write the core logic, defensive skills, schemas, and offline fixtures once in standard Python. COPS then automatically generates the thin compatibility adapters each AI assistant needs to discover and run those tools.
+Every security tool in COPS is authored as a **host-neutral package**. Core logic, defensive skills, schemas, and offline fixtures live together. COPS generates the compatibility adapters each AI assistant needs to discover those tools. Framework integration workflows can also depend on the shared COPS runtime.
 
 ```mermaid
 flowchart TD
@@ -44,8 +44,8 @@ To keep the repository clean and avoid mixing developer tools with security runt
 
 1. **The Product Package Spine (`plugins/`)**:
    - Contains defensive security packages (e.g., `security-logging-advisor`, `sentinel-hunt-workbench`).
-   - Each package is completely self-contained. It holds its own code, tests, documentation, and agent skills.
-   - Designed to run offline without external dependencies or cloud credentials.
+   - Each package holds its code, tests, documentation, and agent skills.
+   - Offline playbacks use local fixtures and installed development dependencies; they do not need cloud credentials.
 
 2. **The Repository Contributor Spine (`.agents/`, `scripts/agent/`, `Makefile`)**:
    - Contains contributor-facing skills and automated maintenance workflows.
@@ -61,11 +61,12 @@ To guarantee that any tool added to COPS works reliably across assistants withou
 ### 1. Single Source of Truth
 Every package is registered once in `catalog/plugins.json` and assigned to exactly one primary category in `catalog/categories.json`. All host-specific marketplace manifests are derived from this catalog; we never edit host manifests by hand.
 
-### 2. Strict Package Self-Containment
-All code, test fixtures, documentation, and skill definitions live inside `plugins/<category>/<plugin-id>`. A package never reaches into a sibling plugin's private directories or relies on undeclared global variables.
+### 2. Explicit Runtime Dependencies
+Package code, fixtures, documentation, and skills live inside `plugins/<category>/<plugin-id>`. Shared framework dependencies must be documented. The threat-intelligence and offensive-engagement playbacks use the COPS runtime; engagement scenario lookup also uses `catalog/`, and specialist handoff routing reads the canonical `agents/registry.json`. The SOC workbench pins its Sentinel dependency inside the package instead of reading a sibling checkout.
 
 ### 3. Safe, Offline-First Execution
-Every package provides a safe offline demonstration runnable with pure Python standard library:
+Every package provides a safe offline demonstration. Install the repository's
+[development prerequisites](contributing.md#environment-setup), then run:
 ```bash
 python3 -m cops demo <plugin-id>
 ```
@@ -95,6 +96,25 @@ The exported packages strip away internal host-specific directories (such as `.c
 - `plugin.json`: The standard root manifest.
 - `skills/`: Markdown-documented capabilities conforming to the Agent Skills standard.
 - `org.cops/prerequisites.json`: Declarative system dependencies.
+
+Required runtime modules, fixtures, and playback documentation also ship in the
+export. The SOC workbench includes its exact Sentinel dependency snapshot in
+`vendor/` with `vendor-lock.json`; its vendor verifier checks file hashes and
+provenance before a hunt handoff. Native adapter files inside that pinned
+dependency remain part of the verified snapshot.
+
+Exports use the Git index as their file inventory and copy current working-tree
+bytes. Add new package files to the index before validating an uncommitted
+change. Unknown package-root entries and broken package-local documentation
+links fail the export check.
+
+The acceptance suite runs every source playback twice through `cops demo`, then
+runs every exported playback twice in an isolated directory containing only exported
+packages plus `cops/`, `catalog/`, and the canonical `agents/registry.json`. It excludes source tests and contributor
+scripts and replaces `PYTHONPATH` with the isolated runtime. Each runner checks
+its domain results and rejection paths. This verifies export completeness for
+the documented framework workflow; it does not establish that every plugin is
+a standalone installation without COPS or that a live provider works.
 
 COPS uses the project namespace `org.cops` for both the manifest's
 `extensions["org.cops"]` key and its support directory. When updating an older

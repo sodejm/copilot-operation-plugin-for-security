@@ -551,6 +551,21 @@ def build_parser() -> argparse.ArgumentParser:
     generate = subparsers.add_parser("generate", help="generate host indexes from the catalog")
     generate.add_argument("--check", action="store_true", help="fail instead of writing when indexes are stale")
 
+    service_notices = subparsers.add_parser(
+        "service-notices",
+        help="validate and assess the offline service attack notice registry",
+    )
+    service_notices_sub = service_notices.add_subparsers(dest="service_notices_command", required=True)
+    service_notices_validate = service_notices_sub.add_parser("validate", help="validate the local notice registry")
+    service_notices_validate.add_argument("--json", action="store_true", help="output structured JSON")
+    service_notices_list = service_notices_sub.add_parser("list", help="list local service attack notices")
+    service_notices_list.add_argument("--json", action="store_true", help="output structured JSON")
+    service_notices_assess = service_notices_sub.add_parser(
+        "assess", help="assess one bounded local asset context against every notice"
+    )
+    service_notices_assess.add_argument("--input", required=True, type=Path, help="bounded local asset JSON")
+    service_notices_assess.add_argument("--json", action="store_true", help="output structured JSON")
+
     cov_parser = subparsers.add_parser("coverage", help="inspect ATT&CK coverage, gap analysis, and Attack Flow")
     cov_parser.add_argument("--matrix", action="store_true", help="render the Markdown coverage matrix")
     cov_parser.add_argument("--output", type=Path, help="write coverage matrix to file")
@@ -799,10 +814,12 @@ def build_parser() -> argparse.ArgumentParser:
     l_ver = lab_sub.add_parser("verify", help="verify laboratory environment isolation, prerequisites, and canary")
     l_ver.add_argument("environment", help="path to laboratory environment JSON")
     l_ver.add_argument("--tools", help="comma-separated list of required tools")
+    l_ver.add_argument("--mock", action="store_true", help="validate configuration without runtime observations")
     l_ver.add_argument("--output", help="output path for verified environment JSON")
 
     l_res = lab_sub.add_parser("reset", help="reproducible reset of laboratory environment")
     l_res.add_argument("environment", help="path to laboratory environment JSON")
+    l_res.add_argument("--mock", action="store_true", help="validate reset configuration without performing a reset")
     l_res.add_argument("--output", help="output path for reset environment JSON")
 
     l_mat = lab_sub.add_parser("matrix", help="display tested platform and tool matrix")
@@ -810,6 +827,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     l_run = lab_sub.add_parser("run", help="execute a laboratory test case")
     l_run.add_argument("--environment", required=True, help="path to laboratory environment JSON")
+    l_run.add_argument(
+        "--evidence-dir",
+        type=Path,
+        required=True,
+        help="absolute owner-only directory for durable evidence outside the disposable workspace",
+    )
     l_run.add_argument("--plan", required=True, help="path to action plan JSON")
     l_run.add_argument("--authorization", required=True, help="path to execution authorization JSON")
     l_run.add_argument(
@@ -908,6 +931,10 @@ def main(argv: list[str] | None = None, *, root: Path = ROOT) -> int:
             return command_check(args.plugin_ids, root)
         if args.command == "generate":
             return command_generate(check=args.check, root=root)
+        if args.command == "service-notices":
+            from .service_notices import command_service_notices
+
+            return command_service_notices(args, root=root)
         if args.command == "coverage":
             return command_coverage(
                 matrix=args.matrix,

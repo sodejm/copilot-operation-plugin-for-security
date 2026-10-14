@@ -1,0 +1,387 @@
+{
+  "allowed_functions": [
+    "arg_min",
+    "datetime",
+    "format_datetime",
+    "iff",
+    "isnotempty",
+    "pack_array",
+    "strcat_array",
+    "todatetime",
+    "tostring",
+    "toscalar",
+    "workspace"
+  ],
+  "allowed_operators": [
+    "between",
+    "count",
+    "extend",
+    "join",
+    "let",
+    "order by",
+    "project",
+    "summarize",
+    "where"
+  ],
+  "as_of": "2026-09-17",
+  "display_name": "Microsoft Sentinel data lake KQL",
+  "id": "sentinel_data_lake",
+  "limitations": [
+    "No shipped hunt is marked supported in v1; syntax similarity to Analytics is not compatibility evidence.",
+    "Microsoft documentation contains service-limit details that can change and must be re-reviewed before adding support."
+  ],
+  "profile_provenance": [
+    {
+      "accessed": "2026-09-17",
+      "url": "https://learn.microsoft.com/en-us/azure/sentinel/datalake/kql-queries"
+    },
+    {
+      "accessed": "2026-09-17",
+      "url": "https://learn.microsoft.com/en-us/azure/sentinel/datalake/kql-sample-queries"
+    },
+    {
+      "accessed": "2026-09-17",
+      "url": "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-query-language"
+    },
+    {
+      "accessed": "2026-09-17",
+      "url": "https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables"
+    }
+  ],
+  "scope_contract": {
+    "tenant": "independent_surface_mapping_required",
+    "time": "explicit_filter_required_but_not_qualified_in_v1",
+    "workspace": "independent_surface_mapping_required"
+  },
+  "support_state": "unverified",
+  "tables": {
+    "AADServicePrincipalSignInLogs": {
+      "columns": {
+        "AADTenantId": "guid",
+        "AppId": "string",
+        "CorrelationId": "string",
+        "CreatedDateTime": "datetime",
+        "IPAddress": "string",
+        "Id": "string",
+        "ResourceIdentity": "string",
+        "ResultType": "string",
+        "ServicePrincipalId": "string",
+        "SessionId": "string",
+        "TenantId": "string",
+        "TimeGenerated": "datetime"
+      },
+      "notes": "",
+      "schema_as_of": "2026-09-17",
+      "schema_source": "https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/aadserviceprincipalsigninlogs"
+    },
+    "AADUserRiskEvents": {
+      "columns": {
+        "ActivityDateTime": "datetime",
+        "CorrelationId": "string",
+        "Id": "string",
+        "RiskEventType": "string",
+        "RiskLevel": "string",
+        "TenantId": "string",
+        "TimeGenerated": "datetime",
+        "UserId": "string",
+        "UserPrincipalName": "string"
+      },
+      "notes": "TenantId is the Log Analytics workspace identifier in the Azure Monitor table reference.",
+      "schema_as_of": "2026-09-17",
+      "schema_source": "https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/aaduserriskevents"
+    },
+    "AZKVAuditLogs": {
+      "columns": {
+        "CallerIpAddress": "string",
+        "CorrelationId": "string",
+        "OperationName": "string",
+        "ResultType": "string",
+        "TenantId": "string",
+        "TimeGenerated": "datetime",
+        "identity_claim_oid_g": "guid",
+        "identity_claim_upn_s": "string"
+      },
+      "notes": "Identity claim fields are optional in some records; missing identity is unknown evidence.",
+      "schema_as_of": "2026-09-17",
+      "schema_source": "https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/azkvauditlogs"
+    },
+    "AuditLogs": {
+      "columns": {
+        "AADTenantId": "guid",
+        "ActivityDateTime": "datetime",
+        "ActivityDisplayName": "string",
+        "CorrelationId": "string",
+        "Id": "string",
+        "Identity": "string",
+        "InitiatedBy": "dynamic",
+        "OperationName": "string",
+        "Result": "string",
+        "TargetResources": "dynamic",
+        "TenantId": "string",
+        "TimeGenerated": "datetime"
+      },
+      "notes": "",
+      "schema_as_of": "2026-09-17",
+      "schema_source": "https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/auditlogs"
+    },
+    "AzureActivity": {
+      "columns": {
+        "Caller": "string",
+        "CallerIpAddress": "string",
+        "CategoryValue": "string",
+        "CorrelationId": "string",
+        "OperationNameValue": "string",
+        "ResourceId": "string",
+        "SubscriptionId": "string",
+        "TenantId": "string",
+        "TimeGenerated": "datetime"
+      },
+      "notes": "",
+      "schema_as_of": "2026-09-17",
+      "schema_source": "https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/azureactivity"
+    },
+    "CloudAppEvents": {
+      "columns": {
+        "AccountDisplayName": "string",
+        "AccountId": "string",
+        "AccountObjectId": "string",
+        "ActionType": "string",
+        "ActivityType": "string",
+        "Application": "string",
+        "IPAddress": "string",
+        "OAuthAppId": "string",
+        "ObjectId": "string",
+        "ReportId": "string",
+        "TenantId": "string",
+        "TimeGenerated": "datetime"
+      },
+      "notes": "TenantId is the Log Analytics workspace identifier in the Azure Monitor table reference.",
+      "schema_as_of": "2026-09-17",
+      "schema_source": "https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/cloudappevents"
+    },
+    "DeviceFileEvents": {
+      "columns": {
+        "ActionType": "string",
+        "DeviceId": "string",
+        "DeviceName": "string",
+        "FileName": "string",
+        "FolderPath": "string",
+        "InitiatingProcessAccountObjectId": "string",
+        "InitiatingProcessUniqueId": "string",
+        "ReportId": "long",
+        "SHA1": "string",
+        "TenantId": "string",
+        "TimeGenerated": "datetime"
+      },
+      "notes": "",
+      "schema_as_of": "2026-09-17",
+      "schema_source": "https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/devicefileevents"
+    },
+    "DeviceLogonEvents": {
+      "columns": {
+        "AccountDomain": "string",
+        "AccountName": "string",
+        "AccountObjectId": "string",
+        "AccountSid": "string",
+        "ActionType": "string",
+        "DeviceId": "string",
+        "DeviceName": "string",
+        "LogonId": "long",
+        "RemoteIP": "string",
+        "ReportId": "long",
+        "TenantId": "string",
+        "TimeGenerated": "datetime"
+      },
+      "notes": "",
+      "schema_as_of": "2026-09-17",
+      "schema_source": "https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/devicelogonevents"
+    },
+    "DeviceNetworkEvents": {
+      "columns": {
+        "ActionType": "string",
+        "DeviceId": "string",
+        "DeviceName": "string",
+        "InitiatingProcessAccountObjectId": "string",
+        "InitiatingProcessAccountUpn": "string",
+        "InitiatingProcessUniqueId": "string",
+        "LocalIP": "string",
+        "RemoteIP": "string",
+        "RemotePort": "int",
+        "RemoteUrl": "string",
+        "ReportId": "long",
+        "TenantId": "string",
+        "TimeGenerated": "datetime"
+      },
+      "notes": "",
+      "schema_as_of": "2026-09-17",
+      "schema_source": "https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/devicenetworkevents"
+    },
+    "DeviceProcessEvents": {
+      "columns": {
+        "AccountObjectId": "string",
+        "AccountUpn": "string",
+        "ActionType": "string",
+        "DeviceId": "string",
+        "DeviceName": "string",
+        "FileName": "string",
+        "InitiatingProcessUniqueId": "string",
+        "ProcessCommandLine": "string",
+        "ProcessUniqueId": "string",
+        "ReportId": "long",
+        "TenantId": "string",
+        "TimeGenerated": "datetime"
+      },
+      "notes": "",
+      "schema_as_of": "2026-09-17",
+      "schema_source": "https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/deviceprocessevents"
+    },
+    "DeviceRegistryEvents": {
+      "columns": {
+        "ActionType": "string",
+        "DeviceId": "string",
+        "DeviceName": "string",
+        "InitiatingProcessAccountObjectId": "string",
+        "InitiatingProcessUniqueId": "string",
+        "RegistryKey": "string",
+        "RegistryValueData": "string",
+        "ReportId": "long",
+        "TenantId": "string",
+        "TimeGenerated": "datetime"
+      },
+      "notes": "",
+      "schema_as_of": "2026-09-17",
+      "schema_source": "https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/deviceregistryevents"
+    },
+    "DnsEvents": {
+      "columns": {
+        "ClientIP": "string",
+        "Computer": "string",
+        "Name": "string",
+        "Result": "string",
+        "SubType": "string",
+        "TenantId": "string",
+        "TimeGenerated": "datetime"
+      },
+      "notes": "DNS connectors vary. This profile covers the documented DnsEvents normalized table only.",
+      "schema_as_of": "2026-09-17",
+      "schema_source": "https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/dnsevents"
+    },
+    "EmailEvents": {
+      "columns": {
+        "DeliveryAction": "string",
+        "DeliveryLocation": "string",
+        "NetworkMessageId": "string",
+        "RecipientEmailAddress": "string",
+        "RecipientObjectId": "string",
+        "ReportId": "string",
+        "SenderFromAddress": "string",
+        "SenderIPv4": "string",
+        "Subject": "string",
+        "TenantId": "string",
+        "TimeGenerated": "datetime"
+      },
+      "notes": "",
+      "schema_as_of": "2026-09-17",
+      "schema_source": "https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/emailevents"
+    },
+    "IdentityLogonEvents": {
+      "columns": {
+        "AccountDomain": "string",
+        "AccountName": "string",
+        "AccountObjectId": "string",
+        "ActionType": "string",
+        "Application": "string",
+        "DestinationDeviceName": "string",
+        "DeviceName": "string",
+        "IPAddress": "string",
+        "ReportId": "string",
+        "TargetDeviceName": "string",
+        "TenantId": "string",
+        "TimeGenerated": "datetime"
+      },
+      "notes": "",
+      "schema_as_of": "2026-09-17",
+      "schema_source": "https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/identitylogonevents"
+    },
+    "OfficeActivity": {
+      "columns": {
+        "Actor": "dynamic",
+        "ActorContextId": "string",
+        "ActorIpAddress": "string",
+        "AppId": "string",
+        "ApplicationId": "string",
+        "ClientIP": "string",
+        "Id": "string",
+        "OfficeObjectId": "string",
+        "Operation": "string",
+        "OrganizationId": "string",
+        "ResultStatus": "string",
+        "TenantId": "string",
+        "TimeGenerated": "datetime",
+        "UserId": "string"
+      },
+      "notes": "",
+      "schema_as_of": "2026-09-17",
+      "schema_source": "https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/officeactivity"
+    },
+    "SigninLogs": {
+      "columns": {
+        "AADTenantId": "guid",
+        "AppId": "string",
+        "CorrelationId": "string",
+        "CreatedDateTime": "datetime",
+        "DeviceDetail": "dynamic",
+        "IPAddress": "string",
+        "Id": "string",
+        "Identity": "string",
+        "ResultType": "string",
+        "SessionId": "string",
+        "TenantId": "string",
+        "TimeGenerated": "datetime",
+        "UserId": "string",
+        "UserPrincipalName": "string"
+      },
+      "notes": "",
+      "schema_as_of": "2026-09-17",
+      "schema_source": "https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/signinlogs"
+    },
+    "ThreatIntelligenceIndicator": {
+      "columns": {
+        "Active": "bool",
+        "ConfidenceScore": "int",
+        "Description": "string",
+        "DomainName": "string",
+        "ExpirationDateTime": "datetime",
+        "IndicatorId": "string",
+        "NetworkIP": "string",
+        "TenantId": "string",
+        "TimeGenerated": "datetime",
+        "ValidUntil": "datetime"
+      },
+      "notes": "Legacy table used only by H04; migration to ThreatIntelIndicators requires a new profile and hunt version.",
+      "schema_as_of": "2026-09-17",
+      "schema_source": "https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/threatintelligenceindicator"
+    },
+    "UrlClickEvents": {
+      "columns": {
+        "AccountUpn": "string",
+        "ActionType": "string",
+        "IPAddress": "string",
+        "NetworkMessageId": "string",
+        "ReportId": "string",
+        "TenantId": "string",
+        "ThreatTypes": "string",
+        "TimeGenerated": "datetime",
+        "Url": "string"
+      },
+      "notes": "",
+      "schema_as_of": "2026-09-17",
+      "schema_source": "https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/urlclickevents"
+    }
+  },
+  "unsupported_functions": [
+    "externaldata",
+    "ingestion_time"
+  ],
+  "version": "1.0.0"
+}

@@ -39,7 +39,9 @@ private payloads and real identifiers must never be copied into this document.
 | Operator model catalog → offline advisor → host model selection | Catalog records are bounded, untrusted assertions about exact model capabilities, access and supported effort. Advice cannot establish entitlement or authorize a model switch, agent launch or security operation. |
 | Handoff proposal → specialist acceptance → auditor completion | A proposed skill ID and capability must resolve to the recipient's registered specialist profile and local skill file; acceptance records the resolved target and checksum. Skeptic review and audit re-resolve the current target. Completion is a reviewed handoff record, not tool execution. |
 | Attack Path input → descriptor-anchored report writer → operator-selected output directory | Output paths and concurrent filesystem names remain untrusted; a report set is complete only when the completion marker and recorded hashes validate. |
-| Laboratory operator observation → signed receipt → controller case classification | An independently provisioned observation key attests isolation, canary and control measurements. The worker result alone cannot establish case success; a protected local journal records dispatch intent and terminal outcomes. |
+| Laboratory operator observation → signed receipt → controller case classification | Execution requires fresh `observed` verification from an explicitly configured provider; `simulated` verification cannot authorize execution. The controller atomically reserves the authorization ID before dispatch, validates the returned identity before treating a result as trusted, and stores exact-byte-hashed evidence in a separately configured owner-only directory. These controls remain inside the local owner's trust boundary. |
+| Plugin demo → source playback / isolated export → semantic acceptance | Every declared synthetic demo runs twice from source and twice from a Git-index export with source-only package files omitted. Acceptance checks the final JSON contract and rejects an exit-zero no-op; it does not establish behavior of an installed release artifact or live integration. |
+| Canonical Microsoft Sentinel package → explicit local Git sync → locked SOC snapshot → playback | The lock records a fixed upstream, subdirectory, revision, source state, file inventory hashes, license and policy. Validation establishes repository consistency, not upstream authorship, freshness, vulnerability status or legal approval. |
 | AI inventory import → bounded evidence graph/report → authorized operator | Imported provider records remain untrusted; strict projection rejects raw trace content, canonical source/tenant identities and engagement-bound references prevent cross-engagement conflation, and bounded traversal reports coverage limits. |
 | Offline LangSmith response → strict selected-field parser → AI inventory registry → `ExportBoundary` → caller sink | The parser accepts one versioned envelope, discards user-defined names and cursors, and never fetches provider data. A report reaches a registered report sink only after the concrete privacy boundary transforms it. |
 | Evidence copy → `ExportBoundary` → declared external/durable sink | `cops.evidence.assessment.export_provider_assessment`, `export_assessment_telemetry`, and `export_assessment_report` derive a local assessment; `cops.diagnostics.export_diagnostic_report` serializes a `DiagnosticReport`. Each transforms its copy then calls the caller-provided sink immediately afterward. The repository supplies no recipient backend. |
@@ -53,6 +55,7 @@ private payloads and real identifiers must never be copied into this document.
 | Operator-supplied synthetic case → runner → agent fixture proposal → authorization gate → MCP stdio fixture → observed state/report | Case text and MCP tool output are untrusted data. The agent child proposes but has no MCP pipe; only the runner can forward a proposal after case-scoped checks. The separate child processes share the host's OS authority, so their stdio boundary is not an OS network sandbox. |
 | Synthetic provider plan and response fixture → exact plan gate → assessment budget ledger → normalized content-free report | Provider-shaped input remains untrusted. Exact environment, scope, endpoint, model, canary, tool and request-digest binding precede reservation and fixture processing. The importer makes no network request and executes no proposed tool. |
 | Approved dispatch grant → worker egress broker → operator gateway → provider handler | The opt-in v2 broker accepts a bounded POST only to one configured gateway origin and path with an exact TLS SPIFFE identity. It verifies the signed grant against the plan, worker identity, provider scope, and request digest, then durably consumes the one-use dispatch and authorization IDs before sending. The gateway independently verifies those bindings and owns provider credentials. Repository tests use an emulator; no production gateway or credential path is provisioned. |
+| Local asset context and service attack notice registry → bounded offline matcher → applicability report | Asset claims and notice content remain untrusted. Exact allowlists and prerequisite evidence produce conservative classifications, not vulnerability or exploitability findings. The matcher performs no network access or input-directed execution. |
 
 ```mermaid
 flowchart LR
@@ -174,16 +177,44 @@ must not receive those credentials. A consumed grant followed by a disconnect
 has an uncertain outcome and must not be replayed automatically. Provider usage,
 billing, remote cancellation, and deletion require independent evidence.
 
+### Service attack notice boundary
+
+The service attack notice command reads a versioned local registry and one
+bounded local asset JSON document. Its parser accepts regular UTF-8 files only,
+limits bytes and nesting, rejects duplicate keys and non-finite values, and
+validates exact fields. It rejects non-regular paths before opening and uses
+no-follow and nonblocking open flags where the host supports them. A local
+actor who can replace paths during the open remains an unresolved file-integrity
+risk on hosts without those flags. Registry sources must use allowlisted HTTPS primary
+source hosts, but URLs are metadata: the command never fetches them. Input is
+data and cannot select code, commands, paths, or network destinations.
+
+Assessment uses exact product, operating-system, and version allowlists. A
+candidate additionally requires source-scoped service reachability,
+configuration, and contextual prerequisites. A port observation alone is
+insufficient. Missing or unlisted versions, missing evidence, and stale notices
+remain unknown. Withdrawn and superseded notices cannot become candidates.
+Candidate means only that a targeted investigation may be appropriate; it does
+not establish a vulnerability, exploitability, initial access, or authorization
+to scan. The matcher labels asset input as unverified. It cannot authenticate
+either the asset claims or the source research and depends on human monthly
+and high-impact review.
+
 ## Implementation evidence inventory
 
 - `cops/execution/store.py`: inspect at the baseline revision; evidence scope is limited to this component.
 - `plugins/AGENTS.md`: inspect at the baseline revision; evidence scope is limited to this component.
 - `plugins/detection-hunting/sentinel-hunt-workbench/huntwb/adapters.py`: inspect at the baseline revision; evidence scope is limited to this component.
 - `plugins/detection-hunting/attack-path-workbench/attackpath/azure/report.py`: descriptor-anchored report-set writes and completion-marker publication.
+- `plugins/detection-hunting/attack-path-workbench/attackpath/windows_io.py`: Windows handle-relative traversal, reparse-point rejection, bounded input reads and exclusive report publication.
 - `plugins/detection-hunting/attack-path-workbench/tests/test_workbench.py`: negative tests for output-path replacement, publication races, durability failures and cleanup behavior.
+- `plugins/detection-hunting/attack-path-workbench/scripts/run_demo.py`: native Windows playback and rejection of input and output-parent junctions in operator CI.
 - `docs/SECURITY_MODEL.md`: inspect at the baseline revision; evidence scope is limited to this component.
 - `scripts/agent/check.py`: inspect at the baseline revision; evidence scope is limited to this component.
-- `cops/laboratory/harness.py`, `receipts.py`, and `journal.py`: source and synthetic-test evidence for laboratory receipt binding, dispatch intent, and case classification; live host isolation and observer independence remain unverified.
+- `cops/laboratory/harness.py`, `evidence.py`, `receipts.py`, and `journal.py`: source evidence for fresh observed-versus-simulated execution gating, exact stored-byte durable evidence, atomic authorization reservation, cleanup/result digest binding, and best-effort unknown recovery after dispatch. Live host isolation, key custody and observer independence remain unverified.
+- `tests/test_laboratory_harness.py`, `tests/test_laboratory_evidence.py`, `tests/test_laboratory_journal.py`, and the scenario-laboratory skill tests: synthetic coverage for provenance, concurrent replay, symlink and relocation handling, storage failures, and post-dispatch recovery.
+- `cops/portable.py`, catalog demo declarations, and `tests/step_defs/test_portable_operator_workflow.py`: every declared synthetic demo runs twice from source and twice from an isolated Git-index export with user-site imports disabled. Acceptance checks semantic final JSON and rejects an exit-zero no-op; it does not test an installed release artifact or live service.
+- `plugins/detection-hunting/soc-investigation-workbench/investigationwb/vendor.py`, `vendor-lock.json`, and `tests/step_defs/test_soc_investigation.py`: explicit local Git synchronization and fail-closed validation of the fixed Sentinel upstream, subdirectory, revision, source state, exact-byte inventory hashes, license and policy. These checks establish snapshot consistency only.
 - `cops/evidence/ai_inventory.py`: schema-validated bounded import, source/tenant namespaces, content-free errors, provenance/lineage records, scoped references, bounded graph reporting and conservative removal comparison.
 - `tests/test_ai_inventory.py`: negative coverage for malformed imports, identity collisions and aliases, scoped snapshots, bounded graph paths, permission/destination differences, and partial, inaccessible or stale source evidence.
 - `cops/evidence/langsmith_inventory.py`: bounded selected-field parser, deterministic graph mapping and mandatory concrete `ExportBoundary` integration.
@@ -204,6 +235,7 @@ billing, remote cancellation, and deletion require independent evidence.
 - `plugins/offensive-security/foundry-agent-harness/foundryharness/fixture_agent.py` and `mcp_fixture_server.py`: deterministic proposal and synthetic MCP state fixtures; neither establishes live model or host isolation behavior.
 - `plugins/offensive-security/foundry-agent-harness/tests/test_laboratory.py` and `specs/agent-mcp-laboratories.spec.md`: exact bundled-case inventory, synthetic case behavior, untrusted-config rejection, reset coverage and the local laboratory contract; malformed-protocol, timeout and reset-failure tests remain pending. No live endpoint or OS network-isolation evidence.
 - `cops/provider_assessment.py`, the Foundry Agent Harness `provider_fixtures/` and provider schemas, `tests/test_provider_assessment.py`, and `specs/ai-provider-assessment.spec.md`: bounded offline import, exact request binding, provider-specific state normalization, shared budget-ledger behavior, fixed report projection, and synthetic negative coverage. No provider request, credential, tool execution, billing, or remote cleanup evidence.
+- `catalog/service_attack_notices.json`, `cops/service_notices.py`, and `tests/test_service_notices.py`: versioned primary-source metadata, bounded parsing, exact allowlist assessment, lifecycle suppression, and synthetic positive and negative tests; no live asset or source verification.
 
 ## Threat register and prioritization
 
@@ -306,9 +338,9 @@ validation before the affected release/capability expansion and schedule P2 with
 
 - Attack path / prerequisite: A concurrent local process replaces an output path or staging name, or a filesystem failure interrupts publication, so incomplete output appears complete or a foreign file becomes the completion marker.
 - Inherent impact: High; likelihood: Medium; priority: P1.
-- Existing evidence / limitation: The writer anchors traversal to directory descriptors, synchronizes new directories and reports before publication, creates the staging marker exclusively, publishes the open staging inode without replacement and synchronizes the published marker before cleaning up the staging name. The marker binds the run ID and report hashes, but a same-authority administrator can bypass these controls and some filesystems may provide weaker durability guarantees.
-- Proposed mitigation and validation: Keep negative tests for parent/output swaps, mid-walk renames, report and synchronization failures, competing marker creation, staging substitution and cleanup failure. Require consumers to validate marker schema, run ID and hashes, then record exact-revision human review and applicable filesystem evidence before release.
-- Residual risk / status: automated negative tests provide local evidence only; post-write mutation, hostile same-authority principals and filesystem-specific durability remain unverified. Human review and exact-revision acceptance are pending.
+- Existing evidence / limitation: On POSIX, the writer anchors traversal to directory descriptors, synchronizes directories and reports, creates the staging marker exclusively and publishes the open staging inode without replacement. On Windows, held directory handles anchor traversal, reparse points are rejected, each report and staged marker is flushed, and the open marker is renamed into the held output directory without replacement. The Windows writer checks output-path identity before and after publication but does not promise POSIX directory-entry durability. Both writers require a trusted private parent; Windows access controls are inherited from that parent. The marker binds the run ID and report hashes.
+- Proposed mitigation and validation: Keep negative tests for parent/output swaps, mid-walk renames, report and synchronization failures, competing marker creation, staging substitution and cleanup failure. Run native Windows playback and input/output junction rejection checks in operator CI. Require consumers to validate marker schema, run ID and hashes, then record exact-revision human review and applicable filesystem evidence before release.
+- Residual risk / status: A same-authority process can mutate reports or rename ancestors. A Windows rename after the prepublication check can move the held directory; the marker remains bound to that directory and the postpublication check reports failure. Automated checks do not establish crash durability, hostile-administrator resistance or behavior on every filesystem. Independent human release review remains pending.
 
 ### T11: Provenance decision or guidance mapping drift
 
@@ -354,9 +386,9 @@ validation before the affected release/capability expansion and schedule P2 with
 
 - Attack path / prerequisite: A worker-controlled result claims isolation, a clean reset, or canary detection without independent measurement; alternatively, a controller crash or lost dispatch response obscures whether a case ran.
 - Inherent impact: High; likelihood: Medium; priority: P1.
-- Existing evidence / limitation: The harness checks owner-provisioned Ed25519 observation receipts against operation nonces and result identity, rejects missing or contradictory case observations, and records dispatch intent in an owner-only SQLite journal before SSH dispatch. It marks uncertain dispatches separately and fails pending cases after restart, reset, reverification, or a bounded deadline. These are local software controls; synthetic tests do not prove host isolation, key custody, an independent observer, or remote cleanup.
-- Proposed mitigation and validation: On the intended host, verify observation-key custody, observer separation from the worker and controller, effective network isolation and egress denial, canary baseline and reset behavior, and reconciliation of unknown dispatches against worker audit evidence. Test crash and storage-failure recovery with the actual filesystem and supervisor before enabling live cases.
-- Residual risk / status: live operating evidence and exact-revision human security review are pending. Journal integrity assumes an owner-controlled host and one controller process; a same-authority actor or unavailable journal storage can disrupt accounting.
+- Existing evidence / limitation: Execution requires fresh `observed` verification from a configured provider; `simulated` verification cannot execute, and unsupported real verification or reset fails closed. The harness checks owner-provisioned Ed25519 observation receipts against operation nonces and result identity, validates returned authorization, plan and worker identity before trusted persistence, hashes the exact bytes stored in a separately configured owner-only evidence directory, and binds the cleanup-receipt digest to the result. Durable evidence references use content-addressed paths relative to that configured directory, omit controller absolute paths, and must be resolved through the owning evidence store. The SQLite journal uses `BEGIN IMMEDIATE` and a unique authorization ID to reserve before dispatch, so controllers sharing one journal cannot concurrently reuse an authorization. Migration fails closed when an attempted historical row lacks a recoverable authorization identifier. Post-begin failures attempt to mark the case `unknown`, preserve available result or cleanup references, and leave the authorization consumed.
+- Proposed mitigation and validation: On the intended host, verify observation-key custody, observer separation from the worker and controller, effective network isolation and egress denial, canary baseline and reset behavior, evidence-directory retention and backup, and reconciliation of unknown dispatches against worker audit evidence. Test crash, storage failure and recovery with the actual filesystem and supervisor before enabling live cases.
+- Residual risk / status: Durable evidence remains until the operator or a separately configured retention process deletes it; the repository provides no automatic expiry, deletion or backup. A same-authority actor can alter or delete the journal and evidence, and a digest provides integrity comparison rather than authenticity or an external timestamp. Replay protection covers controllers sharing the same database; a copied or relocated database is a distinct replay domain, and journal relocation requires a new journal object. If storage remains unavailable, even best-effort unknown recording can fail. Live host isolation, key custody, observer independence, cleanup and exact-revision human security review remain pending.
 
 ### T17: Specialist handoff target confusion
 
@@ -445,7 +477,24 @@ validation before the affected release/capability expansion and schedule P2 with
 - Proposed mitigation and validation: Keep provider-specific parsing and negative binding tests pinned to versioned schemas. Before adding live capability, separately authorize an exact provider origin, path, method, body class, credential identity, tenant/account and model; integrate export redaction at the send boundary; reconcile provider usage and billing independently; record cancellation request, observed stop and final usage separately; and verify remote cleanup and retention with provider evidence. Require exact-revision human security review.
 - Residual risk / status: Offline fixtures cannot authenticate a provider response, establish tenant or project ownership, prove usage or billing, verify remote cancellation or cleanup, or evaluate model and tool safety. A same-authority actor can rewrite fixtures and expected results together. No live or paid provider evidence is present.
 
-### T27: Gateway dispatch replay, identity substitution, or credential scope escape
+### T27: Service notice scope or applicability overclaim
+
+- Attack path / prerequisite: A forged asset document, broadened product or version scope, stale notice, or port-only observation is treated as evidence of vulnerability or permission to investigate a live target.
+- Inherent impact: Medium; likelihood: Medium; priority: P2.
+- Existing evidence / limitation: Bounded strict parsing, exact product and version allowlists, mandatory reachability, configuration and contextual prerequisites, and lifecycle suppression constrain the offline matcher. Candidate output explicitly proposes investigation only. The tool cannot authenticate asset claims or independently refresh source research.
+- Proposed mitigation and validation: Keep malformed, insufficient-evidence, stale, withdrawn, fixed-version and wrong-product tests. Review primary sources monthly and after high-impact publications. Require separate authorization and live evidence before any target interaction or finding.
+- Residual risk / status: A same-authority actor can change the registry, asset fixture, and expected result together. Human source review and downstream interpretation remain trust boundaries; no live asset state, vulnerability, exploitability, or authorization is established.
+
+### T28: Synthetic playback or vendored snapshot overclaim
+
+- Attack path / prerequisite: A source-only dependency hides a broken exported package, an exit-zero no-op is treated as a successful demo, or a validated vendored snapshot is described as trusted, current or safe.
+- Inherent impact: High if synthetic or snapshot evidence is used as release or live-operating evidence; likelihood: Medium; priority: P1 before the affected release.
+- Existing evidence / limitation: Every declared demo runs twice from source and twice from an isolated temporary runtime exported from the Git index. Export rejects symlinks and excludes source-only package files; acceptance validates a final semantic JSON contract rather than process status alone. The SOC vendor lock records and validates a fixed canonical upstream, subdirectory, revision, source state, exact-byte inventory SHA-256 values, license and policy. Synchronization is an explicit local Git operation that verifies origin, path and revision before safe replacement, with focused synthetic fault coverage.
+- Playback boundaries: The attack-surface playback stages only bounded, declared regular source files. Engagement evidence records a stable dispatcher identifier and allowlisted flags without raw process arguments. Patch-review Git commands discard inherited Git environment settings and disable hooks, external attributes and filesystem monitors; synthetic repository creation also uses an empty template and disables signing. The SOC playback removes default temporary artifacts on success or failure and returns its assessment inline; explicit output directories retain artifacts for inspection. Threat-intelligence playback success requires the exact expected provider request counts, including retry exhaustion. Focused regressions exercise each boundary.
+- Proposed mitigation and validation: Rebuild and test release artifacts independently, review the exact release revision, inspect upstream provenance and license terms, and keep synthetic playback results separate from authorized live-integration evidence.
+- Residual risk / status: The isolated playback uses the framework and test runtime copied from the same checkout, not an installed release artifact. Synthetic inputs make no live-service claim, and a same-authority actor can alter implementation, fixtures and expectations together. Vendor digests establish consistency, not upstream authenticity, freshness, vulnerability status or legal license approval. Exact-revision human security review remains pending.
+
+### T29: Gateway dispatch replay, identity substitution, or credential scope escape
 
 - Attack path / prerequisite: A worker or gateway accepts a forged, expired, reused, or mismatched dispatch grant; a redirected POST reaches a direct provider destination; a gateway uses credentials outside the approved account, project, region, or model; or an uncertain request is automatically retried and charged twice.
 - Inherent impact: High; likelihood: Medium before deployment controls are verified; priority: P1.

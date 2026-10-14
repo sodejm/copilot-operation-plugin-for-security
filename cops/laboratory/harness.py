@@ -9,6 +9,7 @@ import uuid
 from collections.abc import Callable
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any, Literal
 
 from cops.contracts.models import (
@@ -33,6 +34,7 @@ from cops.execution.ssh_execution import (
 from cops.execution.ssh_transport import SSHRemoteEndpointInventory, SSHTransportError
 from cops.execution.worker import WorkerCapabilityInventory
 
+from .evidence import LaboratoryEvidenceStore
 from .journal import LaboratoryCaseJournal
 from .matrix import verify_platform_matrix, verify_tool_prerequisites
 from .models import (
@@ -63,14 +65,28 @@ class LaboratoryHarness:
         observation_provider: Callable[[LaboratoryEnvironment, str], LaboratoryObservation] | None = None,
         observation_trust_store: LaboratoryObservationTrustStore | None = None,
         case_journal: LaboratoryCaseJournal | None = None,
+        evidence_dir: Path | str | None = None,
     ) -> None:
         self.matrix = tested_matrix or TestedMatrix()
         self.observation_provider = observation_provider
         self.observation_trust_store = observation_trust_store
         self.case_journal = case_journal
+        self.evidence_store = LaboratoryEvidenceStore(evidence_dir) if evidence_dir is not None else None
         self._pending_resets: dict[str, tuple[str, str, str, str]] = {}
         self._pending_cases: dict[
-            str, tuple[RemoteAuthorizedRun, str, str, str, str, str, str, LaboratoryObservation]
+            str,
+            tuple[
+                RemoteAuthorizedRun,
+                str,
+                str,
+                str,
+                str,
+                str,
+                str,
+                LaboratoryObservation,
+                list[dict[str, Any]],
+                str,
+            ],
         ] = {}
         self._latest_environment_observations: dict[str, LaboratoryObservation] = {}
         self._last_reset_receipts: dict[str, tuple[LaboratoryResetReceipt, LaboratoryObservation]] = {}
@@ -78,6 +94,7 @@ class LaboratoryHarness:
     @staticmethod
     def _invalidate_verification(environment: LaboratoryEnvironment) -> None:
         environment.isolation["verification_status"] = "unverified"
+        environment.isolation["verification_provenance"] = None
         environment.isolation["verification_timestamp"] = None
         environment.canary["verified"] = False
 
@@ -202,11 +219,29 @@ class LaboratoryHarness:
         verify_platform_matrix(env.platform, self.matrix)
         return env
 
+    def _validate_environment_configuration(
+        self,
+        environment: LaboratoryEnvironment,
+        required_tools: list[str] | tuple[str, ...] | None,
+    ) -> None:
+        verify_platform_matrix(environment.platform, self.matrix)
+        verify_tool_prerequisites(environment.tool_matrix, required_tools=required_tools, matrix=self.matrix)
+        isolation = environment.isolation
+        if not isolation.get("network_isolated"):
+            raise IsolationVerificationError("Laboratory environment must have network isolation enabled.")
+        if not isolation.get("egress_restricted"):
+            raise IsolationVerificationError("Laboratory environment must enforce strict egress restrictions.")
+        expected_type = {"container": "container_unprivileged", "vm": "vm_hypervisor"}.get(environment.environment_type)
+        if expected_type is None or isolation.get("isolation_type") != expected_type:
+            raise IsolationVerificationError(f"Unsupported isolation type '{isolation.get('isolation_type')}'.")
+        if not environment.canary.get("canary_token") or not environment.canary.get("location"):
+            raise CanaryVerificationError("Canary configuration must specify both 'canary_token' and 'location'.")
+
     def verify_environment(
         self,
         environment: LaboratoryEnvironment,
         *,
-        endpoint_inventory: SSHRemoteEndpointInventory,
+        endpoint_inventory: SSHRemoteEndpointInventory | None = None,
         required_tools: list[str] | tuple[str, ...] | None = None,
         mock_checks: bool = False,
     ) -> LaboratoryEnvironment:
@@ -215,42 +250,18 @@ class LaboratoryHarness:
         self._discard_pending_cases(environment.environment_id, "environment reverification invalidated pending case")
         self._latest_environment_observations.pop(environment.environment_id, None)
         self._last_reset_receipts.pop(environment.environment_id, None)
-        if mock_checks:
-            self._fail_verification(environment, "Mock checks cannot verify a laboratory environment.")
-            raise IsolationVerificationError("Mock checks cannot verify a laboratory environment.")
-
         try:
-            verify_platform_matrix(environment.platform, self.matrix)
-            verify_tool_prerequisites(environment.tool_matrix, required_tools=required_tools, matrix=self.matrix)
-        except PrerequisiteMismatchError as err:
+            self._validate_environment_configuration(environment, required_tools)
+        except (PrerequisiteMismatchError, IsolationVerificationError, CanaryVerificationError) as err:
             self._fail_verification(environment, str(err))
             raise
-
-        # 3. Isolation checks
-        iso = environment.isolation
-        if not iso.get("network_isolated"):
-            self._fail_verification(environment, "Network isolation boundary is disabled or unconfigured.")
-            raise IsolationVerificationError("Laboratory environment must have network isolation enabled.")
-
-        if not iso.get("egress_restricted"):
-            self._fail_verification(environment, "Egress restriction is disabled; potential data leak.")
-            raise IsolationVerificationError("Laboratory environment must enforce strict egress restrictions.")
-
-        iso_type = iso.get("isolation_type")
-        expected_type = {"container": "container_unprivileged", "vm": "vm_hypervisor"}.get(environment.environment_type)
-        if expected_type is None or iso_type != expected_type:
-            self._fail_verification(
-                environment, f"Unsupported environment/isolation pair: {environment.environment_type}/{iso_type}"
+        if mock_checks:
+            environment.isolation["verification_provenance"] = "simulated"
+            environment.isolation["verification_notes"] = (
+                "Configuration checks passed in explicit mock mode; runtime isolation, egress, canary, "
+                "and baseline were not observed."
             )
-            raise IsolationVerificationError(f"Unsupported isolation type '{iso_type}'.")
-
-        # 4. Canary data verification
-        canary = environment.canary
-        token = canary.get("canary_token")
-        location = canary.get("location")
-        if not token or not location:
-            self._fail_verification(environment, "Canary configuration is incomplete.")
-            raise CanaryVerificationError("Canary configuration must specify both 'canary_token' and 'location'.")
+            return environment
 
         try:
             observation = self._observe_environment(environment, endpoint_inventory=endpoint_inventory)
@@ -260,6 +271,7 @@ class LaboratoryHarness:
 
         environment.canary["verified"] = True
         environment.isolation["verification_status"] = "verified"
+        environment.isolation["verification_provenance"] = "observed"
         environment.isolation["verification_timestamp"] = observation.observed_at
         environment.isolation["verification_notes"] = (
             "Fresh runtime isolation, egress, canary, and baseline observations passed."
@@ -269,6 +281,26 @@ class LaboratoryHarness:
         if environment.status != "verified":
             environment.transition_to("verified")
 
+        return environment
+
+    def simulate_reset(self, environment: LaboratoryEnvironment) -> LaboratoryEnvironment:
+        """Validate reset configuration without claiming a reset or clean baseline occurred."""
+        reset_cfg = environment.reset_configuration
+        if reset_cfg.get("reproducible") is not True:
+            raise ResetError("laboratory reset is not marked reproducible")
+        if reset_cfg.get("strategy") not in ("container_recreate", "snapshot_rollback", "script_revert"):
+            raise ResetError("unsupported reset strategy")
+        command = reset_cfg.get("command")
+        if not isinstance(command, str) or not command.strip():
+            raise ResetError("a reset command is required")
+        self._invalidate_verification(environment)
+        self._discard_pending_cases(environment.environment_id, "simulated reset invalidated pending case")
+        self._latest_environment_observations.pop(environment.environment_id, None)
+        self._last_reset_receipts.pop(environment.environment_id, None)
+        environment.isolation["verification_provenance"] = "simulated"
+        environment.isolation["verification_notes"] = (
+            "Reset configuration passed in explicit mock mode; no reset or post-reset baseline was observed."
+        )
         return environment
 
     def begin_reset(self, environment: LaboratoryEnvironment) -> str:
@@ -337,6 +369,7 @@ class LaboratoryHarness:
         environment.reset_configuration["last_reset_timestamp"] = observation.observed_at
         environment.canary["verified"] = True
         environment.isolation["verification_status"] = "verified"
+        environment.isolation["verification_provenance"] = "observed"
         environment.isolation["verification_timestamp"] = observation.observed_at
         environment.isolation["verification_notes"] = "Attested worker reset and post-reset observations passed."
         self._latest_environment_observations[environment.environment_id] = observation
@@ -402,6 +435,10 @@ class LaboratoryHarness:
             raise LaboratoryGateError("laboratory scope guard violation or invalid engagement scope") from err
         if environment.isolation.get("verification_status") != "verified":
             raise LaboratoryGateError("laboratory isolation has not been verified")
+        if environment.isolation.get("verification_provenance") != "observed":
+            raise LaboratoryGateError(
+                "laboratory verification lacks fresh observed provenance; reverify the environment"
+            )
         try:
             pre_execution_observation = self._observe_environment(environment, endpoint_inventory=endpoint_inventory)
         except (IsolationVerificationError, CanaryVerificationError) as err:
@@ -425,6 +462,13 @@ class LaboratoryHarness:
             raise LaboratoryGateError("execution authorization gate failed") from err
         if self.case_journal is None:
             raise LaboratoryGateError("an owner-only laboratory case journal is required")
+        if self.evidence_store is None:
+            raise LaboratoryGateError("an explicit owner-only laboratory evidence directory is required")
+        if self.case_journal.authorization_attempted(auth_model.authorization_id):
+            raise LaboratoryGateError("execution authorization has already been used for a dispatch attempt")
+        durable_evidence = [
+            self.evidence_store.write_json("pre-execution-observation", asdict(pre_execution_observation))
+        ]
         attempt_id = secrets.token_hex(32)
         dispatch_request_id = str(uuid.uuid4())
         self.case_journal.begin(
@@ -437,8 +481,65 @@ class LaboratoryHarness:
                 "case_type": case_type,
                 "dispatch_request_id": dispatch_request_id,
                 "operator_pre_execution_observation": asdict(pre_execution_observation),
+                "durable_evidence": durable_evidence,
             },
         )
+
+        def mark_unknown_best_effort(
+            *,
+            reason: str,
+            failure_code: str,
+            failure_basis: str,
+            cleanup_reference: dict[str, Any] | None = None,
+        ) -> None:
+            """Retain all available evidence and consume the authorization on uncertain outcomes."""
+            try:
+                failure_reference = self.evidence_store.write_json(
+                    "dispatch-failure",
+                    {
+                        "schema_version": "cops.laboratory-dispatch-failure/v1",
+                        "environment_id": environment.environment_id,
+                        "authorization_id": auth_model.authorization_id,
+                        "plan_digest": plan_model.plan_digest,
+                        "dispatch_request_id": dispatch_request_id,
+                        "failure_code": failure_code,
+                    },
+                )
+                durable_evidence.append(failure_reference)
+            except Exception:
+                failure_reference = None
+            try:
+                unknown_cleanup = self.evidence_store.write_json(
+                    "cleanup-receipt",
+                    {
+                        "schema_version": "cops.laboratory-cleanup-receipt/v1",
+                        "environment_id": environment.environment_id,
+                        "authorization_id": auth_model.authorization_id,
+                        "plan_digest": plan_model.plan_digest,
+                        "dispatch_request_id": dispatch_request_id,
+                        "result_id": None,
+                        "receipt_producer": "controller",
+                        "expected_worker_identity": environment.owner,
+                        "cleanup_status": "unknown",
+                        "basis": failure_basis,
+                        "worker_evidence_records": [],
+                    },
+                )
+                durable_evidence.append(unknown_cleanup)
+                cleanup_reference = unknown_cleanup
+            except Exception:
+                unknown_cleanup = None
+            try:
+                self.case_journal.mark_unknown(
+                    attempt_id,
+                    reason,
+                    evidence_records=durable_evidence,
+                    cleanup_receipt_digest=(cleanup_reference or {}).get("sha256"),
+                )
+            except Exception:
+                return
+
+        dispatch_returned = False
         try:
             authorized_run = SSHExecutionDispatcher(endpoint_inventory).execute(
                 approved_worker_identity=environment.owner,
@@ -446,26 +547,80 @@ class LaboratoryHarness:
                 action_plan=plan_model,
                 request_id=dispatch_request_id,
             )
+            dispatch_returned = True
+            validate_remote_authorized_run(
+                authorized_run,
+                approved_worker_identity=environment.owner,
+                authorization_id=auth_model.authorization_id,
+                action_plan=plan_model,
+            )
         except Exception as err:
-            self.case_journal.mark_unknown(attempt_id, "trusted worker dispatch outcome unknown")
-            raise LaboratoryGateError("trusted worker dispatch failed") from err
-        failure_result = LaboratoryCaseResult(
-            case_type=case_type,
-            status="failed",
-            environment_id=environment.environment_id,
-            plan_id=plan_model.plan_id,
-            run_result=authorized_run.result,
-            canary_verified=False,
-            evidence_records=list(authorized_run.result.evidence_records),
-            cleanup_receipt=None,
-            details={
-                "operator_case_observation": None,
-                "operator_pre_execution_observation": asdict(pre_execution_observation),
-                "worker_cleanup_status": authorized_run.result.cleanup_status,
-                "failure_reason": "operator case observation missing",
-            },
-        )
-        self.case_journal.bind(attempt_id, authorized_run.result.result_id, failure_result.to_dict())
+            failure_code = (
+                "trusted_worker_result_invalid" if dispatch_returned else "trusted_worker_dispatch_outcome_unknown"
+            )
+            failure_basis = (
+                "dispatch returned an invalid or mismatched worker result"
+                if dispatch_returned
+                else "dispatch raised before a trusted worker result was available"
+            )
+            journal_reason = (
+                "trusted worker result invalid" if dispatch_returned else "trusted worker dispatch outcome unknown"
+            )
+            mark_unknown_best_effort(
+                reason=journal_reason,
+                failure_code=failure_code,
+                failure_basis=failure_basis,
+            )
+            raise LaboratoryGateError(f"trusted worker dispatch failed: {failure_basis}") from err
+        cleanup_evidence: dict[str, Any] | None = None
+        try:
+            run_evidence = self.evidence_store.write_json("run-result", authorized_run.result.to_dict())
+            durable_evidence.append(run_evidence)
+            cleanup_evidence = self.evidence_store.write_json(
+                "cleanup-receipt",
+                {
+                    "schema_version": "cops.laboratory-cleanup-receipt/v1",
+                    "environment_id": environment.environment_id,
+                    "authorization_id": auth_model.authorization_id,
+                    "plan_digest": plan_model.plan_digest,
+                    "dispatch_request_id": dispatch_request_id,
+                    "result_id": authorized_run.result.result_id,
+                    "receipt_producer": "controller",
+                    "reported_worker_identity": authorized_run.result.worker_identity,
+                    "cleanup_status": authorized_run.result.cleanup_status,
+                    "basis": "trusted worker result",
+                    "worker_evidence_records": list(authorized_run.result.evidence_records),
+                },
+            )
+            durable_evidence.append(cleanup_evidence)
+            failure_result = LaboratoryCaseResult(
+                case_type=case_type,
+                status="failed",
+                environment_id=environment.environment_id,
+                plan_id=plan_model.plan_id,
+                run_result=authorized_run.result,
+                canary_verified=False,
+                observed_case_type="indeterminate",
+                evidence_records=list(authorized_run.result.evidence_records),
+                cleanup_receipt=None,
+                cleanup_receipt_digest=cleanup_evidence["sha256"],
+                details={
+                    "operator_case_observation": None,
+                    "operator_pre_execution_observation": asdict(pre_execution_observation),
+                    "worker_cleanup_status": authorized_run.result.cleanup_status,
+                    "failure_reason": "operator case observation missing",
+                    "durable_evidence": durable_evidence,
+                },
+            )
+            self.case_journal.bind(attempt_id, authorized_run.result.result_id, failure_result.to_dict())
+        except Exception as err:
+            mark_unknown_best_effort(
+                reason="trusted worker result persistence failed",
+                failure_code="trusted_worker_result_persistence_failed",
+                failure_basis="trusted worker result could not be durably recorded",
+                cleanup_reference=cleanup_evidence,
+            )
+            raise LaboratoryGateError("trusted worker result persistence failed") from err
         self._pending_cases[authorized_run.result.result_id] = (
             authorized_run,
             environment.environment_id,
@@ -475,6 +630,8 @@ class LaboratoryHarness:
             secrets.token_hex(32),
             utc_now(),
             pre_execution_observation,
+            durable_evidence,
+            cleanup_evidence["sha256"],
         )
         return authorized_run
 
@@ -513,7 +670,7 @@ class LaboratoryHarness:
             case_type,
         ):
             raise LaboratoryGateError("laboratory result is not bound to a pending dispatch")
-        nonce, requested_at, pre_execution_observation = pending[5:]
+        nonce, requested_at, pre_execution_observation, durable_evidence, cleanup_receipt_digest = pending[5:]
         try:
             validate_remote_authorized_run(
                 authorized_run,
@@ -547,36 +704,25 @@ class LaboratoryHarness:
         canary_found = case_observation.canary_token_detected
         blocked = case_observation.control_blocked
         cleaned = result.cleanup_status in ("completed", "not_required")
-        if (
-            case_type == "positive"
-            and result.status == "success"
-            and result.exit_code == 0
-            and canary_found
-            and not blocked
-            and cleaned
-        ):
-            case_status = "success"
+        if result.status == "success" and result.exit_code == 0 and canary_found and not blocked and cleaned:
+            observed_case_type = "positive"
+        elif result.status == "success" and result.exit_code == 0 and not canary_found and blocked and cleaned:
+            observed_case_type = "remediated"
         elif (
-            case_type == "remediated"
-            and result.status == "success"
-            and result.exit_code == 0
-            and not canary_found
-            and blocked
-            and cleaned
-        ):
-            case_status = "remediated"
-        elif (
-            case_type == "negative"
-            and result.status == "failed"
+            result.status == "failed"
             and type(result.exit_code) is int
             and result.exit_code != 0
             and not canary_found
             and blocked
             and cleaned
         ):
-            case_status = "rejected"
+            observed_case_type = "negative"
         else:
-            case_status = "failed"
+            observed_case_type = "indeterminate"
+        matching_status = {"positive": "success", "remediated": "remediated", "negative": "rejected"}
+        case_status = matching_status[case_type] if observed_case_type == case_type else "failed"
+        observation_evidence = self.evidence_store.write_json("case-observation", asdict(case_observation))
+        durable_evidence = [*durable_evidence, observation_evidence]
         case_result = LaboratoryCaseResult(
             case_type=case_type,
             status=case_status,
@@ -584,8 +730,10 @@ class LaboratoryHarness:
             plan_id=action_plan.plan_id,
             run_result=result,
             canary_verified=case_status == "success",
+            observed_case_type=observed_case_type,
             evidence_records=list(result.evidence_records),
             cleanup_receipt=None,
+            cleanup_receipt_digest=cleanup_receipt_digest,
             details={
                 "operator_case_observation": asdict(case_observation),
                 "operator_pre_execution_observation": asdict(pre_execution_observation),
@@ -600,6 +748,7 @@ class LaboratoryHarness:
                     else None
                 ),
                 "worker_cleanup_status": result.cleanup_status,
+                "durable_evidence": durable_evidence,
             },
         )
         if self.case_journal is None:

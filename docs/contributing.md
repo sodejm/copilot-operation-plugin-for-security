@@ -223,6 +223,19 @@ For complete authoring details, review [Adding a Plugin (docs/ADDING_A_PLUGIN.md
 
 ## Plugin verification and maturity
 
+Every package also needs a [runnable practitioner workflow](plugin-playbacks.md).
+Its README must explain the problem it solves, usage, design choices, and data
+flow. Include schema tables that describe each artifact's purpose, fields,
+producer, consumer, validation, and example. Link `docs/PLAYBOOK.md` and
+`docs/VERIFICATION.md` from the README.
+
+The manifest demo must run the actual package tools and assert expected domain
+results, including a control or evidence-gap case and invalid-input behavior.
+Document its exact `python3 -m cops demo <plugin-id>` command in the playbook and
+link it from the shared workflow index. The catalog acceptance scenario runs
+every demo twice; new entries are included automatically. Use package tests for
+semantic comparisons when timestamps or workspace paths vary between runs.
+
 Each package has a [verification playbook](plugin-verification.md) for its complete
 user workflow. Include `docs/VERIFICATION.md` in new packages and link it from the
 package README and shared index. Update its exercise, acceptance criteria,

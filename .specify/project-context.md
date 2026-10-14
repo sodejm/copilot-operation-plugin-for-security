@@ -76,9 +76,11 @@ execution requires a COPS checkout. See the
 `cops.assessment_budget` is an opt-in, engagement-scoped SQLite admission ledger
 with a synthetic dispatcher. It atomically charges child attempts and retries,
 keeps uncertain dispatches reserved across cancellation and restart, signals
-active fixture callbacks on cancellation, and binds
-the operator's price assumptions to the policy. It is not wired to a provider;
-that integration depends on issue #150. See the [budget specification](../specs/aggregate-assessment-budgets.spec.md)
+active fixture callbacks on cancellation, and binds the operator's price
+assumptions to the policy. The planned provider gateway assessment must reserve
+an emulator dispatch before sending it and retain uncertain attempts. The
+current ledger does not establish provider billing or authorize a paid call.
+See the [budget specification](../specs/aggregate-assessment-budgets.spec.md)
 and [operator guide](../docs/ASSESSMENT_BUDGETS.md).
 
 ## Authenticated execution boundary
@@ -111,9 +113,11 @@ host and worker identities. The Linux worker requires process sandbox controls f
 namespaces, file descriptors, environment, privileges, resources, and output; absent
 controls fail closed before approval consumption. Deployments must still provision
 separate accounts and protected local paths and verify those host controls in place.
-Live network destination and authenticated-resource mediation (issue #186) remain
-outside this boundary. The worker must run under a dedicated UID because a hostile
-same-UID process can still interfere with worker-owned state.
+The deployed worker operation path does not yet route provider requests through
+an operator gateway. A gateway still requires exact-revision worker, gateway,
+identity, isolation, and credential evidence. The worker must run under a
+dedicated UID because a hostile same-UID process can still interfere with
+worker-owned state.
 
 Remote isolated-worker calls use `cops.remote-worker/v1`: one bounded JSON request
 and response over an absolute OpenSSH client configured with one privately staged,

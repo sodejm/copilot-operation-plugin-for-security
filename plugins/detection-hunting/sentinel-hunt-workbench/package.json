@@ -15,12 +15,10 @@
     "Tenant behavior, cost, latency, false-positive rates, host activation, and live integrations remain unverified."
   ],
   "demo": {
-    "description": "Explain the first bundled hunt, including its parameters, evidence contract, and supported surfaces.",
+    "description": "Run the complete offline playback: render all supported hunts, evaluate H01/H02/H10 scenarios, and verify drift guards.",
     "command": [
       "$PYTHON",
-      "plugins/detection-hunting/sentinel-hunt-workbench/scripts/huntwb.py",
-      "explain",
-      "H01"
+      "plugins/detection-hunting/sentinel-hunt-workbench/scripts/run_demo.py"
     ],
     "timeout_seconds": 60
   },
