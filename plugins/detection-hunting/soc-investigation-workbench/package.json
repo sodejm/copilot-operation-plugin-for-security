@@ -17,12 +17,10 @@
     "Microsoft 365 live integration and the remaining issue #27 sources are unverified."
   ],
   "demo": {
-    "description": "Validate the synthetic investigation case and print its content-addressed snapshot.",
+    "description": "Run the complete malicious, benign, and insufficient-evidence investigation playback.",
     "command": [
       "$PYTHON",
-      "plugins/detection-hunting/soc-investigation-workbench/scripts/investigate.py",
-      "validate",
-      "plugins/detection-hunting/soc-investigation-workbench/examples/case.json"
+      "plugins/detection-hunting/soc-investigation-workbench/scripts/run_demo.py"
     ],
     "timeout_seconds": 60
   },
@@ -31,8 +29,7 @@
       "name": "development package gate",
       "command": [
         "$PYTHON",
-        "plugins/detection-hunting/soc-investigation-workbench/scripts/validate-package.py",
-        "--allow-pending-vendor"
+        "plugins/detection-hunting/soc-investigation-workbench/scripts/validate-package.py"
       ],
       "timeout_seconds": 120
     }

@@ -32,6 +32,7 @@ plugin.json
 org.cops/prerequisites.json
 package.json
 README.md
+docs/VERIFICATION.md
 skills/<globally-unique-skill-id>/SKILL.md
 scripts/<entry-point>.py
 ```
@@ -147,7 +148,34 @@ from the root README path, generated files have no drift, the full suite passes 
 supported Python versions and operating systems, and documentation distinguishes
 repository evidence from host and live evidence.
 
-## 7. Record stronger support only with evidence
+## 7. Add the end-to-end verification playbook
+
+Write the package README as user documentation: explain its purpose, runnable
+usage, design choices, data flow, schema contracts, and limitations. Give each
+schema a table entry with its purpose, important fields, producer, consumer,
+validation, and example. Avoid using an issue description as the package guide.
+
+Create `docs/PLAYBOOK.md` with the input-to-output procedure, expected results,
+failure and evidence-gap cases, rerun behavior, and cleanup. Include an exact
+standalone `python3 -m cops demo <plugin-id>` command. The manifest demo must
+invoke the real tools and fail when domain expectations are not met. Link the
+playbook from the package README and [workflow index](plugin-playbacks.md).
+The catalog test automatically exercises every demo twice.
+
+Create `docs/VERIFICATION.md` in the package. Include prerequisites, the exact
+`cops info`, `cops demo`, and `cops check` commands, a runnable fixture exercise,
+independent acceptance criteria, malformed/partial/out-of-scope cases, recovery,
+cleanup, and host installation/invocation steps. State required repository SDKs
+and unsupported operations. Include a fresh repeat run and independent operator
+review before stable qualification.
+
+Link the page from the package README and [verification index](plugin-verification.md).
+Use the [record template](templates/PLUGIN_VERIFICATION_RECORD.md) to retain
+sanitized results, tested revision, input digests, scope, blockers, and reviewer
+decision. After review, synchronize manifest maturity and public labels using the
+shared guide. Do not treat a playbook's presence as completed qualification.
+
+## 8. Record stronger support only with evidence
 
 A manifest or successful local test is not installation proof. Before promoting a
 host or live state, record the host/service version, clean installation steps,

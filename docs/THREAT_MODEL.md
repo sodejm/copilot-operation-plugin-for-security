@@ -2,20 +2,24 @@
 
 ## Status and scope
 
-Source baseline: `42cb017012934839702ce0b939a5cbc9193271ea`. Adoption: 2026-10-08.
+Original source baseline: `42cb017012934839702ce0b939a5cbc9193271ea`. Adoption: 2026-10-08.
 Status: source-based initial model; independent human security review pending.
 This model contains attack hypotheses, not validated vulnerability findings.
 Existing canonical security documentation and stricter acceptance gates remain
-applicable. Future changes must update this baseline rather than treating its
-source revision as evidence for newer behavior.
+applicable. The E16.01 implementation entry identifies its later source revision;
+the original baseline does not establish newer behavior.
+The E16.01 local agent/MCP fixture source and pre-existing tests were inspected
+at `843e0ed1bcd2eadb167491ba7539713d19748b9b` (merged PR #276). The exact
+bundled-case inventory assertion was added at
+`50da6d6df8ff89774db89fb33d598ec47d7af754` in PR #293.
 
 COPS distributes security operations plugins and skills, local validation/marketplace tooling and execution/approval support. Capabilities vary by component: the Sentinel hunt workbench is offline and credential-free; other integrations can reach live APIs. No global offline or harmless-execution assumption applies.
 
 ## Assets, actors and assumptions
 
-Assets: Plugin package and marketplace integrity; approval/checkpoint records; cloud/Sentinel credentials; tenant/resource identifiers; security telemetry and hunt results; generated report-set integrity and completion evidence; agent execution authority; CI and distribution credentials.
+Assets: Plugin package and marketplace integrity; approval/checkpoint records; cloud/Sentinel credentials; tenant/resource identifiers; security telemetry and hunt results; generated report-set integrity and completion evidence; agent execution authority; synthetic laboratory case, MCP fixture state and effect-report integrity; CI and distribution credentials.
 
-Actors: Authorized security operator; malicious telemetry/tool-output author; untrusted plugin contributor; compromised dependency/marketplace source; local user manipulating approval state; attacker controlling a configured API endpoint.
+Actors: Authorized security operator and laboratory case author; malicious telemetry/tool-output or laboratory text author; laboratory runner and separate agent/MCP fixture processes; untrusted plugin contributor; compromised dependency/marketplace source; local user manipulating approval state; attacker controlling a configured API endpoint.
 
 Assume an authorized operator, a trusted host and reviewed checkout. Treat input,
 remote responses and imported content as untrusted. Repository access or a local
@@ -32,9 +36,12 @@ private payloads and real identifiers must never be copied into this document.
 | Operator decision → approval store → tool execution | Approval must be bound to action, effective resource and current revision, atomically consumed. |
 | Cloud integration → remote API / telemetry → agent | Credentials go only to intended recipients; telemetry remains untrusted even from authenticated services. |
 | Canonical hunt skills → generated host adapters | Hashes and deterministic generation establish consistency, not trust in malicious canonical content. |
+| Operator model catalog → offline advisor → host model selection | Catalog records are bounded, untrusted assertions about exact model capabilities, access and supported effort. Advice cannot establish entitlement or authorize a model switch, agent launch or security operation. |
 | Handoff proposal → specialist acceptance → auditor completion | A proposed skill ID and capability must resolve to the recipient's registered specialist profile and local skill file; acceptance records the resolved target and checksum. Skeptic review and audit re-resolve the current target. Completion is a reviewed handoff record, not tool execution. |
 | Attack Path input → descriptor-anchored report writer → operator-selected output directory | Output paths and concurrent filesystem names remain untrusted; a report set is complete only when the completion marker and recorded hashes validate. |
-| Laboratory operator observation → signed receipt → controller case classification | An independently provisioned observation key attests isolation, canary and control measurements. The worker result alone cannot establish case success; a protected local journal records dispatch intent and terminal outcomes. |
+| Laboratory operator observation → signed receipt → controller case classification | Execution requires fresh `observed` verification from an explicitly configured provider; `simulated` verification cannot authorize execution. The controller atomically reserves the authorization ID before dispatch, validates the returned identity before treating a result as trusted, and stores exact-byte-hashed evidence in a separately configured owner-only directory. These controls remain inside the local owner's trust boundary. |
+| Plugin demo → source playback / isolated export → semantic acceptance | Every declared synthetic demo runs twice from source and twice from a Git-index export with source-only package files omitted. Acceptance checks the final JSON contract and rejects an exit-zero no-op; it does not establish behavior of an installed release artifact or live integration. |
+| Canonical Microsoft Sentinel package → explicit local Git sync → locked SOC snapshot → playback | The lock records a fixed upstream, subdirectory, revision, source state, file inventory hashes, license and policy. Validation establishes repository consistency, not upstream authorship, freshness, vulnerability status or legal approval. |
 | AI inventory import → bounded evidence graph/report → authorized operator | Imported provider records remain untrusted; strict projection rejects raw trace content, canonical source/tenant identities and engagement-bound references prevent cross-engagement conflation, and bounded traversal reports coverage limits. |
 | Offline LangSmith response → strict selected-field parser → AI inventory registry → `ExportBoundary` → caller sink | The parser accepts one versioned envelope, discards user-defined names and cursors, and never fetches provider data. A report reaches a registered report sink only after the concrete privacy boundary transforms it. |
 | Evidence copy → `ExportBoundary` → declared external/durable sink | `cops.evidence.assessment.export_provider_assessment`, `export_assessment_telemetry`, and `export_assessment_report` derive a local assessment; `cops.diagnostics.export_diagnostic_report` serializes a `DiagnosticReport`. Each transforms its copy then calls the caller-provided sink immediately afterward. The repository supplies no recipient backend. |
@@ -43,8 +50,11 @@ private payloads and real identifiers must never be copied into this document.
 | Offline Entra export manifest and files → identity graph and exposure report → analyst | Export content and collector claims of completeness or collection time are untrusted. Hashes establish file integrity only; per-source coverage determines whether a path can support a current exposure claim. Reports can repeat private identifiers. |
 | Scoped offline Active Directory export → bounded relationship graph → analyst | Collector identity, scope, completeness, collection time, and relationship support are untrusted input. Candidate paths are structural observations; reports can contain sensitive relationship identifiers and do not establish current privilege. |
 | Local Linux or Windows host export → host-assessment-workbench importer → operator | The importer reads a bounded local JSON file and returns classifications from untrusted source assertions. It does not collect host state or verify canary execution, cleanup, or the source's identity. Opaque IDs must be kept free of secrets by the exporter. |
-| Operator assessment budget → owner-controlled ledger → fixture assessment dispatcher | The controller must reserve before callback dispatch. Agent and provider content cannot expand the budget or release an uncertain attempt. Provider integration remains pending issue #150. |
+| Operator assessment budget → owner-controlled ledger → fixture assessment dispatcher | The controller must reserve before callback dispatch. Agent and provider content cannot expand the budget or release an uncertain attempt. The offline provider-shaped fixture importer uses this ledger; live provider dispatch remains unavailable. |
 | Approved local corpus → private Linux worker workspace → offline research adapter → run result | The signed plan binds corpus, inventory, isolation, and executable digests. The worker checks a fresh namespace observation before approval consumption and before each external adapter starts; its own measurements do not independently attest host controls. |
+| Operator-supplied synthetic case → runner → agent fixture proposal → authorization gate → MCP stdio fixture → observed state/report | Case text and MCP tool output are untrusted data. The agent child proposes but has no MCP pipe; only the runner can forward a proposal after case-scoped checks. The separate child processes share the host's OS authority, so their stdio boundary is not an OS network sandbox. |
+| Synthetic provider plan and response fixture → exact plan gate → assessment budget ledger → normalized content-free report | Provider-shaped input remains untrusted. Exact environment, scope, endpoint, model, canary, tool and request-digest binding precede reservation and fixture processing. The importer makes no network request and executes no proposed tool. |
+| Local asset context and service attack notice registry → bounded offline matcher → applicability report | Asset claims and notice content remain untrusted. Exact allowlists and prerequisite evidence produce conservative classifications, not vulnerability or exploitability findings. The matcher performs no network access or input-directed execution. |
 
 ```mermaid
 flowchart LR
@@ -62,16 +72,125 @@ Authentication of an upstream service does not make its content trusted. Review
 the effective filesystem path, subprocess arguments, network recipient, cloud
 account and credential recipient rather than only their user-supplied labels.
 
+### Local agent and MCP fixture boundary
+
+The Foundry Agent Harness laboratory loads versioned JSON cases from an
+operator-selected file or directory. A case author supplies the task,
+`untrusted_text`, tool permissions, `approved_call`, and control profile. The
+`approved_call` is the case's test oracle, not an independently authenticated
+operator approval. Case validation restricts tools, tenant, arguments, resources
+and destination to fixed synthetic values; it does not establish the author's
+identity or the truth of the task description. The loader does not limit file
+bytes, directory case count or JSON nesting before parsing. Large or hostile
+case inputs can exhaust local memory or CPU; use only vetted synthetic inputs.
+
+For each case, the runner starts fixed local Python agent and MCP fixture scripts
+as separate child processes, in a temporary working directory with a reduced
+environment. It exchanges bounded JSON lines over pipes and checks response
+deadlines. The MCP pipe belongs to the runner, not the agent fixture. The runner
+checks the MCP protocol version, tool inventory and response shape, reads initial
+state, and, for a tool-response case, obtains the injected text through an MCP
+lookup. Case text can claim higher priority or impersonate a peer. The
+deterministic agent fixture is not a live model: it can turn an untrusted
+`TOOL_CALL:` marker into a proposed call. Agent text and MCP responses are data,
+not authority to execute.
+
+The runner checks each proposal against case tool permission, tenant and exact
+synthetic argument, resource and destination allowlists. The `strict` profile
+also requires the proposal to equal the case's `approved_call` before the runner
+forwards it to MCP. The `permission_only` profile deliberately omits that task
+binding to demonstrate a permitted but off-task effect; it is not a safe
+authorization profile for live tools. Denied calls are not forwarded. The runner
+derives effects from MCP state before and after execution, then requests reset
+and compares the final state with the initial state. A tool's success text or
+agent proposal alone does not prove an effect or cleanup. Malformed responses,
+timeouts, protocol mismatches and unverifiable state fail the case; child
+processes are terminated on exit. Report fields such as `environment_verified`
+and `cleanup_verified` describe these fixture checks only.
+`all_expectations_met` summarizes only the selected cases; a custom `--cases`
+run is not evidence that all 13 bundled cases ran. Check the report's case IDs
+when asserting bundled-suite coverage.
+
+Python `-I`, a reduced environment and a temporary working directory constrain
+the launched scripts but do not provide OS process, filesystem or network
+isolation. The children run with the invoking user's host authority; compromised
+same-authority code or a modified checkout could bypass the runner's intended
+MCP gate or access host resources. The bundled fixture performs no real network
+operation and accepts no case-selected command or endpoint, but the OS does not
+block network access. Run only trusted checkout code with synthetic data and no
+real credentials or live targets. These local results do not establish live
+model prompt-injection resistance, host containment or independent authorization.
+
+### Offline AI provider fixture boundary
+
+The Foundry Agent Harness provider assessment reads a versioned synthetic plan
+and case file through a bounded JSON loader. The plan permits only
+`offline_fixture` mode with paid execution disabled. It binds each case to an
+exact provider environment, account or tenant, project or subscription, region,
+`.invalid` HTTPS endpoint, model, canary, tool allowlist and canonical request
+digest. A mismatch is denied before budget reservation or response processing.
+
+Approved cases reserve against the shared assessment budget ledger before their
+inline response is validated. Only admitted responses reach the strict schema
+for their provider; malformed, cross-provider, unknown-field and inconsistent
+tool-use envelopes fail before normalization. OpenAI and Azure status, AWS stop
+reason and GCP finish reason then map into a common outcome vocabulary. An AWS `tool_use` response
+becomes a `tool_proposal`; there is no executor. Partial or unknown terminal
+state becomes `no_effect` with unknown usage, leaving the ledger conservative.
+Synthetic prices and token counts exercise local accounting and are not provider
+usage or billing evidence.
+
+The report uses fixed allowlisted fields and replaces source case IDs with stable
+SHA-256 references from `report_case_id`. These pseudonymous correlators do not
+provide anonymity. It excludes prompts, response text, endpoint URLs, account
+identifiers, canary values and credentials. An over-budget snapshot remains in
+the emitted report and makes the completed command exit nonzero. Its cleanup
+receipt covers only the temporary local budget ledger. The importer has no
+provider client, credential lookup, network operation, live mode or paid mode.
+It cannot authenticate a response, verify tenant identity, establish actual
+usage or cost, prove remote cancellation or cleanup, or measure model behavior.
+The shared egress broker permits only `GET` and `HEAD`, which cannot carry a
+provider inference request. Live assessment requires a separately authorized
+execution boundary with exact POST origin, path, body and identity binding.
+
+### Service attack notice boundary
+
+The service attack notice command reads a versioned local registry and one
+bounded local asset JSON document. Its parser accepts regular UTF-8 files only,
+limits bytes and nesting, rejects duplicate keys and non-finite values, and
+validates exact fields. It rejects non-regular paths before opening and uses
+no-follow and nonblocking open flags where the host supports them. A local
+actor who can replace paths during the open remains an unresolved file-integrity
+risk on hosts without those flags. Registry sources must use allowlisted HTTPS primary
+source hosts, but URLs are metadata: the command never fetches them. Input is
+data and cannot select code, commands, paths, or network destinations.
+
+Assessment uses exact product, operating-system, and version allowlists. A
+candidate additionally requires source-scoped service reachability,
+configuration, and contextual prerequisites. A port observation alone is
+insufficient. Missing or unlisted versions, missing evidence, and stale notices
+remain unknown. Withdrawn and superseded notices cannot become candidates.
+Candidate means only that a targeted investigation may be appropriate; it does
+not establish a vulnerability, exploitability, initial access, or authorization
+to scan. The matcher labels asset input as unverified. It cannot authenticate
+either the asset claims or the source research and depends on human monthly
+and high-impact review.
+
 ## Implementation evidence inventory
 
 - `cops/execution/store.py`: inspect at the baseline revision; evidence scope is limited to this component.
 - `plugins/AGENTS.md`: inspect at the baseline revision; evidence scope is limited to this component.
 - `plugins/detection-hunting/sentinel-hunt-workbench/huntwb/adapters.py`: inspect at the baseline revision; evidence scope is limited to this component.
 - `plugins/detection-hunting/attack-path-workbench/attackpath/azure/report.py`: descriptor-anchored report-set writes and completion-marker publication.
+- `plugins/detection-hunting/attack-path-workbench/attackpath/windows_io.py`: Windows handle-relative traversal, reparse-point rejection, bounded input reads and exclusive report publication.
 - `plugins/detection-hunting/attack-path-workbench/tests/test_workbench.py`: negative tests for output-path replacement, publication races, durability failures and cleanup behavior.
+- `plugins/detection-hunting/attack-path-workbench/scripts/run_demo.py`: native Windows playback and rejection of input and output-parent junctions in operator CI.
 - `docs/SECURITY_MODEL.md`: inspect at the baseline revision; evidence scope is limited to this component.
 - `scripts/agent/check.py`: inspect at the baseline revision; evidence scope is limited to this component.
-- `cops/laboratory/harness.py`, `receipts.py`, and `journal.py`: source and synthetic-test evidence for laboratory receipt binding, dispatch intent, and case classification; live host isolation and observer independence remain unverified.
+- `cops/laboratory/harness.py`, `evidence.py`, `receipts.py`, and `journal.py`: source evidence for fresh observed-versus-simulated execution gating, exact stored-byte durable evidence, atomic authorization reservation, cleanup/result digest binding, and best-effort unknown recovery after dispatch. Live host isolation, key custody and observer independence remain unverified.
+- `tests/test_laboratory_harness.py`, `tests/test_laboratory_evidence.py`, `tests/test_laboratory_journal.py`, and the scenario-laboratory skill tests: synthetic coverage for provenance, concurrent replay, symlink and relocation handling, storage failures, and post-dispatch recovery.
+- `cops/portable.py`, catalog demo declarations, and `tests/step_defs/test_portable_operator_workflow.py`: every declared synthetic demo runs twice from source and twice from an isolated Git-index export with user-site imports disabled. Acceptance checks semantic final JSON and rejects an exit-zero no-op; it does not test an installed release artifact or live service.
+- `plugins/detection-hunting/soc-investigation-workbench/investigationwb/vendor.py`, `vendor-lock.json`, and `tests/step_defs/test_soc_investigation.py`: explicit local Git synchronization and fail-closed validation of the fixed Sentinel upstream, subdirectory, revision, source state, exact-byte inventory hashes, license and policy. These checks establish snapshot consistency only.
 - `cops/evidence/ai_inventory.py`: schema-validated bounded import, source/tenant namespaces, content-free errors, provenance/lineage records, scoped references, bounded graph reporting and conservative removal comparison.
 - `tests/test_ai_inventory.py`: negative coverage for malformed imports, identity collisions and aliases, scoped snapshots, bounded graph paths, permission/destination differences, and partial, inaccessible or stale source evidence.
 - `cops/evidence/langsmith_inventory.py`: bounded selected-field parser, deterministic graph mapping and mandatory concrete `ExportBoundary` integration.
@@ -84,10 +203,15 @@ account and credential recipient rather than only their user-supplied labels.
 - `tests/test_export_policy.py`: synthetic field, stream, attachment, sink-failure, retry/cancellation, adapter, and corpus-metric checks.
 - `plugins/identity-access/entra-identity-workbench/entrawb/ingestion.py`, `validation.py`, and `tests/test_workbench.py`: per-source freshness decisions, cross-field evidence checks, and synthetic negative tests for offline Entra artifacts; proposed issue #197 controls pending exact-revision human review.
 - `plugins/identity-access/ad-assessment-workbench/adwb/inventory.py` and `tests/test_inventory.py`: strict bounded offline input validation, scoped provenance-linked path analysis, coverage labels, and synthetic negative tests; live directory state and collector assertions remain unverified.
-- `plugins/offensive-security/host-assessment-workbench/host_assessment_workbench/core.py` and `windows.py`: bounded, exact-schema Linux and Windows local imports, prerequisite matching, coverage and reported-canary classification; no host collector or executor.
-- `tests/test_host_assessment_workbench.py`: synthetic positive, negative and fixed canaries, plus malformed-import and mismatch tests. These do not establish live privilege-boundary behavior.
+- `plugins/offensive-security/host-assessment-workbench/host_assessment_workbench/core.py`: bounded, exact-schema local import, prerequisite matching, coverage and reported-canary classification; no host collector or executor.
+- `tests/test_host_assessment_workbench.py`, `tests/test_host_windows_assessment.py`, and host-assessment-workbench playback tests: synthetic Linux positive, negative and fixed canaries; Windows vulnerable, protected, remediated and unsupported exports; plus malformed-import and mismatch tests. These do not establish live privilege-boundary behavior.
 - `cops/execution/offline_research.py`, `sandbox.py`, and `worker.py`: profile validation, bounded descriptor-based corpus staging, gated Linux namespace observations, and per-invocation result records.
 - `tests/test_offline_research.py`: synthetic rejection tests for altered corpora, profile substitutions, stale or mismatched isolation, and unsupported operations; no live Linux host attestation.
+- `plugins/offensive-security/foundry-agent-harness/foundryharness/laboratory.py` at `843e0ed1bcd2eadb167491ba7539713d19748b9b`: per-case validation after unbounded file loading, fixed child-process launch, MCP protocol checks, runner-owned authorization, state comparison and reset verification.
+- `plugins/offensive-security/foundry-agent-harness/foundryharness/fixture_agent.py` and `mcp_fixture_server.py`: deterministic proposal and synthetic MCP state fixtures; neither establishes live model or host isolation behavior.
+- `plugins/offensive-security/foundry-agent-harness/tests/test_laboratory.py` and `specs/agent-mcp-laboratories.spec.md`: exact bundled-case inventory, synthetic case behavior, untrusted-config rejection, reset coverage and the local laboratory contract; malformed-protocol, timeout and reset-failure tests remain pending. No live endpoint or OS network-isolation evidence.
+- `cops/provider_assessment.py`, the Foundry Agent Harness `provider_fixtures/` and provider schemas, `tests/test_provider_assessment.py`, and `specs/ai-provider-assessment.spec.md`: bounded offline import, exact request binding, provider-specific state normalization, shared budget-ledger behavior, fixed report projection, and synthetic negative coverage. No provider request, credential, tool execution, billing, or remote cleanup evidence.
+- `catalog/service_attack_notices.json`, `cops/service_notices.py`, and `tests/test_service_notices.py`: versioned primary-source metadata, bounded parsing, exact allowlist assessment, lifecycle suppression, and synthetic positive and negative tests; no live asset or source verification.
 
 ## Threat register and prioritization
 
@@ -190,9 +314,9 @@ validation before the affected release/capability expansion and schedule P2 with
 
 - Attack path / prerequisite: A concurrent local process replaces an output path or staging name, or a filesystem failure interrupts publication, so incomplete output appears complete or a foreign file becomes the completion marker.
 - Inherent impact: High; likelihood: Medium; priority: P1.
-- Existing evidence / limitation: The writer anchors traversal to directory descriptors, synchronizes new directories and reports before publication, creates the staging marker exclusively, publishes the open staging inode without replacement and synchronizes the published marker before cleaning up the staging name. The marker binds the run ID and report hashes, but a same-authority administrator can bypass these controls and some filesystems may provide weaker durability guarantees.
-- Proposed mitigation and validation: Keep negative tests for parent/output swaps, mid-walk renames, report and synchronization failures, competing marker creation, staging substitution and cleanup failure. Require consumers to validate marker schema, run ID and hashes, then record exact-revision human review and applicable filesystem evidence before release.
-- Residual risk / status: automated negative tests provide local evidence only; post-write mutation, hostile same-authority principals and filesystem-specific durability remain unverified. Human review and exact-revision acceptance are pending.
+- Existing evidence / limitation: On POSIX, the writer anchors traversal to directory descriptors, synchronizes directories and reports, creates the staging marker exclusively and publishes the open staging inode without replacement. On Windows, held directory handles anchor traversal, reparse points are rejected, each report and staged marker is flushed, and the open marker is renamed into the held output directory without replacement. The Windows writer checks output-path identity before and after publication but does not promise POSIX directory-entry durability. Both writers require a trusted private parent; Windows access controls are inherited from that parent. The marker binds the run ID and report hashes.
+- Proposed mitigation and validation: Keep negative tests for parent/output swaps, mid-walk renames, report and synchronization failures, competing marker creation, staging substitution and cleanup failure. Run native Windows playback and input/output junction rejection checks in operator CI. Require consumers to validate marker schema, run ID and hashes, then record exact-revision human review and applicable filesystem evidence before release.
+- Residual risk / status: A same-authority process can mutate reports or rename ancestors. A Windows rename after the prepublication check can move the held directory; the marker remains bound to that directory and the postpublication check reports failure. Automated checks do not establish crash durability, hostile-administrator resistance or behavior on every filesystem. Independent human release review remains pending.
 
 ### T11: Provenance decision or guidance mapping drift
 
@@ -238,9 +362,9 @@ validation before the affected release/capability expansion and schedule P2 with
 
 - Attack path / prerequisite: A worker-controlled result claims isolation, a clean reset, or canary detection without independent measurement; alternatively, a controller crash or lost dispatch response obscures whether a case ran.
 - Inherent impact: High; likelihood: Medium; priority: P1.
-- Existing evidence / limitation: The harness checks owner-provisioned Ed25519 observation receipts against operation nonces and result identity, rejects missing or contradictory case observations, and records dispatch intent in an owner-only SQLite journal before SSH dispatch. It marks uncertain dispatches separately and fails pending cases after restart, reset, reverification, or a bounded deadline. These are local software controls; synthetic tests do not prove host isolation, key custody, an independent observer, or remote cleanup.
-- Proposed mitigation and validation: On the intended host, verify observation-key custody, observer separation from the worker and controller, effective network isolation and egress denial, canary baseline and reset behavior, and reconciliation of unknown dispatches against worker audit evidence. Test crash and storage-failure recovery with the actual filesystem and supervisor before enabling live cases.
-- Residual risk / status: live operating evidence and exact-revision human security review are pending. Journal integrity assumes an owner-controlled host and one controller process; a same-authority actor or unavailable journal storage can disrupt accounting.
+- Existing evidence / limitation: Execution requires fresh `observed` verification from a configured provider; `simulated` verification cannot execute, and unsupported real verification or reset fails closed. The harness checks owner-provisioned Ed25519 observation receipts against operation nonces and result identity, validates returned authorization, plan and worker identity before trusted persistence, hashes the exact bytes stored in a separately configured owner-only evidence directory, and binds the cleanup-receipt digest to the result. Durable evidence references use content-addressed paths relative to that configured directory, omit controller absolute paths, and must be resolved through the owning evidence store. The SQLite journal uses `BEGIN IMMEDIATE` and a unique authorization ID to reserve before dispatch, so controllers sharing one journal cannot concurrently reuse an authorization. Migration fails closed when an attempted historical row lacks a recoverable authorization identifier. Post-begin failures attempt to mark the case `unknown`, preserve available result or cleanup references, and leave the authorization consumed.
+- Proposed mitigation and validation: On the intended host, verify observation-key custody, observer separation from the worker and controller, effective network isolation and egress denial, canary baseline and reset behavior, evidence-directory retention and backup, and reconciliation of unknown dispatches against worker audit evidence. Test crash, storage failure and recovery with the actual filesystem and supervisor before enabling live cases.
+- Residual risk / status: Durable evidence remains until the operator or a separately configured retention process deletes it; the repository provides no automatic expiry, deletion or backup. A same-authority actor can alter or delete the journal and evidence, and a digest provides integrity comparison rather than authenticity or an external timestamp. Replay protection covers controllers sharing the same database; a copied or relocated database is a distinct replay domain, and journal relocation requires a new journal object. If storage remains unavailable, even best-effort unknown recording can fail. Live host isolation, key custody, observer independence, cleanup and exact-revision human security review remain pending.
 
 ### T17: Specialist handoff target confusion
 
@@ -278,7 +402,7 @@ validation before the affected release/capability expansion and schedule P2 with
 
 - Attack path / prerequisite: An exporter supplies false host context, coverage, canary access, or cleanup assertions; an operator treats a reported positive as independently demonstrated. An exporter may also put sensitive information in an ID that the report echoes.
 - Inherent impact: High; likelihood: Medium; priority: P1.
-- Existing evidence / limitation: The Linux and Windows importers reject unknown fields, duplicate keys, oversized or deeply nested input, invalid prerequisites, and contradictory canary sequences. Windows imports additionally require declared bridge capabilities and build, architecture, token, and protection context before selecting a check. They distinguish configuration candidates, unselected observations, and reported canary results. Strict opaque-ID syntax reduces exposure but cannot determine whether an allowed token is sensitive or whether an assertion is true.
+- Existing evidence / limitation: The importer rejects unknown fields, duplicate keys, oversized or deeply nested input, invalid prerequisites, and contradictory canary sequences. It distinguishes configuration candidates, unselected observations, and reported canary results. Its strict opaque-ID syntax reduces exposure but cannot determine whether an allowed token is sensitive or whether an assertion is true.
 - Proposed mitigation and validation: Keep synthetic positive, negative, fixed, mismatch, and malformed-input tests; require a separately approved disposable-host collector with source authentication, canary privileges, independently recorded before/after access, and ownership-aware cleanup receipts before live claims. Review that integration and its exact revision with a human security reviewer.
 - Residual risk / status: The offline importer cannot establish a real privilege crossing, completeness of host coverage, or cleanup. No live integration or disposable-host validation is present; human review remains pending.
 
@@ -286,7 +410,7 @@ validation before the affected release/capability expansion and schedule P2 with
 
 - Attack path / prerequisite: Concurrent children or retries check separate counters; a crash, duplicate receipt, stale lease, cancellation, or forged usage report frees allowance for another call while the original remains in flight. Incorrect price assumptions or underestimated tokens/cost can also understate actual billing.
 - Inherent impact: High; likelihood: Medium; priority: P1.
-- Existing evidence / limitation: The issue #240 ledger is an owner-controlled, engagement-scoped local admission boundary with SQLite transactions, durable dispatch intent, idempotent receipts, and conservative unknown usage. Its first dispatcher is synthetic. It does not mediate the future provider adapters from issue #150 or independently attest provider usage and pricing.
+- Existing evidence / limitation: The issue #240 ledger is an owner-controlled, engagement-scoped local admission boundary with SQLite transactions, durable dispatch intent, idempotent receipts, and conservative unknown usage. It mediates the bundled offline provider-shaped fixture cases from issue #150, but it does not send a provider request or independently attest provider usage, pricing, billing, cancellation, or cleanup.
 - Proposed mitigation and validation: Exercise concurrent admission, recursion/fanout, retries, receipt replay/conflict, late responses, restart, active callback cancellation, denied-action clock rollback, deadline and unavailable storage with deterministic fixtures. Record cancellation request, observed stop and final usage separately. Before live use, require each provider/tool path to reserve at its effective dispatch boundary, validate usage/price sources, independently reconcile unknown in-flight calls and actual billing, and obtain exact-revision security review.
 - Residual risk / status: A caller can bypass an opt-in wrapper; local accounting cannot prevent provider billing overage or prove remote cancellation. Same-authority ledger tampering, host clock manipulation, dishonest receipts, and real provider integration remain unverified.
 ### T23: Active Directory collection or path overclaim
@@ -304,6 +428,47 @@ validation before the affected release/capability expansion and schedule P2 with
 - Existing evidence / limitation: The signed profile binds inventory, corpora, executable pin, and isolation digest. The worker checks bounded regular files with held descriptors, measures a fresh gated bubblewrap probe before approval consumption, and measures each external adapter sandbox before releasing its executable. Synthetic tests cover rejection paths; no independent deployed-host observation is present.
 - Proposed mitigation and validation: Keep profile and race rejection tests, repeat Linux integration checks on the intended worker image, and obtain independent host evidence for namespace, network, account, and journal boundaries before real-data use. Require exact-revision human security review for the implementation.
 - Residual risk / status: Worker self-observation cannot prove independent host isolation or the provenance of mounted corpora. A privileged or same-UID host actor can interfere with local state; live isolation and human review remain pending.
+
+### T24: Model capability or access misclassification
+
+- Attack path / prerequisite: A forged, stale or future-dated catalog, ambiguous task description, or model brand is treated as proof of capability or access. An operator may select an unsuitable model or incur unintended effort cost based on that advice.
+- Inherent impact: Medium; likelihood: Medium; priority: P2.
+- Existing evidence / limitation: The offline advisor bounds input, rejects duplicate JSON fields and unknown schema fields, and requires fresh, nonfuture evidence with exact model IDs, independent capability tags, granted access and supported effort. Family names carry no routing authority. Automatic suggestions are limited to low, medium and high; the advisor performs no discovery, provider calls, model changes or agent launches. Synthetic regression tests cover these boundaries.
+- Proposed mitigation and validation: Verify catalog assertions against the intended host and provider documentation, correct ambiguous task classification, and inspect current settings and exclusions before implementation. Keep malformed-input, freshness, access, effort and CLI compatibility tests at the exact revision; obtain independent human review before accepting the control.
+- Residual risk / status: Operator assertions, host clocks, native effort mappings and coarse task heuristics can be wrong. Offline validation cannot authenticate an entitlement or demonstrate actual model performance; host verification and human review remain pending.
+
+### T25: Local agent/MCP proposal or subprocess-boundary confusion
+
+- Attack path / prerequisite: Untrusted case text or an MCP tool response impersonates a higher-priority instruction or peer and induces an off-task proposal. A malformed or stalled child response can disrupt observation; a compromised fixture or same-authority host process can bypass the runner's intended gate, alter state or report data, or use host network access. A report disclosed beyond its intended audience can expose case content.
+- Inherent impact: High if this pattern is extended to live tools or private data; likelihood: Low under the current synthetic-only, trusted-checkout assumptions; priority: P1 before any live expansion.
+- Existing evidence / limitation: The fixture agent only proposes calls and has no MCP pipe. The runner validates each parsed case, MCP handshake and responses, restricts tool/tenant/arguments/resource/destination, binds strict-profile proposals to the case's `approved_call`, observes state effects, and verifies reset. The permission-only profile intentionally permits an off-task synthetic effect. Case approval is supplied by the same case author. Case-file bytes, case count and JSON nesting are not bounded before parsing; Python process flags and temporary storage do not enforce OS network or same-authority isolation.
+- Proposed mitigation and validation: Retain paired strict/permission-only injection cases and existing foreign-tenant, disallowed-tool and destination checks. Add focused malformed-protocol, timeout and reset-failure tests and bound case-file loading before expanding exposure. Restrict case/report access and retention. Before any live model, MCP server, credential or target is connected, design an independently authenticated approval boundary and verify effective subprocess identity, filesystem and network controls on the intended host; obtain exact-revision human security review.
+- Residual risk / status: Fixture tests establish only local runner behavior. Unbounded case input can exhaust local resources; the three failure-path tests above remain pending. The fixtures do not prove author identity, independent approval, resistance of a live model, containment of compromised child code, host network isolation or trustworthy state under same-authority interference. Human review and live-use controls are pending.
+
+### T26: Synthetic provider response overclaim or content disclosure
+
+- Attack path / prerequisite: A substituted endpoint, tenant/account, project/subscription, model, request digest, canary, or tool request is accepted as the authorized case; a forged completed response or usage record is reported as provider truth; nested prompt or response content reaches the report; or a tool proposal is confused with tool execution.
+- Inherent impact: High if fixture evidence is used to authorize or describe live provider activity; likelihood: Medium; priority: P1 before any live expansion.
+- Existing evidence / limitation: The offline importer accepts only bounded, strict plan, case, and provider-shaped response documents. It requires exact binding before ledger reservation and response normalization, uses reserved `.invalid` endpoints, treats tool requests as proposals only, and reports partial responses as `no_effect` with unknown usage while keeping the reservation conservative. The report is assembled from allowlisted fields and excludes response text, prompts, endpoint URLs, account identifiers, canary values, and credentials. Synthetic tests exercise each supported provider family plus binding, budget, tool, partial-response, and malformed-input paths. The shared egress contract permits only `GET` and `HEAD`, so it cannot dispatch provider inference requests.
+- Proposed mitigation and validation: Keep provider-specific parsing and negative binding tests pinned to versioned schemas. Before adding live capability, separately authorize an exact provider origin, path, method, body class, credential identity, tenant/account and model; integrate export redaction at the send boundary; reconcile provider usage and billing independently; record cancellation request, observed stop and final usage separately; and verify remote cleanup and retention with provider evidence. Require exact-revision human security review.
+- Residual risk / status: Offline fixtures cannot authenticate a provider response, establish tenant or project ownership, prove usage or billing, verify remote cancellation or cleanup, or evaluate model and tool safety. A same-authority actor can rewrite fixtures and expected results together. No live or paid provider evidence is present.
+
+### T27: Service notice scope or applicability overclaim
+
+- Attack path / prerequisite: A forged asset document, broadened product or version scope, stale notice, or port-only observation is treated as evidence of vulnerability or permission to investigate a live target.
+- Inherent impact: Medium; likelihood: Medium; priority: P2.
+- Existing evidence / limitation: Bounded strict parsing, exact product and version allowlists, mandatory reachability, configuration and contextual prerequisites, and lifecycle suppression constrain the offline matcher. Candidate output explicitly proposes investigation only. The tool cannot authenticate asset claims or independently refresh source research.
+- Proposed mitigation and validation: Keep malformed, insufficient-evidence, stale, withdrawn, fixed-version and wrong-product tests. Review primary sources monthly and after high-impact publications. Require separate authorization and live evidence before any target interaction or finding.
+- Residual risk / status: A same-authority actor can change the registry, asset fixture, and expected result together. Human source review and downstream interpretation remain trust boundaries; no live asset state, vulnerability, exploitability, or authorization is established.
+
+### T28: Synthetic playback or vendored snapshot overclaim
+
+- Attack path / prerequisite: A source-only dependency hides a broken exported package, an exit-zero no-op is treated as a successful demo, or a validated vendored snapshot is described as trusted, current or safe.
+- Inherent impact: High if synthetic or snapshot evidence is used as release or live-operating evidence; likelihood: Medium; priority: P1 before the affected release.
+- Existing evidence / limitation: Every declared demo runs twice from source and twice from an isolated temporary runtime exported from the Git index. Export rejects symlinks and excludes source-only package files; acceptance validates a final semantic JSON contract rather than process status alone. The SOC vendor lock records and validates a fixed canonical upstream, subdirectory, revision, source state, exact-byte inventory SHA-256 values, license and policy. Synchronization is an explicit local Git operation that verifies origin, path and revision before safe replacement, with focused synthetic fault coverage.
+- Playback boundaries: The attack-surface playback stages only bounded, declared regular source files. Engagement evidence records a stable dispatcher identifier and allowlisted flags without raw process arguments. Patch-review Git commands discard inherited Git environment settings and disable hooks, external attributes and filesystem monitors; synthetic repository creation also uses an empty template and disables signing. The SOC playback removes default temporary artifacts on success or failure and returns its assessment inline; explicit output directories retain artifacts for inspection. Threat-intelligence playback success requires the exact expected provider request counts, including retry exhaustion. Focused regressions exercise each boundary.
+- Proposed mitigation and validation: Rebuild and test release artifacts independently, review the exact release revision, inspect upstream provenance and license terms, and keep synthetic playback results separate from authorized live-integration evidence.
+- Residual risk / status: The isolated playback uses the framework and test runtime copied from the same checkout, not an installed release artifact. Synthetic inputs make no live-service claim, and a same-authority actor can alter implementation, fixtures and expectations together. Vendor digests establish consistency, not upstream authenticity, freshness, vulnerability status or legal license approval. Exact-revision human security review remains pending.
 
 ## STRIDE and privacy coverage
 

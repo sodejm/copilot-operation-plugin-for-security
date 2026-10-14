@@ -23,3 +23,8 @@ Feature: Offline patch security review
     Given a synthetic Python patch that adds a Microsoft Graph directory role assignment
     When the pinned commits are reviewed
     Then the report records a line-specific privilege candidate with impact and confidence
+
+  Scenario: PSR-06 isolates playback Git configuration
+    Given inherited Git configuration that installs a commit hook
+    When the offline playback creates and reviews its synthetic commits
+    Then the inherited hook is not executed

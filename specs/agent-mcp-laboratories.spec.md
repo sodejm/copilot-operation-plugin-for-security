@@ -32,6 +32,10 @@ Reports separate `model_text`, `attempted_calls`, `denied_calls`, `executed_call
 - A permitted read is an executed call with no state effect; a permitted mutation or canary export has an observed state effect.
 - The CLI emits a versioned JSON run report and a concise human summary, with a nonzero status for unmet expectations.
 - Focused tests, the package validator, `python3 -m cops check foundry-agent-harness`, and `make check` pass.
+- The manifest playback invokes the actual legacy `evaluate` command over the six
+  pinned scenarios, requires one attempted and denied call per scenario with no
+  mock effects or model execution, compares normalized reruns, and proves that a
+  copied scenario without environment approval is rejected.
 
 ## Threat and abuse cases
 

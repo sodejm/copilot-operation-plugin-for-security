@@ -1,53 +1,143 @@
-# Operational Playbook: Offensive Engagement Workbench
+# Offensive Engagement Workbench playback
 
-## Overview
+## Purpose and safety boundary
 
-The Offensive Engagement Workbench guides security operators through the intake and planning lifecycle of authorized security testing engagements:
+This playback demonstrates the planning boundary of the COPS Offensive
+Engagement Workbench with a checked-in synthetic engagement. It validates scope,
+compiles one draft action plan, proposes an approval-pending specialist handoff,
+and crosses a local subprocess boundary without performing the planned security
+operation. It makes no network request, calls no model, uses no credential, and
+does not authorize live activity.
 
-1. **Intake Authorization**: Collects and validates targets, exclusions, operator identity, assessment window, allowed effects, execution budget, and credential references.
-2. **Boundary Gating**: Validates that no target is ambiguous (e.g. wildcards or universal CIDRs) or conflicts with excluded systems.
-3. **Execution Mode Validation**:
-   - `planning`: Purely passive/offline assessment modeling.
-   - `import`: Ingests and reviews pre-existing scanner or log outputs.
-   - `laboratory`: Runs synthetic simulations in isolated sandbox environments.
-   - `live`: Active network testing; strictly requires operator confirmation, safe mode, and complete budgets.
-4. **Action Plan Generation**: Produces immutable `ActionPlan` (`cops.action-plan/v1`) with:
-   - Platform prerequisites (OS, container requirements, tooling).
-   - Operation steps with expected evidence, anticipated side effects, and cleanup obligations.
-   - Bounded execution limits.
-   - SHA-256 integrity digest.
+The child process is launched with the current Python interpreter using `-I -c`.
+It reads a small JSON request from standard input and emits one JSON observation
+to standard output. The parent validates the complete observation and hashes the
+raw stdout and stderr bytes before writing the final success marker. Explicit
+semantic checks remain active when Python optimization disables `assert`.
 
-## Triad Specialist Handoffs
+## Prerequisites
 
-Bounded execution handoffs operate under a four-party Triad coordination model:
-1. **Planner (`propose`)**: Emits `cops.specialist-handoff/v1` proposing task delegation to a routed specialist with required capabilities and initial material plan digest.
-2. **Specialist (`accept`)**: Verifies profile capability coverage from `agents/registry.json`. Refuses tasks when required tools or skills are absent (`MissingCapabilityError`).
-3. **Domain Skeptic (`review`)**: Scrutinizes candidate evidence envelopes and findings for contradictory observations (`ConflictingEvidenceError`) or unsubstantiated claims.
-4. **Evidence Auditor (`audit`)**: Enforces scope and plan invariance (`AuthorizationExpansionError`). Any modification to targets, operations, versions, effects, or material digests requires formal operator re-approval (`MaterialPlanModifiedError`).
+- A trusted COPS repository checkout.
+- Python 3.11 or newer.
+- A writable private output directory for evidence artifacts.
+- No network access, service credentials, external model, or assessment worker.
 
-## Scenario Laboratory Management & Testing
+The playback imports the shared COPS runtime, resolves its scenario through the
+shared catalog, and routes its proposed handoff through the canonical
+`agents/registry.json`. An isolated portable host must provide those declared
+framework inputs alongside the exported package. The runner does not search for
+or fall back to another source checkout.
 
-When evaluating scenarios in isolated environments (`mode: "laboratory"`):
-1. **Environment Verification**: Validate operator-provided VM or container contracts against the tested platform matrix (Linux/macOS, x86_64/arm64, container/VM runtimes) and verify minimum tool prerequisites (`kubectl >= 1.24.0`, `nmap >= 7.80`, etc.).
-2. **Canary and Isolation Auditing**: Ensure non-empty canary token presence, active network isolation, and strict egress restrictions before advancing environment status to `verified`.
-3. **Reproducible Baseline Reset**: Trigger automated rollback or recreate mechanisms (`reproducible: true`) to restore verified baselines and confirm canary integrity prior to running tests.
-4. **Controlled Case Execution**:
-   - Enforce cryptographic `cops.execution-authorization/v1` envelope consumption and worker identity binding.
-   - Run **positive cases** to confirm attack paths and canary discovery within safe boundaries.
-   - Run **remediated cases** to verify that defensive controls effectively mitigate or block techniques.
-   - Run **negative cases** to ensure controlled rejection when prerequisites or scopes are invalid.
-   - Emit verified `CleanupReceipt` records on completion.
+Run commands from the repository root. The public catalog command is:
 
-## Capability & Package Workflow Diagnostics
+```bash
+python3 -m cops demo offensive-engagement-workbench
+```
 
-Prior to orchestrating engagements or evaluating scenarios:
-1. **Platform and Tooling Inspection**: Run `python3 -m cops diagnostics --tools` to inspect host platform compatibility and determine whether optional security tool prerequisites (`nmap`, `kubectl`, `kube-bench`, etc.) are installed or missing. Missing tools in offline planning do not cause false execution passes.
-2. **Package Structure & Readiness**: Validate that each registered package maintains compliant manifests (`package.json`, `plugin.json`), documented playbooks, offline test scripts, and skills directories.
-3. **Truth-in-Advertising Enforcement**: Ensure capability claims strictly adhere to demonstrated evidence and operational readiness modes (`planned`, `import`, `laboratory`, `live-validated`).
+It selects `build/playbacks/offensive-engagement-workbench` as the output
+directory. To choose a disposable private directory explicitly:
 
-## Emergency Procedures
+```bash
+COPS_ENGAGEMENT_RUN=$(mktemp -d)
+python3 plugins/offensive-security/offensive-engagement-workbench/scripts/demo.py \
+  --tool-version python3=3.11.9 \
+  --output-dir "$COPS_ENGAGEMENT_RUN"
+```
 
-If live assessment causes operational disruption or exceeds budget limits:
-1. Operator invokes emergency contact listed in `rules_of_engagement.emergency_contact`.
-2. Execution worker aborts immediately and initiates side-effect rollback via `CleanupReceipt`.
-3. Engagement status transitions to `aborted`.
+The version value is fixture metadata supplied to the planner; it is not a
+measurement of the interpreter running the command.
+
+## Expected result and interpretation
+
+The command prints one machine-readable JSON object:
+
+```json
+{
+  "engagement_id": "eng-synthetic-e03",
+  "mode": "planning",
+  "network_requests": 0,
+  "operations_count": 1,
+  "status": "passed",
+  "target": "10.100.0.10"
+}
+```
+
+Treat the run as passed only when the command exits zero, stdout has exactly
+these semantic values, and `playback-result.json` contains the same object.
+`operations_count` describes a compiled draft operation. It does not mean that
+an assessment operation ran. The handoff must remain `proposed` with
+`approval_status` set to `pending`.
+
+## Playback structure and data flow
+
+1. Read the synthetic `engagement.json` fixture and validate its planning scope.
+2. Compile exactly one draft action plan for `10.100.0.10`, with egress disabled.
+3. Route a specialist and create a proposed, approval-pending handoff through
+   the repository handoff API.
+4. Atomically write the validated engagement, action plan, and handoff.
+5. Dispatch only the engagement ID, mode, target, and operation descriptions to
+   the local inert child process.
+6. Require exit code zero, empty stderr, valid JSON, and an exact semantic match
+   showing zero network requests and one observed operation description.
+7. Hash raw child stdout and stderr, then atomically write the observation and
+   execution evidence.
+8. Write `playback-result.json` last as the completion marker.
+
+```text
+synthetic fixture -> intake validator -> draft action plan -> proposed handoff
+                                             |
+                                             v
+                                  local inert subprocess
+                                             |
+                                             v
+                         semantic checks + byte hashes -> result
+```
+
+Writing the result last makes completion unambiguous. Atomic replacement avoids
+partially written JSON files. The injectable dispatcher keeps the failure path
+testable: tests substitute a well-formed observation that claims a network
+request and verify that the run fails closed.
+
+## Artifact schema
+
+| Artifact | Purpose | Key fields | Producer | Consumer | Definition | Validation | Example |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `engagement.json` | Preserve validated planning scope. | `engagement_id`, `mode`, `operator`, `rules_of_engagement` | Intake validator | Planner and operator | Normalized `cops.engagement/v1` contract derived from the fixture. | Mode must be `planning`; intake validation must pass. | `"engagement_id": "eng-synthetic-e03"` |
+| `action-plan.json` | Record the single proposed assessment operation and its limits. | `status`, `target`, `operations`, `limits`, `plan_digest` | Action-plan builder | Handoff router and operator | Draft `cops.action-plan/v1` contract for the synthetic target. | Exactly one operation; target `10.100.0.10`; status `draft`; egress false. | `"status": "draft"` |
+| `handoff.json` | Record who would review the proposal without granting execution. | `handoff_id`, `specialist_id`, `status`, `approval_status`, plan binding | Specialist handoff router | Specialist and operator | `cops.specialist-handoff/v1` proposal bound to the plan and engagement. | Status `proposed`; approval status `pending`; registered capability route. | `"approval_status": "pending"` |
+| `inert-observation.json` | Capture what the local child observed in the dispatch request. | `dispatcher`, `engagement_id`, `mode`, `target`, `operation_ids`, `operations_count`, `network_requests` | Isolated local child | Parent playback validator | Compact observation of descriptions received by the child, not operation execution evidence. | Exact object match; zero network requests; one operation ID. | `"dispatcher": "local-inert"` |
+| `execution-evidence.json` | Bind the child process result to its raw output bytes without retaining command-line data. | `dispatcher`, allowlisted `flags`, `returncode`, byte counts, stdout/stderr SHA-256 | Parent playback runner | Operator and package tests | Stable dispatcher identity, safe isolation flags, and `sha256:` digests of raw stdout and stderr. Executable paths, inline program text, and arbitrary arguments are omitted. | The runner requires its built-in dispatcher, then verifies the current Python executable, `-I` immediately after it, the approved inline child, and the exact argument count before recording `python-isolated`; return code is zero, stderr is empty, and hashes recompute from raw captured bytes. | `"dispatcher": "python-isolated"` |
+| `playback-result.json` | Mark successful completion after every earlier check and write. | `status`, `mode`, `engagement_id`, `target`, `network_requests`, `operations_count` | Parent playback runner | Catalog demo and operator | Stable six-field acceptance summary. | Must equal the documented result exactly and be written last. | `"status": "passed"` |
+
+## Failures and insufficient evidence
+
+A nonzero exit, `playback failed:` message, absent result file, changed result
+field, child stderr, unapproved subprocess argument shape, or malformed or
+semantically different observation is a failed playback. The runner removes any
+stale `playback-result.json` before work begins, so an earlier success cannot
+certify a later failed attempt. Earlier artifacts may remain after a failure;
+treat them as diagnostic fragments, not a completed run.
+
+This playback supplies no evidence that the synthetic IP is reachable, a live
+target is authorized, an exploit works, a worker is ready, network isolation is
+enforced by the host, or a model produced a sound security judgment. The
+stdout/stderr hashes bind locally captured bytes only; they are not signatures or
+third-party attestations.
+
+## Reruns and cleanup
+
+Rerunning with the same output directory atomically replaces the six known
+artifacts and preserves unrelated operator files. Handoff timestamps may change;
+compare documented semantic fields and contract bindings instead of requiring
+byte-identical artifacts. If a run fails, correct the input or local filesystem
+problem and rerun the same command. Success requires a newly written final result.
+
+Remove disposable evidence when it is no longer needed:
+
+```bash
+rm -rf "$COPS_ENGAGEMENT_RUN"
+```
+
+Keep private engagement data outside shared build directories. For broader
+package qualification, including independent scope comparison and host-specific
+checks, continue with [VERIFICATION.md](VERIFICATION.md).

@@ -8,7 +8,13 @@ description: "A comprehensive guide to selecting, evaluating, and running each o
 
 COPS packages **seventeen specialized cybersecurity plugins** across six core disciplines. Each plugin is self-contained under `plugins/<category>/<plugin-id>/` and includes deterministic Python tools, reusable AI skills, and a practitioner playbook.
 
+Use the [runnable workflow index](plugin-playbacks.md) for checked examples and
+the [malicious-access walkthrough](investigate-malicious-access.md) for a complete
+investigation from intake to disposition.
+
 Use this guide to determine which plugin best matches your operational requirements.
+Follow [plugin verification and maturity](plugin-verification.md) to run a complete
+qualification workflow and record evidence before proposing a status change.
 
 ---
 
@@ -31,8 +37,8 @@ Use this guide to determine which plugin best matches your operational requireme
 | **Reconcile an approved Kubernetes context and namespace scope** | `kubernetes-assessment-workbench` | Offensive Security | <span class="badge badge-experimental">Experimental</span> | `import` | `python3 -m cops demo kubernetes-assessment-workbench` |
 | **Intake engagement scope and compile action plans** | `offensive-engagement-workbench` | Offensive Security | <span class="badge badge-experimental">Experimental</span> | `planned` | `python3 -m cops demo offensive-engagement-workbench` |
 | **Review Linux and Windows privilege-boundary exports** | `host-assessment-workbench` | Offensive Security | <span class="badge badge-experimental">Experimental</span> | `import` | `python3 -m cops demo host-assessment-workbench` |
-| **Rehearse synthetic agent tool authorization** | `foundry-agent-harness` | Offensive Security | <span class="badge badge-beta">Beta</span> | `laboratory` | `python3 -m cops check foundry-agent-harness` |
-| **Rehearse containment with cryptographic receipts** | `incident-response-sandbox` | Incident Response | <span class="badge badge-beta">Beta</span> | `laboratory` | `python3 -m cops check incident-response-sandbox` |
+| **Rehearse synthetic agent/MCP and provider response handling** | `foundry-agent-harness` | Offensive Security | <span class="badge badge-beta">Beta</span> | `laboratory` | `python3 -m cops check foundry-agent-harness` |
+| **Rehearse containment with cryptographic receipts** | `incident-response-sandbox` | Incident Response | <span class="badge badge-experimental">Experimental</span> | `laboratory` | `python3 -m cops check incident-response-sandbox` |
 
 ---
 
@@ -46,6 +52,7 @@ Use this guide to determine which plugin best matches your operational requireme
 - **Key Capabilities**: Offline AST-based code analysis, regex credential detectors, CVE reachability correlation.
 - **Boundaries**: Static code and configuration inspection only; does not ingest live SIEM streams or connect to runtime clusters.
 - **Playbook**: `plugins/logging-telemetry/security-logging-advisor/docs/PLAYBOOK.md`
+- **Verification**: [End-to-end playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/logging-telemetry/security-logging-advisor/docs/VERIFICATION.md)
 
 #### Telemetry Proof Pack
 - **Maturity**: <span class="badge badge-beta">Beta</span> | **Operational Mode**: `laboratory`
@@ -53,6 +60,7 @@ Use this guide to determine which plugin best matches your operational requireme
 - **Key Capabilities**: Pipeline topology validation, synthetic health proofs, edge-case failure mode verification.
 - **Boundaries**: Operates on simulated pipeline topologies; does not connect to live streaming buffers.
 - **Playbook**: `plugins/logging-telemetry/telemetry-proof-pack/docs/PLAYBOOK.md`
+- **Verification**: [End-to-end playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/logging-telemetry/telemetry-proof-pack/docs/VERIFICATION.md)
 
 ---
 
@@ -64,6 +72,7 @@ Use this guide to determine which plugin best matches your operational requireme
 - **Key Capabilities**: Analysis of Competing Hypotheses (ACH), inquiry question ranking, evidence dependency graphs.
 - **Boundaries**: Decision-support framework; does not execute autonomous containment actions.
 - **Playbook**: `plugins/detection-hunting/soc-investigation-workbench/docs/PLAYBOOK.md`
+- **Verification**: [End-to-end playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/detection-hunting/soc-investigation-workbench/docs/VERIFICATION.md)
 
 #### Sentinel Hunt Workbench
 - **Maturity**: <span class="badge badge-beta">Beta</span> | **Operational Mode**: `laboratory`
@@ -71,6 +80,7 @@ Use this guide to determine which plugin best matches your operational requireme
 - **Key Capabilities**: 12 defensive threat hunts, multi-surface syntax adaptation (Sentinel vs Defender vs Data Lake), offline mutation stress-testing.
 - **Boundaries**: Synthetic event evaluation; does not authenticate to customer cloud tenants.
 - **Playbook**: `plugins/detection-hunting/sentinel-hunt-workbench/docs/PLAYBOOK.md`
+- **Verification**: [End-to-end playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/detection-hunting/sentinel-hunt-workbench/docs/VERIFICATION.md)
 
 #### Attack Path Workbench
 - **Maturity**: <span class="badge badge-experimental">Experimental</span> | **Operational Mode**: `import`
@@ -78,6 +88,7 @@ Use this guide to determine which plugin best matches your operational requireme
 - **Key Capabilities**: Multi-hop directed graph traversal, blast radius calculation, choke-point identification.
 - **Boundaries**: Operates strictly on offline JSON exports; does not perform active network scanning.
 - **Playbook**: `plugins/detection-hunting/attack-path-workbench/docs/PLAYBOOK.md`
+- **Verification**: [End-to-end playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/detection-hunting/attack-path-workbench/docs/VERIFICATION.md)
 
 #### Detection Quality Workbench
 - **Maturity**: <span class="badge badge-beta">Beta</span> | **Operational Mode**: `laboratory`
@@ -85,6 +96,7 @@ Use this guide to determine which plugin best matches your operational requireme
 - **Key Capabilities**: Offline syntax validation, query regression testing, normalization checks.
 - **Boundaries**: Syntax and regression parser; does not query live search clusters.
 - **Playbook**: `plugins/detection-hunting/detection-quality-workbench/docs/PLAYBOOK.md`
+- **Verification**: [End-to-end playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/detection-hunting/detection-quality-workbench/docs/VERIFICATION.md)
 
 #### Threat Intelligence Enrichment
 - **Maturity**: <span class="badge badge-experimental">Experimental</span> | **Operational Mode**: `import`
@@ -92,6 +104,7 @@ Use this guide to determine which plugin best matches your operational requireme
 - **Key Capabilities**: Offline feed correlation (MISP/TAXII cached formats), confidence weighting, tamper-evident provenance stamps.
 - **Boundaries**: Operates against cached local feeds; external API lookups require explicit operator opt-in.
 - **Playbook**: `plugins/detection-hunting/threat-intelligence-enrichment/skills/threat-intelligence-enrichment/SKILL.md`
+- **Verification**: [End-to-end playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/detection-hunting/threat-intelligence-enrichment/docs/VERIFICATION.md)
 
 ---
 
@@ -103,6 +116,7 @@ Use this guide to determine which plugin best matches your operational requireme
 - **Key Capabilities**: Offline tenant JSON parsing, privilege escalation graph analysis, credential hygiene scoring.
 - **Boundaries**: Ingests offline JSON exports; makes zero Microsoft Graph mutations.
 - **Playbook**: `plugins/identity-access/entra-identity-workbench/docs/PLAYBOOK.md`
+- **Verification**: [End-to-end playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/identity-access/entra-identity-workbench/docs/VERIFICATION.md)
 
 #### AD Assessment Workbench
 - **Maturity**: <span class="badge badge-experimental">Experimental</span> | **Operational Mode**: `import`
@@ -110,6 +124,7 @@ Use this guide to determine which plugin best matches your operational requireme
 - **Key Capabilities**: Bounded offline graph validation, provenance-linked candidate paths, and explicit complete, partial, or unknown coverage.
 - **Boundaries**: Candidate paths require analyst validation. The package neither queries a domain controller nor verifies live privileges or missing relationships outside the collected graph.
 - **Playbook**: `plugins/identity-access/ad-assessment-workbench/skills/ad-inventory-and-paths/SKILL.md`
+- **Verification**: [End-to-end playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/identity-access/ad-assessment-workbench/docs/VERIFICATION.md)
 
 ---
 
@@ -121,6 +136,7 @@ Use this guide to determine which plugin best matches your operational requireme
 - **Key Capabilities**: SBOM ingestion (CycloneDX / SPDX), advisory CVE matching, static call-graph reachability.
 - **Boundaries**: Offline reachability analysis indicates exposure potential, not confirmed live exploitability.
 - **Playbook**: `plugins/vulnerability-management/exposure-triage-workbench/docs/PLAYBOOK.md`
+- **Verification**: [End-to-end playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/vulnerability-management/exposure-triage-workbench/docs/VERIFICATION.md)
 
 #### Patch Security Review
 - **Maturity**: <span class="badge badge-beta">Beta</span> | **Operational Mode**: `import`
@@ -128,6 +144,7 @@ Use this guide to determine which plugin best matches your operational requireme
 - **Key Capabilities**: Static patch diff inspection, AST security pattern matching, regression risk classification.
 - **Boundaries**: Static diff inspection; does not execute dynamic application security or runtime exploit payloads.
 - **Playbook**: `plugins/vulnerability-management/patch-security-review/skills/patch-review/SKILL.md`
+- **Verification**: [End-to-end playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/vulnerability-management/patch-security-review/docs/VERIFICATION.md)
 
 ---
 
@@ -139,13 +156,15 @@ Use this guide to determine which plugin best matches your operational requireme
 - **Key Capabilities**: Scope boundary enforcement, rule-of-engagement parsing, passive review plan generation, multi-source telemetry normalization (DNS, certificate, IP, endpoint, cloud exports), evidence provenance preservation, scope quarantine reconciliation, bounded active service identification with resumable checkpoints and visible uncertainty, protocol-specific infrastructure assessment (DNS, SNMP, NTP, RPC, LDAP, Kerberos), remote administration, file sharing, and printing assessment (SSH, Telnet, RDP, VNC, WinRM, X11, SMB, NFS, FTP/TFTP, rsync, AFP, LPD, IPP, Raw/JetDirect), database, cache, and search assessment (MySQL, Postgres, MSSQL, Oracle, MongoDB, CouchDB, Cassandra, Redis, Memcached, Elasticsearch, InfluxDB, Kibana, Splunk) with bounded query budgets and zero bulk extraction, mail, messaging, and broker assessment (SMTP, POP3, IMAP, IRC, RabbitMQ, NATS, IBM MQ, Kafka, MQTT) with bounded message budgets and zero mass outbound relaying, developer and runtime interfaces assessment (Docker API, Docker Registry, Java RMI, JDWP, Erlang EPMD, ADB, distcc, SVN, AJP, FastCGI), nine legacy enterprise, management, VPN, and proxy offline fixture models (NDMP, iSCSI, IPMI 2.0, Cisco Smart Install, TACACS+, IKEv1, PPTP, SOCKS, Squid), with socket reachability reported as unconfirmed and no live proxy egress, canary, cleanup, or privilege validation.
 - **Boundaries**: Strictly an authorized planning and scoping tool; operates offline or within bounded authorized parameters without executing uncoordinated exploits.
 - **Playbook**: `plugins/offensive-security/attack-surface-planner/docs/PLAYBOOK.md`
+- **Verification**: [End-to-end playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/offensive-security/attack-surface-planner/docs/VERIFICATION.md)
 
 #### Kubernetes Assessment Workbench
 - **Maturity**: <span class="badge badge-experimental">Experimental</span> | **Operational Mode**: `import`
 - **When to use**: Before planning a Kubernetes assessment, compare an explicitly approved context, namespaces, and surfaces with a sanitized local observation.
 - **Key Capabilities**: Exact context tuple checks, local Namespace name and UID anchor comparison, namespace access and environment fact reporting.
 - **Boundaries**: Reads a local JSON record only. Matching local assertions do not establish live cluster identity or readiness; missing or denied access stays visible, and the report never grants execution.
-- **Playbook**: `plugins/offensive-security/kubernetes-assessment-workbench/README.md`
+- **Playbook**: `plugins/offensive-security/kubernetes-assessment-workbench/docs/PLAYBOOK.md`
+- **Verification**: [End-to-end playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/offensive-security/kubernetes-assessment-workbench/docs/VERIFICATION.md)
 
 #### Offensive Engagement Workbench
 - **Maturity**: <span class="badge badge-experimental">Experimental</span> | **Operational Mode**: `planned`
@@ -153,31 +172,35 @@ Use this guide to determine which plugin best matches your operational requireme
 - **Key Capabilities**: Scope intake validation, CIDR collision checks, immutable action plan generation, Triad specialist handoffs, capability verification, scenario laboratory environment verification, reproducible reset, and controlled case execution.
 - **Boundaries**: Scoping, planning, and isolated laboratory execution only; refuses incomplete live requests and does not execute network payloads outside verified lab boundaries.
 - **Playbook**: `plugins/offensive-security/offensive-engagement-workbench/docs/PLAYBOOK.md`
+- **Verification**: [End-to-end playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/offensive-security/offensive-engagement-workbench/docs/VERIFICATION.md)
 
 #### Host Assessment Workbench
 - **Maturity**: <span class="badge badge-experimental">Experimental</span> | **Operational Mode**: `import`
-- **When to use**: When reviewing a bounded local Linux or Windows export of host configuration, prerequisite context, coverage, and canary outcomes.
-- **Key Capabilities**: Strict versioned import, eight Linux or seven Windows privilege-boundary surfaces, prerequisite selection, and distinct configuration versus reported-canary classifications.
+- **When to use**: When reviewing a bounded local export of Linux or Windows host configuration, prerequisite context, coverage, and canary outcomes.
+- **Key Capabilities**: Strict versioned import, eight Linux or seven Windows privilege-boundary surfaces, prerequisite selection, explicit Windows bridge declarations, and distinct configuration versus reported-canary classifications.
 - **Boundaries**: No host collection or execution; imported canary assertions are not independent proof of privilege crossing or cleanup.
 - **Playbook**: `plugins/offensive-security/host-assessment-workbench/README.md`
+- **Verification**: [End-to-end playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/offensive-security/host-assessment-workbench/docs/VERIFICATION.md)
 
 #### Foundry Agent Harness
 - **Maturity**: <span class="badge badge-beta">Beta</span> | **Operational Mode**: `laboratory`
-- **When to use**: When rehearsing how an independent authorization gate handles synthetic agent tool proposals from untrusted content.
-- **Key Capabilities**: Versioned local agent and MCP fixture cases, observed gate denials and mock effects, paired permissive and strict controls.
-- **Boundaries**: No hosted model, deployed agent, or live MCP integration. Fixture subprocesses are not an operating-system network sandbox.
+- **When to use**: When rehearsing how an independent authorization gate handles synthetic agent tool proposals from untrusted content or how strict post-gate validation normalizes bundled provider-shaped response fixtures.
+- **Key Capabilities**: Versioned local agent and MCP cases, observed gate denials and mock effects, paired permissive and strict controls, and offline OpenAI-, Azure-, AWS-, and GCP-shaped response cases with exact request binding and shared synthetic budget accounting.
+- **Boundaries**: No provider client, credential lookup, network call, hosted model, deployed agent, or live MCP integration. Provider usage, billing, cancellation, and cleanup are not independently verified, and fixture subprocesses are not an operating-system network sandbox.
 - **Playbook**: `plugins/offensive-security/foundry-agent-harness/docs/PLAYBOOK.md`
+- **Verification**: [End-to-end playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/offensive-security/foundry-agent-harness/docs/VERIFICATION.md)
 
 ---
 
 ### 6. Incident Response
 
 #### Incident Response Sandbox
-- **Maturity**: <span class="badge badge-beta">Beta</span> | **Operational Mode**: `laboratory`
+- **Maturity**: <span class="badge badge-experimental">Experimental</span> | **Operational Mode**: `laboratory`
 - **When to use**: When preparing an incident response containment plan and needing to rehearse actions, calculate blast radius (e.g. affected dependent services), and obtain interactive operator sign-off with cryptographic receipts.
 - **Key Capabilities**: Blast radius calculation, approval-gated containment rehearsal, cryptographic execution receipts.
 - **Boundaries**: Approval-gated rehearsal only; does not execute destructive actions on live infrastructure.
 - **Playbook**: `plugins/incident-response/incident-response-sandbox/skills/incident-response-sandbox/SKILL.md`
+- **Verification**: [End-to-end playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/incident-response/incident-response-sandbox/docs/VERIFICATION.md)
 
 ---
 

@@ -10,6 +10,9 @@ The planner operates completely offline, making zero network requests, tenant AP
 
 ---
 
+Follow the [end-to-end verification playbook](docs/VERIFICATION.md) to qualify this
+package's documented workflow and prepare evidence for a maturity review.
+
 ## When to Use & Offensive Engineer Playbook
 
 For step-by-step scoping workflows, authorization templates, and compliance tracking, see the complete [Offensive Engineer & Red Teamer Playbook](docs/PLAYBOOK.md).
@@ -366,3 +369,25 @@ The Attack Surface Planner is a **planning and compliance tool**, not an active 
 - Any finding, public endpoint, or permission name in an export is a hypothesis trigger for passive review, not proof of exploitability.
 
 Always ensure you have written, executive authorization before undertaking any security assessment.
+
+## Deterministic playback
+
+### Design and data contracts
+
+The planner normalizes passive observations, reconciles each asset against the operator-approved scope, and generates observation plans only for verified in-scope assets. Discovery evidence cannot expand the authorized scope.
+
+| Contract or artifact | Purpose | Key fields | Producer | Consumer | Validation | Example |
+| --- | --- | --- | --- | --- | --- | --- |
+| Scope manifest | Define approved, excluded, and unresolved boundaries | Domains, subscriptions, environments, ownership assertions | Engagement owner | Planner | Schema, size, path-containment, and scope checks | Approved `example.test` domain |
+| Passive provider export | Supply observations without active probing | Source, asset identifier, ownership evidence, timestamp | Authorized export or playback fixture | Normalizer | Format, size, count, and provenance checks | Synthetic DNS and certificate records |
+| Surface map | Classify every discovered asset | Asset, provenance, scope state, rationale | Planner | Reviewer and plan generator | Every input asset must be classified | Unknown subdomain marked `unresolved` |
+| Observation plan | Describe permitted passive review for verified assets | Asset, method, expected telemetry, stop and cleanup conditions | Planner | Authorized operator | Only verified in-scope assets are admitted | Review cloud inventory export |
+| Playback summary | Qualify reconciliation and failure behavior | Classification counts, plan count, rerun and rejection results | Playback runner | Maintainer | Semantic assertions and repeatability checks | Traversal input rejected; unresolved asset not planned |
+
+Run the package-owned offline acceptance workflow from this directory:
+
+```bash
+python3 scripts/run_playback.py
+```
+
+The runner reads the pinned scope manifest through the planner's bounded regular-file gate, then stages only its four declared passive exports through the same traversal, symlink, file-type, and size gates used by the planner. Unrelated sibling files and directories are never copied. It produces the plan twice, checks semantic equality, and verifies scope quarantine, four passive proposals, and zero network requests. It also changes the staged manifest to active mode and confirms that the input gate rejects it. The runner deletes the temporary directory on exit and prints only a compact JSON result. See [the playback design and schema](docs/PLAYBOOK.md#deterministic-manifest-playback) before changing fixtures or assertions.

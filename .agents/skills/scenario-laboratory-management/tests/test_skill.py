@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -29,11 +30,13 @@ class TestScenarioLaboratoryManagementSkill(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory(prefix="cops-skill-lab-")
         temp_path = Path(self.temp_dir.name).resolve()
+        self.evidence_dir = temp_path / "evidence"
         self.inventory = endpoint_inventory(temp_path)
         self.harness = LaboratoryHarness(
             observation_provider=lambda env, nonce: environment_observation(env, nonce, self.inventory),
             observation_trust_store=observation_trust_store(temp_path),
             case_journal=LaboratoryCaseJournal(temp_path / "case-journal.sqlite3"),
+            evidence_dir=self.evidence_dir,
         )
 
     def tearDown(self):
@@ -94,6 +97,24 @@ class TestScenarioLaboratoryManagementSkill(unittest.TestCase):
         self.assertTrue(result.canary_verified)
         self.assertEqual(result.run_result.cleanup_status, "completed")
         self.assertIsNone(result.cleanup_receipt)
+        self.assertIsNotNone(result.cleanup_receipt_digest)
+
+        evidence = result.details["durable_evidence"]
+        self.assertEqual(
+            {reference["kind"] for reference in evidence},
+            {"pre-execution-observation", "run-result", "cleanup-receipt", "case-observation"},
+        )
+        cleanup_reference = next(reference for reference in evidence if reference["kind"] == "cleanup-receipt")
+        self.assertEqual(cleanup_reference["sha256"], result.cleanup_receipt_digest)
+        evidence_store = self.harness.evidence_store
+        self.assertIsNotNone(evidence_store)
+        assert evidence_store is not None
+        cleanup_path = evidence_store.resolve(cleanup_reference)
+        self.assertEqual(cleanup_path.parent, self.evidence_dir)
+        cleanup_evidence = json.loads(cleanup_path.read_bytes())
+        self.assertEqual(cleanup_evidence["receipt_producer"], "controller")
+        self.assertEqual(cleanup_evidence["cleanup_status"], "completed")
+        self.assertEqual(cleanup_evidence["basis"], "trusted worker result")
 
 
 if __name__ == "__main__":

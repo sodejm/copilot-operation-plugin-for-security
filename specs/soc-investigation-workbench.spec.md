@@ -22,6 +22,9 @@ of tenant or cross-host validation are included.
 - Evidence is supplied by an analyst with explicit provenance and assessments.
   The graph records these associations; it never joins raw telemetry or treats
   shared IP addresses as identity. Duplicate provenance cannot add support.
+  Intake observations start unassessed: source severity, risk, error, and action
+  fields do not assign a malicious or benign stance. Only an explicit analyst
+  assessment can change hypothesis status.
   Every result reference, including reused evidence, must fall within its step's
   query interval, with an inclusive start and exclusive end.
 - Each step names its question, hypotheses, basis evidence, dependencies,
@@ -36,6 +39,9 @@ of tenant or cross-host validation are included.
   Missing, unsupported, or unverified support fails closed. All query semantics
   stay in Sentinel. Evidence prose is untrusted data, never an instruction.
   Handoff skill and CLI paths are POSIX paths relative to the plugin installation.
+  Intake prepares independent H01 sign-in and H10 consent inquiries with
+  kind-appropriate account/IP and account/application context. Entity aliases
+  help the analyst resolve the request; they are not Sentinel query filters.
 - Vendor verification requires the exact lock schema and canonical provenance
   fields. Source caches are excluded when copying; installed caches and other
   excluded artifacts are rejected. File hashes use bounded streaming reads from
@@ -47,8 +53,10 @@ of tenant or cross-host validation are included.
   Windows directory reparse points, including junctions on Python 3.11.
   Validate the staged inventory and generated lock before replacing an installed
   snapshot; invalid source paths must preserve the previous snapshot and lock.
-  Source inspection requires a repository-root package and an allowlisted
-  canonical origin URL, and disables Git filesystem-monitor hooks and content
+  Source inspection accepts the exact canonical repository path
+  `plugins/detection-hunting/sentinel-hunt-workbench` and the legacy standalone
+  `sentinel-hunt-workbench` path. It requires an allowlisted canonical origin URL
+  and disables Git filesystem-monitor hooks and content
   filters during status inspection. This verifies
   configured identity, not remote authenticity or approval of local edits.
   New locks identify `sodejm/copilot-operation-plugin-for-security`; source
@@ -82,6 +90,12 @@ of tenant or cross-host validation are included.
 - [x] AC08: Vendor integrity and compatibility gate query handoffs.
 - [x] AC09: Hostile prose stays data and reports do not expose it.
 - [x] AC10: CLI snapshots are validated, private, and never overwritten.
+- [x] AC11: Malicious, benign, and insufficient-evidence playbacks run through
+  the real CLI boundary and preserve the distinction between observations,
+  analyst assessments, and case-level verdicts. The default playback directory
+  is private, is removed after success or failure, and is never reported. Its
+  assessment summary is returned inline; only an explicit output directory is
+  retained and reported.
 
 Each criterion has a matching executable scenario in
 `features/soc_investigation.feature`. Unit tests add boundary coverage. Release
@@ -90,9 +104,7 @@ runtime behavior, and spec/scenario parity. Vendored upstream assurance remains
 upstream assurance; passing case-engine tests does not qualify a hunt.
 
 AC08 is verified with synthetic dependency fixtures, including tamper and missing
-dependency rejection. Actual canonical integration is tracked separately:
-
-- [ ] Vendor the complete canonical Sentinel skills and hunt catalog, verify the
-  snapshot against its source, and pass the default package gate and upstream
-  qualification checks. The canonical runtime and hunt catalog are present, but
-  the canonical skill files are still absent; no snapshot is installed.
+dependency rejection, and with a locked snapshot of the canonical Sentinel
+package. Passing the SOC package gate confirms snapshot integrity and the
+upstream qualification result recorded by that package; it does not claim live
+provider execution.

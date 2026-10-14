@@ -1,0 +1,298 @@
+{
+  "analyst_guidance": [
+    "Treat returned stage records as observed evidence only.",
+    "The ordered joins form an investigative hypothesis, not causal or attribution proof.",
+    "Record supporting, conflicting, and missing evidence before escalation.",
+    "A separate detection-engineering review is required before operational rule conversion."
+  ],
+  "attck_mappings": [
+    {
+      "id": "T1071.001",
+      "name": "Web Protocols",
+      "rationale": "Network indicators may support investigation of web-protocol activity; an indicator match alone is insufficient.",
+      "version": "18"
+    }
+  ],
+  "authorized_use": "defensive_only",
+  "confounders": [
+    "expired or reassigned infrastructure",
+    "wildcard indicators",
+    "sinkholes",
+    "low-confidence feeds"
+  ],
+  "defensive_objective": "Prevent stale or reassigned indicators from silently driving incident conclusions.",
+  "disconfirming_evidence": [
+    "Observation occurs after indicator expiry",
+    "Indicator is inactive",
+    "DNS and endpoint addresses represent different hosts"
+  ],
+  "entities": [
+    {
+      "class": "indicator",
+      "collision_risk": "names and mutable representations can collide across tenants or time; require scoped immutable identifiers",
+      "identifier": "immutable identifier emitted by the applicable stage extractor",
+      "normalization": "tostring without case folding; preserve the original source value"
+    },
+    {
+      "class": "domain",
+      "collision_risk": "names and mutable representations can collide across tenants or time; require scoped immutable identifiers",
+      "identifier": "immutable identifier emitted by the applicable stage extractor",
+      "normalization": "tostring without case folding; preserve the original source value"
+    },
+    {
+      "class": "device",
+      "collision_risk": "names and mutable representations can collide across tenants or time; require scoped immutable identifiers",
+      "identifier": "immutable identifier emitted by the applicable stage extractor",
+      "normalization": "tostring without case folding; preserve the original source value"
+    },
+    {
+      "class": "network_destination",
+      "collision_risk": "names and mutable representations can collide across tenants or time; require scoped immutable identifiers",
+      "identifier": "immutable identifier emitted by the applicable stage extractor",
+      "normalization": "tostring without case folding; preserve the original source value"
+    }
+  ],
+  "expected_evidence": [
+    "active time-bounded indicator",
+    "DNS observation",
+    "endpoint network evidence"
+  ],
+  "hypothesis": "A currently active, non-expired network indicator is observed in DNS evidence and then in endpoint network activity within the indicator validity interval.",
+  "id": "H04",
+  "joins": [
+    {
+      "cardinality": "bounded_many_to_many_requires_fanout_review",
+      "collision_risk": "same textual value may identify different entities across tenant, workspace, reuse, rename, NAT, or proxy contexts",
+      "from": "S01",
+      "key": "Join1",
+      "time_window": "correlation_window",
+      "to": "S02",
+      "type": "inner"
+    },
+    {
+      "cardinality": "bounded_many_to_many_requires_fanout_review",
+      "collision_risk": "same textual value may identify different entities across tenant, workspace, reuse, rename, NAT, or proxy contexts",
+      "from": "S02",
+      "key": "Join2",
+      "time_window": "correlation_window",
+      "to": "S03",
+      "type": "inner"
+    }
+  ],
+  "offline_assurance_disclaimer": "Offline qualification leaves Microsoft Sentinel tenant behavior, operational efficacy, cost, latency, precision, recall, and false-positive performance unverified.",
+  "parameters": [
+    {
+      "name": "start_time",
+      "required": true,
+      "type": "utc_timestamp"
+    },
+    {
+      "name": "end_time",
+      "required": true,
+      "type": "utc_timestamp"
+    },
+    {
+      "name": "workspace_id",
+      "required": true,
+      "type": "workspace_identifier"
+    },
+    {
+      "name": "tenant_id",
+      "required": true,
+      "type": "tenant_identifier"
+    },
+    {
+      "default": "2h",
+      "name": "correlation_window",
+      "required": false,
+      "type": "duration"
+    }
+  ],
+  "provenance": {
+    "as_of": "2026-09-17",
+    "license_review": "pending_human_review",
+    "query_authorship": "Original query authored for Sentinel Hunt Workbench; not copied from vendor sample queries.",
+    "schema_basis": "Microsoft Azure Monitor table references listed in references."
+  },
+  "qualification_state": "draft",
+  "queries": {
+    "sentinel_analytics": {
+      "content": "// Generated original query: Sentinel Hunt Workbench\n// huntwb:time-scope\n// huntwb:tenant-scope\n// huntwb:workspace-scope\n// huntwb:order=ascending\n// huntwb:join-key=typed\n// huntwb:entity-discriminator=immutable\n// huntwb:dedup\n// huntwb:aggregate-after-correlation\n// huntwb:typed-identifiers\n// huntwb:correlation-window=bounded\n// huntwb:validity-check\n// huntwb:missing-is-unknown\n// huntwb:language=correlation\nlet start_time = {{start_time}};\nlet end_time = {{end_time}};\nlet workspace_id = {{workspace_id}};\nlet tenant_id = {{tenant_id}};\nlet correlation_window = {{correlation_window}};\nlet Stage1 = workspace(workspace_id).ThreatIntelligenceIndicator\n| where TimeGenerated between (start_time .. end_time)\n| where Active == true and ValidUntil >= start_time\n| project Stage1Time=todatetime(TimeGenerated), WorkspaceScope=workspace_id, TenantScope=tenant_id, Stage1EntityId=tostring(IndicatorId), Stage1EventId=strcat_array(pack_array(tostring(IndicatorId), tostring(TimeGenerated)), \"|\"), Stage1EvidenceType=\"active time-bounded indicator\", Join1=tostring(DomainName), Stage1ValidUntil=todatetime(ValidUntil)\n| where isnotempty(Stage1EntityId) and isnotempty(Stage1EventId)\n| summarize arg_min(Stage1Time, *) by Stage1EventId;\nlet Stage1Rows = toscalar(Stage1 | count);\nlet Stage2 = workspace(workspace_id).DnsEvents\n| where TimeGenerated between (start_time .. end_time)\n| where isnotempty(Name)\n| project Stage2Time=todatetime(TimeGenerated), WorkspaceScope=workspace_id, TenantScope=tenant_id, Stage2EntityId=tostring(Name), Stage2EventId=strcat_array(pack_array(tostring(Name), tostring(ClientIP), tostring(TimeGenerated)), \"|\"), Stage2EvidenceType=\"DNS observation\", Join1=tostring(Name), Join2=tostring(ClientIP)\n| where isnotempty(Stage2EntityId) and isnotempty(Stage2EventId)\n| summarize arg_min(Stage2Time, *) by Stage2EventId;\nlet Stage2Rows = toscalar(Stage2 | count);\nlet Stage3 = workspace(workspace_id).DeviceNetworkEvents\n| where TimeGenerated between (start_time .. end_time)\n| where isnotempty(DeviceId)\n| project Stage3Time=todatetime(TimeGenerated), WorkspaceScope=workspace_id, TenantScope=tenant_id, Stage3EntityId=tostring(DeviceId), Stage3EventId=strcat_array(pack_array(tostring(DeviceId), tostring(ReportId), tostring(TimeGenerated)), \"|\"), Stage3EvidenceType=\"endpoint network evidence\", Join2=tostring(LocalIP)\n| where isnotempty(Stage3EntityId) and isnotempty(Stage3EventId)\n| summarize arg_min(Stage3Time, *) by Stage3EventId;\nlet Stage3Rows = toscalar(Stage3 | count);\nStage1\n| join kind=inner Stage2 on WorkspaceScope, TenantScope, Join1\n| where Stage2Time between (Stage1Time .. Stage1Time + correlation_window)\n| join kind=inner Stage3 on WorkspaceScope, TenantScope, Join2\n| where Stage3Time between (Stage2Time .. Stage2Time + correlation_window)\n| where Stage2Time <= Stage1ValidUntil\n| project Stage1Time, Stage1EntityId, Stage1EventId, Stage1EvidenceType, Stage1Rows, Stage2Time, Stage2EntityId, Stage2EventId, Stage2EvidenceType, Stage2Rows, Stage3Time, Stage3EntityId, Stage3EventId, Stage3EvidenceType, Stage3Rows, WorkspaceScope, TenantScope, EvidenceCompleteness=\"all required synthetic stages present\", CorrelationStatement=\"correlated evidence; not proof of causation or compromise\"\n| order by Stage1Time asc\n",
+      "kind": "correlation",
+      "language": "KQL",
+      "offline_assurance": "schema and static checks only until fixture execution is recorded",
+      "stage_contract": [
+        "S01",
+        "S02",
+        "S03"
+      ]
+    }
+  },
+  "references": [
+    {
+      "kind": "authoritative",
+      "title": "MITRE ATT&CK Analytics",
+      "url": "https://attack.mitre.org/analytics/"
+    },
+    {
+      "kind": "authoritative",
+      "title": "MITRE ATT&CK October 2025 updates",
+      "url": "https://attack.mitre.org/resources/updates/updates-october-2025/"
+    },
+    {
+      "kind": "authoritative",
+      "title": "NIST SP 800-61 Rev. 3",
+      "url": "https://csrc.nist.gov/pubs/sp/800/61/r3/final"
+    },
+    {
+      "kind": "authoritative",
+      "title": "Microsoft schema reference: devicenetworkevents",
+      "url": "https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/devicenetworkevents"
+    },
+    {
+      "kind": "authoritative",
+      "title": "Microsoft schema reference: dnsevents",
+      "url": "https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/dnsevents"
+    },
+    {
+      "kind": "authoritative",
+      "title": "Microsoft schema reference: threatintelligenceindicator",
+      "url": "https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/threatintelligenceindicator"
+    },
+    {
+      "kind": "authoritative",
+      "title": "Hunt for threats with Microsoft Sentinel",
+      "url": "https://learn.microsoft.com/en-us/azure/sentinel/hunting"
+    },
+    {
+      "kind": "vendor_framework",
+      "title": "Splunk PEAK Threat Hunting Framework",
+      "url": "https://www.splunk.com/en_us/blog/security/peak-threat-hunting-framework.html"
+    }
+  ],
+  "stages": [
+    {
+      "entity_extractors": {
+        "indicator": "tostring(IndicatorId)"
+      },
+      "event_id_fields": [
+        "IndicatorId",
+        "TimeGenerated"
+      ],
+      "event_time": "TimeGenerated",
+      "evidence_output": [
+        "active time-bounded indicator"
+      ],
+      "id": "S01",
+      "join_in": null,
+      "join_out": "tostring(DomainName)",
+      "order": 1,
+      "required_fields": [
+        "IndicatorId",
+        "DomainName",
+        "Active",
+        "ValidUntil"
+      ],
+      "stream": "indicator",
+      "table": "ThreatIntelligenceIndicator",
+      "validity_fields": [
+        "ValidUntil"
+      ]
+    },
+    {
+      "entity_extractors": {
+        "domain": "tostring(Name)"
+      },
+      "event_id_fields": [
+        "Name",
+        "ClientIP",
+        "TimeGenerated"
+      ],
+      "event_time": "TimeGenerated",
+      "evidence_output": [
+        "DNS observation"
+      ],
+      "id": "S02",
+      "join_in": "tostring(Name)",
+      "join_out": "tostring(ClientIP)",
+      "order": 2,
+      "required_fields": [
+        "Name",
+        "ClientIP"
+      ],
+      "stream": "dns_observation",
+      "table": "DnsEvents"
+    },
+    {
+      "entity_extractors": {
+        "device": "tostring(DeviceId)"
+      },
+      "event_id_fields": [
+        "DeviceId",
+        "ReportId",
+        "TimeGenerated"
+      ],
+      "event_time": "TimeGenerated",
+      "evidence_output": [
+        "endpoint network evidence"
+      ],
+      "id": "S03",
+      "join_in": "tostring(LocalIP)",
+      "join_out": null,
+      "order": 3,
+      "required_fields": [
+        "DeviceId",
+        "LocalIP",
+        "RemoteIP",
+        "ReportId"
+      ],
+      "stream": "endpoint_connection",
+      "table": "DeviceNetworkEvents"
+    }
+  ],
+  "stopping_rules": [
+    "Stop when validity or identity cannot be established",
+    "Escalate after feed confidence and infrastructure ownership review"
+  ],
+  "surface_support": {
+    "defender_advanced_hunting": "unverified",
+    "sentinel_analytics": "supported",
+    "sentinel_data_lake": "unverified"
+  },
+  "telemetry": {
+    "latency_assumptions": [
+      "Streams can arrive late or out of order; event time controls correlation.",
+      "No production latency or retention behavior has been measured."
+    ],
+    "optional": [],
+    "required": [
+      "indicator",
+      "dns_observation",
+      "endpoint_connection"
+    ],
+    "timestamps": [
+      {
+        "event_time": "TimeGenerated",
+        "ingestion_time": "not used for event ordering; unavailable ingestion time remains unknown",
+        "stream": "indicator"
+      },
+      {
+        "event_time": "TimeGenerated",
+        "ingestion_time": "not used for event ordering; unavailable ingestion time remains unknown",
+        "stream": "dns_observation"
+      },
+      {
+        "event_time": "TimeGenerated",
+        "ingestion_time": "not used for event ordering; unavailable ingestion time remains unknown",
+        "stream": "endpoint_connection"
+      }
+    ]
+  },
+  "tests": {
+    "curated_scenarios": 48,
+    "generated_perturbations": 250,
+    "semantic_mutations": 12
+  },
+  "title": "Time-valid indicator correlation with endpoint behavior",
+  "version": "1.0.0"
+}

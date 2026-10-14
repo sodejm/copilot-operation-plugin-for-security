@@ -13,6 +13,7 @@ description: "Universal catalog of offline-first defensive cybersecurity plugins
   <div class="cops-cta-row">
     <a href="getting-started.html" class="cops-btn cops-btn-primary">5-Minute Quickstart</a>
     <a href="plugin-guide.html" class="cops-btn cops-btn-secondary">Explore 17 Plugins</a>
+    <a href="plugin-verification.html" class="cops-btn cops-btn-secondary">Verify a Plugin</a>
     <a href="specialist-agents.html" class="cops-btn cops-btn-secondary">21 Specialist Agents</a>
     <a href="https://github.com/sodejm/copilot-operation-plugin-for-security" class="cops-btn cops-btn-secondary">GitHub Repository</a>
   </div>
@@ -93,11 +94,15 @@ COPS organizes 17 dedicated security plugins across six cybersecurity discipline
   <div class="cops-card">
     <h3>🚨 Incident Response</h3>
     <p>Rehearse containment playbooks, calculate cloud resource blast radius, and generate cryptographic execution receipts under interactive operator approval.</p>
-    <p><strong>Plugins:</strong> <a href="plugin-guide.html#incident-response-sandbox">Incident Response Sandbox</a> <span class="badge badge-beta">Beta</span></p>
+    <p><strong>Plugins:</strong> <a href="plugin-guide.html#incident-response-sandbox">Incident Response Sandbox</a> <span class="badge badge-experimental">Experimental</span></p>
   </div>
 </div>
 
 For a side-by-side comparison of problem statements and operational playbooks, see [When to Use Each Plugin](plugin-guide.md).
+
+Run a checked example from the [plugin workflow index](plugin-playbacks.md), or
+follow [Investigate possible malicious access](investigate-malicious-access.md)
+through malicious, benign, and insufficient-evidence cases.
 
 ---
 

@@ -57,6 +57,7 @@
         "network_isolated": {"type": "boolean"},
         "egress_restricted": {"type": "boolean"},
         "verification_status": {"enum": ["unverified", "verified", "failed"]},
+        "verification_provenance": {"enum": ["observed", "simulated", null]},
         "verification_timestamp": {"type": ["string", "null"], "format": "date-time"},
         "verification_notes": {"type": ["string", "null"]}
       }

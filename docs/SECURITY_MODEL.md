@@ -95,6 +95,15 @@ flowchart TD
 - **Our Defense**:
   - We clearly label test results: an offline demo verifies that the code runs against a fixture; it does not claim your production SIEM is configured correctly.
   - Every finding links directly to verifiable evidence.
+  - [Runnable playbacks](plugin-playbacks.md) assert expected outcomes and
+    exercise failure or evidence-gap cases. The malicious-access walkthrough
+    keeps insufficient evidence distinct from a benign disposition; a missing
+    result or an unexecuted query cannot establish that access was authorized.
+  - [Plugin qualification](plugin-verification.md) binds maturity evidence to a
+    tested revision, expected results, negative cases, host exercises, repeat
+    runs, and independent review. Offline checks alone cannot establish host or
+    live-service support. Keep raw run evidence private and publish sanitized
+    qualification records.
   - The Linux and Windows host assessment importer labels canary outcomes as source-reported, retains explicit prerequisite and coverage state, and cannot certify a live privilege crossing or cleanup from a local export.
 
 ### Threat 6: Unauthorized High-Consequence or Offensive Actions
@@ -115,6 +124,7 @@ flowchart TD
   - **Operation-Scoped Credentials**: Executable probing is credential-free. Immediately before each approved launch, the worker passes the exact authority-issued `ApprovalConsumptionReceipt` returned by its consume-only approval control to a scoped resolver. The resolver validates the receipt's authorization digest and plan, engagement, worker, and target bindings before provider access. A grant must also match the plan digest, engagement, worker, target, step, tool, version, and action, and can populate only a dedicated `COPS_CREDENTIAL_*` operation environment. Resolved values are registered with the evidence redactor before launch. A tool can echo a credential into raw in-memory output, so every evidence channel is redacted before evidence ingestion or persistence.
   - **Fail-Closed Evidence (`cops.evidence/v1`)**: Real execution requires complete plan, authorization, engagement, worker, target, and operation provenance. Stdout, stderr, errors, artifact identifiers, and artifact content are redacted and the envelope is schema-validated before any record or output is persisted. Unsafe absolute or traversal artifact identifiers fail closed. Captured output is untrusted data, including text that resembles an instruction.
   - **Execution Truthfulness (`cops.run-result/v1`)**: Non-success outcomes (`partial`, `cancelled`, `failed`, `uncertain`, `not_assessed`) require explicit reasons and are never silently converted into success claims. Findings marked `verified` must reference affirmative `cops.evidence/v1` records.
+  - **Laboratory Evidence**: Mock verification and reset remain simulated and unverified. Real cases require fresh signed observations, observed verification provenance, and a journal reservation before dispatch. Classification derives the observed outcome before comparing it with the expected case. Canonical evidence and controller cleanup receipts persist outside disposable worker workspaces with digest references and owner-only permissions. Cleanup receipts summarize worker reports; they do not independently prove cleanup. The journal and evidence store assume a trusted owner account and require an operator-managed retention policy. See the [laboratory workflow](AUTHENTICATED_EXECUTION.md#validate-in-the-scenario-laboratory).
   - **Assessment Reporting (`cops.assessment-report/v1`)**: The offline report validates supplied contract joins and marks access or evidence gaps `not_assessed`. It omits evidence payloads and source locators, but scope identifiers and caller-authored text may still be sensitive. Owner-only output permissions are not encryption. Supplied hashes, modes, and statuses do not independently authenticate sources, authorization, or execution; see the [reporting guide](ENGAGEMENT_REPORTING.md).
   - **Shared-Key Limitation**: HMAC authenticates membership in a shared-key channel. Any verifier that holds the key can mint an authorization, so it does not provide non-repudiation.
   - **Execution Egress Boundary**: An explicitly egress-enabled, signed operation supplies one HTTPS endpoint, exact authenticated service identity, and exact request targets. The worker creates a per-operation broker capability only when its own trust domain, engagement scope, plan limit, and Linux sandbox support agree. The mediator rechecks DNS, redirects, TLS peer identity, and resource targets; the adapter's network namespace removes direct IPv4 and IPv6 access.

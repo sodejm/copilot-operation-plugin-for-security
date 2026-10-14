@@ -10,7 +10,6 @@ import sys
 from pathlib import Path
 
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent
-REPO_ROOT = PLUGIN_ROOT.parent.parent
 
 if str(PLUGIN_ROOT) not in sys.path:
     sys.path.insert(0, str(PLUGIN_ROOT))
@@ -24,6 +23,7 @@ from foundryharness.mock_sandbox import (
     MockSandbox,
 )
 from foundryharness.models import Scenario
+from foundryharness.provider_assessment import assess, read_json, report_case_id
 from foundryharness.reporting import (
     render_json_report,
     render_markdown_report,
@@ -47,24 +47,30 @@ def validate() -> int:
         PLUGIN_ROOT / "schemas" / "report.schema.json",
         PLUGIN_ROOT / "schemas" / "lab-case.schema.json",
         PLUGIN_ROOT / "schemas" / "lab-report.schema.json",
+        PLUGIN_ROOT / "schemas" / "provider-plan.schema.json",
+        PLUGIN_ROOT / "schemas" / "provider-cases.schema.json",
+        PLUGIN_ROOT / "schemas" / "provider-response.schema.json",
+        PLUGIN_ROOT / "schemas" / "provider-report.schema.json",
+        PLUGIN_ROOT / "provider_fixtures" / "plan.json",
+        PLUGIN_ROOT / "provider_fixtures" / "cases.json",
     ]
 
     for p in json_files:
         if not p.is_file():
-            print(f"FAIL: Missing required file {p.relative_to(REPO_ROOT)}", file=sys.stderr)
+            print(f"FAIL: Missing required file {p.relative_to(PLUGIN_ROOT)}", file=sys.stderr)
             return 1
         try:
             json.loads(p.read_text(encoding="utf-8"))
         except Exception as e:
-            print(f"FAIL: Malformed JSON in {p.relative_to(REPO_ROOT)}: {e}", file=sys.stderr)
+            print(f"FAIL: Malformed JSON in {p.relative_to(PLUGIN_ROOT)}: {e}", file=sys.stderr)
             return 1
     print(f"  OK: Validated {len(json_files)} package configuration and schema files.")
 
     # 2. Check skill frontmatter
-    for name in ("foundry-agent-review", "ai-agent-mcp-laboratories"):
+    for name in ("foundry-agent-review", "ai-agent-mcp-laboratories", "ai-provider-assessment"):
         skill_file = PLUGIN_ROOT / "skills" / name / "SKILL.md"
         if not skill_file.is_file():
-            print(f"FAIL: Missing skill file {skill_file.relative_to(REPO_ROOT)}", file=sys.stderr)
+            print(f"FAIL: Missing skill file {skill_file.relative_to(PLUGIN_ROOT)}", file=sys.stderr)
             return 1
         content = skill_file.read_text(encoding="utf-8")
         if not content.startswith(f"---\nname: {name}\n"):
@@ -176,6 +182,32 @@ def validate() -> int:
         print("FAIL: Paired state-change baseline and strict gate evidence mismatch", file=sys.stderr)
         return 1
     print(f"  OK: Verified {len(lab_results)} local synthetic agent and MCP laboratory cases.")
+
+    # 8. Synthetic provider fixtures are part of the package gate.
+    provider_fixtures = PLUGIN_ROOT / "provider_fixtures"
+    try:
+        provider_plan = read_json(provider_fixtures / "plan.json", "provider-plan.schema.json")
+        provider_cases = read_json(provider_fixtures / "cases.json", "provider-cases.schema.json")
+        provider_report = assess(provider_plan, provider_cases)
+    except (OSError, ValueError) as exc:
+        print(f"FAIL: Offline provider assessment: {type(exc).__name__}", file=sys.stderr)
+        return 1
+    provider_results = {result["case_id"]: result for result in provider_report["results"]}
+    if (
+        not provider_report["all_expectations_met"]
+        or not provider_report["cleanup_verified"]
+        or provider_report["budget"]["over_budget"]
+        or not all(
+            provider_results.get(report_case_id(f"{provider}-completed"), {}).get("outcome") == "completed"
+            for provider in ("openai", "azure", "aws", "gcp")
+        )
+        or provider_results.get(report_case_id("openai-partial"), {}).get("ledger_state") != "usage_unknown"
+        or provider_results.get(report_case_id("budget-denied"), {}).get("response_state") != "not_processed"
+        or "SYNTHETIC_SECRET_DO_NOT_REPORT" in json.dumps(provider_report)
+    ):
+        print("FAIL: Offline provider assessment invariant mismatch", file=sys.stderr)
+        return 1
+    print(f"  OK: Verified {len(provider_results)} offline AI provider assessment cases.")
 
     print("[validate_package] All checks passed successfully.")
     return 0

@@ -14,7 +14,7 @@ REPO_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(PACKAGE_ROOT))
 
-from offensive_engagement_workbench.core import run_engagement_plan_workflow  # noqa: E402
+from offensive_engagement_workbench.playback import PlaybackError, run_playback  # noqa: E402
 
 
 def _parse_tool_versions(values: list[str]) -> dict[str, str]:
@@ -41,6 +41,12 @@ def main(argv: list[str] | None = None) -> int:
         metavar="TOOL=VERSION",
         help="independently measured exact version for a selected tool (repeatable)",
     )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        required=True,
+        help="private directory for the six playback artifacts",
+    )
     args = parser.parse_args(argv)
 
     manifest_path = PACKAGE_ROOT / "fixtures" / "synthetic" / "engagement.json"
@@ -48,11 +54,15 @@ def main(argv: list[str] | None = None) -> int:
         tool_versions = _parse_tool_versions(args.tool_version)
     except argparse.ArgumentTypeError as err:
         parser.error(str(err))
-    result = run_engagement_plan_workflow(
-        manifest_path,
-        root=REPO_ROOT,
-        tool_versions=tool_versions,
-    )
+    try:
+        result = run_playback(
+            manifest_path,
+            output_dir=args.output_dir,
+            root=REPO_ROOT,
+            tool_versions=tool_versions,
+        )
+    except (PlaybackError, OSError, ValueError) as err:
+        parser.exit(1, f"playback failed: {err}\n")
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0
 

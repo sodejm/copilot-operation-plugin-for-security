@@ -1,42 +1,86 @@
 # COPS Host Assessment Workbench
 
-This experimental package reviews **local Linux and Windows privilege-boundary
-exports**. It does not collect host data or attempt privilege escalation. The
-versioned import contracts are `specs/host-linux-privilege-boundaries.spec.md`
-and `specs/host-windows-privilege-boundaries.spec.md` in the source repository.
+Review sanitized Linux and Windows privilege-boundary exports and identify which observations
+apply to the reported host context. This experimental package imports local JSON;
+it does not collect host data or attempt privilege escalation.
 
-## Use
+## Start here
 
-From the repository root:
+Use Python 3.11 or newer and run from the repository root:
 
 ```bash
+python3 -m cops info host-assessment-workbench
 python3 -m cops demo host-assessment-workbench
 python3 -m cops check host-assessment-workbench
-python3 plugins/offensive-security/host-assessment-workbench/scripts/assess.py path/to/export.json
 ```
 
-The last command reads at most 1 MiB of JSON from a local file and writes a
-deterministic JSON report to standard output. The export must use the exact
-Linux `1.0` or Windows `windows-1.0` schema. Use opaque, non-sensitive IDs; do
-not include credentials, free-form evidence, or filesystem paths. The importer rejects unsupported fields and
-contradictory canary assertions, but cannot independently establish whether a
-source's statements are true.
+The demo checks Linux positive, negative, fixed, unknown-context, and invalid-cleanup
+inputs plus Windows vulnerable, protected, remediated, and unsupported exports
+through the public importer. Follow the [practitioner playback](docs/PLAYBOOK.md)
+for individual commands and result interpretation. Use the
+[verification playbook](docs/VERIFICATION.md) to record qualification evidence.
 
-Linux coverage includes permissions, services, scheduled tasks, capabilities,
-sudo, SUID, credential exposure, and container context. Windows coverage
-includes service and scheduled-task permissions, token privileges, registry and
-filesystem controls, local credential references, and versioned escalation
-families. A Windows export must declare its bridge capabilities and host build,
-architecture, token, and protection state; missing prerequisites remain
-unresolved. The bridge declaration is an exporter assertion, not a live adapter.
+## Design and evidence theory
 
-A configuration candidate is distinct from a **reported** canary crossing. A
-positive canary requires denied-before/granted-after access to an
-assessment-owned resource on a disposable host, plus a reported cleanup
-verification. Negative and fixed cases require denied-before/denied-after.
-Unassessed, unsupported, denied, or unknown coverage never establishes safety.
+A configuration observation can suggest a privilege boundary worth investigating,
+but it does not prove that the boundary was crossed. The importer first compares
+the observation's declared prerequisites with the reported host. Linux records use
+kernel, distribution, namespace, and protection requirements; Windows records use
+build, architecture, token, and protection requirements plus an explicit bridge
+capability declaration. A known mismatch is `inapplicable`; an unknown prerequisite
+is `unresolved`. Neither selects the observation for a canary conclusion.
 
-Any live assessment needs a separate approved scope, canary privileges,
-isolated worker, disposable host, and ownership-aware cleanup evidence. This
-package supplies none of those execution capabilities. E06.01-S01/S02 and
-E06.02-S01/S02 are planning references pending exact source mapping under E01.1.
+A selected configuration can be a `configuration_candidate`,
+`ordinary_configuration`, or `insufficient_evidence`. A canary record adds explicit
+before/after access assertions, ownership, disposable-host status, evidence IDs,
+and cleanup. A positive case requires denied-before/granted-after access; negative
+and fixed cases require denied-before/denied-after. The resulting labels are
+`reported_canary_crossing` and `reported_canary_blocked`: the importer checks the
+contract but does not independently verify the source's claims.
+
+## Data contracts
+
+The Linux [positive](fixtures/synthetic/host_linux_positive_v1.json),
+[negative](fixtures/synthetic/host_linux_negative_v1.json), and
+[fixed](fixtures/synthetic/host_linux_fixed_v1.json) fixtures and the Windows
+[vulnerable](fixtures/synthetic/host_windows_vulnerable_v1.json),
+[protected](fixtures/synthetic/host_windows_protected_v1.json),
+[remediated](fixtures/synthetic/host_windows_remediated_v1.json), and
+[unsupported](fixtures/synthetic/host_windows_unsupported_v1.json) fixtures are
+complete runnable inputs. The
+[Linux](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/specs/host-linux-privilege-boundaries.spec.md)
+and
+[Windows](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/specs/host-windows-privilege-boundaries.spec.md)
+privilege-boundary contracts define the exact schemas.
+
+| Record or field | Purpose and producer | Consumer and validation |
+| --- | --- | --- |
+| Input `schema_version` | Exporter selects Linux contract `1.0` or Windows contract `windows-1.0` | Importer rejects unknown versions or fields |
+| `source_kind`, `source_id` | Exporter labels `synthetic_lab` or `operator_export` and an opaque provenance ID | Copied to report `source`; this is not independent provenance verification |
+| `host` | Linux kernel/distribution/namespace or Windows build/architecture/token context | Compared with each observation's prerequisites; unknown values remain unresolved |
+| `host.protections` | Linux SELinux/AppArmor/seccomp/no-new-privileges/user-namespace state or Windows UAC/VBS/Credential Guard/AppLocker/WDAC state | Required host context; selected requirements must agree |
+| `bridge` | Windows exporter declares platform, offline mode, supported capabilities, and whether it supplied canary assertions | Importer rejects undeclared Windows capabilities and contradictory assertions |
+| `coverage` | Status for eight Linux or seven Windows privilege-boundary surfaces | Each surface is `assessed`, `not_assessed`, `unsupported`, or `access_denied`; observations require assessed coverage |
+| `observations[]` | ID, surface, configuration assertion, evidence IDs, requirements, optional canary | Importer rejects duplicate IDs, unsupported fields, and contradictory claims |
+| `observations[].canary` | Case, resource ID, before/after access, evidence IDs, ownership and cleanup assertions | At least three evidence IDs; disposable host, assessment ownership, and cleanup must all be true |
+| Report `mode`, `source`, `host`, `coverage` | Importer preserves import context | Analyst sees `offline_import` and explicit coverage limits |
+| Report `observations`, `counts` | Importer supplies decisions, classifications, prerequisites, and totals | Analyst distinguishes candidates from reported crossings and unresolved observations |
+
+The importer bounds input to 1 MiB, JSON depth 64, and 256 observations. Use opaque,
+non-sensitive IDs. Credentials, free-form evidence, paths, duplicate JSON keys,
+and non-finite numbers are rejected. Unassessed or denied coverage never establishes
+that a host is safe.
+
+## Operations and limits
+
+Valid input produces deterministic JSON on stdout. Invalid input exits 2 with no
+success report. Fix the input contract or preserve a missing-evidence outcome;
+do not change assertions merely to obtain a selected result. See the playback for
+repeatability and cleanup checks.
+
+A live assessment requires separately approved scope, canary privileges, an isolated
+worker, a disposable host, and ownership-aware cleanup evidence. This package
+provides none of those execution capabilities. Host installation and live integration
+remain unverified. Windows technique references `E06.01-S01`, `E06.01-S02`,
+`E06.02-S01`, and `E06.02-S02` are planning references pending exact source
+mapping under acceptance criterion `E01.1`.

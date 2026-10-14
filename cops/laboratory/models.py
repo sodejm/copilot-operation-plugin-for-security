@@ -109,13 +109,17 @@ class LaboratoryCaseResult:
     plan_id: str
     run_result: RunResult
     canary_verified: bool
+    observed_case_type: Literal["positive", "negative", "remediated", "indeterminate"] = "indeterminate"
     evidence_records: list[str] = field(default_factory=list)
     cleanup_receipt: CleanupReceipt | None = None
+    cleanup_receipt_digest: str | None = None
     details: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "case_type": self.case_type,
+            "expected_case_type": self.case_type,
+            "observed_case_type": self.observed_case_type,
             "status": self.status,
             "environment_id": self.environment_id,
             "plan_id": self.plan_id,
@@ -123,5 +127,6 @@ class LaboratoryCaseResult:
             "canary_verified": self.canary_verified,
             "evidence_records": self.evidence_records,
             "cleanup_receipt": self.cleanup_receipt.to_dict() if self.cleanup_receipt else None,
+            "cleanup_receipt_digest": self.cleanup_receipt_digest,
             "details": self.details,
         }

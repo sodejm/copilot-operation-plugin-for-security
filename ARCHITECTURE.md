@@ -107,6 +107,7 @@ See the **[Shared Evidence SDK Guide](docs/EVIDENCE_SDK.md)** for detailed imple
 COPS centralizes **18 specialist cybersecurity agent profiles** in `agents/` and provides a deterministic, zero-token routing engine:
 - **Centralized Profiles Inventory**: `agents/registry.json` and `agents/profiles/*.agent.md` govern callable personas across offensive security, defensive detection, incident response, digital forensics, cloud identity, and compliance.
 - **Dynamic Selection Engine (`cops.routing`)**: Fast local Python classifier that maps natural language requests and artifact types to the most qualified specialist profile and recommended skills without model hallucinations.
+- **Model Advisor (`cops.routing.model_advisor`)**: Opt-in offline task classification and model/effort ranking against a bounded, fresh operator-supplied catalog. Exact availability, access, capabilities, tier, and supported efforts determine eligibility. Output is advisory and cannot change host settings or authorize execution. The workbench plugin ships the skill and guide; commands require the separate COPS checkout runtime. See [model routing](docs/model-effort-routing.md).
 - **Triad Orchestration Topology**: For critical tasks (e.g. penetration testing, adversary emulation, active containment, or privilege escalation audits), the engine automatically assembles a three-agent team:
   1. *Primary Specialist*: Conducts the core assessment or planning.
   2. *Domain Skeptic*: Challenges assumptions, identifies benign alternatives, and stress-tests transition constraints.
@@ -121,6 +122,13 @@ The repository maintains strict quality guardrails:
 - **`AGENTS.md`**: Canonical instructions for contributors and automated agents.
 - **`Makefile` & `scripts/agent/check.py`**: Runs pre-commit validation, including syntax checks, contract verification, adapter synchronization, and pytest-bdd scenarios.
 - **`make check`**: The universal gate that must pass before any change is merged.
+- **Catalog playback acceptance**: The portable operator scenario reads the
+  canonical plugin catalog and runs every manifest-backed demo through `cops demo`
+  twice, then runs exported playbacks with an isolated copy of `cops/` and
+  `catalog/`. Package runners verify domain results and failure cases; the shared
+  runner checks public entry points and exported runtime completeness. Documentation validation requires each
+  README to link its runnable playbook and checks local documentation links.
+  See [Runnable Plugin Workflows](docs/plugin-playbacks.md).
 
 To get started with development, explore the **[Contributing Guide](CONTRIBUTING.md)** and **[Repository Layout](docs/REPOSITORY_LAYOUT.md)**.
 

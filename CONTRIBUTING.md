@@ -14,6 +14,19 @@ Never include secrets, personal data, proprietary prompts, or confidential logs.
 AI assistance does not change contributor responsibility: review all generated
 content and ensure licensing, correctness, security, and attribution are sound.
 
+## Plugin verification and maturity
+
+Every catalog package must include `docs/VERIFICATION.md`, linked from its README
+and the [verification index](docs/plugin-verification.md). Keep its end-to-end
+exercise, acceptance criteria, negative cases, cleanup, and host installation steps
+current when changing behavior, dependencies, adapters, or workflow instructions.
+
+Follow the shared maturity gates and [record template](docs/templates/PLUGIN_VERIFICATION_RECORD.md).
+A demo pass is one step in qualification. After independent review, update the
+manifest's maturity and all public labels together; retain the tested revision,
+scope, limitations, and evidence links. Support flags and capability modes have
+their own evidence requirements.
+
 ## Evidence connector contributions
 
 Use the [Shared Evidence SDK guide](docs/EVIDENCE_SDK.md#add-a-connector) and
