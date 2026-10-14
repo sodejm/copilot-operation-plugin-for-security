@@ -156,12 +156,6 @@ def build_action_plan(
     cred_refs = validated_eng.get("credential_references", [])
 
     # 9. Build ActionPlan
-    if plan_id is None:
-        import hashlib
-        seed = f"{eng_id}:{scen_id}:{target_clean}"
-        digest_hex = hashlib.sha256(seed.encode("utf-8")).hexdigest()[:8]
-        plan_id = f"plan-cops-{digest_hex}"
-
     if created_at is None:
         created_at = validated_eng.get("created_at") or datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
