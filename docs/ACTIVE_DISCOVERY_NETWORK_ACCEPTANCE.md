@@ -60,7 +60,8 @@ exposure out of two. The interruption checkpoint was `in_progress` with one
 completed probe and no pending probe; the resumed checkpoint was `completed` with
 two probes. These results cover this isolated Linux harness only. The focused
 tests exercise uncertain pending operations and rejected plan/scope changes;
-native Windows and macOS scanning remain unverified.
+this run did not verify native Windows or macOS scanning. Later native CI
+evidence is described below.
 The checkpoint format now permits up to 256 MiB, with bounded reads, so a
 checkpoint above the ordinary 1 MiB JSON limit can resume. A full 65,535-port
 TCP run has not been measured for duration, memory use, or checkpoint size.
@@ -71,8 +72,8 @@ reported the responding port as `open` with a response length and SHA-256 digest
 it reported the silent port as `unknown` because silence cannot distinguish open
 from filtered. Neither result claimed a DNS or other application protocol from
 the port number. This verifies basic bounded UDP behavior in the isolated Linux
-environment. External networks, native Windows and macOS operation, and
-full-range scan performance remain unverified.
+environment. This run did not test external networks, native Windows or macOS
+operation, or full-range scan performance.
 
 A subsequent 2026-10-14 isolated Linux run exercised the explicitly selected
 DNS probe on seven UDP loopback ports. Each responder received exactly one
@@ -84,7 +85,7 @@ version. The same run passed the earlier rate-limit, DNS-shift, interruption,
 retest, generic UDP, and server-first banner controls. This establishes bounded
 DNS response identification in this disposable namespace. Other UDP services,
 other malformed-response variants, external networks, and native Windows/macOS
-operation remain unverified.
+operation were outside this run.
 
 Another 2026-10-14 run exercised the actual scanner against `::1/128` in the
 same disposable network namespace. A live TCP listener was `open`, a closed TCP
@@ -94,9 +95,10 @@ listener received one empty datagram. All four assessments retained `::1` as
 the resolved address. The harness reports `unavailable` if IPv6 loopback is
 disabled. This verifies bounded IPv6 loopback probes on this Linux image; it
 does not establish IPv6 behavior across a routed network or native Windows and
-macOS scanning.
+macOS scanning; the separate native CI checks below cover loopback only.
 
-The repository's Linux, macOS, and Windows operator-smoke jobs also run the
+On commit `600637c1e99b77e938a8308b4ad24a73606e57ff`, the repository's
+[Linux, macOS, and Windows operator-smoke jobs](https://github.com/sodejm/copilot-operation-plugin-for-security/actions/runs/38561789826) passed. They run the
 scanner against local TCP and UDP listeners. They check an IPv4 UDP reply and
 silence, validated and rejected DNS replies, a server-first SSH banner, and
 IPv6 TCP and UDP behavior when the runner exposes `::1`. An unavailable IPv6
@@ -120,9 +122,17 @@ confidence. For non-TLS TCP ports, this optional server-first read waits at most
 50 ms and stores at most 512 received bytes per probe. The local probe record has
 a SHA-256 reference for traceability; it does not authenticate the remote service
 or attest the scanner environment. Banner text and product/version claims are
-self-reported and may be hostile or misleading. The run did not establish
-request-driven HTTP service identification, TLS peer authentication, native
-Windows or macOS operation, or full-range scan performance.
+self-reported and may be hostile or misleading. That Linux banner run did not
+establish request-driven HTTP service identification, TLS peer authentication,
+or full-range scan performance.
 
 Run `python3 -m pytest tests/test_active_discovery.py -q` for the simulated
 edge cases and `make check` for the repository baseline.
+
+The scan-delta unit cases require a retest of the same resolved address and
+vantage before reporting a closed port as remediated. A changed address or
+vantage leaves the original exposure unverified; conflicting observations of
+one service cannot confirm remediation. These comparisons rely on recorded
+vantage labels and do not independently attest where a scanner ran. The
+disposable-network harness above supplies a same-identity open/closed control;
+the changed-identity and conflicting-observation cases use synthetic records.
