@@ -10,6 +10,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from cops.evidence.canonical import EvidenceError, decode_json
+
 from .active_models import (
     ActiveScanSession,
     ScanBudget,
@@ -87,6 +89,26 @@ from .remote_models import (
 )
 
 ROOT: Path = Path(__file__).resolve().parents[2]
+_MAX_ACTIVE_INPUT_BYTES = 4 * 1024 * 1024
+
+
+def _load_active_json(path: str, *, label: str) -> Any:
+    """Load an untrusted active-discovery JSON input within canonical limits."""
+    try:
+        with Path(path).open("rb") as stream:
+            payload = stream.read(_MAX_ACTIVE_INPUT_BYTES + 1)
+        return decode_json(payload, max_bytes=_MAX_ACTIVE_INPUT_BYTES)
+    except (OSError, EvidenceError) as error:
+        raise ValueError(f"{label} must be valid bounded JSON") from error
+
+
+def _load_offline_targets(path: str | None) -> dict[str, Any]:
+    if path is None:
+        return {}
+    targets = _load_active_json(path, label="Offline targets file")
+    if not isinstance(targets, dict):
+        raise ValueError("Offline targets file must contain a JSON object")
+    return targets
 
 
 def build_active_parser(parser: argparse.ArgumentParser) -> None:
@@ -609,7 +631,7 @@ def command_active_discovery(args: argparse.Namespace, root: Path | None = None)
     def load_scope(path: str | None) -> dict[str, Any] | None:
         if path is None:
             return None
-        raw = json.loads(Path(path).read_text(encoding="utf-8"))
+        raw = _load_active_json(path, label="Scope file")
         if not isinstance(raw, dict):
             raise ValueError("Scope file must contain a JSON object")
         scope = raw.get("scope", raw)
@@ -645,7 +667,7 @@ def command_active_discovery(args: argparse.Namespace, root: Path | None = None)
         # Resolve targets
         raw_targets = args.targets
         if Path(raw_targets).is_file():
-            t_data = json.loads(Path(raw_targets).read_text(encoding="utf-8"))
+            t_data = _load_active_json(raw_targets, label="Targets file")
             if isinstance(t_data, list):
                 targets = t_data
             elif isinstance(t_data, dict):
@@ -725,9 +747,7 @@ def command_active_discovery(args: argparse.Namespace, root: Path | None = None)
         scope_dict = load_scope(args.scope)
 
         if args.mode == "synthetic":
-            mock_targets = {}
-            if args.offline_targets and Path(args.offline_targets).is_file():
-                mock_targets = json.loads(Path(args.offline_targets).read_text(encoding="utf-8"))
+            mock_targets = _load_offline_targets(args.offline_targets)
             dispatcher = OfflineSyntheticDispatcher(targets=mock_targets)
         else:
             dispatcher = StandardSocketDispatcher(session.udp_dns_probe_ports)
@@ -757,9 +777,7 @@ def command_active_discovery(args: argparse.Namespace, root: Path | None = None)
             raise ValueError("Live resume must update its original checkpoint")
 
         if args.mode == "synthetic":
-            mock_targets = {}
-            if args.offline_targets and Path(args.offline_targets).is_file():
-                mock_targets = json.loads(Path(args.offline_targets).read_text(encoding="utf-8"))
+            mock_targets = _load_offline_targets(args.offline_targets)
             dispatcher = OfflineSyntheticDispatcher(targets=mock_targets)
         else:
             dispatcher = StandardSocketDispatcher(session.udp_dns_probe_ports)

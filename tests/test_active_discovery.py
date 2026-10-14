@@ -1198,6 +1198,73 @@ class TestActiveDiscoveryCLI(unittest.TestCase):
         self.addCleanup(self.temp_dir.cleanup)
         self.root = Path(self.temp_dir.name)
 
+    def test_cli_rejects_oversized_json_inputs_before_dispatch(self):
+        oversized = self.root / "oversized.json"
+        with oversized.open("wb") as stream:
+            stream.truncate((4 * 1024 * 1024) + 1)
+
+        parser = argparse.ArgumentParser()
+        build_active_parser(parser)
+        plan_args = parser.parse_args(["plan", "--targets", str(oversized)])
+        with self.assertRaisesRegex(ValueError, "Targets file must be valid bounded JSON"):
+            command_active_discovery(plan_args)
+
+        plan_path = self.root / "plan.json"
+        ActiveScanSession(
+            session_id="bounded-cli-input",
+            scope_reference="approved-engagement",
+            approved_targets=["198.51.100.10"],
+            approved_ports=[80],
+        ).save_checkpoint(plan_path)
+        scan_args = argparse.Namespace(
+            active_command="scan",
+            session=str(plan_path),
+            scope=str(oversized),
+            mode="synthetic",
+            offline_targets=None,
+            checkpoint=None,
+            output=None,
+        )
+        with patch("cops.discovery.cli.ActiveScanner.run") as run:
+            with self.assertRaisesRegex(ValueError, "Scope file must be valid bounded JSON"):
+                command_active_discovery(scan_args)
+            run.assert_not_called()
+
+            scan_args.scope = None
+            scan_args.offline_targets = str(oversized)
+            with self.assertRaisesRegex(ValueError, "Offline targets file must be valid bounded JSON"):
+                command_active_discovery(scan_args)
+            run.assert_not_called()
+
+    def test_cli_rejects_missing_or_nonobject_offline_fixture_before_dispatch(self):
+        plan_path = self.root / "plan.json"
+        ActiveScanSession(
+            session_id="offline-fixture-shape",
+            scope_reference="approved-engagement",
+            approved_targets=["198.51.100.10"],
+            approved_ports=[80],
+        ).save_checkpoint(plan_path)
+        scan_args = argparse.Namespace(
+            active_command="scan",
+            session=str(plan_path),
+            scope=None,
+            mode="synthetic",
+            offline_targets=str(self.root / "missing.json"),
+            checkpoint=None,
+            output=None,
+        )
+        with patch("cops.discovery.cli.ActiveScanner.run") as run:
+            with self.assertRaisesRegex(ValueError, "Offline targets file must be valid bounded JSON"):
+                command_active_discovery(scan_args)
+            run.assert_not_called()
+
+            invalid_shape = self.root / "not-an-object.json"
+            invalid_shape.write_text("[]", encoding="utf-8")
+            scan_args.offline_targets = str(invalid_shape)
+            with self.assertRaisesRegex(ValueError, "Offline targets file must contain a JSON object"):
+                command_active_discovery(scan_args)
+            run.assert_not_called()
+
     def test_cli_plan_allows_unthrottled_synthetic_scan(self):
         plan_out = self.root / "plan-zero-rate.json"
         args = argparse.Namespace(
