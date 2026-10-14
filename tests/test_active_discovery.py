@@ -30,7 +30,7 @@ from cops.discovery import (
     import_nmap_xml,
     infer_service_fingerprint,
 )
-from cops.discovery.active_models import MAX_ACTIVE_PLANNED_PROBES, TargetShiftQuarantine
+from cops.discovery.active_models import MAX_ACTIVE_PLANNED_PROBES, TargetShiftQuarantine, active_assessment_digest
 from cops.discovery.active_scanner import (
     ActiveScanError,
     ProbeDispatcher,
@@ -1057,6 +1057,19 @@ class TestActiveScannerExecutionAndBudgets(unittest.TestCase):
         self.assertEqual(ports[443], PortState.OPEN.value)
         self.assertEqual(ports[8080], PortState.CLOSED.value)
         self.assertEqual(ports[9000], PortState.FILTERED.value)
+        for assessment in completed.assessments:
+            with self.subTest(port=assessment.port):
+                probe_key = ActiveScanSession.make_probe_key(
+                    assessment.vantage, assessment.protocol, assessment.target_host, assessment.port
+                )
+                self.assertIn(probe_key, completed.completed_probe_keys)
+                self.assertIsNotNone(assessment.provenance)
+                self.assertEqual(assessment.provenance.source_type, "active_scan")
+                self.assertEqual(assessment.provenance.source_id, completed.session_id)
+                self.assertEqual(assessment.provenance.path_or_uri, completed.scope_reference)
+                self.assertEqual(assessment.provenance.raw_record_ref, probe_key)
+                self.assertEqual(assessment.provenance.timestamp, assessment.timestamp_utc)
+                self.assertEqual(assessment.provenance.sha256, active_assessment_digest(assessment))
 
     def test_offline_udp_fixtures_are_protocol_aware_and_evidence_bound(self):
         fixtures = {

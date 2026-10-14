@@ -12,12 +12,16 @@ from collections.abc import Collection
 from dataclasses import asdict, dataclass
 
 from cops.evidence.canonical import EvidenceError, digest, timestamp
+from cops.routing.catalog import SpecialistCatalogError, get_specialist
 
-from .active_models import ActiveScanSession, ActiveServiceAssessment, ObservedConfiguration
+from .active_models import ActiveScanSession, ActiveServiceAssessment, ObservedConfiguration, active_assessment_digest
+from .models import EvidenceProvenance
 
 _LABEL = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 _VANTAGES = frozenset({"external", "internal", "egress_point", "cloud_tenant"})
 _TRANSPORTS = frozenset({"tcp", "udp"})
+_SPECIALIST_ID = "cops-pentest-specialist"
+_SESSION_STATUSES = frozenset({"in_progress", "completed", "budget_exhausted", "interrupted"})
 
 
 def _canonical_host(host: str) -> str:
@@ -64,6 +68,10 @@ class ServiceValidationPlan:
     endpoint: ApprovedEndpoint
     service: str
     specialist: str
+    skill_id: str
+    session_id: str
+    scope_reference: str
+    probe_key: str
     evidence_probe_id: str
     evidence_sha256: str
     action: str
@@ -90,6 +98,7 @@ class ServiceEntryHandoff:
     evidence_probe_id: str
     reason: str
     next_action: str
+    skill_id: str | None = None
     plan: ServiceValidationPlan | None = None
     verified_finding: None = None
     authorized_use: None = None
@@ -122,17 +131,20 @@ def _observed_services(observation: ObservedConfiguration) -> set[tuple[str, str
     return services
 
 
-def prepare_service_entry_handoff(
+def _prepare_service_entry_handoff(
     assessment: ActiveServiceAssessment,
     *,
+    session: ActiveScanSession,
     approved_endpoints: Collection[ApprovedEndpoint],
-    quarantined_hosts: Collection[str] = (),
+    quarantined_hosts: Collection[str],
+    session_targets: Collection[str],
+    session_valid: bool,
+    supported_skills: Collection[str],
 ) -> ServiceEntryHandoff:
-    """Prepare a bounded, non-executing validation candidate from one discovery result.
+    """Prepare one non-executing candidate from a verified scan checkpoint.
 
-    The caller supplies endpoints derived from trusted engagement scope. This
-    method checks exact host, resolved IP, port, transport and vantage; it does
-    not infer approval from the assessment or issue an execution receipt.
+    This private helper can only be reached through the session wrapper, which
+    supplies trusted scope and the checkpoint's quarantine and route catalog.
     """
     probe_id = assessment.probe_id if isinstance(assessment.probe_id, str) else ""
     try:
@@ -165,22 +177,7 @@ def prepare_service_entry_handoff(
             "Exact endpoint is outside the approved set",
             "Update and approve scope before any follow-on action",
         )
-    quarantined = set()
-    for host in quarantined_hosts:
-        try:
-            quarantined.add(_canonical_host(host))
-        except ValueError:
-            return ServiceEntryHandoff(
-                "blocked_scope",
-                endpoint,
-                False,
-                None,
-                None,
-                probe_id,
-                "Quarantine contains a malformed host identity",
-                "Reconcile the quarantine against trusted scope before any follow-on action",
-            )
-    if endpoint.host in quarantined:
+    if endpoint.host in quarantined_hosts:
         return ServiceEntryHandoff(
             "blocked_scope",
             endpoint,
@@ -205,6 +202,78 @@ def prepare_service_entry_handoff(
             probe_id,
             "Discovery evidence has no valid probe identity or timestamp",
             "Repair or repeat discovery within approved scope",
+        )
+    if not session_valid:
+        return ServiceEntryHandoff(
+            "invalid_session",
+            endpoint,
+            False,
+            None,
+            None,
+            probe_id,
+            "Scan checkpoint has invalid session identity, scope reference, vantage, status, or target list",
+            "Reconcile the scan checkpoint before routing",
+        )
+    probe_key = ActiveScanSession.make_probe_key(
+        assessment.vantage, assessment.protocol, assessment.target_host, assessment.port
+    )
+    if (
+        endpoint.host not in session_targets
+        or endpoint.port not in session.approved_ports
+        or endpoint.vantage != session.vantage
+        or probe_key not in session.completed_probe_keys
+    ):
+        return ServiceEntryHandoff(
+            "invalid_session",
+            endpoint,
+            False,
+            None,
+            None,
+            probe_id,
+            "Assessment is not a completed probe in this scan session",
+            "Reconcile the checkpoint side-effect ledger before routing",
+        )
+    provenance = assessment.provenance
+    try:
+        evidence_sha256 = active_assessment_digest(assessment)
+    except (EvidenceError, AttributeError, TypeError, ValueError):
+        return ServiceEntryHandoff(
+            "invalid_evidence",
+            endpoint,
+            False,
+            None,
+            None,
+            probe_id,
+            "Assessment cannot be bound to a bounded evidence digest",
+            "Repair or repeat discovery within approved scope",
+        )
+    if not isinstance(provenance, EvidenceProvenance) or provenance.source_type != "active_scan":
+        return ServiceEntryHandoff(
+            "unverified_source",
+            endpoint,
+            False,
+            None,
+            None,
+            probe_id,
+            "Assessment has no native active-scan provenance; imported evidence needs revalidation",
+            "Revalidate the imported observation within approved scope",
+        )
+    if (
+        provenance.source_id != session.session_id
+        or provenance.path_or_uri != session.scope_reference
+        or provenance.raw_record_ref != probe_key
+        or provenance.timestamp != assessment.timestamp_utc
+        or provenance.sha256 != evidence_sha256
+    ):
+        return ServiceEntryHandoff(
+            "invalid_evidence",
+            endpoint,
+            False,
+            None,
+            None,
+            probe_id,
+            "Assessment provenance does not match the scan session, probe, or recorded evidence",
+            "Reconcile the checkpoint before routing",
         )
     if assessment.port_state != "open" or assessment.reachability != "reachable":
         return ServiceEntryHandoff(
@@ -240,29 +309,6 @@ def prepare_service_entry_handoff(
             "Record the unassessed path or obtain approval for bounded UDP validation",
         )
     observation = assessment.observed_config
-    try:
-        evidence_sha256 = digest(
-            {
-                "probe_id": probe_id,
-                "port_state": assessment.port_state,
-                "reachability": assessment.reachability,
-                "timestamp_utc": assessment.timestamp_utc,
-                "observed_config": observation.to_dict(),
-                "provenance": assessment.provenance.to_dict() if assessment.provenance else None,
-            },
-            max_bytes=65536,
-        )
-    except (EvidenceError, AttributeError, TypeError, ValueError):
-        return ServiceEntryHandoff(
-            "invalid_evidence",
-            endpoint,
-            False,
-            None,
-            None,
-            probe_id,
-            "Observation cannot be safely bound to a bounded evidence digest",
-            "Repair or repeat discovery within approved scope",
-        )
     services = _observed_services(observation)
     if not services:
         return ServiceEntryHandoff(
@@ -286,12 +332,29 @@ def prepare_service_entry_handoff(
             "Observed responses indicate multiple service families",
             "Reconcile conflicting evidence before specialist routing",
         )
-    service, specialist, validation = next(iter(services))
+    service, skill_id, validation = next(iter(services))
+    if skill_id not in supported_skills:
+        return ServiceEntryHandoff(
+            "unsupported_route",
+            endpoint,
+            True,
+            service,
+            None,
+            probe_id,
+            "No registered specialist offers the required service skill",
+            "Record the unsupported route and request an authorized routing implementation",
+            skill_id=skill_id,
+        )
     identity = {
         "version": 1,
+        "session_id": session.session_id,
+        "scope_reference": session.scope_reference,
+        "probe_key": probe_key,
         "endpoint": asdict(endpoint),
         "probe_id": probe_id,
         "service": service,
+        "skill_id": skill_id,
+        "specialist": _SPECIALIST_ID,
         "evidence_sha256": evidence_sha256,
     }
     plan_id = digest(identity)
@@ -299,7 +362,11 @@ def prepare_service_entry_handoff(
         plan_id=plan_id,
         endpoint=endpoint,
         service=service,
-        specialist=specialist,
+        specialist=_SPECIALIST_ID,
+        skill_id=skill_id,
+        session_id=session.session_id,
+        scope_reference=session.scope_reference,
+        probe_key=probe_key,
         evidence_probe_id=probe_id,
         evidence_sha256=evidence_sha256,
         action=f"Validate {validation} on the exact endpoint",
@@ -321,10 +388,11 @@ def prepare_service_entry_handoff(
         endpoint,
         True,
         service,
-        specialist,
+        _SPECIALIST_ID,
         probe_id,
         "Observed protocol response supports a candidate, not a vulnerability or successful use",
         "Bind this plan to the existing approved run, or request one bounded plan approval",
+        skill_id=skill_id,
         plan=plan,
     )
 
@@ -339,12 +407,39 @@ def prepare_session_service_handoffs(
     The approved endpoint set must come from validated engagement scope, not the
     scan checkpoint. Quarantine in that checkpoint can only remove candidates.
     """
-    quarantined_hosts = {item.target_host for item in session.quarantined_targets}
+    try:
+        quarantined_hosts = {_canonical_host(item.target_host) for item in session.quarantined_targets}
+        session_targets = {_canonical_host(host) for host in session.approved_targets}
+        session_valid = (
+            isinstance(session.session_id, str)
+            and bool(session.session_id.strip())
+            and session.session_id == session.session_id.strip()
+            and len(session.session_id) <= 128
+            and isinstance(session.scope_reference, str)
+            and bool(session.scope_reference.strip())
+            and session.scope_reference == session.scope_reference.strip()
+            and len(session.scope_reference) <= 512
+            and session.vantage in _VANTAGES
+            and session.status in _SESSION_STATUSES
+        )
+    except (AttributeError, TypeError, ValueError):
+        quarantined_hosts = set()
+        session_targets = set()
+        session_valid = False
+    try:
+        supported_skills = frozenset(get_specialist(_SPECIALIST_ID).skills)
+    except (SpecialistCatalogError, OSError, ValueError):
+        supported_skills = frozenset()
+    approved = frozenset(approved_endpoints)
     return [
-        prepare_service_entry_handoff(
+        _prepare_service_entry_handoff(
             assessment,
-            approved_endpoints=approved_endpoints,
+            session=session,
+            approved_endpoints=approved,
             quarantined_hosts=quarantined_hosts,
+            session_targets=session_targets,
+            session_valid=session_valid,
+            supported_skills=supported_skills,
         )
         for assessment in session.assessments
     ]
