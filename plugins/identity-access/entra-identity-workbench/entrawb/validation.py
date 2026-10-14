@@ -10,7 +10,7 @@ from .models import EntraError, IdentityGraph
 
 _COVERAGE_FIELDS = {"status", "reason", "path", "sha256", "completeness", "exported_at"}
 _UNKNOWN_REASONS = {"not_listed", "missing_file", "incomplete", "invalid_timestamp", "future_timestamp", "stale"}
-_TIMESTAMP = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})\Z")
+_TIMESTAMP = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})\Z")
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 
 
@@ -19,9 +19,9 @@ def _timestamp(value: Any, *, utc_only: bool = False) -> datetime:
         raise EntraError("Export requires an RFC 3339 assessment time in UTC and valid source timestamps")
     try:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError as exc:
+        return parsed.astimezone(UTC)
+    except (ValueError, OverflowError) as exc:
         raise EntraError("Export has an invalid assessment or source timestamp") from exc
-    return parsed.astimezone(UTC)
 
 
 def validate_export_metadata(graph: IdentityGraph) -> None:
