@@ -259,7 +259,8 @@ def check_ipv6() -> dict[str, object]:
         states = [assessment.port_state for assessment in assessments]
         require(
             states == [PortState.OPEN.value, PortState.CLOSED.value, PortState.OPEN.value, PortState.UNKNOWN.value],
-            "IPv6 TCP or UDP states were misclassified",
+            "IPv6 TCP or UDP states were misclassified: "
+            + repr([(item.protocol, item.port, item.port_state, item.error_message) for item in assessments]),
         )
         require(all(assessment.resolved_ip == "::1" for assessment in assessments), "IPv6 target was not retained")
         require(accepted_count(tcp_open) == 1, "IPv6 listener received an unexpected connection count")
