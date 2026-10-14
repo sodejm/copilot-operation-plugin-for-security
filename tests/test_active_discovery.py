@@ -94,9 +94,7 @@ class TestActiveDiscoveryModelsAndFingerprinting(unittest.TestCase):
             (2121, "220 FTP service ready\r\n", "ftp"),
         ):
             with self.subTest(port=port):
-                fp = infer_service_fingerprint(
-                    "198.51.100.10", port, "tcp", ObservedConfiguration(raw_banner=banner)
-                )
+                fp = infer_service_fingerprint("198.51.100.10", port, "tcp", ObservedConfiguration(raw_banner=banner))
                 self.assertEqual(fp.service_name, service)
                 self.assertEqual(fp.confidence, ConfidenceLevel.HIGH.value)
 
