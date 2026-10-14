@@ -232,6 +232,34 @@ class ServiceEntryValidationTests(unittest.TestCase):
                 self.assertEqual(result.status, "invalid_session")
                 self.assertIsNone(result.plan)
 
+    def test_duplicate_assessments_for_one_completed_probe_fail_closed(self) -> None:
+        session = scan_session(assessment())
+        duplicate = assessment(
+            probe_id="probe-duplicate",
+            observed_config=ObservedConfiguration(raw_banner="220 FTP server\r\n"),
+        )
+        probe_key = ActiveScanSession.make_probe_key(
+            duplicate.vantage,
+            duplicate.protocol,
+            duplicate.target_host,
+            duplicate.port,
+        )
+        duplicate.provenance = EvidenceProvenance(
+            source_id=session.session_id,
+            source_type="active_scan",
+            sha256=active_assessment_digest(duplicate),
+            timestamp=duplicate.timestamp_utc,
+            path_or_uri=session.scope_reference,
+            raw_record_ref=probe_key,
+        )
+        session.assessments.append(duplicate)
+
+        results = prepare_session_service_handoffs(session, approved_endpoints={self.endpoint})
+
+        self.assertEqual([result.status for result in results], ["invalid_session", "invalid_session"])
+        self.assertTrue(all(result.plan is None for result in results))
+        self.assertTrue(all("multiple assessment records" in result.reason for result in results))
+
     def test_imported_or_absent_provenance_requires_revalidation(self) -> None:
         session = scan_session(assessment(), with_provenance=False)
         result = prepare_session_service_handoffs(session, approved_endpoints={self.endpoint})[0]

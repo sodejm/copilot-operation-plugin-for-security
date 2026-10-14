@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import ipaddress
 import re
-from collections.abc import Collection
+from collections.abc import Collection, Mapping
 from dataclasses import asdict, dataclass
 
 from cops.evidence.canonical import EvidenceError, digest, timestamp
@@ -140,6 +140,7 @@ def _prepare_service_entry_handoff(
     session_targets: Collection[str],
     session_valid: bool,
     supported_skills: Collection[str],
+    assessment_probe_key_counts: Mapping[str, int],
 ) -> ServiceEntryHandoff:
     """Prepare one non-executing candidate from a verified scan checkpoint.
 
@@ -217,6 +218,17 @@ def _prepare_service_entry_handoff(
     probe_key = ActiveScanSession.make_probe_key(
         assessment.vantage, assessment.protocol, assessment.target_host, assessment.port
     )
+    if assessment_probe_key_counts.get(probe_key, 0) != 1:
+        return ServiceEntryHandoff(
+            "invalid_session",
+            endpoint,
+            False,
+            None,
+            None,
+            probe_id,
+            "Scan checkpoint has multiple assessment records for this completed probe",
+            "Reconcile the scan checkpoint before routing",
+        )
     if (
         endpoint.host not in session_targets
         or endpoint.port not in session.approved_ports
@@ -410,6 +422,12 @@ def prepare_session_service_handoffs(
     try:
         quarantined_hosts = {_canonical_host(item.target_host) for item in session.quarantined_targets}
         session_targets = {_canonical_host(host) for host in session.approved_targets}
+        assessment_probe_key_counts: dict[str, int] = {}
+        for assessment in session.assessments:
+            probe_key = ActiveScanSession.make_probe_key(
+                assessment.vantage, assessment.protocol, assessment.target_host, assessment.port
+            )
+            assessment_probe_key_counts[probe_key] = assessment_probe_key_counts.get(probe_key, 0) + 1
         session_valid = (
             isinstance(session.session_id, str)
             and bool(session.session_id.strip())
@@ -425,6 +443,7 @@ def prepare_session_service_handoffs(
     except (AttributeError, TypeError, ValueError):
         quarantined_hosts = set()
         session_targets = set()
+        assessment_probe_key_counts = {}
         session_valid = False
     try:
         supported_skills = frozenset(get_specialist(_SPECIALIST_ID).skills)
@@ -440,6 +459,7 @@ def prepare_session_service_handoffs(
             session_targets=session_targets,
             session_valid=session_valid,
             supported_skills=supported_skills,
+            assessment_probe_key_counts=assessment_probe_key_counts,
         )
         for assessment in session.assessments
     ]
