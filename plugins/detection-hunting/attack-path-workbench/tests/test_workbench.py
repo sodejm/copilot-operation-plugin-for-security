@@ -107,11 +107,12 @@ class WorkbenchTests(unittest.TestCase):
 
         windows_io.WindowsIOError = FakeWindowsIOError
         windows_io.read_regular = fake_read
+        evidence_root = Path("evidence-root")
         with (
-            mock.patch.object(ingestion_module.os, "name", "nt"),
+            mock.patch.object(ingestion_module, "os", types.SimpleNamespace(name="nt")),
             mock.patch.dict(sys.modules, {"attackpath.windows_io": windows_io}),
         ):
-            result = ingestion_module.read_regular(Path("evidence-root"), "input.json", 64)
+            result = ingestion_module.read_regular(evidence_root, "input.json", 64)
 
         self.assertEqual(b"evidence", result.data)
         self.assertEqual((1, 2, 3), result.identity)

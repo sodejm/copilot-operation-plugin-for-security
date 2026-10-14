@@ -106,7 +106,10 @@ class TestScenarioLaboratoryManagementSkill(unittest.TestCase):
         )
         cleanup_reference = next(reference for reference in evidence if reference["kind"] == "cleanup-receipt")
         self.assertEqual(cleanup_reference["sha256"], result.cleanup_receipt_digest)
-        cleanup_path = Path(cleanup_reference["path"])
+        evidence_store = self.harness.evidence_store
+        self.assertIsNotNone(evidence_store)
+        assert evidence_store is not None
+        cleanup_path = evidence_store.resolve(cleanup_reference)
         self.assertEqual(cleanup_path.parent, self.evidence_dir)
         cleanup_evidence = json.loads(cleanup_path.read_bytes())
         self.assertEqual(cleanup_evidence["receipt_producer"], "controller")
