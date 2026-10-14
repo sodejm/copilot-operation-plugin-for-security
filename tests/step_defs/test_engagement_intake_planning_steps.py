@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
 
@@ -10,7 +12,9 @@ from cops.contracts.models import Engagement
 from cops.contracts.validation import validate_contract
 from cops.engagement import (
     EngagementIntakeError,
+    GoalResolutionError,
     build_action_plan,
+    resolve_engagement_goal,
     validate_engagement_intake,
 )
 
@@ -47,7 +51,61 @@ def bdd_ctx():
         "credential_references": ["test-token"],
         "created_at": "2026-10-05T00:00:00Z",
     }
-    return {"data": base_data, "error": None, "validated": None, "plan": None}
+    return {"data": base_data, "error": None, "validated": None, "plan": None, "goal_result": None}
+
+
+def _set_current_window(bdd_ctx):
+    now = datetime.now(UTC)
+    started_at = (now - timedelta(hours=1)).isoformat(timespec="seconds").replace("+00:00", "Z")
+    authorized_until = (now + timedelta(days=1)).isoformat(timespec="seconds").replace("+00:00", "Z")
+    bdd_ctx["data"]["window"] = {
+        "started_at": started_at,
+        "authorized_until_utc": authorized_until,
+    }
+    bdd_ctx["data"]["created_at"] = started_at
+
+
+@given(parsers.parse('a current engagement with the selected target "{target}"'))
+def given_current_selected_engagement(bdd_ctx, target):
+    _set_current_window(bdd_ctx)
+    bdd_ctx["data"]["metadata"] = {"goal_selection": {"target": target}}
+
+
+@given(parsers.parse('a current engagement with duplicate representations of target "{target}"'))
+def given_duplicate_target_engagement(bdd_ctx, target):
+    _set_current_window(bdd_ctx)
+    bdd_ctx["data"]["scope"]["included_targets"] = ["10.0.0.5", target, target.upper()]
+
+
+@given("a current engagement with more than 1024 scope entries")
+def given_oversized_scope_engagement(bdd_ctx):
+    _set_current_window(bdd_ctx)
+    bdd_ctx["data"]["scope"]["included_targets"] = ["10.0.0.5"] * 1025
+
+
+@when(parsers.parse('the goal "{goal}" is resolved'))
+def when_goal_resolved(bdd_ctx, goal):
+    try:
+        bdd_ctx["goal_result"] = resolve_engagement_goal(goal=goal, engagement=bdd_ctx["data"])
+    except GoalResolutionError as err:
+        bdd_ctx["error"] = err
+
+
+@then(parsers.parse('the goal selects target "{target}"'))
+def then_goal_selects_target(bdd_ctx, target):
+    assert bdd_ctx["goal_result"] is not None
+    assert bdd_ctx["goal_result"]["resolution"]["targets"] == [target]
+
+
+@then("the goal reports that no assessment occurred")
+def then_goal_reports_no_assessment(bdd_ctx):
+    assert bdd_ctx["goal_result"]["coverage"]["status"] == "not_assessed"
+
+
+@then(parsers.parse('the goal fails with code "{code}"'))
+def then_goal_fails_with_code(bdd_ctx, code):
+    assert bdd_ctx["error"] is not None
+    assert bdd_ctx["error"].code == code
 
 
 @given(parsers.parse('a valid engagement specification with targets "{targets}" and exclusions "{exclusions}"'))
