@@ -12,6 +12,7 @@ from pytest_bdd import given, scenarios, then, when
 from cops.contracts.lifecycle import ContractError
 from cops.contracts.validation import build_action_plan_digest, validate_contract
 from cops.evidence import build_envelope
+from cops.evidence.canonical import digest
 from cops.reporting.assessment import ReportError, build_assessment_report, render_markdown
 
 scenarios("../../specs/features/engagement_reporting.feature")
@@ -81,6 +82,17 @@ def late_live_observation(report_ctx):
     bundle["findings"][0]["evidence_references"] = [evidence["record_id"]]
 
 
+@given("its live observation precedes the run window")
+def early_live_observation(report_ctx):
+    bundle = report_ctx["bundle"]
+    bundle["engagement"]["mode"] = "live"
+    bundle["action_plans"][0]["status"] = "fulfilled"
+    bundle["coverage"][0]["mode"] = "live"
+    envelope = bundle["evidence_envelopes"][0]
+    envelope["observed"] = {"at": "2026-10-02T10:04:59Z", "unknown_reason": None}
+    envelope["content_hash"] = digest({key: value for key, value in envelope.items() if key != "content_hash"})
+
+
 @given("its finding affects a second unassessed asset")
 def unassessed_second_asset(report_ctx):
     bundle = report_ctx["bundle"]
@@ -94,6 +106,19 @@ def unassessed_second_asset(report_ctx):
             "result_id": None,
         }
     )
+
+
+@given("its finding also affects a second asset without evidence")
+def second_asset_without_evidence(report_ctx):
+    bundle = report_ctx["bundle"]
+    bundle["engagement"]["scope"]["excluded_targets"] = []
+    plan = bundle["action_plans"][0]
+    plan["target"] = "10.0.0.0/24"
+    plan["plan_digest"] = build_action_plan_digest(
+        snapshot={key: value for key, value in plan.items() if key not in {"status", "plan_digest"}}
+    )
+    bundle["finding_contexts"][0]["affected_assets"].append("10.0.0.6")
+    bundle["coverage"].append({**bundle["coverage"][0], "target": "10.0.0.6"})
 
 
 @given("it contains an orphan action plan")
@@ -113,6 +138,7 @@ def duplicate_singleton_coverage(report_ctx):
     report_ctx["bundle"]["coverage"].append(row)
 
 
+@given("its attack path has a supported prerequisite")
 @given("its attack path has an assessed prerequisite")
 def assessed_prerequisite(report_ctx):
     bundle = report_ctx["bundle"]
@@ -166,6 +192,7 @@ def duplicate_dependency(report_ctx):
     report_ctx["report"]["findings"][0]["attack_path_dependencies"].append("find-prerequisite-001")
 
 
+@when("the saved prerequisite points back to the attack path")
 @when("the saved prerequisite depends on the attack path")
 def dependency_cycle(report_ctx):
     report_ctx["report"]["findings"][1]["attack_path_dependencies"] = ["find-open-port-http-80"]
@@ -218,6 +245,22 @@ def partial_asset_claim(report_ctx):
     assert report_ctx["error"] is None
     assert report_ctx["report"]["findings"][0]["assessment_status"] == "partial"
     assert report_ctx["report"]["findings"][0]["limitations"] == ["Not assessed for assets: 10.0.0.6"]
+
+
+@then("the second asset is not assessed and the finding is partial")
+def second_asset_not_assessed(report_ctx):
+    assert report_ctx["error"] is None
+    assert [row["status"] for row in report_ctx["report"]["coverage"]] == ["assessed", "not_assessed"]
+    finding = report_ctx["report"]["findings"][0]
+    assert finding["assessment_status"] == "partial"
+    assert finding["limitations"] == ["Not assessed for assets: 10.0.0.6"]
+
+
+@then("its attack path and prerequisite validate")
+def supported_attack_path(report_ctx):
+    assert report_ctx["error"] is None
+    assert report_ctx["report"]["findings"][0]["attack_path_dependencies"] == ["find-prerequisite-001"]
+    validate_contract(report_ctx["report"], "assessment_report")
 
 
 @then("report building fails with an orphan action plan")

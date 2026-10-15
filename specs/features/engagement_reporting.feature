@@ -42,11 +42,25 @@ Feature: Evidence-bounded offline engagement reports
     Then its live coverage and finding are not assessed
     And the saved assessment report validates
 
+  Scenario: A live observation before the run window cannot validate coverage
+    Given a valid offline assessment bundle
+    And its live observation precedes the run window
+    When the assessment report is built
+    Then its live coverage and finding are not assessed
+    And the saved assessment report validates
+
   Scenario: A multi-asset finding discloses the asset without evidence
     Given a valid offline assessment bundle
     And its finding affects a second unassessed asset
     When the assessment report is built
     Then its finding is partial with an asset limitation
+    And the saved assessment report validates
+
+  Scenario: Evidence for one asset cannot assess a second asset
+    Given a valid offline assessment bundle
+    And its finding also affects a second asset without evidence
+    When the assessment report is built
+    Then the second asset is not assessed and the finding is partial
     And the saved assessment report validates
 
   Scenario: An action plan without a run result cannot enter the report
@@ -79,6 +93,14 @@ Feature: Evidence-bounded offline engagement reports
     And its attack path has an assessed prerequisite
     When the assessment report is built
     And the saved prerequisite depends on the attack path
+    Then the saved assessment report is rejected
+
+  Scenario: An attack path requires an acyclic prerequisite
+    Given a valid offline assessment bundle
+    And its attack path has a supported prerequisite
+    When the assessment report is built
+    Then its attack path and prerequisite validate
+    When the saved prerequisite points back to the attack path
     Then the saved assessment report is rejected
 
   Scenario: Untrusted Unicode controls do not alter rendered finding text
