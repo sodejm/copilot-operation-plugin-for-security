@@ -8,9 +8,12 @@ from __future__ import annotations
 
 import errno
 import json
+import os
+import shutil
 import socket
 import socketserver
 import struct
+import subprocess
 import sys
 import tempfile
 import threading
@@ -91,16 +94,25 @@ def scan(
     ip_range: str = "127.0.0.1/32",
     checkpoint: Path | None = None,
     sleeper: Callable[[float], None] = time.sleep,
+    cancel_requested: Callable[[], bool] | None = None,
 ) -> ActiveScanSession:
     if checkpoint is None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            return scan(scan_session, dispatcher, ip_range, Path(temp_dir) / "checkpoint.json", sleeper)
+            return scan(
+                scan_session,
+                dispatcher=dispatcher,
+                ip_range=ip_range,
+                checkpoint=Path(temp_dir) / "checkpoint.json",
+                sleeper=sleeper,
+                cancel_requested=cancel_requested,
+            )
     return ActiveScanner(
         session=scan_session,
         dispatcher=dispatcher or StandardSocketDispatcher(scan_session.udp_dns_probe_ports),
         scope={"ip_ranges": [ip_range]},
         checkpoint=checkpoint,
         sleeper=sleeper,
+        cancel_requested=cancel_requested,
     ).run()
 
 
@@ -110,6 +122,15 @@ class TimedDispatcher(StandardSocketDispatcher):
 
     def dispatch_probe(self, *args, **kwargs):
         self.dispatch_times.append(time.monotonic())
+        return super().dispatch_probe(*args, **kwargs)
+
+
+class CountingDispatcher(StandardSocketDispatcher):
+    def __init__(self) -> None:
+        self.dispatch_count = 0
+
+    def dispatch_probe(self, *args, **kwargs):
+        self.dispatch_count += 1
         return super().dispatch_probe(*args, **kwargs)
 
 
@@ -506,42 +527,179 @@ def check_partial_resume() -> dict[str, object]:
     with listener() as first, listener() as second, tempfile.TemporaryDirectory() as temp_dir:
         ports = [first.getsockname()[1], second.getsockname()[1]]
         checkpoint = Path(temp_dir) / "checkpoint.json"
-
-        def interrupt_after_first(_: float) -> None:
-            raise KeyboardInterrupt("simulated controller interruption after durable probe result")
-
-        try:
-            scan(
-                session(
-                    "partial-resume",
-                    "127.0.0.1",
-                    ports,
-                    ScanBudget(timeout_seconds=0.3, max_total_seconds=2.0, rate_limit_pps=5),
+        initial_dispatcher = CountingDispatcher()
+        cancelled = scan(
+            session(
+                "partial-resume",
+                "127.0.0.1",
+                ports,
+                ScanBudget(
+                    timeout_seconds=0.3,
+                    max_total_seconds=2.0,
+                    rate_limit_pps=100,
+                    max_concurrency=1,
                 ),
-                checkpoint=checkpoint,
-                sleeper=interrupt_after_first,
-            )
-        except KeyboardInterrupt:
-            pass
-        else:
-            raise AssertionError("Controller interruption did not stop scan")
+            ),
+            dispatcher=initial_dispatcher,
+            checkpoint=checkpoint,
+            cancel_requested=lambda: initial_dispatcher.dispatch_count >= 1,
+        )
+        require(cancelled.status == "cancelled", "Cancellation was not persisted")
         partial = ActiveScanSession.load_checkpoint(checkpoint)
-        require(partial.status == "in_progress", "Interrupted scan did not retain progress")
+        require(partial.status == "cancelled", "Cancelled checkpoint lost its terminal status")
         require(not partial.pending_probe_keys, "Completed probe left an uncertain pending operation")
-        require(partial.total_probes_dispatched == 1, "Interrupted scan dispatched too many probes")
-        interrupted_status = partial.status
-        completed = scan(partial, checkpoint=checkpoint)
+        require(partial.total_probes_dispatched == 1, "Cancelled scan dispatched too many probes")
+        partial_coverage = partial.coverage_summary()
+        require(
+            partial_coverage
+            == {
+                "planned": 2,
+                "attempted": 1,
+                "completed": 1,
+                "pending_reconciliation": 0,
+                "skipped": {"total": 0, "quarantined": 0},
+                "unassessed": 1,
+                "port_states": {"open": 1},
+                "timed_out": 0,
+            },
+            f"Cancelled coverage was inaccurate: {partial_coverage!r}",
+        )
+        resume_session = ActiveScanSession.from_dict(partial.to_dict())
+        resumed_dispatcher = CountingDispatcher()
+        completed = scan(resume_session, dispatcher=resumed_dispatcher, checkpoint=checkpoint)
         accepted = [accepted_count(first), accepted_count(second)]
         require(completed.status == "completed", "Resumed scan did not complete")
         require(completed.total_probes_dispatched == 2, "Resumed scan did not cover both ports")
+        require(resumed_dispatcher.dispatch_count == 1, "Resume repeated a completed probe")
         require(accepted == [1, 1], "Resume repeated or skipped a socket connection")
+        completed_coverage = completed.coverage_summary()
+        require(
+            completed_coverage["planned"] == 2
+            and completed_coverage["attempted"] == 2
+            and completed_coverage["completed"] == 2
+            and completed_coverage["unassessed"] == 0,
+            f"Resumed coverage was inaccurate: {completed_coverage!r}",
+        )
         return {
-            "partial_status": interrupted_status,
-            "partial_probes": 1,
+            "partial_status": partial.status,
+            "partial_coverage": partial_coverage,
             "resumed_status": completed.status,
-            "total_probes": completed.total_probes_dispatched,
+            "resumed_dispatches": resumed_dispatcher.dispatch_count,
+            "completed_coverage": completed_coverage,
             "listener_accepts": accepted,
         }
+
+
+def check_filtered_limitation() -> dict[str, object]:
+    """Explain why this least-privilege namespace cannot create packet loss."""
+    capability_mask = effective_capability_mask()
+    require(capability_mask == 0, f"Acceptance container unexpectedly retained capabilities: {capability_mask:#x}")
+    return {
+        "status": "unavailable",
+        "effective_capabilities": "0x0",
+        "reason": "controlled packet drop requires CAP_NET_ADMIN, deliberately removed by --cap-drop ALL",
+        "covered_controls": {
+            "closed": "loopback connection refused",
+            "unreachable": f"kernel ENETUNREACH ({errno.ENETUNREACH})",
+            "udp_silence": "unknown because open and filtered cannot be distinguished",
+        },
+        "timeout_filtered": "deterministic dispatcher and native timeout tests only; not produced by this lab",
+    }
+
+
+def effective_capability_mask() -> int:
+    capability_line = next(
+        (
+            line
+            for line in Path("/proc/self/status").read_text(encoding="utf-8").splitlines()
+            if line.startswith("CapEff:")
+        ),
+        None,
+    )
+    require(capability_line is not None, "Linux effective capability evidence is unavailable")
+    return int(capability_line.split()[1], 16)
+
+
+def unused_tcp_port() -> int:
+    with listener() as server:
+        return int(server.getsockname()[1])
+
+
+def check_filtered_packet_drop() -> dict[str, object]:
+    """Create one controlled loopback packet drop in the opt-in NET_ADMIN lab."""
+    capability_mask = effective_capability_mask()
+    cap_net_admin = 1 << 12
+    require(
+        capability_mask == cap_net_admin,
+        f"Filtered lab must retain only CAP_NET_ADMIN, found {capability_mask:#x}",
+    )
+    iptables = shutil.which("iptables")
+    require(iptables is not None, "Filtered lab requires iptables")
+
+    closed_port = unused_tcp_port()
+    closed = scan(session("filtered-closed-control", "127.0.0.1", [closed_port]))
+    require(
+        len(closed.assessments) == 1
+        and closed.assessments[0].port_state == PortState.CLOSED.value
+        and closed.assessments[0].reachability == ServiceReachability.REACHABLE.value,
+        "Closed control did not produce a reachable connection refusal",
+    )
+
+    filtered_port = unused_tcp_port()
+    rule = ["-o", "lo", "-p", "tcp", "--dport", str(filtered_port), "-j", "DROP"]
+    subprocess.run([iptables, "-w", "5", "-I", "OUTPUT", "1", *rule], check=True, text=True, capture_output=True)
+    try:
+        filtered = scan(
+            session(
+                "filtered-packet-drop",
+                "127.0.0.1",
+                [filtered_port],
+                budget=ScanBudget(timeout_seconds=0.2, rate_limit_pps=100, max_total_seconds=60),
+            )
+        )
+        require(len(filtered.assessments) == 1, "Filtered scan did not produce exactly one assessment")
+        assessment = filtered.assessments[0]
+        require(assessment.port_state == PortState.FILTERED.value, "Packet drop was not classified as filtered")
+        require(
+            assessment.reachability == ServiceReachability.FILTERED.value,
+            "Packet drop did not retain filtered reachability uncertainty",
+        )
+        require(assessment.error_message == "Socket connection timed out", "Packet drop lacked timeout evidence")
+        require(filtered.coverage_summary()["timed_out"] == 1, "Filtered coverage did not count the timeout")
+    finally:
+        subprocess.run([iptables, "-w", "5", "-D", "OUTPUT", *rule], check=True, text=True, capture_output=True)
+
+    after_cleanup = scan(session("filtered-rule-cleanup", "127.0.0.1", [filtered_port]))
+    require(
+        len(after_cleanup.assessments) == 1 and after_cleanup.assessments[0].port_state == PortState.CLOSED.value,
+        "Filtered rule cleanup did not restore the closed-port control",
+    )
+    return {
+        "status": "passed",
+        "effective_capabilities": f"{capability_mask:#x}",
+        "packet_filter": Path(iptables).name,
+        "closed_control": closed.assessments[0].port_state,
+        "filtered": {
+            "port_state": assessment.port_state,
+            "reachability": assessment.reachability,
+            "error": assessment.error_message,
+            "timed_out": filtered.coverage_summary()["timed_out"],
+        },
+        "post_cleanup": after_cleanup.assessments[0].port_state,
+    }
+
+
+def check_cleanup() -> dict[str, object]:
+    """Prove local listeners and temporary checkpoint state are released."""
+    temp_path: Path | None = None
+    with tempfile.TemporaryDirectory() as temp_dir, listener() as tcp_socket, udp_probe_server(True) as udp_server:
+        temp_path = Path(temp_dir)
+        (temp_path / "cleanup-sentinel").write_text("ephemeral\n", encoding="utf-8")
+        require(tcp_socket.fileno() >= 0 and udp_server.fileno() >= 0, "Cleanup controls did not open")
+    require(tcp_socket is not None and tcp_socket.fileno() == -1, "TCP listener was not closed")
+    require(udp_server is not None and udp_server.fileno() == -1, "UDP listener was not closed")
+    require(temp_path is not None and not temp_path.exists(), "Temporary checkpoint directory was not deleted")
+    return {"tcp_closed": True, "udp_closed": True, "temporary_directory_removed": True}
 
 
 def check_remediation() -> dict[str, object]:
@@ -586,6 +744,8 @@ def check_remediation() -> dict[str, object]:
 
 def main() -> None:
     require_isolated_network()
+    filtered_mode = os.environ.get("COPS_ACCEPTANCE_FILTERED", "0")
+    require(filtered_mode in {"0", "1"}, "COPS_ACCEPTANCE_FILTERED must be 0 or 1")
     cases = {
         "server_first_banner": check_server_first_banner(),
         "rate_limit": check_rate_limit(),
@@ -596,6 +756,8 @@ def main() -> None:
         "udp_dns": check_udp_dns(),
         "partial_resume": check_partial_resume(),
         "remediation": check_remediation(),
+        "filtered_network": check_filtered_packet_drop() if filtered_mode == "1" else check_filtered_limitation(),
+        "cleanup": check_cleanup(),
     }
     print(json.dumps({"isolation": "linux_loopback_only", "cases": cases}, indent=2, sort_keys=True))
 

@@ -16,6 +16,12 @@ Feature: Network Active Discovery and Service Identification
     Then previously completed probes are skipped
     And zero redundant probe side effects are dispatched to already assessed ports
 
+  Scenario: Explicit serial concurrency and cancellable resumable coverage
+    Given an approved two-port scan with explicit serial concurrency
+    When cancellation is requested after the first durable result
+    Then the checkpoint reports one attempted probe and one unassessed probe
+    And resuming completes only the remaining probe
+
   Scenario: Live assessment requires explicit boundaries and durable state
     Given a live TCP assessment of approved hosts and ports
     When the operator omits the approved IP ranges, a positive rate limit, or a checkpoint path

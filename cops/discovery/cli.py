@@ -140,6 +140,12 @@ def build_active_parser(parser: argparse.ArgumentParser) -> None:
         "--max-probes", type=int, default=1024, help="Cumulative probe cap across resumes (default: 1024)."
     )
     plan_p.add_argument(
+        "--max-concurrency",
+        type=int,
+        default=1,
+        help="Concurrent probes; only bounded serial execution (1) is supported.",
+    )
+    plan_p.add_argument(
         "--vantage",
         default="external",
         choices=["external", "internal", "egress_point", "cloud_tenant"],
@@ -167,6 +173,9 @@ def build_active_parser(parser: argparse.ArgumentParser) -> None:
     )
     scan_p.add_argument("--offline-targets", default=None, help="Path to mock targets JSON for synthetic dispatcher.")
     scan_p.add_argument("--checkpoint", "-c", default=None, help="Path to save execution checkpoint.")
+    scan_p.add_argument(
+        "--cancel-file", default=None, help="Cancel safely between durable probes when this path exists."
+    )
     scan_p.add_argument("--output", "-o", default=None, help="Output path for completed session JSON.")
 
     # 3. resume
@@ -176,6 +185,9 @@ def build_active_parser(parser: argparse.ArgumentParser) -> None:
     res_p.add_argument("--mode", choices=["synthetic", "live"], default="synthetic", help="Execution mode.")
     res_p.add_argument("--offline-targets", default=None, help="Path to mock targets JSON.")
     res_p.add_argument("--checkpoint-out", default=None, help="Path to save updated checkpoint.")
+    res_p.add_argument(
+        "--cancel-file", default=None, help="Cancel safely between durable probes when this path exists."
+    )
     res_p.add_argument("--output", "-o", default=None, help="Output path for completed session JSON.")
 
     # 4. diff
@@ -696,6 +708,9 @@ def command_active_discovery(args: argparse.Namespace, root: Path | None = None)
         max_probes = getattr(args, "max_probes", 1024)
         if isinstance(max_probes, bool) or not isinstance(max_probes, int) or max_probes <= 0:
             raise ValueError("--max-probes must be positive")
+        max_concurrency = getattr(args, "max_concurrency", 1)
+        if isinstance(max_concurrency, bool) or not isinstance(max_concurrency, int) or max_concurrency != 1:
+            raise ValueError("--max-concurrency must be 1")
         if (len(ports) == 65535 or len(udp_ports) == 65535) and max_probes < len(targets) * (
             len(ports) + len(udp_ports)
         ):
@@ -713,6 +728,7 @@ def command_active_discovery(args: argparse.Namespace, root: Path | None = None)
             max_total_seconds=args.max_total_seconds,
             rate_limit_pps=args.rate_limit,
             max_probes=max_probes,
+            max_concurrency=max_concurrency,
         )
         plan_identity = f"{args.scope_ref}:{sorted(targets)}:{sorted(ports)}"
         if udp_ports:
@@ -752,7 +768,15 @@ def command_active_discovery(args: argparse.Namespace, root: Path | None = None)
         else:
             dispatcher = StandardSocketDispatcher(session.udp_dns_probe_ports)
 
-        scanner = ActiveScanner(session=session, dispatcher=dispatcher, scope=scope_dict, checkpoint=args.checkpoint)
+        cancel_file = getattr(args, "cancel_file", None)
+        cancel_path = Path(cancel_file) if cancel_file else None
+        scanner = ActiveScanner(
+            session=session,
+            dispatcher=dispatcher,
+            scope=scope_dict,
+            checkpoint=args.checkpoint,
+            cancel_requested=(lambda: cancel_path.exists()) if cancel_path is not None else None,
+        )
         completed_session = scanner.run()
 
         out_json = json.dumps(completed_session.to_dict(), indent=2)
@@ -782,7 +806,15 @@ def command_active_discovery(args: argparse.Namespace, root: Path | None = None)
         else:
             dispatcher = StandardSocketDispatcher(session.udp_dns_probe_ports)
 
-        scanner = ActiveScanner(session=session, dispatcher=dispatcher, scope=scope_dict, checkpoint=save_chk)
+        cancel_file = getattr(args, "cancel_file", None)
+        cancel_path = Path(cancel_file) if cancel_file else None
+        scanner = ActiveScanner(
+            session=session,
+            dispatcher=dispatcher,
+            scope=scope_dict,
+            checkpoint=save_chk,
+            cancel_requested=(lambda: cancel_path.exists()) if cancel_path is not None else None,
+        )
         resumed_session = scanner.run()
 
         out_json = json.dumps(resumed_session.to_dict(), indent=2)

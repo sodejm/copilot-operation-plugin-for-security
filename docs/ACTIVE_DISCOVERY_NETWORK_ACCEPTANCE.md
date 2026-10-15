@@ -11,10 +11,13 @@ From the repository root, start Docker with a locally cached `python:3.12-slim`
 image. The command deliberately uses `--pull never` and `--network none`. It
 streams the Python source into a temporary in-container filesystem because some
 Docker Desktop installations cannot bind-mount a host worktree under `/private/tmp`.
+It requires Docker, the cached image, and a Python 3.12 image whose `tarfile`
+module supports the `data` extraction filter.
 
 ```sh
 tar -cf - cops scripts/active_discovery_network_acceptance.py | \
-  docker run --rm --pull never -i --network none --read-only \
+  docker run --name cops-issue-284-acceptance --rm --pull never -i \
+    --network none --read-only \
     --security-opt no-new-privileges --cap-drop ALL --pids-limit 64 \
     --memory 256m --cpus 1 \
     --tmpfs /tmp:rw,nosuid,nodev,size=16m \
@@ -24,10 +27,64 @@ tar -cf - cops scripts/active_discovery_network_acceptance.py | \
     'import runpy,sys,tarfile; tarfile.open(fileobj=sys.stdin.buffer,mode="r|").extractall("/workspace",filter="data"); runpy.run_module("scripts.active_discovery_network_acceptance",run_name="__main__")'
 ```
 
+After a successful or failed run, verify that `--rm` removed the container:
+
+```sh
+docker container inspect cops-issue-284-acceptance
+```
+
+The expected result is `No such container`. The harness also verifies that its
+TCP and UDP listener file descriptors are closed and its temporary checkpoint
+directory is deleted before it reports success.
+
 The script exits nonzero if any case fails and prints a JSON record on success.
 The container is removed by `--rm`; listeners, the DNS responder, and the
 checkpoint are closed or deleted by the script. No host ports, credentials, or
 external network route are needed.
+
+### Opt-in controlled packet-drop case
+
+The default command remains unprivileged. To exercise a controlled TCP packet
+drop on Linux, build a disposable image with `iptables` and opt in to the
+`CAP_NET_ADMIN` case. The build needs package-network access; the acceptance run
+itself still uses `--network none`, loopback only, a read-only root filesystem,
+and drops every capability except `NET_ADMIN`.
+
+```sh
+build_dir="$(mktemp -d)"
+cat >"$build_dir/Dockerfile" <<'EOF'
+FROM python:3.12-slim
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends iptables \
+    && rm -rf /var/lib/apt/lists/*
+EOF
+
+docker build --pull=false -t cops-issue-284-netadmin:local "$build_dir"
+tar -cf - cops scripts/active_discovery_network_acceptance.py | \
+  docker run --name cops-issue-284-netadmin --rm --pull never -i \
+    --network none --read-only --security-opt no-new-privileges \
+    --cap-drop ALL --cap-add NET_ADMIN --pids-limit 64 \
+    --memory 256m --cpus 1 \
+    --tmpfs /tmp:rw,nosuid,nodev,size=16m \
+    --tmpfs /workspace:rw,nosuid,nodev,size=64m \
+    -w /workspace -e PYTHONDONTWRITEBYTECODE=1 \
+    -e COPS_ACCEPTANCE_FILTERED=1 \
+    cops-issue-284-netadmin:local python -B -c \
+    'import runpy,sys,tarfile; tarfile.open(fileobj=sys.stdin.buffer,mode="r|").extractall("/workspace",filter="data"); runpy.run_module("scripts.active_discovery_network_acceptance",run_name="__main__")'
+
+docker container inspect cops-issue-284-netadmin
+docker image rm cops-issue-284-netadmin:local
+rm -rf "$build_dir"
+```
+
+The expected container-inspect result is `No such container`. The opt-in case
+checks an unused TCP port before, during, and after one narrow loopback `OUTPUT`
+drop rule. It requires `closed` before the rule, `filtered` with reachability
+`filtered`, a socket timeout, and one timed-out coverage item while the rule is
+active, then `closed` after the rule is deleted in a `finally` block. The image
+removal command and build-directory removal complete the disposable lab cleanup.
+Do not set `COPS_ACCEPTANCE_FILTERED=1` outside an isolated Linux environment
+where granting `NET_ADMIN` is authorized.
 
 ## Cases and observed evidence
 
@@ -40,15 +97,20 @@ These measurements are one run's evidence, not fixed timing expectations:
 | Rate limit | Two open loopback TCP listeners at five probes per second | Both accepted exactly one connection; probe starts were 210.3 ms apart against a 200 ms minimum. |
 | Unreachable | No-route `198.51.100.1` and a closed loopback port | Kernel error `ENETUNREACH` (101) was `unreachable`; the closed control was `closed`. |
 | DNS shift | Local UDP DNS responder returned `127.0.0.1`, then `127.0.0.2`; a direct connection proved the second address's listener was reachable | Two DNS answers, one scanner TCP probe, `dns_rebind_detected` quarantine, and zero scanner connections to the shifted listener. |
-| Partial results | Two open listeners; time budget stops after the first probe | Checkpoint reported `budget_exhausted` with one probe; resume completed two probes total, with one connection per listener. |
+| Cancellation and resume | Two open listeners; a cancellation callback becomes true after the first durable result | Checkpoint reported `cancelled`, planned 2, attempted/completed 1, pending 0, and unassessed 1. Resume dispatched only the remaining probe and completed both, with one connection per listener. |
 | Remediated exposure | Two listeners open at baseline, then one closed for retest | Retest returned one `open` and one `closed`; delta reported one persistent, one remediated, zero unverified, and 50% remediation. |
 
 The local DNS responder supplies an A record over UDP with a zero-second TTL. It
 tests an address change between probes; it does not test an operating system's
 DNS cache or a production resolver. The no-route case tests a namespace with no
-external interface, not a firewall timeout. Filtered retests and missing retests
-are covered by the focused simulated tests and remain `unverified_exposures`, not
-confirmed remediation. That initial harness run only exercised TCP connection assessment;
+external interface, not a firewall timeout. The default container has an effective
+capability mask of zero because the command uses `--cap-drop ALL`; creating a
+controlled packet-drop rule would require `CAP_NET_ADMIN`. The harness therefore
+records the default filtered-network case as unavailable and does not relabel a
+closed, unreachable, or silent UDP observation as filtered. The opt-in command
+above supplies the separate controlled packet-drop proof. Filtered retests and
+missing retests remain `unverified_exposures`, not confirmed remediation. That initial
+harness run only exercised TCP connection assessment;
 it does not prove behavior across an external network, TLS, or a production
 engagement.
 
@@ -56,7 +118,7 @@ The 2026-10-14 run passed again after adding a mandatory live duration and
 durable side-effect reservations. It observed 214.0 ms between two five-per-second
 probes, one accepted connection per listener after an interrupted run resumed,
 two DNS answers with no probe to the shifted address, and one confirmed remediated
-exposure out of two. The interruption checkpoint was `in_progress` with one
+exposure out of two. The interruption checkpoint was `cancelled` with one
 completed probe and no pending probe; the resumed checkpoint was `completed` with
 two probes. These results cover this isolated Linux harness only. The focused
 tests exercise uncertain pending operations and rejected plan/scope changes;
@@ -111,6 +173,33 @@ requires the open TCP and both UDP controls to pass. These
 native checks do not establish routed-network reachability or full-range scan
 performance. A developer sandbox that denies local socket binds skips the local
 test; CI requires live socket access and fails if binds are denied.
+
+The Issue 284 acceptance run on 2026-10-14 used the same cached arm64 image and
+the exact command above. IPv4 TCP observations distinguished `open`, `closed`,
+and kernel `ENETUNREACH`; IPv6 loopback reported TCP `open`/`closed` and UDP
+`open`/`unknown`; generic UDP recorded one reply and one silent datagram; DNS
+validation accepted matching complete and truncated responses while rejecting
+five malformed controls. A nonstandard-port SSH banner produced a medium-confidence
+SSH identification without sending application payload. Cancellation persisted
+planned 2, attempted/completed 1, pending 0, and unassessed 1; resume dispatched
+exactly the remaining probe. Cleanup checks reported closed TCP and UDP file
+descriptors and a removed temporary directory, and a subsequent container inspect
+returned `No such container`. The effective capability mask was `0x0`, so the
+packet-drop case was recorded as unavailable for the reason described above.
+This default run proves loopback behavior only. It does not prove routed IPv6,
+controlled firewall-drop behavior, or the duration, memory, and checkpoint size
+of a full 65,535-port scan.
+
+The opt-in packet-drop run on 2026-10-14 used the command above with only
+`CAP_NET_ADMIN` effective (`0x1000`). The unused TCP port was `closed` before the
+rule, `filtered` with reachability `filtered`, error `Socket connection timed out`,
+and coverage `timed_out: 1` while the loopback `OUTPUT` drop rule was active. It
+returned to `closed` after rule removal. The rest of the same run passed IPv4
+TCP open/closed/unreachable, IPv4 UDP open/unknown, nonstandard-port SSH banner
+validation, DNS controls, IPv6 loopback TCP and UDP, cancellation/resume, and
+cleanup. `--rm` removed the container. This result establishes the filtered
+distinction in this isolated Linux namespace; it does not establish behavior
+through a production firewall or across a routed network.
 
 TCP fingerprint tests also reject a generic `220` greeting on conventional SMTP
 and FTP ports as insufficient to identify the service. A protocol-specific banner

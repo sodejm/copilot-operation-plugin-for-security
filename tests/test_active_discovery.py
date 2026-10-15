@@ -750,6 +750,51 @@ class TestActiveScannerExecutionAndBudgets(unittest.TestCase):
         self.assertEqual(len(resumed.assessments), 3)
         self.assertEqual(resumed.assessments[-1].port, 8080)
 
+    def test_explicit_cancellation_reports_coverage_and_resumes_remaining_probe(self):
+        session = ActiveScanSession(
+            session_id="sess-cancel-resume",
+            scope_reference="ROE-2026-001",
+            approved_targets=["app.corp.internal"],
+            approved_ports=[80, 443],
+            budget=ScanBudget(rate_limit_pps=0, max_concurrency=1),
+        )
+        first_dispatcher = OfflineSyntheticDispatcher(targets=self.mock_targets, dns_map=self.dns_map)
+        partial = ActiveScanner(
+            session=session,
+            dispatcher=first_dispatcher,
+            scope=self.scope,
+            cancel_requested=lambda: first_dispatcher.side_effect_count >= 1,
+        ).run()
+
+        self.assertEqual(partial.status, "cancelled")
+        self.assertEqual(first_dispatcher.side_effect_count, 1)
+        self.assertEqual(partial.coverage_summary()["attempted"], 1)
+        self.assertEqual(partial.coverage_summary()["unassessed"], 1)
+
+        resume_dispatcher = OfflineSyntheticDispatcher(targets=self.mock_targets, dns_map=self.dns_map)
+        resumed = ActiveScanner(
+            session=ActiveScanSession.from_dict(partial.to_dict()),
+            dispatcher=resume_dispatcher,
+            scope=self.scope,
+        ).run()
+        self.assertEqual(resumed.status, "completed")
+        self.assertEqual(resume_dispatcher.side_effect_count, 1)
+        self.assertEqual(resumed.coverage_summary()["attempted"], 2)
+        self.assertEqual(resumed.coverage_summary()["unassessed"], 0)
+
+    def test_nonserial_concurrency_is_rejected_before_dispatch(self):
+        session = ActiveScanSession(
+            session_id="sess-invalid-concurrency",
+            scope_reference="ROE-2026-001",
+            approved_targets=["app.corp.internal"],
+            approved_ports=[80],
+            budget=ScanBudget(max_concurrency=2),
+        )
+        dispatcher = OfflineSyntheticDispatcher(targets=self.mock_targets, dns_map=self.dns_map)
+        with self.assertRaisesRegex(ActiveScanError, "max_concurrency=1"):
+            ActiveScanner(session=session, dispatcher=dispatcher, scope=self.scope).run()
+        self.assertEqual(dispatcher.side_effect_count, 0)
+
     def test_resume_quarantines_in_scope_dns_shift(self):
         session = ActiveScanSession(
             session_id="sess-resume-rebind",

@@ -183,6 +183,58 @@ def then_zero_redundant_side_effects(bdd_ctx):
     assert bdd_ctx["dispatcher"].side_effect_count == 1
 
 
+@given("an approved two-port scan with explicit serial concurrency")
+def given_serial_cancellable_scan(bdd_ctx):
+    bdd_ctx["session"] = ActiveScanSession(
+        session_id="bdd-cancel-01",
+        scope_reference="BDD-SCOPE-01",
+        approved_targets=["app.corp.internal"],
+        approved_ports=[80, 443],
+        budget=ScanBudget(rate_limit_pps=0, max_concurrency=1),
+    )
+    bdd_ctx["dispatcher"] = OfflineSyntheticDispatcher(targets=bdd_ctx["mock_targets"], dns_map=bdd_ctx["dns_map"])
+
+
+@when("cancellation is requested after the first durable result")
+def when_cancelled_after_first_durable_result(bdd_ctx):
+    partial = ActiveScanner(
+        session=bdd_ctx["session"],
+        dispatcher=bdd_ctx["dispatcher"],
+        scope=bdd_ctx["scope"],
+        cancel_requested=lambda: bdd_ctx["dispatcher"].side_effect_count >= 1,
+    ).run()
+    bdd_ctx["partial"] = ActiveScanSession.from_dict(partial.to_dict())
+    resume_session = ActiveScanSession.from_dict(partial.to_dict())
+    resume_dispatcher = OfflineSyntheticDispatcher(targets=bdd_ctx["mock_targets"], dns_map=bdd_ctx["dns_map"])
+    bdd_ctx["resume_dispatcher"] = resume_dispatcher
+    bdd_ctx["completed"] = ActiveScanner(
+        session=resume_session, dispatcher=resume_dispatcher, scope=bdd_ctx["scope"]
+    ).run()
+
+
+@then("the checkpoint reports one attempted probe and one unassessed probe")
+def then_partial_coverage_is_explicit(bdd_ctx):
+    assert bdd_ctx["partial"].status == "cancelled"
+    assert bdd_ctx["partial"].coverage_summary() == {
+        "planned": 2,
+        "attempted": 1,
+        "completed": 1,
+        "pending_reconciliation": 0,
+        "skipped": {"total": 0, "quarantined": 0},
+        "unassessed": 1,
+        "port_states": {"open": 1},
+        "timed_out": 0,
+    }
+
+
+@then("resuming completes only the remaining probe")
+def then_resume_completes_remaining_probe(bdd_ctx):
+    assert bdd_ctx["resume_dispatcher"].side_effect_count == 1
+    assert bdd_ctx["completed"].status == "completed"
+    assert bdd_ctx["completed"].coverage_summary()["attempted"] == 2
+    assert bdd_ctx["completed"].coverage_summary()["unassessed"] == 0
+
+
 class RecordingLiveDispatcher(StandardSocketDispatcher):
     """Observe live admission and reservations without opening a socket."""
 
