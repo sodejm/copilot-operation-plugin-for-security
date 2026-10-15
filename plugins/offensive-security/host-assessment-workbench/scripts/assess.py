@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Classify a bounded local Linux privilege-boundary export."""
+"""Classify a bounded local Linux or Windows privilege-boundary export."""
 
 from __future__ import annotations
 

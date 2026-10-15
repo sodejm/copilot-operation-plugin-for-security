@@ -1,10 +1,10 @@
-# Review Linux privilege-boundary evidence
+# Review host privilege-boundary evidence
 
-Use this playback to distinguish configuration candidates, reported canary results,
-and unresolved host context. The [README](../README.md) describes the data contract
-and limits of imported evidence.
+Use this playback to distinguish synthetic classification, native Windows
+collection coverage, assessment-owned lifecycle cleanup, and unresolved host
+context. The [README](../README.md) describes the data contract and safety limits.
 
-## 1. Run all branches
+## 1. Run the synthetic branches
 
 From the repository root with Python 3.11 or newer:
 
@@ -12,46 +12,67 @@ From the repository root with Python 3.11 or newer:
 python3 -m cops demo host-assessment-workbench
 ```
 
-The demo calls `scripts/assess.py` as a subprocess for every case. It asserts
-`offline_import`, synthetic provenance, and these results:
+The demo calls `scripts/assess.py` for Linux and Windows synthetic cases. It
+distinguishes vulnerable/reported crossing, protected/blocked, remediated/fixed,
+unsupported-build, and incomplete-cleanup evidence. The demo is deterministic,
+creates no host resources, and performs no live canary.
 
-| Case | Expected result | Meaning |
-| --- | --- | --- |
-| Positive | One `reported_canary_crossing`, six configuration candidates, one ordinary configuration; all eight surfaces assessed | The source reports a canary crossing and cleanup; other candidates remain unproven |
-| Negative | One `reported_canary_blocked` | Source reports denied access before and after the attempt |
-| Fixed | One `reported_canary_blocked` | Source reports the post-fix boundary held; this does not establish all host surfaces are safe |
-| Unknown kernel | All observations unresolved, zero reported crossings | The importer cannot establish prerequisite applicability |
-| Unverified cleanup | Exit 2 and no success report | A canary record cannot omit its cleanup assertion |
+Inspect `source`, `host`, `coverage`, and each observation's prerequisite
+`decision` before reading its classification. `cleanup_reported: true` records
+what the source states; it is not cleanup performed by the importer.
 
-The first three records run twice and must produce identical reports. Generated
-unknown-context and rejected inputs use a private temporary directory and are
-removed on exit. The demo creates no host resources and performs no live canary.
+## 2. Review an operator export
 
-## 2. Inspect each fixture
+Use the exact `linux-1.0` or `windows-1.0` contract with approved sanitized
+evidence and opaque IDs. Preserve `not_assessed`, `unsupported`,
+`access_denied`, and unknown protection values. Do not fill gaps with
+assumptions. A configuration candidate requires separate authorization and
+evidence before active assessment.
 
 ```bash
-python3 plugins/offensive-security/host-assessment-workbench/scripts/assess.py plugins/offensive-security/host-assessment-workbench/fixtures/synthetic/host_linux_positive_v1.json
-python3 plugins/offensive-security/host-assessment-workbench/scripts/assess.py plugins/offensive-security/host-assessment-workbench/fixtures/synthetic/host_linux_negative_v1.json
-python3 plugins/offensive-security/host-assessment-workbench/scripts/assess.py plugins/offensive-security/host-assessment-workbench/fixtures/synthetic/host_linux_fixed_v1.json
+python3 plugins/offensive-security/host-assessment-workbench/scripts/assess.py PATH_TO_EXPORT.json
 ```
 
-Read `source` and `host`, then `coverage`. For each observation, inspect `decision`
-before `classification`. A missing prerequisite can prevent evaluation even when
-a canary assertion is present. `cleanup_reported: true` records what the source
-states; it is not a cleanup operation performed by this command.
+If the importer rejects a record, correct contradictory or absent assertions
+rather than weakening the contract.
 
-## 3. Review an operator export
+## 3. Exercise the bounded Windows collector
 
-Create a local JSON record using the exact fixture structure and `operator_export`
-source kind. Use approved, sanitized evidence and opaque IDs. Pass that file to
-`assess.py`. Preserve `not_assessed`, `unsupported`, `access_denied`, and unknown
-values rather than filling gaps with assumptions. Keep reports private and apply
-your evidence retention policy to any redirected output.
+On an authorized Windows host, run the same bounded exercise used by CI. Supply
+a new path whose parent is an existing local, non-reparse directory:
 
-If the importer rejects a record, inspect the contract and recollect contradictory
-or absent assertions. If the report is unresolved, identify the missing prerequisite
-before planning additional collection. A configuration candidate requires further
-evidence and authorization before any active assessment.
+```powershell
+$P = "plugins/offensive-security/host-assessment-workbench"
+$Run = Join-Path $env:TEMP ("cops-windows-" + [Guid]::NewGuid().ToString("N"))
+& "$P/scripts/exercise-windows-bridge.ps1" -RunRoot $Run
+```
+
+The collector declares service, task, token, registry, filesystem, local
+credential-reference, and versioned-family capabilities. It reads bounded
+metadata only. It does not read password values, execute a task or service,
+change ACLs or registry values, impersonate another token, or attempt elevation.
+The service probe identifies unquoted paths but does not collect service ACLs;
+the registry probe covers AlwaysInstallElevated but not Run keys; and local
+credential references exclude Credential Manager. The scheduled-task ACL probe
+has no pinned E01.1 source mapping.
+
+Review each coverage field. An omitted observation with `access_denied` or
+`not_assessed` coverage is an explicit gap. Native observations are configuration
+candidates, not proof of a working escalation. The exercise also verifies that a
+read-only ACL is not classified as writable and that an explicit write right is.
+A separate process under the same Windows token observes the harmless local
+marker absent before creation, readable with its exact owned hash, and absent
+after deletion. The receipt binds those observations to the canonical supplied
+root and child identities. This proves an independent process saw the owned
+lifecycle; it does not prove cross-identity denial or a privilege crossing. The
+command retains its export, receipt, report, and validated receipt beneath `$Run`
+for private review.
+
+After retaining required private evidence, remove only the run-owned directory:
+
+```powershell
+Remove-Item -LiteralPath $Run -Recurse -Force
+```
 
 ## 4. Verify and close
 
@@ -59,6 +80,7 @@ evidence and authorization before any active assessment.
 python3 -m cops check host-assessment-workbench
 ```
 
-The package check validates fixture semantics, rejects sensitive fields, and runs
-the demo twice. Remove only operator-created report copies when retention permits.
-Record exact outcomes with the [verification procedure](VERIFICATION.md).
+The package check validates fixture semantics, strict native receipt binding,
+declared capabilities, and collector source constraints. Native collection is
+qualified only by a Windows run at the exact candidate revision. Record the exact
+revision and result using the [verification procedure](VERIFICATION.md).

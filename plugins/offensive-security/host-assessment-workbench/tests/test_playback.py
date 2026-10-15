@@ -29,11 +29,34 @@ class PlaybackTests(unittest.TestCase):
             self.assertEqual(report["mode"], "offline_import")
             self.assertEqual(
                 set(report["cases"]),
-                {"positive", "negative", "fixed", "unknown_context", "unverified_cleanup"},
+                {
+                    "positive",
+                    "negative",
+                    "fixed",
+                    "windows_vulnerable",
+                    "windows_protected",
+                    "windows_remediated",
+                    "windows_unsupported",
+                    "unknown_context",
+                    "unverified_cleanup",
+                },
             )
             self.assertEqual(report["cases"]["positive"]["counts"]["reported_canary_crossing"], 1)
             self.assertEqual(report["cases"]["negative"]["counts"]["reported_canary_blocked"], 1)
             self.assertEqual(report["cases"]["fixed"]["counts"]["reported_canary_blocked"], 1)
+            self.assertEqual(
+                report["cases"]["windows_vulnerable"]["counts"]["reported_canary_crossing"],
+                1,
+            )
+            self.assertEqual(
+                report["cases"]["windows_protected"]["counts"]["reported_canary_blocked"],
+                1,
+            )
+            self.assertEqual(
+                report["cases"]["windows_remediated"]["counts"]["reported_canary_blocked"],
+                1,
+            )
+            self.assertEqual(sum(report["cases"]["windows_unsupported"]["counts"].values()), 0)
             self.assertEqual(report["cases"]["unknown_context"]["counts"]["reported_canary_crossing"], 0)
             self.assertTrue(report["cases"]["unverified_cleanup"]["rejected"])
             outputs.append(report)

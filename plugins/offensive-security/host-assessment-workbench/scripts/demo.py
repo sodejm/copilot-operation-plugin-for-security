@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the synthetic Linux privilege-boundary import demonstration."""
+"""Run the synthetic Linux and Windows privilege-boundary import demonstration."""
 
 from __future__ import annotations
 
@@ -52,6 +52,45 @@ def main() -> int:
             "counts": report["counts"],
             "coverage": report["coverage"],
         }
+    windows_expected = {
+        "vulnerable": "reported_canary_crossing",
+        "protected": "reported_canary_blocked",
+        "remediated": "reported_canary_blocked",
+    }
+    for name, classification in windows_expected.items():
+        fixture = PACKAGE / "fixtures" / "synthetic" / f"host_windows_{name}_v1.json"
+        report = import_case(fixture)
+        require(report == import_case(fixture), f"Windows {name} playback was not repeatable")
+        require(
+            report["observations"][0]["classification"] == classification,
+            f"Windows {name} classification changed",
+        )
+        require(report["observations"][0]["cleanup_reported"] is True, f"Windows {name} cleanup was not reported")
+        require(report["counts"][classification] == 1, f"Windows {name} count did not match its classification")
+        require(len(report["coverage"]) == 7, f"Windows {name} coverage inventory was incomplete")
+        require(report["bridge"]["mode"] == "offline_windows_export", f"Windows {name} bridge mode changed")
+        cases[f"windows_{name}"] = {
+            "source_kind": report["source"]["kind"],
+            "counts": report["counts"],
+            "coverage": report["coverage"],
+        }
+
+    unsupported_fixture = PACKAGE / "fixtures" / "synthetic" / "host_windows_unsupported_v1.json"
+    unsupported = import_case(unsupported_fixture)
+    require(unsupported == import_case(unsupported_fixture), "Windows unsupported playback was not repeatable")
+    require(unsupported["observations"] == [], "Windows unsupported export produced observations")
+    require(sum(unsupported["counts"].values()) == 0, "Windows unsupported export produced classifications")
+    require(len(unsupported["coverage"]) == 7, "Windows unsupported coverage inventory was incomplete")
+    require(
+        unsupported["coverage"]["versioned_escalation_families"] == "unsupported",
+        "Windows unsupported export lost its explicit coverage limit",
+    )
+    require(unsupported["bridge"]["canary_assertions"] is False, "Windows unsupported bridge claimed canary evidence")
+    cases["windows_unsupported"] = {
+        "source_kind": unsupported["source"]["kind"],
+        "counts": unsupported["counts"],
+        "coverage": unsupported["coverage"],
+    }
     with tempfile.TemporaryDirectory(prefix="cops-host-playback-") as temporary:
         fixture = PACKAGE / "fixtures/synthetic/host_linux_positive_v1.json"
         record = json.loads(fixture.read_text(encoding="utf-8"))

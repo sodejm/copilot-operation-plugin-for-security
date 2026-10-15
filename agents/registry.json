@@ -100,9 +100,9 @@
       "domain": "offensive-security",
       "criticality": "critical",
       "interactive_authorization_required": true,
-      "description": "Offline review of Linux privilege-boundary exports with explicit prerequisites and canary evidence limits.",
+      "description": "Offline review of Linux and Windows privilege-boundary exports with explicit prerequisites and canary evidence limits.",
       "primary_plugin": "host-assessment-workbench",
-      "skills": ["host-linux-privilege-boundaries"],
+      "skills": ["host-linux-privilege-boundaries", "host-windows-privilege-boundaries"],
       "tools": [
         "python3 -m cops check host-assessment-workbench",
         "plugins/offensive-security/host-assessment-workbench/scripts/assess.py"
@@ -111,6 +111,10 @@
       "intent_keywords": [
         "linux privilege boundary",
         "linux privilege escalation",
+        "windows privilege boundary",
+        "windows privilege escalation",
+        "windows service permissions",
+        "windows token privileges",
         "host privilege assessment",
         "sudo configuration",
         "suid binary",

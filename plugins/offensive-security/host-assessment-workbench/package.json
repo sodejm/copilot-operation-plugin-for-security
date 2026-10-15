@@ -3,7 +3,7 @@
   "id": "host-assessment-workbench",
   "display_name": "COPS Host Assessment Workbench",
   "maturity": "experimental",
-  "summary": "Offline import and bounded classification of Linux privilege-boundary assessment exports.",
+  "summary": "Offline Linux and Windows evidence classification plus a bounded read-only native Windows bridge.",
   "support": {
     "structural_validation": "validated",
     "offline_workflow": "validated",
@@ -11,19 +11,19 @@
     "live_integration": "unverified"
   },
   "limitations": [
-    "The package imports local exports only; it has no live collector, shell execution, or host mutation.",
-    "Canary access and cleanup are assertions made by the source, not independently verified outcomes.",
+    "The native Windows bridge reads bounded configuration, ACL, token, and protection metadata; it never performs a privilege crossing or changes assessed controls.",
+    "Offline canary outcomes remain source assertions; the native receipt verifies only assessment-owned lifecycle cleanup and exact export binding.",
     "Imported identifiers must be synthetic or non-sensitive opaque IDs; do not provide raw credentials or paths.",
-    "E06.01 source sections remain unmapped pending the E01.1 source review."
+    "Native Windows integration remains unverified until the exact candidate revision passes the Windows hosted exercise."
   ],
   "demo": {
-    "description": "Classify synthetic positive, negative, and fixed canary exports entirely offline.",
+    "description": "Classify synthetic Linux and Windows canary exports entirely offline.",
     "command": ["$PYTHON", "plugins/offensive-security/host-assessment-workbench/scripts/demo.py"],
     "timeout_seconds": 30
   },
   "validation": [
     {
-      "name": "offline package gate",
+      "name": "offline and native-contract package gate",
       "command": ["$PYTHON", "plugins/offensive-security/host-assessment-workbench/scripts/validate-package.py"],
       "timeout_seconds": 120
     },
