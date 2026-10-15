@@ -79,8 +79,11 @@ Validating a saved `assessment_report` also checks coverage, provenance, asset
 joins, and Finding claims for contradictions, including scanner corroboration
 and the match between a Finding's status and evidence strength. Coverage without
 a RunResult cannot retain evidence references. The fixed `evidence_notice` trust
-warning cannot be replaced, and a Finding that names an asset without assessed
-evidence must retain the generated `Not assessed for assets: ...` limitation.
+warning cannot be replaced. A `partial` Finding requires at least one matching
+`partial` or `assessed` coverage row; linked evidence on exclusively
+`not_assessed` coverage cannot support a partial claim. A Finding that names an
+asset without assessed evidence must retain the generated
+`Not assessed for assets: ...` limitation.
 For a scanner assertion, partial evidence records collection that lacks
 independent corroboration; it does not imply that collection for the named asset
 was absent, so this asset-gap limitation is not required for that case:

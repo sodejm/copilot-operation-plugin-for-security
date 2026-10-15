@@ -38,15 +38,20 @@ authorization grant, or report publication occurs in this workflow.
    Contradictory findings stay unresolved; references with missing validated
    evidence cannot be assessed. Every assessed affected asset has linked evidence.
    Validate a saved output report's semantic joins and claims as well as its schema.
-   A saved Finding cannot retain `recorded` evidence strength after its status
-   becomes partial or not assessed, and saved scanner-associated coverage cannot
-   become assessed without assessed non-scanner corroboration. Coverage without
-   a RunResult cannot retain evidence references. The fixed evidence trust notice
-   cannot be replaced. A Finding that affects an asset without assessed evidence
-   retains the exact generated `Not assessed for assets: ...` limitation. A
-   scanner assertion with partial coverage is the exception: partial records
-   collection without independent corroboration, rather than absent collection
-   for the named asset.
+   A saved Finding's status, verification, and evidence-strength labels must agree:
+   assessed/recorded, partial/limited, not_assessed/limited or missing, and
+   contradicted verification with unresolved/contradicted or missing.
+   `recorded`, `limited`, and `contradicted` strength require linked evidence.
+   Saved scanner-associated coverage cannot become assessed without assessed
+   non-scanner corroboration. Resultless coverage cannot carry evidence records.
+   A partial Finding requires matching partial or assessed coverage; linked
+   evidence on exclusively not_assessed coverage does not establish partiality.
+   Each Finding retains an explicit limitation for affected assets lacking
+   assessed coverage with linked evidence. A scanner assertion with partial
+   coverage is the exception: partial records collection without independent
+   corroboration, rather than absent collection for the named asset. The saved
+   report retains the notice that record hashes do not prove source authenticity
+   or authorization.
 5. Omit source payloads, credential references, source locators and artifact
    paths. Escape caller-supplied Markdown text and control characters. Create new owner-only files and
    never overwrite an existing output.

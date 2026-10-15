@@ -321,7 +321,7 @@ def validate_report_semantics(report: dict[str, Any]) -> None:
         if status == "partial" and strength != "limited":
             raise ReportError("partial report finding requires limited evidence strength")
         if status == "partial" and not any(row["status"] in {"assessed", "partial"} for row in rows):
-            raise ReportError("partial report finding requires assessed or partial matching coverage")
+            raise ReportError("partial report finding lacks assessed or partial coverage")
         if status == "not_assessed" and strength not in {"limited", "missing"}:
             raise ReportError("unassessed report finding has contradictory evidence strength")
         # Scanner partial means collection occurred but independent corroboration

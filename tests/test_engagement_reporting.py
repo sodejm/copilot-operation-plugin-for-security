@@ -578,7 +578,7 @@ def test_saved_partial_finding_requires_matching_execution_coverage():
         limitations=["Not assessed for assets: 10.0.0.5"],
     )
 
-    with pytest.raises(ReportError, match="requires assessed or partial matching coverage"):
+    with pytest.raises(ReportError, match="lacks assessed or partial coverage"):
         validate_report_semantics(report)
     with pytest.raises(ContractError):
         validate_contract(report, "assessment_report")
@@ -691,6 +691,18 @@ def test_saved_report_requires_references_for_limited_strength(status):
     finding = report["findings"][0]
     finding.update(assessment_status=status, evidence_strength="limited", evidence_references=[])
     with pytest.raises(ContractError):
+        validate_contract(report, "assessment_report")
+
+
+def test_saved_report_rejects_partial_finding_without_assessed_coverage():
+    bundle = _bundle()
+    bundle["coverage"][0]["access"] = "unavailable"
+    report = build_assessment_report(bundle)
+    assert report["coverage"][0]["status"] == "not_assessed"
+    assert report["findings"][0]["assessment_status"] == "not_assessed"
+    finding = report["findings"][0]
+    finding.update(assessment_status="partial", evidence_strength="limited")
+    with pytest.raises(ContractError, match="partial report finding lacks assessed or partial coverage"):
         validate_contract(report, "assessment_report")
 
 
