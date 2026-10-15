@@ -63,13 +63,40 @@ def test_bundled_authorization_cases_have_correlated_target_effect_evidence(tmp_
                     assert witness[field] == row[field]
             normalized = result["normalized_observations"][index - 1]
             jsonschema.validate(normalized, schemas["normalized-observation"])
-            assert normalized["correlation"]["request_id"] == row["request_id"]
-            assert normalized["request"]["tenant"] == row["peer"]["forwarded_request"].get("tenant")
-            assert normalized["target_authority"]["decision"] == row["target"]["decision"]
+            assert normalized["correlation"] == {
+                "plan_digest": row["plan_digest"],
+                "case_id": row["case_id"],
+                "attempt_id": row["attempt_id"],
+                "request_id": row["request_id"],
+                "canary_id": row["canary_id"],
+                "test_identity": row["test_identity"],
+            }
+            forwarded = row["peer"]["forwarded_request"]
+            assert normalized["request"] == {
+                "principal": forwarded["principal"],
+                "agent": forwarded["agent"],
+                "peer": row["peer"]["peer_identity"],
+                "tenant": forwarded.get("tenant"),
+                "resource": forwarded["resource"],
+                "operation": forwarded["operation"],
+                "audience": forwarded["audience"],
+                "downstream_service": forwarded["downstream_service"],
+                "tool": row["tool"],
+                "requested_scopes": forwarded["scopes"],
+                "delegation_depth": forwarded["depth"],
+                "authorization_alias": forwarded["grant"],
+            }
+            assert normalized["target_authority"] == {
+                "server_identity": row["target"]["server_identity"],
+                "decision": row["target"]["decision"],
+                "phase": row["target"]["phase"],
+                "reason": row["target"]["reason"],
+            }
             assert normalized["effect"]["count"] == row["observed_effect_count"]
             assert normalized["effect"]["trust_relation"] == "separate_process_same_trust_boundary"
             assert normalized["effect"]["observer_identity"] == "fixed-effect-observer"
             assert normalized["effect"]["observation_channel"] == "separate_process_private_ledger"
+            assert normalized["redacted"] is row["peer"]["redacted"] is row["target"]["redacted"] is True
 
     def decisions(name):
         return [row["target"]["decision"] for row in results[name]["observations"]]
@@ -174,6 +201,20 @@ def test_hostile_peer_is_observed_and_cannot_expand_target_authority(tmp_path, a
     assert result["observations"][0]["peer"]["peer_identity"] == "hostile-forwarding-peer"
     assert result["observations"][0]["target"]["reason"] == reason
     assert result["observed_effects"] == []
+
+
+def test_runner_approval_does_not_replace_target_authentication(tmp_path):
+    report = run_data(tmp_path, case_data("peer-substitute-receipt"))
+    assert report["assessment_authorization"]["signed_receipt_verified"] is True
+    assert report["assessment_authorization"]["consumed_once_for_batch"] is True
+    result = report["results"][0]
+    target = result["observations"][0]["target"]
+    assert target["target_grant_alias"] == "receipt-approved-synthetic"
+    assert target["decision"] == "denied"
+    assert target["phase"] == "authentication"
+    assert target["reason"] == "unrecognized_grant_or_actor"
+    assert result["observed_effects"] == []
+    assert result["security_pass"] is True
 
 
 def test_expected_reason_mismatch_is_failure(tmp_path):
