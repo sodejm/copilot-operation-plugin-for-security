@@ -945,8 +945,7 @@ class ActiveScanner:
             target_identity = canonical_target_identity(target_host)
             # A quarantined target stays halted across checkpoint resumes.
             if any(
-                canonical_target_identity(q.target_host) == target_identity
-                for q in self.session.quarantined_targets
+                canonical_target_identity(q.target_host) == target_identity for q in self.session.quarantined_targets
             ):
                 continue
 
@@ -1072,10 +1071,7 @@ class ActiveScanner:
                         persist()
                         return self.session
 
-                if (
-                    probe_key not in reserved_probe_keys
-                    and self.session.total_probes_dispatched >= budget.max_probes
-                ):
+                if probe_key not in reserved_probe_keys and self.session.total_probes_dispatched >= budget.max_probes:
                     self.session.status = "budget_exhausted"
                     persist()
                     return self.session
