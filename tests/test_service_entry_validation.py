@@ -153,7 +153,11 @@ class ServiceEntryValidationTests(unittest.TestCase):
                 "network-developer-interfaces",
             ),
             (ObservedConfiguration(raw_banner="DNS response NOERROR\r\n"), "dns", "network-infrastructure-services"),
-            (ObservedConfiguration(raw_banner="SOCKS5 method selected\r\n"), "socks", "network-legacy-and-proxy-services"),
+            (
+                ObservedConfiguration(raw_banner="SOCKS5 method selected\r\n"),
+                "socks",
+                "network-legacy-and-proxy-services",
+            ),
         )
         for observed_config, service, skill_id in cases:
             with self.subTest(service=service):

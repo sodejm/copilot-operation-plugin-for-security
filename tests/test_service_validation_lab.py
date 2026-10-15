@@ -49,12 +49,9 @@ def assert_complete_public_journey(report: dict) -> None:
     services = {entry["case_id"]: entry for entry in report["services"]}
     assert len(services) == 8
     assert all(entry["discovered"]["nonstandard_port"] for entry in services.values())
+    assert {entry["route"]["service"]: entry["route"]["skill_id"] for entry in services.values()} == EXPECTED_ROUTES
     assert {
-        entry["route"]["service"]: entry["route"]["skill_id"] for entry in services.values()
-    } == EXPECTED_ROUTES
-    assert {
-        entry["route"]["service"]: entry["discovered"]["protocol_evidence"]
-        for entry in services.values()
+        entry["route"]["service"]: entry["discovered"]["protocol_evidence"] for entry in services.values()
     } == EXPECTED_PROTOCOL_EVIDENCE
 
     insufficient = services["http-insufficient"]
@@ -97,9 +94,7 @@ def assert_complete_public_journey(report: dict) -> None:
         for item in report["cleanup"]
         if item["case_id"] != "ssh-benign"
     )
-    assert next(item for item in report["cleanup"] if item["case_id"] == "redis-candidate")[
-        "connection_count"
-    ] >= 6
+    assert next(item for item in report["cleanup"] if item["case_id"] == "redis-candidate")["connection_count"] >= 6
 
 
 def test_lab_registry_covers_seven_families_without_external_claims():
