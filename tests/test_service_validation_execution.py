@@ -7,6 +7,8 @@ import socketserver
 import threading
 import time
 from contextlib import contextmanager
+from dataclasses import replace
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -16,21 +18,11 @@ from cops.discovery import (
     AuthorizationReceipt,
     ServiceValidationPlan,
     ValidationEvidenceVerification,
-    ValidationFinding,
     ValidationProbeOutput,
     ValidationSelection,
     VersionedReproduction,
     execute_service_validation_action,
-)
-
-
-FINDING = ValidationFinding(
-    finding_id="COPS-LAB-143",
-    observation="The affected disposable Redis fixture accepted an unauthenticated command.",
-    evidence="The provider retained a candidate record for independent verification.",
-    impact="An unauthenticated peer could invoke commands exposed by the fixture.",
-    remediation="Require authentication and upgrade to the protected fixture.",
-    detection="Alert on unauthenticated Redis commands and unexpected client addresses.",
+    load_trusted_issue_143_reproduction,
 )
 
 
@@ -102,15 +94,7 @@ def plan_for(port: int, *, service: str = "redis", skill_id: str = "network-data
 
 
 def reproduction_for(endpoint: ApprovedEndpoint, *, affected_version: str = "redis-lab-5.0") -> VersionedReproduction:
-    return VersionedReproduction(
-        reference="#143",
-        endpoint=endpoint,
-        affected_version=affected_version,
-        remediated_version="redis-lab-7.2-protected",
-        steps=("connect to the approved endpoint", "send PING without credentials", "record the response"),
-        expected_proof="+PONG",
-        remediation="require authentication and upgrade to the protected fixture",
-    )
+    return replace(load_trusted_issue_143_reproduction(endpoint).reproduction, affected_version=affected_version)
 
 
 def budget_ledger(tmp_path) -> AssessmentBudgetLedger:
@@ -211,7 +195,7 @@ class LoopbackProvider:
                 if candidate
                 else None
             ),
-            finding=FINDING if candidate else None,
+            finding=load_trusted_issue_143_reproduction(plan.endpoint).finding if candidate else None,
             tokens=3,
             cost_microunits=30,
             retained_output_bytes=128,
@@ -221,11 +205,30 @@ class LoopbackProvider:
 class LoopbackEvidenceVerifier:
     """Independently probes identity and verifies fixture-side effect receipts."""
 
-    def __init__(self, server: _LoopbackServer, *, incomplete: bool = False, authorized_use: bool = False, wrong_receipt: bool = False) -> None:
+    def __init__(
+        self,
+        server: _LoopbackServer,
+        *,
+        incomplete: bool = False,
+        authorized_use: bool = False,
+        wrong_receipt: bool = False,
+        wrong_plan: bool = False,
+        wrong_attempt: bool = False,
+        wrong_evidence_digest: bool = False,
+        stale_verified_at: bool = False,
+        malformed_verified_at: bool = False,
+        wrong_reproduction_digest: bool = False,
+    ) -> None:
         self.server = server
         self.incomplete = incomplete
         self.authorized_use = authorized_use
         self.wrong_receipt = wrong_receipt
+        self.wrong_plan = wrong_plan
+        self.wrong_attempt = wrong_attempt
+        self.wrong_evidence_digest = wrong_evidence_digest
+        self.stale_verified_at = stale_verified_at
+        self.malformed_verified_at = malformed_verified_at
+        self.wrong_reproduction_digest = wrong_reproduction_digest
         self.calls = 0
 
     def __call__(self, plan, selection, approval, output) -> ValidationEvidenceVerification:
@@ -240,7 +243,16 @@ class LoopbackEvidenceVerifier:
 
         if self.incomplete:
             return ValidationEvidenceVerification(
-                approval.receipt_id, plan.endpoint, selection.action, "", (), {}
+                approval_receipt_id=approval.receipt_id,
+                plan_id=plan.plan_id,
+                attempt_id=approval.attempt_id,
+                evidence_sha256=plan.evidence_sha256,
+                endpoint=plan.endpoint,
+                action=selection.action,
+                observed_version="",
+                protocol_evidence=(),
+                dimensions={},
+                verified_at=datetime.now(timezone.utc).isoformat(),
             )
 
         protected = "authentication required" in banner
@@ -250,6 +262,9 @@ class LoopbackEvidenceVerifier:
         cleanup_seen = self.server.closed_connections == self.server.connection_count
         return ValidationEvidenceVerification(
             approval_receipt_id="wrong-receipt" if self.wrong_receipt else approval.receipt_id,
+            plan_id="wrong-plan" if self.wrong_plan else plan.plan_id,
+            attempt_id="wrong-attempt" if self.wrong_attempt else approval.attempt_id,
+            evidence_sha256="b" * 64 if self.wrong_evidence_digest else plan.evidence_sha256,
             endpoint=plan.endpoint,
             action=selection.action,
             observed_version=version,
@@ -261,6 +276,20 @@ class LoopbackEvidenceVerifier:
                 "version": version,
                 "trust": "untrusted client at the approved loopback boundary",
             },
+            verified_at=(
+                "not-a-time"
+                if self.malformed_verified_at
+                else (
+                    datetime.now(timezone.utc) - timedelta(hours=1)
+                    if self.stale_verified_at
+                    else datetime.now(timezone.utc)
+                ).isoformat()
+            ),
+            reproduction_sha256=(
+                "b" * 64
+                if self.wrong_reproduction_digest
+                else load_trusted_issue_143_reproduction(plan.endpoint).sha256
+            ),
             candidate_verified=affected,
             finding_effect="+PONG" if proof_seen else "",
             effect_evidence=("fixture audit recorded PING and returned +PONG",) if proof_seen else (),
@@ -333,7 +362,8 @@ def test_verified_finding_does_not_imply_successful_authorized_use(tmp_path):
     assert proof.cleanup_evidence and proof.finding_id == "COPS-LAB-143"
     assert proof.action == "controlled_proof"
     assert proof.approval_receipt_id == "approval-redis-proof"
-    assert all(proof.coverage[f"finding_{field}"] == "documented" for field in FINDING.__dataclass_fields__ if field != "finding_id")
+    finding = load_trusted_issue_143_reproduction(plan.endpoint).finding
+    assert all(proof.coverage[f"finding_{field}"] == "documented" for field in finding.__dataclass_fields__ if field != "finding_id")
     assert {mapping.technique_id for mapping in proof.attack_mappings} == {"T1046", "T1210"}
     assert all(mapping.evidence_limit for mapping in proof.attack_mappings)
 
@@ -362,7 +392,7 @@ def test_fabricated_provider_claims_cannot_override_independent_protocol_evidenc
             provider=LoopbackProvider(force_candidate=True), evidence_verifier=LoopbackEvidenceVerifier(server),
         )
 
-    assert result.status == "completed"
+    assert result.status == "insufficient_evidence"
     assert result.observed_version == "redis-lab-7.2-protected"
     assert result.dimensions["authentication"] == "required"
     assert not result.candidate and result.reproduction_reference is None and not result.verified_finding
@@ -377,7 +407,7 @@ def test_issue_143_reproduction_must_bind_exact_endpoint(tmp_path):
             provider=LoopbackProvider(wrong_reproduction_endpoint=True), evidence_verifier=LoopbackEvidenceVerifier(server),
         )
 
-    assert result.status == "completed" and result.observed_exposure
+    assert result.status == "insufficient_evidence" and result.observed_exposure
     assert not result.candidate and result.coverage["reproduction"] == "unverified"
 
 
@@ -394,7 +424,7 @@ def test_issue_143_reproduction_must_bind_exact_observed_version(tmp_path):
             evidence_verifier=LoopbackEvidenceVerifier(server),
         )
 
-    assert result.status == "completed" and result.observed_version == "redis-lab-5.0"
+    assert result.status == "insufficient_evidence" and result.observed_version == "redis-lab-5.0"
     assert not result.candidate and result.reproduction_reference is None
 
 
@@ -433,17 +463,49 @@ def test_missing_independent_protocol_evidence_is_insufficient_even_with_provide
     assert not result.candidate and not result.verified_finding and not result.successful_authorized_use
 
 
-def test_mismatched_independent_verification_receipt_is_insufficient(tmp_path):
+@pytest.mark.parametrize(
+    "mismatch",
+    (
+        "wrong_receipt",
+        "wrong_plan",
+        "wrong_attempt",
+        "wrong_evidence_digest",
+        "stale_verified_at",
+        "malformed_verified_at",
+    ),
+)
+def test_mismatched_independent_verification_binding_is_insufficient(tmp_path, mismatch):
     with loopback_service(b"SSH-2.0-Lab_9.0\r\n") as server:
         plan = plan_for(server.server_address[1], service="ssh", skill_id="network-remote-and-file-services")
         result = execute_service_validation_action(
             plan, ValidationSelection(plan.plan_id, "low_impact_validation"), ledger=budget_ledger(tmp_path),
-            request=attempt("wrong-verification-receipt"), authorization_gate=ExactApprovalGate(),
-            provider=LoopbackProvider(), evidence_verifier=LoopbackEvidenceVerifier(server, wrong_receipt=True),
+            request=attempt(f"wrong-verification-{mismatch}"), authorization_gate=ExactApprovalGate(),
+            provider=LoopbackProvider(),
+            evidence_verifier=LoopbackEvidenceVerifier(server, **{mismatch: True}),
         )
 
     assert result.status == "insufficient_evidence" and result.protocol_evidence == ()
     assert not result.observed_exposure
+
+
+def test_issue_143_reproduction_requires_trusted_digest(tmp_path):
+    with loopback_service(b"-ERR Redis 5.0 no password configured\r\n") as server:
+        plan = plan_for(server.server_address[1])
+        result = execute_service_validation_action(
+            plan,
+            ValidationSelection(plan.plan_id, "low_impact_validation"),
+            ledger=budget_ledger(tmp_path),
+            request=attempt("wrong-reproduction-digest"),
+            authorization_gate=ExactApprovalGate(),
+            provider=LoopbackProvider(),
+            evidence_verifier=LoopbackEvidenceVerifier(server, wrong_reproduction_digest=True),
+        )
+
+    assert result.status == "insufficient_evidence" and result.observed_exposure
+    assert not result.candidate
+    assert result.coverage["reproduction"] == "unverified"
+    assert result.reproduction_reference is None
+    assert result.reproduction_sha256 is None
 
 
 def test_provider_unavailable_fails_before_budget_or_approval(tmp_path):
@@ -488,3 +550,87 @@ def test_wrong_approval_and_reused_attempt_fail_before_provider_dispatch(tmp_pat
     assert completed.approval_receipt_id == "approval-one-use-attempt"
     assert len(provider.calls) == 1 and verifier.calls == 1
     assert replay_gate.calls == [] and server.connection_count == 2
+
+
+def test_authorization_exception_releases_undispatched_reservation(tmp_path):
+    with loopback_service(b"SSH-2.0-Lab_9.0\r\n") as server:
+        plan = plan_for(server.server_address[1], service="ssh", skill_id="network-remote-and-file-services")
+        ledger = budget_ledger(tmp_path)
+        provider = LoopbackProvider()
+        verifier = LoopbackEvidenceVerifier(server)
+
+        def failing_authorization_gate(_plan, _selection, _attempt_id):
+            raise RuntimeError("authorization service unavailable")
+
+        result = execute_service_validation_action(
+            plan,
+            ValidationSelection(plan.plan_id, "low_impact_validation"),
+            ledger=ledger,
+            request=attempt("authorization-exception"),
+            authorization_gate=failing_authorization_gate,
+            provider=provider,
+            evidence_verifier=verifier,
+        )
+
+    snapshot = ledger.snapshot()
+    assert result.status == "authorization_error"
+    assert ledger.get_attempt("authorization-exception").state == "released"
+    assert snapshot.charged_attempts == 0 and snapshot.active_concurrency == 0
+    assert provider.calls == [] and verifier.calls == 0
+    assert server.connection_count == 0
+
+
+def test_dispatch_intent_failure_releases_undispatched_reservation(tmp_path, monkeypatch):
+    with loopback_service(b"SSH-2.0-Lab_9.0\r\n") as server:
+        plan = plan_for(server.server_address[1], service="ssh", skill_id="network-remote-and-file-services")
+        ledger = budget_ledger(tmp_path)
+        provider = LoopbackProvider()
+        verifier = LoopbackEvidenceVerifier(server)
+
+        def failing_mark_dispatched(_attempt_id):
+            raise RuntimeError("dispatch ledger unavailable")
+
+        monkeypatch.setattr(ledger, "mark_dispatched", failing_mark_dispatched)
+        result = execute_service_validation_action(
+            plan,
+            ValidationSelection(plan.plan_id, "low_impact_validation"),
+            ledger=ledger,
+            request=attempt("dispatch-intent-failure"),
+            authorization_gate=ExactApprovalGate(),
+            provider=provider,
+            evidence_verifier=verifier,
+        )
+
+    snapshot = ledger.snapshot()
+    assert result.status == "dispatch_error"
+    assert ledger.get_attempt("dispatch-intent-failure").state == "released"
+    assert snapshot.charged_attempts == 0 and snapshot.active_concurrency == 0
+    assert provider.calls == [] and verifier.calls == 0
+    assert server.connection_count == 0
+
+
+def test_provider_exception_after_dispatch_marks_usage_uncertain(tmp_path):
+    with loopback_service(b"SSH-2.0-Lab_9.0\r\n") as server:
+        plan = plan_for(server.server_address[1], service="ssh", skill_id="network-remote-and-file-services")
+        ledger = budget_ledger(tmp_path)
+        verifier = LoopbackEvidenceVerifier(server)
+
+        def failing_provider(_plan, _action):
+            raise RuntimeError("provider connection outcome unknown")
+
+        result = execute_service_validation_action(
+            plan,
+            ValidationSelection(plan.plan_id, "low_impact_validation"),
+            ledger=ledger,
+            request=attempt("provider-exception"),
+            authorization_gate=ExactApprovalGate(),
+            provider=failing_provider,
+            evidence_verifier=verifier,
+        )
+
+    snapshot = ledger.snapshot()
+    assert result.status == "dispatch_uncertain"
+    assert ledger.get_attempt("provider-exception").state == "uncertain"
+    assert snapshot.charged_attempts == 1 and snapshot.active_concurrency == 1
+    assert verifier.calls == 0
+    assert server.connection_count == 0

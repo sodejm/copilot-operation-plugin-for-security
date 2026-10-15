@@ -112,6 +112,12 @@ def _observed_services(observation: ObservedConfiguration) -> set[tuple[str, str
     services: set[tuple[str, str, str]] = set()
     banner = observation.raw_banner if isinstance(observation.raw_banner, str) else ""
     banner = banner[:512]
+    binary_banner = b""
+    if isinstance(observation.banner_bytes, str):
+        try:
+            binary_banner = bytes.fromhex(observation.banner_bytes)
+        except ValueError:
+            binary_banner = b""
     if banner.startswith("SSH-"):
         services.add(("ssh", "network-remote-and-file-services", "SSH configuration and authentication boundaries"))
     if re.match(r"^220[^\r\n]{0,200}\b(?:FTP|vsftpd|ProFTPD|Pure-FTPd)\b", banner, re.I):
@@ -124,15 +130,26 @@ def _observed_services(observation: ObservedConfiguration) -> set[tuple[str, str
         services.add(("pop3", "network-messaging-services", "POP3 authentication and access boundaries"))
     if re.match(r"^-ERR[^\r\n]{0,200}\bRedis\b", banner, re.I):
         services.add(("redis", "network-data-services", "Redis configuration and access boundaries"))
-    if re.match(r'^\s*\{[^\r\n]{0,400}"ApiVersion"\s*:', banner):
+    if banner in {"+PONG", "+PONG\r\n"} or re.match(r"^-NOAUTH\b", banner, re.I):
+        services.add(("redis", "network-data-services", "Redis configuration and access boundaries"))
+    docker_response = bool(
+        re.match(r'^\s*\{[^\r\n]{0,400}"ApiVersion"\s*:', banner)
+        or re.search(r'\r\n\r\n\s*\{[^\r\n]{0,400}"ApiVersion"\s*:', banner)
+    )
+    if docker_response:
         services.add(("docker-api", "network-developer-interfaces", "Docker API access and trust boundaries"))
-    if re.match(r"^DNS response\b", banner, re.I):
+    dns_response = (
+        len(binary_banner) >= 14
+        and int.from_bytes(binary_banner[:2], "big") == len(binary_banner) - 2
+        and bool(binary_banner[4] & 0x80)
+    )
+    if re.match(r"^DNS response\b", banner, re.I) or dns_response:
         services.add(("dns", "network-infrastructure-services", "DNS recursion and authority boundaries"))
-    if re.match(r"^SOCKS(?:4|5)?\b", banner, re.I):
+    if re.match(r"^SOCKS(?:4|5)?\b", banner, re.I) or binary_banner == b"\x05\x00":
         services.add(("socks", "network-legacy-and-proxy-services", "SOCKS proxy access and egress boundaries"))
-    if (type(observation.http_status) is int and 100 <= observation.http_status <= 599) or re.match(
+    if not docker_response and ((type(observation.http_status) is int and 100 <= observation.http_status <= 599) or re.match(
         r"^HTTP/\d(?:\.\d)? [1-5]\d\d\b", banner
-    ):
+    )):
         services.add(("http", "web-api-inventory-and-replay", "HTTP exposure and authentication boundaries"))
     return services
 

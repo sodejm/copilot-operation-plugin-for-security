@@ -96,3 +96,10 @@ Feature: Bounded service entry-point validation
     When the operator retries the validation
     Then the retry uses a new attempt identifier, budget reservation, and approval receipt
     And a reused attempt identifier fails before provider dispatch
+
+  Scenario: Operator runs the public seven-family loopback service-validation journey
+    Given a disposable seven-family loopback laboratory
+    When the operator runs the public service-validation journey
+    Then the journey discovers, routes, investigates, validates, and reports every fixture
+    And the report retains independent evidence, authorization, budget, and cleanup provenance
+    And external provider coverage remains explicitly unsupported
