@@ -210,7 +210,11 @@ def validate_report_semantics(report: dict[str, Any]) -> None:
             validate_identifier(result_id, "run_result")
             if row["mode"] == "planning" or (result_id in result_modes and result_modes[result_id] != row["mode"]):
                 raise ReportError("report run result has conflicting coverage modes")
-            if row["mode"] != "import" and result_id in result_scenarios and result_scenarios[result_id] != row["scenario_id"]:
+            if (
+                row["mode"] != "import"
+                and result_id in result_scenarios
+                and result_scenarios[result_id] != row["scenario_id"]
+            ):
                 raise ReportError("report run result has conflicting coverage scenarios")
             result_modes[result_id] = row["mode"]
             result_scenarios[result_id] = row["scenario_id"]

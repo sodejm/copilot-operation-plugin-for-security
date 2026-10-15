@@ -233,7 +233,9 @@ def test_scanner_claim_does_not_downgrade_other_asset_in_same_run():
     from cops.contracts.validation import build_action_plan_digest
 
     bundle["action_plans"][0]["plan_digest"] = build_action_plan_digest(
-        snapshot={key: value for key, value in bundle["action_plans"][0].items() if key not in {"status", "plan_digest"}}
+        snapshot={
+            key: value for key, value in bundle["action_plans"][0].items() if key not in {"status", "plan_digest"}
+        }
     )
     second = _envelope(target="10.0.0.6")
     bundle["evidence_envelopes"].append(second)
