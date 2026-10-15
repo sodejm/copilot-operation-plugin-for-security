@@ -13,6 +13,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from .acceptance_cases import ACCEPTANCE_CASE_IDS
 from .source_snapshot import CONTRACT_SCHEMAS, MAX_BYTES, MAX_FILES, allowed_source, bounded_read, manifest_digest
 
 SCHEMA_VERSION = "cops.laboratory-acceptance-gate/v1"
@@ -143,7 +144,7 @@ def run_container_acceptance(repository: Path, *, image: str, timeout: int = 240
     result: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION, "status": "blocked", "cases": [], "failures": [],
         "blockers": [], "isolation": {"verified": False, "mechanism": "docker-network-none"},
-        "summary": {"cases_passed": 0, "cases_total": 6, "functional_evidence_only": True},
+        "summary": {"cases_passed": 0, "cases_total": len(ACCEPTANCE_CASE_IDS), "functional_evidence_only": True},
     }
     if docker is None:
         result["blockers"] = ["Docker CLI is unavailable; provision the isolated acceptance runtime"]
@@ -212,20 +213,17 @@ def run_container_acceptance(repository: Path, *, image: str, timeout: int = 240
                 raise ValueError("acceptance container did not exit successfully")
             evidence = report.get("isolation", {}).get("evidence", [])
             cases = report.get("cases", [])
-            expected_cases = {
-                "offline-playback", "service-vulnerable", "service-corrected",
-                "workflow-success", "workflow-failure", "workflow-cancellation",
-            }
+            expected_cases = set(ACCEPTANCE_CASE_IDS)
             stage = "report-verification"
             if not (
                 executed.returncode == 0 and report.get("schema_version") == SCHEMA_VERSION
                 and report.get("status") == "passed" and report.get("isolation", {}).get("verified") is True
-                and report.get("summary", {}).get("cases_passed") == 6
-                and report.get("summary", {}).get("cases_total") == 6
+                and report.get("summary", {}).get("cases_passed") == len(expected_cases)
+                and report.get("summary", {}).get("cases_total") == len(expected_cases)
                 and report.get("summary", {}).get("functional_evidence_only") is False
                 and f"launcher_nonce={nonce}" in evidence and f"source_sha256={digest}" in evidence
                 and not report.get("failures") and not report.get("blockers")
-                and isinstance(cases, list) and len(cases) == 6
+                and isinstance(cases, list) and len(cases) == len(expected_cases)
                 and all(isinstance(case, dict) and case.get("passed") is True and not case.get("failures") for case in cases)
                 and {case.get("name") for case in cases} == expected_cases
                 and report.get("strict_preflight", {}).get("passed") is True

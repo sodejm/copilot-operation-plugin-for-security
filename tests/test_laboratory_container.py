@@ -184,12 +184,11 @@ def docker_double(monkeypatch, *, create_timeout=False, create_failure=False, wr
             output = json.dumps({"Running": False, "ExitCode": 0} if "--format" in args else [state["config"]])
         elif args[0] == "start":
             digest = state["config"]["Config"]["Env"][1].split("=", 1)[1]
-            cases = ["offline-playback", "service-vulnerable", "service-corrected", "workflow-success",
-                     "workflow-failure", "workflow-cancellation"]
+            cases = runtime.ACCEPTANCE_CASE_IDS
             report = {
                 "schema_version": runtime.SCHEMA_VERSION, "status": "passed", "failures": [], "blockers": [],
                 "isolation": {"verified": True, "evidence": [f"launcher_nonce={state['nonce']}", f"source_sha256={digest}"]},
-                "summary": {"cases_passed": 6, "cases_total": 6, "functional_evidence_only": False},
+                "summary": {"cases_passed": len(cases), "cases_total": len(cases), "functional_evidence_only": False},
                 "strict_preflight": {"passed": True},
                 "cases": [{"name": name, "passed": True, "failures": []} for name in cases],
             }
