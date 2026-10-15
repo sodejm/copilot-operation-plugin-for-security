@@ -165,6 +165,11 @@ service certificates and the trust domain through the trusted deployment
 workflow. A normal hostname-only certificate does not authenticate the account
 or resource identity required by this policy.
 
+An opt-in v2 provider gateway `POST` broker and signed dispatch emulator are
+documented in [Operator Provider Gateway Boundary](PROVIDER_GATEWAY.md). They
+do not change the deployed supervisor's v1 `GET`/`HEAD` operation contract or
+establish a production provider route.
+
 The response-attestation key file contains exactly 64 lowercase hexadecimal
 characters (32 bytes), is owned by the supervisor, and has mode `0600`. Its path
 and all ancestors must resist writes and symbolic-link substitution by the relay
