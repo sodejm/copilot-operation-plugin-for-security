@@ -35,21 +35,33 @@ def native_payload() -> dict:
     return payload
 
 
-def native_receipt(export_bytes: bytes) -> dict:
+def native_receipt(export_bytes: bytes, canary_root: Path) -> dict:
+    root_identity = canary_root.resolve()
+    resource_id = "native_canary_1"
     return {
-        "schema_version": "windows-bridge-receipt-1.0",
+        "schema_version": "windows-bridge-receipt-1.1",
         "platform": "windows",
         "bridge_mode": "native_windows_bridge",
         "export_sha256": hashlib.sha256(export_bytes).hexdigest(),
         "capabilities": ["registry_controls", "local_credential_references"],
         "canary": {
-            "resource_id": "native_canary_1",
+            "resource_id": resource_id,
+            "root_identity": str(root_identity),
+            "resource_identity": str(root_identity / resource_id),
+            "ownership_sha256": hashlib.sha256(b"test ownership marker").hexdigest(),
             "assessment_owned": True,
             "before_absent": True,
             "created": True,
+            "ownership_verified": True,
             "removed": True,
             "cleanup_verified": True,
-            "evidence_ids": ["canary_before", "canary_created", "canary_removed"],
+            "evidence_ids": [
+                "canary_before",
+                "canary_identity_bound",
+                "canary_created",
+                "canary_ownership_verified",
+                "canary_removed",
+            ],
         },
     }
 
@@ -124,27 +136,38 @@ def test_native_bridge_receipt_is_bound_to_export_and_empty_canary_root(tmp_path
     export_bytes = json.dumps(native_payload(), sort_keys=True, separators=(",", ":")).encode()
     canary_root = tmp_path / "canary"
     canary_root.mkdir()
-    result = validate_bridge_receipt(native_receipt(export_bytes), export_bytes, canary_root)
+    result = validate_bridge_receipt(native_receipt(export_bytes, canary_root), export_bytes, canary_root)
     assert result["canary"]["cleanup_verified"] is True
+    assert result["canary"]["ownership_verified"] is True
     assert "crossing" not in json.dumps(result)
 
 
-@pytest.mark.parametrize("field", ["assessment_owned", "before_absent", "created", "removed", "cleanup_verified"])
+@pytest.mark.parametrize(
+    "field",
+    [
+        "assessment_owned",
+        "before_absent",
+        "created",
+        "ownership_verified",
+        "removed",
+        "cleanup_verified",
+    ],
+)
 def test_native_bridge_receipt_requires_lifecycle_assertions(tmp_path: Path, field: str) -> None:
     export_bytes = json.dumps(native_payload(), sort_keys=True, separators=(",", ":")).encode()
-    receipt = native_receipt(export_bytes)
-    receipt["canary"][field] = False
     canary_root = tmp_path / "canary"
     canary_root.mkdir()
+    receipt = native_receipt(export_bytes, canary_root)
+    receipt["canary"][field] = False
     with pytest.raises(ContractError):
         validate_bridge_receipt(receipt, export_bytes, canary_root)
 
 
 def test_native_bridge_receipt_rejects_changed_export_and_residue(tmp_path: Path) -> None:
     export_bytes = json.dumps(native_payload(), sort_keys=True, separators=(",", ":")).encode()
-    receipt = native_receipt(export_bytes)
     canary_root = tmp_path / "canary"
     canary_root.mkdir()
+    receipt = native_receipt(export_bytes, canary_root)
     with pytest.raises(ContractError, match="hash"):
         validate_bridge_receipt(receipt, export_bytes + b" ", canary_root)
     (canary_root / "residue").write_text("unexpected")
@@ -152,14 +175,71 @@ def test_native_bridge_receipt_rejects_changed_export_and_residue(tmp_path: Path
         validate_bridge_receipt(receipt, export_bytes, canary_root)
 
 
+def test_native_bridge_receipt_rejects_swapped_empty_canary_root(tmp_path: Path) -> None:
+    export_bytes = json.dumps(native_payload(), sort_keys=True, separators=(",", ":")).encode()
+    recorded_root = tmp_path / "recorded"
+    supplied_root = tmp_path / "supplied"
+    recorded_root.mkdir()
+    supplied_root.mkdir()
+
+    with pytest.raises(ContractError, match="root identity"):
+        validate_bridge_receipt(native_receipt(export_bytes, recorded_root), export_bytes, supplied_root)
+
+
+def test_native_bridge_receipt_rejects_unowned_child_identity(tmp_path: Path) -> None:
+    export_bytes = json.dumps(native_payload(), sort_keys=True, separators=(",", ":")).encode()
+    canary_root = tmp_path / "canary"
+    canary_root.mkdir()
+    receipt = native_receipt(export_bytes, canary_root)
+    receipt["canary"]["resource_identity"] = str(canary_root.resolve() / "other_child")
+
+    with pytest.raises(ContractError, match="resource identity"):
+        validate_bridge_receipt(receipt, export_bytes, canary_root)
+
+
+def test_native_bridge_receipt_requires_identity_and_ownership_evidence(tmp_path: Path) -> None:
+    export_bytes = json.dumps(native_payload(), sort_keys=True, separators=(",", ":")).encode()
+    canary_root = tmp_path / "canary"
+    canary_root.mkdir()
+    receipt = native_receipt(export_bytes, canary_root)
+    receipt["canary"]["evidence_ids"] = ["before", "created", "removed"]
+
+    with pytest.raises(ContractError, match="bounded evidence IDs"):
+        validate_bridge_receipt(receipt, export_bytes, canary_root)
+
+
 def test_native_collector_has_bounded_static_contract() -> None:
     script = (PACKAGE / "scripts" / "collect-windows.ps1").read_text()
+    common = (PACKAGE / "scripts" / "windows-bridge-common.ps1").read_text()
     assert all(name in script for name in ("OutputPath", "ReceiptPath", "CanaryRoot"))
     assert "native_windows_bridge" in script
     assert "Invoke-Expression" not in script
     assert "Start-Process" not in script
+    assert all(
+        right in common
+        for right in (
+            "WriteData",
+            "AppendData",
+            "WriteExtendedAttributes",
+            "WriteAttributes",
+            "DeleteSubdirectoriesAndFiles",
+            "Delete",
+            "ChangePermissions",
+            "TakeOwnership",
+        )
+    )
+    assert all(composite not in common for composite in ("::Write -bor", "::Modify", "::FullControl"))
+    assert "windows-bridge-receipt-1.1" in script
+    assert "ownership_sha256" in script
+    assert script.index("$ownershipVerified = $true") < script.index("Remove-Item -LiteralPath $canaryPath")
     workflow = (ROOT / ".github" / "workflows" / "repository-contract.yml").read_text()
     assert "Exercise native Windows host assessment bridge" in workflow
+    assert "exercise-windows-bridge.ps1" in workflow
+    exercise = (PACKAGE / "scripts" / "exercise-windows-bridge.ps1").read_text()
+    assert "ReadAndExecute" in exercise
+    assert "WriteData" in exercise
+    assert 'report.mode -ne "native_bridge_import"' in exercise
+    assert "ownership_verified" in exercise
 
 
 @pytest.mark.parametrize(

@@ -83,10 +83,17 @@ On Windows, `scripts/collect-windows.ps1` measures build, architecture, token,
 UAC state, and seven bounded privilege-boundary surfaces. Service, task, and PATH
 enumeration have fixed maximums; failures remain `access_denied` or
 `not_assessed`. The collector creates and removes only a harmless directory and
-marker beneath a caller-supplied empty canary root. The SHA-bound receipt and
-empty root are checked by `scripts/validate-windows-bridge.py`. This validates
-collector execution and assessment-owned cleanup; it does not validate a
-privilege crossing or exploitability.
+marker beneath a caller-supplied empty canary root. Before deletion it confirms
+the canonical root and child identities, rejects reparse points, and rehashes an
+assessment-owned marker. The SHA-bound receipt records those identities and is
+checked against the exact supplied root by `scripts/validate-windows-bridge.py`.
+An identity or ownership mismatch fails closed without deleting the path. This
+validates collector execution and assessment-owned cleanup; it does not validate
+a privilege crossing or exploitability.
+
+Run `scripts/exercise-windows-bridge.ps1` from PowerShell for the complete native
+exercise used by CI. It executes the collector, importer, receipt validator, the
+read-only versus writable ACL regression, and the final empty-root assertion.
 
 Host installation and live integration remain unverified until the native
 Windows workflow succeeds at the exact reviewed commit. Synthetic vulnerable,

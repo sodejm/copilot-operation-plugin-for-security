@@ -38,22 +38,13 @@ rather than weakening the contract.
 
 ## 3. Exercise the bounded Windows collector
 
-On an authorized Windows host, create a fresh private run directory and empty
-assessment-owned canary root:
+On an authorized Windows host, run the same bounded exercise used by CI. Supply
+a new path whose parent is an existing local, non-reparse directory:
 
 ```powershell
 $P = "plugins/offensive-security/host-assessment-workbench"
-$Run = Join-Path $env:RUNNER_TEMP ("cops-windows-" + [Guid]::NewGuid())
-$Canary = Join-Path $Run "canary"
-New-Item -ItemType Directory -Path $Canary -Force | Out-Null
-
-pwsh -NoProfile -File "$P/scripts/collect-windows.ps1" `
-  -OutputPath "$Run/export.json" `
-  -ReceiptPath "$Run/receipt.json" `
-  -CanaryRoot $Canary
-python "$P/scripts/assess.py" "$Run/export.json"
-python "$P/scripts/validate-windows-bridge.py" `
-  "$Run/receipt.json" "$Run/export.json" --canary-root $Canary
+$Run = Join-Path $env:TEMP ("cops-windows-" + [Guid]::NewGuid().ToString("N"))
+& "$P/scripts/exercise-windows-bridge.ps1" -RunRoot $Run
 ```
 
 The collector declares service, task, token, registry, filesystem, local
@@ -63,8 +54,12 @@ change ACLs or registry values, impersonate another token, or attempt elevation.
 
 Review each coverage field. An omitted observation with `access_denied` or
 `not_assessed` coverage is an explicit gap. Native observations are configuration
-candidates, not proof of a working escalation. The canary receipt establishes only
-that this assessment's harmless local marker was absent, created, and removed.
+candidates, not proof of a working escalation. The exercise also verifies that a
+read-only ACL is not classified as writable and that an explicit write right is.
+The canary receipt establishes only that this assessment's harmless local marker
+was absent, identity-bound to the supplied root, ownership-verified, and removed.
+The command retains its export, receipt, report, and validated receipt beneath
+`$Run` for private review.
 
 After retaining required private evidence, remove only the run-owned directory:
 

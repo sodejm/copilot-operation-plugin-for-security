@@ -9,16 +9,18 @@ description: Review bounded Windows privilege-boundary exports and, when explici
    `windows-1.0` contract in `specs/host-windows-privilege-boundaries.spec.md`.
    Do not acquire credentials or run unrelated host commands to fill missing fields.
 2. When the operator explicitly requests native collection on an authorized local
-   Windows host, require new output files and an existing empty assessment-owned
-   local canary directory. Run `scripts/collect-windows.ps1` without elevation.
-   The collector reads bounded metadata only; do not add privilege crossing,
-   credential-value access, execution, or control changes.
-3. Run `scripts/assess.py` on the export. Check declared bridge capability,
+   Windows host, use a new run path beneath an existing local, non-reparse
+   directory and run `scripts/exercise-windows-bridge.ps1` without elevation.
+   This is the practitioner and hosted-CI entry point. The collector reads bounded
+   metadata only; do not add privilege crossing, credential-value access,
+   execution, or control changes.
+3. Review the retained report. Check declared bridge capability,
    coverage, OS build, architecture, token, protections, and per-observation
    prerequisite decision before discussing a result.
-4. For native collection, run `scripts/validate-windows-bridge.py` against the
-   receipt, exact export, and supplied canary root. Require the root to remain
-   empty. Delete only the operator-created run directory after evidence retention.
+4. For native collection, retain the exercise's export, receipt, report, and
+   validated receipt. Require canonical root and child identity binding,
+   ownership verification before deletion, and an empty canary root. Delete only
+   the operator-created run directory after evidence retention.
 5. Treat `configuration_candidate` as a configuration observation only.
    `reported_canary_crossing` is an imported source assertion, not independently
    verified privilege crossing or restoration. Verify provenance separately.

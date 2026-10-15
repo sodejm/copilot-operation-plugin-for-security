@@ -54,26 +54,14 @@ classification evidence; it does not establish current host state.
 
 ### Native Windows bridge exercise
 
-From the repository root in PowerShell, create a fresh run directory and an
-empty assessment-owned canary root:
+From the repository root in PowerShell, run the same entry point used by the
+hosted Windows job. Supply a new path whose parent is an existing local,
+non-reparse directory:
 
 ```powershell
 $P = "plugins/offensive-security/host-assessment-workbench"
-$Run = Join-Path $env:RUNNER_TEMP ("cops-windows-" + [Guid]::NewGuid())
-$Canary = Join-Path $Run "canary"
-New-Item -ItemType Directory -Path $Canary -Force | Out-Null
-
-pwsh -NoProfile -File "$P/scripts/collect-windows.ps1" `
-  -OutputPath "$Run/export.json" `
-  -ReceiptPath "$Run/receipt.json" `
-  -CanaryRoot $Canary
-python "$P/scripts/assess.py" "$Run/export.json"
-python "$P/scripts/validate-windows-bridge.py" `
-  "$Run/receipt.json" "$Run/export.json" --canary-root $Canary
-
-if (@(Get-ChildItem -LiteralPath $Canary -Force).Count -ne 0) {
-  throw "assessment-owned canary root is not empty"
-}
+$Run = Join-Path $env:TEMP ("cops-windows-" + [Guid]::NewGuid().ToString("N"))
+& "$P/scripts/exercise-windows-bridge.ps1" -RunRoot $Run
 ```
 
 The collector reads fixed or bounded Windows metadata for service permissions,
@@ -84,9 +72,12 @@ execution, service changes, registry writes, or ACL changes.
 
 Inspect `coverage` before interpreting observations. `access_denied`,
 `not_assessed`, and `unsupported` remain gaps and do not establish a safe host.
-The validator must rehash the exact export, match all declared capabilities, and
-confirm the supplied canary root is still empty. Remove only the run directory
-created for this exercise after retaining the required private evidence:
+The exercise runs the collector, importer, and validator; checks all declared
+capabilities and coverage values; exercises the explicit ACL mutation predicate
+with read-only and writable rights; and confirms the supplied canary root is
+still empty. The validator rehashes the exact export and binds the receipt's
+canonical root and child identities to the supplied root. Remove only the run
+directory created for this exercise after retaining the required private evidence:
 
 ```powershell
 Remove-Item -LiteralPath $Run -Recurse -Force
@@ -101,10 +92,13 @@ Remove-Item -LiteralPath $Run -Recurse -Force
   explicit in coverage.
 - Platform, build, architecture, token, UAC, and available protection context
   remain visible. Unknown protections are not treated as disabled.
-- The independent validator binds the receipt to the exact export SHA-256,
-  verifies the capability set, and finds an empty operator-supplied canary root.
+- The independent validator binds the receipt to the exact export SHA-256 and
+  canonical operator-supplied canary root, verifies its owned child identity and
+  capability set, and finds that root empty.
 - The lifecycle canary is assessment-owned, initially absent, created, removed,
-  and reported with three evidence markers. No result claims a privilege crossing.
+  and reported with identity and ownership evidence. The collector verifies its
+  marker hash before deletion; a mismatch fails closed. No result claims a
+  privilege crossing.
 - A native Windows run at the exact candidate revision passes before claiming
   the native integration is qualified. Linux/macOS package checks establish only
   the offline and static-contract paths.
@@ -116,8 +110,9 @@ not a successful assessment of that surface.
 ## Failure and recovery
 
 Alter a private copy of the receipt hash or capability list and confirm the
-validator rejects it. Add a harmless file to a private canary-root copy and
-confirm empty-root validation fails. Restore the original inputs and repeat.
+validator rejects it. Supply a different empty canary root and confirm identity
+binding fails. Add a harmless file to a private canary-root copy and confirm
+empty-root validation fails. Restore the original inputs and repeat.
 Do not weaken filesystem permissions or run elevated solely to turn a coverage
 gap into an assessed result.
 

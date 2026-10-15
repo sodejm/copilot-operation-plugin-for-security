@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import json
 import hashlib
+import json
 import sys
 from pathlib import Path
 
@@ -71,22 +71,34 @@ def native_receipt(context, tmp_path):
     export_bytes = json.dumps(native_payload(), sort_keys=True, separators=(",", ":")).encode()
     canary_root = tmp_path / "canary"
     canary_root.mkdir()
+    root_identity = canary_root.resolve()
+    resource_id = "native_canary_1"
     context["export_bytes"] = export_bytes
     context["canary_root"] = canary_root
     context["receipt"] = {
-        "schema_version": "windows-bridge-receipt-1.0",
+        "schema_version": "windows-bridge-receipt-1.1",
         "platform": "windows",
         "bridge_mode": "native_windows_bridge",
         "export_sha256": hashlib.sha256(export_bytes).hexdigest(),
         "capabilities": ["registry_controls"],
         "canary": {
-            "resource_id": "native_canary_1",
+            "resource_id": resource_id,
+            "root_identity": str(root_identity),
+            "resource_identity": str(root_identity / resource_id),
+            "ownership_sha256": hashlib.sha256(b"test ownership marker").hexdigest(),
             "assessment_owned": True,
             "before_absent": True,
             "created": True,
+            "ownership_verified": True,
             "removed": True,
             "cleanup_verified": True,
-            "evidence_ids": ["canary_before", "canary_created", "canary_removed"],
+            "evidence_ids": [
+                "canary_before",
+                "canary_identity_bound",
+                "canary_created",
+                "canary_ownership_verified",
+                "canary_removed",
+            ],
         },
     }
 

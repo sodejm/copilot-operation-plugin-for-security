@@ -21,19 +21,23 @@ ordinary configuration.
 | Native surface | Bounded observation |
 | --- | --- |
 | Service permissions | At most 1,024 `Win32_Service` records; identifies an unquoted executable path containing spaces. It does not test service control or file write access. |
-| Scheduled-task permissions | At most 512 files under the fixed Windows task directory; checks ACL allow rules for write, modify, or full control by Everyone, Authenticated Users, or Users SIDs. |
+| Scheduled-task permissions | At most 512 files under the fixed Windows task directory; checks ACL allow rules for explicit data/attribute writes, child deletion, deletion, permission changes, or ownership changes by Everyone, Authenticated Users, or Users SIDs. Read-only rules do not match. |
 | Token privileges | Fixed `%SystemRoot%\System32\whoami.exe /priv /fo csv /nh`; records enabled privilege names and whether the list completed. |
 | Registry controls | Reads the two fixed AlwaysInstallElevated policy values. |
-| Filesystem controls | At most 128 unique PATH directories; checks ACL allow rules for broad-principal write, modify, or full control. |
+| Filesystem controls | At most 128 unique PATH directories; checks ACL allow rules for the same explicit mutation rights by broad principals. Read-only rules do not match. |
 | Local credential references | Tests for the `DefaultPassword` value name and two fixed unattend-file locations. It never reads registry or file values. |
 | Versioned families | Relates the measured build and token privilege context to the opaque `token_impersonation_family`; it does not invoke a technique. |
 
 The collector creates one harmless marker beneath a caller-supplied, empty,
-local, non-reparse canary root and removes the assessment-owned directory in a
-`finally` block. It emits a SHA-256-bound receipt containing before, creation,
-removal, and cleanup evidence IDs. `scripts/validate-windows-bridge.py`
-independently checks the receipt, rehashes the export, revalidates the assessment,
-and requires that the canary root is empty. This lifecycle canary validates
+local, non-reparse canary root. Before deletion it confirms that the canonical
+root and child identities are unchanged, both remain ordinary local filesystem
+objects, and the marker content matches its assessment-owned SHA-256. An identity
+or ownership mismatch fails closed without deletion. It emits a SHA-256-bound
+receipt containing the canonical root and child identities, ownership digest,
+and before, identity, creation, ownership, removal, and cleanup assertions.
+`scripts/validate-windows-bridge.py` independently checks the receipt, rehashes
+the export, revalidates the assessment, binds the receipt identities to the exact
+supplied root, and requires that root to be empty. This lifecycle canary validates
 assessment-owned cleanup only; it is not a privilege-crossing canary.
 
 ## Import contract
@@ -87,10 +91,13 @@ malformed input, false canary outcomes, and invalid native cleanup receipts.
 These tests establish deterministic classification; they do not prove live
 Windows collection.
 
-The repository-contract Windows job runs the native collector on a disposable
-`windows-latest` runner, assesses its export, validates the SHA-bound lifecycle
-receipt, and independently requires an empty canary root. That job establishes
-native execution and assessment-owned cleanup only at the commit SHA it runs.
+The repository-contract Windows job runs `scripts/exercise-windows-bridge.ps1`
+on a disposable `windows-latest` runner. That shared practitioner entry point
+exercises the explicit ACL mutation predicate with read-only and writable rights,
+runs the native collector and importer, validates the SHA- and identity-bound
+lifecycle receipt, and independently requires an empty canary root. That job
+establishes native execution and assessment-owned cleanup only at the commit SHA
+it runs.
 Every surface remains governed by its emitted coverage; a Windows job can pass
 while an individual probe truthfully reports `access_denied` or `not_assessed`.
 Live integration remains unverified until that exact-SHA hosted job succeeds.
@@ -109,6 +116,12 @@ Live integration remains unverified until that exact-SHA hosted job succeeds.
 | Unattended-install reference | `s01-128` `win-privesc/unattended-install.md` | `COPS-E06.03-S01` exact scenario source |
 | DLL search/path context | `s01-129` `win-privesc/dll-hijacking.md` | `COPS-E06.02-S01` supporting filesystem evidence |
 | Windows build and token context | `s02-016` `wmic-queries.txt` | `COPS-E06.02-S01` platform-gating context |
+
+The executable source mapping for native acceptance is
+`scripts/exercise-windows-bridge.ps1` to `scripts/collect-windows.ps1`,
+`scripts/windows-bridge-common.ps1`, `scripts/assess.py`, and
+`scripts/validate-windows-bridge.py`. The repository-contract Windows job invokes
+that same entry point.
 
 No collected observation claims the referenced technique succeeded. The source
 mapping explains the assessment premise and keeps the evidence claim at the

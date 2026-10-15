@@ -3,8 +3,8 @@
 
 from __future__ import annotations
 
-import json
 import hashlib
+import json
 import subprocess
 import sys
 import tempfile
@@ -70,9 +70,7 @@ def main() -> int:
     )
     _require(unsupported["observations"] == [], "Windows unsupported observations mismatch")
 
-    native_payload = json.loads(
-        (PACKAGE / "fixtures" / "synthetic" / "host_windows_unsupported_v1.json").read_text()
-    )
+    native_payload = json.loads((PACKAGE / "fixtures" / "synthetic" / "host_windows_unsupported_v1.json").read_text())
     native_payload["source_kind"] = "operator_export"
     native_payload["source_id"] = "native_windows_bridge"
     native_payload["bridge"] = {
@@ -85,29 +83,39 @@ def main() -> int:
     native_bytes = json.dumps(native_payload, separators=(",", ":"), sort_keys=True).encode()
     native = load_report_bytes(native_bytes)
     _require(native["mode"] == "native_bridge_import", "Windows native bridge mode mismatch")
-    receipt = {
-        "schema_version": "windows-bridge-receipt-1.0",
-        "platform": "windows",
-        "bridge_mode": "native_windows_bridge",
-        "export_sha256": hashlib.sha256(native_bytes).hexdigest(),
-        "capabilities": list(SURFACES),
-        "canary": {
-            "resource_id": "validation_canary",
-            "assessment_owned": True,
-            "before_absent": True,
-            "created": True,
-            "removed": True,
-            "cleanup_verified": True,
-            "evidence_ids": ["before", "created", "removed"],
-        },
-    }
     with tempfile.TemporaryDirectory() as canary_root:
+        root_identity = Path(canary_root).resolve()
+        resource_id = "validation_canary"
+        receipt = {
+            "schema_version": "windows-bridge-receipt-1.1",
+            "platform": "windows",
+            "bridge_mode": "native_windows_bridge",
+            "export_sha256": hashlib.sha256(native_bytes).hexdigest(),
+            "capabilities": list(SURFACES),
+            "canary": {
+                "resource_id": resource_id,
+                "root_identity": str(root_identity),
+                "resource_identity": str(root_identity / resource_id),
+                "ownership_sha256": hashlib.sha256(b"validation ownership marker").hexdigest(),
+                "assessment_owned": True,
+                "before_absent": True,
+                "created": True,
+                "ownership_verified": True,
+                "removed": True,
+                "cleanup_verified": True,
+                "evidence_ids": [
+                    "before",
+                    "identity_bound",
+                    "created",
+                    "ownership_verified",
+                    "removed",
+                ],
+            },
+        }
         validated_receipt = validate_bridge_receipt(
-            load_bridge_receipt_bytes(
-                json.dumps(receipt, separators=(",", ":"), sort_keys=True).encode()
-            ),
+            load_bridge_receipt_bytes(json.dumps(receipt, separators=(",", ":"), sort_keys=True).encode()),
             native_bytes,
-            Path(canary_root),
+            root_identity,
         )
     _require(validated_receipt["export_sha256"] == receipt["export_sha256"], "receipt hash mismatch")
 
@@ -123,7 +131,7 @@ def main() -> int:
         "Remove-Item -LiteralPath $canaryPath",
     ):
         _require(required in collector, f"native Windows collector is missing {required}")
-    for prohibited in ("Invoke-Expression", "Start-Process", "GetValue(\"DefaultPassword\""):
+    for prohibited in ("Invoke-Expression", "Start-Process", 'GetValue("DefaultPassword"'):
         _require(prohibited not in collector, f"native Windows collector contains {prohibited}")
     try:
         load_report_bytes(b'{"schema_version":"1.0","raw_password":"must-not-echo"}')

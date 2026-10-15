@@ -10,6 +10,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "windows-bridge-common.ps1")
 
 if ($env:OS -ne "Windows_NT") {
     throw "The native Windows bridge can run only on Windows."
@@ -35,6 +36,19 @@ function Resolve-NewLocalFile {
     return $full
 }
 
+function Get-CopsStringSha256 {
+    param([string]$Value)
+
+    $sha256 = [Security.Cryptography.SHA256]::Create()
+    try {
+        return ([BitConverter]::ToString(
+                $sha256.ComputeHash([Text.Encoding]::UTF8.GetBytes($Value))
+            )).Replace("-", "").ToLowerInvariant()
+    } finally {
+        $sha256.Dispose()
+    }
+}
+
 $outputFull = Resolve-NewLocalFile -Path $OutputPath -Name "OutputPath"
 $receiptFull = Resolve-NewLocalFile -Path $ReceiptPath -Name "ReceiptPath"
 $canaryFull = [IO.Path]::GetFullPath($CanaryRoot)
@@ -46,6 +60,7 @@ if ($canaryItem.PSProvider.Name -ne "FileSystem" -or $canaryItem.PSDrive.Display
     ($canaryItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
     throw "CanaryRoot cannot be a reparse point."
 }
+$canaryFull = [IO.Path]::GetFullPath($canaryItem.FullName)
 if (@(Get-ChildItem -LiteralPath $canaryFull -Force).Count -ne 0) {
     throw "CanaryRoot must be empty before assessment."
 }
@@ -190,11 +205,7 @@ try {
                     continue
                 }
                 $weakPrincipal = $broadPrincipalSids -contains $principalSid
-                $writeRight = ($rule.FileSystemRights -band (
-                        [Security.AccessControl.FileSystemRights]::Write -bor
-                        [Security.AccessControl.FileSystemRights]::Modify -bor
-                        [Security.AccessControl.FileSystemRights]::FullControl
-                    )) -ne 0
+                $writeRight = Test-CopsExplicitMutationRight -Rights $rule.FileSystemRights
                 if ($weakPrincipal -and $rule.AccessControlType -eq "Allow" -and $writeRight) {
                     $weakTaskAcl = $true
                     break
@@ -231,11 +242,7 @@ try {
                 continue
             }
             $weakPrincipal = $broadPrincipalSids -contains $principalSid
-            $writeRight = ($rule.FileSystemRights -band (
-                    [Security.AccessControl.FileSystemRights]::Write -bor
-                    [Security.AccessControl.FileSystemRights]::Modify -bor
-                    [Security.AccessControl.FileSystemRights]::FullControl
-                )) -ne 0
+            $writeRight = Test-CopsExplicitMutationRight -Rights $rule.FileSystemRights
             if ($weakPrincipal -and $rule.AccessControlType -eq "Allow" -and $writeRight) {
                 $filesystemConfiguration = "interesting"
                 break
@@ -379,30 +386,56 @@ $export = [ordered]@{
 }
 
 $resourceId = "cops_canary_" + [Guid]::NewGuid().ToString("N")
-$canaryPath = Join-Path $canaryFull $resourceId
+$canaryPath = [IO.Path]::GetFullPath((Join-Path $canaryFull $resourceId))
+$ownershipToken = [Guid]::NewGuid().ToString("N")
+$markerContent = "COPS assessment-owned lifecycle canary:$ownershipToken"
+$markerPath = [IO.Path]::GetFullPath((Join-Path $canaryPath "marker.txt"))
+$ownershipHash = Get-CopsStringSha256 -Value $markerContent
 $beforeAbsent = -not (Test-Path -LiteralPath $canaryPath)
 $created = $false
 $removed = $false
-try {
-    New-Item -ItemType Directory -Path $canaryPath -ErrorAction Stop | Out-Null
-    [IO.File]::WriteAllText((Join-Path $canaryPath "marker.txt"), "COPS assessment-owned lifecycle canary")
-    $created = Test-Path -LiteralPath $canaryPath -PathType Container
-} finally {
-    if (Test-Path -LiteralPath $canaryPath) {
-        Remove-Item -LiteralPath $canaryPath -Recurse -Force -ErrorAction Stop
-    }
-    $removed = -not (Test-Path -LiteralPath $canaryPath)
+$ownershipVerified = $false
+if (-not $beforeAbsent) {
+    throw "Assessment-owned canary path already exists."
 }
-if (-not ($beforeAbsent -and $created -and $removed)) {
+New-Item -ItemType Directory -Path $canaryPath -ErrorAction Stop | Out-Null
+$createdItem = Get-Item -LiteralPath $canaryPath -Force -ErrorAction Stop
+$createdIdentity = [IO.Path]::GetFullPath($createdItem.FullName)
+if ($createdItem.PSProvider.Name -ne "FileSystem" -or $createdItem.PSDrive.DisplayRoot -or
+    ($createdItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
+    -not $createdIdentity.Equals($canaryPath, [StringComparison]::OrdinalIgnoreCase)) {
+    throw "Assessment-owned canary directory identity validation failed."
+}
+$utf8 = New-Object System.Text.UTF8Encoding -ArgumentList $false
+[IO.File]::WriteAllText($markerPath, $markerContent, $utf8)
+$created = Test-Path -LiteralPath $canaryPath -PathType Container
+
+$ownedItem = Get-Item -LiteralPath $canaryPath -Force -ErrorAction Stop
+$ownedMarker = Get-Item -LiteralPath $markerPath -Force -ErrorAction Stop
+$ownedIdentity = [IO.Path]::GetFullPath($ownedItem.FullName)
+$ownedMarkerIdentity = [IO.Path]::GetFullPath($ownedMarker.FullName)
+$markerHash = (Get-FileHash -LiteralPath $markerPath -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($ownedItem.PSProvider.Name -ne "FileSystem" -or $ownedItem.PSDrive.DisplayRoot -or
+    ($ownedItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
+    -not $ownedIdentity.Equals($canaryPath, [StringComparison]::OrdinalIgnoreCase) -or
+    $ownedMarker.PSProvider.Name -ne "FileSystem" -or
+    ($ownedMarker.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
+    -not $ownedMarkerIdentity.Equals($markerPath, [StringComparison]::OrdinalIgnoreCase) -or
+    $markerHash -ne $ownershipHash) {
+    throw "Assessment-owned canary ownership validation failed."
+}
+$ownershipVerified = $true
+Remove-Item -LiteralPath $canaryPath -Recurse -Force -ErrorAction Stop
+$removed = -not (Test-Path -LiteralPath $canaryPath)
+if (-not ($beforeAbsent -and $created -and $ownershipVerified -and $removed)) {
     throw "Assessment-owned canary lifecycle validation failed."
 }
 
-$utf8 = [Text.UTF8Encoding]::new($false)
 $exportJson = $export | ConvertTo-Json -Depth 12
 [IO.File]::WriteAllText($outputFull, $exportJson, $utf8)
 $exportHash = (Get-FileHash -LiteralPath $outputFull -Algorithm SHA256).Hash.ToLowerInvariant()
 $receipt = [ordered]@{
-    schema_version = "windows-bridge-receipt-1.0"
+    schema_version = "windows-bridge-receipt-1.1"
     platform = "windows"
     bridge_mode = "native_windows_bridge"
     export_sha256 = $exportHash
@@ -417,12 +450,22 @@ $receipt = [ordered]@{
     )
     canary = [ordered]@{
         resource_id = $resourceId
+        root_identity = $canaryFull
+        resource_identity = $canaryPath
+        ownership_sha256 = $ownershipHash
         assessment_owned = $true
         before_absent = $true
         created = $true
+        ownership_verified = $true
         removed = $true
         cleanup_verified = $true
-        evidence_ids = @("canary_before", "canary_created", "canary_removed")
+        evidence_ids = @(
+            "canary_before",
+            "canary_identity_bound",
+            "canary_created",
+            "canary_ownership_verified",
+            "canary_removed"
+        )
     }
 }
 $receiptJson = $receipt | ConvertTo-Json -Depth 8
