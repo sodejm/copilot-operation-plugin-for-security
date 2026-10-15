@@ -133,13 +133,35 @@ class ServiceEntryValidationTests(unittest.TestCase):
         self.assertIsNone(result.plan)
         self.assertIsNone(result.verified_finding)
 
-    def test_http_response_has_no_registered_route(self) -> None:
+    def test_http_response_routes_to_registered_web_specialist(self) -> None:
         result = self.handoff(assessment(observed_config=ObservedConfiguration(http_status=403)))
         self.assertEqual(result.service, "http")
         self.assertEqual(result.skill_id, "web-api-inventory-and-replay")
-        self.assertEqual(result.status, "unsupported_route")
-        self.assertIsNone(result.specialist)
-        self.assertIsNone(result.plan)
+        self.assertEqual(result.status, "candidate")
+        self.assertEqual(result.specialist, "cops-pentest-specialist")
+        self.assertIsNotNone(result.plan)
+
+    def test_independent_responses_route_all_seven_specialist_families(self) -> None:
+        cases = (
+            (ObservedConfiguration(http_status=200), "http", "web-api-inventory-and-replay"),
+            (ObservedConfiguration(raw_banner="SSH-2.0-Lab\r\n"), "ssh", "network-remote-and-file-services"),
+            (ObservedConfiguration(raw_banner="-ERR Redis 5.0.0\r\n"), "redis", "network-data-services"),
+            (ObservedConfiguration(raw_banner="220 lab ESMTP\r\n"), "smtp", "network-messaging-services"),
+            (
+                ObservedConfiguration(raw_banner='{"ApiVersion":"1.44"}'),
+                "docker-api",
+                "network-developer-interfaces",
+            ),
+            (ObservedConfiguration(raw_banner="DNS response NOERROR\r\n"), "dns", "network-infrastructure-services"),
+            (ObservedConfiguration(raw_banner="SOCKS5 method selected\r\n"), "socks", "network-legacy-and-proxy-services"),
+        )
+        for observed_config, service, skill_id in cases:
+            with self.subTest(service=service):
+                result = self.handoff(assessment(observed_config=observed_config))
+                self.assertEqual(result.status, "candidate")
+                self.assertEqual(result.service, service)
+                self.assertEqual(result.skill_id, skill_id)
+                self.assertIn(skill_id, get_specialist("cops-pentest-specialist").skills)
 
     def test_missing_specialist_catalog_fails_closed(self) -> None:
         with patch("cops.discovery.service_entry_validation.get_specialist", side_effect=OSError("offline")):

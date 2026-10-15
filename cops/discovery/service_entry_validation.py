@@ -124,6 +124,12 @@ def _observed_services(observation: ObservedConfiguration) -> set[tuple[str, str
         services.add(("pop3", "network-messaging-services", "POP3 authentication and access boundaries"))
     if re.match(r"^-ERR[^\r\n]{0,200}\bRedis\b", banner, re.I):
         services.add(("redis", "network-data-services", "Redis configuration and access boundaries"))
+    if re.match(r'^\s*\{[^\r\n]{0,400}"ApiVersion"\s*:', banner):
+        services.add(("docker-api", "network-developer-interfaces", "Docker API access and trust boundaries"))
+    if re.match(r"^DNS response\b", banner, re.I):
+        services.add(("dns", "network-infrastructure-services", "DNS recursion and authority boundaries"))
+    if re.match(r"^SOCKS(?:4|5)?\b", banner, re.I):
+        services.add(("socks", "network-legacy-and-proxy-services", "SOCKS proxy access and egress boundaries"))
     if (type(observation.http_status) is int and 100 <= observation.http_status <= 599) or re.match(
         r"^HTTP/\d(?:\.\d)? [1-5]\d\d\b", banner
     ):

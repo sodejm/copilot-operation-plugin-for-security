@@ -20,7 +20,8 @@
         "network-data-services",
         "network-messaging-services",
         "network-developer-interfaces",
-        "network-legacy-and-proxy-services"
+        "network-legacy-and-proxy-services",
+        "web-api-inventory-and-replay"
       ],
       "tools": [
         "python3 -m cops check attack-surface-planner",
