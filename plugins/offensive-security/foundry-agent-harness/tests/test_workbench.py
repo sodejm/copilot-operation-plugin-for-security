@@ -300,8 +300,8 @@ def test_exported_package_provider_runner_rejects_nonfinite_json(tmp_path: Path)
     assert "ProviderAssessmentError" in result.stderr
 
 
-def test_exported_package_gate_uses_bundled_provider_runtime(tmp_path: Path):
-    """The package gate cannot depend on the repository's cops module or jsonschema."""
+def test_exported_package_gate_checks_provider_data_without_runtime(tmp_path: Path):
+    """The data-only gate validates bundled fixtures without assessment imports."""
     exported = tmp_path / "foundry-agent-harness"
     shutil.copytree(
         PLUGIN_ROOT,
@@ -318,4 +318,5 @@ def test_exported_package_gate_uses_bundled_provider_runtime(tmp_path: Path):
     )
 
     assert result.returncode == 0, result.stderr
-    assert "Verified 14 offline AI provider assessment cases." in result.stdout
+    assert "Validated 14 provider fixture cases as data." in result.stdout
+    assert "runtime behavior requires separate observed execution" in result.stdout

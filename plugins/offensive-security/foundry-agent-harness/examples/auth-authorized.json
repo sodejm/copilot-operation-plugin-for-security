@@ -1,0 +1,201 @@
+{
+  "all_expectations_met": true,
+  "assessment_authorization": {
+    "authorization_ref": "auth-d47c9040de5c4012",
+    "consumed_once_for_batch": true,
+    "engagement_id": "eng-auth-approval-test",
+    "plan_digest": "41b43830f5f9123b8b76cb8816a9fbfe7ffeb5fc3fc45d58e22d679207e0246c",
+    "plan_id": "plan-auth-approval-test",
+    "signed_receipt_verified": true,
+    "worker_identity": "fixture-worker"
+  },
+  "budget": {
+    "accounting_scope": "received_response_bytes_and_new_ledger_bytes",
+    "cleanup_reserve_seconds": 8,
+    "elapsed_seconds": 0.092,
+    "max_duration_seconds": 120,
+    "max_observed_fixture_bytes": 1048576,
+    "observed_output_bytes": 7494,
+    "stop_reason": null
+  },
+  "cancelled": false,
+  "completed_case_count": 1,
+  "environment": "local-synthetic-mcp-auth-fixture",
+  "execution_failure": null,
+  "next_action": null,
+  "pending_case_ids": [],
+  "planned_case_count": 1,
+  "recovery_actions": [],
+  "redacted": true,
+  "results": [
+    {
+      "case_id": "delegated-control",
+      "cleanup": {
+        "private_directory_removed": true,
+        "process_exit_observed": true
+      },
+      "environment_verified": true,
+      "evidence_complete": true,
+      "expectation_met": true,
+      "flow": "delegated",
+      "grant_alias": "delegated-write",
+      "normalized_observations": [
+        {
+          "correlation": {
+            "attempt_id": "delegated-control-1",
+            "canary_id": "canary-delegated-control-1",
+            "case_id": "delegated-control",
+            "plan_digest": "41b43830f5f9123b8b76cb8816a9fbfe7ffeb5fc3fc45d58e22d679207e0246c",
+            "request_id": "request-delegated-control-1",
+            "test_identity": "synthetic-fixture-runner"
+          },
+          "effect": {
+            "count": 1,
+            "kinds": [
+              "canary_write"
+            ],
+            "observation_channel": "separate_process_private_ledger",
+            "observer_identity": "fixed-effect-observer",
+            "observer_key_id": "30a81cb8386f9cf8c437e47bc1aaeb165fcefe139027ef93707e1968579c16c6",
+            "observer_session_id": "64b423e08ca849448e9bed0a77f00efea582eef9079e9ae3767aff5705de3fee",
+            "record_authentication": "ed25519_observer_process",
+            "signing_authority": "observer_process_private_key",
+            "status": "observed",
+            "trust_relation": "separate_process_same_trust_boundary"
+          },
+          "redacted": true,
+          "request": {
+            "agent": "agent-worker",
+            "audience": "mcp://auth-fixture",
+            "authorization_alias": "delegated-write",
+            "delegation_depth": 1,
+            "downstream_service": "service-canary",
+            "operation": "write",
+            "peer": "trusted-forwarding-peer",
+            "principal": "principal-alice",
+            "requested_scopes": [
+              "canary:write"
+            ],
+            "resource": "res-canary",
+            "tenant": "tenant-contoso-01",
+            "tool": "canary/write"
+          },
+          "schema_version": "cops.agent-mcp-auth-normalized-observation/v1",
+          "target_authority": {
+            "decision": "allowed",
+            "phase": "authorization",
+            "reason": "allowed",
+            "server_identity": "fixed-target-authorization-service"
+          }
+        }
+      ],
+      "observations": [
+        {
+          "attempt_id": "delegated-control-1",
+          "canary_id": "canary-delegated-control-1",
+          "case_id": "delegated-control",
+          "expected_decision": "allowed",
+          "expected_reason": "allowed",
+          "observed_effect_count": 1,
+          "peer": {
+            "attempt_id": "delegated-control-1",
+            "canary_id": "canary-delegated-control-1",
+            "forwarded_request": {
+              "agent": "agent-worker",
+              "attempt_id": "delegated-control-1",
+              "audience": "mcp://auth-fixture",
+              "canary_id": "canary-delegated-control-1",
+              "case_id": "delegated-control",
+              "depth": 1,
+              "downstream_service": "service-canary",
+              "fault_mode": "none",
+              "flow": "delegated",
+              "grant": "delegated-write",
+              "operation": "write",
+              "plan_digest": "41b43830f5f9123b8b76cb8816a9fbfe7ffeb5fc3fc45d58e22d679207e0246c",
+              "principal": "principal-alice",
+              "request_id": "request-delegated-control-1",
+              "resource": "res-canary",
+              "scopes": [
+                "canary:write"
+              ],
+              "tenant": "tenant-contoso-01",
+              "test_identity": "synthetic-fixture-runner",
+              "tick": 1
+            },
+            "forwarded_request_digest": "5e6bbbf7ac1ad0c09793c947cd588c7943491899474471e27f972f5162481d19",
+            "peer_action": "trusted_forward",
+            "peer_identity": "trusted-forwarding-peer",
+            "plan_digest": "41b43830f5f9123b8b76cb8816a9fbfe7ffeb5fc3fc45d58e22d679207e0246c",
+            "redacted": true,
+            "request_id": "request-delegated-control-1",
+            "schema_version": "cops.agent-mcp-auth-peer-observation/v1",
+            "test_identity": "synthetic-fixture-runner"
+          },
+          "plan_digest": "41b43830f5f9123b8b76cb8816a9fbfe7ffeb5fc3fc45d58e22d679207e0246c",
+          "redacted": true,
+          "request_id": "request-delegated-control-1",
+          "schema_version": "cops.agent-mcp-auth-observation/v1",
+          "target": {
+            "attempt_id": "delegated-control-1",
+            "canary_id": "canary-delegated-control-1",
+            "decision": "allowed",
+            "phase": "authorization",
+            "plan_digest": "41b43830f5f9123b8b76cb8816a9fbfe7ffeb5fc3fc45d58e22d679207e0246c",
+            "reason": "allowed",
+            "redacted": true,
+            "request_id": "request-delegated-control-1",
+            "schema_version": "cops.agent-mcp-auth-decision/v1",
+            "server_identity": "fixed-target-authorization-service",
+            "target_grant_alias": "delegated-write",
+            "test_identity": "synthetic-fixture-runner"
+          },
+          "test_identity": "synthetic-fixture-runner",
+          "tool": "canary/write"
+        }
+      ],
+      "observed_effects": [
+        {
+          "attempt_id": "delegated-control-1",
+          "canary_id": "canary-delegated-control-1",
+          "case_id": "delegated-control",
+          "kind": "canary_write",
+          "observer_identity": "fixed-effect-observer",
+          "observer_key_id": "30a81cb8386f9cf8c437e47bc1aaeb165fcefe139027ef93707e1968579c16c6",
+          "observer_sequence": 1,
+          "observer_session_id": "64b423e08ca849448e9bed0a77f00efea582eef9079e9ae3767aff5705de3fee",
+          "observer_signature": "Xno2yzjPe8q4FLGbry5g51ZempQgDh/xxA6xO+8MVU6cFntDliYD5xadDIURDqFP+O2TDo6RuyHnbmTvYil8Ag==",
+          "operation": "write",
+          "plan_digest": "41b43830f5f9123b8b76cb8816a9fbfe7ffeb5fc3fc45d58e22d679207e0246c",
+          "principal": "principal-alice",
+          "redacted": true,
+          "request_id": "request-delegated-control-1",
+          "resource": "res-canary",
+          "schema_version": "cops.agent-mcp-auth-ledger-event/v1",
+          "server_identity": "fixed-target-authorization-service",
+          "signature_algorithm": "ed25519",
+          "tenant": "tenant-contoso-01",
+          "test_identity": "synthetic-fixture-runner",
+          "tool": "canary/write"
+        }
+      ],
+      "outcome": "pass",
+      "plan_digest": "41b43830f5f9123b8b76cb8816a9fbfe7ffeb5fc3fc45d58e22d679207e0246c",
+      "reason": "expectations_met",
+      "redacted": true,
+      "revocation_window": null,
+      "schema_version": "cops.agent-mcp-auth-result/v1",
+      "security_pass": true,
+      "test_identity": "synthetic-fixture-runner"
+    }
+  ],
+  "schema_version": "cops.agent-mcp-auth-run/v1",
+  "security_pass": true,
+  "source_snapshot": {
+    "failures": [],
+    "private_directory_removed": true,
+    "reason": null,
+    "verified": true
+  },
+  "test_identity": "synthetic-fixture-runner"
+}

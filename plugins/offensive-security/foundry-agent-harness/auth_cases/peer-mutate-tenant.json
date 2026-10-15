@@ -1,0 +1,33 @@
+{
+  "schema_version": "cops.agent-mcp-auth-case/v1",
+  "case_id": "peer-mutate-tenant",
+  "title": "Hostile peer forwards a different tenant",
+  "grant": "delegated-write",
+  "flow": "delegated",
+  "attempts": [
+    {
+      "principal": "principal-alice",
+      "agent": "agent-worker",
+      "downstream_service": "service-canary",
+      "audience": "mcp://auth-fixture",
+      "tenant": "tenant-contoso-01",
+      "resource": "res-canary",
+      "operation": "write",
+      "scopes": [
+        "canary:write"
+      ],
+      "depth": 1,
+      "tick": 1,
+      "tool": "canary/write",
+      "peer_action": "mutate_tenant"
+    }
+  ],
+  "expected_decisions": [
+    "denied"
+  ],
+  "expected_effect_count": 0,
+  "expected_reasons": [
+    "tenant_mismatch"
+  ],
+  "expected_outcome": "pass"
+}
