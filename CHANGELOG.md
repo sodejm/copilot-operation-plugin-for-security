@@ -23,6 +23,10 @@
   offline artifact assessments and documented unsupported inputs.
 - Add machine-readable playbooks and walkthroughs for all 25 packages, six integrated
   workflow definitions, synthetic fixtures, and portable runtime/asset synchronization.
+- Execute five integrated service chains with typed prior outputs, exact action and
+  destination approval binding, one-use authorization, signed redacted credential
+  evidence, actual service activity, and verified restoration. Preserve synthetic
+  emulator and production-integration limits in every report.
 - Add `make check-laboratory` as a separate required readiness gate. Functional
   loopback tests alone leave laboratory readiness incomplete. The Docker path uses
   a preinstalled immutable image, inspected isolation, real service activity,

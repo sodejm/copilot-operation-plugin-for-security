@@ -16,6 +16,8 @@ sys.path.insert(0, str(ROOT))
 
 from cops.laboratory.service_lab import ServiceLaboratory, probe_isolated_runtime
 from cops.laboratory.container_runtime import run_container_acceptance
+from cops.laboratory.acceptance_cases import ACCEPTANCE_CASE_IDS, INTEGRATED_WORKFLOW_IDS
+from cops.laboratory.integrated_lab import WORKFLOW_STAGES, run_integrated_service_laboratory
 from cops.laboratory.workflow_lab import (
     IsolationRequiredError,
     run_workflow_service_laboratory,
@@ -264,6 +266,48 @@ def _workflow_case(mode: str, state_dir: Path, *, require_isolation: bool) -> di
     }
 
 
+def _integrated_case(workflow_id: str, state_dir: Path, *, require_isolation: bool) -> dict[str, Any]:
+    report = run_integrated_service_laboratory(
+        state_dir, workflow_id=workflow_id, require_isolation=require_isolation,
+    )
+    failures: list[str] = []
+    stages = list(WORKFLOW_STAGES[workflow_id])
+    authorization = report["authorization"]
+    assessment = report["outputs"].get("assessment", {})
+    _expect(failures, report["status"] == "success", "integrated workflow did not succeed")
+    _expect(failures, report["setup_status"] == 201, "credential setup did not succeed")
+    _expect(failures, report["stages"] == stages, "workflow stage order differs")
+    _expect(failures, authorization["provisioned"] == authorization["consumed"] == len(stages), "not every action consumed its own authorization")
+    _expect(failures, len(set(authorization["plan_digests"].values())) == len(stages), "different stages reused a plan digest")
+    _expect(failures, all(value.startswith("http://127.0.0.1:") for value in authorization["bound_destinations"].values()), "approval destinations escape the loopback laboratory")
+    _expect(failures, report["restoration"] == {"baseline_restored": True, "services_stopped": True}, "integrated service baseline or listeners were not restored")
+    _expect(failures, report["telemetry_matches_memory"] is True, "persisted telemetry differs from captured activity")
+    _expect(failures, report["isolation"]["verified"] == require_isolation, "integrated isolation evidence differs from preflight")
+    _check_events(failures, tuple(report["events"]), tuple(report["alerts"]), correlation_id=report["run_id"], require_alerts=workflow_id != "cve-reachability-triage")
+    _expect(failures, _persisted_telemetry_matches(state_dir / "telemetry.jsonl", tuple(report["events"])), "integrated telemetry file differs from the report")
+    if workflow_id == "leaked-credential-blast-radius":
+        _expect(failures, [assessment.get(key) for key in ("before_revocation", "revocation", "after_revocation")] == [200, 200, 401], "credential revocation did not change real authentication")
+        _expect(failures, assessment.get("bundle", {}).get("signature_verified") is True, "evidence bundle signature was not verified")
+        _expect(failures, assessment.get("synthetic_exposure", {}).get("value_redacted") is True, "credential evidence is not redacted")
+    elif workflow_id == "cve-reachability-triage":
+        _expect(failures, assessment.get("vulnerable", {}).get("injection_rows") == 2, "vulnerable SQL query did not expose the seeded objects")
+        _expect(failures, assessment.get("corrected", {}).get("injection_rows") == 0 and assessment.get("remediation_verified") is True, "corrected query did not preserve the boundary")
+        _expect(failures, assessment.get("without_runtime_evidence") == {"reachability": "unknown", "non_exploitable": False}, "missing runtime evidence became non-exploitability")
+    elif workflow_id == "illicit-consent-remediation":
+        _expect(failures, [assessment.get(key) for key in ("grant_access_before", "revocation", "grant_access_after")] == [200, 200, 401], "grant revocation did not change real authentication")
+    elif workflow_id == "detection-rule-ci-validation":
+        _expect(failures, assessment.get("event_counts", {}).get("class:attack") == 3 and assessment.get("event_counts", {}).get("class:benign") == 3, "detection measurements lack attack or benign execution")
+        _expect(failures, len(assessment.get("alerts", [])) == 2, "detection measurements differ from actual alerts")
+    else:
+        _expect(failures, assessment.get("authorized_status") == 200 and assessment.get("anonymous_status") == 401, "exposure audit did not verify authenticated and anonymous access")
+    return {"failures": failures, "metrics": {
+        "workflow_id": workflow_id, "status": report["status"], "stages": len(stages),
+        "authorizations_consumed": authorization["consumed"], "tcp_requests": len(report["requests"]),
+        "telemetry": len(report["events"]), "alerts": len(report["alerts"]),
+        "restored": report["restoration"]["baseline_restored"], "services_stopped": report["restoration"]["services_stopped"],
+    }}
+
+
 def run_acceptance_gate(state_root: Path) -> tuple[int, dict[str, Any]]:
     """Run all evidence cases and return the exit code plus compact summary."""
     isolation = probe_isolated_runtime()
@@ -304,6 +348,14 @@ def run_acceptance_gate(state_root: Path) -> tuple[int, dict[str, Any]]:
                 lambda mode=mode: _workflow_case(mode, state_root / f"workflow-{mode}", require_isolation=isolation.verified),
             )
         )
+
+    for workflow_id in INTEGRATED_WORKFLOW_IDS:
+        cases.append(_run_case(
+            "integrated-" + workflow_id,
+            lambda workflow_id=workflow_id: _integrated_case(
+                workflow_id, state_root / ("integrated-" + workflow_id), require_isolation=isolation.verified,
+            ),
+        ))
 
     failures = [f"{case['name']}: {detail}" for case in cases for detail in case["failures"]]
     if not strict_preflight["passed"]:
@@ -358,7 +410,7 @@ def main() -> int:
     if args.container_child:
         isolation = probe_isolated_runtime()
         if not isolation.verified:
-            print(json.dumps({"schema_version": SCHEMA_VERSION, "status": "blocked", "isolation": isolation.to_dict(), "blockers": [isolation.blocker], "summary": {"cases_passed": 0, "cases_total": 6, "functional_evidence_only": True}}, sort_keys=True, separators=(",", ":")))
+            print(json.dumps({"schema_version": SCHEMA_VERSION, "status": "blocked", "isolation": isolation.to_dict(), "blockers": [isolation.blocker], "summary": {"cases_passed": 0, "cases_total": len(ACCEPTANCE_CASE_IDS), "functional_evidence_only": True}}, sort_keys=True, separators=(",", ":")))
             return 2
     if args.state_dir is not None:
         args.state_dir.mkdir(parents=True, exist_ok=True)

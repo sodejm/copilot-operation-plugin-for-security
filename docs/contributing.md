@@ -137,6 +137,12 @@ make check-laboratory
 
 That gate exercises local service activity and verifies telemetry, isolation, and restoration. Offline fixtures, generated playbooks, and generated walkthroughs validate deterministic logic and documentation; they do not establish laboratory readiness.
 
+For changes to integrated service chains, first run
+`python -m pytest -q tests/test_integrated_service_laboratory.py tests/test_check_laboratory.py tests/test_laboratory_container.py`.
+These checks cover typed prior outputs, exact service destinations, changed plans,
+wrong workers, approval replay, and restoration. The Docker gate additionally
+proves the network boundary and executes all eleven acceptance cases.
+
 Python changes must also pass `ruff check .`; YAML changes must pass `yamllint -s .`, matching the hosted quality gate. Install these tools in the development environment before running them. After changing canonical skills or portable evidence sources, regenerate adapters with `make sync-agent-adapters` and the evidence bundle with `python scripts/agent/bundle_evidence.py`, then rerun validation.
 
 Linux sandbox changes must also pass the real bubblewrap integration gate:

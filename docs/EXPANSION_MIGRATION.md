@@ -42,6 +42,10 @@ The six integrated examples have offline playback profiles. Some profiles model
 the evidence required for a later active operation. A modeled result cannot
 establish that containment, consent revocation, cluster enforcement, or cleanup
 occurred. See [integrated workflows](INTEGRATED_WORKFLOWS.md) for each boundary.
+Five additional service chains now execute disposable HTTP operations with typed
+stage inputs and exact, single-use ActionPlan approvals. Their synthetic consent,
+advisory, event-rule, and numeric-address models retain explicit production limits;
+Kubernetes enforcement still requires a registered isolated cluster adapter.
 
 Purple-team consumers should adopt the versioned handoff contract, correlation
 IDs, time window, source reference, telemetry, detection result, and evidence

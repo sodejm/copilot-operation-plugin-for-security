@@ -6,7 +6,8 @@ import sys
 
 import pytest
 
-from cops.laboratory import service_lab, workflow_lab
+from cops.laboratory import integrated_lab, service_lab, workflow_lab
+from cops.laboratory.acceptance_cases import ACCEPTANCE_CASE_IDS, INTEGRATED_WORKFLOW_IDS
 from cops.laboratory.service_lab import IsolationProbe
 from scripts import check_laboratory
 
@@ -24,6 +25,7 @@ def _install_probe(monkeypatch: pytest.MonkeyPatch, probe: IsolationProbe) -> No
     monkeypatch.setattr(check_laboratory, "probe_isolated_runtime", lambda: probe)
     monkeypatch.setattr(service_lab, "probe_isolated_runtime", lambda: probe)
     monkeypatch.setattr(workflow_lab, "probe_isolated_runtime", lambda: probe)
+    monkeypatch.setattr(integrated_lab, "probe_isolated_runtime", lambda: probe)
 
 
 def test_gate_runs_all_functional_evidence_then_blocks_without_isolation(
@@ -41,8 +43,8 @@ def test_gate_runs_all_functional_evidence_then_blocks_without_isolation(
     assert summary["strict_preflight"]["passed"] is True
     assert summary["strict_preflight"]["state_created"] is False
     assert summary["summary"] == {
-        "cases_passed": 6,
-        "cases_total": 6,
+        "cases_passed": len(ACCEPTANCE_CASE_IDS),
+        "cases_total": len(ACCEPTANCE_CASE_IDS),
         "functional_evidence_only": True,
     }
     cases = {case["name"]: case for case in summary["cases"]}
@@ -54,6 +56,12 @@ def test_gate_runs_all_functional_evidence_then_blocks_without_isolation(
     assert cases["workflow-cancellation"]["metrics"]["status"] == "cancelled"
     assert cases["workflow-cancellation"]["metrics"]["telemetry"] == 2
     assert cases["workflow-cancellation"]["metrics"]["alerts"] == 0
+    assert set(cases) == set(ACCEPTANCE_CASE_IDS)
+    for workflow_id in INTEGRATED_WORKFLOW_IDS:
+        metrics = cases["integrated-" + workflow_id]["metrics"]
+        assert metrics["status"] == "success"
+        assert metrics["restored"] and metrics["services_stopped"]
+        assert metrics["authorizations_consumed"] == len(integrated_lab.WORKFLOW_STAGES[workflow_id])
     assert all(case["passed"] is True for case in cases.values())
 
 
@@ -71,8 +79,8 @@ def test_gate_can_pass_only_when_probe_and_runtime_reports_verify_isolation(
     assert summary["failures"] == []
     assert summary["isolation"]["verified"] is True
     assert summary["summary"] == {
-        "cases_passed": 6,
-        "cases_total": 6,
+        "cases_passed": len(ACCEPTANCE_CASE_IDS),
+        "cases_total": len(ACCEPTANCE_CASE_IDS),
         "functional_evidence_only": False,
     }
 
