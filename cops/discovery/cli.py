@@ -15,6 +15,7 @@ from cops.evidence.canonical import EvidenceError, decode_json
 from .active_models import (
     ActiveScanSession,
     ScanBudget,
+    expand_target_specs,
 )
 from .active_scanner import (
     ActiveScanner,
@@ -117,7 +118,18 @@ def build_active_parser(parser: argparse.ArgumentParser) -> None:
 
     # 1. plan
     plan_p = active_subs.add_parser("plan", help="Create an active scanning session plan with budgets and targets.")
-    plan_p.add_argument("--targets", "-t", required=True, help="Comma-separated target hosts/IPs or path to JSON.")
+    plan_p.add_argument(
+        "--targets",
+        "-t",
+        required=True,
+        help="Comma-separated target hosts, IPs, or IPv4/IPv6 CIDRs, or path to JSON.",
+    )
+    plan_p.add_argument(
+        "--max-targets",
+        type=int,
+        default=1024,
+        help="Maximum destinations after bounded IPv4/IPv6 CIDR expansion (default: 1024).",
+    )
     plan_p.add_argument(
         "--ports",
         "-p",
@@ -695,6 +707,10 @@ def command_active_discovery(args: argparse.Namespace, root: Path | None = None)
         ):
             raise ValueError("Targets must be a nonempty list of nonempty hostnames or IP addresses")
         targets = [target.strip() for target in targets]
+        max_targets = getattr(args, "max_targets", 1024)
+        if isinstance(max_targets, bool) or not isinstance(max_targets, int) or max_targets <= 0:
+            raise ValueError("--max-targets must be positive")
+        targets = expand_target_specs(targets, max_targets=max_targets)
 
         udp_spec = getattr(args, "udp_ports", "")
         tcp_spec = args.ports if args.ports is not None else ("" if udp_spec.strip() else "80,443,22")
@@ -729,6 +745,7 @@ def command_active_discovery(args: argparse.Namespace, root: Path | None = None)
             rate_limit_pps=args.rate_limit,
             max_probes=max_probes,
             max_concurrency=max_concurrency,
+            max_targets=max_targets,
         )
         plan_identity = f"{args.scope_ref}:{sorted(targets)}:{sorted(ports)}"
         if udp_ports:

@@ -42,6 +42,48 @@ The container is removed by `--rm`; listeners, the DNS responder, and the
 checkpoint are closed or deleted by the script. No host ports, credentials, or
 external network route are needed.
 
+### Full TCP range
+
+This separate practitioner command runs outside pytest and measures every TCP
+port on one explicitly allowed loopback address. The session has a 120-second
+duration budget and a 65,535-probe cap. It asserts complete attempted and
+completed coverage, zero skipped, pending, and unassessed probes, checkpoint
+reload equality, journal retirement, and temporary-directory cleanup.
+
+```sh
+tar -cf - cops scripts/active_discovery_full_tcp_acceptance.py | \
+  docker run --name cops-issue-284-full-tcp --rm --pull never -i \
+    --network none --read-only \
+    --security-opt no-new-privileges --cap-drop ALL --pids-limit 64 \
+    --memory 512m --cpus 1 \
+    --tmpfs /tmp:rw,nosuid,nodev,size=256m \
+    --tmpfs /workspace:rw,nosuid,nodev,size=64m \
+    -w /workspace -e PYTHONDONTWRITEBYTECODE=1 \
+    python:3.12-slim python -B -c \
+    'import runpy,sys,tarfile; tarfile.open(fileobj=sys.stdin.buffer,mode="r|").extractall("/workspace",filter="data"); runpy.run_module("scripts.active_discovery_full_tcp_acceptance",run_name="__main__")'
+```
+
+After the run, `docker container inspect cops-issue-284-full-tcp` must return
+`No such container` because `--rm` performed the final container cleanup.
+
+An isolated Linux loopback run on 2026-10-14 completed all 65,535 TCP probes
+in 24.618 seconds (30.9 seconds including container startup). Planned,
+attempted, and completed counts were each 65,535; pending, skipped, timed-out,
+and unassessed counts were zero. All ports were closed in that run. The final
+checkpoint was 53,771,855 bytes, reloaded equal to the in-memory session, and
+the journal was retired. The script reported complete temporary-directory
+cleanup, and the container inspection returned `No such container`. This is
+one loopback measurement, not a timing guarantee or evidence about routed
+network performance.
+
+Plans accept explicit host/IP lists and IPv4 or IPv6 CIDRs. CIDRs expand
+deterministically before execution and fail closed when the result exceeds
+`--max-targets`; overlap with another entry is rejected as a duplicate. For
+example, `--targets 192.0.2.0/31,2001:db8::/127 --max-targets 4` produces four
+destinations. Live execution still validates every resolved destination against
+the engagement allowlist. Large or routed ranges require a separately authorized
+vantage, scope, rate, probe, and duration budget.
+
 ### Opt-in controlled packet-drop case
 
 The default command remains unprivileged. To exercise a controlled TCP packet
@@ -124,9 +166,10 @@ two probes. These results cover this isolated Linux harness only. The focused
 tests exercise uncertain pending operations and rejected plan/scope changes;
 this run did not verify native Windows or macOS scanning. Later native CI
 evidence is described below.
-The checkpoint format now permits up to 256 MiB, with bounded reads, so a
-checkpoint above the ordinary 1 MiB JSON limit can resume. A full 65,535-port
-TCP run has not been measured for duration, memory use, or checkpoint size.
+The checkpoint format now permits up to 256 MiB, with bounded reads. An
+append-only attempt/result journal preserves pre-dispatch reservations without
+rewriting the growing session after each probe, then compacts to the final
+checkpoint and retires the journal after successful completion.
 
 A later 2026-10-14 run passed with one live UDP reply and one silent UDP socket.
 The responder observed exactly one empty datagram per approved port. The scanner
@@ -186,9 +229,9 @@ exactly the remaining probe. Cleanup checks reported closed TCP and UDP file
 descriptors and a removed temporary directory, and a subsequent container inspect
 returned `No such container`. The effective capability mask was `0x0`, so the
 packet-drop case was recorded as unavailable for the reason described above.
-This default run proves loopback behavior only. It does not prove routed IPv6,
-controlled firewall-drop behavior, or the duration, memory, and checkpoint size
-of a full 65,535-port scan.
+This default run proves loopback behavior only. It does not prove routed IPv6 or
+controlled firewall-drop behavior; the opt-in run supplies the separate
+packet-drop proof.
 
 The opt-in packet-drop run on 2026-10-14 used the command above with only
 `CAP_NET_ADMIN` effective (`0x1000`). The unused TCP port was `closed` before the
