@@ -5,10 +5,12 @@ from __future__ import annotations
 import html
 import ipaddress
 import re
+import unicodedata
+from collections import deque
 from typing import Any
 
 from cops.contracts.validation import validate_contract, validate_identifier
-from cops.evidence.canonical import EvidenceError
+from cops.evidence.canonical import EvidenceError, timestamp
 from cops.evidence.validation import validate_envelope
 
 
@@ -47,6 +49,9 @@ _KINDS = {
 _MODES = {"planning", "import", "laboratory", "live"}
 _ACCESS = {"available", "unavailable", "unknown"}
 _REPRODUCIBILITY = {"repeatable", "limited", "historical_import", "unknown"}
+_EVIDENCE_NOTICE = (
+    "Record hashes establish internal integrity only; source authenticity and authorization need separate validation."
+)
 
 
 def _object(item: Any, keys: set[str], label: str) -> dict[str, Any]:
@@ -81,7 +86,10 @@ def _parse_target(
     target: str,
 ) -> ipaddress.IPv4Address | ipaddress.IPv6Address | ipaddress.IPv4Network | ipaddress.IPv6Network | str:
     try:
-        return ipaddress.ip_network(target, strict=False) if "/" in target else ipaddress.ip_address(target)
+        if "/" not in target:
+            return ipaddress.ip_address(target)
+        network = ipaddress.ip_network(target, strict=False)
+        return network.network_address if network.prefixlen == network.max_prefixlen else network
     except ValueError:
         return target.casefold().rstrip(".")
 
@@ -97,6 +105,31 @@ def _contains(container: str, target: str) -> bool:
     if isinstance(right, (ipaddress.IPv4Address, ipaddress.IPv6Address)):
         return right in left
     return right.subnet_of(left)
+
+
+def _assets_without_assessed_evidence(
+    affected_assets: list[str],
+    rows: list[dict[str, Any]],
+    references: set[str],
+    *,
+    accepted_statuses: frozenset[str] = frozenset({"assessed"}),
+) -> list[str]:
+    return [
+        asset
+        for asset in affected_assets
+        if not references
+        & set().union(
+            *(
+                set(row["evidence_records"])
+                for row in rows
+                if row["status"] in accepted_statuses and _contains(row["target"], asset)
+            )
+        )
+    ]
+
+
+def _asset_gap_limitation(assets: list[str]) -> str:
+    return "Not assessed for assets: " + ", ".join(assets)
 
 
 def _in_scope(target: str, scope: dict[str, Any]) -> bool:
@@ -129,6 +162,218 @@ def _provenance(mode: str, status: str) -> str:
     if mode == "laboratory":
         return "laboratory"
     return "live_validated" if status == "assessed" else "live_unvalidated"
+
+
+def _validate_dependency_graph(findings: list[dict[str, Any]]) -> None:
+    """Require unique prerequisites and a reachable start for every path."""
+    dependents: dict[str, list[str]] = {finding["finding_id"]: [] for finding in findings}
+    remaining: dict[str, int] = {}
+    for finding in findings:
+        dependencies = finding["attack_path_dependencies"]
+        if len(dependencies) != len(set(dependencies)):
+            raise ReportError("duplicate attack path dependency")
+        finding_id = finding["finding_id"]
+        remaining[finding_id] = len(dependencies)
+        for dependency in dependencies:
+            dependents[dependency].append(finding_id)
+    ready = deque(finding_id for finding_id, count in remaining.items() if count == 0)
+    visited = 0
+    while ready:
+        finding_id = ready.popleft()
+        visited += 1
+        for dependent in dependents[finding_id]:
+            remaining[dependent] -= 1
+            if remaining[dependent] == 0:
+                ready.append(dependent)
+    if visited != len(findings):
+        raise ReportError("cyclic attack path dependencies")
+
+
+def _has_assessed_scanner_corroboration(row: dict[str, Any], findings: list[dict[str, Any]]) -> bool:
+    """Require linked assessed observations for every scanner-asserted asset in this row."""
+    asserted_assets = [
+        asset
+        for finding in findings
+        if finding["kind"] == "scanner_assertion"
+        and finding["result_id"] == row["result_id"]
+        and finding["scenario_id"] == row["scenario_id"]
+        for asset in finding["affected_assets"]
+        if _contains(row["target"], asset)
+    ]
+    return bool(asserted_assets) and all(
+        any(
+            finding["result_id"] == row["result_id"]
+            and finding["scenario_id"] == row["scenario_id"]
+            and finding["kind"] != "scanner_assertion"
+            and finding["assessment_status"] == "assessed"
+            and any(
+                _parse_target(observed_asset) == _parse_target(asserted_asset)
+                for observed_asset in finding["affected_assets"]
+            )
+            and bool(set(finding["evidence_references"]) & set(row["evidence_records"]))
+            for finding in findings
+        )
+        for asserted_asset in asserted_assets
+    )
+
+
+def _has_scanner_assertion(row: dict[str, Any], findings: list[dict[str, Any]]) -> bool:
+    """Associate a scanner claim with the covered scenario and asset."""
+    return any(
+        finding["kind"] == "scanner_assertion"
+        and finding["result_id"] == row["result_id"]
+        and finding["scenario_id"] == row["scenario_id"]
+        and any(_contains(row["target"], asset) for asset in finding["affected_assets"])
+        for finding in findings
+    )
+
+
+def validate_report_semantics(report: dict[str, Any]) -> None:
+    """Reject contradictory claims in a stored report after schema validation.
+
+    This cannot authenticate the input bundle or reconstruct its observation times.
+    It rejects internally contradictory coverage and finding claims.
+    """
+    if report["evidence_notice"] != _EVIDENCE_NOTICE:
+        raise ReportError("report evidence notice must retain the source-authenticity limitation")
+    scope = report["scope"]
+    coverage_keys: set[tuple[str, str, str]] = set()
+    rows_by_result: dict[str, list[dict[str, Any]]] = {}
+    result_modes: dict[str, str] = {}
+    result_scenarios: dict[str, str] = {}
+    for row in report["coverage"]:
+        if not _in_scope(row["target"], scope):
+            raise ReportError("report coverage target is outside engagement scope")
+        key = (row["scenario_id"], str(_parse_target(row["target"])), row["mode"])
+        if key in coverage_keys:
+            raise ReportError("duplicate report coverage entry")
+        coverage_keys.add(key)
+        if row["provenance"] != _provenance(row["mode"], row["status"]):
+            raise ReportError("report coverage provenance contradicts assessment status")
+        result_id = row["result_id"]
+        if result_id is not None:
+            validate_identifier(result_id, "run_result")
+            if row["mode"] == "planning" or (result_id in result_modes and result_modes[result_id] != row["mode"]):
+                raise ReportError("report run result has conflicting coverage modes")
+            if (
+                row["mode"] != "import"
+                and result_id in result_scenarios
+                and result_scenarios[result_id] != row["scenario_id"]
+            ):
+                raise ReportError("report run result has conflicting coverage scenarios")
+            result_modes[result_id] = row["mode"]
+            result_scenarios[result_id] = row["scenario_id"]
+            rows_by_result.setdefault(result_id, []).append(row)
+        if row["status"] == "assessed" and (
+            row["access"] != "available"
+            or result_id is None
+            or not row["evidence_records"]
+            or row["mode"] in {"planning", "import"}
+        ):
+            raise ReportError("assessed coverage lacks validated execution evidence")
+        if row["status"] == "partial" and (
+            row["access"] != "available" or result_id is None or not row["evidence_records"]
+        ):
+            raise ReportError("partial coverage lacks validated execution evidence")
+        if result_id is None and row["status"] != "not_assessed":
+            raise ReportError("report coverage without a result cannot be assessed")
+        if result_id is None and row["evidence_records"]:
+            raise ReportError("report coverage without a result cannot carry evidence")
+        if len(set(row["evidence_records"])) != len(row["evidence_records"]):
+            raise ReportError("duplicate report coverage evidence reference")
+
+    finding_ids: set[str] = set()
+    findings_by_id: dict[str, dict[str, Any]] = {}
+    for finding in report["findings"]:
+        finding_id = finding["finding_id"]
+        if finding_id in finding_ids:
+            raise ReportError("duplicate report finding")
+        finding_ids.add(finding_id)
+        findings_by_id[finding_id] = finding
+        rows = [
+            row
+            for row in rows_by_result.get(finding["result_id"], [])
+            if row["scenario_id"] == finding["scenario_id"]
+            and any(_contains(row["target"], asset) for asset in finding["affected_assets"])
+        ]
+        if not rows or not finding["affected_assets"]:
+            raise ReportError("report finding has no matching scoped coverage")
+        if any(not _in_scope(asset, scope) for asset in finding["affected_assets"]):
+            raise ReportError("report finding asset is outside engagement scope")
+        references = set(finding["evidence_references"])
+        if len(references) != len(finding["evidence_references"]):
+            raise ReportError("duplicate report finding evidence reference")
+        if not references <= set().union(*(set(row["evidence_records"]) for row in rows)):
+            raise ReportError("report finding references evidence outside matching coverage")
+        status = finding["assessment_status"]
+        strength = finding["evidence_strength"]
+        verification = finding["verification"]
+        if finding["verification"] == "contradicted" and (
+            status != "unresolved"
+            or finding["classification"] != "unresolved"
+            or strength not in {"contradicted", "missing"}
+        ):
+            raise ReportError("contradicted report finding must remain unresolved")
+        if verification != "contradicted" and (status == "unresolved" or strength == "contradicted"):
+            raise ReportError("unresolved or contradicted report finding requires contradictory verification")
+        if strength == "recorded" and (status != "assessed" or not references):
+            raise ReportError("recorded report finding must be assessed with linked evidence")
+        if status == "partial" and strength != "limited":
+            raise ReportError("partial report finding requires limited evidence strength")
+        if status == "partial" and not any(row["status"] in {"assessed", "partial"} for row in rows):
+            raise ReportError("partial report finding lacks assessed or partial coverage")
+        if status == "not_assessed" and strength not in {"limited", "missing"}:
+            raise ReportError("unassessed report finding has contradictory evidence strength")
+        # Scanner partial means collection occurred but independent corroboration
+        # was insufficient. Other partial findings still disclose each asset that
+        # lacks assessed evidence.
+        accepted_asset_statuses = (
+            frozenset({"assessed", "partial"}) if finding["kind"] == "scanner_assertion" else frozenset({"assessed"})
+        )
+        unsupported_assets = _assets_without_assessed_evidence(
+            finding["affected_assets"],
+            rows,
+            references,
+            accepted_statuses=accepted_asset_statuses,
+        )
+        if unsupported_assets and _asset_gap_limitation(unsupported_assets) not in finding["limitations"]:
+            raise ReportError("report finding must disclose unassessed assets")
+        if strength == "limited" and (status not in {"partial", "not_assessed"} or not references):
+            raise ReportError("limited report finding requires linked evidence and a bounded assessment")
+        if strength == "missing" and status not in {"not_assessed", "unresolved"}:
+            raise ReportError("missing report evidence cannot support an assessed finding")
+        if strength == "contradicted" and not references:
+            raise ReportError("contradicted report evidence requires a linked record")
+        if finding["assessment_status"] == "assessed":
+            if (
+                verification != "verified"
+                or finding["kind"] == "scanner_assertion"
+                or any(row["mode"] == "import" for row in rows)
+                or unsupported_assets
+            ):
+                raise ReportError("assessed report finding lacks per-asset validated evidence")
+        if finding["kind"] == "scanner_assertion" and finding["evidence_strength"] == "recorded":
+            raise ReportError("scanner assertion cannot claim recorded validation")
+
+    for row in report["coverage"]:
+        if (
+            row["status"] == "assessed"
+            and _has_scanner_assertion(row, report["findings"])
+            and not _has_assessed_scanner_corroboration(row, report["findings"])
+        ):
+            raise ReportError("scanner result lacks assessed corroboration for coverage")
+    for finding in report["findings"]:
+        dependencies = finding["attack_path_dependencies"]
+        if finding["finding_id"] in dependencies or any(dependency not in finding_ids for dependency in dependencies):
+            raise ReportError("report attack path dependency must name another finding")
+        if finding["kind"] == "reproduced_attack_path" and (
+            finding["assessment_status"] != "assessed"
+            or finding["reproducibility"] != "repeatable"
+            or not dependencies
+            or any(findings_by_id[dependency]["assessment_status"] != "assessed" for dependency in dependencies)
+        ):
+            raise ReportError("report reproduced attack path lacks assessed prerequisites")
+    _validate_dependency_graph(report["findings"])
 
 
 def build_assessment_report(bundle: dict[str, Any]) -> dict[str, Any]:
@@ -195,7 +440,7 @@ def build_assessment_report(bundle: dict[str, Any]) -> dict[str, Any]:
                 raise ReportError("run result has conflicting coverage modes")
             result_modes[result_id] = row["mode"]
             covered_result_ids.add(result_id)
-        key = (row["scenario_id"], row["target"], row["mode"])
+        key = (row["scenario_id"], str(_parse_target(row["target"])), row["mode"])
         if key in coverage_keys:
             raise ReportError("duplicate coverage entry")
         coverage_keys.add(key)
@@ -210,6 +455,15 @@ def build_assessment_report(bundle: dict[str, Any]) -> dict[str, Any]:
             for record_id in (result["evidence_records"] if result else [])
             if record_id in evidence
             and any(_contains(source_target, row["target"]) for source_target in evidence[record_id]["source"]["scope"])
+            and (
+                row["mode"] != "live"
+                or (
+                    evidence[record_id]["observed"]["at"] is not None
+                    and timestamp(result["started_at"])
+                    <= timestamp(evidence[record_id]["observed"]["at"])
+                    <= timestamp(result["finished_at"])
+                )
+            )
         )
         status = _coverage_status(row["mode"], row["access"], result, validated_ids, plan)
         coverage.append(
@@ -226,6 +480,19 @@ def build_assessment_report(bundle: dict[str, Any]) -> dict[str, Any]:
         )
     if covered_result_ids != run_results.keys():
         raise ReportError("every run result requires a coverage entry")
+    represented_plans = {result["plan_id"] for result in run_results.values()}
+    represented_plans.update(
+        plan_id
+        for plan_id, plan in action_plans.items()
+        if any(
+            row["mode"] == "planning"
+            and row["scenario_id"] == plan["scenario_id"]
+            and _parse_target(plan["target"]) == _parse_target(row["target"])
+            for row in coverage
+        )
+    )
+    if action_plans.keys() - represented_plans:
+        raise ReportError("every action plan requires a run result or planning coverage entry")
 
     contexts: dict[str, dict[str, Any]] = {}
     for item in _list(bundle["finding_contexts"], "finding_contexts"):
@@ -250,11 +517,12 @@ def build_assessment_report(bundle: dict[str, Any]) -> dict[str, Any]:
         _strings(context["limitations"], "finding limitations")
         contexts[context["finding_id"]] = context
 
+    source_findings = [_valid_contract(item, "finding") for item in _list(bundle["findings"], "findings")]
+
     findings: list[dict[str, Any]] = []
     finding_ids: set[str] = set()
     limitations = _strings(bundle["limitations"], "limitations")[:]
-    for item in _list(bundle["findings"], "findings"):
-        finding = _valid_contract(item, "finding")
+    for finding in source_findings:
         finding_id = finding["finding_id"]
         if finding_id in finding_ids or finding_id not in contexts:
             raise ReportError("duplicate finding or missing finding context")
@@ -274,11 +542,7 @@ def build_assessment_report(bundle: dict[str, Any]) -> dict[str, Any]:
         record_ids = set(finding["evidence_references"])
         validated_ids = set().union(*(set(row["evidence_records"]) for row in rows))
         complete_evidence = bool(record_ids) and record_ids <= validated_ids
-        uncovered_assets = [
-            asset
-            for asset in context["affected_assets"]
-            if not any(row["status"] == "assessed" and _contains(row["target"], asset) for row in rows)
-        ]
+        uncovered_assets = _assets_without_assessed_evidence(context["affected_assets"], rows, record_ids)
         best_status = (
             "assessed"
             if not uncovered_assets
@@ -286,7 +550,7 @@ def build_assessment_report(bundle: dict[str, Any]) -> dict[str, Any]:
         )
         finding_limitations = context["limitations"][:]
         if uncovered_assets:
-            finding_limitations.append("Not assessed for assets: " + ", ".join(uncovered_assets))
+            finding_limitations.append(_asset_gap_limitation(uncovered_assets))
         if finding["verification"] == "contradicted":
             assessment_status = "unresolved"
             strength = "contradicted" if complete_evidence else "missing"
@@ -302,6 +566,7 @@ def build_assessment_report(bundle: dict[str, Any]) -> dict[str, Any]:
         elif (
             best_status == "assessed"
             and finding["verification"] == "verified"
+            and context["kind"] != "scanner_assertion"
             and not any(row["mode"] == "import" for row in rows)
         ):
             assessment_status, strength = "assessed", "recorded"
@@ -343,12 +608,51 @@ def build_assessment_report(bundle: dict[str, Any]) -> dict[str, Any]:
                 "limitations": finding_limitations,
             }
         )
+    for row in coverage:
+        if (
+            row["status"] == "assessed"
+            and _has_scanner_assertion(row, findings)
+            and not _has_assessed_scanner_corroboration(row, findings)
+        ):
+            row["status"] = "partial"
+            row["provenance"] = _provenance(row["mode"], "partial")
+    for finding in findings:
+        matching_rows = [
+            row
+            for row in coverage
+            if row["result_id"] == finding["result_id"]
+            and row["scenario_id"] == finding["scenario_id"]
+            and any(_contains(row["target"], asset) for asset in finding["affected_assets"])
+        ]
+        accepted_asset_statuses = (
+            frozenset({"assessed", "partial"}) if finding["kind"] == "scanner_assertion" else frozenset({"assessed"})
+        )
+        unsupported_assets = _assets_without_assessed_evidence(
+            finding["affected_assets"],
+            matching_rows,
+            set(finding["evidence_references"]),
+            accepted_statuses=accepted_asset_statuses,
+        )
+        if unsupported_assets:
+            if finding["assessment_status"] == "assessed":
+                finding["assessment_status"] = "partial"
+                finding["evidence_strength"] = "limited"
+            gap = _asset_gap_limitation(unsupported_assets)
+            if gap not in finding["limitations"]:
+                finding["limitations"].append(gap)
     if finding_ids != contexts.keys():
         raise ReportError("orphan finding context")
     for finding in findings:
         dependencies = finding["attack_path_dependencies"]
         if finding["finding_id"] in dependencies or any(dependency not in finding_ids for dependency in dependencies):
             raise ReportError("attack path dependency must reference a different included finding")
+        if finding["kind"] == "reproduced_attack_path" and any(
+            prerequisite["assessment_status"] != "assessed"
+            for prerequisite in findings
+            if prerequisite["finding_id"] in dependencies
+        ):
+            raise ReportError("reproduced attack path requires assessed prerequisites")
+    _validate_dependency_graph(findings)
     report = {
         "schema_version": "cops.assessment-report/v1",
         "report_id": bundle["report_id"],
@@ -358,15 +662,15 @@ def build_assessment_report(bundle: dict[str, Any]) -> dict[str, Any]:
         "coverage": coverage,
         "findings": findings,
         "limitations": limitations,
-        "evidence_notice": "Record hashes establish internal integrity only; source authenticity and authorization need separate validation.",
+        "evidence_notice": _EVIDENCE_NOTICE,
     }
     _valid_contract(report, "assessment_report")
     return report
 
 
 def _safe(value: Any) -> str:
-    escaped = html.escape(str(value), quote=True)
-    escaped = re.sub(r"[\r\n\t]+", " ", escaped)
+    clean = "".join(" " if unicodedata.category(ch) in {"Cc", "Cf", "Cs", "Zl", "Zp"} else ch for ch in str(value))
+    escaped = html.escape(clean, quote=True)
     escaped = re.sub(r"([\\`*_{}\[\]()#+!>~])", r"\\\1", escaped)
     return escaped.replace("|", "&#124;")
 
