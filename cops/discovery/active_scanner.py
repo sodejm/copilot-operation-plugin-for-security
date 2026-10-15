@@ -36,7 +36,6 @@ from .active_models import (
 from .fingerprinter import infer_service_fingerprint
 from .models import EvidenceProvenance
 
-
 _PROBE_RESERVATION_BATCH_SIZE = 1024
 
 
