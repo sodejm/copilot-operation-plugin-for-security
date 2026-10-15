@@ -53,7 +53,6 @@ PORTABLE_ENTRIES = {
     "patchreview",
     "incident_response",
     "threat_intel",
-    "reproduction",
     "offensive_engagement_workbench",
     "adwb",
     "host_assessment_workbench",
