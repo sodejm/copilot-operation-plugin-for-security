@@ -49,6 +49,9 @@ _KINDS = {
 _MODES = {"planning", "import", "laboratory", "live"}
 _ACCESS = {"available", "unavailable", "unknown"}
 _REPRODUCIBILITY = {"repeatable", "limited", "historical_import", "unknown"}
+_EVIDENCE_NOTICE = (
+    "Record hashes establish internal integrity only; source authenticity and authorization need separate validation."
+)
 
 
 def _object(item: Any, keys: set[str], label: str) -> dict[str, Any]:
@@ -102,6 +105,31 @@ def _contains(container: str, target: str) -> bool:
     if isinstance(right, (ipaddress.IPv4Address, ipaddress.IPv6Address)):
         return right in left
     return right.subnet_of(left)
+
+
+def _assets_without_assessed_evidence(
+    affected_assets: list[str],
+    rows: list[dict[str, Any]],
+    references: set[str],
+    *,
+    accepted_statuses: frozenset[str] = frozenset({"assessed"}),
+) -> list[str]:
+    return [
+        asset
+        for asset in affected_assets
+        if not references
+        & set().union(
+            *(
+                set(row["evidence_records"])
+                for row in rows
+                if row["status"] in accepted_statuses and _contains(row["target"], asset)
+            )
+        )
+    ]
+
+
+def _asset_gap_limitation(assets: list[str]) -> str:
+    return "Not assessed for assets: " + ", ".join(assets)
 
 
 def _in_scope(target: str, scope: dict[str, Any]) -> bool:
@@ -203,6 +231,8 @@ def validate_report_semantics(report: dict[str, Any]) -> None:
     This cannot authenticate the input bundle or reconstruct its observation times.
     It rejects internally contradictory coverage and finding claims.
     """
+    if report["evidence_notice"] != _EVIDENCE_NOTICE:
+        raise ReportError("report evidence notice must retain the fixed trust warning")
     scope = report["scope"]
     coverage_keys: set[tuple[str, str, str]] = set()
     rows_by_result: dict[str, list[dict[str, Any]]] = {}
@@ -244,6 +274,8 @@ def validate_report_semantics(report: dict[str, Any]) -> None:
             raise ReportError("partial coverage lacks validated execution evidence")
         if result_id is None and row["status"] != "not_assessed":
             raise ReportError("report coverage without a result cannot be assessed")
+        if result_id is None and row["evidence_records"]:
+            raise ReportError("report coverage without a result cannot reference evidence")
         if len(set(row["evidence_records"])) != len(row["evidence_records"]):
             raise ReportError("duplicate report coverage evidence reference")
 
@@ -287,6 +319,22 @@ def validate_report_semantics(report: dict[str, Any]) -> None:
             raise ReportError("partial report finding requires limited evidence strength")
         if status == "not_assessed" and strength not in {"limited", "missing"}:
             raise ReportError("unassessed report finding has contradictory evidence strength")
+        # Scanner partial means collection occurred but independent corroboration
+        # was insufficient. Other partial findings still disclose each asset that
+        # lacks assessed evidence.
+        accepted_asset_statuses = (
+            frozenset({"assessed", "partial"})
+            if finding["kind"] == "scanner_assertion"
+            else frozenset({"assessed"})
+        )
+        unsupported_assets = _assets_without_assessed_evidence(
+            finding["affected_assets"],
+            rows,
+            references,
+            accepted_statuses=accepted_asset_statuses,
+        )
+        if unsupported_assets and _asset_gap_limitation(unsupported_assets) not in finding["limitations"]:
+            raise ReportError("report finding must disclose unassessed assets")
         if strength == "limited" and (status not in {"partial", "not_assessed"} or not references):
             raise ReportError("limited report finding requires linked evidence and a bounded assessment")
         if strength == "missing" and status not in {"not_assessed", "unresolved"}:
@@ -503,18 +551,7 @@ def build_assessment_report(bundle: dict[str, Any]) -> dict[str, Any]:
         record_ids = set(finding["evidence_references"])
         validated_ids = set().union(*(set(row["evidence_records"]) for row in rows))
         complete_evidence = bool(record_ids) and record_ids <= validated_ids
-        uncovered_assets = [
-            asset
-            for asset in context["affected_assets"]
-            if not record_ids
-            & set().union(
-                *(
-                    set(row["evidence_records"])
-                    for row in rows
-                    if row["status"] == "assessed" and _contains(row["target"], asset)
-                )
-            )
-        ]
+        uncovered_assets = _assets_without_assessed_evidence(context["affected_assets"], rows, record_ids)
         best_status = (
             "assessed"
             if not uncovered_assets
@@ -522,7 +559,7 @@ def build_assessment_report(bundle: dict[str, Any]) -> dict[str, Any]:
         )
         finding_limitations = context["limitations"][:]
         if uncovered_assets:
-            finding_limitations.append("Not assessed for assets: " + ", ".join(uncovered_assets))
+            finding_limitations.append(_asset_gap_limitation(uncovered_assets))
         if finding["verification"] == "contradicted":
             assessment_status = "unresolved"
             strength = "contradicted" if complete_evidence else "missing"
@@ -591,25 +628,18 @@ def build_assessment_report(bundle: dict[str, Any]) -> dict[str, Any]:
     for finding in findings:
         if finding["assessment_status"] != "assessed":
             continue
-        unsupported_assets = [
-            asset
-            for asset in finding["affected_assets"]
-            if not set(finding["evidence_references"])
-            & set().union(
-                *(
-                    set(row["evidence_records"])
-                    for row in coverage
-                    if row["status"] == "assessed"
-                    and row["result_id"] == finding["result_id"]
-                    and row["scenario_id"] == finding["scenario_id"]
-                    and _contains(row["target"], asset)
-                )
-            )
+        matching_rows = [
+            row
+            for row in coverage
+            if row["result_id"] == finding["result_id"] and row["scenario_id"] == finding["scenario_id"]
         ]
+        unsupported_assets = _assets_without_assessed_evidence(
+            finding["affected_assets"], matching_rows, set(finding["evidence_references"])
+        )
         if unsupported_assets:
             finding["assessment_status"] = "partial"
             finding["evidence_strength"] = "limited"
-            finding["limitations"].append("Not assessed for assets: " + ", ".join(unsupported_assets))
+            finding["limitations"].append(_asset_gap_limitation(unsupported_assets))
     if finding_ids != contexts.keys():
         raise ReportError("orphan finding context")
     for finding in findings:
@@ -632,7 +662,7 @@ def build_assessment_report(bundle: dict[str, Any]) -> dict[str, Any]:
         "coverage": coverage,
         "findings": findings,
         "limitations": limitations,
-        "evidence_notice": "Record hashes establish internal integrity only; source authenticity and authorization need separate validation.",
+        "evidence_notice": _EVIDENCE_NOTICE,
     }
     _valid_contract(report, "assessment_report")
     return report

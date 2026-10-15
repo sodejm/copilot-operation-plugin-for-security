@@ -11,7 +11,12 @@ import pytest
 from cops.contracts.lifecycle import ContractError
 from cops.contracts.validation import build_action_plan_digest, validate_contract
 from cops.evidence import build_envelope
-from cops.reporting.assessment import ReportError, build_assessment_report, render_markdown
+from cops.reporting.assessment import (
+    ReportError,
+    build_assessment_report,
+    render_markdown,
+    validate_report_semantics,
+)
 from cops.reporting.cli import command_engagement_report
 
 FIXTURES = Path(__file__).resolve().parents[1] / "cops" / "contracts" / "fixtures"
@@ -392,6 +397,57 @@ def test_narrow_planning_row_does_not_represent_broader_plan():
     report = build_assessment_report(bundle)
     assert report["coverage"][1]["status"] == "not_assessed"
     validate_contract(report, "assessment_report")
+
+
+def test_saved_resultless_coverage_cannot_retain_evidence():
+    report = build_assessment_report(_bundle())
+    row = report["coverage"][0]
+    row.update(
+        result_id=None,
+        status="not_assessed",
+        mode="planning",
+        provenance="planned",
+        access="unavailable",
+    )
+    with pytest.raises(ContractError, match="without a result cannot reference evidence"):
+        validate_contract(report, "assessment_report")
+
+
+def test_saved_report_cannot_replace_fixed_evidence_notice():
+    report = build_assessment_report(_bundle())
+    report["evidence_notice"] = "Evidence was validated."
+    with pytest.raises(ReportError, match="fixed trust warning"):
+        validate_report_semantics(report)
+    with pytest.raises(ContractError):
+        validate_contract(report, "assessment_report")
+
+
+def test_saved_partial_finding_requires_canonical_asset_limitation():
+    bundle = _bundle()
+    bundle["engagement"]["scope"]["excluded_targets"] = []
+    _retarget_plan(bundle, "10.0.0.0/24")
+    bundle["finding_contexts"][0]["affected_assets"].append("10.0.0.6")
+    bundle["coverage"].append({**bundle["coverage"][0], "target": "10.0.0.6"})
+    report = build_assessment_report(bundle)
+    assert report["findings"][0]["limitations"] == ["Not assessed for assets: 10.0.0.6"]
+
+    report["findings"][0]["limitations"] = ["Some coverage was incomplete."]
+    with pytest.raises(ContractError, match="must disclose unassessed assets"):
+        validate_contract(report, "assessment_report")
+
+
+def test_saved_partial_only_finding_cannot_delete_asset_limitation():
+    bundle = _bundle()
+    bundle["run_results"][0]["status"] = "partial"
+    bundle["run_results"][0]["status_details"]["reason"] = "collection incomplete"
+    report = build_assessment_report(bundle)
+    finding = report["findings"][0]
+    assert finding["assessment_status"] == "partial"
+    assert finding["limitations"] == ["Not assessed for assets: 10.0.0.5"]
+
+    finding["limitations"] = []
+    with pytest.raises(ContractError, match="must disclose unassessed assets"):
+        validate_contract(report, "assessment_report")
 
 
 @pytest.mark.parametrize("duplicate_target", ["2001:0db8:0:0:0:0:0:5", "2001:db8::5/128"])

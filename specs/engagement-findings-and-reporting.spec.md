@@ -39,7 +39,13 @@ authorization grant, or report publication occurs in this workflow.
    Validate a saved output report's semantic joins and claims as well as its schema.
    A saved Finding cannot retain `recorded` evidence strength after its status
    becomes partial or not assessed, and saved scanner-associated coverage cannot
-   become assessed without assessed non-scanner corroboration.
+   become assessed without assessed non-scanner corroboration. Coverage without
+   a RunResult cannot retain evidence references. The fixed evidence trust notice
+   cannot be replaced. A Finding that affects an asset without assessed evidence
+   retains the exact generated `Not assessed for assets: ...` limitation. A
+   scanner assertion with partial coverage is the exception: partial records
+   collection without independent corroboration, rather than absent collection
+   for the named asset.
 5. Omit source payloads, credential references, source locators and artifact
    paths. Escape caller-supplied Markdown text and control characters. Create new owner-only files and
    never overwrite an existing output.

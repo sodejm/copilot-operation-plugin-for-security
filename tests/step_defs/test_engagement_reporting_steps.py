@@ -131,6 +131,70 @@ def orphan_action_plan(report_ctx):
     report_ctx["bundle"]["action_plans"].append(extra)
 
 
+@given("it contains a broad action plan with only narrow planning coverage")
+def broad_plan_with_narrow_coverage(report_ctx):
+    bundle = report_ctx["bundle"]
+    bundle["engagement"]["scope"]["excluded_targets"] = []
+    extra = deepcopy(bundle["action_plans"][0])
+    extra["plan_id"] = "plan-broad-bdd-001"
+    extra["target"] = "10.0.0.0/24"
+    extra["plan_digest"] = build_action_plan_digest(
+        snapshot={key: value for key, value in extra.items() if key not in {"status", "plan_digest"}}
+    )
+    bundle["action_plans"].append(extra)
+    bundle["coverage"].append(
+        {
+            "scenario_id": extra["scenario_id"],
+            "target": "10.0.0.6",
+            "mode": "planning",
+            "access": "unavailable",
+            "result_id": None,
+        }
+    )
+
+
+@given("its scanner assertion has an observation on another asset")
+def scanner_observation_on_other_asset(report_ctx):
+    bundle = report_ctx["bundle"]
+    bundle["engagement"]["scope"]["excluded_targets"] = []
+    plan = bundle["action_plans"][0]
+    plan["target"] = "10.0.0.0/24"
+    plan["plan_digest"] = build_action_plan_digest(
+        snapshot={key: value for key, value in plan.items() if key not in {"status", "plan_digest"}}
+    )
+    evidence = build_envelope(
+        acquisition_id="collection-1",
+        product="offline-import",
+        api="records/v1",
+        tenant="tenant-1",
+        scope=["10.0.0.0/24"],
+        identity="network-10",
+        locator="private-locator",
+        payload={"observation": "HTTP service"},
+        acquired_at="2026-10-02T10:05:00Z",
+        transformed_at="2026-10-02T10:05:00Z",
+        observed_at="2026-10-02T10:05:00Z",
+        request_fingerprint="a" * 64,
+        page=1,
+        raw_reference={"store_id": "PRIVATE_STORE_ID", "sha256": "b" * 64},
+    )
+    bundle["evidence_envelopes"] = [evidence]
+    bundle["run_results"][0]["evidence_records"] = [evidence["record_id"]]
+    bundle["findings"][0]["evidence_references"] = [evidence["record_id"]]
+    bundle["coverage"][0]["target"] = "10.0.0.0/24"
+    bundle["finding_contexts"][0]["kind"] = "scanner_assertion"
+    observation = deepcopy(bundle["findings"][0])
+    observation["finding_id"] = "find-observed-bdd-001"
+    bundle["findings"].append(observation)
+    context = deepcopy(bundle["finding_contexts"][0])
+    context.update(
+        finding_id=observation["finding_id"],
+        kind="observed_behavior",
+        affected_assets=["10.0.0.6"],
+    )
+    bundle["finding_contexts"].append(context)
+
+
 @given("it repeats host coverage as a singleton CIDR")
 def duplicate_singleton_coverage(report_ctx):
     row = deepcopy(report_ctx["bundle"]["coverage"][0])
@@ -217,6 +281,28 @@ def contradicted_limited_strength(report_ctx):
     finding = report_ctx["report"]["findings"][0]
     finding.update(verification="contradicted", classification="unresolved", assessment_status="unresolved")
     finding["evidence_strength"] = "limited"
+
+
+@when("the saved resultless coverage retains evidence")
+def resultless_coverage_retains_evidence(report_ctx):
+    row = report_ctx["report"]["coverage"][0]
+    row.update(
+        result_id=None,
+        status="not_assessed",
+        mode="planning",
+        provenance="planned",
+        access="unavailable",
+    )
+
+
+@when("the saved evidence notice is replaced")
+def replace_evidence_notice(report_ctx):
+    report_ctx["report"]["evidence_notice"] = "Evidence was validated."
+
+
+@when("the saved asset limitation is replaced")
+def replace_asset_limitation(report_ctx):
+    report_ctx["report"]["findings"][0]["limitations"] = ["Some coverage was incomplete."]
 
 
 @then("its coverage and finding are assessed")

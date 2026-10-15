@@ -69,6 +69,38 @@ Feature: Evidence-bounded offline engagement reports
     When the assessment report is built
     Then report building fails with an orphan action plan
 
+  Scenario: Narrow planning coverage cannot satisfy a broad action plan
+    Given a valid offline assessment bundle
+    And it contains a broad action plan with only narrow planning coverage
+    When the assessment report is built
+    Then report building fails with an orphan action plan
+
+  Scenario: An observation on another asset cannot corroborate scanner coverage
+    Given a valid offline assessment bundle
+    And its scanner assertion has an observation on another asset
+    When the assessment report is built
+    Then its coverage is partial
+    And the saved assessment report validates
+
+  Scenario: Saved resultless coverage cannot retain evidence
+    Given a valid offline assessment bundle
+    When the assessment report is built
+    And the saved resultless coverage retains evidence
+    Then the saved assessment report is rejected
+
+  Scenario: A saved report cannot replace the evidence trust notice
+    Given a valid offline assessment bundle
+    When the assessment report is built
+    And the saved evidence notice is replaced
+    Then the saved assessment report is rejected
+
+  Scenario: A saved partial finding must retain its exact asset limitation
+    Given a valid offline assessment bundle
+    And its finding also affects a second asset without evidence
+    When the assessment report is built
+    And the saved asset limitation is replaced
+    Then the saved assessment report is rejected
+
   Scenario: A singleton CIDR cannot duplicate host coverage
     Given a valid offline assessment bundle
     And it repeats host coverage as a singleton CIDR
