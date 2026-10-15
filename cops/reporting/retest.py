@@ -6,6 +6,7 @@ from typing import Any
 
 from cops.contracts.validation import validate_contract
 from cops.evidence.canonical import EvidenceError, digest, timestamp
+
 from .assessment import ReportError, _parse_target, _safe
 
 _MAX_BYTES = 4 * 1024 * 1024
@@ -32,9 +33,17 @@ def _same_asset(left: str, right: str) -> bool:
 
 
 def _receipt_digest(receipt: dict[str, Any]) -> str:
-    payload = {key: receipt[key] for key in (
-        "receipt_id", "plan_id", "engagement_id", "worker_identity", "cleaned_effects", "unresolved_effects"
-    )}
+    payload = {
+        key: receipt[key]
+        for key in (
+            "receipt_id",
+            "plan_id",
+            "engagement_id",
+            "worker_identity",
+            "cleaned_effects",
+            "unresolved_effects",
+        )
+    }
     return digest(payload)
 
 
@@ -98,10 +107,14 @@ def validate_retest_input_semantics(bundle: dict[str, Any]) -> None:
         raise ReportError("retest input exceeds item limits")
 
 
-def _result_for(check: dict[str, Any], finding: dict[str, Any], retest: dict[str, Any],
-                baseline_records: set[str]) -> tuple[str, str]:
+def _result_for(
+    check: dict[str, Any], finding: dict[str, Any], retest: dict[str, Any], baseline_records: set[str]
+) -> tuple[str, str]:
     if not _same_asset(check["asset"], check["retest_asset"]):
-        return "identity_changed", "The retest asset identity differs; establish an approved identity mapping and reassess."
+        return (
+            "identity_changed",
+            "The retest asset identity differs; establish an approved identity mapping and reassess.",
+        )
     outcome = check["outcome"]
     if outcome in {"inaccessible", "blocked", "not_assessed"}:
         return outcome, "The target was not affirmatively assessed in the retest."
@@ -109,21 +122,37 @@ def _result_for(check: dict[str, Any], finding: dict[str, Any], retest: dict[str
     fresh_records = records - baseline_records
     if not fresh_records:
         return "evidence_gap", "Retest requires evidence record IDs absent from the entire baseline report."
-    rows = [row for row in retest["coverage"] if row["scenario_id"] == finding["scenario_id"]
-            and row["status"] == "assessed" and row["mode"] in {"laboratory", "live"}
-            and _same_asset(row["target"], check["retest_asset"])
-            and fresh_records & set(row["evidence_records"])]
+    rows = [
+        row
+        for row in retest["coverage"]
+        if row["scenario_id"] == finding["scenario_id"]
+        and row["status"] == "assessed"
+        and row["mode"] in {"laboratory", "live"}
+        and _same_asset(row["target"], check["retest_asset"])
+        and fresh_records & set(row["evidence_records"])
+    ]
     if not rows:
-        return "evidence_gap", "No exact-asset assessed laboratory or live coverage links new retest evidence to this asset."
+        return (
+            "evidence_gap",
+            "No exact-asset assessed laboratory or live coverage links new retest evidence to this asset.",
+        )
     covered_records = set().union(*(set(row["evidence_records"]) for row in rows)) & fresh_records
-    matching = [item for item in retest["findings"] if item["scenario_id"] == finding["scenario_id"]
-                and any(_same_asset(asset, check["retest_asset"]) for asset in item["affected_assets"])]
+    matching = [
+        item
+        for item in retest["findings"]
+        if item["scenario_id"] == finding["scenario_id"]
+        and any(_same_asset(asset, check["retest_asset"]) for asset in item["affected_assets"])
+    ]
     if outcome == "absent":
         if matching:
             return "evidence_gap", "Retest claims absence but the report still contains a matching finding."
         return "candidate_fixed", "Supplied assessed retest coverage supports absence for this exact asset."
-    if not any(item["assessment_status"] == "assessed" and item["kind"] != "scanner_assertion"
-               and covered_records & set(item["evidence_references"]) for item in matching):
+    if not any(
+        item["assessment_status"] == "assessed"
+        and item["kind"] != "scanner_assertion"
+        and covered_records & set(item["evidence_references"])
+        for item in matching
+    ):
         return "evidence_gap", "Present outcome lacks a matching assessed, corroborated finding."
     return "candidate_still_vulnerable", "A supplied assessed retest finding supports continued exposure."
 
@@ -136,13 +165,10 @@ def build_retest_report(bundle: dict[str, Any]) -> dict[str, Any]:
         raise ReportError("invalid retest input") from error
     baseline, retest = bundle["baseline_report"], bundle["retest_report"]
     baseline_records = {record for row in baseline["coverage"] for record in row["evidence_records"]}
-    baseline_records.update(record for finding in baseline["findings"]
-                            for record in finding["evidence_references"])
+    baseline_records.update(record for finding in baseline["findings"] for record in finding["evidence_references"])
     checks = {(check["finding_id"], str(_parse_target(check["asset"]))): check for check in bundle["checks"]}
     results: list[dict[str, Any]] = []
-    gates: set[str] = {
-        "source_verification_required", "owner_verification_required", "cleanup_verification_required"
-    }
+    gates: set[str] = {"source_verification_required", "owner_verification_required", "cleanup_verification_required"}
     for finding in baseline["findings"]:
         for asset in finding["affected_assets"]:
             check = checks.get((finding["finding_id"], str(_parse_target(asset))))
@@ -152,9 +178,17 @@ def build_retest_report(bundle: dict[str, Any]) -> dict[str, Any]:
             else:
                 status, reason = _result_for(check, finding, retest, baseline_records)
                 retest_asset, records = check["retest_asset"], check["evidence_records"]
-            results.append({"finding_id": finding["finding_id"], "asset": asset,
-                            "retest_asset": retest_asset, "scenario_id": finding["scenario_id"],
-                            "status": status, "evidence_records": records, "reason": reason})
+            results.append(
+                {
+                    "finding_id": finding["finding_id"],
+                    "asset": asset,
+                    "retest_asset": retest_asset,
+                    "scenario_id": finding["scenario_id"],
+                    "status": status,
+                    "evidence_records": records,
+                    "reason": reason,
+                }
+            )
             if status != "candidate_fixed":
                 gates.add(status)
     if not results:
@@ -168,8 +202,10 @@ def build_retest_report(bundle: dict[str, Any]) -> dict[str, Any]:
         receipts_by_plan[receipt["plan_id"]].append(receipt)
     if any(not receipts for receipts in receipts_by_plan.values()):
         gates.add("cleanup_receipt_missing")
-    if any(receipt["status"] not in {"completed", "not_required"} or receipt["unresolved_effects"]
-           for receipt in bundle["cleanup_receipts"]):
+    if any(
+        receipt["status"] not in {"completed", "not_required"} or receipt["unresolved_effects"]
+        for receipt in bundle["cleanup_receipts"]
+    ):
         gates.add("cleanup_incomplete")
     if any(row["mode"] == "live" for row in retest["coverage"]):
         gates.update({"live_authority_binding_required", "cleanup_run_binding_required"})
@@ -194,25 +230,36 @@ def build_retest_report(bundle: dict[str, Any]) -> dict[str, Any]:
         "cleanup_run_binding_required": "Verify that cleanup evidence belongs to this live retest run, even when plan IDs match.",
         "fresh_authorization_required": "Obtain authorization for the changed live action plan before execution unless already covered by a valid bound approval.",
     }
-    return {"schema_version": "cops.retest-report/v1", "retest_id": bundle["retest_id"],
-            "engagement_id": baseline["engagement_id"], "baseline_report_id": baseline["report_id"],
-            "retest_report_id": retest["report_id"], "generated_at": bundle["generated_at"],
-            "input_digest": digest(bundle, max_bytes=_MAX_BYTES),
-            "review_context": {
-                "baseline_plan_id": bundle["baseline_plan_id"],
-                "retest_plan_id": bundle["retest_plan_id"],
-                "owner_reference": bundle["owner_reference"],
-                "owner_acknowledged": bundle["owner_acknowledged"],
-                "cleanup_receipts": [{
-                    "receipt_id": receipt["receipt_id"], "plan_id": receipt["plan_id"],
-                    "status": receipt["status"], "unresolved_effects": receipt["unresolved_effects"],
-                } for receipt in bundle["cleanup_receipts"]],
-                "residual_risks": bundle["residual_risks"],
-            },
-            "results": results,
-            "closure_status": "blocked", "closure_gates": sorted(gates),
-            "next_actions": [actions[gate] for gate in sorted(gates)],
-            "evidence_notice": _NOTICE}
+    return {
+        "schema_version": "cops.retest-report/v1",
+        "retest_id": bundle["retest_id"],
+        "engagement_id": baseline["engagement_id"],
+        "baseline_report_id": baseline["report_id"],
+        "retest_report_id": retest["report_id"],
+        "generated_at": bundle["generated_at"],
+        "input_digest": digest(bundle, max_bytes=_MAX_BYTES),
+        "review_context": {
+            "baseline_plan_id": bundle["baseline_plan_id"],
+            "retest_plan_id": bundle["retest_plan_id"],
+            "owner_reference": bundle["owner_reference"],
+            "owner_acknowledged": bundle["owner_acknowledged"],
+            "cleanup_receipts": [
+                {
+                    "receipt_id": receipt["receipt_id"],
+                    "plan_id": receipt["plan_id"],
+                    "status": receipt["status"],
+                    "unresolved_effects": receipt["unresolved_effects"],
+                }
+                for receipt in bundle["cleanup_receipts"]
+            ],
+            "residual_risks": bundle["residual_risks"],
+        },
+        "results": results,
+        "closure_status": "blocked",
+        "closure_gates": sorted(gates),
+        "next_actions": [actions[gate] for gate in sorted(gates)],
+        "evidence_notice": _NOTICE,
+    }
 
 
 def verify_retest_report_derivation(report: dict[str, Any], bundle: dict[str, Any]) -> None:
@@ -224,7 +271,9 @@ def verify_retest_report_derivation(report: dict[str, Any], bundle: dict[str, An
 def validate_retest_report_semantics(report: dict[str, Any]) -> None:
     context = report["review_context"]
     required_gates: set[str] = {
-        "source_verification_required", "owner_verification_required", "cleanup_verification_required"
+        "source_verification_required",
+        "owner_verification_required",
+        "cleanup_verification_required",
     }
     if not context["owner_acknowledged"]:
         required_gates.add("owner_acknowledgement_required")
@@ -233,8 +282,10 @@ def validate_retest_report_semantics(report: dict[str, Any]) -> None:
     plan_ids = {context["baseline_plan_id"], context["retest_plan_id"]}
     if not plan_ids.issubset({receipt["plan_id"] for receipt in context["cleanup_receipts"]}):
         required_gates.add("cleanup_receipt_missing")
-    if any(receipt["status"] not in {"completed", "not_required"} or receipt["unresolved_effects"]
-           for receipt in context["cleanup_receipts"]):
+    if any(
+        receipt["status"] not in {"completed", "not_required"} or receipt["unresolved_effects"]
+        for receipt in context["cleanup_receipts"]
+    ):
         required_gates.add("cleanup_incomplete")
     if not required_gates.issubset(report["closure_gates"]):
         raise ReportError("retest report omits closure review gate")
@@ -254,20 +305,38 @@ def validate_retest_report_semantics(report: dict[str, Any]) -> None:
 
 def render_retest_markdown(report: dict[str, Any]) -> str:
     validate_contract(report, "retest_report", max_bytes=_MAX_BYTES)
-    lines = ["# Retest and closure review", "", f"Status: {_safe(report['closure_status'])}", "",
-             "This report does not close findings or authorize execution.", "", "## Results", ""]
+    lines = [
+        "# Retest and closure review",
+        "",
+        f"Status: {_safe(report['closure_status'])}",
+        "",
+        "This report does not close findings or authorize execution.",
+        "",
+        "## Results",
+        "",
+    ]
     for result in report["results"]:
-        lines.append(f"- {_safe(result['finding_id'])} on {_safe(result['asset'])}: "
-                     f"**{_safe(result['status'])}** — {_safe(result['reason'])}")
+        lines.append(
+            f"- {_safe(result['finding_id'])} on {_safe(result['asset'])}: "
+            f"**{_safe(result['status'])}** — {_safe(result['reason'])}"
+        )
     context = report["review_context"]
-    lines.extend(["", "## Closure review context", "",
-                  f"- Baseline plan: {_safe(context['baseline_plan_id'])}",
-                  f"- Retest plan: {_safe(context['retest_plan_id'])}",
-                  f"- Owner reference: {_safe(context['owner_reference'])}",
-                  f"- Owner acknowledged: {str(context['owner_acknowledged']).lower()}"])
+    lines.extend(
+        [
+            "",
+            "## Closure review context",
+            "",
+            f"- Baseline plan: {_safe(context['baseline_plan_id'])}",
+            f"- Retest plan: {_safe(context['retest_plan_id'])}",
+            f"- Owner reference: {_safe(context['owner_reference'])}",
+            f"- Owner acknowledged: {str(context['owner_acknowledged']).lower()}",
+        ]
+    )
     for receipt in context["cleanup_receipts"]:
-        lines.append(f"- Cleanup receipt {_safe(receipt['receipt_id'])}: "
-                     f"{_safe(receipt['status'])}; unresolved effects: {len(receipt['unresolved_effects'])}")
+        lines.append(
+            f"- Cleanup receipt {_safe(receipt['receipt_id'])}: "
+            f"{_safe(receipt['status'])}; unresolved effects: {len(receipt['unresolved_effects'])}"
+        )
         for effect in receipt["unresolved_effects"]:
             lines.append(f"  - {_safe(effect['effect_id'])} on {_safe(effect['target'])}: {_safe(effect['reason'])}")
     lines.extend(f"- Residual risk: {_safe(risk)}" for risk in context["residual_risks"])
