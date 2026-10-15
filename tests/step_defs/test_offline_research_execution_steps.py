@@ -42,9 +42,7 @@ def _stage(context, profile):
     workspace.mkdir(mode=0o700, exist_ok=True)
     workspace_fd = open_directory_no_symlinks(workspace)
     try:
-        ledger = SideEffectLedger(
-            "plan-offline-test", "eng-offline-test", WORKER_ID, workspace_dir=workspace
-        )
+        ledger = SideEffectLedger("plan-offline-test", "eng-offline-test", WORKER_ID, workspace_dir=workspace)
         return stage_corpora(profile, workspace=workspace, workspace_fd=workspace_fd, ledger=ledger)
     finally:
         os.close(workspace_fd)
@@ -72,9 +70,7 @@ def stage_approved_corpus(offline_context):
 @then("the staged digest and synthetic isolation observation match the plan")
 def verify_staged_evidence(offline_context):
     profile = offline_context["profile"]
-    assert offline_context["staged"] == [
-        {"name": "sample", "sha256": profile["corpora"][0]["sha256"]}
-    ]
+    assert offline_context["staged"] == [{"name": "sample", "sha256": profile["corpora"][0]["sha256"]}]
     assert offline_context["observation"] == {
         "digest": profile["isolation_attestation"]["digest"],
         "scope": "synthetic",
@@ -155,9 +151,7 @@ def validate_isolation_evidence(offline_context):
     profile = dict(offline_context["profile"])
     profile["isolation_attestation"] = dict(profile["isolation_attestation"])
     profile["isolation_attestation"]["observed_at"] = (
-        (datetime.now(UTC) - timedelta(minutes=6))
-        .isoformat(timespec="microseconds")
-        .replace("+00:00", "Z")
+        (datetime.now(UTC) - timedelta(minutes=6)).isoformat(timespec="microseconds").replace("+00:00", "Z")
     )
     with pytest.raises(OfflineResearchError, match="stale"):
         _validate(_plan(profile))
