@@ -21,9 +21,7 @@ def _fixture(name: str) -> dict:
     return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
 
 
-def _envelope(
-    *, observed_at: str | None = "2026-10-02T10:05:00Z", target: str = "10.0.0.5"
-) -> dict:
+def _envelope(*, observed_at: str | None = "2026-10-02T10:05:00Z", target: str = "10.0.0.5") -> dict:
     return build_envelope(
         acquisition_id="collection-1",
         product="offline-import",
@@ -234,7 +232,9 @@ def test_evidence_for_one_asset_cannot_assess_another():
     from cops.contracts.validation import build_action_plan_digest
 
     bundle["action_plans"][0]["plan_digest"] = build_action_plan_digest(
-        snapshot={key: value for key, value in bundle["action_plans"][0].items() if key not in {"status", "plan_digest"}}
+        snapshot={
+            key: value for key, value in bundle["action_plans"][0].items() if key not in {"status", "plan_digest"}
+        }
     )
     bundle["finding_contexts"][0]["affected_assets"].append("10.0.0.6")
     bundle["coverage"].append({**bundle["coverage"][0], "target": "10.0.0.6"})
@@ -251,7 +251,9 @@ def test_distinct_evidence_for_each_asset_supports_multi_asset_finding():
     from cops.contracts.validation import build_action_plan_digest
 
     bundle["action_plans"][0]["plan_digest"] = build_action_plan_digest(
-        snapshot={key: value for key, value in bundle["action_plans"][0].items() if key not in {"status", "plan_digest"}}
+        snapshot={
+            key: value for key, value in bundle["action_plans"][0].items() if key not in {"status", "plan_digest"}
+        }
     )
     second = _envelope(target="10.0.0.6")
     bundle["evidence_envelopes"].append(second)
@@ -287,7 +289,9 @@ def test_canonical_ipv6_coverage_duplicate_is_rejected():
     from cops.contracts.validation import build_action_plan_digest
 
     bundle["action_plans"][0]["plan_digest"] = build_action_plan_digest(
-        snapshot={key: value for key, value in bundle["action_plans"][0].items() if key not in {"status", "plan_digest"}}
+        snapshot={
+            key: value for key, value in bundle["action_plans"][0].items() if key not in {"status", "plan_digest"}
+        }
     )
     bundle["coverage"][0]["target"] = "2001:db8::5"
     bundle["coverage"].append({**bundle["coverage"][0], "target": "2001:0db8:0:0:0:0:0:5"})

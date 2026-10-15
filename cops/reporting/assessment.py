@@ -154,9 +154,7 @@ def validate_report_semantics(report: dict[str, Any]) -> None:
         result_id = row["result_id"]
         if result_id is not None:
             validate_identifier(result_id, "run_result")
-            if row["mode"] == "planning" or (
-                result_id in result_modes and result_modes[result_id] != row["mode"]
-            ):
+            if row["mode"] == "planning" or (result_id in result_modes and result_modes[result_id] != row["mode"]):
                 raise ReportError("report run result has conflicting coverage modes")
             result_modes[result_id] = row["mode"]
             rows_by_result.setdefault(result_id, []).append(row)
@@ -186,7 +184,8 @@ def validate_report_semantics(report: dict[str, Any]) -> None:
         finding_ids.add(finding_id)
         findings_by_id[finding_id] = finding
         rows = [
-            row for row in rows_by_result.get(finding["result_id"], [])
+            row
+            for row in rows_by_result.get(finding["result_id"], [])
             if row["scenario_id"] == finding["scenario_id"]
             and any(_contains(row["target"], asset) for asset in finding["affected_assets"])
         ]
@@ -212,9 +211,13 @@ def validate_report_semantics(report: dict[str, Any]) -> None:
                 or not references
                 or any(row["mode"] == "import" for row in rows)
                 or any(
-                    not references & set().union(
-                        *(set(row["evidence_records"]) for row in rows
-                          if row["status"] == "assessed" and _contains(row["target"], asset))
+                    not references
+                    & set().union(
+                        *(
+                            set(row["evidence_records"])
+                            for row in rows
+                            if row["status"] == "assessed" and _contains(row["target"], asset)
+                        )
                     )
                     for asset in finding["affected_assets"]
                 )
@@ -224,9 +227,7 @@ def validate_report_semantics(report: dict[str, Any]) -> None:
             raise ReportError("scanner assertion cannot claim recorded validation")
 
     for result_id, kinds in kinds_by_result.items():
-        if kinds == {"scanner_assertion"} and any(
-            row["status"] == "assessed" for row in rows_by_result[result_id]
-        ):
+        if kinds == {"scanner_assertion"} and any(row["status"] == "assessed" for row in rows_by_result[result_id]):
             raise ReportError("scanner-only result cannot claim assessed coverage")
     for finding in report["findings"]:
         dependencies = finding["attack_path_dependencies"]
@@ -387,9 +388,7 @@ def build_assessment_report(bundle: dict[str, Any]) -> dict[str, Any]:
         context = contexts.get(source_finding["finding_id"])
         if context is not None:
             kinds_by_result.setdefault(source_finding["result_id"], set()).add(context["kind"])
-    scanner_only_results = {
-        result_id for result_id, kinds in kinds_by_result.items() if kinds == {"scanner_assertion"}
-    }
+    scanner_only_results = {result_id for result_id, kinds in kinds_by_result.items() if kinds == {"scanner_assertion"}}
     for row in coverage:
         if row["result_id"] in scanner_only_results and row["status"] == "assessed":
             row["status"] = "partial"
