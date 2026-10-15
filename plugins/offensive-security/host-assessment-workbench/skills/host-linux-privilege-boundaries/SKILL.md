@@ -6,7 +6,7 @@ description: Review bounded local Linux privilege-boundary exports without host 
 # Linux privilege-boundary review
 
 1. Confirm that the input is a local synthetic or operator export using the v1
-   contract in `specs/host-linux-privilege-boundaries.spec.md`. Do not acquire
+   contract in `docs/IMPORT_CONTRACT.md` in this package. Do not acquire
    secrets or run host commands to fill missing fields.
 2. Run `scripts/assess.py` on the export. Read per-surface coverage, host
    context, and prerequisite decision before discussing an observation.

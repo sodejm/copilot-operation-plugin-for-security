@@ -26,6 +26,13 @@ SURFACES = (
     "container_context",
 )
 PROTECTIONS = ("selinux", "apparmor", "no_new_privs", "seccomp", "user_namespaces")
+PROTECTION_STATES = {
+    "selinux": {"enforcing", "permissive", "disabled"},
+    "apparmor": {"enforcing", "complain", "disabled"},
+    "no_new_privs": {"enabled", "disabled"},
+    "seccomp": {"enabled", "disabled"},
+    "user_namespaces": {"enabled", "disabled"},
+}
 ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}\Z")
 VERSION_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._+-]{0,63}\Z")
 CLASSIFICATIONS = (
@@ -84,7 +91,9 @@ def load_report_bytes(data: bytes) -> dict[str, Any]:
     _check_json_depth(data)
     try:
         payload = json.loads(data.decode("utf-8"), object_pairs_hook=_object_pairs, parse_constant=_reject_constant)
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+    except ContractError:
+        raise
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
         raise ContractError("malformed UTF-8 JSON") from exc
     except RecursionError as exc:
         raise ContractError("JSON nesting exceeds parser limit") from exc
@@ -126,7 +135,7 @@ def _host(value: Any) -> dict[str, Any]:
     protections = _exact_keys(host["protections"], set(PROTECTIONS), "host.protections")
     states = {
         name: _enum(
-            protections[name], {"enabled", "disabled", "enforcing", "permissive", "unknown"}, f"host.protections.{name}"
+            protections[name], PROTECTION_STATES[name] | {"unknown"}, f"host.protections.{name}"
         )
         for name in PROTECTIONS
     }
@@ -149,7 +158,7 @@ def _requirements(value: Any) -> dict[str, Any]:
     if not isinstance(protections, dict) or set(protections) - set(PROTECTIONS):
         raise ContractError("requirements.protections has unsupported fields")
     states = {
-        name: _enum(state, {"enabled", "disabled", "enforcing", "permissive"}, f"requirements.protections.{name}")
+        name: _enum(state, PROTECTION_STATES[name], f"requirements.protections.{name}")
         for name, state in sorted(protections.items())
     }
     return {

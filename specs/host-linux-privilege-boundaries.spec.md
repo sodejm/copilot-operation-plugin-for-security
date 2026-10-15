@@ -18,12 +18,19 @@ The top-level object has exactly `schema_version`, `source_kind`, `source_id`,
 `host`, `coverage`, and `observations`. `source_kind` is `synthetic_lab` or
 `operator_export`. `source_id` and all observation and evidence IDs are opaque
 identifiers, not paths or raw evidence. Unknown keys, duplicate keys, malformed
-JSON, oversized files, and unsupported versions fail closed.
+JSON, oversized files, oversized JSON integers, and unsupported versions fail closed.
 
 `host` records a kernel release, distribution ID and version, namespace
 (`host`, `container`, or `unknown`), and five protection states: SELinux,
 AppArmor, no-new-privileges, seccomp, and user namespaces. Unknown is explicit.
 No observation is selected without this context.
+
+Protection states are specific to each control: SELinux accepts `enforcing`,
+`permissive`, or `disabled`; AppArmor accepts `enforcing`, `complain`, or
+`disabled`; no-new-privileges, seccomp, and user namespaces accept `enabled` or
+`disabled`. Host context may use `unknown`; observation prerequisites may not.
+The packaged [import contract](../plugins/offensive-security/host-assessment-workbench/docs/IMPORT_CONTRACT.md)
+contains the complete field and limit table for installed users.
 
 Each observation names one surface, a configuration state (`interesting`,
 `ordinary`, or `unknown`), evidence IDs, and exact prerequisites for kernel

@@ -40,7 +40,7 @@ contract but does not independently verify the source's claims.
 The [positive](fixtures/synthetic/host_linux_positive_v1.json),
 [negative](fixtures/synthetic/host_linux_negative_v1.json), and
 [fixed](fixtures/synthetic/host_linux_fixed_v1.json) fixtures are complete runnable
-inputs. The [Linux privilege-boundary contract](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/specs/host-linux-privilege-boundaries.spec.md)
+inputs. The [Linux privilege-boundary import contract](docs/IMPORT_CONTRACT.md)
 defines the exact schema.
 
 | Record or field | Purpose and producer | Consumer and validation |

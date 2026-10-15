@@ -162,6 +162,17 @@ class TestSpecialistWorkflowHandoff(unittest.TestCase):
             accept_specialist_handoff(handoff, "cops-pentest-specialist")
         self.assertEqual(handoff.status, "rejected")
 
+    def test_host_workflow_resolves_to_registered_local_skill(self) -> None:
+        target = _resolve_workflow_target(
+            {"skill_id": "host-linux-privilege-boundaries", "capability_id": "cops-host-specialist"},
+            "cops-host-specialist",
+        )
+        self.assertEqual(
+            target["implementation"],
+            ".agents/skills/host-linux-privilege-boundaries/SKILL.md",
+        )
+        self.assertTrue(target["implementation_digest"].startswith("sha256:"))
+
     def test_nonexistent_or_mismatched_workflow_targets_are_rejected(self) -> None:
         for skill_id, capability_id in (
             ("unknown-workflow", "cops-pentest-specialist"),
