@@ -16,26 +16,6 @@ if ($env:OS -ne "Windows_NT") {
     throw "The native Windows bridge can run only on Windows."
 }
 
-function Resolve-NewLocalFile {
-    param([string]$Path, [string]$Name)
-    $full = [IO.Path]::GetFullPath($Path)
-    if ($full.StartsWith("\\")) {
-        throw "$Name must be on a local filesystem."
-    }
-    if (Test-Path -LiteralPath $full) {
-        throw "$Name already exists."
-    }
-    $parent = Split-Path -Parent $full
-    if (-not (Test-Path -LiteralPath $parent -PathType Container)) {
-        throw "$Name parent directory does not exist."
-    }
-    $parentItem = Get-Item -LiteralPath $parent -Force
-    if ($parentItem.PSProvider.Name -ne "FileSystem" -or $parentItem.PSDrive.DisplayRoot) {
-        throw "$Name must be on a local filesystem."
-    }
-    return $full
-}
-
 function Get-CopsStringSha256 {
     param([string]$Value)
 
@@ -165,18 +145,9 @@ function Assert-CopsCanaryDirectoryIdentity {
     }
 }
 
-$outputFull = Resolve-NewLocalFile -Path $OutputPath -Name "OutputPath"
-$receiptFull = Resolve-NewLocalFile -Path $ReceiptPath -Name "ReceiptPath"
-$canaryFull = [IO.Path]::GetFullPath($CanaryRoot)
-if ($canaryFull.StartsWith("\\") -or -not (Test-Path -LiteralPath $canaryFull -PathType Container)) {
-    throw "CanaryRoot must be an existing local directory."
-}
-$canaryItem = Get-Item -LiteralPath $canaryFull -Force
-if ($canaryItem.PSProvider.Name -ne "FileSystem" -or $canaryItem.PSDrive.DisplayRoot -or
-    ($canaryItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
-    throw "CanaryRoot cannot be a reparse point."
-}
-$canaryFull = [IO.Path]::GetFullPath($canaryItem.FullName)
+$outputFull = Resolve-CopsLocalPath -Path $OutputPath -Name "OutputPath" -Kind NewFile
+$receiptFull = Resolve-CopsLocalPath -Path $ReceiptPath -Name "ReceiptPath" -Kind NewFile
+$canaryFull = Resolve-CopsLocalPath -Path $CanaryRoot -Name "CanaryRoot" -Kind ExistingDirectory
 if (@(Get-ChildItem -LiteralPath $canaryFull -Force).Count -ne 0) {
     throw "CanaryRoot must be empty before assessment."
 }

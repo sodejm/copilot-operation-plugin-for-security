@@ -15,6 +15,7 @@ from host_assessment_workbench.core import MAX_INPUT_BYTES, ContractError  # noq
 from host_assessment_workbench.windows_bridge import (  # noqa: E402
     load_bridge_receipt_bytes,
     validate_bridge_receipt,
+    validate_windows_existing_path,
 )
 
 
@@ -33,10 +34,13 @@ def main() -> int:
     parser.add_argument("--canary-root", required=True, type=Path)
     args = parser.parse_args()
     try:
+        receipt_path = validate_windows_existing_path(args.receipt, "receipt")
+        export_path = validate_windows_existing_path(args.export, "export")
+        canary_root = validate_windows_existing_path(args.canary_root, "canary root")
         result = validate_bridge_receipt(
-            load_bridge_receipt_bytes(read_bounded_input(args.receipt)),
-            read_bounded_input(args.export),
-            args.canary_root,
+            load_bridge_receipt_bytes(read_bounded_input(receipt_path)),
+            read_bounded_input(export_path),
+            canary_root,
         )
     except (ContractError, OSError) as exc:
         print(f"Windows bridge validation failed: {exc}", file=sys.stderr)

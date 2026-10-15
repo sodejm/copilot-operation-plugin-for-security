@@ -83,27 +83,70 @@ if (-not $remotePathRejected) {
     throw "A remote PATH entry must be rejected before filesystem inspection."
 }
 
-$runFull = [IO.Path]::GetFullPath($RunRoot)
-if ($runFull.StartsWith("\\") -or (Test-Path -LiteralPath $runFull)) {
-    throw "RunRoot must be a new path on a local filesystem."
-}
+$runFull = Resolve-CopsLocalPath -Path $RunRoot -Name "RunRoot" -Kind NewDirectory
 $parent = Split-Path -Parent $runFull
-if (-not (Test-Path -LiteralPath $parent -PathType Container)) {
-    throw "RunRoot parent directory does not exist."
+
+# Exercise ancestor-junction rejection and partial-write cleanup on the native
+# filesystem before the actual run writes any artifacts.
+$selfTestRoot = Join-Path $parent (".cops-windows-bridge-test-" + [Guid]::NewGuid().ToString("N"))
+$selfTestRoot = Resolve-CopsLocalPath -Path $selfTestRoot -Name "Self-test root" -Kind NewDirectory
+New-Item -ItemType Directory -Path $selfTestRoot -ErrorAction Stop | Out-Null
+try {
+    $targetRoot = Join-Path $selfTestRoot "target"
+    $carrierRoot = Join-Path $selfTestRoot "carrier"
+    $targetRoot = Resolve-CopsLocalPath -Path $targetRoot -Name "Self-test target" -Kind NewDirectory
+    $carrierRoot = Resolve-CopsLocalPath -Path $carrierRoot -Name "Self-test carrier" -Kind NewDirectory
+    New-Item -ItemType Directory -Path $targetRoot -ErrorAction Stop | Out-Null
+    New-Item -ItemType Directory -Path $carrierRoot -ErrorAction Stop | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $targetRoot "nested") -ErrorAction Stop | Out-Null
+    $junction = Join-Path $carrierRoot "junction"
+    New-Item -ItemType Junction -Path $junction -Target $targetRoot -ErrorAction Stop | Out-Null
+    $junctionRejected = $false
+    try {
+        $null = Resolve-CopsLocalPath `
+            -Path (Join-Path $junction "nested\artifact.json") `
+            -Name "Junction self-test path" -Kind NewFile
+    } catch {
+        if ($_.Exception.Message -match "reparse point") {
+            $junctionRejected = $true
+        } else {
+            throw
+        }
+    }
+    if (-not $junctionRejected) {
+        throw "Ancestor junction self-test did not fail closed."
+    }
+
+    $partialPath = Join-Path $selfTestRoot "partial.json"
+    $partialWriteRejected = $false
+    try {
+        Invoke-CopsExclusiveFileWrite -Path $partialPath -Writer {
+            param($stream)
+            $stream.WriteByte(123)
+            throw "controlled partial write failure"
+        }
+    } catch {
+        if ($_.Exception.Message -match "controlled partial write failure") {
+            $partialWriteRejected = $true
+        } else {
+            throw
+        }
+    }
+    if (-not $partialWriteRejected -or
+        (Test-Path -LiteralPath $partialPath) -or
+        @(Get-ChildItem -LiteralPath $selfTestRoot -Filter ".partial.json.cops-*.tmp" -Force).Count -ne 0) {
+        throw "Partial-write cleanup self-test did not fail closed without residue."
+    }
+} finally {
+    $junction = Join-Path (Join-Path $selfTestRoot "carrier") "junction"
+    if (Test-Path -LiteralPath $junction) {
+        Remove-Item -LiteralPath $junction -Force -ErrorAction Stop
+    }
+    Remove-Item -LiteralPath $selfTestRoot -Recurse -Force -ErrorAction Stop
 }
-$parentItem = Get-Item -LiteralPath $parent -Force
-if ($parentItem.PSProvider.Name -ne "FileSystem" -or $parentItem.PSDrive.DisplayRoot -or
-    ($parentItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
-    throw "RunRoot parent must be a local non-reparse filesystem directory."
-}
+
 New-Item -ItemType Directory -Path $runFull -ErrorAction Stop | Out-Null
-$runItem = Get-Item -LiteralPath $runFull -Force
-if (($runItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
-    -not [IO.Path]::GetFullPath($runItem.FullName).Equals(
-        $runFull, [StringComparison]::OrdinalIgnoreCase
-    )) {
-    throw "RunRoot identity validation failed."
-}
+$runFull = Resolve-CopsLocalPath -Path $runFull -Name "RunRoot" -Kind ExistingDirectory
 
 $canaryRoot = Join-Path $runFull "canary"
 $exportPath = Join-Path $runFull "windows-export.json"

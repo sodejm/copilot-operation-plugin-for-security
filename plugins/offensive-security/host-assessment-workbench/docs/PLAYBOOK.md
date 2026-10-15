@@ -56,6 +56,13 @@ the registry probe covers AlwaysInstallElevated but not Run keys; and local
 credential references exclude Credential Manager. The scheduled-task ACL probe
 has no pinned E01.1 source mapping.
 
+Before collecting, the exercise runs two native safety checks. It requires path
+validation to reject a child beneath a junction, and it injects a failure after
+a partial temporary-file write. The second check passes only when neither the
+final artifact nor a temporary residue remains. The production writer uses an
+exclusive same-directory temporary file, flushes it, and performs a
+handle-bound, no-replace rename.
+
 Review each coverage field. An omitted observation with `access_denied` or
 `not_assessed` coverage is an explicit gap. Native observations are configuration
 candidates, not proof of a working escalation. The exercise also verifies that a

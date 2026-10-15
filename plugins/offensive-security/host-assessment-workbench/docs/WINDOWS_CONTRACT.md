@@ -43,6 +43,15 @@ supplied root, and requires that root to be empty. This lifecycle canary validat
 assessment-owned cleanup and same-token process visibility only; it is not a
 cross-identity or privilege-crossing canary.
 
+Every caller-supplied path is rejected unless it is a fully qualified path on a
+fixed local drive. Before probing a leaf, the bridge walks its existing
+ancestors from the drive root and rejects reparse points, including junctions.
+New artifacts are written through an exclusively created, same-directory
+temporary file, flushed, and renamed by its open handle without replacing an
+existing destination. If the write fails, cleanup is registered on that same
+handle before it is closed. This keeps the validation and write bound to the
+object that the bridge opened rather than a later path lookup.
+
 ## Import contract
 
 The top-level object has exactly `schema_version`, `source_kind`, `source_id`,
@@ -97,6 +106,8 @@ Windows collection.
 The repository-contract Windows job runs `scripts/exercise-windows-bridge.ps1`
 on a disposable `windows-latest` runner. That shared practitioner entry point
 exercises the explicit ACL mutation predicate with read-only and writable rights,
+runs native self-tests that reject a junction ancestor and remove an injected
+partial write without creating the final artifact,
 runs the native collector and importer, validates the SHA- and identity-bound
 lifecycle receipt, and runs the separate same-token observer before creation,
 after creation, and after deletion. The after-creation observer independently

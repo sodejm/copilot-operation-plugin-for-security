@@ -298,7 +298,9 @@ def test_native_collector_validates_every_path_before_filesystem_probe() -> None
     script = (PACKAGE / "scripts" / "collect-windows.ps1").read_text()
     common = (PACKAGE / "scripts" / "windows-bridge-common.ps1").read_text()
     exercise = (PACKAGE / "scripts" / "exercise-windows-bridge.ps1").read_text()
-    validator = powershell_function(common, "Assert-CopsLocalPathEntry")
+    observer = (PACKAGE / "scripts" / "observe-windows-canary.ps1").read_text()
+    cli_validator = (PACKAGE / "scripts" / "validate-windows-bridge.py").read_text()
+    validator = powershell_function(common, "Resolve-CopsLocalPath")
 
     assert "$Path -notmatch '^[A-Za-z]:" in validator
     assert "$Path -match" in validator
@@ -316,6 +318,23 @@ def test_native_collector_validates_every_path_before_filesystem_probe() -> None
     assert "Assert-CopsLocalPathEntry -Path '\\\\server\\share'" in exercise
     assert "A remote PATH entry must be rejected before filesystem inspection." in exercise
 
+    collector_main = script[script.index("$outputFull = Resolve-CopsLocalPath") :]
+    assert collector_main.index("$outputFull = Resolve-CopsLocalPath") < collector_main.index("Get-ChildItem")
+    assert collector_main.index("$receiptFull = Resolve-CopsLocalPath") < collector_main.index("Get-ChildItem")
+    assert collector_main.index("$canaryFull = Resolve-CopsLocalPath") < collector_main.index("Get-ChildItem")
+
+    observer_main = observer[observer.index("$rootFull = Resolve-CopsLocalPath") :]
+    assert observer_main.index("$rootFull = Resolve-CopsLocalPath") < observer_main.index("Test-Path")
+
+    exercise_main = exercise[exercise.index("$runFull = Resolve-CopsLocalPath") :]
+    assert exercise_main.index("$runFull = Resolve-CopsLocalPath") < exercise_main.index("New-Item")
+
+    python_main = cli_validator[cli_validator.index("def main(") :]
+    first_read = python_main.index("read_bounded_input(")
+    assert python_main.index("validate_windows_existing_path(args.receipt") < first_read
+    assert python_main.index("validate_windows_existing_path(args.export") < first_read
+    assert python_main.index("validate_windows_existing_path(args.canary_root") < first_read
+
     section_start = script.index("$pathDirectories =")
     section_end = script.index("$familyCoverage", section_start)
     section = script[section_start:section_end]
@@ -331,13 +350,25 @@ def test_native_collector_validates_every_path_before_filesystem_probe() -> None
 def test_native_collector_uses_exclusive_create_for_all_artifact_writes() -> None:
     script = (PACKAGE / "scripts" / "collect-windows.ps1").read_text()
     common = (PACKAGE / "scripts" / "windows-bridge-common.ps1").read_text()
-    writer = powershell_function(common, "Write-CopsNewUtf8File")
+    writer = powershell_function(common, "Invoke-CopsExclusiveFileWrite")
+    native = powershell_function(common, "Initialize-CopsNativeFileDisposition")
+    wrapper = powershell_function(common, "Write-CopsNewUtf8File")
 
-    assert "[IO.FileMode]::CreateNew" in writer
-    assert "[IO.FileAccess]::Write" in writer
-    assert "[IO.FileShare]::None" in writer
+    assert "Resolve-CopsLocalPath" in writer
+    assert ".cops-" in writer
+    assert "::CreateExclusive" in writer
+    assert "$stream.Flush($true)" in writer
+    assert "::RenameNoReplace" in writer
+    assert "::DeleteOnClose($handle)" in writer
     assert "finally {" in writer
     assert "$stream.Dispose()" in writer
+    assert "$handle.Dispose()" in writer
+    assert "GENERIC_WRITE | DELETE" in native
+    assert "CREATE_NEW" in native
+    assert "CreateFileW" in native
+    assert "RenameNoReplace" in native
+    assert "DeleteOnClose" in native
+    assert "Invoke-CopsExclusiveFileWrite" in wrapper
     assert "[IO.File]::WriteAllText" not in script
     assert "Write-CopsNewUtf8File -Path $markerPath" in script
     assert "Write-CopsNewUtf8File -Path $outputFull" in script
@@ -350,6 +381,19 @@ def test_native_exercise_uses_exclusive_create_for_derived_artifacts() -> None:
     assert "[IO.File]::WriteAllText" not in exercise
     assert "Write-CopsNewUtf8File -Path $reportPath" in exercise
     assert "Write-CopsNewUtf8File -Path $validatedReceiptPath" in exercise
+
+
+def test_native_exercise_injects_junction_and_partial_write_failures() -> None:
+    exercise = (PACKAGE / "scripts" / "exercise-windows-bridge.ps1").read_text()
+
+    assert "New-Item -ItemType Junction" in exercise
+    assert "Resolve-CopsLocalPath" in exercise
+    assert "Ancestor junction self-test did not fail closed." in exercise
+    assert "Invoke-CopsExclusiveFileWrite" in exercise
+    assert "$stream.WriteByte(123)" in exercise
+    assert "controlled partial write failure" in exercise
+    assert ".partial.json.cops-*.tmp" in exercise
+    assert "Partial-write cleanup self-test did not fail closed without residue." in exercise
 
 
 def test_native_exercise_reports_only_artifact_names() -> None:
