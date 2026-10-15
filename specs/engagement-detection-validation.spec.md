@@ -27,6 +27,8 @@ The report uses four measured labels:
   and log with required fields have linked evidence,
   exact correlation and complete collection are declared, and a completed
   zero-result search receipt covers the action window plus skew and ingest lag.
+  Alerts outside that expanded window remain visible but do not contradict the
+  covering zero-result search.
 - `ambiguous`: supplied signals exist but their timing, correlation, or search
   completeness cannot establish either of the above outcomes.
 - `unavailable`: the action was not completed, its in-window execution

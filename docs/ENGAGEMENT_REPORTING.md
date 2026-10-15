@@ -158,6 +158,8 @@ zero-result search receipt that covers the action window plus allowed clock skew
 and ingest lag. `ambiguous` means the supplied evidence cannot distinguish these
 outcomes. `unavailable` means execution was not completed or observed, or
 collection was declared unavailable. A missing signal never proves prevention.
+An alert outside the expanded observation window remains visible in the report
+but does not contradict a covering zero-result search for that window.
 The source notice names a separate trust boundary: record hashes establish
 internal integrity, while provider-wide completeness and source authenticity
 need independent verification before a measured result is used operationally.

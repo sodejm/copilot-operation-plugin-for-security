@@ -297,7 +297,7 @@ def build_detection_report(bundle: Any, *, mappings: list[CoverageMapping] | Non
         zero_search = (
             receipt_covering and receipt_payload["status"] == "complete" and receipt_payload["result_count"] == 0
         )
-        conflicting_search = zero_search and bool(alerts)
+        conflicting_search = zero_search and alert_seen
         limitations = []
         if not execution_seen:
             limitations.append("No in-window execution observation")
@@ -320,7 +320,7 @@ def build_detection_report(bundle: Any, *, mappings: list[CoverageMapping] | Non
             and check["correlation_status"] == "exact"
             and telemetry_seen
             and zero_search
-            and not alerts
+            and not alert_seen
         ):
             status = "missed"
         else:
