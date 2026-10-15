@@ -44,7 +44,7 @@ revision.
 ```bash
 P=plugins/offensive-security/host-assessment-workbench
 python3 "$P/scripts/assess.py" "$P/fixtures/synthetic/host_linux_positive_v1.json"
-python3 "$P/scripts/assess.py" "$P/fixtures/synthetic/host_windows_positive_v1.json"
+python3 "$P/scripts/assess.py" "$P/fixtures/synthetic/host_windows_vulnerable_v1.json"
 python3 "$P/scripts/demo.py"
 ```
 

@@ -11,11 +11,19 @@ from pathlib import Path
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PACKAGE_ROOT))
 
-from host_assessment_workbench.core import ContractError  # noqa: E402
+from host_assessment_workbench.core import MAX_INPUT_BYTES, ContractError  # noqa: E402
 from host_assessment_workbench.windows_bridge import (  # noqa: E402
     load_bridge_receipt_bytes,
     validate_bridge_receipt,
 )
+
+
+def read_bounded_input(path: Path) -> bytes:
+    with path.open("rb") as source:
+        data = source.read(MAX_INPUT_BYTES + 1)
+    if len(data) > MAX_INPUT_BYTES:
+        raise ContractError(f"{path.name} exceeds the {MAX_INPUT_BYTES}-byte input limit")
+    return data
 
 
 def main() -> int:
@@ -26,8 +34,8 @@ def main() -> int:
     args = parser.parse_args()
     try:
         result = validate_bridge_receipt(
-            load_bridge_receipt_bytes(args.receipt.read_bytes()),
-            args.export.read_bytes(),
+            load_bridge_receipt_bytes(read_bounded_input(args.receipt)),
+            read_bounded_input(args.export),
             args.canary_root,
         )
     except (ContractError, OSError) as exc:

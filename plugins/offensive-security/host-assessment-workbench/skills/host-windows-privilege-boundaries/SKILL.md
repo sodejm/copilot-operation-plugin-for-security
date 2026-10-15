@@ -6,7 +6,7 @@ description: Review bounded Windows privilege-boundary exports and, when explici
 # Windows privilege-boundary review
 
 1. Confirm that the input is a local synthetic or operator export using the
-   `windows-1.0` contract in `specs/host-windows-privilege-boundaries.spec.md`.
+   `windows-1.0` contract in `docs/WINDOWS_CONTRACT.md` within this package.
    Do not acquire credentials or run unrelated host commands to fill missing fields.
 2. When the operator explicitly requests native collection on an authorized local
    Windows host, use a new run path beneath an existing local, non-reparse

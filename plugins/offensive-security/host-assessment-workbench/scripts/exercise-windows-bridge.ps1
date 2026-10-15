@@ -65,6 +65,23 @@ $failedFallbackResult = Resolve-CopsIntegrityLevelFromSources `
 if ($failedFallbackResult -ne "unknown") {
     throw "A failed token integrity fallback must fail closed."
 }
+$enabledPrivileges = @(Resolve-CopsEnabledPrivileges -Rows @(
+    '"SeImpersonatePrivilege","Impersonate a client","Disabled"',
+    '"SeChangeNotifyPrivilege","Bypass traverse checking","Enabled"'
+))
+if ($enabledPrivileges.Count -ne 1 -or
+    $enabledPrivileges[0] -ne "SeChangeNotifyPrivilege") {
+    throw "Disabled token privileges must not count as enabled."
+}
+$remotePathRejected = $false
+try {
+    Assert-CopsLocalPathEntry -Path '\\server\share'
+} catch {
+    $remotePathRejected = $true
+}
+if (-not $remotePathRejected) {
+    throw "A remote PATH entry must be rejected before filesystem inspection."
+}
 
 $runFull = [IO.Path]::GetFullPath($RunRoot)
 if ($runFull.StartsWith("\\") -or (Test-Path -LiteralPath $runFull)) {
@@ -154,15 +171,15 @@ if (@(Get-ChildItem -LiteralPath $canaryRoot -Force).Count -ne 0) {
     throw "Native Windows bridge left assessment-owned canary residue."
 }
 
-$utf8 = New-Object System.Text.UTF8Encoding -ArgumentList $false
-[IO.File]::WriteAllText($reportPath, $reportJson.Trim(), $utf8)
-[IO.File]::WriteAllText($validatedReceiptPath, $validatedJson.Trim(), $utf8)
+Write-CopsNewUtf8File -Path $reportPath -Content $reportJson.Trim()
+Write-CopsNewUtf8File -Path $validatedReceiptPath -Content $validatedJson.Trim()
 
 [ordered]@{
-    run_root = $runFull
-    export = $exportPath
-    receipt = $receiptPath
-    report = $reportPath
-    validated_receipt = $validatedReceiptPath
+    artifacts = @(
+        "windows-export.json",
+        "windows-receipt.json",
+        "windows-report.json",
+        "windows-validated-receipt.json"
+    )
     coverage = $report.coverage
 } | ConvertTo-Json -Depth 5 -Compress
