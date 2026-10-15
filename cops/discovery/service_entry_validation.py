@@ -147,9 +147,10 @@ def _observed_services(observation: ObservedConfiguration) -> set[tuple[str, str
         services.add(("dns", "network-infrastructure-services", "DNS recursion and authority boundaries"))
     if re.match(r"^SOCKS(?:4|5)?\b", banner, re.I) or binary_banner == b"\x05\x00":
         services.add(("socks", "network-legacy-and-proxy-services", "SOCKS proxy access and egress boundaries"))
-    if not docker_response and ((type(observation.http_status) is int and 100 <= observation.http_status <= 599) or re.match(
-        r"^HTTP/\d(?:\.\d)? [1-5]\d\d\b", banner
-    )):
+    if not docker_response and (
+        (type(observation.http_status) is int and 100 <= observation.http_status <= 599)
+        or re.match(r"^HTTP/\d(?:\.\d)? [1-5]\d\d\b", banner)
+    ):
         services.add(("http", "web-api-inventory-and-replay", "HTTP exposure and authentication boundaries"))
     return services
 
