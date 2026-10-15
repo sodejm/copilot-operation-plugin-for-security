@@ -47,10 +47,16 @@ another process with the same account.
 The report lists included and excluded targets, per-target coverage, findings,
 reproducibility, evidence record IDs and strength, attack path dependencies,
 remediation, and limitations. Scope joins use exact hostnames or IP addresses and
-CIDR containment; they do not infer related hosts. Missing access, a missing
+CIDR containment; they do not infer related hosts. A host address and its
+single-address CIDR (`/32` or `/128`) are the same target for duplicate checks.
+A non-import RunResult cannot support coverage for different scenarios.
+Missing access, a missing
 RunResult, absent validated evidence, and planning-only rows are `not_assessed`.
 Partial outcomes, scanner-only assertions, and historical imports cannot be
-promoted to a complete assessment. Live evidence needs an observation time within
+promoted to a complete assessment. Scanner-associated coverage needs an assessed
+non-scanner Finding for the same RunResult, scenario and target, linked to the
+row's validated evidence. An unverified observation does not corroborate a
+scanner assertion. Live evidence needs an observation time within
 its RunResult window; collection time alone does not establish when the target
 was observed. An assessed Finding needs linked evidence for every affected asset.
 A `reproduced_attack_path` requires repeatable, scoped laboratory or live evidence,
@@ -60,7 +66,8 @@ same report, appear once, and form an acyclic prerequisite chain. Each ActionPla
 must have a RunResult or a planning coverage row.
 
 Validating a saved `assessment_report` also checks coverage, provenance, asset
-joins, and Finding claims for contradictions. This cannot reconstruct the input
+joins, and Finding claims for contradictions, including scanner corroboration
+and the match between a Finding's status and evidence strength. This cannot reconstruct the input
 bundle or authenticate its source; retain the private source bundle for review.
 
 `planned`, `imported`, `laboratory`, and `live_validated` are distinct provenance

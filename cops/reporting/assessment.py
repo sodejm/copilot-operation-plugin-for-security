@@ -83,7 +83,10 @@ def _parse_target(
     target: str,
 ) -> ipaddress.IPv4Address | ipaddress.IPv6Address | ipaddress.IPv4Network | ipaddress.IPv6Network | str:
     try:
-        return ipaddress.ip_network(target, strict=False) if "/" in target else ipaddress.ip_address(target)
+        if "/" not in target:
+            return ipaddress.ip_address(target)
+        network = ipaddress.ip_network(target, strict=False)
+        return network.network_address if network.prefixlen == network.max_prefixlen else network
     except ValueError:
         return target.casefold().rstrip(".")
 
@@ -158,6 +161,30 @@ def _validate_dependency_graph(findings: list[dict[str, Any]]) -> None:
         raise ReportError("cyclic attack path dependencies")
 
 
+def _has_assessed_scanner_corroboration(row: dict[str, Any], findings: list[dict[str, Any]]) -> bool:
+    """Require an assessed observation tied to this exact coverage row."""
+    return any(
+        finding["result_id"] == row["result_id"]
+        and finding["scenario_id"] == row["scenario_id"]
+        and finding["kind"] != "scanner_assertion"
+        and finding["assessment_status"] == "assessed"
+        and any(_contains(row["target"], asset) for asset in finding["affected_assets"])
+        and bool(set(finding["evidence_references"]) & set(row["evidence_records"]))
+        for finding in findings
+    )
+
+
+def _has_scanner_assertion(row: dict[str, Any], findings: list[dict[str, Any]]) -> bool:
+    """Associate a scanner claim with the covered scenario and asset."""
+    return any(
+        finding["kind"] == "scanner_assertion"
+        and finding["result_id"] == row["result_id"]
+        and finding["scenario_id"] == row["scenario_id"]
+        and any(_contains(row["target"], asset) for asset in finding["affected_assets"])
+        for finding in findings
+    )
+
+
 def validate_report_semantics(report: dict[str, Any]) -> None:
     """Reject contradictory claims in a stored report after schema validation.
 
@@ -168,6 +195,7 @@ def validate_report_semantics(report: dict[str, Any]) -> None:
     coverage_keys: set[tuple[str, str, str]] = set()
     rows_by_result: dict[str, list[dict[str, Any]]] = {}
     result_modes: dict[str, str] = {}
+    result_scenarios: dict[str, str] = {}
     for row in report["coverage"]:
         if not _in_scope(row["target"], scope):
             raise ReportError("report coverage target is outside engagement scope")
@@ -182,7 +210,10 @@ def validate_report_semantics(report: dict[str, Any]) -> None:
             validate_identifier(result_id, "run_result")
             if row["mode"] == "planning" or (result_id in result_modes and result_modes[result_id] != row["mode"]):
                 raise ReportError("report run result has conflicting coverage modes")
+            if row["mode"] != "import" and result_id in result_scenarios and result_scenarios[result_id] != row["scenario_id"]:
+                raise ReportError("report run result has conflicting coverage scenarios")
             result_modes[result_id] = row["mode"]
+            result_scenarios[result_id] = row["scenario_id"]
             rows_by_result.setdefault(result_id, []).append(row)
         if row["status"] == "assessed" and (
             row["access"] != "available"
@@ -202,7 +233,6 @@ def validate_report_semantics(report: dict[str, Any]) -> None:
 
     finding_ids: set[str] = set()
     findings_by_id: dict[str, dict[str, Any]] = {}
-    kinds_by_result: dict[str, set[str]] = {}
     for finding in report["findings"]:
         finding_id = finding["finding_id"]
         if finding_id in finding_ids:
@@ -219,7 +249,6 @@ def validate_report_semantics(report: dict[str, Any]) -> None:
             raise ReportError("report finding has no matching scoped coverage")
         if any(not _in_scope(asset, scope) for asset in finding["affected_assets"]):
             raise ReportError("report finding asset is outside engagement scope")
-        kinds_by_result.setdefault(finding["result_id"], set()).add(finding["kind"])
         references = set(finding["evidence_references"])
         if len(references) != len(finding["evidence_references"]):
             raise ReportError("duplicate report finding evidence reference")
@@ -229,6 +258,10 @@ def validate_report_semantics(report: dict[str, Any]) -> None:
             finding["assessment_status"] != "unresolved" or finding["classification"] != "unresolved"
         ):
             raise ReportError("contradicted report finding must remain unresolved")
+        if finding["evidence_strength"] == "recorded" and (
+            finding["assessment_status"] != "assessed" or not references
+        ):
+            raise ReportError("recorded report finding must be assessed with linked evidence")
         if finding["assessment_status"] == "assessed":
             if (
                 finding["verification"] != "verified"
@@ -252,9 +285,13 @@ def validate_report_semantics(report: dict[str, Any]) -> None:
         if finding["kind"] == "scanner_assertion" and finding["evidence_strength"] == "recorded":
             raise ReportError("scanner assertion cannot claim recorded validation")
 
-    for result_id, kinds in kinds_by_result.items():
-        if kinds == {"scanner_assertion"} and any(row["status"] == "assessed" for row in rows_by_result[result_id]):
-            raise ReportError("scanner-only result cannot claim assessed coverage")
+    for row in report["coverage"]:
+        if (
+            row["status"] == "assessed"
+            and _has_scanner_assertion(row, report["findings"])
+            and not _has_assessed_scanner_corroboration(row, report["findings"])
+        ):
+            raise ReportError("scanner result lacks assessed corroboration for coverage")
     for finding in report["findings"]:
         dependencies = finding["attack_path_dependencies"]
         if finding["finding_id"] in dependencies or any(dependency not in finding_ids for dependency in dependencies):
@@ -410,22 +447,12 @@ def build_assessment_report(bundle: dict[str, Any]) -> dict[str, Any]:
         _strings(context["limitations"], "finding limitations")
         contexts[context["finding_id"]] = context
 
-    kinds_by_result: dict[str, set[str]] = {}
-    for source_finding in bundle["findings"]:
-        context = contexts.get(source_finding["finding_id"])
-        if context is not None:
-            kinds_by_result.setdefault(source_finding["result_id"], set()).add(context["kind"])
-    scanner_only_results = {result_id for result_id, kinds in kinds_by_result.items() if kinds == {"scanner_assertion"}}
-    for row in coverage:
-        if row["result_id"] in scanner_only_results and row["status"] == "assessed":
-            row["status"] = "partial"
-            row["provenance"] = _provenance(row["mode"], "partial")
+    source_findings = [_valid_contract(item, "finding") for item in _list(bundle["findings"], "findings")]
 
     findings: list[dict[str, Any]] = []
     finding_ids: set[str] = set()
     limitations = _strings(bundle["limitations"], "limitations")[:]
-    for item in _list(bundle["findings"], "findings"):
-        finding = _valid_contract(item, "finding")
+    for finding in source_findings:
         finding_id = finding["finding_id"]
         if finding_id in finding_ids or finding_id not in contexts:
             raise ReportError("duplicate finding or missing finding context")
@@ -522,6 +549,14 @@ def build_assessment_report(bundle: dict[str, Any]) -> dict[str, Any]:
                 "limitations": finding_limitations,
             }
         )
+    for row in coverage:
+        if (
+            row["status"] == "assessed"
+            and _has_scanner_assertion(row, findings)
+            and not _has_assessed_scanner_corroboration(row, findings)
+        ):
+            row["status"] = "partial"
+            row["provenance"] = _provenance(row["mode"], "partial")
     if finding_ids != contexts.keys():
         raise ReportError("orphan finding context")
     for finding in findings:

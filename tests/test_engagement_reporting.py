@@ -225,6 +225,52 @@ def test_scanner_only_result_cannot_be_assessed():
     assert report["findings"][0]["evidence_strength"] == "limited"
 
 
+def test_scanner_claim_does_not_downgrade_other_asset_in_same_run():
+    bundle = _bundle()
+    bundle["engagement"]["scope"]["excluded_targets"] = []
+    bundle["finding_contexts"][0]["kind"] = "scanner_assertion"
+    bundle["action_plans"][0]["target"] = "10.0.0.0/24"
+    from cops.contracts.validation import build_action_plan_digest
+
+    bundle["action_plans"][0]["plan_digest"] = build_action_plan_digest(
+        snapshot={key: value for key, value in bundle["action_plans"][0].items() if key not in {"status", "plan_digest"}}
+    )
+    second = _envelope(target="10.0.0.6")
+    bundle["evidence_envelopes"].append(second)
+    bundle["run_results"][0]["evidence_records"].append(second["record_id"])
+    bundle["coverage"].append({**bundle["coverage"][0], "target": "10.0.0.6"})
+
+    report = build_assessment_report(bundle)
+    assert [row["status"] for row in report["coverage"]] == ["partial", "assessed"]
+    validate_contract(report, "assessment_report")
+
+
+def test_unverified_non_scanner_finding_does_not_promote_scanner_coverage():
+    bundle = _bundle()
+    bundle["finding_contexts"][0]["kind"] = "scanner_assertion"
+    second = deepcopy(bundle["findings"][0])
+    second["finding_id"] = "find-unverified-001"
+    second["verification"] = "unverified"
+    second["evidence_references"] = []
+    bundle["findings"].append(second)
+    context = deepcopy(bundle["finding_contexts"][0])
+    context["finding_id"] = second["finding_id"]
+    context["kind"] = "observed_behavior"
+    bundle["finding_contexts"].append(context)
+    report = build_assessment_report(bundle)
+    assert report["coverage"][0]["status"] == "partial"
+    assert all(finding["assessment_status"] != "assessed" for finding in report["findings"])
+    validate_contract(report, "assessment_report")
+
+
+@pytest.mark.parametrize("missing_field", ["finding_id", "result_id"])
+def test_malformed_embedded_finding_is_rejected_as_report_error(missing_field):
+    bundle = _bundle()
+    del bundle["findings"][0][missing_field]
+    with pytest.raises(ReportError, match="invalid finding contract"):
+        build_assessment_report(bundle)
+
+
 def test_evidence_for_one_asset_cannot_assess_another():
     bundle = _bundle()
     bundle["engagement"]["scope"]["excluded_targets"] = []
@@ -281,7 +327,8 @@ def test_orphan_action_plan_is_rejected():
         build_assessment_report(bundle)
 
 
-def test_canonical_ipv6_coverage_duplicate_is_rejected():
+@pytest.mark.parametrize("duplicate_target", ["2001:0db8:0:0:0:0:0:5", "2001:db8::5/128"])
+def test_canonical_ipv6_coverage_duplicate_is_rejected(duplicate_target):
     bundle = _bundle()
     bundle["engagement"]["scope"]["included_targets"] = ["2001:db8::/64"]
     bundle["engagement"]["scope"]["excluded_targets"] = []
@@ -294,9 +341,37 @@ def test_canonical_ipv6_coverage_duplicate_is_rejected():
         }
     )
     bundle["coverage"][0]["target"] = "2001:db8::5"
-    bundle["coverage"].append({**bundle["coverage"][0], "target": "2001:0db8:0:0:0:0:0:5"})
+    bundle["coverage"].append({**bundle["coverage"][0], "target": duplicate_target})
     with pytest.raises(ReportError, match="duplicate coverage entry"):
         build_assessment_report(bundle)
+
+
+def test_singleton_ipv4_network_is_duplicate_of_host_in_builder_and_saved_report():
+    bundle = _bundle()
+    bundle["coverage"].append({**bundle["coverage"][0], "target": "10.0.0.5/32"})
+    with pytest.raises(ReportError, match="duplicate coverage entry"):
+        build_assessment_report(bundle)
+
+    report = build_assessment_report(_bundle())
+    report["coverage"].append({**report["coverage"][0], "target": "10.0.0.5/32"})
+    with pytest.raises(ContractError, match="duplicate report coverage entry"):
+        validate_contract(report, "assessment_report")
+
+
+def test_singleton_ipv6_network_is_duplicate_of_host_in_saved_report():
+    report = build_assessment_report(_bundle())
+    report["scope"]["included_targets"] = ["2001:db8::/64"]
+    report["coverage"][0]["target"] = "2001:db8::5"
+    report["coverage"].append({**report["coverage"][0], "target": "2001:db8::5/128"})
+    with pytest.raises(ContractError, match="duplicate report coverage entry"):
+        validate_contract(report, "assessment_report")
+
+
+def test_saved_report_rejects_result_reuse_across_non_import_scenarios():
+    report = build_assessment_report(_bundle())
+    report["coverage"].append({**report["coverage"][0], "scenario_id": "COPS-E17.01-S02"})
+    with pytest.raises(ContractError, match="conflicting coverage scenarios"):
+        validate_contract(report, "assessment_report")
 
 
 @pytest.mark.parametrize(
@@ -313,6 +388,25 @@ def test_standalone_report_rejects_promoted_or_misjoined_claims(mutation):
     report = build_assessment_report(_bundle())
     mutation(report)
     with pytest.raises(ContractError):
+        validate_contract(report, "assessment_report")
+
+
+@pytest.mark.parametrize("status", ["partial", "not_assessed"])
+def test_saved_report_rejects_recorded_strength_without_assessed_evidence(status):
+    report = build_assessment_report(_bundle())
+    finding = report["findings"][0]
+    finding["assessment_status"] = status
+    finding["evidence_references"] = []
+    with pytest.raises(ContractError, match="recorded report finding"):
+        validate_contract(report, "assessment_report")
+
+
+def test_saved_report_rejects_scanner_coverage_with_unverified_corroboration():
+    bundle = _bundle()
+    bundle["finding_contexts"][0]["kind"] = "scanner_assertion"
+    report = build_assessment_report(bundle)
+    report["coverage"][0]["status"] = "assessed"
+    with pytest.raises(ContractError, match="scanner result lacks assessed corroboration"):
         validate_contract(report, "assessment_report")
 
 
