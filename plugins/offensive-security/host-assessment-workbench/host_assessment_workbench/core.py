@@ -134,9 +134,7 @@ def _host(value: Any) -> dict[str, Any]:
     )
     protections = _exact_keys(host["protections"], set(PROTECTIONS), "host.protections")
     states = {
-        name: _enum(
-            protections[name], PROTECTION_STATES[name] | {"unknown"}, f"host.protections.{name}"
-        )
+        name: _enum(protections[name], PROTECTION_STATES[name] | {"unknown"}, f"host.protections.{name}")
         for name in PROTECTIONS
     }
     return {
