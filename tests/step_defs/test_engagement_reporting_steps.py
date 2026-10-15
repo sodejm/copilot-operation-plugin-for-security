@@ -172,7 +172,13 @@ def broad_plan_narrow_coverage(report_ctx):
     )
     bundle["action_plans"].append(extra)
     bundle["coverage"].append(
-        {"scenario_id": extra["scenario_id"], "target": "10.0.0.6", "mode": "planning", "access": "unavailable", "result_id": None}
+        {
+            "scenario_id": extra["scenario_id"],
+            "target": "10.0.0.6",
+            "mode": "planning",
+            "access": "unavailable",
+            "result_id": None,
+        }
     )
 
 
@@ -307,7 +313,9 @@ def assessed_with_missing_strength(report_ctx):
 @when("saved resultless coverage borrows execution evidence")
 def resultless_coverage_with_evidence(report_ctx):
     row = deepcopy(report_ctx["report"]["coverage"][0])
-    row.update(scenario_id="COPS-E17.01-S02", mode="planning", provenance="planned", status="not_assessed", result_id=None)
+    row.update(
+        scenario_id="COPS-E17.01-S02", mode="planning", provenance="planned", status="not_assessed", result_id=None
+    )
     report_ctx["report"]["coverage"].append(row)
 
 

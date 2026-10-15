@@ -308,12 +308,14 @@ def test_observation_on_other_asset_does_not_corroborate_broad_scanner_coverage(
     observation["evidence_references"] = [other_evidence["record_id"]]
     bundle["findings"].append(observation)
     context = deepcopy(bundle["finding_contexts"][0])
-    context.update({
-        "finding_id": observation["finding_id"],
-        "kind": "observed_behavior",
-        "affected_assets": ["10.0.0.6"],
-        "limitations": ["Not assessed for assets: 10.0.0.6"],
-    })
+    context.update(
+        {
+            "finding_id": observation["finding_id"],
+            "kind": "observed_behavior",
+            "affected_assets": ["10.0.0.6"],
+            "limitations": ["Not assessed for assets: 10.0.0.6"],
+        }
+    )
     bundle["finding_contexts"].append(context)
 
     report = build_assessment_report(bundle)
@@ -347,7 +349,9 @@ def test_broad_scanner_row_downgrade_also_limits_other_findings_on_that_row():
     observation["evidence_references"] = [other_evidence["record_id"]]
     bundle["findings"].append(observation)
     context = deepcopy(bundle["finding_contexts"][0])
-    context.update({"finding_id": observation["finding_id"], "kind": "observed_behavior", "affected_assets": ["10.0.0.6"]})
+    context.update(
+        {"finding_id": observation["finding_id"], "kind": "observed_behavior", "affected_assets": ["10.0.0.6"]}
+    )
     bundle["finding_contexts"].append(context)
 
     report = build_assessment_report(bundle)
@@ -453,7 +457,13 @@ def test_narrow_planning_row_does_not_represent_broad_action_plan():
     )
     bundle["action_plans"].append(extra)
     bundle["coverage"].append(
-        {"scenario_id": extra["scenario_id"], "target": "10.0.0.6", "mode": "planning", "access": "unavailable", "result_id": None}
+        {
+            "scenario_id": extra["scenario_id"],
+            "target": "10.0.0.6",
+            "mode": "planning",
+            "access": "unavailable",
+            "result_id": None,
+        }
     )
     with pytest.raises(ReportError, match="every action plan requires"):
         build_assessment_report(bundle)

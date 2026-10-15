@@ -181,7 +181,10 @@ def _has_assessed_scanner_corroboration(row: dict[str, Any], findings: list[dict
             and finding["scenario_id"] == row["scenario_id"]
             and finding["kind"] != "scanner_assertion"
             and finding["assessment_status"] == "assessed"
-            and any(_parse_target(observed_asset) == _parse_target(asserted_asset) for observed_asset in finding["affected_assets"])
+            and any(
+                _parse_target(observed_asset) == _parse_target(asserted_asset)
+                for observed_asset in finding["affected_assets"]
+            )
             and bool(set(finding["evidence_references"]) & set(row["evidence_records"]))
             for finding in findings
         )
@@ -592,7 +595,8 @@ def build_assessment_report(bundle: dict[str, Any]) -> dict[str, Any]:
             row["provenance"] = _provenance(row["mode"], "partial")
     for finding in findings:
         rows = [
-            row for row in coverage
+            row
+            for row in coverage
             if row["result_id"] == finding["result_id"]
             and row["scenario_id"] == finding["scenario_id"]
             and any(_contains(row["target"], asset) for asset in finding["affected_assets"])
