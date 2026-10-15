@@ -69,7 +69,7 @@ def validate_bridge_receipt(receipt: dict[str, Any], export_bytes: bytes, canary
         {"schema_version", "platform", "bridge_mode", "export_sha256", "capabilities", "canary"},
         "receipt",
     )
-    if document["schema_version"] != "windows-bridge-receipt-1.1":
+    if document["schema_version"] != "windows-bridge-receipt-1.2":
         raise ContractError("unsupported bridge receipt schema version")
     _enum(document["platform"], {"windows"}, "receipt.platform")
     _enum(document["bridge_mode"], {"native_windows_bridge"}, "receipt.bridge_mode")
@@ -116,6 +116,10 @@ def validate_bridge_receipt(receipt: dict[str, Any], export_bytes: bytes, canary
             "ownership_verified",
             "removed",
             "cleanup_verified",
+            "observer_kind",
+            "before_observation",
+            "after_create_observation",
+            "after_cleanup_observation",
             "evidence_ids",
         },
         "receipt.canary",
@@ -136,6 +140,24 @@ def validate_bridge_receipt(receipt: dict[str, Any], export_bytes: bytes, canary
     ownership_sha256 = raw_canary["ownership_sha256"]
     if not isinstance(ownership_sha256, str) or not SHA256_PATTERN.fullmatch(ownership_sha256):
         raise ContractError("receipt canary ownership hash must be lowercase SHA-256")
+    observer_kind = _enum(
+        raw_canary["observer_kind"],
+        {"separate_same_token_process"},
+        "receipt.canary.observer_kind",
+    )
+    before_observation = _enum(
+        raw_canary["before_observation"], {"resource_absent"}, "receipt.canary.before_observation"
+    )
+    after_create_observation = _enum(
+        raw_canary["after_create_observation"],
+        {"readable_owned_marker"},
+        "receipt.canary.after_create_observation",
+    )
+    after_cleanup_observation = _enum(
+        raw_canary["after_cleanup_observation"],
+        {"resource_absent"},
+        "receipt.canary.after_cleanup_observation",
+    )
     canary = {
         "resource_id": resource_id,
         "root_identity": str(root_identity),
@@ -147,7 +169,11 @@ def validate_bridge_receipt(receipt: dict[str, Any], export_bytes: bytes, canary
         "ownership_verified": True,
         "removed": True,
         "cleanup_verified": True,
-        "evidence_ids": _evidence_ids(raw_canary["evidence_ids"], "receipt.canary.evidence_ids", minimum=5),
+        "observer_kind": observer_kind,
+        "before_observation": before_observation,
+        "after_create_observation": after_create_observation,
+        "after_cleanup_observation": after_cleanup_observation,
+        "evidence_ids": _evidence_ids(raw_canary["evidence_ids"], "receipt.canary.evidence_ids", minimum=7),
     }
     canary_root = Path(canary_root)
     if not canary_root.is_dir():
@@ -173,7 +199,7 @@ def validate_bridge_receipt(receipt: dict[str, Any], export_bytes: bytes, canary
         raise ContractError("canary root is not empty after cleanup")
 
     return {
-        "schema_version": "windows-bridge-receipt-1.1",
+        "schema_version": "windows-bridge-receipt-1.2",
         "platform": "windows",
         "bridge_mode": "native_windows_bridge",
         "export_sha256": digest,

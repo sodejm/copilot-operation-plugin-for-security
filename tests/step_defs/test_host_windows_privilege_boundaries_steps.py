@@ -76,7 +76,7 @@ def native_receipt(context, tmp_path):
     context["export_bytes"] = export_bytes
     context["canary_root"] = canary_root
     context["receipt"] = {
-        "schema_version": "windows-bridge-receipt-1.1",
+        "schema_version": "windows-bridge-receipt-1.2",
         "platform": "windows",
         "bridge_mode": "native_windows_bridge",
         "export_sha256": hashlib.sha256(export_bytes).hexdigest(),
@@ -87,17 +87,23 @@ def native_receipt(context, tmp_path):
             "resource_identity": str(root_identity / resource_id),
             "ownership_sha256": hashlib.sha256(b"test ownership marker").hexdigest(),
             "assessment_owned": True,
+            "observer_kind": "separate_same_token_process",
+            "before_observation": "resource_absent",
+            "after_create_observation": "readable_owned_marker",
+            "after_cleanup_observation": "resource_absent",
             "before_absent": True,
             "created": True,
             "ownership_verified": True,
             "removed": True,
             "cleanup_verified": True,
             "evidence_ids": [
-                "canary_before",
+                "canary_before_observer",
                 "canary_identity_bound",
                 "canary_created",
+                "canary_after_create_observer",
                 "canary_ownership_verified",
                 "canary_removed",
+                "canary_after_cleanup_observer",
             ],
         },
     }
@@ -172,8 +178,12 @@ def native_mode(context):
     assert context["report"]["coverage"]["service_permissions"] == "not_assessed"
 
 
-@then("the receipt proves resource lifecycle cleanup without claiming a privilege crossing")
+@then("the receipt preserves the separate-process lifecycle observations without claiming a privilege crossing")
 def lifecycle_only(context):
     result = context["validated_receipt"]
     assert result["canary"]["cleanup_verified"] is True
+    assert result["canary"]["observer_kind"] == "separate_same_token_process"
+    assert result["canary"]["before_observation"] == "resource_absent"
+    assert result["canary"]["after_create_observation"] == "readable_owned_marker"
+    assert result["canary"]["after_cleanup_observation"] == "resource_absent"
     assert "crossing" not in json.dumps(result)

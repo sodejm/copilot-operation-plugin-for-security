@@ -39,7 +39,7 @@ def native_receipt(export_bytes: bytes, canary_root: Path) -> dict:
     root_identity = canary_root.resolve()
     resource_id = "native_canary_1"
     return {
-        "schema_version": "windows-bridge-receipt-1.1",
+        "schema_version": "windows-bridge-receipt-1.2",
         "platform": "windows",
         "bridge_mode": "native_windows_bridge",
         "export_sha256": hashlib.sha256(export_bytes).hexdigest(),
@@ -55,12 +55,18 @@ def native_receipt(export_bytes: bytes, canary_root: Path) -> dict:
             "ownership_verified": True,
             "removed": True,
             "cleanup_verified": True,
+            "observer_kind": "separate_same_token_process",
+            "before_observation": "resource_absent",
+            "after_create_observation": "readable_owned_marker",
+            "after_cleanup_observation": "resource_absent",
             "evidence_ids": [
-                "canary_before",
+                "canary_before_observer",
                 "canary_identity_bound",
                 "canary_created",
+                "canary_after_create_observer",
                 "canary_ownership_verified",
                 "canary_removed",
+                "canary_after_cleanup_observer",
             ],
         },
     }
@@ -139,6 +145,8 @@ def test_native_bridge_receipt_is_bound_to_export_and_empty_canary_root(tmp_path
     result = validate_bridge_receipt(native_receipt(export_bytes, canary_root), export_bytes, canary_root)
     assert result["canary"]["cleanup_verified"] is True
     assert result["canary"]["ownership_verified"] is True
+    assert result["canary"]["observer_kind"] == "separate_same_token_process"
+    assert result["canary"]["after_create_observation"] == "readable_owned_marker"
     assert "crossing" not in json.dumps(result)
 
 
@@ -159,6 +167,28 @@ def test_native_bridge_receipt_requires_lifecycle_assertions(tmp_path: Path, fie
     canary_root.mkdir()
     receipt = native_receipt(export_bytes, canary_root)
     receipt["canary"][field] = False
+    with pytest.raises(ContractError):
+        validate_bridge_receipt(receipt, export_bytes, canary_root)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("observer_kind", "collector_process"),
+        ("before_observation", "unknown"),
+        ("after_create_observation", "resource_absent"),
+        ("after_cleanup_observation", "readable_owned_marker"),
+    ],
+)
+def test_native_bridge_receipt_requires_independent_lifecycle_observations(
+    tmp_path: Path, field: str, value: str
+) -> None:
+    export_bytes = json.dumps(native_payload(), sort_keys=True, separators=(",", ":")).encode()
+    canary_root = tmp_path / "canary"
+    canary_root.mkdir()
+    receipt = native_receipt(export_bytes, canary_root)
+    receipt["canary"][field] = value
+
     with pytest.raises(ContractError):
         validate_bridge_receipt(receipt, export_bytes, canary_root)
 
@@ -235,10 +265,12 @@ def test_native_collector_has_bounded_static_contract() -> None:
     assert 'whoami.exe" /groups /fo csv /nh' in script
     assert "Resolve-CopsIntegrityLevelFromSources" in script
     assert "-PrimaryRids $primaryIntegrityRids" in script
-    assert "Count -ne 1" not in script
+    assert "$primaryIntegrityRids.Count -ne 1" not in script
     assert "Unable to determine a single Windows token integrity level" not in script
-    assert "windows-bridge-receipt-1.1" in script
+    assert "windows-bridge-receipt-1.2" in script
     assert "ownership_sha256" in script
+    assert "observe-windows-canary.ps1" in script
+    assert "separate_same_token_process" in script
     assert script.index("$ownershipVerified = $true") < script.index("Remove-Item -LiteralPath $canaryPath")
     workflow = (ROOT / ".github" / "workflows" / "repository-contract.yml").read_text()
     assert "Exercise native Windows host assessment bridge" in workflow
@@ -254,6 +286,7 @@ def test_native_collector_has_bounded_static_contract() -> None:
     assert "A failed token integrity fallback must fail closed" in exercise
     assert 'report.mode -ne "native_bridge_import"' in exercise
     assert "ownership_verified" in exercise
+    assert "after_create_observation" in exercise
 
 
 @pytest.mark.parametrize(

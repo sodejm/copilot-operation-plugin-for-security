@@ -51,15 +51,22 @@ The collector declares service, task, token, registry, filesystem, local
 credential-reference, and versioned-family capabilities. It reads bounded
 metadata only. It does not read password values, execute a task or service,
 change ACLs or registry values, impersonate another token, or attempt elevation.
+The service probe identifies unquoted paths but does not collect service ACLs;
+the registry probe covers AlwaysInstallElevated but not Run keys; and local
+credential references exclude Credential Manager. The scheduled-task ACL probe
+has no pinned E01.1 source mapping.
 
 Review each coverage field. An omitted observation with `access_denied` or
 `not_assessed` coverage is an explicit gap. Native observations are configuration
 candidates, not proof of a working escalation. The exercise also verifies that a
 read-only ACL is not classified as writable and that an explicit write right is.
-The canary receipt establishes only that this assessment's harmless local marker
-was absent, identity-bound to the supplied root, ownership-verified, and removed.
-The command retains its export, receipt, report, and validated receipt beneath
-`$Run` for private review.
+A separate process under the same Windows token observes the harmless local
+marker absent before creation, readable with its exact owned hash, and absent
+after deletion. The receipt binds those observations to the canonical supplied
+root and child identities. This proves an independent process saw the owned
+lifecycle; it does not prove cross-identity denial or a privilege crossing. The
+command retains its export, receipt, report, and validated receipt beneath `$Run`
+for private review.
 
 After retaining required private evidence, remove only the run-owned directory:
 

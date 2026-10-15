@@ -142,7 +142,12 @@ if ($LASTEXITCODE -ne 0) {
     throw "Native Windows receipt validation failed."
 }
 $validated = $validatedJson | ConvertFrom-Json
-if (-not $validated.canary.ownership_verified -or -not $validated.canary.cleanup_verified) {
+if ($validated.schema_version -ne "windows-bridge-receipt-1.2" -or
+    -not $validated.canary.ownership_verified -or -not $validated.canary.cleanup_verified -or
+    $validated.canary.observer_kind -ne "separate_same_token_process" -or
+    $validated.canary.before_observation -ne "resource_absent" -or
+    $validated.canary.after_create_observation -ne "readable_owned_marker" -or
+    $validated.canary.after_cleanup_observation -ne "resource_absent") {
     throw "Native Windows receipt did not establish owned lifecycle cleanup."
 }
 if (@(Get-ChildItem -LiteralPath $canaryRoot -Force).Count -ne 0) {

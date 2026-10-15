@@ -10,8 +10,9 @@ Qualify two distinct paths:
   lifecycle cleanup receipt.
 
 An offline canary assertion remains source-reported. The native lifecycle canary
-proves only that the collector created and removed its own harmless marker. It
-does not cross a privilege boundary.
+uses a separate process under the same Windows token to observe the owned marker
+absent, readable with its exact hash, and absent after cleanup. It does not test a
+second identity or cross a privilege boundary.
 
 Use a trusted repository checkout and Python 3.11 or newer. The native exercise
 also requires Windows PowerShell or PowerShell 7 on a disposable or otherwise
@@ -64,20 +65,25 @@ $Run = Join-Path $env:TEMP ("cops-windows-" + [Guid]::NewGuid().ToString("N"))
 & "$P/scripts/exercise-windows-bridge.ps1" -RunRoot $Run
 ```
 
-The collector reads fixed or bounded Windows metadata for service permissions,
-scheduled-task permissions, token privileges, registry controls, filesystem
-controls, local credential *references*, and version-dependent families. It
-never reads a stored password value or attempts impersonation, elevation, task
-execution, service changes, registry writes, or ACL changes.
+The collector reads fixed or bounded Windows metadata across seven declared
+surfaces. The service probe identifies unquoted paths but does not collect
+service ACL permissions. The registry probe reads AlwaysInstallElevated but not
+Run keys. Local credential references cover the `DefaultPassword` value name and
+two unattend-file locations but not Credential Manager. The bounded scheduled-task
+ACL inventory has no pinned E01.1 source mapping. The collector never reads a
+stored password value or attempts impersonation, elevation, task execution,
+service changes, registry writes, or ACL changes.
 
 Inspect `coverage` before interpreting observations. `access_denied`,
 `not_assessed`, and `unsupported` remain gaps and do not establish a safe host.
 The exercise runs the collector, importer, and validator; checks all declared
 capabilities and coverage values; exercises the explicit ACL mutation predicate
-with read-only and writable rights; and confirms the supplied canary root is
-still empty. The validator rehashes the exact export and binds the receipt's
-canonical root and child identities to the supplied root. Remove only the run
-directory created for this exercise after retaining the required private evidence:
+with read-only and writable rights; and invokes a separate same-token process to
+observe the resource absent before creation, readable with the exact marker hash
+after creation, and absent after deletion. The validator rehashes the exact
+export, binds the receipt's canonical root and child identities to the supplied
+root, and independently confirms the root is empty. Remove only the run directory
+created for this exercise after retaining the required private evidence:
 
 ```powershell
 Remove-Item -LiteralPath $Run -Recurse -Force
@@ -95,10 +101,10 @@ Remove-Item -LiteralPath $Run -Recurse -Force
 - The independent validator binds the receipt to the exact export SHA-256 and
   canonical operator-supplied canary root, verifies its owned child identity and
   capability set, and finds that root empty.
-- The lifecycle canary is assessment-owned, initially absent, created, removed,
-  and reported with identity and ownership evidence. The collector verifies its
-  marker hash before deletion; a mismatch fails closed. No result claims a
-  privilege crossing.
+- The lifecycle canary is assessment-owned. A separate same-token process observes
+  it absent, readable with the exact owned marker, and absent after cleanup. The
+  collector independently verifies its marker hash before deletion; a mismatch
+  fails closed. No result claims cross-identity denial or a privilege crossing.
 - A native Windows run at the exact candidate revision passes before claiming
   the native integration is qualified. Linux/macOS package checks establish only
   the offline and static-contract paths.

@@ -49,6 +49,107 @@ function Get-CopsStringSha256 {
     }
 }
 
+function Invoke-CopsCanaryObserver {
+    param(
+        [string]$RootIdentity,
+        [string]$ResourceId,
+        [string]$ExpectedState,
+        [string]$ExpectedSha256
+    )
+
+    $observerScript = Join-Path $PSScriptRoot "observe-windows-canary.ps1"
+    $engine = @(
+        (Join-Path $PSHOME "pwsh.exe")
+        (Join-Path $PSHOME "powershell.exe")
+    ) | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+    if (-not $engine) {
+        throw "Unable to locate a separate PowerShell engine for canary observation."
+    }
+    $observerArguments = @(
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy", "Bypass",
+        "-File", $observerScript,
+        "-CanaryRoot", $RootIdentity,
+        "-ResourceId", $ResourceId,
+        "-ExpectedState", $ExpectedState
+    )
+    if ($ExpectedSha256) {
+        $observerArguments += @("-ExpectedSha256", $ExpectedSha256)
+    }
+    $observerOutput = @(& $engine @observerArguments 2>$null)
+    if ($LASTEXITCODE -ne 0 -or $observerOutput.Count -ne 1) {
+        throw "Independent canary observation failed."
+    }
+    try {
+        $observation = $observerOutput[0] | ConvertFrom-Json -ErrorAction Stop
+    } catch {
+        throw "Independent canary observation returned invalid JSON."
+    }
+    $expectedProperties = @(
+        "observer_pid",
+        "ownership_sha256",
+        "resource_identity",
+        "root_identity",
+        "schema_version",
+        "state"
+    )
+    $observedProperties = @($observation.PSObject.Properties.Name | Sort-Object)
+    if (($observedProperties -join ",") -ne ($expectedProperties -join ",") -or
+        $observation.schema_version -ne "windows-canary-observation-1.0" -or
+        $observation.observer_pid -eq $PID -or $observation.observer_pid -lt 1 -or
+        -not [string]::Equals(
+            [string]$observation.root_identity,
+            $RootIdentity,
+            [StringComparison]::OrdinalIgnoreCase
+        ) -or
+        -not [string]::Equals(
+            [string]$observation.resource_identity,
+            [IO.Path]::GetFullPath((Join-Path $RootIdentity $ResourceId)),
+            [StringComparison]::OrdinalIgnoreCase
+        )) {
+        throw "Independent canary observation identity validation failed."
+    }
+    if ($ExpectedState -eq "absent") {
+        if ($observation.state -ne "resource_absent" -or $null -ne $observation.ownership_sha256) {
+            throw "Independent canary absence observation failed."
+        }
+    } elseif ($observation.state -ne "readable_owned_marker" -or
+        $observation.ownership_sha256 -ne $ExpectedSha256) {
+        throw "Independent canary ownership observation failed."
+    }
+    return $observation
+}
+
+function Assert-CopsCanaryOwnership {
+    param(
+        [string]$ResourceIdentity,
+        [string]$MarkerIdentity,
+        [string]$ExpectedSha256
+    )
+
+    $ownedItem = Get-Item -LiteralPath $ResourceIdentity -Force -ErrorAction Stop
+    $ownedMarker = Get-Item -LiteralPath $MarkerIdentity -Force -ErrorAction Stop
+    $ownedIdentity = [IO.Path]::GetFullPath($ownedItem.FullName)
+    $ownedMarkerIdentity = [IO.Path]::GetFullPath($ownedMarker.FullName)
+    $children = @(Get-ChildItem -LiteralPath $ResourceIdentity -Force -ErrorAction Stop)
+    $markerHash = (Get-FileHash -LiteralPath $MarkerIdentity -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($ownedItem.PSProvider.Name -ne "FileSystem" -or $ownedItem.PSDrive.DisplayRoot -or
+        ($ownedItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
+        -not $ownedIdentity.Equals($ResourceIdentity, [StringComparison]::OrdinalIgnoreCase) -or
+        $ownedMarker.PSProvider.Name -ne "FileSystem" -or
+        ($ownedMarker.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
+        -not $ownedMarkerIdentity.Equals($MarkerIdentity, [StringComparison]::OrdinalIgnoreCase) -or
+        $children.Count -ne 1 -or
+        -not [IO.Path]::GetFullPath($children[0].FullName).Equals(
+            $MarkerIdentity,
+            [StringComparison]::OrdinalIgnoreCase
+        ) -or
+        $markerHash -ne $ExpectedSha256) {
+        throw "Assessment-owned canary ownership validation failed."
+    }
+}
+
 $outputFull = Resolve-NewLocalFile -Path $OutputPath -Name "OutputPath"
 $receiptFull = Resolve-NewLocalFile -Path $ReceiptPath -Name "ReceiptPath"
 $canaryFull = [IO.Path]::GetFullPath($CanaryRoot)
@@ -73,6 +174,7 @@ if ($outputFull.Equals($receiptFull, [StringComparison]::OrdinalIgnoreCase)) {
     throw "OutputPath and ReceiptPath must be different files."
 }
 
+# E01.1 section: windows_build_token_context
 $version = [Environment]::OSVersion.Version
 $osBuild = "$($version.Major).$($version.Minor).$($version.Build)"
 $architecture = switch ([Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()) {
@@ -108,6 +210,7 @@ $integrity = Resolve-CopsIntegrityLevelFromSources `
         )
     }
 
+# E01.1 section: token_privileges
 $privilegeCoverage = "assessed"
 $privileges = @()
 try {
@@ -135,6 +238,7 @@ try {
     $uac = "unknown"
 }
 
+# E01.1 section: always_install_elevated
 $registryCoverage = "assessed"
 $registryConfiguration = "ordinary"
 try {
@@ -151,11 +255,13 @@ try {
     $registryCoverage = "not_assessed"
 }
 
+# E01.1 section: autologon_default_password_presence
 $credentialCoverage = "assessed"
 $credentialConfiguration = "ordinary"
 try {
     $winlogonKey = Get-Item -LiteralPath "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -ErrorAction Stop
     $autoLogonReference = $winlogonKey.GetValueNames() -contains "DefaultPassword"
+    # E01.1 section: unattend_file_presence
     $unattendedReference = @(@(
             Join-Path $env:WINDIR "Panther\Unattend.xml"
             Join-Path $env:WINDIR "Panther\Unattend\Unattend.xml"
@@ -169,6 +275,7 @@ try {
     $credentialCoverage = "not_assessed"
 }
 
+# E01.1 section: unquoted_service_path
 $serviceCoverage = "assessed"
 $serviceConfiguration = "ordinary"
 try {
@@ -189,6 +296,7 @@ try {
     $serviceCoverage = "not_assessed"
 }
 
+# E01.1 section: scheduled_task_acl
 $taskCoverage = "assessed"
 $taskConfiguration = "ordinary"
 $broadPrincipalSids = @("S-1-1-0", "S-1-5-11", "S-1-5-32-545")
@@ -227,6 +335,7 @@ try {
     $taskCoverage = "not_assessed"
 }
 
+# E01.1 section: path_directory_acl
 $filesystemCoverage = "assessed"
 $filesystemConfiguration = "ordinary"
 try {
@@ -398,7 +507,11 @@ $ownershipToken = [Guid]::NewGuid().ToString("N")
 $markerContent = "COPS assessment-owned lifecycle canary:$ownershipToken"
 $markerPath = [IO.Path]::GetFullPath((Join-Path $canaryPath "marker.txt"))
 $ownershipHash = Get-CopsStringSha256 -Value $markerContent
-$beforeAbsent = -not (Test-Path -LiteralPath $canaryPath)
+$beforeObservation = Invoke-CopsCanaryObserver `
+    -RootIdentity $canaryFull `
+    -ResourceId $resourceId `
+    -ExpectedState "absent"
+$beforeAbsent = $beforeObservation.state -eq "resource_absent"
 $created = $false
 $removed = $false
 $ownershipVerified = $false
@@ -417,23 +530,41 @@ $utf8 = New-Object System.Text.UTF8Encoding -ArgumentList $false
 [IO.File]::WriteAllText($markerPath, $markerContent, $utf8)
 $created = Test-Path -LiteralPath $canaryPath -PathType Container
 
-$ownedItem = Get-Item -LiteralPath $canaryPath -Force -ErrorAction Stop
-$ownedMarker = Get-Item -LiteralPath $markerPath -Force -ErrorAction Stop
-$ownedIdentity = [IO.Path]::GetFullPath($ownedItem.FullName)
-$ownedMarkerIdentity = [IO.Path]::GetFullPath($ownedMarker.FullName)
-$markerHash = (Get-FileHash -LiteralPath $markerPath -Algorithm SHA256).Hash.ToLowerInvariant()
-if ($ownedItem.PSProvider.Name -ne "FileSystem" -or $ownedItem.PSDrive.DisplayRoot -or
-    ($ownedItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
-    -not $ownedIdentity.Equals($canaryPath, [StringComparison]::OrdinalIgnoreCase) -or
-    $ownedMarker.PSProvider.Name -ne "FileSystem" -or
-    ($ownedMarker.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
-    -not $ownedMarkerIdentity.Equals($markerPath, [StringComparison]::OrdinalIgnoreCase) -or
-    $markerHash -ne $ownershipHash) {
-    throw "Assessment-owned canary ownership validation failed."
-}
+Assert-CopsCanaryOwnership `
+    -ResourceIdentity $canaryPath `
+    -MarkerIdentity $markerPath `
+    -ExpectedSha256 $ownershipHash
 $ownershipVerified = $true
+$afterCreateObservation = $null
+try {
+    $afterCreateObservation = Invoke-CopsCanaryObserver `
+        -RootIdentity $canaryFull `
+        -ResourceId $resourceId `
+        -ExpectedState "readable" `
+        -ExpectedSha256 $ownershipHash
+} catch {
+    $observerFailure = $_
+    try {
+        Assert-CopsCanaryOwnership `
+            -ResourceIdentity $canaryPath `
+            -MarkerIdentity $markerPath `
+            -ExpectedSha256 $ownershipHash
+        Remove-Item -LiteralPath $canaryPath -Recurse -Force -ErrorAction Stop
+    } catch {
+        throw "Independent canary observation failed and ownership changed; refusing cleanup."
+    }
+    throw $observerFailure
+}
+Assert-CopsCanaryOwnership `
+    -ResourceIdentity $canaryPath `
+    -MarkerIdentity $markerPath `
+    -ExpectedSha256 $ownershipHash
 Remove-Item -LiteralPath $canaryPath -Recurse -Force -ErrorAction Stop
 $removed = -not (Test-Path -LiteralPath $canaryPath)
+$afterCleanupObservation = Invoke-CopsCanaryObserver `
+    -RootIdentity $canaryFull `
+    -ResourceId $resourceId `
+    -ExpectedState "absent"
 if (-not ($beforeAbsent -and $created -and $ownershipVerified -and $removed)) {
     throw "Assessment-owned canary lifecycle validation failed."
 }
@@ -442,7 +573,7 @@ $exportJson = $export | ConvertTo-Json -Depth 12
 [IO.File]::WriteAllText($outputFull, $exportJson, $utf8)
 $exportHash = (Get-FileHash -LiteralPath $outputFull -Algorithm SHA256).Hash.ToLowerInvariant()
 $receipt = [ordered]@{
-    schema_version = "windows-bridge-receipt-1.1"
+    schema_version = "windows-bridge-receipt-1.2"
     platform = "windows"
     bridge_mode = "native_windows_bridge"
     export_sha256 = $exportHash
@@ -466,12 +597,18 @@ $receipt = [ordered]@{
         ownership_verified = $true
         removed = $true
         cleanup_verified = $true
+        observer_kind = "separate_same_token_process"
+        before_observation = $beforeObservation.state
+        after_create_observation = $afterCreateObservation.state
+        after_cleanup_observation = $afterCleanupObservation.state
         evidence_ids = @(
-            "canary_before",
+            "canary_before_observer",
             "canary_identity_bound",
             "canary_created",
+            "canary_after_create_observer",
             "canary_ownership_verified",
-            "canary_removed"
+            "canary_removed",
+            "canary_after_cleanup_observer"
         )
     }
 }

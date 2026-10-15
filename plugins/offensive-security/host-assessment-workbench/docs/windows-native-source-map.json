@@ -1,0 +1,105 @@
+{
+  "schema_version": "windows-native-source-map-1.0",
+  "target": "E01.1",
+  "status": "partial",
+  "collector": "scripts/collect-windows.ps1",
+  "mapped_probes": [
+    {
+      "probe_id": "windows_build_token_context",
+      "relationship": "supporting",
+      "sources": [
+        {
+          "item_id": "s02-016",
+          "path_or_section": "wmic-queries.txt"
+        }
+      ]
+    },
+    {
+      "probe_id": "token_privileges",
+      "relationship": "supporting",
+      "sources": [
+        {
+          "item_id": "s01-124",
+          "path_or_section": "win-privesc/juicypotato.md"
+        },
+        {
+          "item_id": "s01-125",
+          "path_or_section": "win-privesc/godpotato.md"
+        }
+      ]
+    },
+    {
+      "probe_id": "always_install_elevated",
+      "relationship": "direct",
+      "sources": [
+        {
+          "item_id": "s01-120",
+          "path_or_section": "win-privesc/always-install-elevated.md"
+        }
+      ]
+    },
+    {
+      "probe_id": "autologon_default_password_presence",
+      "relationship": "direct",
+      "sources": [
+        {
+          "item_id": "s01-127",
+          "path_or_section": "win-privesc/autologon-creds.md"
+        }
+      ]
+    },
+    {
+      "probe_id": "unattend_file_presence",
+      "relationship": "direct",
+      "sources": [
+        {
+          "item_id": "s01-128",
+          "path_or_section": "win-privesc/unattended-install.md"
+        }
+      ]
+    },
+    {
+      "probe_id": "unquoted_service_path",
+      "relationship": "direct",
+      "sources": [
+        {
+          "item_id": "s01-121",
+          "path_or_section": "win-privesc/unquoted-service-path.md"
+        }
+      ]
+    },
+    {
+      "probe_id": "path_directory_acl",
+      "relationship": "supporting",
+      "sources": [
+        {
+          "item_id": "s01-129",
+          "path_or_section": "win-privesc/dll-hijacking.md"
+        }
+      ]
+    }
+  ],
+  "unmapped_probes": [
+    {
+      "probe_id": "scheduled_task_acl",
+      "reason": "No pinned E01.1 source maps the bounded scheduled-task ACL inventory."
+    }
+  ],
+  "excluded_sources": [
+    {
+      "item_id": "s01-122",
+      "path_or_section": "win-privesc/service-permissions.md",
+      "reason": "The collector identifies unquoted service paths but does not collect service ACL permissions."
+    },
+    {
+      "item_id": "s01-123",
+      "path_or_section": "win-privesc/registry-run-keys.md",
+      "reason": "The collector reads AlwaysInstallElevated policy values but does not collect Run-key ACLs."
+    },
+    {
+      "item_id": "s01-126",
+      "path_or_section": "win-privesc/credman-dump.md",
+      "reason": "The collector reports bounded local credential references but does not access Credential Manager."
+    }
+  ]
+}

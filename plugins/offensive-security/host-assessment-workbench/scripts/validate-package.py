@@ -87,7 +87,7 @@ def main() -> int:
         root_identity = Path(canary_root).resolve()
         resource_id = "validation_canary"
         receipt = {
-            "schema_version": "windows-bridge-receipt-1.1",
+            "schema_version": "windows-bridge-receipt-1.2",
             "platform": "windows",
             "bridge_mode": "native_windows_bridge",
             "export_sha256": hashlib.sha256(native_bytes).hexdigest(),
@@ -98,17 +98,23 @@ def main() -> int:
                 "resource_identity": str(root_identity / resource_id),
                 "ownership_sha256": hashlib.sha256(b"validation ownership marker").hexdigest(),
                 "assessment_owned": True,
+                "observer_kind": "separate_same_token_process",
+                "before_observation": "resource_absent",
+                "after_create_observation": "readable_owned_marker",
+                "after_cleanup_observation": "resource_absent",
                 "before_absent": True,
                 "created": True,
                 "ownership_verified": True,
                 "removed": True,
                 "cleanup_verified": True,
                 "evidence_ids": [
-                    "before",
+                    "before_observer",
                     "identity_bound",
                     "created",
+                    "after_create_observer",
                     "ownership_verified",
                     "removed",
+                    "after_cleanup_observer",
                 ],
             },
         }
@@ -129,6 +135,8 @@ def main() -> int:
         "DefaultPassword",
         "token_impersonation_family",
         "Remove-Item -LiteralPath $canaryPath",
+        "observe-windows-canary.ps1",
+        "separate_same_token_process",
     ):
         _require(required in collector, f"native Windows collector is missing {required}")
     for prohibited in ("Invoke-Expression", "Start-Process", 'GetValue("DefaultPassword"'):

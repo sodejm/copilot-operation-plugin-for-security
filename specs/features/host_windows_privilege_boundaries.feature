@@ -28,7 +28,7 @@ Feature: Windows privilege-boundary evidence classification
     When the Windows host importer assesses it
     Then the report preserves the native bridge mode and explicit coverage
 
-  Scenario: Native bridge cleanup evidence is independently validated
+  Scenario: Same-token process observations and cleanup receipt are validated independently
     Given a native bridge export and assessment-owned cleanup receipt
     When the bridge receipt is validated against the export and empty canary root
-    Then the receipt proves resource lifecycle cleanup without claiming a privilege crossing
+    Then the receipt preserves the separate-process lifecycle observations without claiming a privilege crossing

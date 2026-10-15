@@ -32,13 +32,16 @@ The collector creates one harmless marker beneath a caller-supplied, empty,
 local, non-reparse canary root. Before deletion it confirms that the canonical
 root and child identities are unchanged, both remain ordinary local filesystem
 objects, and the marker content matches its assessment-owned SHA-256. An identity
-or ownership mismatch fails closed without deletion. It emits a SHA-256-bound
-receipt containing the canonical root and child identities, ownership digest,
-and before, identity, creation, ownership, removal, and cleanup assertions.
+or ownership mismatch fails closed without deletion. A separate process running
+under the same Windows token observes the resource absent before creation,
+readable with the exact owned marker after creation, and absent after deletion.
+It emits a SHA-256-bound receipt containing the canonical root and child
+identities, ownership digest, observer kind, and those three lifecycle states.
 `scripts/validate-windows-bridge.py` independently checks the receipt, rehashes
 the export, revalidates the assessment, binds the receipt identities to the exact
 supplied root, and requires that root to be empty. This lifecycle canary validates
-assessment-owned cleanup only; it is not a privilege-crossing canary.
+assessment-owned cleanup and same-token process visibility only; it is not a
+cross-identity or privilege-crossing canary.
 
 ## Import contract
 
@@ -95,33 +98,38 @@ The repository-contract Windows job runs `scripts/exercise-windows-bridge.ps1`
 on a disposable `windows-latest` runner. That shared practitioner entry point
 exercises the explicit ACL mutation predicate with read-only and writable rights,
 runs the native collector and importer, validates the SHA- and identity-bound
-lifecycle receipt, and independently requires an empty canary root. That job
-establishes native execution and assessment-owned cleanup only at the commit SHA
-it runs.
+lifecycle receipt, and runs the separate same-token observer before creation,
+after creation, and after deletion. The after-creation observer independently
+reads and hashes the owned marker; the final observer and receipt validator each
+require an empty canary root. That job establishes native execution and
+assessment-owned cleanup only at the commit SHA it runs.
 Every surface remains governed by its emitted coverage; a Windows job can pass
 while an individual probe truthfully reports `access_denied` or `not_assessed`.
 Live integration remains unverified until that exact-SHA hosted job succeeds.
 
 ## Source mapping
 
-| Evidence surface | Pinned reference | Scenario |
+| Evidence surface | Pinned reference | Native E01.1 mapping |
 | --- | --- | --- |
-| AlwaysInstallElevated registry policy | `s01-120` `win-privesc/always-install-elevated.md` | `COPS-E06.02-S01` supporting registry evidence |
-| Unquoted service paths | `s01-121` `win-privesc/unquoted-service-path.md` | `COPS-E06.02-S01` exact scenario source |
-| Service permissions | `s01-122` `win-privesc/service-permissions.md` | `COPS-E06.02-S01` supporting service evidence |
-| Registry run keys | `s01-123` `win-privesc/registry-run-keys.md` | `COPS-E06.02-S01` supporting registry evidence |
-| Token/version family context | `s01-124` `win-privesc/juicypotato.md`; `s01-125` `win-privesc/godpotato.md` | `COPS-E06.02-S01` supporting versioned-family evidence |
-| Credential Manager reference | `s01-126` `win-privesc/credman-dump.md` | `COPS-E06.03-S01` supporting local-credential evidence |
-| Autologon reference | `s01-127` `win-privesc/autologon-creds.md` | `COPS-E06.03-S01` supporting registry/local-credential evidence |
-| Unattended-install reference | `s01-128` `win-privesc/unattended-install.md` | `COPS-E06.03-S01` exact scenario source |
-| DLL search/path context | `s01-129` `win-privesc/dll-hijacking.md` | `COPS-E06.02-S01` supporting filesystem evidence |
-| Windows build and token context | `s02-016` `wmic-queries.txt` | `COPS-E06.02-S01` platform-gating context |
+| AlwaysInstallElevated registry policy | `s01-120` `win-privesc/always-install-elevated.md` | Direct: `always_install_elevated` |
+| Unquoted service paths | `s01-121` `win-privesc/unquoted-service-path.md` | Direct: `unquoted_service_path` |
+| Service permissions | `s01-122` `win-privesc/service-permissions.md` | Excluded: service ACL permissions are not collected |
+| Registry run keys | `s01-123` `win-privesc/registry-run-keys.md` | Excluded: Run-key ACLs are not collected |
+| Token/version family context | `s01-124` `win-privesc/juicypotato.md`; `s01-125` `win-privesc/godpotato.md` | Supporting: `token_privileges` |
+| Credential Manager reference | `s01-126` `win-privesc/credman-dump.md` | Excluded: Credential Manager is not accessed |
+| Autologon reference | `s01-127` `win-privesc/autologon-creds.md` | Direct: `autologon_default_password_presence` |
+| Unattended-install reference | `s01-128` `win-privesc/unattended-install.md` | Direct: `unattend_file_presence` |
+| DLL search/path context | `s01-129` `win-privesc/dll-hijacking.md` | Supporting: `path_directory_acl` |
+| Windows build and token context | `s02-016` `wmic-queries.txt` | Supporting: `windows_build_token_context` |
+| Scheduled-task ACL inventory | None | Unmapped: no pinned E01.1 source covers the bounded task-file ACL inventory |
 
-The executable source mapping for native acceptance is
-`scripts/exercise-windows-bridge.ps1` to `scripts/collect-windows.ps1`,
-`scripts/windows-bridge-common.ps1`, `scripts/assess.py`, and
-`scripts/validate-windows-bridge.py`. The repository-contract Windows job invokes
-that same entry point.
+The executable mapping is
+`plugins/offensive-security/host-assessment-workbench/docs/windows-native-source-map.json`.
+Its test binds every mapped source to `catalog/provenance.json`, requires every
+collector probe to have one `E01.1` anchor, and records unmapped probes and
+excluded source families. The repository-contract Windows job invokes
+`scripts/exercise-windows-bridge.ps1`, which reaches the mapped collector and the
+import and receipt validators.
 
 No collected observation claims the referenced technique succeeded. The source
 mapping explains the assessment premise and keeps the evidence claim at the
