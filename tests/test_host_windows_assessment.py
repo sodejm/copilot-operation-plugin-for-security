@@ -22,7 +22,10 @@ from host_assessment_workbench.core import (  # noqa: E402
     assess_document,
     load_report_bytes,
 )
-from host_assessment_workbench.windows_bridge import validate_bridge_receipt  # noqa: E402
+from host_assessment_workbench.windows_bridge import (  # noqa: E402
+    _missing_path_component,
+    validate_bridge_receipt,
+)
 
 
 def fixture(name: str) -> dict:
@@ -394,6 +397,33 @@ def test_native_exercise_injects_junction_and_partial_write_failures() -> None:
     assert "controlled partial write failure" in exercise
     assert ".partial.json.cops-*.tmp" in exercise
     assert "Partial-write cleanup self-test did not fail closed without residue." in exercise
+
+
+def test_native_writer_verifies_completed_files_and_exercises_sequential_writes() -> None:
+    common = (PACKAGE / "scripts" / "windows-bridge-common.ps1").read_text()
+    exercise = (PACKAGE / "scripts" / "exercise-windows-bridge.ps1").read_text()
+
+    assert "'ExistingFile'" in common
+    assert "-Kind ExistingFile" in common
+    assert common.index("$stream.Dispose()") < common.index("-Path $full -Name 'Output file' -Kind ExistingFile")
+    assert "sequential-first.json" in exercise
+    assert "sequential-second.json" in exercise
+    assert "Sequential atomic-write self-test" in exercise
+    assert exercise.index("Native Windows collection did not materialize") < exercise.index(
+        'Join-Path $PSScriptRoot "assess.py"'
+    )
+
+
+def test_windows_missing_path_diagnostic_identifies_component_without_path_data() -> None:
+    assert _missing_path_component(0, 3) == "drive root"
+    assert _missing_path_component(1, 3) == "ancestor 1 of 2"
+    assert _missing_path_component(2, 3) == "ancestor 2 of 2"
+    assert _missing_path_component(3, 3) == "leaf"
+
+    validator = (PACKAGE / "host_assessment_workbench" / "windows_bridge.py").read_text()
+    missing_handler = validator[validator.index("except FileNotFoundError") :]
+    assert "_missing_path_component(index, leaf_index)" in missing_handler
+    assert "candidate" not in missing_handler.split("except OSError", 1)[0]
 
 
 def test_native_exercise_reports_only_artifact_names() -> None:

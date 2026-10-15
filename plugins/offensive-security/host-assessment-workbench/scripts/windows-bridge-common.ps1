@@ -24,7 +24,7 @@ function Resolve-CopsLocalPath {
         [Parameter(Mandatory = $true)][string]$Path,
         [Parameter(Mandatory = $true)][string]$Name,
         [Parameter(Mandatory = $true)]
-        [ValidateSet('AllowMissing', 'ExistingDirectory', 'NewFile', 'NewDirectory')]
+        [ValidateSet('AllowMissing', 'ExistingDirectory', 'ExistingFile', 'NewFile', 'NewDirectory')]
         [string]$Kind
     )
 
@@ -73,9 +73,12 @@ function Resolve-CopsLocalPath {
     }
 
     $leafIndex = $parts.Count
-    if ($Kind -eq 'ExistingDirectory') {
-        if ($null -ne $firstMissingIndex -or $null -eq $lastItem -or -not $lastItem.PSIsContainer) {
-            throw "$Name must be an existing local directory."
+    if ($Kind -in @('ExistingDirectory', 'ExistingFile')) {
+        $expectedContainer = $Kind -eq 'ExistingDirectory'
+        if ($null -ne $firstMissingIndex -or $null -eq $lastItem -or
+            $lastItem.PSIsContainer -ne $expectedContainer) {
+            $expectedType = if ($expectedContainer) { 'directory' } else { 'file' }
+            throw "$Name must be an existing local $expectedType."
         }
     } elseif ($Kind -in @('NewFile', 'NewDirectory')) {
         if ($null -eq $firstMissingIndex) {
@@ -222,6 +225,9 @@ function Invoke-CopsExclusiveFileWrite {
             $handle.Dispose()
         }
     }
+    # Verify the rename after closing the handle so callers never proceed on a
+    # successful return unless the final path is a local, regular file.
+    $null = Resolve-CopsLocalPath -Path $full -Name 'Output file' -Kind ExistingFile
 }
 
 function Write-CopsNewUtf8File {

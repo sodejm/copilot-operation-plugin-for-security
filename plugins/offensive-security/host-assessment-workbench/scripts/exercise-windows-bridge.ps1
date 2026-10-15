@@ -137,6 +137,20 @@ try {
         @(Get-ChildItem -LiteralPath $selfTestRoot -Filter ".partial.json.cops-*.tmp" -Force).Count -ne 0) {
         throw "Partial-write cleanup self-test did not fail closed without residue."
     }
+
+    # Exercise two successive completed writes because collection emits its
+    # export and receipt through separate invocations of the same primitive.
+    $firstWritePath = Join-Path $selfTestRoot "sequential-first.json"
+    $secondWritePath = Join-Path $selfTestRoot "sequential-second.json"
+    Write-CopsNewUtf8File -Path $firstWritePath -Content '{"sequence":1}'
+    Write-CopsNewUtf8File -Path $secondWritePath -Content '{"sequence":2}'
+    $null = Resolve-CopsLocalPath -Path $firstWritePath -Name "First sequential write" -Kind ExistingFile
+    $null = Resolve-CopsLocalPath -Path $secondWritePath -Name "Second sequential write" -Kind ExistingFile
+    if ((Get-Content -LiteralPath $firstWritePath -Raw) -ne '{"sequence":1}' -or
+        (Get-Content -LiteralPath $secondWritePath -Raw) -ne '{"sequence":2}' -or
+        @(Get-ChildItem -LiteralPath $selfTestRoot -Filter "*.cops-*.tmp" -Force).Count -ne 0) {
+        throw "Sequential atomic-write self-test did not preserve both completed files."
+    }
 } finally {
     $junction = Join-Path (Join-Path $selfTestRoot "carrier") "junction"
     if (Test-Path -LiteralPath $junction) {
@@ -161,6 +175,24 @@ New-Item -ItemType Directory -Path $canaryRoot -ErrorAction Stop | Out-Null
     -CanaryRoot $canaryRoot
 if (-not $?) {
     throw "Native Windows collection failed."
+}
+
+try {
+    $null = Resolve-CopsLocalPath -Path $exportPath -Name "Collected export" -Kind ExistingFile
+    $null = Resolve-CopsLocalPath -Path $receiptPath -Name "Collected receipt" -Kind ExistingFile
+} catch {
+    $expectedNames = @(
+        Split-Path -Leaf $exportPath
+        Split-Path -Leaf $receiptPath
+    )
+    $observedNames = @(
+        Get-ChildItem -LiteralPath $runFull -File -Force |
+            Where-Object { $expectedNames -contains $_.Name } |
+            Select-Object -ExpandProperty Name |
+            Sort-Object
+    )
+    $observed = if ($observedNames.Count -eq 0) { '<none>' } else { $observedNames -join ', ' }
+    throw "Native Windows collection did not materialize its required files; observed expected artifact names: $observed. $($_.Exception.Message)"
 }
 
 $reportJson = (& python (Join-Path $PSScriptRoot "assess.py") $exportPath | Out-String)

@@ -46,6 +46,15 @@ def _is_reparse_point(path: Path) -> bool:
     return path.is_symlink() or bool(attributes & reparse_flag)
 
 
+def _missing_path_component(index: int, leaf_index: int) -> str:
+    """Describe a missing Windows path component without disclosing its name."""
+    if index == 0:
+        return "drive root"
+    if index == leaf_index:
+        return "leaf"
+    return f"ancestor {index} of {leaf_index - 1}"
+
+
 def validate_windows_existing_path(path: Path, where: str) -> Path:
     """Reject remote drives and reparse ancestors before opening an existing path."""
     path = Path(path)
@@ -68,12 +77,14 @@ def validate_windows_existing_path(path: Path, where: str) -> Path:
     for component in components:
         cursor /= component
         candidates.append(cursor)
-    for candidate in candidates:
+    leaf_index = len(candidates) - 1
+    for index, candidate in enumerate(candidates):
         try:
             if _is_reparse_point(candidate):
                 raise ContractError(f"{where} traverses a reparse point")
         except FileNotFoundError as exc:
-            raise ContractError(f"{where} must exist") from exc
+            missing = _missing_path_component(index, leaf_index)
+            raise ContractError(f"{where} {missing} does not exist") from exc
         except OSError as exc:
             raise ContractError(f"{where} ancestry could not be validated") from exc
     return path
