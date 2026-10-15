@@ -33,6 +33,38 @@ if ((Resolve-CopsIntegrityLevel -Rids @(8192)) -ne "medium") {
 if ((Resolve-CopsIntegrityLevel -Rids @(8192, 12288)) -ne "unknown") {
     throw "Ambiguous token integrity SIDs must remain unknown."
 }
+$ambiguousFallbackProbe = [pscustomobject]@{ Invoked = $false }
+$ambiguousSourceResult = Resolve-CopsIntegrityLevelFromSources `
+    -PrimaryRids @(8192, 12288) `
+    -FallbackResolver {
+        $ambiguousFallbackProbe.Invoked = $true
+        @(8192)
+    }
+if ($ambiguousSourceResult -ne "unknown" -or $ambiguousFallbackProbe.Invoked) {
+    throw "Ambiguous primary token integrity SIDs must fail closed without fallback."
+}
+$missingFallbackProbe = [pscustomobject]@{ Invoked = $false }
+$missingSourceResult = Resolve-CopsIntegrityLevelFromSources `
+    -PrimaryRids @() `
+    -FallbackResolver {
+        $missingFallbackProbe.Invoked = $true
+        @(8192)
+    }
+if ($missingSourceResult -ne "medium" -or -not $missingFallbackProbe.Invoked) {
+    throw "A missing primary token integrity SID must use the bounded fallback."
+}
+$ambiguousFallbackResult = Resolve-CopsIntegrityLevelFromSources `
+    -PrimaryRids @() `
+    -FallbackResolver { @(8192, 12288) }
+if ($ambiguousFallbackResult -ne "unknown") {
+    throw "Ambiguous fallback token integrity SIDs must fail closed."
+}
+$failedFallbackResult = Resolve-CopsIntegrityLevelFromSources `
+    -PrimaryRids @() `
+    -FallbackResolver { throw "controlled fallback failure" }
+if ($failedFallbackResult -ne "unknown") {
+    throw "A failed token integrity fallback must fail closed."
+}
 
 $runFull = [IO.Path]::GetFullPath($RunRoot)
 if ($runFull.StartsWith("\\") -or (Test-Path -LiteralPath $runFull)) {

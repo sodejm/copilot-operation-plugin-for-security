@@ -85,19 +85,20 @@ $architecture = switch ([Runtime.InteropServices.RuntimeInformation]::OSArchitec
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $principal = [Security.Principal.WindowsPrincipal]::new($identity)
 $elevated = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-$integrityRid = @(
+$primaryIntegrityRids = @(
     $identity.Groups |
         ForEach-Object { $_.Value } |
         Where-Object { $_ -match '^S-1-16-[0-9]+$' } |
         ForEach-Object { [int]($_ -replace '^S-1-16-', '') }
 )
-if (@($integrityRid | Sort-Object -Unique).Count -ne 1) {
-    try {
+$integrity = Resolve-CopsIntegrityLevelFromSources `
+    -PrimaryRids $primaryIntegrityRids `
+    -FallbackResolver {
         $groupRows = @(& "$env:SystemRoot\System32\whoami.exe" /groups /fo csv /nh 2>$null)
         if ($LASTEXITCODE -ne 0) {
             throw "whoami group collection failed."
         }
-        $integrityRid = @(
+        @(
             foreach ($line in $groupRows) {
                 $row = $line | ConvertFrom-Csv -Header GroupName, GroupType, Sid, Attributes
                 if ($row.Sid -match '^S-1-16-[0-9]+$') {
@@ -105,11 +106,7 @@ if (@($integrityRid | Sort-Object -Unique).Count -ne 1) {
                 }
             }
         )
-    } catch {
-        $integrityRid = @()
     }
-}
-$integrity = Resolve-CopsIntegrityLevel -Rids $integrityRid
 
 $privilegeCoverage = "assessed"
 $privileges = @()

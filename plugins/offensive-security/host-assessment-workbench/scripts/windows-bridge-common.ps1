@@ -44,3 +44,27 @@ function Resolve-CopsIntegrityLevel {
     }
     return "low"
 }
+
+function Resolve-CopsIntegrityLevelFromSources {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [int[]]$PrimaryRids,
+
+        [Parameter(Mandatory = $true)]
+        [scriptblock]$FallbackResolver
+    )
+
+    $uniquePrimaryRids = @($PrimaryRids | Sort-Object -Unique)
+    if ($uniquePrimaryRids.Count -gt 0) {
+        return (Resolve-CopsIntegrityLevel -Rids $uniquePrimaryRids)
+    }
+
+    try {
+        $fallbackRids = [int[]]@(& $FallbackResolver)
+    } catch {
+        return "unknown"
+    }
+    return (Resolve-CopsIntegrityLevel -Rids $fallbackRids)
+}

@@ -230,8 +230,12 @@ def test_native_collector_has_bounded_static_contract() -> None:
     )
     assert all(composite not in common for composite in ("::Write -bor", "::Modify", "::FullControl"))
     assert "Resolve-CopsIntegrityLevel" in common
+    assert "Resolve-CopsIntegrityLevelFromSources" in common
     assert 'return "unknown"' in common
     assert 'whoami.exe" /groups /fo csv /nh' in script
+    assert "Resolve-CopsIntegrityLevelFromSources" in script
+    assert "-PrimaryRids $primaryIntegrityRids" in script
+    assert "Count -ne 1" not in script
     assert "Unable to determine a single Windows token integrity level" not in script
     assert "windows-bridge-receipt-1.1" in script
     assert "ownership_sha256" in script
@@ -244,6 +248,10 @@ def test_native_collector_has_bounded_static_contract() -> None:
     assert "WriteData" in exercise
     assert "Resolve-CopsIntegrityLevel -Rids @()" in exercise
     assert "Resolve-CopsIntegrityLevel -Rids @(8192, 12288)" in exercise
+    assert "Ambiguous primary token integrity SIDs must fail closed without fallback" in exercise
+    assert "A missing primary token integrity SID must use the bounded fallback" in exercise
+    assert "Ambiguous fallback token integrity SIDs must fail closed" in exercise
+    assert "A failed token integrity fallback must fail closed" in exercise
     assert 'report.mode -ne "native_bridge_import"' in exercise
     assert "ownership_verified" in exercise
 
