@@ -22,6 +22,7 @@ from typing import Any, Callable
 
 from cops.contracts.models import Finding
 from cops.evidence.canonical import EvidenceError, canonical, timestamp
+from cops.assessments.cloud_inputs import cloud_input
 from cops.assessments.supply_inputs import github_actions, npm_lock, package_name, requirements_lock
 
 
@@ -464,27 +465,20 @@ def _cloud(items: list[_Artifact], _as_of: datetime) -> tuple[list[_Issue], list
             limitations.append(f"Unsupported cloud artifact kind: {artifact.kind}.")
             continue
         analyzed.add(artifact.artifact_id)
-        records = _walk_dicts(data)
-        for record in records:
-            if record.get("privileged") is True or record.get("hostNetwork") is True or record.get("runAsNonRoot") is False:
-                issues.append(_issue(artifact, "workload_privilege", "Rendered workload permits elevated execution", "high", "A rendered workload enables privileged or host-level execution, or disables non-root enforcement.", "Set restrictive pod and container security contexts in the rendered workload."))
-                break
-        for record in records:
-            values = list(record.values())
-            keys = {str(key).lower() for key in record}
-            if ("actions" in keys or "action" in keys or "resources" in keys or "resource" in keys) and any(value == "*" or value == ["*"] for value in values):
-                issues.append(_issue(artifact, "iam_wildcard", "IAM or RBAC policy contains a wildcard grant", "high", "A structured policy grants wildcard action or resource scope.", "Replace wildcard grants with the minimum required actions and resources."))
-                break
-        for record in records:
-            lowered = {str(key).lower(): value for key, value in record.items()}
-            if lowered.get("public") is True or lowered.get("acl") in {"public-read", "public-read-write"} or lowered.get("publicaccess") is True:
-                issues.append(_issue(artifact, "public_storage", "Cloud storage export indicates public access", "high", "A structured provider export or plan indicates public storage access.", "Disable public access and apply explicit principal-scoped policy."))
-                break
-        for record in records:
-            values = {str(value) for value in record.values() if isinstance(value, (str, bool))}
-            if "0.0.0.0/0" in values or "::/0" in values:
-                issues.append(_issue(artifact, "internet_ingress", "Network rule permits unrestricted source range", "medium", "A plan or export contains an all-address source range.", "Restrict ingress to documented source networks and required ports."))
-                break
+        parsed = cloud_input(artifact.kind, data)
+        messages = {
+            "workload_privilege": ("Rendered workload permits elevated execution", "A workload enables privileged or host execution, or explicitly permits root execution.", "Set restrictive pod and container security contexts."),
+            "iam_wildcard": ("IAM or RBAC policy contains a broad grant", "A typed Allow policy or RBAC rule grants wildcard action or global resource scope.", "Replace broad grants with required actions and resources."),
+            "public_storage": ("Cloud storage export indicates public access", "A typed storage ACL, resource policy, or provider setting permits public access.", "Disable public access and use explicit principals."),
+            "internet_ingress": ("Network rule permits unrestricted ingress", "An enabled inbound Allow rule permits an all-address source range.", "Restrict ingress to documented source networks and ports."),
+        }
+        for code in sorted(parsed.codes):
+            title, claim, remediation = messages[code]
+            issues.append(_issue(artifact, code, title, "medium" if code == "internet_ingress" else "high", claim, remediation))
+        if parsed.incomplete:
+            issues.append(_unresolved(artifact, "cloud_configuration"))
+            limitations.append("Unrecognized resources, malformed fields, unsupported plan versions, or unknown values leave cloud coverage partial.")
+        limitations.append("Typed cloud observations do not solve effective permissions, rule priority, condition expressions, or deployed reachability.")
     return issues, limitations, ["registered-adapter:helm-renderer@1", "registered-adapter:cloud-live-export@1"], analyzed
 
 
