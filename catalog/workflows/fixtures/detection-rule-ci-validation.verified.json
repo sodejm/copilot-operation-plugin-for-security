@@ -1,0 +1,54 @@
+{
+  "expected_outcome": "verified_detection",
+  "inputs": {
+    "alerts": [
+      {
+        "alert": true,
+        "correlation_id": "corr-001",
+        "timestamp": "2026-01-01T00:06:00Z"
+      }
+    ],
+    "attack_fixture": [
+      {
+        "correlation_id": "corr-001",
+        "event": "credential_revoked"
+      }
+    ],
+    "benign_fixture": [
+      {
+        "correlation_id": "corr-benign",
+        "event": "interactive_login"
+      }
+    ],
+    "correlation_ids": [
+      "corr-001"
+    ],
+    "evidence_refs": [
+      "evidence://simulation/001"
+    ],
+    "expected_telemetry": [
+      {
+        "field": "event",
+        "value": "credential_revoked"
+      }
+    ],
+    "source_result": {
+      "kind": "simulation",
+      "ref": "simulation://credential-revocation"
+    },
+    "telemetry": [
+      {
+        "correlation_id": "corr-001",
+        "event": "credential_revoked",
+        "timestamp": "2026-01-01T00:05:00Z"
+      }
+    ],
+    "time_window": {
+      "end": "2026-01-01T00:10:00Z",
+      "start": "2026-01-01T00:00:00Z"
+    }
+  },
+  "profile_id": "verified",
+  "schema_version": "cops.integrated-workflow-fixture/v1",
+  "workflow_id": "detection-rule-ci-validation"
+}

@@ -307,6 +307,34 @@ def test_portable_export_excludes_untracked_nested_files(context, tmp_path):
     assert not (context["destination"] / "skills" / "fixture-skill" / ".env").exists()
 
 
+def test_portable_export_uses_temporary_index_for_new_reviewed_asset(
+    context, monkeypatch, tmp_path
+):
+    host_package(context, tmp_path)
+    relative = Path("docs/report-exports.md")
+    asset = context["source"] / relative
+    asset.parent.mkdir()
+    asset.write_text("# Report exports\n", encoding="utf-8")
+    temporary_index = tmp_path / "temporary-index"
+    temporary_index.write_bytes((tmp_path / ".git/index").read_bytes())
+
+    with monkeypatch.context() as temporary_environment:
+        temporary_environment.setenv("GIT_INDEX_FILE", str(temporary_index))
+        subprocess.run(
+            ["git", "-C", str(context["source"]), "add", "--", str(relative)],
+            check=True,
+        )
+        export_portable_package(context["source"], context["destination"])
+
+    assert (context["destination"] / relative).read_text(encoding="utf-8") == "# Report exports\n"
+    real_index = subprocess.run(
+        ["git", "-C", str(context["source"]), "ls-files", "--error-unmatch", str(relative)],
+        capture_output=True,
+        check=False,
+    )
+    assert real_index.returncode != 0
+
+
 def test_portable_export_rejects_broken_relative_link(context, tmp_path):
     host_package(context, tmp_path)
     (context["source"] / "README.md").write_text(

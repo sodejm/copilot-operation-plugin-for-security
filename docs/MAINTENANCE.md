@@ -14,7 +14,9 @@ python3 -m cops doctor --contributor
 python3 -m cops generate
 python3 -m cops generate --check
 python3 -m cops check
+make check-playbooks
 make check
+make check-docs
 ```
 
 Acceptance criteria:
@@ -23,7 +25,7 @@ Acceptance criteria:
 - generated indexes are current and were not independently edited;
 - every package's declared checks pass;
 - BDD scenarios cover the changed behavior and meaningful misuse boundaries;
-- offline, host, and live evidence claims remain distinct;
+- offline, isolated laboratory, installed-host, and live evidence claims remain distinct;
 - no credentials, private investigation data, or generated caches are committed.
 
 ## Release review
@@ -31,7 +33,11 @@ Acceptance criteria:
 For each changed package, review its maturity, limitations, input/output contract,
 permission needs, deterministic results, and version. A repository check can award
 structural or offline evidence only. Require a dated, reproducible evidence record
-before changing host-installation or live-integration status.
+before changing host-installation or live-integration status. Laboratory readiness
+also requires `make check-laboratory` with verified isolation, actual activity,
+collected telemetry and restored baseline. An unavailable isolation boundary or
+skipped required check leaves the affected capability incomplete; `make check`
+remains portable and cannot award laboratory readiness.
 
 CI runs the full contributor gate on supported Python versions and an operator
 smoke test on Linux, macOS, and Windows. The operator checks run without test
@@ -60,10 +66,22 @@ the reason and lower maturity if the previous gate is no longer met.
 - Change `catalog/plugins.json`, then run `python3 -m cops generate`.
 - Change canonical contributor skills in `.agents/skills/`, then run
   `make sync-agent-adapters`.
+- Change artifact-assessment or API runtime sources, then run
+  `python3 scripts/sync_artifact_assessment_runtime.py` or
+  `python3 scripts/sync_web_api_runtime.py` and verify their `--check` modes.
+- Change package playbook inputs or catalog routing metadata, then run
+  `make generate-playbooks` and `make check-playbooks`. Keep the independent
+  routing evaluation fixture separate from published examples.
 - Change Sentinel canonical source, then run its adapter generator and
   `python3 -m cops check sentinel-hunt-workbench`.
 
 Generated files are reviewed in diffs but are never the source of truth.
+
+For expansion changes, record the exact revision, fixture checksums, commands,
+counts, limitations and blocked gates in the acceptance report. Re-run the routing
+held-out suite when metadata, profiles, thresholds or scoring change. Do not
+promote recorded fixture assertions or unsigned evidence bundles to authenticated
+production observations. See [Expansion migration](EXPANSION_MIGRATION.md).
 
 ## External change review
 

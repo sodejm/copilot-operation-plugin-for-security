@@ -1,0 +1,92 @@
+{
+  "schema_version": "cops.artifact-assessment-fixtures/v1",
+  "as_of": "2026-10-15T12:00:00Z",
+  "cases": [
+    {
+      "id": "credential-vulnerable",
+      "capability": "credential_history",
+      "phase": "vulnerable",
+      "expected_codes": [
+        "credential_not_contained"
+      ],
+      "artifacts": [
+        {
+          "artifact_id": "history-vuln",
+          "kind": "git_history",
+          "content": {
+            "occurrences": [
+              {
+                "fingerprint": "0123456789abcdef",
+                "author_id": "author-1",
+                "exposed": true,
+                "redacted": false,
+                "rotated": false
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "credential-corrected",
+      "capability": "credential_history",
+      "phase": "corrected",
+      "expected_codes": [],
+      "artifacts": [
+        {
+          "artifact_id": "history-fixed",
+          "kind": "git_history",
+          "content": {
+            "occurrences": [
+              {
+                "fingerprint": "0123456789abcdef",
+                "author_id": "author-1",
+                "exposed": true,
+                "redacted": true,
+                "rotated": true
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "credential-insufficient",
+      "capability": "credential_history",
+      "phase": "insufficient",
+      "expected_codes": [
+        "credential_history_insufficient_evidence"
+      ],
+      "artifacts": [
+        {
+          "artifact_id": "history-unknown",
+          "kind": "git_history",
+          "content": {}
+        }
+      ]
+    },
+    {
+      "id": "credential-benign",
+      "capability": "credential_history",
+      "phase": "benign",
+      "expected_codes": [],
+      "artifacts": [
+        {
+          "artifact_id": "history-benign",
+          "kind": "git_history",
+          "content": {
+            "occurrences": [
+              {
+                "fingerprint": "fedcba9876543210",
+                "author_id": "author-2",
+                "exposed": false,
+                "redacted": true,
+                "rotated": false
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

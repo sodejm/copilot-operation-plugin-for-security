@@ -17,7 +17,7 @@ All contributions adhere to the canonical [Repository Contract (AGENTS.md)](../A
 1. **Offline-First & Deterministic**: Offload data parsing, schema checks, and evidence evaluations to standard-library Python scripts. Reserve LLM context for reasoning and synthesis.
 2. **Standard-Library Core**: The core runner, CLI, scanner, and plugin validator must use only the Python standard library. Signed laboratory receipt verification uses the optional `laboratory` extra; contributor test dependencies are in `requirements.txt`.
 3. **Dedicated Branches**: Always implement changes on a dedicated task branch based on a fresh fetch of `origin/main`.
-4. **Honest Evidence Reporting**: Never claim a check passed unless it ran in the local checkout. Clearly distinguish between offline validated tests, unverified cloud claims, and live-tested results.
+4. **Honest Evidence Reporting**: Never claim a check passed unless it ran in the local checkout. Clearly distinguish offline fixture results from laboratory evidence. No live-evidence verifier is currently registered, so filenames, flags, manifests, and receipt labels cannot support a `live-validated` claim.
 5. **No Secrets or Private Paths**: Never commit API keys, personal credentials, private tenant data, or machine-specific home paths.
 
 The [offline engagement reporting guide](ENGAGEMENT_REPORTING.md) defines the
@@ -129,6 +129,14 @@ make check PYTHON=.venv/bin/python
 make check-issue-coverage
 ```
 
+`make check` is the portable repository baseline. Changes to laboratory behavior or readiness claims must also pass the mandatory laboratory gate:
+
+```bash
+make check-laboratory
+```
+
+That gate exercises local service activity and verifies telemetry, isolation, and restoration. Offline fixtures, generated playbooks, and generated walkthroughs validate deterministic logic and documentation; they do not establish laboratory readiness.
+
 Python changes must also pass `ruff check .`; YAML changes must pass `yamllint -s .`, matching the hosted quality gate. Install these tools in the development environment before running them. After changing canonical skills or portable evidence sources, regenerate adapters with `make sync-agent-adapters` and the evidence bundle with `python scripts/agent/bundle_evidence.py`, then rerun validation.
 
 Linux sandbox changes must also pass the real bubblewrap integration gate:
@@ -173,7 +181,7 @@ If an administrative change, refactor, or typo fix requires an exemption, provid
 7. **Evidence Bundle Validation** (`scripts/agent/bundle_evidence.py --check`): Ensures evidence receipts adhere to schema constraints.
 8. **Host Marketplace Synchronization** (`python3 -m cops generate --check`): Verifies that `.github/`, `.claude-plugin/`, and `.agents/` marketplace files match `catalog/plugins.json`.
 9. **ATT&CK Coverage Check** (`python3 -m cops coverage --check`): Validates MITRE ATT&CK matrix mappings.
-10. **Plugin Test Suites** (`python3 -m cops check`): Runs declared offline verification suites across all 18 plugins.
+10. **Plugin Test Suites** (`python3 -m cops check`): Runs declared offline verification suites across all 25 plugins.
 11. **Pytest & Unittest Suites**: Executes all acceptance scenarios (`pytest tests`) and skill unittests.
 12. **Git Diff Check**: Confirms no trailing whitespace or corrupt line endings exist.
 
@@ -190,26 +198,38 @@ To contribute a new cybersecurity capability to COPS:
    - `vulnerability-management`
    - `offensive-security`
    - `incident-response`
+   - `governance-compliance`
 
 2. **Register the Package in `catalog/plugins.json`**:
-   Add the plugin definition including its ID, name, version, category, maturity (`experimental`, `beta`, `stable`), and operational mode (`planned`, `import`, `laboratory`, `live-validated`).
+   Add the plugin definition including its ID, name, version, category, maturity (`experimental`, `beta`, `stable`), and operational mode (`planned`, `guidance`, `import`, `laboratory`, `live-validated`).
 
 3. **Create the Package Directory Structure**:
    Place the package at `plugins/<category>/<plugin-id>/` with:
    - `plugin.json`: Core Agent Plugins v1.0.0 manifest.
    - `README.md`: Overview, target practitioners, and prerequisites.
    - `docs/PLAYBOOK.md`: Step-by-step practitioner playbook.
+   - `playbooks/offline-assessment.json`: Generated offline workflow contract.
+   - `walkthroughs/offline-assessment.md`: Generated operator walkthrough.
    - `scripts/`: Standard-library Python validation and demo scripts.
    - `tests/`: Offline synthetic test data and unit tests.
    - `skills/`: Reusable agent skills conforming to `agentskills.io`.
 
-4. **Regenerate Host Marketplaces**:
+4. **Generate Package Playbooks and Walkthroughs**:
+   ```bash
+   python3 scripts/generate_plugin_playbooks.py
+   python3 scripts/generate_plugin_playbooks.py --check
+   ```
+   The generator refreshes package-owned offline workflow assets and their `docs/PLAYBOOK.md` links for all 25 packages. Generated files must be tracked by Git to appear in a portable export. Their presence documents an offline workflow; it is not evidence of laboratory execution or live integration.
+
+   Portable packages may include approved, tracked assets under `examples/`, `playbooks/`, `walkthroughs/`, `datasets/`, `provenance/`, and `signatures/`. The exporter rejects symlinks and broken or escaping Markdown links.
+
+5. **Regenerate Host Marketplaces**:
    ```bash
    python3 -m cops generate
    ```
    This updates `.github/plugin/marketplace.json`, `.claude-plugin/marketplace.json`, and `.agents/plugins/marketplace.json` automatically.
 
-5. **Verify the New Package**:
+6. **Verify the New Package**:
    ```bash
    python3 -m cops validate <plugin-id>
    python3 -m cops demo <plugin-id>

@@ -61,3 +61,10 @@ The default demo cleans its temporary workspace. Remove retained synthetic direc
 ## Vendor and production limits
 
 The demo uses only the synthetic illustrative adapter. `wiz-query-intent.json` records why query rendering did not occur; it is not an executable query. Do not relabel the illustrative schema as vendor evidence. Passing the playback does not demonstrate live Wiz or Azure integration, full production graph coverage, exploitability, attacker activity, or business impact.
+
+<!-- BEGIN COPS GENERATED OFFLINE ASSESSMENT LINKS -->
+## Generated offline assessment
+
+- [Machine-readable playbook](../playbooks/offline-assessment.json)
+- [Runnable offline walkthrough](../walkthroughs/offline-assessment.md)
+<!-- END COPS GENERATED OFFLINE ASSESSMENT LINKS -->

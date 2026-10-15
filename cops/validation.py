@@ -51,6 +51,10 @@ CATALOG_PLUGIN_KEYS = {
     "primary_category",
     "path",
     "tags",
+    "symptom_triggers",
+    "artifact_triggers",
+    "anti_triggers",
+    "example_prompts",
 }
 
 
@@ -408,6 +412,13 @@ def validate_repository(root: Path = ROOT, *, check_indexes: bool = True) -> lis
                 f"catalog/plugins.json.plugins[{index}] must declare exactly "
                 f"{sorted(CATALOG_PLUGIN_KEYS)}"
             )
+        for field in ("symptom_triggers", "artifact_triggers", "anti_triggers", "example_prompts"):
+            _require_string_list(
+                raw_plugin[field], f"catalog/plugins.json.plugins[{index}].{field}",
+                nonempty=field in {"symptom_triggers", "example_prompts"},
+            )
+        if len(raw_plugin["example_prompts"]) != 5:
+            raise ValidationError(f"plugin {raw_plugin['id']} must have five example_prompts")
     records = plugin_records(root)
     if not records:
         raise ValidationError("catalog/plugins.json.plugins must not be empty")

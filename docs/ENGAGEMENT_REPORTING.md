@@ -100,6 +100,13 @@ These combinations are necessary checks, not proof of a claim: saved-report
 validation cannot reconstruct the input bundle or authenticate its source.
 Retain the private source bundle for review.
 
+Validated assessment-report objects can also be rendered as SARIF 2.1.0,
+JUnit XML, or revision-bound PR Markdown through the local
+[report export API](REPORT_EXPORTS.md). Its status mapping preserves
+inconclusive and contradicted results instead of promoting them to verified
+findings or successful tests. Exporting creates an artifact only; it does not
+upload results or post a review.
+
 `planned`, `imported`, `laboratory`, and `live_validated` are distinct provenance
 labels; a live row that does not meet assessment requirements is
 `live_unvalidated`. These labels describe the supplied, validated records. They

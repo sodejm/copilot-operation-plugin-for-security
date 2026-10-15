@@ -518,7 +518,7 @@ def command_worker_store_list(args: argparse.Namespace) -> int:
 
 def command_worker_execute(args: argparse.Namespace) -> int:
     from .contracts import ActionPlan
-    from .execution import SSHExecutionDispatcher, SSHRemoteEndpointInventory
+    from .expansion_cli import load_bounded_json
 
     plan_path = Path(args.plan)
     if not plan_path.is_file():
@@ -526,7 +526,17 @@ def command_worker_execute(args: argparse.Namespace) -> int:
         return 1
 
     try:
-        plan = ActionPlan.from_dict(json.loads(plan_path.read_text(encoding="utf-8")))
+        plan = ActionPlan.from_dict(load_bounded_json(plan_path))
+        if getattr(args, "explain", False):
+            from .preview import preview_action_plan, render_preview
+
+            preview = preview_action_plan(plan)
+            print(json.dumps(preview, indent=2) if args.json else render_preview(preview))
+            return 0
+        if not all((args.authorization, args.worker_id, args.ssh_endpoint_inventory)):
+            raise ValueError("execution requires --authorization, --worker-id and --ssh-endpoint-inventory")
+        from .execution import SSHExecutionDispatcher, SSHRemoteEndpointInventory
+
         endpoint_inventory = SSHRemoteEndpointInventory.from_file(args.ssh_endpoint_inventory)
         dispatcher = SSHExecutionDispatcher(endpoint_inventory)
         authorized_run = dispatcher.execute(
@@ -712,14 +722,14 @@ def build_parser() -> argparse.ArgumentParser:
     w_exec = worker_sub.add_parser("execute", help="dispatch an authorized action plan to a remote worker")
     w_exec.add_argument("plan", type=Path, help="path to ActionPlan JSON file")
     w_exec.add_argument(
-        "--authorization", required=True, help="opaque authorization ID registered with the remote approval authority"
+        "--authorization", help="opaque authorization ID registered with the remote approval authority"
     )
     w_exec.add_argument(
         "--worker-id",
-        required=True,
         help="approved worker identity resolved through the trusted SSH endpoint inventory",
     )
-    w_exec.add_argument("--ssh-endpoint-inventory", type=Path, required=True, help="owner-only SSH endpoint inventory")
+    w_exec.add_argument("--ssh-endpoint-inventory", type=Path, help="owner-only SSH endpoint inventory")
+    w_exec.add_argument("--explain", "--dry-run", dest="explain", action="store_true", help="preview without execution or approval consumption")
     w_exec.add_argument("--json", action="store_true", help="output structured JSON")
 
     eng_p = subparsers.add_parser(
@@ -869,29 +879,26 @@ def build_parser() -> argparse.ArgumentParser:
     l_mat.add_argument("--output", help="output path for matrix JSON")
 
     l_run = lab_sub.add_parser("run", help="execute a laboratory test case")
-    l_run.add_argument("--environment", required=True, help="path to laboratory environment JSON")
+    l_run.add_argument("--environment", help="path to laboratory environment JSON")
     l_run.add_argument(
         "--evidence-dir",
         type=Path,
-        required=True,
         help="absolute owner-only directory for durable evidence outside the disposable workspace",
     )
     l_run.add_argument("--plan", required=True, help="path to action plan JSON")
-    l_run.add_argument("--authorization", required=True, help="path to execution authorization JSON")
+    l_run.add_argument("--authorization", help="path to execution authorization JSON")
     l_run.add_argument(
         "--worker-inventory",
         type=Path,
-        required=True,
         help="owner-only independently provisioned worker capability inventory",
     )
     l_run.add_argument("--worker-id", help="assert the expected inventory worker identity")
     l_run.add_argument(
-        "--authorization-trust-store", type=Path, required=True, help="verifier-owned authorization key configuration"
+        "--authorization-trust-store", type=Path, help="verifier-owned authorization key configuration"
     )
     l_run.add_argument(
         "--engagement",
         type=Path,
-        required=True,
         help="path to active engagement JSON for authorization and scope enforcement",
     )
     l_run.add_argument(
@@ -900,6 +907,8 @@ def build_parser() -> argparse.ArgumentParser:
     l_run.add_argument("--store", help="path to sqlite3 approval store")
     l_run.add_argument("--allowed-cidr", help="allowed network CIDR for scope guard")
     l_run.add_argument("--output", help="output path for case result JSON")
+    l_run.add_argument("--explain", "--dry-run", dest="explain", action="store_true", help="preview without execution or evidence writes")
+    l_run.add_argument("--json", action="store_true")
 
     from .diagnostics.cli import build_diagnostics_parser
 
@@ -953,13 +962,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     build_legacy_parser(legacy_parser)
 
+    from .expansion_cli import register_expansion_commands
+
+    register_expansion_commands(subparsers)
     return parser
 
 
 def main(argv: list[str] | None = None, *, root: Path = ROOT) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    if args.command == "worker" and args.worker_command == "execute" and not args.explain:
+        for flag in ("authorization", "worker_id", "ssh_endpoint_inventory"):
+            if not getattr(args, flag):
+                parser.error(f"worker execute requires --{flag.replace('_', '-')} unless --explain is selected")
     try:
+        if args.command in {"explain", "assess", "report", "workflow", "web-api"}:
+            from .expansion_cli import dispatch_expansion_command
+
+            return dispatch_expansion_command(args, root)
         if args.command == "list":
             return command_list(root)
         if args.command == "info":

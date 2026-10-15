@@ -110,3 +110,10 @@ The playback does not test DNS, TLS, redirects, actual provider authorization,
 provider-side pagination, cooldown persistence, live schema drift, or durable
 cache history. Injected mocks demonstrate local behavior only. A positive claim
 is evidence attributed to its source, not an independent verdict.
+
+<!-- BEGIN COPS GENERATED OFFLINE ASSESSMENT LINKS -->
+## Generated offline assessment
+
+- [Machine-readable playbook](../playbooks/offline-assessment.json)
+- [Runnable offline walkthrough](../walkthroughs/offline-assessment.md)
+<!-- END COPS GENERATED OFFLINE ASSESSMENT LINKS -->

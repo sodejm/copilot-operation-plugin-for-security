@@ -1,0 +1,10 @@
+{
+  "name": "secrets-remediation-workbench",
+  "version": "0.1.0",
+  "description": "Assess redacted Git history and identity evidence to plan credential exposure remediation and verify lab revocation.",
+  "author": {
+    "name": "Justin Soderberg",
+    "url": "https://github.com/sodejm"
+  },
+  "license": "PolyForm-Noncommercial-1.0.0"
+}

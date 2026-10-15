@@ -6,10 +6,11 @@ description: Run end-to-end plugin playbooks, record evidence, and review maturi
 
 # Verify a plugin and qualify it for stable
 
-Every catalog package has an end-to-end verification playbook. Use it to exercise
-the documented user workflow, inspect its results, test rejection and failure
-paths, and verify installation in the host you intend to use. A successful run
-produces evidence for a maturity review; it does not change a status automatically.
+Every catalog package has an end-to-end verification or fixture playbook. Use it
+to exercise the documented user workflow, inspect its results, test rejection and
+failure paths, and verify installation in the host you intend to use. A successful
+run produces evidence for a maturity review; it does not change a status
+automatically.
 
 ## Choose a playbook
 
@@ -37,6 +38,13 @@ limits. The index deliberately does not repeat status labels.
 | COPS Incident Response Sandbox | [Run the playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/incident-response/incident-response-sandbox/docs/VERIFICATION.md) |
 | COPS Host Assessment Workbench | [Run the playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/offensive-security/host-assessment-workbench/docs/VERIFICATION.md) |
 | COPS Offensive Engagement Workbench | [Run the playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/offensive-security/offensive-engagement-workbench/docs/VERIFICATION.md) |
+| COPS Compliance Posture Workbench | [Run the playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/governance-compliance/compliance-posture-workbench/docs/VERIFICATION.md) |
+| COPS Cloud Posture Workbench | [Run the playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/vulnerability-management/cloud-posture-workbench/docs/VERIFICATION.md) |
+| COPS Supply Chain and CI/CD Workbench | [Run the playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/vulnerability-management/supply-chain-cicd-workbench/docs/VERIFICATION.md) |
+| COPS Secrets Remediation Workbench | [Run the playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/identity-access/secrets-remediation-workbench/docs/VERIFICATION.md) |
+| COPS Network Segmentation Workbench | [Run the playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/vulnerability-management/network-segmentation-workbench/docs/VERIFICATION.md) |
+| COPS TLS and Crypto Workbench | [Run the playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/vulnerability-management/tls-crypto-workbench/docs/VERIFICATION.md) |
+| COPS Web API Assessment Workbench | [Run the playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/offensive-security/web-api-assessment-workbench/docs/VERIFICATION.md) |
 
 ## Prepare the run
 
@@ -69,6 +77,10 @@ contributor dependencies using [Contributing](../CONTRIBUTING.md) when required;
 
 The playbooks grant no permission to scan targets, call a provider, send data to a
 hosted model, or perform containment. Their runnable examples use local fixtures.
+For the seven experimental import packages, a passing fixture proves only the
+documented offline parser, assessment, and report behavior. It does not prove a
+live tenant, deployed control, provider-side remediation, production endpoint, or
+isolated laboratory is ready.
 For a host exercise, use a host permitted to handle the selected synthetic input.
 Live integrations require separate authorization and an implemented evidence
 contract; see [Security model](SECURITY_MODEL.md).

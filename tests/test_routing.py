@@ -102,10 +102,11 @@ def test_route_active_directory_path_and_boundary(query):
 
 
 def test_route_fallback():
-    """Verify that an ambiguous query defaults safely to cops-soc-analyst triage."""
+    """Verify that an ambiguous query asks for clarification without a silent fallback."""
     decision = route_request("hello, what should we do today?")
-    assert decision.primary_profile.id == "cops-soc-analyst"
-    assert decision.confidence < 0.50
+    assert decision.status == "clarification_required"
+    assert decision.primary_profile is None
+    assert decision.confidence < 0.65
 
 
 def test_direct_profile_mention():

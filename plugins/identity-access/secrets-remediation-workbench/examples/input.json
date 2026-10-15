@@ -1,0 +1,19 @@
+{
+  "artifacts": [
+    {
+      "artifact_id": "history-vuln",
+      "kind": "git_history",
+      "content": {
+        "occurrences": [
+          {
+            "fingerprint": "0123456789abcdef",
+            "author_id": "author-1",
+            "exposed": true,
+            "redacted": false,
+            "rotated": false
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "name": "compliance-posture-workbench",
+  "version": "0.1.0",
+  "description": "Map versioned SOC 2, CIS and NIST controls to dated evidence; identify unsupported and unknown control claims.",
+  "author": {
+    "name": "Justin Soderberg",
+    "url": "https://github.com/sodejm"
+  },
+  "repository": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "homepage": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "skills": "./skills/",
+  "keywords": [
+    "claude",
+    "codex",
+    "github-copilot",
+    "governance-compliance",
+    "offline-analysis"
+  ],
+  "interface": {
+    "displayName": "COPS Compliance Posture Workbench",
+    "shortDescription": "Map versioned SOC 2, CIS and NIST controls to dated evidence; identify unsupported and unknown control claims.",
+    "longDescription": "Map versioned SOC 2, CIS and NIST controls to dated evidence; identify unsupported and unknown control claims.",
+    "developerName": "Justin Soderberg",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Bounded offline artifact inspection",
+      "Evidence sufficiency and correction fixtures"
+    ],
+    "defaultPrompt": [
+      "Assess supplied compliance posture evidence, show limitations, and propose a bounded correction."
+    ]
+  }
+}

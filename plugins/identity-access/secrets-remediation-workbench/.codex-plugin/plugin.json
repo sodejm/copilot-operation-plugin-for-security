@@ -1,0 +1,34 @@
+{
+  "name": "secrets-remediation-workbench",
+  "version": "0.1.0",
+  "description": "Assess redacted Git history and identity evidence to plan credential exposure remediation and verify lab revocation.",
+  "author": {
+    "name": "Justin Soderberg",
+    "url": "https://github.com/sodejm"
+  },
+  "repository": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "homepage": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "skills": "./skills/",
+  "keywords": [
+    "claude",
+    "codex",
+    "github-copilot",
+    "identity-access",
+    "offline-analysis"
+  ],
+  "interface": {
+    "displayName": "COPS Secrets Remediation Workbench",
+    "shortDescription": "Assess redacted Git history and identity evidence to plan credential exposure remediation and verify lab revoc",
+    "longDescription": "Assess redacted Git history and identity evidence to plan credential exposure remediation and verify lab revocation.",
+    "developerName": "Justin Soderberg",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Bounded offline artifact inspection",
+      "Evidence sufficiency and correction fixtures"
+    ],
+    "defaultPrompt": [
+      "Assess supplied leaked credential evidence, show limitations, and propose a bounded correction."
+    ]
+  }
+}

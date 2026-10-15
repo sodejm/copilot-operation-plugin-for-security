@@ -1,0 +1,20 @@
+{
+  "expected_outcome": "no_suspicious_consent_observed",
+  "inputs": {
+    "grants": [
+      {
+        "app_id": "app-approved",
+        "high_privilege": false
+      }
+    ],
+    "signins": [
+      {
+        "app_id": "app-approved",
+        "suspicious": false
+      }
+    ]
+  },
+  "profile_id": "corrected",
+  "schema_version": "cops.integrated-workflow-fixture/v1",
+  "workflow_id": "illicit-consent-remediation"
+}

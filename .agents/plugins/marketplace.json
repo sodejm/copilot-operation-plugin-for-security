@@ -216,6 +216,90 @@
         "authentication": "ON_INSTALL"
       },
       "category": "Developer Tools"
+    },
+    {
+      "name": "compliance-posture-workbench",
+      "source": {
+        "source": "local",
+        "path": "./plugins/governance-compliance/compliance-posture-workbench"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "cloud-posture-workbench",
+      "source": {
+        "source": "local",
+        "path": "./plugins/vulnerability-management/cloud-posture-workbench"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "supply-chain-cicd-workbench",
+      "source": {
+        "source": "local",
+        "path": "./plugins/vulnerability-management/supply-chain-cicd-workbench"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "secrets-remediation-workbench",
+      "source": {
+        "source": "local",
+        "path": "./plugins/identity-access/secrets-remediation-workbench"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "network-segmentation-workbench",
+      "source": {
+        "source": "local",
+        "path": "./plugins/vulnerability-management/network-segmentation-workbench"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "tls-crypto-workbench",
+      "source": {
+        "source": "local",
+        "path": "./plugins/vulnerability-management/tls-crypto-workbench"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "web-api-assessment-workbench",
+      "source": {
+        "source": "local",
+        "path": "./plugins/offensive-security/web-api-assessment-workbench"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
     }
   ]
 }

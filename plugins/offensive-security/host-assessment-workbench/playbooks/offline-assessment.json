@@ -1,0 +1,169 @@
+{
+  "entrypoints": [
+    {
+      "argv": [
+        "python3",
+        "plugins/offensive-security/host-assessment-workbench/scripts/demo.py"
+      ],
+      "effects": {
+        "authorization": "not applicable to this offline entrypoint",
+        "network": "none declared by the offline package contract",
+        "read_scope": "exact argv-declared repository paths; the script can also select package-local fixtures, so inspect its implementation before invocation",
+        "reads": [
+          "plugins/offensive-security/host-assessment-workbench/scripts/demo.py"
+        ],
+        "subprocess": "the generator executes none; operator invocation may run subprocesses implemented by the declared repository script",
+        "temporary_storage": "implementation-controlled and not retained; location is not declared by argv",
+        "write_scope": "complete durable destinations explicitly declared in argv; an empty list means no durable destination is declared, not that the implementation performs no temporary writes",
+        "writes": []
+      },
+      "expectations": {
+        "evidence": [
+          "the declared command exits successfully",
+          "reported results are limited to the supplied offline fixtures and metadata"
+        ],
+        "inputs": {
+          "argv": [],
+          "implementation_selected": "package-local fixtures may be selected inside the declared script; review the script before invocation",
+          "review_sources": [
+            "plugins/offensive-security/host-assessment-workbench/package.json",
+            "plugins/offensive-security/host-assessment-workbench/docs/PLAYBOOK.md"
+          ]
+        },
+        "outputs": {
+          "durable_destinations": [],
+          "process": [
+            "exit status",
+            "standard output",
+            "standard error"
+          ],
+          "schemas": []
+        }
+      },
+      "id": "demo",
+      "purpose": "Classify synthetic Linux and Windows canary exports entirely offline.",
+      "timeout_seconds": 30,
+      "working_directory": "."
+    },
+    {
+      "argv": [
+        "python3",
+        "plugins/offensive-security/host-assessment-workbench/scripts/validate-package.py"
+      ],
+      "effects": {
+        "authorization": "not applicable to this offline entrypoint",
+        "network": "none declared by the offline package contract",
+        "read_scope": "exact argv-declared repository paths; the script can also select package-local fixtures, so inspect its implementation before invocation",
+        "reads": [
+          "plugins/offensive-security/host-assessment-workbench/scripts/validate-package.py"
+        ],
+        "subprocess": "the generator executes none; operator invocation may run subprocesses implemented by the declared repository script",
+        "temporary_storage": "implementation-controlled and not retained; location is not declared by argv",
+        "write_scope": "complete durable destinations explicitly declared in argv; an empty list means no durable destination is declared, not that the implementation performs no temporary writes",
+        "writes": []
+      },
+      "expectations": {
+        "evidence": [
+          "the declared command exits successfully",
+          "reported results are limited to the supplied offline fixtures and metadata"
+        ],
+        "inputs": {
+          "argv": [],
+          "implementation_selected": "package-local fixtures may be selected inside the declared script; review the script before invocation",
+          "review_sources": [
+            "plugins/offensive-security/host-assessment-workbench/package.json",
+            "plugins/offensive-security/host-assessment-workbench/docs/PLAYBOOK.md"
+          ]
+        },
+        "outputs": {
+          "durable_destinations": [],
+          "process": [
+            "exit status",
+            "standard output",
+            "standard error"
+          ],
+          "schemas": []
+        }
+      },
+      "id": "validation-1",
+      "purpose": "offline and native-contract package gate",
+      "timeout_seconds": 120,
+      "working_directory": "."
+    },
+    {
+      "argv": [
+        "python3",
+        "plugins/offensive-security/host-assessment-workbench/tests/test_playback.py"
+      ],
+      "effects": {
+        "authorization": "not applicable to this offline entrypoint",
+        "network": "none declared by the offline package contract",
+        "read_scope": "exact argv-declared repository paths; the script can also select package-local fixtures, so inspect its implementation before invocation",
+        "reads": [
+          "plugins/offensive-security/host-assessment-workbench/tests/test_playback.py"
+        ],
+        "subprocess": "the generator executes none; operator invocation may run subprocesses implemented by the declared repository script",
+        "temporary_storage": "implementation-controlled and not retained; location is not declared by argv",
+        "write_scope": "complete durable destinations explicitly declared in argv; an empty list means no durable destination is declared, not that the implementation performs no temporary writes",
+        "writes": []
+      },
+      "expectations": {
+        "evidence": [
+          "the declared command exits successfully",
+          "reported results are limited to the supplied offline fixtures and metadata"
+        ],
+        "inputs": {
+          "argv": [],
+          "implementation_selected": "package-local fixtures may be selected inside the declared script; review the script before invocation",
+          "review_sources": [
+            "plugins/offensive-security/host-assessment-workbench/package.json",
+            "plugins/offensive-security/host-assessment-workbench/docs/PLAYBOOK.md"
+          ]
+        },
+        "outputs": {
+          "durable_destinations": [],
+          "process": [
+            "exit status",
+            "standard output",
+            "standard error"
+          ],
+          "schemas": []
+        }
+      },
+      "id": "validation-2",
+      "purpose": "playback semantics",
+      "timeout_seconds": 120,
+      "working_directory": "."
+    }
+  ],
+  "generation": {
+    "commands_executed": false,
+    "source": "catalog/plugins.json and package metadata"
+  },
+  "limitations": [
+    "The native Windows bridge reads bounded configuration, ACL, token, and protection metadata; it never performs a privilege crossing or changes assessed controls.",
+    "Offline canary outcomes remain source assertions; the native receipt verifies only assessment-owned lifecycle cleanup and exact export binding.",
+    "Imported identifiers must be synthetic or non-sensitive opaque IDs; do not provide raw credentials or paths.",
+    "Native Windows integration remains unverified until the exact candidate revision passes the Windows hosted exercise."
+  ],
+  "links": {
+    "operator_playbook": "../docs/PLAYBOOK.md",
+    "package_contract": "../package.json",
+    "walkthrough": "../walkthroughs/offline-assessment.md"
+  },
+  "package_path": "plugins/offensive-security/host-assessment-workbench",
+  "plugin_id": "host-assessment-workbench",
+  "purpose": "Offline Linux and Windows evidence classification plus a bounded read-only native Windows bridge.",
+  "schema_version": "cops.plugin-playbook/v1",
+  "status": {
+    "isolated_laboratory": "unverified",
+    "maturity": "experimental",
+    "offline_workflow": "validated",
+    "support": {
+      "host_installation": "unverified",
+      "live_integration": "unverified",
+      "offline_workflow": "validated",
+      "structural_validation": "validated"
+    }
+  }
+}

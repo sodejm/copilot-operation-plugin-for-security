@@ -178,3 +178,10 @@ The synthetic fixture covers Python, Flask, Terraform, AWS, and the Python loggi
 library. It is not coverage of every language, framework, cloud, secret pattern, or
 runtime sink supported by the collector. It performs no live SIEM query and makes
 no claim about deployed telemetry delivery, retention, alerting, or compliance.
+
+<!-- BEGIN COPS GENERATED OFFLINE ASSESSMENT LINKS -->
+## Generated offline assessment
+
+- [Machine-readable playbook](../playbooks/offline-assessment.json)
+- [Runnable offline walkthrough](../walkthroughs/offline-assessment.md)
+<!-- END COPS GENERATED OFFLINE ASSESSMENT LINKS -->

@@ -1,0 +1,20 @@
+{
+  "expected_outcome": "insufficient_lab_validation",
+  "inputs": {
+    "grants": [
+      {
+        "app_id": "app-risky",
+        "high_privilege": true
+      }
+    ],
+    "signins": [
+      {
+        "app_id": "app-risky",
+        "suspicious": true
+      }
+    ]
+  },
+  "profile_id": "vulnerable",
+  "schema_version": "cops.integrated-workflow-fixture/v1",
+  "workflow_id": "illicit-consent-remediation"
+}

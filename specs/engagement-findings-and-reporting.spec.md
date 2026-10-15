@@ -55,6 +55,19 @@ authorization grant, or report publication occurs in this workflow.
 5. Omit source payloads, credential references, source locators and artifact
    paths. Escape caller-supplied Markdown text and control characters. Create new owner-only files and
    never overwrite an existing output.
+6. Cross-format exports validate the saved assessment-report contract before
+   rendering. Only an `assessed` / `verified` / `recorded` Finding is exported
+   as verified. All other valid Findings stay inconclusive or contradicted:
+   SARIF lowers them to notes, JUnit represents them as skipped rather than
+   successful, and PR Markdown labels the conclusion explicitly. Exporters
+   redact credential patterns and create local artifacts without posting or
+   uploading them.
+7. SARIF conforms to the official OASIS 2.1.0 schema and the fields documented
+   by GitHub's supported subset. Optional source locations and every Markdown
+   suggestion resolve against a full immutable Git commit, a repository-relative
+   UTF-8 path and an existing line range. The export records a digest of the
+   committed lines and rejects unknown Findings, duplicate locations, traversal,
+   invalid ranges and credential-bearing paths.
 
 ## Trust limits
 
@@ -65,4 +78,5 @@ rendering; an operator reviews both outputs before sharing. A report describes
 only supplied coverage rows and cannot establish exhaustive scenario coverage.
 
 See the [operator guide](../docs/ENGAGEMENT_REPORTING.md) for input fields,
-labels and command usage.
+labels and command usage. See the [export guide](../docs/REPORT_EXPORTS.md) for
+cross-format status mapping and revision-bound source anchors.

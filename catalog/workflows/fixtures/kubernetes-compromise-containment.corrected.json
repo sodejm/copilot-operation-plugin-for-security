@@ -1,0 +1,17 @@
+{
+  "expected_outcome": "no_containment_required",
+  "inputs": {
+    "cluster_evidence": {
+      "bindings": [
+        {
+          "cluster_admin": false,
+          "subject": "system:serviceaccount:demo:reader",
+          "wildcard": false
+        }
+      ]
+    }
+  },
+  "profile_id": "corrected",
+  "schema_version": "cops.integrated-workflow-fixture/v1",
+  "workflow_id": "kubernetes-compromise-containment"
+}

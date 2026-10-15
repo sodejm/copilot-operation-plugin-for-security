@@ -1,0 +1,26 @@
+{
+  "schema_version": "cops.offline-artifact-playbook/v1",
+  "package_id": "secrets-remediation-workbench",
+  "capability": "credential_history",
+  "readiness": "experimental",
+  "entrypoints": {
+    "assessment": "scripts/assess.py",
+    "git_history_scan": "scripts/scan_git_history.py",
+    "correction_playback": "scripts/demo.py",
+    "native_report": "scripts/report.py",
+    "package_check": "scripts/validate_package.py"
+  },
+  "inputs": ["examples/input.json", "examples/correction-cases.json"],
+  "outputs": ["cops.git-history-scan/v1", "cops.artifact-assessment/v1", "cops.assessment-report/v1"],
+  "permissions": {
+    "filesystem": "read the explicitly supplied ordinary Git work tree and its local .git directory",
+    "network": "none",
+    "subprocess": "read-only git commands with explicit argv and shell disabled"
+  },
+  "limitations": [
+    "Offline inspection cannot establish live provider or production readiness.",
+    "Only bounded blobs reachable from local refs and detached HEAD are inspected; linked worktrees, alternate object stores, and symlinked Git metadata are rejected.",
+    "Provider revocation and rotation require registered-adapter:provider-revocation-check@1 evidence.",
+    "Content hashes establish internal integrity only, not source authenticity or authorization."
+  ]
+}

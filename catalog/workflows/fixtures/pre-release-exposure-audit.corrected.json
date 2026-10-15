@@ -1,0 +1,39 @@
+{
+  "expected_outcome": "no_exposure_observed",
+  "inputs": {
+    "auth_evidence": {
+      "checks": [
+        {
+          "authentication_required": true,
+          "route": "/admin"
+        }
+      ]
+    },
+    "dns_service_inventory": {
+      "records": [
+        {
+          "host": "preview.example.test",
+          "service": "web"
+        }
+      ]
+    },
+    "port_route_evidence": {
+      "checks": [
+        {
+          "host": "preview.example.test",
+          "port": 443,
+          "public": true,
+          "route": "/admin"
+        }
+      ]
+    },
+    "scope": {
+      "hosts": [
+        "preview.example.test"
+      ]
+    }
+  },
+  "profile_id": "corrected",
+  "schema_version": "cops.integrated-workflow-fixture/v1",
+  "workflow_id": "pre-release-exposure-audit"
+}
