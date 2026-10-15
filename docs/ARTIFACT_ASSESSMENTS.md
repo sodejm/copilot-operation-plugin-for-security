@@ -56,12 +56,29 @@ The default request bounds are 64 artifacts, 1 MiB per artifact, and 4 MiB total
 | `forensic_evidence` | `disk_image`, `memory_image` | Original-byte SHA-256, declared hash, source identity, collection time and permission, and actor-attributed custody ordering |
 | `malware_static` | `binary`, `powershell_encoded` | Bounded static indicators and base64 decoding up to 256 KiB; decoded bytes are never executed |
 | `cloud_configuration` | `terraform_plan`, `kubernetes_rendered`, `helm_rendered_json`, `aws_export`, `azure_export`, `gcp_export` | Privileged workload settings, wildcard IAM/RBAC, public storage, and all-address ingress in structured data |
-| `supply_chain` | `package_lock`, `requirements_lock`, `cyclonedx`, `spdx`, `container_sbom`, `github_actions`, `advisory_fixture` | Registry and integrity metadata, exact Python hashes, versioned SBOM components, action pins, and matches to a supplied pinned advisory fixture |
+| `supply_chain` | `package_lock`, `requirements_lock`, `cyclonedx`, `spdx`, `container_sbom`, `github_actions`, `advisory_fixture` | Registry and integrity metadata, exact Python hashes, versioned SBOM components, action pins, token write permissions, privileged pull-request head checkout, and ecosystem-specific pinned advisories |
 | `credential_history` | `git_history` | Synthetic exposure records correlated by opaque fingerprint, redaction, rotation, and opaque author ID |
 | `network_segmentation` | `segmentation_model` | Bounded graph reachability across allow rules, expected path assertions, and structured DNS evidence |
 | `transport_identity` | `tls_config`, `jwt`, `jwks` | Certificate time, chain-name continuity, SAN and mTLS settings, JWT structure and claims, and JWKS key/algorithm metadata |
 
 Malformed supported artifacts yield unresolved findings or insufficient-evidence readiness. Unknown or heavyweight formats produce explicit limitations and versioned adapter prerequisites. For example, raw Helm templates require a pinned renderer, PCAP requires a registered flow extractor, forensic filesystem or memory parsing requires an image parser, and cryptographic trust or revocation requires a chain-validation adapter.
+
+Supply-chain parsing supports npm lockfile `packages` records, infers package
+names from nested and scoped `node_modules` paths, and excludes root/workspace
+descriptions and linked local packages from registry checks. Registry identity
+requires HTTPS and the exact approved hostname. Python requirements join
+continuation lines and require exact versions and SHA-256 hashes. Package
+matching preserves the ecosystem and normalizes Python distribution names.
+Advisories match exact versions in the caller's pinned fixture; this is not a
+current advisory query or version-range resolver.
+
+Actions parsing accepts a bounded indentation and scalar subset, quoted pins,
+local actions, and digest-pinned container actions. It reports token write
+permissions and explicit untrusted head checkout under `pull_request_target`.
+Includes, substitutions, YAML aliases/tags, dynamic action references, and other
+unsupported constructs remain evidence gaps. No parser executes includes,
+resolves variables, downloads dependencies, or runs workflow steps. A clean
+subset result cannot establish safety of the complete build.
 
 ## Disposable acquisition adapter
 
