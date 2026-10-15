@@ -48,7 +48,7 @@ cd copilot-operation-plugin-for-security
 # 2. Check your local environment health
 python3 -m cops doctor
 
-# 3. List all 17 available security plugins and their status
+# 3. List all 18 available security plugins and their status
 python3 -m cops list
 
 # 4. Recommend a specialist profile for a natural language task
@@ -66,14 +66,14 @@ python3 -m cops check sentinel-hunt-workbench
 
 ### What these commands do for you
 - `cops doctor`: Checks the Python version, catalog and package manifests, and generated marketplace indexes. It does not run plugins or audit their network behavior.
-- `cops list`: Displays the seventeen available security plugins, their maturity stage, and their validation status.
+- `cops list`: Displays the eighteen available security plugins, their maturity stage, and their validation status.
 - `cops route`: Uses local keyword rules to recommend a specialist profile without an LLM or external API call. It does not launch an agent.
 - `cops demo`: Runs a self-contained, offline walkthrough using synthetic test data.
 - `cops check`: Executes deterministic verification suites (syntax checks, schema tests, mutation tests) right on your machine.
 
 ---
 
-## Available Security Plugins (17 Packages)
+## Available Security Plugins (18 Packages)
 
 Each package lives in its own self-contained directory under `plugins/<category>/<plugin-id>/` and includes a complete practitioner playbook:
 
@@ -89,6 +89,7 @@ Each package lives in its own self-contained directory under `plugins/<category>
 | **[Entra Identity Workbench](plugins/identity-access/entra-identity-workbench/README.md)** | Identity & Access | <span class="badge badge-beta">Beta</span> | Evaluates Entra ID role assignments, service principals, consent grants, and credential exposures. | `python3 -m cops check entra-identity-workbench` |
 | **[AD Assessment Workbench](plugins/identity-access/ad-assessment-workbench/README.md)** | Identity & Access | <span class="badge badge-experimental">Experimental</span> | Maps scoped Active Directory relationships and candidate paths from offline exports with explicit collection coverage. | `python3 -m cops demo ad-assessment-workbench` |
 | **[Exposure Triage Workbench](plugins/vulnerability-management/exposure-triage-workbench/README.md)** | Vulnerability Management | <span class="badge badge-beta">Beta</span> | Prioritizes vulnerability triage by correlating advisory CVEs, SBOM components, and call graph reachability. | `python3 -m cops check exposure-triage-workbench` |
+| **[Exploit Validation Workbench](plugins/vulnerability-management/exploit-validation-workbench/README.md)** | Vulnerability Management | <span class="badge badge-experimental">Experimental</span> | Checks exact-version reproduction plans and local file digests offline; never authorizes or runs a proof. | `python3 -m cops demo exploit-validation-workbench` |
 | **[Patch Security Review](plugins/vulnerability-management/patch-security-review/README.md)** | Vulnerability Management | <span class="badge badge-beta">Beta</span> | Analyzes code patches and pull request diffs for dangerous patterns, authorization flaws, and regression risks. | `python3 -m cops check patch-security-review` |
 | **[Attack Surface Planner](plugins/offensive-security/attack-surface-planner/README.md)** | Offensive Security | <span class="badge badge-experimental">Experimental</span> | Translates authorized rules of engagement into bounded, passive review plans from local export manifests. | `python3 -m cops demo attack-surface-planner` |
 | **[Kubernetes Assessment Workbench](plugins/offensive-security/kubernetes-assessment-workbench/README.md)** | Offensive Security | <span class="badge badge-experimental">Experimental</span> | Reconciles an approved Kubernetes context and namespace scope with a sanitized local observation. | `python3 -m cops demo kubernetes-assessment-workbench` |

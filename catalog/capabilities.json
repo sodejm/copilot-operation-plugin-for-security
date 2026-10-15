@@ -1,16 +1,16 @@
 {
   "schema_version": "cops.capabilities/v1",
-  "updated_at": "2026-10-11T19:28:55.248226Z",
+  "updated_at": "2026-10-15T06:31:03.164163Z",
   "summary": {
-    "total_capabilities": 75,
+    "total_capabilities": 76,
     "by_kind": {
-      "plugin": 17,
+      "plugin": 18,
       "specialist": 21,
       "scenario": 37
     },
     "by_mode": {
       "planned": 39,
-      "import": 18,
+      "import": 19,
       "laboratory": 18,
       "live-validated": 0
     }
@@ -151,13 +151,28 @@
       "live_evidence_verified": false
     },
     {
+      "id": "exploit-validation-workbench",
+      "name": "COPS Exploit Validation Workbench",
+      "kind": "plugin",
+      "mode": "import",
+      "domain": "vulnerability-management",
+      "validation_status": "validated",
+      "truth_boundaries": "The package validates metadata and local digests only; it does not execute proofs, retrieve artifacts, or independently verify claimed advisory and acquisition provenance.; A declared disposable lab, engagement, authorization, isolation, or cleanup reference is not proof of that control. The existing laboratory harness must independently verify them before any execution.; Exact version lists are supported. Version ranges, historical replacement applicability, native lab observations, and cleanup verification remain unimplemented.",
+      "evidence_requirements": [
+        "Local static file/manifest parsing",
+        "Deterministic AST/schema validation",
+        "Zero live service mutation"
+      ],
+      "live_evidence_verified": false
+    },
+    {
       "id": "foundry-agent-harness",
       "name": "COPS Microsoft Foundry Adversarial Agent Review Harness",
       "kind": "plugin",
       "mode": "laboratory",
       "domain": "offensive-security",
       "validation_status": "validated",
-      "truth_boundaries": "Runs bundled synthetic fixtures; does not connect to Microsoft Foundry, Semantic Kernel, a hosted model, or a live MCP server.; Results establish only local fixture and gate behavior, not a real agent's prompt-injection resistance or production authorization posture.; The MCP fixture uses subprocess isolation, not an operating-system network sandbox; use synthetic case data only.",
+      "truth_boundaries": "Runs bundled synthetic fixtures; does not connect to Microsoft Foundry, Semantic Kernel, a hosted model, a provider API, or a live MCP server.; Provider-shaped responses and synthetic prices establish only local normalization, exact-binding, and budget-ledger behavior; they do not attest provider usage, billing, cancellation, or cleanup.; Results establish only local fixture and gate behavior, not a real agent's prompt-injection resistance or production authorization posture.; The MCP fixture uses subprocess isolation, not an operating-system network sandbox; use synthetic case data only.",
       "evidence_requirements": [
         "Deterministic offline test execution",
         "Synthetic fixture validation",
@@ -247,7 +262,7 @@
       "mode": "import",
       "domain": "offensive-security",
       "validation_status": "validated",
-      "truth_boundaries": "The package imports local exports only; it has no live collector, shell execution, or host mutation.; Canary access and cleanup are assertions made by the source, not independently verified outcomes.; Imported identifiers must be synthetic or non-sensitive opaque IDs; do not provide raw credentials or paths.; E06.01 source sections remain unmapped pending the E01.1 source review.",
+      "truth_boundaries": "The native Windows bridge reads bounded configuration, ACL, token, and protection metadata; it never performs a privilege crossing or changes assessed controls.; Offline canary outcomes remain source assertions; the native receipt verifies only assessment-owned lifecycle cleanup and exact export binding.; Imported identifiers must be synthetic or non-sensitive opaque IDs; do not provide raw credentials or paths.; Native Windows integration remains unverified until the exact candidate revision passes the Windows hosted exercise.",
       "evidence_requirements": [
         "Local static file/manifest parsing",
         "Deterministic AST/schema validation",

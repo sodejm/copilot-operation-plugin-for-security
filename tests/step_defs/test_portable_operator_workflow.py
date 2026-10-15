@@ -161,6 +161,11 @@ EXPECTED_PLAYBACK_FIELDS: dict[str, dict[tuple[str, ...], object]] = {
         ("status",): "passed",
         ("target",): "10.100.0.10",
     },
+    "exploit-validation-workbench": {
+        ("status",): "offline_contract_validated",
+        ("execution_authorized",): False,
+        ("mismatch_refused",): True,
+    },
 }
 
 

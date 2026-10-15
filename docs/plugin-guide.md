@@ -1,12 +1,12 @@
 ---
 layout: documentation
 title: "When to Use Each COPS Plugin"
-description: "A comprehensive guide to selecting, evaluating, and running each of the seventeen security plugins across defensive and offensive cybersecurity disciplines."
+description: "A comprehensive guide to selecting, evaluating, and running each of the eighteen security plugins across defensive and offensive cybersecurity disciplines."
 ---
 
 # When to Use Each COPS Plugin
 
-COPS packages **seventeen specialized cybersecurity plugins** across six core disciplines. Each plugin is self-contained under `plugins/<category>/<plugin-id>/` and includes deterministic Python tools, reusable AI skills, and a practitioner playbook.
+COPS packages **eighteen specialized cybersecurity plugins** across six core disciplines. Each plugin is self-contained under `plugins/<category>/<plugin-id>/` and includes deterministic Python tools, reusable AI skills, and a practitioner playbook.
 
 Use the [runnable workflow index](plugin-playbacks.md) for checked examples and
 the [malicious-access walkthrough](investigate-malicious-access.md) for a complete
@@ -32,6 +32,7 @@ qualification workflow and record evidence before proposing a status change.
 | **Audit Entra ID roles, apps, and credential hygiene** | `entra-identity-workbench` | Identity & Access | <span class="badge badge-beta">Beta</span> | `import` | `python3 -m cops check entra-identity-workbench` |
 | **Map scoped Active Directory relationships and candidate paths** | `ad-assessment-workbench` | Identity & Access | <span class="badge badge-experimental">Experimental</span> | `import` | `python3 -m cops demo ad-assessment-workbench` |
 | **Prioritize vulnerability triage with SBOM reachability** | `exposure-triage-workbench` | Vulnerability Management | <span class="badge badge-beta">Beta</span> | `import` | `python3 -m cops check exposure-triage-workbench` |
+| **Preflight an exact-version vulnerability reproduction plan** | `exploit-validation-workbench` | Vulnerability Management | <span class="badge badge-experimental">Experimental</span> | `import` | `python3 -m cops demo exploit-validation-workbench` |
 | **Review code diffs and pull requests for security flaws** | `patch-security-review` | Vulnerability Management | <span class="badge badge-beta">Beta</span> | `import` | `python3 -m cops check patch-security-review` |
 | **Plan an authorized, passive attack surface review** | `attack-surface-planner` | Offensive Security | <span class="badge badge-experimental">Experimental</span> | `planned` | `python3 -m cops demo attack-surface-planner` |
 | **Reconcile an approved Kubernetes context and namespace scope** | `kubernetes-assessment-workbench` | Offensive Security | <span class="badge badge-experimental">Experimental</span> | `import` | `python3 -m cops demo kubernetes-assessment-workbench` |
@@ -138,6 +139,14 @@ qualification workflow and record evidence before proposing a status change.
 - **Playbook**: `plugins/vulnerability-management/exposure-triage-workbench/docs/PLAYBOOK.md`
 - **Verification**: [End-to-end playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/vulnerability-management/exposure-triage-workbench/docs/VERIFICATION.md)
 
+#### Exploit Validation Workbench
+- **Maturity**: <span class="badge badge-experimental">Experimental</span> | **Operational Mode**: `import`
+- **When to use**: Before a separately authorized disposable-lab reproduction, check that a proposed CVE exercise declares exact affected and fixed versions, local source files, three control cases, and lab references.
+- **Key Capabilities**: Offline JSON preflight, local SHA-256 verification, exact-version membership checks, and refusal of unrecognized fields or unsafe file paths.
+- **Boundaries**: Advisory provenance, acquisition receipts, lab controls, observed effects, and cleanup remain unverified; the report never grants execution authority.
+- **Playbook**: `plugins/vulnerability-management/exploit-validation-workbench/docs/PLAYBOOK.md`
+- **Verification**: [Offline preflight playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/vulnerability-management/exploit-validation-workbench/docs/VERIFICATION.md)
+
 #### Patch Security Review
 - **Maturity**: <span class="badge badge-beta">Beta</span> | **Operational Mode**: `import`
 - **When to use**: During code reviews and pull request approvals to automatically detect whether a proposed change introduces security regressions, bypasses authorization, or weakens defensive controls.
@@ -213,7 +222,7 @@ To maintain absolute integrity and avoid capability over-claiming, COPS reconcil
 - **`laboratory`**: Controlled offline simulation, synthetic event replay, or sandbox rehearsal; zero external egress.
 - **`live-validated`**: Fully authorized, live-tested execution path against an authorized environment with cryptographic evidence receipt. Currently 0 capabilities claim live-validated, ensuring zero false claims.
 
-To audit all 75 capabilities across plugins, specialist profiles, and scenarios:
+To audit all 76 capabilities across plugins, specialist profiles, and scenarios:
 
 ```bash
 python3 -m cops capabilities audit --check

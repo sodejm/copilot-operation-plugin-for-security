@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Define the specification for reconciling advertised and implemented capabilities in COPS. Following the integration of 17 distributed plugins, 21 specialist agent profiles, and 37 canonical security scenarios, this contract guarantees:
+Define the specification for reconciling advertised and implemented capabilities in COPS. Following the integration of 18 distributed plugins, 21 specialist agent profiles, and 37 canonical security scenarios, this contract guarantees:
 1. **Strict Operational Readiness Modes**: Every capability is explicitly classified into one of four verified operational modes:
    - `planned`: Specification, routing persona, or passive scoping defined; no autonomous runtime execution.
    - `import`: Offline static file, code AST, git diff, or export manifest ingestion only; zero live service mutation.
@@ -42,4 +42,4 @@ Registry File: `catalog/capabilities.json`
 1. **Unverified Live Execution**: If `mode == "live-validated"` and `live_evidence_verified == False`, validation fails with `unverified_live_claim`.
 2. **Unverified Live Integration in Packages**: If any plugin's `package.json` specifies `support.live_integration == "validated"` without registered live receipts, audit fails with `unverified_live_integration`.
 3. **Mandatory Truth Boundaries**: Any capability with empty, whitespace-only, or missing `truth_boundaries` fails with `missing_truth_boundary`.
-4. **Descriptive Drift Prevention**: Any deviation from the canonical counts (17 plugins, 21 specialists, 37 scenarios) fails with `catalog_descriptive_drift`.
+4. **Descriptive Drift Prevention**: Any deviation from the canonical counts (18 plugins, 21 specialists, 37 scenarios) fails with `catalog_descriptive_drift`.
