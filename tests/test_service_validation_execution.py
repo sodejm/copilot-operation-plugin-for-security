@@ -8,7 +8,7 @@ import threading
 import time
 from contextlib import contextmanager
 from dataclasses import replace
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -35,7 +35,7 @@ class _LoopbackHandler(socketserver.BaseRequestHandler):
             self.request.settimeout(0.25)
             try:
                 request = self.request.recv(64)
-            except (TimeoutError, socket.timeout):
+            except TimeoutError:
                 request = b""
             if request:
                 server.requests.append(request)  # type: ignore[attr-defined]
@@ -180,9 +180,10 @@ class LoopbackProvider:
             )
         return ValidationProbeOutput(
             protocol_evidence=("provider claims any protocol",),
-            dimensions={dimension: "provider claims tested" for dimension in (
-                "exposure", "authentication", "configuration", "version", "trust"
-            )},
+            dimensions={
+                dimension: "provider claims tested"
+                for dimension in ("exposure", "authentication", "configuration", "version", "trust")
+            },
             candidate=candidate,
             effect_evidence=(f"provider claims PING response: {proof or '+PONG'}",),
             proof_succeeded=True,
@@ -252,7 +253,7 @@ class LoopbackEvidenceVerifier:
                 observed_version="",
                 protocol_evidence=(),
                 dimensions={},
-                verified_at=datetime.now(timezone.utc).isoformat(),
+                verified_at=datetime.now(UTC).isoformat(),
             )
 
         protected = "authentication required" in banner
@@ -280,9 +281,7 @@ class LoopbackEvidenceVerifier:
                 "not-a-time"
                 if self.malformed_verified_at
                 else (
-                    datetime.now(timezone.utc) - timedelta(hours=1)
-                    if self.stale_verified_at
-                    else datetime.now(timezone.utc)
+                    datetime.now(UTC) - timedelta(hours=1) if self.stale_verified_at else datetime.now(UTC)
                 ).isoformat()
             ),
             reproduction_sha256=(
@@ -305,8 +304,10 @@ class LoopbackEvidenceVerifier:
 
 @pytest.mark.parametrize(
     ("banner", "expected_auth"),
-    ((b"SSH-2.0-Lab_9.0\r\n", "not required by the observed response"),
-     (b"-ERR Redis 7.2 authentication required; remediated\r\n", "required")),
+    (
+        (b"SSH-2.0-Lab_9.0\r\n", "not required by the observed response"),
+        (b"-ERR Redis 7.2 authentication required; remediated\r\n", "required"),
+    ),
 )
 def test_real_loopback_boundary_records_benign_and_protected_nonfindings(tmp_path, banner, expected_auth):
     with loopback_service(banner) as server:
@@ -316,9 +317,13 @@ def test_real_loopback_boundary_records_benign_and_protected_nonfindings(tmp_pat
         provider = LoopbackProvider()
         verifier = LoopbackEvidenceVerifier(server)
         result = execute_service_validation_action(
-            plan, ValidationSelection(plan.plan_id, "low_impact_validation"),
-            ledger=budget_ledger(tmp_path), request=attempt(f"{service}-low-impact"),
-            authorization_gate=ExactApprovalGate(), provider=provider, evidence_verifier=verifier,
+            plan,
+            ValidationSelection(plan.plan_id, "low_impact_validation"),
+            ledger=budget_ledger(tmp_path),
+            request=attempt(f"{service}-low-impact"),
+            authorization_gate=ExactApprovalGate(),
+            provider=provider,
+            evidence_verifier=verifier,
         )
 
     assert result.status == "completed"
@@ -335,9 +340,13 @@ def _run_candidate(plan, server, tmp_path, ledger=None):
     active_ledger = ledger or budget_ledger(tmp_path)
     provider = LoopbackProvider()
     result = execute_service_validation_action(
-        plan, ValidationSelection(plan.plan_id, "low_impact_validation"),
-        ledger=active_ledger, request=attempt("redis-observe"), authorization_gate=ExactApprovalGate(),
-        provider=provider, evidence_verifier=LoopbackEvidenceVerifier(server),
+        plan,
+        ValidationSelection(plan.plan_id, "low_impact_validation"),
+        ledger=active_ledger,
+        request=attempt("redis-observe"),
+        authorization_gate=ExactApprovalGate(),
+        provider=provider,
+        evidence_verifier=LoopbackEvidenceVerifier(server),
     )
     return result, provider, active_ledger
 
@@ -347,9 +356,14 @@ def test_verified_finding_does_not_imply_successful_authorized_use(tmp_path):
         plan = plan_for(server.server_address[1])
         low_impact, provider, ledger = _run_candidate(plan, server, tmp_path)
         proof = execute_service_validation_action(
-            plan, ValidationSelection(plan.plan_id, "controlled_proof"), ledger=ledger,
-            request=attempt("redis-proof"), authorization_gate=ExactApprovalGate(), provider=provider,
-            evidence_verifier=LoopbackEvidenceVerifier(server), prior_result=low_impact,
+            plan,
+            ValidationSelection(plan.plan_id, "controlled_proof"),
+            ledger=ledger,
+            request=attempt("redis-proof"),
+            authorization_gate=ExactApprovalGate(),
+            provider=provider,
+            evidence_verifier=LoopbackEvidenceVerifier(server),
+            prior_result=low_impact,
         )
 
     assert low_impact.status == "completed" and low_impact.candidate
@@ -363,7 +377,11 @@ def test_verified_finding_does_not_imply_successful_authorized_use(tmp_path):
     assert proof.action == "controlled_proof"
     assert proof.approval_receipt_id == "approval-redis-proof"
     finding = load_trusted_issue_143_reproduction(plan.endpoint).finding
-    assert all(proof.coverage[f"finding_{field}"] == "documented" for field in finding.__dataclass_fields__ if field != "finding_id")
+    assert all(
+        proof.coverage[f"finding_{field}"] == "documented"
+        for field in finding.__dataclass_fields__
+        if field != "finding_id"
+    )
     assert {mapping.technique_id for mapping in proof.attack_mappings} == {"T1046", "T1210"}
     assert all(mapping.evidence_limit for mapping in proof.attack_mappings)
 
@@ -373,9 +391,14 @@ def test_successful_authorized_use_requires_distinct_effect_evidence(tmp_path):
         plan = plan_for(server.server_address[1])
         low_impact, provider, ledger = _run_candidate(plan, server, tmp_path)
         proof = execute_service_validation_action(
-            plan, ValidationSelection(plan.plan_id, "controlled_proof"), ledger=ledger,
-            request=attempt("redis-authorized-use"), authorization_gate=ExactApprovalGate(), provider=provider,
-            evidence_verifier=LoopbackEvidenceVerifier(server, authorized_use=True), prior_result=low_impact,
+            plan,
+            ValidationSelection(plan.plan_id, "controlled_proof"),
+            ledger=ledger,
+            request=attempt("redis-authorized-use"),
+            authorization_gate=ExactApprovalGate(),
+            provider=provider,
+            evidence_verifier=LoopbackEvidenceVerifier(server, authorized_use=True),
+            prior_result=low_impact,
         )
 
     assert proof.verified_finding and proof.successful_authorized_use
@@ -387,9 +410,13 @@ def test_fabricated_provider_claims_cannot_override_independent_protocol_evidenc
     with loopback_service(b"-ERR Redis 7.2 authentication required; remediated\r\n") as server:
         plan = plan_for(server.server_address[1])
         result = execute_service_validation_action(
-            plan, ValidationSelection(plan.plan_id, "low_impact_validation"), ledger=budget_ledger(tmp_path),
-            request=attempt("fabricated-provider"), authorization_gate=ExactApprovalGate(),
-            provider=LoopbackProvider(force_candidate=True), evidence_verifier=LoopbackEvidenceVerifier(server),
+            plan,
+            ValidationSelection(plan.plan_id, "low_impact_validation"),
+            ledger=budget_ledger(tmp_path),
+            request=attempt("fabricated-provider"),
+            authorization_gate=ExactApprovalGate(),
+            provider=LoopbackProvider(force_candidate=True),
+            evidence_verifier=LoopbackEvidenceVerifier(server),
         )
 
     assert result.status == "insufficient_evidence"
@@ -402,9 +429,13 @@ def test_issue_143_reproduction_must_bind_exact_endpoint(tmp_path):
     with loopback_service(b"-ERR Redis 5.0 no password configured\r\n") as server:
         plan = plan_for(server.server_address[1])
         result = execute_service_validation_action(
-            plan, ValidationSelection(plan.plan_id, "low_impact_validation"), ledger=budget_ledger(tmp_path),
-            request=attempt("wrong-reproduction-endpoint"), authorization_gate=ExactApprovalGate(),
-            provider=LoopbackProvider(wrong_reproduction_endpoint=True), evidence_verifier=LoopbackEvidenceVerifier(server),
+            plan,
+            ValidationSelection(plan.plan_id, "low_impact_validation"),
+            ledger=budget_ledger(tmp_path),
+            request=attempt("wrong-reproduction-endpoint"),
+            authorization_gate=ExactApprovalGate(),
+            provider=LoopbackProvider(wrong_reproduction_endpoint=True),
+            evidence_verifier=LoopbackEvidenceVerifier(server),
         )
 
     assert result.status == "insufficient_evidence" and result.observed_exposure
@@ -453,8 +484,12 @@ def test_missing_independent_protocol_evidence_is_insufficient_even_with_provide
     with loopback_service(b"SSH-2.0-Lab_9.0\r\n") as server:
         plan = plan_for(server.server_address[1], service="ssh", skill_id="network-remote-and-file-services")
         result = execute_service_validation_action(
-            plan, ValidationSelection(plan.plan_id, "low_impact_validation"), ledger=budget_ledger(tmp_path),
-            request=attempt("incomplete"), authorization_gate=ExactApprovalGate(), provider=LoopbackProvider(),
+            plan,
+            ValidationSelection(plan.plan_id, "low_impact_validation"),
+            ledger=budget_ledger(tmp_path),
+            request=attempt("incomplete"),
+            authorization_gate=ExactApprovalGate(),
+            provider=LoopbackProvider(),
             evidence_verifier=LoopbackEvidenceVerifier(server, incomplete=True),
         )
 
@@ -478,8 +513,11 @@ def test_mismatched_independent_verification_binding_is_insufficient(tmp_path, m
     with loopback_service(b"SSH-2.0-Lab_9.0\r\n") as server:
         plan = plan_for(server.server_address[1], service="ssh", skill_id="network-remote-and-file-services")
         result = execute_service_validation_action(
-            plan, ValidationSelection(plan.plan_id, "low_impact_validation"), ledger=budget_ledger(tmp_path),
-            request=attempt(f"wrong-verification-{mismatch}"), authorization_gate=ExactApprovalGate(),
+            plan,
+            ValidationSelection(plan.plan_id, "low_impact_validation"),
+            ledger=budget_ledger(tmp_path),
+            request=attempt(f"wrong-verification-{mismatch}"),
+            authorization_gate=ExactApprovalGate(),
             provider=LoopbackProvider(),
             evidence_verifier=LoopbackEvidenceVerifier(server, **{mismatch: True}),
         )
@@ -513,8 +551,13 @@ def test_provider_unavailable_fails_before_budget_or_approval(tmp_path):
     ledger = budget_ledger(tmp_path)
     gate = ExactApprovalGate()
     result = execute_service_validation_action(
-        plan, ValidationSelection(plan.plan_id, "low_impact_validation"), ledger=ledger,
-        request=attempt("no-provider"), authorization_gate=gate, provider=None, evidence_verifier=None,
+        plan,
+        ValidationSelection(plan.plan_id, "low_impact_validation"),
+        ledger=ledger,
+        request=attempt("no-provider"),
+        authorization_gate=gate,
+        provider=None,
+        evidence_verifier=None,
     )
 
     assert result.status == "provider_unavailable"
@@ -528,20 +571,32 @@ def test_wrong_approval_and_reused_attempt_fail_before_provider_dispatch(tmp_pat
         provider = LoopbackProvider()
         verifier = LoopbackEvidenceVerifier(server)
         denied = execute_service_validation_action(
-            plan, ValidationSelection(plan.plan_id, "low_impact_validation"), ledger=ledger,
-            request=attempt("wrong-approval"), authorization_gate=ExactApprovalGate(wrong_action=True),
-            provider=provider, evidence_verifier=verifier,
+            plan,
+            ValidationSelection(plan.plan_id, "low_impact_validation"),
+            ledger=ledger,
+            request=attempt("wrong-approval"),
+            authorization_gate=ExactApprovalGate(wrong_action=True),
+            provider=provider,
+            evidence_verifier=verifier,
         )
         completed = execute_service_validation_action(
-            plan, ValidationSelection(plan.plan_id, "low_impact_validation"), ledger=ledger,
-            request=attempt("one-use-attempt"), authorization_gate=ExactApprovalGate(),
-            provider=provider, evidence_verifier=verifier,
+            plan,
+            ValidationSelection(plan.plan_id, "low_impact_validation"),
+            ledger=ledger,
+            request=attempt("one-use-attempt"),
+            authorization_gate=ExactApprovalGate(),
+            provider=provider,
+            evidence_verifier=verifier,
         )
         replay_gate = ExactApprovalGate()
         replay = execute_service_validation_action(
-            plan, ValidationSelection(plan.plan_id, "low_impact_validation"), ledger=ledger,
-            request=attempt("one-use-attempt"), authorization_gate=replay_gate,
-            provider=provider, evidence_verifier=verifier,
+            plan,
+            ValidationSelection(plan.plan_id, "low_impact_validation"),
+            ledger=ledger,
+            request=attempt("one-use-attempt"),
+            authorization_gate=replay_gate,
+            provider=provider,
+            evidence_verifier=verifier,
         )
 
     assert denied.status == "authorization_denied"
