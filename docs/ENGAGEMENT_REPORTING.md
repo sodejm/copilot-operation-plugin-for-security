@@ -146,9 +146,13 @@ the action ID, expected telemetry, imported record IDs, action/search windows,
 limits, and a next action for each result. Markdown shows signal counts, limits,
 and next actions while omitting raw evidence payloads and source locators.
 Review IDs and private files before sharing.
-The saved report contract check verifies structure; it does not recompute the
-classification from the private input. Retain that input when a result must be
-audited or reproduced.
+The saved report contract check verifies structure, recomputes classifications
+from the included signal summary, and checks action, observation, and search
+window consistency. It cannot authenticate imported sources or prove that the
+summary matches the original private input. Retain that input and independently
+verify source authenticity and provider-wide search completeness when a result
+must be audited or used operationally. For a `missed` result, verify the search
+receipt before treating rule remediation as the next step.
 
 `detected` requires an in-window execution observation and an exact, in-window
 alert for the action and rule. `missed` requires completed execution, in-window

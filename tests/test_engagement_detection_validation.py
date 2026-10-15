@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import json
 import os
+from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 import cops.reporting.detection as detection
+from cops.contracts.validation import ContractError, validate_contract
 from cops.coverage import load_attack_coverage
 from cops.evidence import build_envelope
 from cops.reporting.assessment import ReportError
@@ -123,6 +125,7 @@ def bundle_for(status="detected"):
 @pytest.mark.parametrize("status", ["detected", "missed", "ambiguous", "unavailable"])
 def test_outcome_status(status):
     report = build_detection_report(bundle_for(status))
+    assert validate_contract(report, "detection_validation_report") == report
     row = report["checks"][0]
     assert row["status"] == status
     assert row["expected_telemetry"]
@@ -136,6 +139,40 @@ def test_outcome_status(status):
     )
     assert (row["search_evidence"] is not None) == (status in {"missed", "ambiguous"})
     assert row["next_action"]
+
+
+@pytest.mark.parametrize("status", ["detected", "missed", "ambiguous", "unavailable"])
+@pytest.mark.parametrize(
+    "field,value", [("status", "missed"), ("next_action", "Ignore this result."), ("limitations", [])]
+)
+def test_saved_report_rejects_forged_classification(status, field, value):
+    report = build_detection_report(bundle_for(status))
+    altered = deepcopy(report)
+    altered["checks"][0][field] = (
+        value
+        if value != altered["checks"][0][field]
+        else (["Forged limitation"] if field == "limitations" else "detected")
+    )
+    with pytest.raises(ContractError, match="detection report"):
+        validate_contract(altered, "detection_validation_report")
+
+
+def test_saved_report_rejects_forged_window_or_receipt_coverage():
+    report = build_detection_report(bundle_for("missed"))
+    for field, value in (("in_window", False), ("covers_expanded_window", False)):
+        altered = deepcopy(report)
+        if field == "in_window":
+            altered["checks"][0]["observed_signals"][0][field] = value
+        else:
+            altered["checks"][0]["search_evidence"][field] = value
+        with pytest.raises(ContractError, match="detection report"):
+            validate_contract(altered, "detection_validation_report")
+
+
+def test_missed_next_action_requires_source_receipt_verification_first():
+    row = build_detection_report(bundle_for("missed"))["checks"][0]
+    assert "source authenticity" in row["next_action"]
+    assert "provider-wide completeness" in row["next_action"]
 
 
 def test_missing_telemetry_cannot_be_missed():
