@@ -49,10 +49,9 @@ The Linux [positive](fixtures/synthetic/host_linux_positive_v1.json),
 [remediated](fixtures/synthetic/host_windows_remediated_v1.json), and
 [unsupported](fixtures/synthetic/host_windows_unsupported_v1.json) fixtures are
 complete runnable inputs. The
-[Linux](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/specs/host-linux-privilege-boundaries.spec.md)
-and
-[Windows](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/specs/host-windows-privilege-boundaries.spec.md)
-privilege-boundary contracts define the exact schemas.
+[Linux privilege-boundary import contract](docs/IMPORT_CONTRACT.md) and
+[Windows privilege-boundary contract](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/specs/host-windows-privilege-boundaries.spec.md)
+define the exact schemas.
 
 | Record or field | Purpose and producer | Consumer and validation |
 | --- | --- | --- |
