@@ -157,9 +157,7 @@ def assess_windows_document(payload: dict[str, Any]) -> dict[str, Any]:
     source_kind = _enum(document["source_kind"], {"synthetic_lab", "operator_export"}, "source_kind")
     source_id = _token(document["source_id"], "source_id")
     bridge = _exact_keys(document["bridge"], {"mode", "platform", "capabilities", "canary_assertions"}, "bridge")
-    bridge_mode = _enum(
-        bridge["mode"], {"offline_windows_export", "native_windows_bridge"}, "bridge.mode"
-    )
+    bridge_mode = _enum(bridge["mode"], {"offline_windows_export", "native_windows_bridge"}, "bridge.mode")
     _enum(bridge["platform"], {"windows"}, "bridge.platform")
     raw_capabilities = bridge["capabilities"]
     if not isinstance(raw_capabilities, list) or len(raw_capabilities) > len(SURFACES):
