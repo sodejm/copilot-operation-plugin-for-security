@@ -9,7 +9,8 @@ The package does not collect from AD, LDAP, Kerberos, or hosts. A candidate path
 Run from the repository root with Python 3.11 or later:
 
 ```bash
-python3 -m cops demo ad-assessment-workbench
+PYTHON="${PYTHON:-python3.11}"
+"$PYTHON" -m cops demo ad-assessment-workbench
 ```
 
 The public command creates an owner-only temporary workspace, verifies both
@@ -17,14 +18,25 @@ runs and the expected rejection, and removes the workspace. Use the package
 runner directly when you need to retain that evidence in a new directory:
 
 ```bash
-python3 plugins/identity-access/ad-assessment-workbench/scripts/run_demo.py \
-  --workspace /tmp/ad-playback-review
+PYTHON="${PYTHON:-python3.11}"
+scratch="$(mktemp -d "${TMPDIR:-/tmp}/cops-ad-playback.XXXXXX")"
+chmod 700 "$scratch"
+"$PYTHON" plugins/identity-access/ad-assessment-workbench/scripts/run_demo.py \
+  --workspace "$scratch/playback"
+cat "$scratch/playback/playback-summary.json"
 ```
+
+The runner requires a workspace path that does not already exist. `mktemp`
+creates a private parent while leaving the `playback` child available for the
+runner. The artifacts remain under `$scratch/playback` for review. When you no
+longer need them, optionally remove the private parent with `rm -rf "$scratch"`
+in the same shell.
 
 Analyze the bundled fixture without writing files:
 
 ```bash
-python3 plugins/identity-access/ad-assessment-workbench/scripts/analyze.py \
+PYTHON="${PYTHON:-python3.11}"
+"$PYTHON" plugins/identity-access/ad-assessment-workbench/scripts/analyze.py \
   plugins/identity-access/ad-assessment-workbench/fixtures/synthetic-two-forest.json
 ```
 

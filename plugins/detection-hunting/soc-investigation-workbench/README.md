@@ -7,7 +7,8 @@ SOC Investigation Workbench helps SOC analysts and incident responders build a l
 Use Python 3.11 or later from the repository root. No tenant credentials or network access are required.
 
 ```bash
-python3 -m cops demo soc-investigation-workbench
+PYTHON="${PYTHON:-python3.11}"
+"$PYTHON" -m cops demo soc-investigation-workbench
 ```
 
 The public command creates an owner-only temporary workspace and removes it
@@ -15,13 +16,21 @@ after the playback. Use the package runner directly when you need to retain the
 artifacts:
 
 ```bash
+PYTHON="${PYTHON:-python3.11}"
 PACKAGE=plugins/detection-hunting/soc-investigation-workbench
-OUT="${TMPDIR:-/tmp}/cops-soc-playback-$(date +%s)"
-python3 "$PACKAGE/scripts/run_demo.py" --out-dir "$OUT"
+scratch="$(mktemp -d "${TMPDIR:-/tmp}/cops-soc-playback.XXXXXX")"
+chmod 700 "$scratch"
+OUT="$scratch/playback"
+"$PYTHON" "$PACKAGE/scripts/run_demo.py" --out-dir "$OUT"
 cat "$OUT/playback-summary.json"
 ```
 
-The output directory must not already exist. The script creates it with owner-only permissions and exercises three cases over the same synthetic tenant, workspace, entities, and UTC time window:
+The output directory must not already exist. `mktemp` creates a private parent
+while leaving the `playback` child available for the runner. The script creates
+that child with owner-only permissions and exercises three cases over the same
+synthetic tenant, workspace, entities, and UTC time window. The artifacts remain
+under `$OUT` for review. When you no longer need them, optionally remove the
+private parent with `rm -rf "$scratch"` in the same shell. The playback covers:
 
 - `malicious`: imports supporting H01 and H10 observations and ends with a supported malicious-activity hypothesis.
 - `benign`: imports counterfactual observations that refute malicious activity and support a benign explanation.
@@ -38,7 +47,12 @@ For a guided investigation, see the [malicious-access walkthrough](https://githu
 Start a case from local exports:
 
 ```bash
-python3 plugins/detection-hunting/soc-investigation-workbench/scripts/investigate.py intake \
+PYTHON="${PYTHON:-python3.11}"
+scratch="$(mktemp -d "${TMPDIR:-/tmp}/cops-soc-case.XXXXXX")"
+chmod 700 "$scratch"
+CASE="$scratch/incident-402.json"
+HANDOFF="$scratch/incident-402-h01.json"
+"$PYTHON" plugins/detection-hunting/soc-investigation-workbench/scripts/investigate.py intake \
   --case-id incident-402 \
   --tenant tenant-a \
   --workspace workspace-a \
@@ -47,12 +61,16 @@ python3 plugins/detection-hunting/soc-investigation-workbench/scripts/investigat
   --sources sentinel:plugins/detection-hunting/soc-investigation-workbench/examples/intake/sentinel-incidents.json \
             splunk:plugins/detection-hunting/soc-investigation-workbench/examples/intake/splunk-events.json \
             entra:plugins/detection-hunting/soc-investigation-workbench/examples/intake/entra-signins.json \
-  --out /tmp/incident-402.json
-python3 plugins/detection-hunting/soc-investigation-workbench/scripts/investigate.py validate /tmp/incident-402.json
-python3 plugins/detection-hunting/soc-investigation-workbench/scripts/investigate.py next /tmp/incident-402.json
-python3 plugins/detection-hunting/soc-investigation-workbench/scripts/investigate.py handoff \
-  /tmp/incident-402.json --step signin-triage > /tmp/incident-402-h01.json
+  --out "$CASE"
+"$PYTHON" plugins/detection-hunting/soc-investigation-workbench/scripts/investigate.py validate "$CASE"
+"$PYTHON" plugins/detection-hunting/soc-investigation-workbench/scripts/investigate.py next "$CASE"
+"$PYTHON" plugins/detection-hunting/soc-investigation-workbench/scripts/investigate.py handoff \
+  "$CASE" --step signin-triage > "$HANDOFF"
 ```
+
+The case and handoff remain in `$scratch` for review. When you no longer need
+them, optionally remove the private workspace with `rm -rf "$scratch"` in the
+same shell.
 
 The initial evidence is deliberately unassessed. Source severity, risk labels, error codes, and successful actions are observations; an analyst must supply a reasoned assessment after reviewing relevant evidence. Empty or failed evidence cannot establish a benign outcome.
 
@@ -75,8 +93,9 @@ The Sentinel hunt catalog is a verified vendored snapshot. `vendor-lock.json` re
 ## Package validation
 
 ```bash
-python3 plugins/detection-hunting/soc-investigation-workbench/scripts/validate-package.py
-python3 -m pytest -q tests/step_defs/test_soc_investigation.py
+PYTHON="${PYTHON:-python3.11}"
+"$PYTHON" plugins/detection-hunting/soc-investigation-workbench/scripts/validate-package.py
+"$PYTHON" -m pytest -q tests/step_defs/test_soc_investigation.py
 ```
 
 The package is offered under the [PolyForm Noncommercial License 1.0.0](LICENSE).
