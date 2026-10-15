@@ -15,8 +15,9 @@ authorization grant, or report publication occurs in this workflow.
    identifiers and conflicting joins, and keep all reported targets within the
    Engagement's included scope and outside its exclusions. A RunResult has one
    provenance mode; planning coverage cannot reference a RunResult. An ActionPlan
-   has a RunResult or a planning coverage row. Normalize single-address CIDRs
-   to their host identity when detecting duplicate targets. A non-import
+   has a RunResult or a planning coverage row for the full, canonically
+   equivalent target. Normalize single-address CIDRs to their host identity
+   when detecting duplicate targets. A non-import
    RunResult cannot be reused across different scenarios in a saved report.
 2. Provide a coverage row for each RunResult and distinguish planned, imported,
    laboratory and live provenance. Missing access, evidence or result is
@@ -24,8 +25,9 @@ authorization grant, or report publication occurs in this workflow.
    validation claim. Live evidence has an observation time inside the RunResult
    window; scanner-only assertions cannot establish assessed coverage. A
    non-scanner Finding can corroborate a scanner-associated row only when it is
-   itself assessed, names that RunResult and scenario, covers the row target,
-   and shares validated evidence with the row.
+   itself assessed, names that RunResult and scenario, names every
+   scanner-asserted asset within the row, and shares validated evidence with
+   the row.
 3. Distinguish configuration observations, scanner assertions, observed behavior
    and reproduced attack paths. A reproduced path needs scoped, repeatable
    laboratory or live evidence and unique, acyclic Finding dependencies.
@@ -34,9 +36,12 @@ authorization grant, or report publication occurs in this workflow.
    Contradictory findings stay unresolved; references with missing validated
    evidence cannot be assessed. Every assessed affected asset has linked evidence.
    Validate a saved output report's semantic joins and claims as well as its schema.
-   A saved Finding cannot retain `recorded` evidence strength after its status
-   becomes partial or not assessed, and saved scanner-associated coverage cannot
-   become assessed without assessed non-scanner corroboration.
+   A saved Finding's status, verification, and evidence-strength labels must agree:
+   assessed/recorded, partial/limited, not_assessed/limited or missing, and
+   contradicted verification with unresolved/contradicted or missing.
+   `recorded`, `limited`, and `contradicted` strength require linked evidence.
+   Saved scanner-associated coverage cannot become assessed without assessed
+   non-scanner corroboration.
 5. Omit source payloads, credential references, source locators and artifact
    paths. Escape caller-supplied Markdown text and control characters. Create new owner-only files and
    never overwrite an existing output.

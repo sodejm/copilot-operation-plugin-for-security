@@ -162,15 +162,27 @@ def _validate_dependency_graph(findings: list[dict[str, Any]]) -> None:
 
 
 def _has_assessed_scanner_corroboration(row: dict[str, Any], findings: list[dict[str, Any]]) -> bool:
-    """Require an assessed observation tied to this exact coverage row."""
-    return any(
-        finding["result_id"] == row["result_id"]
-        and finding["scenario_id"] == row["scenario_id"]
-        and finding["kind"] != "scanner_assertion"
-        and finding["assessment_status"] == "assessed"
-        and any(_contains(row["target"], asset) for asset in finding["affected_assets"])
-        and bool(set(finding["evidence_references"]) & set(row["evidence_records"]))
+    """Require linked assessed observations for every scanner-asserted asset in this row."""
+    asserted_assets = [
+        asset
         for finding in findings
+        if finding["kind"] == "scanner_assertion"
+        and finding["result_id"] == row["result_id"]
+        and finding["scenario_id"] == row["scenario_id"]
+        for asset in finding["affected_assets"]
+        if _contains(row["target"], asset)
+    ]
+    return bool(asserted_assets) and all(
+        any(
+            finding["result_id"] == row["result_id"]
+            and finding["scenario_id"] == row["scenario_id"]
+            and finding["kind"] != "scanner_assertion"
+            and finding["assessment_status"] == "assessed"
+            and any(_parse_target(observed_asset) == _parse_target(asserted_asset) for observed_asset in finding["affected_assets"])
+            and bool(set(finding["evidence_references"]) & set(row["evidence_records"]))
+            for finding in findings
+        )
+        for asserted_asset in asserted_assets
     )
 
 
@@ -283,10 +295,8 @@ def validate_report_semantics(report: dict[str, Any]) -> None:
             raise ReportError("contradicted report evidence requires a linked record")
         if finding["assessment_status"] == "assessed":
             if (
-                finding["verification"] != "verified"
+                verification != "verified"
                 or finding["kind"] == "scanner_assertion"
-                or finding["evidence_strength"] != "recorded"
-                or not references
                 or any(row["mode"] == "import" for row in rows)
                 or any(
                     not references
@@ -436,7 +446,7 @@ def build_assessment_report(bundle: dict[str, Any]) -> dict[str, Any]:
         if any(
             row["mode"] == "planning"
             and row["scenario_id"] == plan["scenario_id"]
-            and _contains(plan["target"], row["target"])
+            and _parse_target(plan["target"]) == _parse_target(row["target"])
             for row in coverage
         )
     )

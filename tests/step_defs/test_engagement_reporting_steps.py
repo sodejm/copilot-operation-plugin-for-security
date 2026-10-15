@@ -160,6 +160,22 @@ def unicode_direction_control(report_ctx):
     report_ctx["bundle"]["findings"][0]["title"] = "Expected \u202e reversed"
 
 
+@given("it contains a broad action plan with only narrow planning coverage")
+def broad_plan_narrow_coverage(report_ctx):
+    bundle = report_ctx["bundle"]
+    bundle["engagement"]["scope"]["excluded_targets"] = []
+    extra = deepcopy(bundle["action_plans"][0])
+    extra["plan_id"] = "plan-broad-bdd-001"
+    extra["target"] = "10.0.0.0/24"
+    extra["plan_digest"] = build_action_plan_digest(
+        snapshot={key: value for key, value in extra.items() if key not in {"status", "plan_digest"}}
+    )
+    bundle["action_plans"].append(extra)
+    bundle["coverage"].append(
+        {"scenario_id": extra["scenario_id"], "target": "10.0.0.6", "mode": "planning", "access": "unavailable", "result_id": None}
+    )
+
+
 @when("the assessment report is built")
 def build_report(report_ctx):
     try:
@@ -217,6 +233,19 @@ def contradicted_limited_strength(report_ctx):
     finding = report_ctx["report"]["findings"][0]
     finding.update(verification="contradicted", classification="unresolved", assessment_status="unresolved")
     finding["evidence_strength"] = "limited"
+
+
+@when("saved coverage repeats an IPv6 host as a single-address network")
+def repeated_ipv6_saved_coverage(report_ctx):
+    report = report_ctx["report"]
+    report["scope"]["included_targets"] = ["2001:db8::/64"]
+    report["coverage"][0]["target"] = "2001:db8::5"
+    report["coverage"].append({**report["coverage"][0], "target": "2001:db8::5/128"})
+
+
+@when("the saved assessed finding claims missing evidence strength")
+def assessed_with_missing_strength(report_ctx):
+    report_ctx["report"]["findings"][0]["evidence_strength"] = "missing"
 
 
 @then("its coverage and finding are assessed")

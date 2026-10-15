@@ -126,3 +126,21 @@ Feature: Evidence-bounded offline engagement reports
     When the assessment report is built
     And the saved contradicted finding claims limited strength
     Then the saved assessment report is rejected
+
+  Scenario: Narrow planning coverage cannot represent a network-wide action plan
+    Given a valid offline assessment bundle
+    And it contains a broad action plan with only narrow planning coverage
+    When the assessment report is built
+    Then report building fails with an orphan action plan
+
+  Scenario: A single-address IPv6 network is the same coverage target as its host
+    Given a valid offline assessment bundle
+    When the assessment report is built
+    And saved coverage repeats an IPv6 host as a single-address network
+    Then the saved assessment report is rejected
+
+  Scenario: Saved finding labels cannot contradict one another
+    Given a valid offline assessment bundle
+    When the assessment report is built
+    And the saved assessed finding claims missing evidence strength
+    Then the saved assessment report is rejected
