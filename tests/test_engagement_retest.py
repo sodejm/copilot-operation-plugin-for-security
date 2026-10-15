@@ -9,10 +9,10 @@ from types import SimpleNamespace
 
 import pytest
 
+from cops.cli import command_contract_validate
 from cops.contracts.lifecycle import ContractError
 from cops.contracts.validation import validate_contract
 from cops.evidence.canonical import digest
-from cops.cli import command_contract_validate
 from cops.reporting.assessment import ReportError, build_assessment_report
 from cops.reporting.cli import command_engagement_retest
 from cops.reporting.retest import build_retest_report, render_retest_markdown, verify_retest_report_derivation
@@ -31,12 +31,25 @@ def _receipt(plan_id: str, suffix: str, *, status: str = "not_required") -> dict
         "created_at": "2026-10-03T12:00:00Z",
         "completed_at": "2026-10-03T12:01:00Z",
         "cleaned_effects": [],
-        "unresolved_effects": [{"effect_id": "artifact-1", "resource_type": "file", "target": "lab-host",
-                                "reason": "cleanup pending"}] if status == "failed" else [],
+        "unresolved_effects": [
+            {"effect_id": "artifact-1", "resource_type": "file", "target": "lab-host", "reason": "cleanup pending"}
+        ]
+        if status == "failed"
+        else [],
     }
-    receipt["evidence_hash"] = digest({key: receipt[key] for key in (
-        "receipt_id", "plan_id", "engagement_id", "worker_identity", "cleaned_effects", "unresolved_effects"
-    )})
+    receipt["evidence_hash"] = digest(
+        {
+            key: receipt[key]
+            for key in (
+                "receipt_id",
+                "plan_id",
+                "engagement_id",
+                "worker_identity",
+                "cleaned_effects",
+                "unresolved_effects",
+            )
+        }
+    )
     return receipt
 
 
@@ -64,10 +77,15 @@ def _input(*, present: bool = False) -> dict:
         "owner_acknowledged": True,
         "residual_risks": [],
         "cleanup_receipts": [_receipt("plan-scan-10-0-0-5", "same")],
-        "checks": [{
-            "finding_id": "find-open-port-http-80", "asset": "10.0.0.5", "retest_asset": "10.0.0.5",
-            "outcome": "present" if present else "absent", "evidence_records": [retest_record],
-        }],
+        "checks": [
+            {
+                "finding_id": "find-open-port-http-80",
+                "asset": "10.0.0.5",
+                "retest_asset": "10.0.0.5",
+                "outcome": "present" if present else "absent",
+                "evidence_records": [retest_record],
+            }
+        ],
     }
 
 
@@ -79,7 +97,9 @@ def test_supported_absence_is_only_a_candidate_and_blocks_closure():
     assert report["results"][0]["status"] == "candidate_fixed"
     assert report["closure_status"] == "blocked"
     assert set(report["closure_gates"]) == {
-        "source_verification_required", "owner_verification_required", "cleanup_verification_required"
+        "source_verification_required",
+        "owner_verification_required",
+        "cleanup_verification_required",
     }
     assert "does not close" in render_retest_markdown(report)
 
@@ -90,9 +110,9 @@ def test_supported_present_remains_vulnerable():
     assert "candidate_still_vulnerable" in report["closure_gates"]
 
 
-@pytest.mark.parametrize("outcome,status", [
-    ("inaccessible", "inaccessible"), ("blocked", "blocked"), ("not_assessed", "not_assessed")
-])
+@pytest.mark.parametrize(
+    "outcome,status", [("inaccessible", "inaccessible"), ("blocked", "blocked"), ("not_assessed", "not_assessed")]
+)
 def test_unassessed_outcome_never_becomes_fixed(outcome: str, status: str):
     bundle = _input()
     bundle["checks"][0]["outcome"] = outcome
@@ -118,9 +138,14 @@ def test_cleanup_ownership_and_changed_live_plan_gate_review():
     report = build_retest_report(bundle)
     assert report["closure_status"] == "blocked"
     assert set(report["closure_gates"]) == {
-        "owner_acknowledgement_required", "cleanup_incomplete", "fresh_authorization_required",
-        "source_verification_required", "owner_verification_required", "cleanup_verification_required",
-        "live_authority_binding_required", "cleanup_run_binding_required",
+        "owner_acknowledgement_required",
+        "cleanup_incomplete",
+        "fresh_authorization_required",
+        "source_verification_required",
+        "owner_verification_required",
+        "cleanup_verification_required",
+        "live_authority_binding_required",
+        "cleanup_run_binding_required",
     }
     assert report["review_context"]["cleanup_receipts"][0]["unresolved_effects"][0]["effect_id"] == "artifact-1"
     assert "artifact-1" in render_retest_markdown(report)
