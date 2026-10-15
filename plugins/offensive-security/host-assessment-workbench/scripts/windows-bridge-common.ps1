@@ -111,9 +111,25 @@ using Microsoft.Win32.SafeHandles;
 namespace CopsFileDisposition {
     public static class NativeMethods {
         private const uint GENERIC_WRITE = 0x40000000;
+        private const uint FILE_LIST_DIRECTORY = 0x00000001;
+        private const uint FILE_READ_ATTRIBUTES = 0x00000080;
+        private const uint SYNCHRONIZE = 0x00100000;
         private const uint DELETE = 0x00010000;
         private const uint CREATE_NEW = 1;
+        private const uint OPEN_EXISTING = 3;
         private const uint FILE_ATTRIBUTE_NORMAL = 0x00000080;
+        private const uint FILE_FLAG_BACKUP_SEMANTICS = 0x02000000;
+        private const uint FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000;
+        private const uint FILE_SHARE_READ = 0x00000001;
+        private const uint FILE_SHARE_WRITE = 0x00000002;
+        private const uint FILE_SHARE_DELETE = 0x00000004;
+        private const int FILE_RENAME_INFORMATION_CLASS = 10;
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct IO_STATUS_BLOCK {
+            public IntPtr Status;
+            public UIntPtr Information;
+        }
 
         [StructLayout(LayoutKind.Sequential)]
         private struct FILE_DISPOSITION_INFO {
@@ -147,6 +163,19 @@ namespace CopsFileDisposition {
             return handle;
         }
 
+        public static SafeFileHandle OpenDirectory(string path) {
+            SafeFileHandle handle = CreateFileW(path,
+                FILE_LIST_DIRECTORY | FILE_READ_ATTRIBUTES | SYNCHRONIZE,
+                FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                IntPtr.Zero, OPEN_EXISTING,
+                FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT,
+                IntPtr.Zero);
+            if (handle.IsInvalid) {
+                throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+            }
+            return handle;
+        }
+
         public static void DeleteOnClose(SafeFileHandle handle) {
             FILE_DISPOSITION_INFO info = new FILE_DISPOSITION_INFO { DeleteFile = true };
             if (!SetFileInformationByHandle(handle, 4, ref info,
@@ -155,8 +184,13 @@ namespace CopsFileDisposition {
             }
         }
 
-        public static void RenameNoReplace(SafeFileHandle handle, string destination) {
-            byte[] name = System.Text.Encoding.Unicode.GetBytes(destination);
+        public static void RenameNoReplace(
+                SafeFileHandle handle, SafeFileHandle directory, string leaf) {
+            if (String.IsNullOrEmpty(leaf) || Path.GetFileName(leaf) != leaf ||
+                    leaf.IndexOf(Path.AltDirectorySeparatorChar) >= 0 || leaf.IndexOf(':') >= 0) {
+                throw new ArgumentException("Output leaf name is invalid.", "leaf");
+            }
+            byte[] name = System.Text.Encoding.Unicode.GetBytes(leaf);
             int rootOffset = IntPtr.Size;
             int lengthOffset = rootOffset + IntPtr.Size;
             int nameOffset = lengthOffset + sizeof(uint);
@@ -165,24 +199,29 @@ namespace CopsFileDisposition {
                 for (int index = 0; index < nameOffset; index++) {
                     Marshal.WriteByte(buffer, index, 0);
                 }
-                Marshal.WriteIntPtr(buffer, rootOffset, IntPtr.Zero);
+                Marshal.WriteIntPtr(buffer, rootOffset, directory.DangerousGetHandle());
                 Marshal.WriteInt32(buffer, lengthOffset, name.Length);
                 Marshal.Copy(name, 0, IntPtr.Add(buffer, nameOffset), name.Length);
-                if (!SetFileInformationByHandle(handle, 3, buffer,
-                        (uint)(nameOffset + name.Length))) {
-                    throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+                IO_STATUS_BLOCK statusBlock;
+                int status = NtSetInformationFile(handle, out statusBlock, buffer,
+                    (uint)(nameOffset + name.Length), FILE_RENAME_INFORMATION_CLASS);
+                if (status < 0) {
+                    throw new InvalidOperationException(
+                        String.Format("Atomic output publication failed with NTSTATUS 0x{0:X8}.",
+                            unchecked((uint)status)));
                 }
             } finally {
                 Marshal.FreeHGlobal(buffer);
             }
         }
 
-        [DllImport("kernel32.dll", SetLastError = true)]
-        private static extern bool SetFileInformationByHandle(
+        [DllImport("ntdll.dll")]
+        private static extern int NtSetInformationFile(
             SafeFileHandle hFile,
-            int FileInformationClass,
-            IntPtr lpFileInformation,
-            uint dwBufferSize);
+            out IO_STATUS_BLOCK ioStatusBlock,
+            IntPtr fileInformation,
+            uint length,
+            int fileInformationClass);
     }
 }
 '@
@@ -201,14 +240,17 @@ function Invoke-CopsExclusiveFileWrite {
     $temporary = Join-Path $parent ('.' + $leaf + '.cops-' + [Guid]::NewGuid().ToString('N') + '.tmp')
     $temporary = Resolve-CopsLocalPath -Path $temporary -Name 'Temporary output file' -Kind NewFile
     Initialize-CopsNativeFileDisposition
-    $handle = [CopsFileDisposition.NativeMethods]::CreateExclusive($temporary)
+    $directoryHandle = [CopsFileDisposition.NativeMethods]::OpenDirectory($parent)
+    $handle = $null
     $stream = $null
     try {
+        $handle = [CopsFileDisposition.NativeMethods]::CreateExclusive($temporary)
         try {
             $stream = [IO.FileStream]::new($handle, [IO.FileAccess]::Write)
             & $Writer $stream
             $stream.Flush($true)
-            [CopsFileDisposition.NativeMethods]::RenameNoReplace($stream.SafeFileHandle, $full)
+            [CopsFileDisposition.NativeMethods]::RenameNoReplace(
+                $stream.SafeFileHandle, $directoryHandle, $leaf)
         } catch {
             $writeFailure = $_
             try {
@@ -219,10 +261,14 @@ function Invoke-CopsExclusiveFileWrite {
             throw $writeFailure
         }
     } finally {
-        if ($null -ne $stream) {
-            $stream.Dispose()
-        } else {
-            $handle.Dispose()
+        try {
+            if ($null -ne $stream) {
+                $stream.Dispose()
+            } elseif ($null -ne $handle) {
+                $handle.Dispose()
+            }
+        } finally {
+            $directoryHandle.Dispose()
         }
     }
     # Verify the rename after closing the handle so callers never proceed on a

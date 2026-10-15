@@ -360,8 +360,10 @@ def test_native_collector_uses_exclusive_create_for_all_artifact_writes() -> Non
     assert "Resolve-CopsLocalPath" in writer
     assert ".cops-" in writer
     assert "::CreateExclusive" in writer
+    assert "::OpenDirectory($parent)" in writer
     assert "$stream.Flush($true)" in writer
-    assert "::RenameNoReplace" in writer
+    assert "::RenameNoReplace(" in writer
+    assert "$stream.SafeFileHandle, $directoryHandle, $leaf" in writer
     assert "::DeleteOnClose($handle)" in writer
     assert "finally {" in writer
     assert "$stream.Dispose()" in writer
@@ -369,6 +371,12 @@ def test_native_collector_uses_exclusive_create_for_all_artifact_writes() -> Non
     assert "GENERIC_WRITE | DELETE" in native
     assert "CREATE_NEW" in native
     assert "CreateFileW" in native
+    assert "FILE_FLAG_OPEN_REPARSE_POINT" in native
+    assert "NtSetInformationFile" in native
+    assert "FILE_RENAME_INFORMATION_CLASS = 10" in native
+    assert "directory.DangerousGetHandle()" in native
+    assert "Path.GetFileName(leaf) != leaf" in native
+    assert "RenameNoReplace($stream.SafeFileHandle, $full)" not in writer
     assert "RenameNoReplace" in native
     assert "DeleteOnClose" in native
     assert "Invoke-CopsExclusiveFileWrite" in wrapper
