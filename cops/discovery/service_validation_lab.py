@@ -74,14 +74,26 @@ class _Case:
 
 
 _CASES = (
-    _Case("http-insufficient", "http", b"HTTP/1.1 200 OK\r\nServer: Lab/1.0\r\nContent-Length: 0\r\n\r\n", "lab-http-1.0", "insufficient_evidence", incomplete=True),
+    _Case(
+        "http-insufficient",
+        "http",
+        b"HTTP/1.1 200 OK\r\nServer: Lab/1.0\r\nContent-Length: 0\r\n\r\n",
+        "lab-http-1.0",
+        "insufficient_evidence",
+        incomplete=True,
+    ),
     _Case("ssh-benign", "ssh", b"SSH-2.0-Lab_9.0\r\n", "lab-ssh-9.0"),
     _Case("redis-candidate", "redis", b"-ERR Redis 5.0 no password configured\r\n", "redis-lab-5.0", candidate=True),
     _Case("smtp-benign", "smtp", b"220 lab ESMTP Postfix\r\n", "lab-smtp-1.0"),
     _Case("docker-benign", "docker-api", b'{"ApiVersion":"1.43","Version":"24.0"}\r\n', "lab-docker-24.0"),
     _Case("dns-benign", "dns", b"DNS response lab-authoritative-1.0\r\n", "lab-dns-1.0"),
     _Case("socks-benign", "socks", b"SOCKS5 lab-proxy-1.0\r\n", "lab-socks-5"),
-    _Case("redis-remediated", "redis", b"-ERR Redis 7.2 authentication required; remediated\r\n", "redis-lab-7.2-protected"),
+    _Case(
+        "redis-remediated",
+        "redis",
+        b"-ERR Redis 7.2 authentication required; remediated\r\n",
+        "redis-lab-7.2-protected",
+    ),
 )
 
 
@@ -97,7 +109,7 @@ class _Handler(socketserver.BaseRequestHandler):
                 server.responses.append(server.banner)  # type: ignore[attr-defined]
             try:
                 request = self.request.recv(1024) if service != "ssh" else b""
-            except (TimeoutError, socket.timeout):
+            except TimeoutError:
                 request = b""
             if request:
                 server.requests.append(request)  # type: ignore[attr-defined]
@@ -155,7 +167,12 @@ def _fixture_response(case: _Case, request: bytes) -> bytes:
         return case.banner
     if case.service == "docker-api" and request.startswith(b"GET /version HTTP/1.1\r\n"):
         body = case.banner.rstrip(b"\r\n")
-        return b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: " + str(len(body)).encode() + b"\r\n\r\n" + body
+        return (
+            b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "
+            + str(len(body)).encode()
+            + b"\r\n\r\n"
+            + body
+        )
     if case.service == "redis":
         if request == b"PING\r\n":
             return b"+PONG\r\n" if case.candidate else b"-NOAUTH Authentication required.\r\n"
@@ -179,7 +196,7 @@ def _recv_all(connection: socket.socket) -> bytes:
     while True:
         try:
             chunk = connection.recv(1024)
-        except (TimeoutError, socket.timeout):
+        except TimeoutError:
             break
         if not chunk:
             break
@@ -243,7 +260,9 @@ def _probe(endpoint: ApprovedEndpoint, service: str, *, authorized_use: bool = F
                 raise RuntimeError("invalid Redis authorized-use response")
             if not authorized_use and not (raw == b"+PONG\r\n" or raw.startswith(b"-NOAUTH ")):
                 raise RuntimeError("invalid Redis PING response")
-            return raw.decode("ascii", errors="replace").strip(), "Redis ECHO response" if authorized_use else "Redis PING response"
+            return raw.decode(
+                "ascii", errors="replace"
+            ).strip(), "Redis ECHO response" if authorized_use else "Redis PING response"
     raise RuntimeError(f"unsupported lab service: {service}")
 
 
@@ -288,13 +307,17 @@ class _Verifier:
             authorized, _authorized_protocol = _probe(plan.endpoint, self.case.service, authorized_use=True)
         trusted = load_trusted_issue_143_reproduction(plan.endpoint)
         incomplete = self.case.incomplete
-        dimensions = {} if incomplete else {
-            "exposure": "independent loopback TCP response observed",
-            "authentication": "read-only banner or separately authorized fixture effect observed",
-            "configuration": f"fixture role {self.case.case_id} independently identified",
-            "version": self.case.version,
-            "trust": "disposable loopback fixture; no external trust claim",
-        }
+        dimensions = (
+            {}
+            if incomplete
+            else {
+                "exposure": "independent loopback TCP response observed",
+                "authentication": "read-only banner or separately authorized fixture effect observed",
+                "configuration": f"fixture role {self.case.case_id} independently identified",
+                "version": self.case.version,
+                "trust": "disposable loopback fixture; no external trust claim",
+            }
+        )
         return ValidationEvidenceVerification(
             approval_receipt_id=approval.receipt_id,
             plan_id=plan.plan_id,
@@ -303,7 +326,9 @@ class _Verifier:
             endpoint=plan.endpoint,
             action=selection.action,
             observed_version="" if incomplete else self.case.version,
-            protocol_evidence=() if incomplete else (f"independent {protocol} sha256 {sha256(evidence.encode()).hexdigest()}",),
+            protocol_evidence=()
+            if incomplete
+            else (f"independent {protocol} sha256 {sha256(evidence.encode()).hexdigest()}",),
             dimensions=dimensions,
             verified_at=utc_now(),
             reproduction_sha256=trusted.sha256 if self.case.candidate else "",
@@ -322,7 +347,9 @@ class _ApprovalGate:
     def __init__(self) -> None:
         self.receipts: list[AuthorizationReceipt] = []
 
-    def __call__(self, plan: ServiceValidationPlan, selection: ValidationSelection, attempt_id: str) -> AuthorizationReceipt:
+    def __call__(
+        self, plan: ServiceValidationPlan, selection: ValidationSelection, attempt_id: str
+    ) -> AuthorizationReceipt:
         receipt = AuthorizationReceipt(
             receipt_id=f"lab-approval-{attempt_id}",
             plan_id=plan.plan_id,

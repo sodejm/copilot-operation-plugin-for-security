@@ -6,11 +6,11 @@ select an action, or convert a port observation into a finding.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from hashlib import sha256
-import json
 
 from cops.assessment_budget import AssessmentBudgetLedger, AttemptRequest, BudgetDenied, Receipt
 
@@ -215,10 +215,13 @@ def _result(status: str, reason: str, plan: ServiceValidationPlan, attempt_id: s
 
 
 def _evidence_complete(verification: ValidationEvidenceVerification) -> bool:
-    return bool(verification.protocol_evidence) and bool(verification.observed_version.strip()) and all(
-        isinstance(verification.dimensions.get(dimension), str)
-        and bool(verification.dimensions[dimension].strip())
-        for dimension in _DIMENSIONS
+    return (
+        bool(verification.protocol_evidence)
+        and bool(verification.observed_version.strip())
+        and all(
+            isinstance(verification.dimensions.get(dimension), str) and bool(verification.dimensions[dimension].strip())
+            for dimension in _DIMENSIONS
+        )
     )
 
 
@@ -229,7 +232,7 @@ def _verified_during(value: str, started: datetime, finished: datetime) -> bool:
         return False
     if observed.tzinfo is None:
         return False
-    observed = observed.astimezone(timezone.utc)
+    observed = observed.astimezone(UTC)
     return started <= observed <= finished
 
 
@@ -266,7 +269,9 @@ def execute_service_validation_action(
         or prior_result.coverage is None
         or prior_result.coverage.get("reproduction") != "versioned-#143"
     ):
-        return _result("blocked_prerequisite", "controlled proof requires a versioned #143 candidate", plan, request.attempt_id)
+        return _result(
+            "blocked_prerequisite", "controlled proof requires a versioned #143 candidate", plan, request.attempt_id
+        )
 
     try:
         reserved = ledger.reserve(request)
@@ -296,7 +301,9 @@ def execute_service_validation_action(
     )
     if not exact_approval:
         ledger.release_undispatched(request.attempt_id)
-        return _result("authorization_denied", "approval does not bind the exact action and endpoint", plan, request.attempt_id)
+        return _result(
+            "authorization_denied", "approval does not bind the exact action and endpoint", plan, request.attempt_id
+        )
 
     try:
         ledger.mark_dispatched(request.attempt_id)
@@ -316,9 +323,11 @@ def execute_service_validation_action(
             ledger.mark_uncertain(request.attempt_id)
         except (BudgetDenied, ValueError):
             pass
-        return _result("dispatch_uncertain", f"provider did not return a receipt: {type(exc).__name__}", plan, request.attempt_id)
+        return _result(
+            "dispatch_uncertain", f"provider did not return a receipt: {type(exc).__name__}", plan, request.attempt_id
+        )
 
-    verification_started_at = datetime.now(timezone.utc)
+    verification_started_at = datetime.now(UTC)
     try:
         verification = evidence_verifier(plan, selection, approval, output)
     except Exception as exc:
@@ -326,7 +335,7 @@ def execute_service_validation_action(
         verification_error = type(exc).__name__
     else:
         verification_error = ""
-    verification_finished_at = datetime.now(timezone.utc)
+    verification_finished_at = datetime.now(UTC)
 
     ledger.reconcile(
         Receipt(
@@ -383,13 +392,7 @@ def execute_service_validation_action(
         and verification.cleanup_verified
         and verification.cleanup_evidence
     )
-    verified = (
-        selection.action == "controlled_proof"
-        and complete
-        and proof_complete
-        and candidate
-        and prior_binding
-    )
+    verified = selection.action == "controlled_proof" and complete and proof_complete and candidate and prior_binding
     successful_use = bool(
         selection.action == "controlled_proof"
         and verified
@@ -404,7 +407,9 @@ def execute_service_validation_action(
         else "insufficient_evidence"
     )
     verified_dimensions = verification.dimensions if exact_verification and verification is not None else {}
-    coverage = {dimension: ("tested" if verified_dimensions.get(dimension) else "untested") for dimension in _DIMENSIONS}
+    coverage = {
+        dimension: ("tested" if verified_dimensions.get(dimension) else "untested") for dimension in _DIMENSIONS
+    }
     coverage["protocol"] = "tested" if complete else "untested"
     coverage["effect"] = "tested" if proof_complete else "untested"
     coverage["authorized_use"] = "tested" if successful_use else "untested"
@@ -414,9 +419,7 @@ def execute_service_validation_action(
     coverage["reproduction"] = "versioned-#143" if candidate else "unverified"
     for field in ("observation", "evidence", "impact", "remediation", "detection"):
         coverage[f"finding_{field}"] = "documented" if candidate else "unverified"
-    mappings = (
-        AttackMapping("T1046", "The approved service responded to a bounded probe.", "Shows exposure only."),
-    )
+    mappings = (AttackMapping("T1046", "The approved service responded to a bounded probe.", "Shows exposure only."),)
     if candidate:
         mappings += (
             AttackMapping(

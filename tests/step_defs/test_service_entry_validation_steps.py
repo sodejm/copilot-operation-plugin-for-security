@@ -15,13 +15,6 @@ for import_path in (ROOT, ROOT / "tests"):
     if str(import_path) not in sys.path:
         sys.path.insert(0, str(import_path))
 
-from cops.assessment_budget import BudgetDenied
-from cops.discovery import (
-    ValidationSelection,
-    execute_service_validation_action,
-    lab_service_provider_registry,
-    run_loopback_service_validation_journey,
-)
 from test_service_validation_execution import (
     ExactApprovalGate,
     LoopbackEvidenceVerifier,
@@ -32,6 +25,14 @@ from test_service_validation_execution import (
     plan_for,
 )
 from test_service_validation_lab import EXPECTED_ROUTES, assert_complete_public_journey
+
+from cops.assessment_budget import BudgetDenied
+from cops.discovery import (
+    ValidationSelection,
+    execute_service_validation_action,
+    lab_service_provider_registry,
+    run_loopback_service_validation_journey,
+)
 
 FEATURE = "../../specs/features/service_entry_validation.feature"
 
@@ -223,9 +224,7 @@ def then_attack_and_coverage_are_bounded(service_ctx):
     assert result.coverage["authorized_use"] == "untested"
 
 
-@then(
-    "the report retains the issue 143 reproduction, version, remediation, approval receipt, and attempt provenance"
-)
+@then("the report retains the issue 143 reproduction, version, remediation, approval receipt, and attempt provenance")
 def then_reproduction_and_approval_provenance_are_retained(service_ctx):
     result = service_ctx["result"]
     assert result.reproduction_reference == "#143"
@@ -358,9 +357,7 @@ def then_retry_requirements_are_stated(service_ctx):
     assert service_ctx["fresh_result"].status == "completed"
     assert service_ctx["fresh_result"].action == "low_impact_validation"
     assert service_ctx["fresh_result"].approval_receipt_id == "approval-bdd-retry-fresh"
-    assert service_ctx["fresh_provider_calls"] == (
-        (service_ctx["plan"].endpoint, "low_impact_validation"),
-    )
+    assert service_ctx["fresh_provider_calls"] == ((service_ctx["plan"].endpoint, "low_impact_validation"),)
     assert len(service_ctx["fresh_gate_calls"]) == 1
     assert service_ctx["fresh_gate_calls"][0][2] == "bdd-retry-fresh"
 
@@ -382,9 +379,7 @@ def given_seven_family_loopback_laboratory(service_ctx):
 
 @when("the operator runs the public service-validation journey")
 def when_public_service_validation_journey_runs(service_ctx):
-    service_ctx["journey_report"] = run_loopback_service_validation_journey(
-        service_ctx["tmp_path"] / "public-journey"
-    )
+    service_ctx["journey_report"] = run_loopback_service_validation_journey(service_ctx["tmp_path"] / "public-journey")
 
 
 @then("the journey discovers, routes, investigates, validates, and reports every fixture")
@@ -413,7 +408,4 @@ def then_public_journey_retains_provenance(service_ctx):
 def then_external_targets_remain_unsupported(service_ctx):
     report = service_ctx["journey_report"]
     assert report["external_targets_supported"] is False
-    assert all(
-        entry["evidence_scope"] == "disposable loopback fixture only"
-        for entry in report["registry"]
-    )
+    assert all(entry["evidence_scope"] == "disposable loopback fixture only" for entry in report["registry"])
