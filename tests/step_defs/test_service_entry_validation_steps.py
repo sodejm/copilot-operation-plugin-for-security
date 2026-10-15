@@ -16,7 +16,12 @@ for import_path in (ROOT, ROOT / "tests"):
         sys.path.insert(0, str(import_path))
 
 from cops.assessment_budget import BudgetDenied
-from cops.discovery import ValidationSelection, execute_service_validation_action
+from cops.discovery import (
+    ValidationSelection,
+    execute_service_validation_action,
+    lab_service_provider_registry,
+    run_loopback_service_validation_journey,
+)
 from test_service_validation_execution import (
     ExactApprovalGate,
     LoopbackEvidenceVerifier,
@@ -26,6 +31,7 @@ from test_service_validation_execution import (
     loopback_service,
     plan_for,
 )
+from test_service_validation_lab import EXPECTED_ROUTES, assert_complete_public_journey
 
 FEATURE = "../../specs/features/service_entry_validation.feature"
 
@@ -57,6 +63,11 @@ def test_provider_availability_gate():
 
 @scenario(FEATURE, "Every retry is a new bounded and approved action")
 def test_retry_requires_new_budget_and_approval():
+    pass
+
+
+@scenario(FEATURE, "Operator runs the public seven-family loopback service-validation journey")
+def test_public_seven_family_loopback_service_validation_journey():
     pass
 
 
@@ -360,3 +371,49 @@ def then_reused_attempt_fails_before_dispatch(service_ctx):
     assert "fresh reservation" in service_ctx["reused_result"].reason
     assert service_ctx["provider"].calls == []
     assert service_ctx["gate"].calls == []
+
+
+@given("a disposable seven-family loopback laboratory")
+def given_seven_family_loopback_laboratory(service_ctx):
+    adapters = lab_service_provider_registry()
+    assert {adapter.service: adapter.skill_id for adapter in adapters} == EXPECTED_ROUTES
+    assert all(adapter.evidence_scope == "disposable loopback fixture only" for adapter in adapters)
+
+
+@when("the operator runs the public service-validation journey")
+def when_public_service_validation_journey_runs(service_ctx):
+    service_ctx["journey_report"] = run_loopback_service_validation_journey(
+        service_ctx["tmp_path"] / "public-journey"
+    )
+
+
+@then("the journey discovers, routes, investigates, validates, and reports every fixture")
+def then_public_journey_is_complete(service_ctx):
+    assert_complete_public_journey(service_ctx["journey_report"])
+
+
+@then("the report retains independent evidence, authorization, budget, and cleanup provenance")
+def then_public_journey_retains_provenance(service_ctx):
+    report = service_ctx["journey_report"]
+    assert len(report["approvals"]) == 9
+    assert report["budget"] == {
+        "charged_attempts": 9,
+        "charged_tokens": 45,
+        "charged_cost_microunits": 450,
+        "charged_output_bytes": 2304,
+        "active_concurrency": 0,
+        "over_budget": False,
+    }
+    assert all(entry["all_connections_closed"] for entry in report["cleanup"])
+    assert report["controlled_proof"]["effect_evidence"]
+    assert report["controlled_proof"]["authorized_use_evidence"]
+
+
+@then("external provider coverage remains explicitly unsupported")
+def then_external_targets_remain_unsupported(service_ctx):
+    report = service_ctx["journey_report"]
+    assert report["external_targets_supported"] is False
+    assert all(
+        entry["evidence_scope"] == "disposable loopback fixture only"
+        for entry in report["registry"]
+    )

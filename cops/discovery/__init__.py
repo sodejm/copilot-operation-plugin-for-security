@@ -165,6 +165,7 @@ from .service_entry_validation import (
 from .service_validation_execution import (
     AttackMapping,
     AuthorizationReceipt,
+    TrustedValidationReproduction,
     ValidationActionResult,
     ValidationEvidenceVerification,
     ValidationFinding,
@@ -172,6 +173,12 @@ from .service_validation_execution import (
     ValidationSelection,
     VersionedReproduction,
     execute_service_validation_action,
+    load_trusted_issue_143_reproduction,
+)
+from .service_validation_lab import (
+    LabServiceAdapter,
+    lab_service_provider_registry,
+    run_loopback_service_validation_journey,
 )
 
 __all__ = [
@@ -182,6 +189,7 @@ __all__ = [
     "ApprovedEndpoint",
     "AttackMapping",
     "AuthorizationReceipt",
+    "TrustedValidationReproduction",
     "AssetType",
     "AuthPrerequisite",
     "ConfidenceLevel",
@@ -231,6 +239,7 @@ __all__ = [
     "import_masscan_json",
     "import_nmap_xml",
     "infer_service_fingerprint",
+    "load_trusted_issue_143_reproduction",
     "merge_inventories",
     "merge_two_assets",
     "normalize_certificate_record",
@@ -312,4 +321,7 @@ __all__ = [
     "OfflineSyntheticLegacyCollector",
     "StandardSocketLegacyCollector",
     "assess_legacy_services",
+    "LabServiceAdapter",
+    "lab_service_provider_registry",
+    "run_loopback_service_validation_journey",
 ]
