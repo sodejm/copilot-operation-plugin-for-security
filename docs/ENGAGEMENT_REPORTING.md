@@ -80,9 +80,11 @@ joins, and Finding claims for contradictions, including scanner corroboration
 and the match between a Finding's status and evidence strength. A coverage row
 without a RunResult cannot carry evidence records. Saved Findings must retain
 the per-asset gap limitation where no assessed coverage and linked evidence
-support an affected asset. The report's notice that hashes do not establish
-source authenticity or authorization is required during saved-report validation
-and rendering:
+support an affected asset. A `partial` Finding requires at least one matching
+`partial` or `assessed` coverage row; linked evidence on exclusively
+`not_assessed` coverage cannot support a partial claim. The report's notice
+that hashes do not establish source authenticity or authorization is required
+during saved-report validation and rendering:
 
 | Assessment status | Verification | Evidence strength | Meaning |
 | --- | --- | --- | --- |

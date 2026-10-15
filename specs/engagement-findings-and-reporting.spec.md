@@ -43,6 +43,8 @@ authorization grant, or report publication occurs in this workflow.
    `recorded`, `limited`, and `contradicted` strength require linked evidence.
    Saved scanner-associated coverage cannot become assessed without assessed
    non-scanner corroboration. Resultless coverage cannot carry evidence records.
+   A partial Finding requires matching partial or assessed coverage; linked
+   evidence on exclusively not_assessed coverage does not establish partiality.
    Each Finding retains an explicit limitation for affected assets lacking
    assessed coverage with linked evidence. The saved report retains the notice
    that record hashes do not prove source authenticity or authorization.

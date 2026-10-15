@@ -315,6 +315,8 @@ def validate_report_semantics(report: dict[str, Any]) -> None:
             raise ReportError("recorded report finding must be assessed with linked evidence")
         if status == "partial" and strength != "limited":
             raise ReportError("partial report finding requires limited evidence strength")
+        if status == "partial" and not any(row["status"] in {"assessed", "partial"} for row in rows):
+            raise ReportError("partial report finding lacks assessed or partial coverage")
         if status == "not_assessed" and strength not in {"limited", "missing"}:
             raise ReportError("unassessed report finding has contradictory evidence strength")
         if strength == "limited" and (status not in {"partial", "not_assessed"} or not references):
