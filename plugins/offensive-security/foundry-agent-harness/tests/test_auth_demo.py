@@ -38,7 +38,15 @@ def test_operator_demo_runs_complete_authorization_matrix(tmp_path):
     assert summary["report_bytes"] == len(payload)
     assert summary["report_sha256"] == hashlib.sha256(payload).hexdigest()
     assert summary["approval_private_directory_removed"] is True
-    assert "same host and trust boundary" in summary["observer_boundary"]
+    assert "same host" in summary["observer_boundary"]
+    assert "does not establish independently administered external authority" in summary["observer_boundary"]
+    assert summary["observer_record_authentication"] == {
+        "algorithm": "ed25519",
+        "fresh_challenge_bound_session": True,
+        "monotonic_sequence_verified": True,
+        "private_key_owner": "observer_process",
+        "runner_material": "public_verification_key_only",
+    }
     assert summary["public_cli"] == {
         "auth_plan_exit_code": 0,
         "auth_lab_exit_code": 0,

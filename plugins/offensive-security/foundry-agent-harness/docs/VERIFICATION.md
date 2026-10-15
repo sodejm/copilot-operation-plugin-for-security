@@ -56,9 +56,12 @@ plan, signed receipt, trust store, approval database, and report in private
 storage. After the run, reconcile every planned case and attempt against the
 report; require both positive delegated controls, cross-tenant denials in both
 directions, and zero observer-ledger effects for each hostile peer probe.
-The runner reads the ledger separately from tool replies, but the target
-produces it. Inspect `assessment_authorization`, `observations` (peer and
-target), `normalized_observations`, `observed_effects`, `cleanup`,
+The runner reads the ledger separately from tool replies. The target signals the
+observer, and the observer signs its own record with an ephemeral Ed25519 private
+key retained inside the observer process. The runner verifies a fresh
+challenge-bound readiness record, observer session, monotonic sequence, and
+effect signature using only the public key. Inspect `assessment_authorization`,
+`observations` (peer and target), `normalized_observations`, `observed_effects`, `cleanup`,
 `evidence_complete`, `security_pass`,
 `pending_case_ids`, `recovery_actions`, and `next_action`. Missing identity or
 effect telemetry, unavailable observation, unsupported behavior, failed setup,
@@ -80,7 +83,11 @@ assuming the first page is complete. The pinned server name and version are
 advertised metadata, not cryptographic peer authentication. Do not infer remote
 HTTP, OAuth, hosted-provider, cross-provider interoperability, current
 per-request metadata, Windows runtime, or OS-enforced network-isolation
-support from this exercise.
+support from this exercise. The same-host runner controls the trusted observer
+source, launch, and work directory, so process-local key possession is not proof
+of an independently administered external authority. External acceptance needs
+an observer identity and verification key provisioned outside the caller's
+control.
 
 ## Acceptance criteria
 

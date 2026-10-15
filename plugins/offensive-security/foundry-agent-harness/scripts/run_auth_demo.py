@@ -37,8 +37,11 @@ CASES_PATH = PLUGIN_ROOT / "auth_cases"
 CLI_PATH = PLUGIN_ROOT / "foundryharness/cli.py"
 SIGNING_ENV_VAR_NAME = "COPS_AGENT_MCP_DEMO_SIGNING_KEY"
 OBSERVER_BOUNDARY = (
-    "Provider-neutral separate process on the same host and trust boundary; this demonstration "
-    "does not claim external attestation, live-provider authorization, or an OS network sandbox."
+    "Provider-neutral child process generates and retains an ephemeral Ed25519 private key; "
+    "the runner receives only its public verification key and verifies challenge-bound readiness, "
+    "session binding, monotonic sequence, and signatures. The runner still controls the child code, "
+    "launch, and work directory on the same host, so this does not establish independently "
+    "administered external authority, live-provider authorization, or an OS network sandbox."
 )
 LIMITATIONS = (
     "no_native_provider_authority",
@@ -260,14 +263,36 @@ def _validate_report(report: dict[str, Any], cases: list[Any]) -> None:
         _require(len(result["observed_effects"]) == effect_count, f"{case_id}: effect count drifted")
         normalized = result["normalized_observations"]
         _require(len(normalized) == len(observations), f"{case_id}: normalized evidence is incomplete")
+        observer_keys: set[str] = set()
+        observer_sessions: set[str] = set()
         for row in normalized:
             _require(row["redacted"] is True, f"{case_id}: normalized observation is not redacted")
+            effect = row["effect"]
             _require(
-                row["effect"]["trust_relation"] == "separate_process_same_trust_boundary"
-                and row["effect"]["observer_identity"] == "fixed-effect-observer"
-                and row["effect"]["observation_channel"] == "separate_process_private_ledger",
+                effect["trust_relation"] == "separate_process_same_trust_boundary"
+                and effect["observer_identity"] == "fixed-effect-observer"
+                and effect["observation_channel"] == "separate_process_private_ledger",
                 f"{case_id}: observer provenance drifted",
             )
+            _require(
+                effect["record_authentication"] == "ed25519_observer_process"
+                and effect["signing_authority"] == "observer_process_private_key",
+                f"{case_id}: observer record authentication drifted",
+            )
+            _require(
+                len(effect["observer_key_id"]) == 64
+                and all(character in "0123456789abcdef" for character in effect["observer_key_id"]),
+                f"{case_id}: observer key identifier is not a SHA-256 digest",
+            )
+            _require(
+                len(effect["observer_session_id"]) == 64
+                and all(character in "0123456789abcdef" for character in effect["observer_session_id"]),
+                f"{case_id}: observer session identifier is not a challenge-bound digest",
+            )
+            observer_keys.add(effect["observer_key_id"])
+            observer_sessions.add(effect["observer_session_id"])
+        _require(len(observer_keys) == 1, f"{case_id}: observer key changed within one case")
+        _require(len(observer_sessions) == 1, f"{case_id}: observer session changed within one case")
     _require(
         sum(len(result["observed_effects"]) for result in report["results"]) == 8,
         "complete matrix must contain exactly eight independently observed fixture effects",
@@ -323,6 +348,13 @@ def run(output: Path) -> dict[str, Any]:
         "report_sha256": report_sha256,
         "approval_private_directory_removed": True,
         "observer_boundary": OBSERVER_BOUNDARY,
+        "observer_record_authentication": {
+            "algorithm": "ed25519",
+            "fresh_challenge_bound_session": True,
+            "monotonic_sequence_verified": True,
+            "private_key_owner": "observer_process",
+            "runner_material": "public_verification_key_only",
+        },
         "public_cli": {
             "auth_plan_exit_code": 0,
             "auth_lab_exit_code": 0,

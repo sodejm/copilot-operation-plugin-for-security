@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import base64
+import hashlib
+import json
 import os
 import re
+import secrets
 import signal
 import stat
 import subprocess
@@ -12,8 +16,12 @@ import threading
 import time
 from collections.abc import Iterable
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 from cops.contracts.models import ActionPlan
 from cops.evidence.canonical import EvidenceError, decode_json, digest, timestamp, utc_now
@@ -68,8 +76,84 @@ LEDGER_FIELDS = frozenset(
         "resource",
         "operation",
         "redacted",
+        "observer_identity",
+        "observer_key_id",
+        "observer_session_id",
+        "observer_sequence",
+        "signature_algorithm",
+        "observer_signature",
     }
 )
+
+
+@dataclass(frozen=True)
+class _ObserverVerifier:
+    identity: str
+    key_id: str
+    session_id: str
+    public_key: Ed25519PublicKey
+
+
+def _canonical_bytes(value: dict[str, Any]) -> bytes:
+    return json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+def _verify_observer_ready(value: Any, challenge: str) -> _ObserverVerifier:
+    fields = {
+        "ready",
+        "observer_identity",
+        "observer_challenge",
+        "observer_public_key",
+        "observer_key_id",
+        "observer_session_id",
+        "signature_algorithm",
+        "observer_signature",
+    }
+    try:
+        if not isinstance(value, dict) or set(value) != fields:
+            raise ValueError
+        unsigned = dict(value)
+        signature = base64.b64decode(unsigned.pop("observer_signature"), validate=True)
+        public_raw = base64.b64decode(value["observer_public_key"], validate=True)
+        if (
+            value["ready"] is not True
+            or value["observer_identity"] != "fixed-effect-observer"
+            or value["observer_challenge"] != challenge
+            or value["signature_algorithm"] != "ed25519"
+            or len(public_raw) != 32
+            or value["observer_key_id"] != hashlib.sha256(public_raw).hexdigest()
+            or value["observer_session_id"]
+            != hashlib.sha256(f"{challenge}:{value['observer_key_id']}".encode()).hexdigest()
+        ):
+            raise ValueError
+        public_key = Ed25519PublicKey.from_public_bytes(public_raw)
+        public_key.verify(signature, _canonical_bytes(unsigned))
+    except (KeyError, TypeError, ValueError, InvalidSignature) as exc:
+        raise LabError("Effect observer returned unauthenticated readiness evidence") from exc
+    return _ObserverVerifier(
+        value["observer_identity"], value["observer_key_id"], value["observer_session_id"], public_key
+    )
+
+
+def _verify_observer_event(event: Any, verifier: _ObserverVerifier, sequence: int) -> None:
+    try:
+        if not isinstance(event, dict) or set(event) != LEDGER_FIELDS:
+            raise ValueError
+        unsigned = dict(event)
+        signature = base64.b64decode(unsigned.pop("observer_signature"), validate=True)
+        if (
+            event["observer_identity"] != verifier.identity
+            or event["observer_key_id"] != verifier.key_id
+            or event["observer_session_id"] != verifier.session_id
+            or event["observer_sequence"] != sequence
+            or event["signature_algorithm"] != "ed25519"
+        ):
+            raise ValueError
+        verifier.public_key.verify(signature, _canonical_bytes(unsigned))
+    except (KeyError, TypeError, ValueError, InvalidSignature) as exc:
+        raise LabError("Effect observer ledger returned unauthenticated evidence") from exc
+
+
 DECISION_FIELDS = frozenset(
     {
         "schema_version",
@@ -252,10 +336,10 @@ def build_auth_plan(
     )
 
 
-def _read_effects(ledger: Path, budget: _BatchBudget) -> list[dict[str, Any]]:
+def _read_effects(ledger: Path, budget: _BatchBudget, verifier: _ObserverVerifier) -> list[dict[str, Any]]:
     budget.admit()
     try:
-        descriptor = os.open(ledger, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        descriptor = os.open(ledger, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | os.O_NONBLOCK)
         with os.fdopen(descriptor, "rb") as stream:
             metadata = os.fstat(stream.fileno())
             if not stat.S_ISREG(metadata.st_mode) or metadata.st_size > 65536:
@@ -273,7 +357,8 @@ def _read_effects(ledger: Path, budget: _BatchBudget) -> list[dict[str, Any]]:
         events = [decode_json(line, max_bytes=65536) for line in raw.splitlines()]
     except (OSError, EvidenceError) as exc:
         raise LabError("Effect observer ledger returned malformed evidence") from exc
-    for event in events:
+    for sequence, event in enumerate(events, start=1):
+        _verify_observer_event(event, verifier, sequence)
         if (
             not isinstance(event, dict)
             or set(event) != LEDGER_FIELDS
@@ -508,9 +593,9 @@ def _run_auth_case(
                     return process
 
                 observer = start("auth_effect_observer.py")
-                ready = observer.exchange({"command": "ready"})
-                if ready != {"ready": True, "observer_identity": "fixed-effect-observer"}:
-                    raise LabError("Effect observer did not confirm readiness")
+                observer_challenge = secrets.token_hex(32)
+                ready = observer.exchange({"command": "ready", "observer_challenge": observer_challenge})
+                verifier = _verify_observer_ready(ready, observer_challenge)
                 server = start("auth_fixture_server.py")
                 peer = start("auth_peer_fixture.py")
                 mcp = _McpClient(
@@ -522,13 +607,13 @@ def _run_auth_case(
                     expected_tool_descriptors=TOOL_DESCRIPTORS,
                 )
                 mcp.initialize()
-                events = _read_effects(ledger, budget)
+                events = _read_effects(ledger, budget, verifier)
                 environment_verified = True
 
                 def observe_effects(
                     forwarded: dict[str, Any], tool: str
                 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-                    observed = _read_effects(ledger, budget)
+                    observed = _read_effects(ledger, budget, verifier)
                     if observed[: len(events)] != events:
                         raise LabError("Effect observer ledger changed previously observed events")
                     delta = observed[len(events) :]
@@ -651,6 +736,10 @@ def _run_auth_case(
                                 "kinds": [event["kind"] for event in delta],
                                 "count": len(delta),
                                 "observer_identity": ready["observer_identity"],
+                                "observer_key_id": verifier.key_id,
+                                "observer_session_id": verifier.session_id,
+                                "record_authentication": "ed25519_observer_process",
+                                "signing_authority": "observer_process_private_key",
                                 "observation_channel": "separate_process_private_ledger",
                                 "trust_relation": "separate_process_same_trust_boundary",
                             },

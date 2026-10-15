@@ -53,12 +53,16 @@
     "effect": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["status", "kinds", "count", "observer_identity", "observation_channel", "trust_relation"],
+      "required": ["status", "kinds", "count", "observer_identity", "observer_key_id", "observer_session_id", "record_authentication", "signing_authority", "observation_channel", "trust_relation"],
       "properties": {
         "status": {"enum": ["observed", "absent", "uncertain", "unavailable"]},
         "kinds": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 128}, "maxItems": 32},
         "count": {"type": "integer", "minimum": 0, "maximum": 32},
         "observer_identity": {"type": ["string", "null"], "maxLength": 256},
+        "observer_key_id": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "observer_session_id": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "record_authentication": {"const": "ed25519_observer_process"},
+        "signing_authority": {"const": "observer_process_private_key"},
         "observation_channel": {"type": "string", "minLength": 1, "maxLength": 128},
         "trust_relation": {"enum": ["target_produced", "separate_process_same_trust_boundary", "independent", "unavailable"]}
       }

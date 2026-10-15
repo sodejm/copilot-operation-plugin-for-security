@@ -126,7 +126,12 @@ private snapshot of the approved source bytes. The target independently checks
 its synthetic grant; a COPS receipt cannot grant target-service authority.
 
 Correlated requests, decisions, and a directly observed disclosure and write
-ledger establish the local result. `evidence_complete`, `expectation_met`, and
+ledger establish the local result. The observer child retains an ephemeral
+Ed25519 private key while the runner verifies challenge-bound readiness,
+session, sequence, and effects with the public key only. This provides
+process-level key separation inside the same runner-controlled host and source
+snapshot, not independently administered external attestation.
+`evidence_complete`, `expectation_met`, and
 `security_pass` distinguish complete observations from an expected inconclusive
 test. Admission, response and ledger byte limits, cancellation, and observed
 cleanup bound the batch. A later exception preserves completed results and usage,

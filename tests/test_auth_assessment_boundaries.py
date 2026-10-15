@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import io
 import json
 import os
@@ -16,6 +18,8 @@ from types import SimpleNamespace
 
 import jsonschema
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from foundryharness import auth_approval, auth_bootstrap, auth_laboratory, cli, laboratory
 
 from cops.execution import store as store_module
@@ -520,6 +524,18 @@ def test_response_reads_respect_exact_remaining_byte_budget(tmp_path, monkeypatc
 def test_ledger_reads_respect_exact_remaining_byte_budget(tmp_path, over_by):
     _, context = authorized_batch(tmp_path)
     budget = auth_approval._BatchBudget(context["plan"], context["authorization"].authorized_until_utc)
+    private_key = Ed25519PrivateKey.generate()
+    public_key = private_key.public_key()
+    public_raw = public_key.public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    )
+    verifier = auth_approval._ObserverVerifier(
+        identity="fixed-effect-observer",
+        key_id=hashlib.sha256(public_raw).hexdigest(),
+        session_id="b" * 64,
+        public_key=public_key,
+    )
     event = {field: "test" for field in auth_approval.LEDGER_FIELDS}
     event.update(
         schema_version="cops.agent-mcp-auth-ledger-event/v1",
@@ -533,6 +549,15 @@ def test_ledger_reads_respect_exact_remaining_byte_budget(tmp_path, over_by):
         tenant="tenant-contoso-01",
         resource="res-canary",
         plan_digest="a" * 64,
+        observer_identity=verifier.identity,
+        observer_key_id=verifier.key_id,
+        observer_session_id=verifier.session_id,
+        observer_sequence=1,
+        signature_algorithm="ed25519",
+    )
+    event.pop("observer_signature")
+    event["observer_signature"] = base64.b64encode(private_key.sign(auth_approval._canonical_bytes(event))).decode(
+        "ascii"
     )
     raw = (json.dumps(event) + "\n").encode()
     ledger = tmp_path / "effects.jsonl"
@@ -540,10 +565,10 @@ def test_ledger_reads_respect_exact_remaining_byte_budget(tmp_path, over_by):
     budget.output_limit = len(raw) - over_by
     if over_by:
         with pytest.raises(auth_approval._BatchBudgetStop, match="output_budget_exhausted"):
-            auth_approval._read_effects(ledger, budget)
+            auth_approval._read_effects(ledger, budget, verifier)
         assert budget.output_bytes == 0  # Rejected from size metadata before reading.
     else:
-        assert auth_approval._read_effects(ledger, budget) == [event]
+        assert auth_approval._read_effects(ledger, budget, verifier) == [event]
         assert budget.output_bytes == len(raw)
 
 

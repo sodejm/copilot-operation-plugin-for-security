@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 import sys
 from pathlib import Path
 
 import jsonschema
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PLUGIN_ROOT))
@@ -96,6 +100,10 @@ def test_bundled_authorization_cases_have_correlated_target_effect_evidence(tmp_
             assert normalized["effect"]["trust_relation"] == "separate_process_same_trust_boundary"
             assert normalized["effect"]["observer_identity"] == "fixed-effect-observer"
             assert normalized["effect"]["observation_channel"] == "separate_process_private_ledger"
+            assert normalized["effect"]["record_authentication"] == "ed25519_observer_process"
+            assert normalized["effect"]["signing_authority"] == "observer_process_private_key"
+            assert normalized["effect"]["observer_key_id"]
+            assert normalized["effect"]["observer_session_id"]
             assert normalized["redacted"] is row["peer"]["redacted"] is row["target"]["redacted"] is True
 
     def decisions(name):
@@ -239,6 +247,83 @@ def test_allowed_read_without_independent_disclosure_is_inconclusive(tmp_path, m
     assert result["outcome"] == "inconclusive"
     assert not result["evidence_complete"] and not result["security_pass"]
     assert not report["security_pass"] and not report["all_expectations_met"]
+
+
+def _signed_observer_readiness(challenge):
+    private_key = Ed25519PrivateKey.generate()
+    public_raw = private_key.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+    key_id = hashlib.sha256(public_raw).hexdigest()
+    value = {
+        "ready": True,
+        "observer_identity": "fixed-effect-observer",
+        "observer_challenge": challenge,
+        "observer_public_key": base64.b64encode(public_raw).decode("ascii"),
+        "observer_key_id": key_id,
+        "observer_session_id": hashlib.sha256(f"{challenge}:{key_id}".encode()).hexdigest(),
+        "signature_algorithm": "ed25519",
+    }
+    value["observer_signature"] = base64.b64encode(private_key.sign(auth_approval._canonical_bytes(value))).decode(
+        "ascii"
+    )
+    return value, private_key
+
+
+@pytest.mark.parametrize("fault", ["missing", "forged", "stale"])
+def test_observer_readiness_fails_closed_without_authentic_current_record(fault):
+    challenge = "1" * 64
+    value, _private_key = _signed_observer_readiness(challenge)
+    if fault == "missing":
+        del value["observer_signature"]
+    elif fault == "forged":
+        forged = dict(value)
+        del forged["observer_signature"]
+        value["observer_signature"] = base64.b64encode(
+            Ed25519PrivateKey.generate().sign(auth_approval._canonical_bytes(forged))
+        ).decode("ascii")
+    else:
+        value["observer_challenge"] = "2" * 64
+    with pytest.raises(LabError, match="unauthenticated readiness"):
+        auth_approval._verify_observer_ready(value, challenge)
+
+
+@pytest.mark.parametrize("fault", ["missing", "forged", "stale"])
+def test_observer_effect_fails_closed_without_authentic_current_record(fault):
+    readiness, private_key = _signed_observer_readiness("3" * 64)
+    verifier = auth_approval._verify_observer_ready(readiness, "3" * 64)
+    assert not hasattr(verifier.public_key, "sign")
+    event = {
+        "schema_version": "cops.agent-mcp-auth-ledger-event/v1",
+        "case_id": "delegated-control",
+        "attempt_id": "delegated-control-1",
+        "request_id": "request-delegated-control-1",
+        "canary_id": "canary-delegated-control-1",
+        "plan_digest": "4" * 64,
+        "test_identity": "synthetic-fixture-runner",
+        "server_identity": "fixed-target-authorization-service",
+        "kind": "canary_write",
+        "principal": "principal-alice",
+        "tool": "canary/write",
+        "tenant": "tenant-contoso-01",
+        "resource": "res-canary",
+        "operation": "write",
+        "redacted": True,
+        "observer_identity": verifier.identity,
+        "observer_key_id": verifier.key_id,
+        "observer_session_id": verifier.session_id,
+        "observer_sequence": 1,
+        "signature_algorithm": "ed25519",
+    }
+    event["observer_signature"] = base64.b64encode(private_key.sign(auth_approval._canonical_bytes(event))).decode(
+        "ascii"
+    )
+    if fault == "missing":
+        del event["observer_signature"]
+    elif fault == "forged":
+        event["tenant"] = "tenant-fabrikam-02"
+    else:
+        event["observer_session_id"] = "5" * 64
+    with pytest.raises(LabError, match="unauthenticated evidence"):
+        auth_approval._verify_observer_event(event, verifier, 1)
 
 
 @pytest.mark.parametrize("disclosure", [False, True])

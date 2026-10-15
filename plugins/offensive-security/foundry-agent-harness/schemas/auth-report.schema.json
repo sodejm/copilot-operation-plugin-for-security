@@ -396,7 +396,13 @@
         "redacted",
         "case_id",
         "principal",
-        "tool"
+        "tool",
+        "observer_identity",
+        "observer_key_id",
+        "observer_session_id",
+        "observer_sequence",
+        "signature_algorithm",
+        "observer_signature"
       ],
       "properties": {
         "schema_version": {
@@ -477,6 +483,29 @@
             "canary/read",
             "canary/write"
           ]
+        },
+        "observer_identity": {
+          "const": "fixed-effect-observer"
+        },
+        "observer_key_id": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "observer_session_id": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "observer_sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32
+        },
+        "signature_algorithm": {
+          "const": "ed25519"
+        },
+        "observer_signature": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+/]{86}==$"
         }
       },
       "oneOf": [
@@ -1264,6 +1293,10 @@
             "kinds",
             "count",
             "observer_identity",
+            "observer_key_id",
+            "observer_session_id",
+            "record_authentication",
+            "signing_authority",
             "observation_channel",
             "trust_relation"
           ],
@@ -1296,6 +1329,20 @@
                 "null"
               ],
               "maxLength": 256
+            },
+            "observer_key_id": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "observer_session_id": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "record_authentication": {
+              "const": "ed25519_observer_process"
+            },
+            "signing_authority": {
+              "const": "observer_process_private_key"
             },
             "observation_channel": {
               "type": "string",

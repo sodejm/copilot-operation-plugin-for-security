@@ -1,11 +1,14 @@
 """Separate fixed-process witness for synthetic MCP canary operations.
 
-This observes effects inside the local fixture. It is not an external service
-attestation or an operating-system boundary against a malicious local process.
+This observes and signs effects inside the local fixture with a key generated
+and retained by the observer child. It is not an independently administered
+external service or an operating-system boundary against a malicious local process.
 """
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 import os
 import re
@@ -14,6 +17,9 @@ import sys
 import time
 from pathlib import Path
 from typing import Any
+
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 OBSERVER_IDENTITY = "fixed-effect-observer"
 TARGET_IDENTITY = "fixed-target-authorization-service"
@@ -38,6 +44,16 @@ REQUEST_FIELDS = frozenset(
 ID_PATTERN = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*\Z")
 
 
+def _canonical_bytes(value: dict[str, Any]) -> bytes:
+    return json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+def _sign(value: dict[str, Any], private_key: Ed25519PrivateKey) -> dict[str, Any]:
+    signed = dict(value)
+    signed["observer_signature"] = base64.b64encode(private_key.sign(_canonical_bytes(value))).decode("ascii")
+    return signed
+
+
 def _valid(request: Any) -> bool:
     if not isinstance(request, dict) or set(request) != REQUEST_FIELDS or request["command"] != "effect":
         return False
@@ -60,7 +76,7 @@ def _valid(request: Any) -> bool:
 
 
 def _append_event(event: dict[str, Any]) -> None:
-    flags = os.O_WRONLY | os.O_APPEND | os.O_NOFOLLOW
+    flags = os.O_WRONLY | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0)
     descriptor = os.open("effects.jsonl", flags)
     try:
         metadata = os.fstat(descriptor)
@@ -76,15 +92,22 @@ def _append_event(event: dict[str, Any]) -> None:
         os.close(descriptor)
 
 
-def _effect(request: Any, canaries: dict[str, str]) -> dict[str, Any]:
+def _effect(
+    request: Any,
+    canaries: dict[str, str],
+    private_key: Ed25519PrivateKey,
+    key_id: str,
+    session_id: str,
+    sequence: int,
+) -> tuple[dict[str, Any], bool]:
     if not _valid(request):
-        return {"recorded": False}
+        return {"recorded": False}, False
     operation = request["operation"]
     tenant = request["tenant"]
     if operation == "write":
         canaries[tenant] = "synthetic-canary"
     elif tenant not in canaries:
-        return {"recorded": False}
+        return {"recorded": False}, False
     event = {
         "schema_version": "cops.agent-mcp-auth-ledger-event/v1",
         **{
@@ -106,20 +129,48 @@ def _effect(request: Any, canaries: dict[str, str]) -> dict[str, Any]:
         "server_identity": TARGET_IDENTITY,
         "kind": f"canary_{operation}",
         "redacted": True,
+        "observer_identity": OBSERVER_IDENTITY,
+        "observer_key_id": key_id,
+        "observer_session_id": session_id,
+        "observer_sequence": sequence,
+        "signature_algorithm": "ed25519",
     }
-    _append_event({"observer_fault": True} if request["fault_mode"] == "observer_failure" else event)
+    _append_event(
+        {"observer_fault": True} if request["fault_mode"] == "observer_failure" else _sign(event, private_key)
+    )
     response: dict[str, Any] = {"recorded": True}
     if operation == "read":
         response["canary"] = canaries[tenant]
-    return response
+    return response, True
 
 
 def main() -> int:
     ready = json.loads(sys.stdin.readline())
-    if ready != {"command": "ready"}:
+    if (
+        not isinstance(ready, dict)
+        or set(ready) != {"command", "observer_challenge"}
+        or ready["command"] != "ready"
+        or not isinstance(ready["observer_challenge"], str)
+        or re.fullmatch(r"[0-9a-f]{64}", ready["observer_challenge"]) is None
+    ):
         return 2
+    private_key = Ed25519PrivateKey.generate()
+    public_key = private_key.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+    public_key_text = base64.b64encode(public_key).decode("ascii")
+    key_id = hashlib.sha256(public_key).hexdigest()
+    session_id = hashlib.sha256(f"{ready['observer_challenge']}:{key_id}".encode()).hexdigest()
     canaries = {"tenant-contoso-01": "synthetic-canary", "tenant-fabrikam-02": "synthetic-canary"}
-    sys.stdout.write(json.dumps({"ready": True, "observer_identity": OBSERVER_IDENTITY}) + "\n")
+    sequence = 1
+    ready_response = {
+        "ready": True,
+        "observer_identity": OBSERVER_IDENTITY,
+        "observer_challenge": ready["observer_challenge"],
+        "observer_public_key": public_key_text,
+        "observer_key_id": key_id,
+        "observer_session_id": session_id,
+        "signature_algorithm": "ed25519",
+    }
+    sys.stdout.write(json.dumps(_sign(ready_response, private_key)) + "\n")
     sys.stdout.flush()
     while True:
         requests = sorted(Path.cwd().glob("observer-*.request"))
@@ -131,7 +182,7 @@ def main() -> int:
             if re.fullmatch(ID_PATTERN, attempt_id) is None or len(attempt_id) > 128:
                 continue
             try:
-                descriptor = os.open(request_path, os.O_RDONLY | os.O_NOFOLLOW)
+                descriptor = os.open(request_path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
                 try:
                     metadata = os.fstat(descriptor)
                     if not stat.S_ISREG(metadata.st_mode) or metadata.st_size >= 8192:
@@ -144,14 +195,20 @@ def main() -> int:
                 request = json.loads(raw)
                 if not isinstance(request, dict) or request.get("attempt_id") != attempt_id:
                     raise ValueError("Effect observer request identity mismatch")
-                response = _effect(request, canaries)
+                response, recorded = _effect(request, canaries, private_key, key_id, session_id, sequence)
+                if recorded:
+                    sequence += 1
             except (ValueError, TypeError, OSError, json.JSONDecodeError):
                 response = {"recorded": False}
             request_path.unlink(missing_ok=True)
             temporary_path = Path(f".observer-{attempt_id}.response.tmp")
             response_path = Path(f"observer-{attempt_id}.response")
             raw_response = (json.dumps(response, separators=(",", ":")) + "\n").encode("utf-8")
-            descriptor = os.open(temporary_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+            descriptor = os.open(
+                temporary_path,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+                0o600,
+            )
             try:
                 if os.write(descriptor, raw_response) != len(raw_response):
                     raise ValueError("Effect observer response write incomplete")
