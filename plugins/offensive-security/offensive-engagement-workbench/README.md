@@ -82,7 +82,7 @@ producer, consumer, validation rule, and example in detail.
 
 ## Installation and Runtime Availability
 
-Use the workbench from a COPS repository checkout with Python 3.11 or newer. The local CLI, demo, and offline package check use the Python standard library; they do not require an AI assistant, cloud credentials, or additional pip packages. Clone the repository, then run the commands from its root:
+Use the workbench from a COPS repository checkout with Python 3.11 or newer. The local CLI, demo, and offline package check use the Python standard library; they do not require an AI assistant, cloud credentials, or additional pip packages. From an existing checkout, start with `python3 -m cops doctor`. If a checkout is not present, the first two commands below require Git, network access to GitHub, and permission to create the destination directory. Run the remaining commands from the repository root:
 
 ```bash
 git clone https://github.com/sodejm/copilot-operation-plugin-for-security.git
@@ -130,11 +130,21 @@ python3 -m cops route "Review the authorization boundary" \
 Daybreak, Fable, Mythos, Astra, and other families can qualify when the catalog
 records the exact available model, granted access, sufficient capabilities, and
 supported effort. Names alone do not qualify a model. The advisor runs offline;
-it does not switch models or launch provider calls. The portable plugin includes
-the skill and guide; executing the command also requires the COPS checkout and
-Python 3.11 or newer described above.
+it does not switch models or launch provider calls. This is a template for an
+operator-supplied catalog: replace `model-catalog.json` and
+`<exact-host-model-id>` with an existing catalog path and an exact ID declared in
+that file. The portable plugin includes the skill and guide; executing the
+command also requires the COPS checkout and Python 3.11 or newer described above.
 
-## CLI Usage
+## CLI usage templates
+
+The following blocks show the dependency order for a separately authorized
+workflow; they are not a standalone demo. Use current authorization-window dates
+and replace the example identities, targets, tool version, and file names. The
+laboratory command additionally requires the signed authorization, trust store,
+worker inventory, and registered `env.json` produced by the authenticated
+execution and laboratory workflows. For a self-contained offline run, use the
+deterministic planning playback above.
 
 ```bash
 # Create an engagement contract

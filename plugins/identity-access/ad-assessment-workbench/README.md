@@ -9,21 +9,28 @@ The package does not collect from AD, LDAP, Kerberos, or hosts. A candidate path
 Run from the repository root with Python 3.11 or later:
 
 ```bash
-python3 plugins/identity-access/ad-assessment-workbench/scripts/run_demo.py
+python3 -m cops demo ad-assessment-workbench
 ```
 
-Retain the two-run playback and rejection evidence in a new directory:
+The public command creates an owner-only temporary workspace, verifies both
+runs and the expected rejection, and removes the workspace. Use the package
+runner directly when you need to retain that evidence in a new directory:
 
 ```bash
 python3 plugins/identity-access/ad-assessment-workbench/scripts/run_demo.py \
   --workspace /tmp/ad-playback-review
 ```
 
-Analyze a separately authorized export without writing files:
+Analyze the bundled fixture without writing files:
 
 ```bash
-python3 plugins/identity-access/ad-assessment-workbench/scripts/analyze.py /path/to/export.json
+python3 plugins/identity-access/ad-assessment-workbench/scripts/analyze.py \
+  plugins/identity-access/ad-assessment-workbench/fixtures/synthetic-two-forest.json
 ```
+
+Replace the fixture path with a separately authorized export only after reviewing
+the input contract below. The analyzer reads one local file and does not collect
+from a directory service.
 
 ## Design and data flow
 

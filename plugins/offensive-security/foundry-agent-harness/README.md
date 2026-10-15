@@ -57,6 +57,12 @@ The issue #236 delegation laboratory exercises this bounded MCP protocol surface
 | :--- | :--- | :--- | :--- | :--- |
 | MCP | [`2025-11-25`](https://modelcontextprotocol.io/specification/2025-11-25) (legacy `initialize` handshake) | Local synthetic stdio | Handshake, pinned advertised server name/version, protocol, complete capability object, and complete unpaginated tool descriptors; pagination is rejected. Advertised metadata is not cryptographic server authentication. | Modern `2026-07-28` per-request metadata behavior is unsupported. No live provider, remote HTTP, OAuth, or broad interoperability claim. |
 
+The next two blocks are an operator template for a separately approved run. They
+are not a standalone fixture: first create a current engagement, Ed25519 trust
+store and signed authorization receipt as described in the linked authorization
+workflow, then replace the `/tmp` paths and worker identity with those artifacts.
+Use `scripts/run_auth_demo.py` above for the complete runnable synthetic example.
+
 ```bash
 python3 plugins/offensive-security/foundry-agent-harness/foundryharness/cli.py auth-plan \
   --plan-id plan-mcp-auth --engagement-id eng-mcp-auth \

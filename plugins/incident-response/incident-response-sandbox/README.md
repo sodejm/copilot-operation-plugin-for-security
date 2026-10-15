@@ -4,19 +4,58 @@ This portable package creates typed incident plans and executes two low-risk
 actions against **synthetic local JSON fixtures only**: `isolate-host` and
 `revoke-session`. There is no production API adapter.
 
-## Usage and playback
+## Prerequisites and quick start
 
-Use a private directory (`0700`) for plans, receipts, and a copied fixture.
-The fixture file should be `0600`. The self-contained operator playback generates
-fresh expiry times, exercises plan, dry-run, execution, replay and expiry
-rejection, and rollback, then removes its temporary state:
+Run these commands from the repository root in an activated project environment
+with Python 3.11 or newer. The demo uses private temporary local fixtures; it does
+not require credentials or network access.
+
+```sh
+python3 -m cops info incident-response-sandbox
+python3 -m cops demo incident-response-sandbox
+python3 -m cops check incident-response-sandbox
+```
+
+## Playback structure and result
+
+The public playback:
+
+1. creates a private synthetic fixture and short-lived typed plans;
+2. proves that dry-run leaves fixture state unchanged;
+3. executes allowed actions and verifies the resulting fixture state;
+4. rejects reuse of the same plan and rejects an expired plan; and
+5. simulates a partial failure, records rollback evidence, and removes temporary
+   state.
+
+| Result field | Purpose |
+| --- | --- |
+| `schema` | Identifies the output as `cops.incident-response-playback/v1`. |
+| `execution_boundary.provider` | Names the synthetic local fixture provider used by the playback. |
+| `execution_boundary.network_calls` | Confirms that the playback made zero network calls. |
+| `execution_boundary.live_containment_validated` | Remains `false`; no production provider action is claimed. |
+| `execution_boundary.temporary_artifacts_removed` | Reports whether playback cleanup completed. |
+| `primary.dry_run_decision`, `primary.dry_run_state_unchanged` | Show the dry-run decision and prove it did not mutate state. |
+| `primary.execute_status`, `primary.verification_state` | Record the allowed execution and its post-action state. |
+| `primary.provider_request_id`, `primary.post_action_verification` | Bind the synthetic operation to its verification record. |
+| `replay_rejection`, `expiry_rejection` | Preserve the fail-closed duplicate and expiry outcomes. |
+| `rollback.status`, `rollback.verification_state`, `rollback.post_action_verification` | Record restoration after the simulated partial failure. |
+
+Run the registered public entry point:
+
+```sh
+python3 -m cops demo incident-response-sandbox
+```
+
+Use the package runner directly only when debugging the playback implementation:
 
 ```sh
 python3 plugins/incident-response/incident-response-sandbox/scripts/run_demo.py
 ```
 
-See the [operator playback](docs/PLAYBOOK.md) for the manual artifact-preserving
-commands, expected fields, contract definitions, reruns, and cleanup.
+For manual runs, use a private directory (`0700`) for plans, receipts, and a
+copied fixture, and keep the fixture file at `0600`. See the
+[operator playback](docs/PLAYBOOK.md) for artifact-preserving commands, expected
+fields, contract definitions, reruns, and cleanup.
 
 ## Design and data flow
 

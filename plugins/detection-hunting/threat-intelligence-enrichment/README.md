@@ -26,6 +26,18 @@ distribution values and TAXII object marking references are carried as provider
 identifiers. Missing or malformed restrictions are `unknown`; consumers must
 resolve provider markings before sharing. A Microsoft host record is not a verdict.
 
+## Prerequisites and quick start
+
+Run these commands from the repository root in an activated project environment
+with Python 3.11 or newer. The demo injects fixed provider responses and does not
+need credentials or network access.
+
+```sh
+python3 -m cops info threat-intelligence-enrichment
+python3 -m cops demo threat-intelligence-enrichment
+python3 -m cops check threat-intelligence-enrichment
+```
+
 ## Design and data flow
 
 The library imports the repository's `cops.connectors` SDK. Install from this
@@ -53,21 +65,54 @@ restart and should not be used as a durable audit record.
 | Cache and history snapshot | Support explicit fresh, stale, and as-of reads | Lookup key, claim, retrieval and expiry times | Enrichment library | Later read or replay | TTL, bounded history, and source-scoped cooldown | Latest snapshot at an analyst-selected time |
 | Playback summary | Qualify adapters, conflicts, caching, limits, and retry exhaustion | Source outcomes, claims, cache states, failure results | `scripts/run_demo.py` | Maintainer | Semantic assertions with a transport that forbids network access | Conflicting MISP and TAXII claims retained separately |
 
-## Usage and playback
+## Playback structure and result
 
-Offline tests: `PYTHONPATH=.:plugins/detection-hunting/threat-intelligence-enrichment python3 -m unittest discover -s plugins/detection-hunting/threat-intelligence-enrichment/tests`.
-Live source permissions, licenses, retention, schema variants, and provider
-response semantics are unverified; use an authorized test tenant before relying
-on operational coverage.
+The public playback:
 
-Run the [operator playback](docs/PLAYBOOK.md) to exercise approved injected
-MISP, TAXII, and Microsoft responses, conflicting claims, fresh and stale cache
-reads, historical replay, pagination limits, and retry exhaustion without opening
-a network connection:
+1. injects fixed MISP, TAXII, and Microsoft responses through a transport that
+   rejects any network attempt;
+2. exercises an initial MISP lookup, fresh and stale cache reads, and an `as_of`
+   replay;
+3. walks a paginated TAXII result and retains its partial-result marker;
+4. retries Microsoft responses through the configured limit and records the final
+   HTTP 503 failure; and
+5. asserts claim provenance, cache state, retry counts, redaction, and the offline
+   boundary before printing one JSON document.
+
+| Result field | Purpose |
+| --- | --- |
+| `schema` | Identifies the output as `cops.threat-intelligence-playback/v1`. |
+| `network_mode` | Confirms the playback used the injected mock-only transport. |
+| `live_integrations_validated` | Remains `false`; the playback does not qualify provider tenants or credentials. |
+| `request_attempts` | Reports the bounded attempt count for each provider. |
+| `misp_initial`, `misp_fresh`, `misp_stale`, `misp_as_of` | Show initial, cached, expired-cache, and historical-replay outcomes. |
+| `taxii_partial` | Records that the synthetic paginated result is incomplete. |
+| `microsoft_failure` | Preserves the terminal injected failure after retry exhaustion. |
+
+Run the registered public entry point:
+
+```sh
+python3 -m cops demo threat-intelligence-enrichment
+```
+
+Use the package runner directly only when debugging the playback implementation:
 
 ```sh
 python3 plugins/detection-hunting/threat-intelligence-enrichment/scripts/run_demo.py
 ```
+
+Run the focused offline tests with:
+
+```sh
+PYTHONPATH=.:plugins/detection-hunting/threat-intelligence-enrichment \
+  python3 -m unittest discover \
+  -s plugins/detection-hunting/threat-intelligence-enrichment/tests
+```
+
+Live source permissions, licenses, retention, schema variants, and provider
+response semantics are unverified; use an authorized test tenant before relying
+on operational coverage. See the [operator playback](docs/PLAYBOOK.md) for the
+contract definitions, expected fields, rerun procedure, and cleanup.
 
 Follow the [end-to-end verification playbook](docs/VERIFICATION.md) to qualify this
 package's documented workflow and prepare evidence for a maturity review.

@@ -9,10 +9,12 @@ Use the results to decide what an analyst should validate next. A graph path or 
 Run from the repository root with Python 3.11 or later. The package has no network prerequisite.
 
 ```bash
-python3 plugins/identity-access/entra-identity-workbench/scripts/run_demo.py
+python3 -m cops demo entra-identity-workbench
 ```
 
-The manifest `demo.command` runs the same playback through `$PYTHON`. To retain its artifacts for inspection, provide a new directory:
+The public command creates an owner-only temporary workspace and removes it
+after the playback. Use the package runner directly with a new directory when
+you need to retain artifacts for inspection:
 
 ```bash
 python3 plugins/identity-access/entra-identity-workbench/scripts/run_demo.py \

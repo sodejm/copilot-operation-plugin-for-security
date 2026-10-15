@@ -7,6 +7,14 @@ SOC Investigation Workbench helps SOC analysts and incident responders build a l
 Use Python 3.11 or later from the repository root. No tenant credentials or network access are required.
 
 ```bash
+python3 -m cops demo soc-investigation-workbench
+```
+
+The public command creates an owner-only temporary workspace and removes it
+after the playback. Use the package runner directly when you need to retain the
+artifacts:
+
+```bash
 PACKAGE=plugins/detection-hunting/soc-investigation-workbench
 OUT="${TMPDIR:-/tmp}/cops-soc-playback-$(date +%s)"
 python3 "$PACKAGE/scripts/run_demo.py" --out-dir "$OUT"
