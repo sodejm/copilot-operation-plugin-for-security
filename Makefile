@@ -1,11 +1,22 @@
 PYTHON ?= python3
+LABORATORY_ARGS ?=
 
 .PHONY: doctor list-plugins validate-packages check-packages generate-marketplaces \
 	check-marketplaces validate-contract check-docs sync-agent-adapters check-agent-adapters \
-	check-prerequisites check-issue-coverage setup-hooks check
+	check-prerequisites check-issue-coverage setup-hooks generate-playbooks check-playbooks check-laboratory check
 
 check-docs:
 	"$(PYTHON)" scripts/agent/validate_docs.py
+
+generate-playbooks:
+	"$(PYTHON)" scripts/generate_plugin_playbooks.py
+
+check-playbooks:
+	"$(PYTHON)" scripts/generate_plugin_playbooks.py --check
+
+# Kept separate from portable checks; a blocked isolation boundary fails readiness.
+check-laboratory:
+	"$(PYTHON)" scripts/check_laboratory.py $(LABORATORY_ARGS)
 
 doctor:
 	"$(PYTHON)" scripts/agent/doctor.py

@@ -219,3 +219,10 @@ It does not compile or execute KQL in Kusto, query Sentinel or Defender, verify
 native runtime behavior, inspect provider data, or establish production
 detection efficacy, cost, latency, or availability. Validate those properties
 separately in an authorized test tenant.
+
+<!-- BEGIN COPS GENERATED OFFLINE ASSESSMENT LINKS -->
+## Generated offline assessment
+
+- [Machine-readable playbook](../playbooks/offline-assessment.json)
+- [Runnable offline walkthrough](../walkthroughs/offline-assessment.md)
+<!-- END COPS GENERATED OFFLINE ASSESSMENT LINKS -->

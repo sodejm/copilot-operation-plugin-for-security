@@ -1,0 +1,17 @@
+{
+  "name": "web-api-assessment-workbench",
+  "version": "0.1.0",
+  "description": "Import HTTP traffic, OpenAPI schemas, and Postman collections, model endpoints and isolated sessions, and execute bounded request replays.",
+  "author": {"name": "Justin Soderberg"},
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "COPS Web API Assessment Workbench",
+    "shortDescription": "Inventory REST and GraphQL requests and replay bounded authorization and rate-limit checks.",
+    "longDescription": "Import HTTP traffic, OpenAPI schemas, and Postman collections; preserve isolated sessions and replay bounded requests with explicit authorization.",
+    "developerName": "Justin Soderberg",
+    "category": "Developer Tools",
+    "capabilities": ["HTTP inventory and isolated request replay", "Authorization and rate-limit assessment"],
+    "defaultPrompt": ["Inventory supplied API evidence and preview bounded authorization and rate-limit checks."]
+  }
+}

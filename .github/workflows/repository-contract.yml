@@ -10,6 +10,30 @@ permissions:
   contents: read
 
 jobs:
+  isolated-service-laboratory:
+    name: Isolated service laboratory
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Set up runtime build tooling
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - name: Obtain the pinned runtime prerequisites
+        run: |
+          mkdir -p "$RUNNER_TEMP/cops-runtime/wheels"
+          cp laboratories/service-runtime/Dockerfile laboratories/service-runtime/requirements.txt "$RUNNER_TEMP/cops-runtime/"
+          python -m pip download --index-url https://pypi.org/simple --only-binary=:all: --require-hashes --platform manylinux_2_28_x86_64 --platform manylinux2014_x86_64 --python-version 314 --implementation cp --abi cp314 --dest "$RUNNER_TEMP/cops-runtime/wheels" -r laboratories/service-runtime/requirements.txt
+          docker pull python:3.14.6-slim
+          docker image inspect python:3.14.6-slim --format '{{.Id}}' > "$RUNNER_TEMP/cops-runtime/base.id"
+      - name: Build without network access and run the strict gate
+        run: |
+          docker build --network none --pull=false --build-arg "BASE_IMAGE=$(cat "$RUNNER_TEMP/cops-runtime/base.id")" --iidfile "$RUNNER_TEMP/cops-runtime/image.id" "$RUNNER_TEMP/cops-runtime"
+          cat "$RUNNER_TEMP/cops-runtime/base.id" "$RUNNER_TEMP/cops-runtime/image.id"
+          make check-laboratory PYTHON=python LABORATORY_ARGS="--runtime docker --image $(cat "$RUNNER_TEMP/cops-runtime/image.id")"
+
   linux-bubblewrap-isolation:
     name: Linux bubblewrap isolation
     runs-on: ubuntu-24.04

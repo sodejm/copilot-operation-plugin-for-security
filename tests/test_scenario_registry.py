@@ -38,6 +38,10 @@ def _write_registry_fixture(target_root: Path) -> tuple[dict, dict]:
     scenarios = json.loads((ROOT / "catalog" / "scenarios.json").read_text(encoding="utf-8"))
     (catalog / "provenance.json").write_text(json.dumps(provenance), encoding="utf-8")
     (catalog / "scenarios.json").write_text(json.dumps(scenarios), encoding="utf-8")
+    workflows = catalog / "workflows"
+    workflows.mkdir()
+    for definition in (ROOT / "catalog" / "workflows").glob("*.workflow.json"):
+        (workflows / definition.name).write_text(definition.read_text(encoding="utf-8"), encoding="utf-8")
     docs = target_root / "docs"
     docs.mkdir()
     (docs / "SUPPORTING_GUIDANCE.md").write_text(
@@ -67,6 +71,7 @@ def test_validate_scenario_and_provenance_integrity():
     assert res["inventory_items_count"] == 238
     assert res["scenarios_count"] == 37
     assert res["decision_count"] == 1
+    assert res["workflow_definitions_count"] == 6
 
 
 def test_list_scenarios_filtering():
@@ -270,3 +275,70 @@ def test_missing_registry_files(tmp_path):
     with pytest.raises(RegistryError) as exc_info:
         load_scenario_registry(tmp_path)
     assert exc_info.value.code == "missing_registry"
+
+
+def _linked_workflow(tmp_path):
+    _, scenarios = _write_registry_fixture(tmp_path)
+    scenario = next(item for item in scenarios["scenarios"] if item.get("workflow_definitions"))
+    return scenarios, scenario, tmp_path / scenario["workflow_definitions"][0]
+
+
+def test_missing_workflow_reference_is_rejected(tmp_path):
+    _, _, definition = _linked_workflow(tmp_path)
+    definition.unlink()
+    with pytest.raises(RegistryError, match="workflow is missing") as exc:
+        validate_scenario_and_provenance_integrity(tmp_path)
+    assert exc.value.code == "missing_workflow"
+
+
+def test_workflow_scenario_binding_is_checked(tmp_path):
+    _, _, path = _linked_workflow(tmp_path)
+    document = json.loads(path.read_text())
+    document["scenario_id"] = "COPS-OTHER-S01"
+    path.write_text(json.dumps(document))
+    with pytest.raises(RegistryError) as exc:
+        validate_scenario_and_provenance_integrity(tmp_path)
+    assert exc.value.code == "workflow_scenario_mismatch"
+
+
+def test_invalid_linked_workflow_is_rejected(tmp_path):
+    _, _, path = _linked_workflow(tmp_path)
+    document = json.loads(path.read_text())
+    document["stages"][0]["depends_on"] = [document["stages"][0]["stage_id"]]
+    path.write_text(json.dumps(document))
+    with pytest.raises(RegistryError) as exc:
+        validate_scenario_and_provenance_integrity(tmp_path)
+    assert exc.value.code == "invalid_workflow"
+
+
+def test_duplicate_workflow_reference_is_rejected(tmp_path):
+    scenarios, linked, _ = _linked_workflow(tmp_path)
+    other = scenarios["scenarios"][-1]
+    assert other is not linked
+    other["workflow_definitions"] = linked["workflow_definitions"]
+    (tmp_path / "catalog" / "scenarios.json").write_text(json.dumps(scenarios))
+    with pytest.raises(RegistryError) as exc:
+        validate_scenario_and_provenance_integrity(tmp_path)
+    assert exc.value.code == "duplicate_workflow_reference"
+
+
+def test_workflow_path_traversal_is_rejected(tmp_path):
+    scenarios, linked, _ = _linked_workflow(tmp_path)
+    linked["workflow_definitions"] = ["catalog/workflows/../../outside.workflow.json"]
+    (tmp_path / "catalog" / "scenarios.json").write_text(json.dumps(scenarios))
+    with pytest.raises(RegistryError):
+        validate_scenario_and_provenance_integrity(tmp_path)
+
+
+def test_workflow_symlink_cannot_escape_registry_root(tmp_path):
+    _, _, path = _linked_workflow(tmp_path)
+    outside = tmp_path.parent / f"{tmp_path.name}-outside.workflow.json"
+    outside.write_text(path.read_text())
+    path.unlink()
+    path.symlink_to(outside)
+    try:
+        with pytest.raises(RegistryError) as exc:
+            validate_scenario_and_provenance_integrity(tmp_path)
+        assert exc.value.code == "invalid_workflow_path"
+    finally:
+        outside.unlink()

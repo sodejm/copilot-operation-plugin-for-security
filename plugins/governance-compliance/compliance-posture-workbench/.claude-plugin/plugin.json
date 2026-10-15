@@ -1,0 +1,10 @@
+{
+  "name": "compliance-posture-workbench",
+  "version": "0.1.0",
+  "description": "Map versioned SOC 2, CIS and NIST controls to dated evidence; identify unsupported and unknown control claims.",
+  "author": {
+    "name": "Justin Soderberg",
+    "url": "https://github.com/sodejm"
+  },
+  "license": "PolyForm-Noncommercial-1.0.0"
+}

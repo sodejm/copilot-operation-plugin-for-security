@@ -15,7 +15,8 @@ Use the table below to exercise a particular plugin. Each playback starts with
 local sample input, invokes the package's tools, and checks the resulting artifacts
 and decisions. A failed expectation makes the command exit with a nonzero status.
 The examples use synthetic data or local fixtures; passing them establishes the
-documented local behavior, not the state of a production system.
+documented local behavior, not the state of a production system or readiness of
+an isolated laboratory.
 
 ## Run a playback
 
@@ -57,12 +58,22 @@ Commands that use temporary workspaces remove them when the run finishes.
 | `kubernetes-assessment-workbench` | Reconcile context identity, namespace access, incomplete coverage, and a rejected cluster change. | [Kubernetes assessment](../plugins/offensive-security/kubernetes-assessment-workbench/docs/PLAYBOOK.md) |
 | `host-assessment-workbench` | Import canary observations, distinguish crossings from blocked cases, and reject missing cleanup evidence. | [Host assessment](../plugins/offensive-security/host-assessment-workbench/docs/PLAYBOOK.md) |
 | `incident-response-sandbox` | Plan and rehearse response actions, check authorization, and verify rollback and expiry behavior. | [Response rehearsal](../plugins/incident-response/incident-response-sandbox/docs/PLAYBOOK.md) |
+| `compliance-posture-workbench` | Map dated fixture evidence to controls while preserving supported, missing, stale, and unknown states. | [Compliance posture](../plugins/governance-compliance/compliance-posture-workbench/docs/PLAYBOOK.md) |
+| `cloud-posture-workbench` | Assess imported Terraform, cloud, Kubernetes, and IAM fixtures without claiming live tenant state. | [Cloud posture](../plugins/vulnerability-management/cloud-posture-workbench/docs/PLAYBOOK.md) |
+| `supply-chain-cicd-workbench` | Assess imported lockfiles, SBOMs, CI workflows, and provenance fixtures without claiming registry or deployment reachability. | [Supply chain and CI/CD](../plugins/vulnerability-management/supply-chain-cicd-workbench/docs/PLAYBOOK.md) |
+| `secrets-remediation-workbench` | Build a revocation and rotation plan from redacted evidence without storing a secret or claiming provider-side completion. | [Secrets remediation](../plugins/identity-access/secrets-remediation-workbench/docs/PLAYBOOK.md) |
+| `network-segmentation-workbench` | Assess imported policy, flow, DNS, packet-capture, and reachability fixtures without claiming deployed isolation. | [Network segmentation](../plugins/vulnerability-management/network-segmentation-workbench/docs/PLAYBOOK.md) |
+| `tls-crypto-workbench` | Assess imported certificate, TLS, JWT, JWKS, and OpenSSL fixtures without probing an endpoint or proving enforcement. | [TLS and cryptography](../plugins/vulnerability-management/tls-crypto-workbench/docs/PLAYBOOK.md) |
+| `web-api-assessment-workbench` | Import redacted HAR, OpenAPI, GraphQL, Postman, and gateway fixtures; preview requests without dispatching them. | [Web and API assessment](../plugins/offensive-security/web-api-assessment-workbench/docs/PLAYBOOK.md) |
 
 ## Understand the playback structure
 
 Each package owns its workflow. Its README explains the purpose, design choices,
 data contracts, and limits; `docs/PLAYBOOK.md` gives the runnable procedure;
-`docs/VERIFICATION.md` explains qualification and maturity evidence.
+`docs/VERIFICATION.md`, when present, explains qualification and maturity
+evidence. The seven experimental import workflows exercise checked-in fixtures;
+they do not establish live provider state, deployed enforcement, completed
+remediation, production authorization behavior, or isolated-laboratory readiness.
 
 The executable flow follows the same broad sequence:
 

@@ -1,0 +1,45 @@
+{
+  "schema_version": "1.0",
+  "id": "secrets-remediation-workbench",
+  "display_name": "COPS Secrets Remediation Workbench",
+  "maturity": "experimental",
+  "summary": "Assess redacted Git history and identity evidence to plan credential exposure remediation and verify lab revocation.",
+  "support": {
+    "structural_validation": "unverified",
+    "offline_workflow": "unverified",
+    "host_installation": "unverified",
+    "live_integration": "unverified"
+  },
+  "limitations": [
+    "The built-in rules inspect bounded supplied artifacts; absence of findings does not establish safety.",
+    "Isolated laboratory acceptance and production integrations require separate execution evidence.",
+    "Unsupported formats require a registered acquisition or parsing adapter with pinned prerequisites."
+  ],
+  "demo": {
+    "description": "Compare vulnerable, corrected, insufficient and benign synthetic evidence.",
+    "command": [
+      "$PYTHON",
+      "plugins/identity-access/secrets-remediation-workbench/scripts/demo.py"
+    ],
+    "timeout_seconds": 60
+  },
+  "validation": [
+    {
+      "name": "git-history-scanner-cli",
+      "command": [
+        "$PYTHON",
+        "plugins/identity-access/secrets-remediation-workbench/scripts/scan_git_history.py",
+        "--help"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "name": "artifact-correction-playback",
+      "command": [
+        "$PYTHON",
+        "plugins/identity-access/secrets-remediation-workbench/scripts/validate_package.py"
+      ],
+      "timeout_seconds": 60
+    }
+  ]
+}

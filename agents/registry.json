@@ -38,60 +38,56 @@
         "scripts/plan.py"
       ],
       "contract_file": "agents/profiles/cops-pentest-specialist.agent.md",
-      "intent_keywords": [
-        "pentest",
-        "penetration test",
-        "ethical hacking",
-        "vulnerability assessment",
-        "exploitability verification",
-        "roe",
-        "rules of engagement",
-        "attack simulation",
-        "port check",
-        "tls audit",
-        "reconnaissance",
-        "port scan",
-        "specialist handoff",
-        "infrastructure services",
-        "dns recursion",
-        "snmp community",
-        "ntp monlist",
-        "rpc endpoint",
-        "ldap rootdse",
-        "kerberos preauth",
-        "mail services",
-        "messaging broker",
-        "smtp relay",
-        "rabbitmq exposure",
-        "kafka broker",
-        "developer interfaces",
-        "docker api",
-        "docker registry",
-        "rmi registry",
-        "jdwp debugging",
-        "erlang epmd",
-        "adb debugging",
-        "distcc compiler",
-        "svn repository",
-        "ajp ghostcat",
-        "fastcgi exposure",
-        "legacy enterprise services",
-        "legacy management services",
-        "proxy services",
-        "ndmp backup",
-        "iscsi target",
-        "ipmi bmc",
-        "cisco smart install",
-        "tacacs aaa",
-        "ike psk",
-        "pptp vpn",
-        "socks proxy",
-        "squid proxy"
-      ],
       "triad_defaults": {
         "skeptic_profile_id": "cops-detection-engineer",
         "auditor_profile_id": "cops-compliance-auditor"
-      }
+      },
+      "symptom_triggers": [
+        "authorized penetration test",
+        "penetration test",
+        "rules of engagement",
+        "exploitability validation",
+        "vulnerability assessment",
+        "scoped security test"
+      ],
+      "artifact_triggers": [
+        "rules_of_engagement",
+        "scope_file",
+        "nmap_xml",
+        "burp_project",
+        "vulnerability_report"
+      ],
+      "anti_triggers": [
+        "alert triage only",
+        "incident containment",
+        "compliance evidence mapping"
+      ],
+      "purpose": "Authorized, scoped technical assessment specialist for validating vulnerabilities, inspecting network and application configurations, and designing actionable remediation roadmaps under strict Rules of Engagement.",
+      "required_permissions": [
+        "explicit_scoped_execution_authorization"
+      ],
+      "example_prompts": [
+        "Plan an authorized penetration test of our internal web tier under the attached rules of engagement.",
+        "Validate whether the reported deserialization weakness is exploitable within the approved scope.",
+        "Review the assessment scope and build a safe vulnerability testing plan for the staging network.",
+        "Turn these authorized service findings into a prioritized penetration test roadmap.",
+        "Check the supplied scan evidence and define bounded follow-up tests for the approved targets."
+      ],
+      "capabilities": [
+        "authorized-attack-surface-planning",
+        "engagement-intake-and-planning",
+        "engagement-specialist-handoffs",
+        "network-active-discovery",
+        "network-data-services",
+        "network-developer-interfaces",
+        "network-infrastructure-services",
+        "network-legacy-and-proxy-services",
+        "network-messaging-services",
+        "network-remote-and-file-services",
+        "offensive-security",
+        "reconnaissance",
+        "port scan"
+      ]
     },
     {
       "schema_version": "1.0",
@@ -102,29 +98,55 @@
       "interactive_authorization_required": true,
       "description": "Offline review of Linux and Windows privilege-boundary exports with explicit prerequisites and canary evidence limits.",
       "primary_plugin": "host-assessment-workbench",
-      "skills": ["host-linux-privilege-boundaries", "host-windows-privilege-boundaries"],
+      "skills": [
+        "host-linux-privilege-boundaries",
+        "host-windows-privilege-boundaries"
+      ],
       "tools": [
         "python3 -m cops check host-assessment-workbench",
         "plugins/offensive-security/host-assessment-workbench/scripts/assess.py"
       ],
       "contract_file": "agents/profiles/cops-host-specialist.agent.md",
-      "intent_keywords": [
-        "linux privilege boundary",
-        "linux privilege escalation",
-        "windows privilege boundary",
-        "windows privilege escalation",
-        "windows service permissions",
-        "windows token privileges",
-        "host privilege assessment",
-        "sudo configuration",
-        "suid binary",
-        "linux capabilities",
-        "host assessment"
-      ],
       "triad_defaults": {
         "skeptic_profile_id": "cops-detection-engineer",
         "auditor_profile_id": "cops-compliance-auditor"
-      }
+      },
+      "symptom_triggers": [
+        "linux privilege escalation",
+        "windows privilege escalation",
+        "host privilege boundary",
+        "sudo policy",
+        "suid binary",
+        "windows service permissions"
+      ],
+      "artifact_triggers": [
+        "sudoers_file",
+        "systemd_unit",
+        "windows_service_export",
+        "accesschk_report",
+        "host_inventory"
+      ],
+      "anti_triggers": [
+        "active directory trust",
+        "cloud iam entitlement",
+        "kubernetes rbac"
+      ],
+      "purpose": "Offline review of Linux and Windows privilege-boundary exports with explicit prerequisites and canary evidence limits.",
+      "required_permissions": [
+        "explicit_scoped_execution_authorization"
+      ],
+      "example_prompts": [
+        "Review this Linux host export for unsafe sudo rules and privilege escalation paths.",
+        "Check the Windows service permission inventory for paths a local user could abuse.",
+        "Assess SUID binaries and file capabilities on this server without connecting to it.",
+        "Explain which host privilege boundaries are weakened by the supplied configuration.",
+        "Prioritize remediation for writable service paths and excessive token privileges."
+      ],
+      "capabilities": [
+        "host-linux-privilege-boundaries",
+        "host-windows-privilege-boundaries",
+        "offensive-security"
+      ]
     },
     {
       "schema_version": "1.0",
@@ -142,23 +164,53 @@
         "attack-path-review",
         "attack-path-report"
       ],
-      "tools": ["attackpath"],
-      "contract_file": "agents/profiles/cops-redteam-operator.agent.md",
-      "intent_keywords": [
-        "red team",
-        "adversary emulation",
-        "lateral movement",
-        "kill chain",
-        "assumed breach",
-        "attack path",
-        "defense evasion",
-        "ttp emulation",
-        "privilege escalation path"
+      "tools": [
+        "attackpath"
       ],
+      "contract_file": "agents/profiles/cops-redteam-operator.agent.md",
       "triad_defaults": {
         "skeptic_profile_id": "cops-threat-hunter",
         "auditor_profile_id": "cops-compliance-auditor"
-      }
+      },
+      "symptom_triggers": [
+        "adversary emulation",
+        "assumed breach",
+        "multi-stage attack path",
+        "lateral movement",
+        "defense evasion",
+        "kill chain"
+      ],
+      "artifact_triggers": [
+        "emulation_plan",
+        "attack_flow",
+        "attack_plan",
+        "attack_matrix",
+        "mitre_attack_layer"
+      ],
+      "anti_triggers": [
+        "single vulnerability validation",
+        "alert triage only",
+        "compliance evidence mapping"
+      ],
+      "purpose": "Adversary emulation specialist modeling multi-stage MITRE ATT&CK kill chains, evaluating lateral movement choke points, and stress-testing defensive detection capabilities against assumed-breach scenarios.",
+      "required_permissions": [
+        "explicit_scoped_execution_authorization"
+      ],
+      "example_prompts": [
+        "Design an assumed-breach exercise that tests lateral movement toward the finance systems.",
+        "Model a multi-stage adversary path and identify the defensive choke points.",
+        "Build an emulation plan for the selected ATT&CK techniques without touching production.",
+        "Review this red-team attack flow for unsafe scope expansion and missing stop conditions.",
+        "Plan a controlled defense-evasion exercise that produces evidence for the blue team."
+      ],
+      "capabilities": [
+        "attack-path-assess",
+        "attack-path-map",
+        "attack-path-report",
+        "attack-path-review",
+        "attack-path-trace",
+        "offensive-security"
+      ]
     },
     {
       "schema_version": "1.0",
@@ -192,49 +244,48 @@
         "python3 -m cops legacy-services"
       ],
       "contract_file": "agents/profiles/cops-attack-surface-planner.agent.md",
-      "intent_keywords": [
-        "attack surface",
-        "external perimeter",
-        "internet facing",
-        "public ip",
-        "dns posture",
-        "shadow it",
-        "exposure mapping",
-        "open ports export",
-        "passive discovery",
-        "active discovery",
-        "service identification",
-        "port scan assessment",
-        "asset discovery",
-        "quarantine reconciliation",
-        "mail services",
-        "messaging brokers",
-        "smtp relay",
-        "rabbitmq exposure",
-        "kafka broker",
-        "developer interfaces",
-        "docker api",
-        "docker registry",
-        "rmi registry",
-        "jdwp debugging",
-        "erlang epmd",
-        "adb debugging",
-        "distcc compiler",
-        "svn repository",
-        "ajp ghostcat",
-        "fastcgi exposure",
-        "legacy enterprise services",
-        "legacy management services",
-        "proxy services",
-        "ndmp backup",
-        "iscsi target",
-        "ipmi bmc",
-        "cisco smart install",
-        "tacacs aaa",
-        "ike psk",
-        "pptp vpn",
-        "socks proxy",
-        "squid proxy"
+      "symptom_triggers": [
+        "external attack surface",
+        "internet exposure",
+        "public ip exposure",
+        "dns exposure",
+        "certificate transparency",
+        "shadow it"
+      ],
+      "artifact_triggers": [
+        "dns_export",
+        "public_ip_inventory",
+        "certificate_transparency_export",
+        "port_scan_export",
+        "asset_inventory"
+      ],
+      "anti_triggers": [
+        "internal privilege escalation",
+        "incident containment",
+        "source code review"
+      ],
+      "purpose": "Perimeter exposure specialist analyzing external attack surfaces, cloud public IP allocations, certificate transparency, and DNS posture from pinned local exports without intrusive active scanning.",
+      "required_permissions": [
+        "read_supplied_artifacts"
+      ],
+      "example_prompts": [
+        "Map our external attack surface from the supplied DNS and public IP exports.",
+        "Find internet-facing assets that are missing from the approved inventory.",
+        "Reconcile certificate transparency names with the known public services.",
+        "Prioritize exposed services from this passive perimeter evidence.",
+        "Identify likely shadow IT using the DNS, certificate, and cloud address exports."
+      ],
+      "capabilities": [
+        "authorized-attack-surface-planning",
+        "network-active-discovery",
+        "network-data-services",
+        "network-developer-interfaces",
+        "network-infrastructure-services",
+        "network-legacy-and-proxy-services",
+        "network-messaging-services",
+        "network-passive-discovery",
+        "network-remote-and-file-services",
+        "offensive-security"
       ]
     },
     {
@@ -246,19 +297,48 @@
       "interactive_authorization_required": false,
       "description": "Offline Kubernetes context and scope specialist reconciling an approved plan with a sanitized local export without cluster access.",
       "primary_plugin": "kubernetes-assessment-workbench",
-      "skills": ["kubernetes-assessment-context"],
+      "skills": [
+        "kubernetes-assessment-context"
+      ],
       "tools": [
         "python3 -m cops check kubernetes-assessment-workbench",
         "scripts/assess.py"
       ],
       "contract_file": "agents/profiles/cops-kubernetes-specialist.agent.md",
-      "intent_keywords": [
+      "symptom_triggers": [
         "kubernetes context",
         "cluster identity",
         "namespace scope",
-        "namespace uid",
+        "managed control plane",
         "kubernetes assessment",
-        "managed control plane"
+        "cluster access scope"
+      ],
+      "artifact_triggers": [
+        "kubeconfig_metadata",
+        "cluster_inventory",
+        "namespace_export",
+        "rbac_export",
+        "admission_policy"
+      ],
+      "anti_triggers": [
+        "terraform plan review",
+        "container dependency vulnerability",
+        "network reachability only"
+      ],
+      "purpose": "Offline Kubernetes context and scope specialist reconciling an approved plan with a sanitized local export without cluster access.",
+      "required_permissions": [
+        "read_supplied_artifacts"
+      ],
+      "example_prompts": [
+        "Reconcile the approved Kubernetes target with this sanitized cluster context.",
+        "Verify that the namespace UID and cluster identity match the assessment plan.",
+        "Review this offline cluster inventory for scope gaps before any Kubernetes work.",
+        "Explain which managed control-plane details are still missing from the export.",
+        "Check whether the supplied namespace and RBAC metadata support the requested assessment."
+      ],
+      "capabilities": [
+        "kubernetes-assessment-context",
+        "offensive-security"
       ]
     },
     {
@@ -270,18 +350,47 @@
       "interactive_authorization_required": false,
       "description": "AI security specialist evaluating language models and autonomous agents against indirect prompt injection, data exfiltration, system prompt leakage, tool abuse, and sandbox escapes in a mock harness.",
       "primary_plugin": "foundry-agent-harness",
-      "skills": ["foundry-agent-review"],
-      "tools": ["foundryharness"],
+      "skills": [
+        "foundry-agent-review"
+      ],
+      "tools": [
+        "foundryharness"
+      ],
       "contract_file": "agents/profiles/cops-ai-adversary-specialist.agent.md",
-      "intent_keywords": [
+      "symptom_triggers": [
         "prompt injection",
-        "jailbreak",
+        "indirect prompt injection",
+        "jailbreak attempt",
         "llm security",
-        "ai red team",
-        "agent tampering",
-        "foundry harness",
-        "context poisoning",
-        "guardrail stress test"
+        "agent tool abuse",
+        "system prompt leakage"
+      ],
+      "artifact_triggers": [
+        "conversation_transcript",
+        "agent_trace",
+        "tool_call_log",
+        "evaluation_dataset",
+        "model_card"
+      ],
+      "anti_triggers": [
+        "malware binary",
+        "network firewall policy",
+        "generic source code review"
+      ],
+      "purpose": "AI security specialist evaluating language models and autonomous agents against indirect prompt injection, data exfiltration, system prompt leakage, tool abuse, and sandbox escapes in a mock harness.",
+      "required_permissions": [
+        "read_supplied_artifacts"
+      ],
+      "example_prompts": [
+        "Evaluate this agent transcript for indirect prompt injection and unsafe tool use.",
+        "Design a mock-harness test for system prompt leakage without using real customer data.",
+        "Review these jailbreak attempts and identify missing guardrail coverage.",
+        "Test whether untrusted retrieved text can make the assistant call a privileged tool.",
+        "Turn the supplied model interactions into a reproducible AI security evaluation set."
+      ],
+      "capabilities": [
+        "foundry-agent-review",
+        "offensive-security"
       ]
     },
     {
@@ -301,19 +410,51 @@
         "adapt-sentinel-hunt",
         "review-sentinel-hunt"
       ],
-      "tools": ["huntwb"],
+      "tools": [
+        "huntwb"
+      ],
       "contract_file": "agents/profiles/cops-sentinel-kql-engineer.agent.md",
-      "intent_keywords": [
-        "kql",
-        "kusto",
-        "sentinel",
-        "microsoft sentinel",
-        "advanced hunting",
-        "defender xdr",
-        "log analytics",
+      "symptom_triggers": [
         "kql query",
-        "detection rule kql",
-        "summarize join kql"
+        "optimize kql",
+        "kql in sentinel",
+        "microsoft sentinel",
+        "defender advanced hunting",
+        "kusto query",
+        "log analytics query",
+        "sentinel analytic rule"
+      ],
+      "artifact_triggers": [
+        "kql_file",
+        "sentinel_rule_template",
+        "hunting_query",
+        "analytics_export",
+        "kusto_query"
+      ],
+      "anti_triggers": [
+        "sigma only",
+        "splunk spl only",
+        "logging architecture"
+      ],
+      "purpose": "KQL optimization and detection authoring specialist designing high-performance, cost-aware queries across Microsoft Sentinel, Defender Advanced Hunting, and Azure Data Lake with strict AST verification.",
+      "required_permissions": [
+        "read_supplied_artifacts"
+      ],
+      "example_prompts": [
+        "Optimize this Sentinel KQL query so it scans less data without changing the result.",
+        "Write a Defender Advanced Hunting query for suspicious service creation.",
+        "Review this Kusto join for correctness and cost.",
+        "Convert the detection logic into a testable Microsoft Sentinel analytic rule.",
+        "Explain why this Log Analytics query duplicates events and propose a verified fix."
+      ],
+      "capabilities": [
+        "adapt-sentinel-hunt",
+        "author-sentinel-kql",
+        "defensive-operations",
+        "plan-sentinel-hunt",
+        "review-sentinel-hunt",
+        "test-sentinel-hunt",
+        "validate-sentinel-hunt"
       ]
     },
     {
@@ -325,19 +466,51 @@
       "interactive_authorization_required": false,
       "description": "Hypothesis-driven threat hunting specialist formulating testable adversary behavioral hypotheses, executing iterative telemetry investigations, and seeking disconfirming evidence to avoid confirmation bias.",
       "primary_plugin": "sentinel-hunt-workbench",
-      "skills": ["plan-sentinel-hunt", "review-sentinel-hunt", "test-sentinel-hunt"],
-      "tools": ["huntwb"],
+      "skills": [
+        "plan-sentinel-hunt",
+        "review-sentinel-hunt",
+        "test-sentinel-hunt"
+      ],
+      "tools": [
+        "huntwb"
+      ],
       "contract_file": "agents/profiles/cops-threat-hunter.agent.md",
-      "intent_keywords": [
-        "threat hunt",
+      "symptom_triggers": [
+        "hypothesis-driven hunt",
         "threat hunting",
-        "hypothesis driven",
-        "hunt plan",
-        "stealthy adversary",
-        "living off the land",
         "beaconing hunt",
         "persistence hunt",
-        "hunting hypothesis"
+        "living off the land",
+        "adversary behavior hunt"
+      ],
+      "artifact_triggers": [
+        "hunt_plan",
+        "telemetry_export",
+        "event_timeline",
+        "query_results",
+        "hunt_notebook"
+      ],
+      "anti_triggers": [
+        "alert triage only",
+        "incident containment",
+        "threat feed ingestion"
+      ],
+      "purpose": "Hypothesis-driven threat hunting specialist formulating testable adversary behavioral hypotheses, executing iterative telemetry investigations, and seeking disconfirming evidence to avoid confirmation bias.",
+      "required_permissions": [
+        "read_supplied_artifacts"
+      ],
+      "example_prompts": [
+        "Build a testable hunt hypothesis for periodic outbound beaconing in the proxy data.",
+        "Use the supplied telemetry to hunt for living-off-the-land persistence.",
+        "Review this hunt plan and add evidence that could disprove the hypothesis.",
+        "Prioritize follow-up questions for an adversary-behavior hunt across endpoint events.",
+        "Turn these unusual authentication sequences into a bounded threat-hunting investigation."
+      ],
+      "capabilities": [
+        "defensive-operations",
+        "plan-sentinel-hunt",
+        "review-sentinel-hunt",
+        "test-sentinel-hunt"
       ]
     },
     {
@@ -349,19 +522,50 @@
       "interactive_authorization_required": false,
       "description": "Alert triage and correlation specialist modeling competing hypotheses, dependency DAGs, and structured evidence ledgers for investigating security incidents without confirmation bias.",
       "primary_plugin": "soc-investigation-workbench",
-      "skills": ["soc-investigation-planning", "soc-investigation-review"],
-      "tools": ["investigate.py", "investigationwb"],
+      "skills": [
+        "soc-investigation-planning",
+        "soc-investigation-review"
+      ],
+      "tools": [
+        "investigate.py",
+        "investigationwb"
+      ],
       "contract_file": "agents/profiles/cops-soc-analyst.agent.md",
-      "intent_keywords": [
-        "soc analyst",
+      "symptom_triggers": [
         "alert triage",
-        "triage alert",
-        "competing hypotheses",
-        "investigation case",
-        "case.json",
+        "security alert investigation",
+        "false positive analysis",
         "alert correlation",
-        "investigate alert",
-        "false positive reduction"
+        "competing hypotheses",
+        "soc case review"
+      ],
+      "artifact_triggers": [
+        "case.json",
+        "alert_export",
+        "incident_ticket",
+        "evidence_ledger",
+        "siem_alert"
+      ],
+      "anti_triggers": [
+        "proactive threat hunt",
+        "detection rule authoring",
+        "compliance audit"
+      ],
+      "purpose": "Alert triage and correlation specialist modeling competing hypotheses, dependency DAGs, and structured evidence ledgers for investigating security incidents without confirmation bias.",
+      "required_permissions": [
+        "read_supplied_artifacts"
+      ],
+      "example_prompts": [
+        "Triage this security alert and compare malicious and benign explanations.",
+        "Correlate the endpoint and identity alerts into a single evidence-backed case.",
+        "Review case.json and identify the next fact needed to reduce uncertainty.",
+        "Explain whether this alert is likely a false positive without closing the case.",
+        "Build a concise investigation timeline from the supplied SIEM alerts."
+      ],
+      "capabilities": [
+        "defensive-operations",
+        "soc-investigation-planning",
+        "soc-investigation-review"
       ]
     },
     {
@@ -373,19 +577,50 @@
       "interactive_authorization_required": false,
       "description": "Detection-as-code and rule lifecycle specialist building, validating, and regression-testing resilient detection logic across Sentinel, Splunk, and Cribl against synthetic attack telemetry.",
       "primary_plugin": "detection-quality-workbench",
-      "skills": ["detection-quality-review", "telemetry-proof-tracing"],
-      "tools": ["detectionquality", "proofpack"],
+      "skills": [
+        "detection-quality-review",
+        "telemetry-proof-tracing"
+      ],
+      "tools": [
+        "detectionquality",
+        "proofpack"
+      ],
       "contract_file": "agents/profiles/cops-detection-engineer.agent.md",
-      "intent_keywords": [
-        "detection engineering",
-        "detection rule",
+      "symptom_triggers": [
+        "detection rule authoring",
         "detection as code",
-        "regression test detection",
-        "rule quality",
-        "sigma rule",
-        "detection coverage",
-        "telemetry proof",
-        "false positive testing"
+        "detection regression test",
+        "false positive testing",
+        "telemetry coverage",
+        "rule quality"
+      ],
+      "artifact_triggers": [
+        "sigma_rule",
+        "yara_rule",
+        "analytic_rule",
+        "detection_test_fixture",
+        "rule_repository"
+      ],
+      "anti_triggers": [
+        "active incident triage",
+        "threat feed ingestion",
+        "logging pipeline design"
+      ],
+      "purpose": "Detection-as-code and rule lifecycle specialist building, validating, and regression-testing resilient detection logic across Sentinel, Splunk, and Cribl against synthetic attack telemetry.",
+      "required_permissions": [
+        "read_supplied_artifacts"
+      ],
+      "example_prompts": [
+        "Write a Sigma rule for the supplied behavior and include false-positive tests.",
+        "Review this detection-as-code change for missing regression coverage.",
+        "Validate that the analytic rule fires on the attack fixture and stays quiet on benign data.",
+        "Identify telemetry gaps that prevent this behavior from being detected reliably.",
+        "Improve the rule logic while preserving the existing test corpus."
+      ],
+      "capabilities": [
+        "defensive-operations",
+        "detection-quality-review",
+        "telemetry-proof-tracing"
       ]
     },
     {
@@ -397,25 +632,52 @@
       "interactive_authorization_required": true,
       "description": "Incident containment and recovery specialist planning scoped containment actions, modeling blast radius, evaluating rollback recipes, and rehearsing containment workflows in offline sandboxes.",
       "primary_plugin": "incident-response-sandbox",
-      "skills": ["incident-response-sandbox"],
-      "tools": ["ir.py"],
-      "contract_file": "agents/profiles/cops-incident-responder.agent.md",
-      "intent_keywords": [
-        "incident response",
-        "containment plan",
-        "isolate host",
-        "disable compromised account",
-        "blast radius",
-        "remediation plan",
-        "ir dry-run",
-        "root cause analysis",
-        "rca",
-        "incident action"
+      "skills": [
+        "incident-response-sandbox"
       ],
+      "tools": [
+        "ir.py"
+      ],
+      "contract_file": "agents/profiles/cops-incident-responder.agent.md",
       "triad_defaults": {
         "skeptic_profile_id": "cops-soc-analyst",
         "auditor_profile_id": "cops-forensic-collector"
-      }
+      },
+      "symptom_triggers": [
+        "incident containment",
+        "containment plan",
+        "compromised account",
+        "isolate affected host",
+        "blast radius",
+        "incident recovery"
+      ],
+      "artifact_triggers": [
+        "incident_timeline",
+        "containment_plan",
+        "incident_ticket",
+        "forensic_report",
+        "recovery_plan"
+      ],
+      "anti_triggers": [
+        "planned exercise",
+        "generic vulnerability prioritization",
+        "compliance audit"
+      ],
+      "purpose": "Incident containment and recovery specialist planning scoped containment actions, modeling blast radius, evaluating rollback recipes, and rehearsing containment workflows in offline sandboxes.",
+      "required_permissions": [
+        "explicit_scoped_execution_authorization"
+      ],
+      "example_prompts": [
+        "Plan containment for the compromised account and identify the likely blast radius.",
+        "Review this ransomware timeline and sequence safe host isolation steps.",
+        "Prepare a reversible containment plan with evidence and rollback checkpoints.",
+        "Identify recovery prerequisites after the affected service credentials are revoked.",
+        "Turn these incident facts into immediate actions, open questions, and stop conditions."
+      ],
+      "capabilities": [
+        "incident-forensics",
+        "incident-response-sandbox"
+      ]
     },
     {
       "schema_version": "1.0",
@@ -426,20 +688,48 @@
       "interactive_authorization_required": false,
       "description": "Forensic evidence acquisition specialist capturing, hashing, and enveloping security telemetry into tamper-evident envelopes with SHA-256 receipts and immutable chain of custody.",
       "primary_plugin": "telemetry-proof-pack",
-      "skills": ["telemetry-proof-tracing"],
-      "tools": ["python3 -m cops.evidence", "python3 -m cops.connectors.demo"],
+      "skills": [
+        "telemetry-proof-tracing"
+      ],
+      "tools": [
+        "python3 -m cops.evidence",
+        "python3 -m cops.connectors.demo"
+      ],
       "contract_file": "agents/profiles/cops-forensic-collector.agent.md",
-      "intent_keywords": [
-        "evidence capture",
-        "forensic evidence",
+      "symptom_triggers": [
+        "forensic acquisition",
         "chain of custody",
-        "evidence envelope",
+        "evidence collection",
+        "tamper-evident evidence",
         "acquisition receipt",
-        "sha-256 hash",
-        "tamper evident",
-        "data collection",
-        "audit evidence",
-        "forensic artifact"
+        "forensic preservation"
+      ],
+      "artifact_triggers": [
+        "evidence_manifest",
+        "acquisition_receipt",
+        "sha256",
+        "evtx_file",
+        "memory_image"
+      ],
+      "anti_triggers": [
+        "malware reverse engineering only",
+        "incident containment action",
+        "compliance control mapping"
+      ],
+      "purpose": "Forensic evidence acquisition specialist capturing, hashing, and enveloping security telemetry into tamper-evident envelopes with SHA-256 receipts and immutable chain of custody.",
+      "required_permissions": [
+        "read_supplied_artifacts"
+      ],
+      "example_prompts": [
+        "Prepare a chain-of-custody plan for the supplied disk and event-log evidence.",
+        "Verify the evidence manifest and SHA-256 acquisition receipts.",
+        "Design a forensic collection sequence that preserves volatile data first.",
+        "Review this evidence envelope for missing provenance and tamper checks.",
+        "Explain how to preserve the memory image and EVTX files for later analysis."
+      ],
+      "capabilities": [
+        "incident-forensics",
+        "telemetry-proof-tracing"
       ]
     },
     {
@@ -451,19 +741,47 @@
       "interactive_authorization_required": false,
       "description": "Reverse engineering and artifact triage specialist statically analyzing suspicious scripts (PowerShell, VBScript, shell) and binary headers to extract IOCs, hashes, and ATT&CK capabilities without dynamic execution.",
       "primary_plugin": "soc-investigation-workbench",
-      "skills": ["soc-investigation-review"],
-      "tools": ["investigationwb"],
+      "skills": [
+        "soc-investigation-review"
+      ],
+      "tools": [
+        "investigationwb"
+      ],
       "contract_file": "agents/profiles/cops-malware-analyst.agent.md",
-      "intent_keywords": [
-        "malware analysis",
-        "script analysis",
+      "symptom_triggers": [
+        "malware triage",
+        "static binary analysis",
         "deobfuscate powershell",
-        "macro analysis",
-        "static analysis binary",
+        "malicious macro analysis",
         "ioc extraction",
-        "binary hash",
-        "pe header",
-        "entropy check"
+        "suspicious script analysis"
+      ],
+      "artifact_triggers": [
+        "binary_file",
+        "pe_file",
+        "script_file",
+        "macro_document",
+        "file_hash"
+      ],
+      "anti_triggers": [
+        "dynamic execution request",
+        "threat feed only",
+        "generic application review"
+      ],
+      "purpose": "Reverse engineering and artifact triage specialist statically analyzing suspicious scripts (PowerShell, VBScript, shell) and binary headers to extract IOCs, hashes, and ATT&CK capabilities without dynamic execution.",
+      "required_permissions": [
+        "read_supplied_artifacts"
+      ],
+      "example_prompts": [
+        "Statically inspect this suspicious PowerShell script and extract its indicators.",
+        "Review the PE headers and strings without executing the binary.",
+        "Deobfuscate this script and map its behavior to ATT&CK techniques.",
+        "Assess the document macro for download behavior and persistence clues.",
+        "Compare these file hashes and code traits to determine whether the samples are related."
+      ],
+      "capabilities": [
+        "incident-forensics",
+        "soc-investigation-review"
       ]
     },
     {
@@ -475,22 +793,52 @@
       "interactive_authorization_required": true,
       "description": "Reviews approved offline AD directory and host inventories for provenance-linked candidate privilege paths, trust boundaries, and collection gaps.",
       "primary_plugin": "ad-assessment-workbench",
-      "skills": ["ad-inventory-and-paths"],
-      "tools": ["python3 plugins/identity-access/ad-assessment-workbench/scripts/analyze.py"],
-      "contract_file": "agents/profiles/cops-ad-specialist.agent.md",
-      "intent_keywords": [
-        "active directory inventory",
-        "ad privilege path",
-        "ad trust boundary",
-        "active directory privilege path",
-        "active directory trust boundary",
-        "domain relationship analysis",
-        "forest trust review"
+      "skills": [
+        "ad-inventory-and-paths"
       ],
+      "tools": [
+        "python3 plugins/identity-access/ad-assessment-workbench/scripts/analyze.py"
+      ],
+      "contract_file": "agents/profiles/cops-ad-specialist.agent.md",
       "triad_defaults": {
         "skeptic_profile_id": "cops-redteam-operator",
         "auditor_profile_id": "cops-compliance-auditor"
-      }
+      },
+      "symptom_triggers": [
+        "active directory privilege path",
+        "active directory trust",
+        "ad acl delegation",
+        "forest trust boundary",
+        "domain group membership",
+        "directory privilege path"
+      ],
+      "artifact_triggers": [
+        "bloodhound_export",
+        "directory_inventory",
+        "group_membership_export",
+        "trust_export",
+        "ad_acl_export"
+      ],
+      "anti_triggers": [
+        "entra id only",
+        "cloud iam entitlement",
+        "host local privilege only"
+      ],
+      "purpose": "Reviews approved offline AD directory and host inventories for provenance-linked candidate privilege paths, trust boundaries, and collection gaps.",
+      "required_permissions": [
+        "explicit_scoped_execution_authorization"
+      ],
+      "example_prompts": [
+        "Review this Active Directory export for a privilege path to domain administration.",
+        "Analyze the forest trusts for unintended cross-domain access.",
+        "Explain which delegated ACLs create risky directory control paths.",
+        "Reconcile group membership evidence with the claimed domain privilege boundary.",
+        "Identify missing collection data before confirming this Active Directory attack path."
+      ],
+      "capabilities": [
+        "ad-inventory-and-paths",
+        "identity-exposure"
+      ]
     },
     {
       "schema_version": "1.0",
@@ -501,25 +849,52 @@
       "interactive_authorization_required": true,
       "description": "Cloud identity and access specialist analyzing Entra ID (Azure AD) and cloud IAM entitlements, toxic privilege combinations, service principal governance, and privilege escalation paths.",
       "primary_plugin": "entra-identity-workbench",
-      "skills": ["entra-identity-analysis"],
-      "tools": ["entrawb"],
-      "contract_file": "agents/profiles/cops-identity-specialist.agent.md",
-      "intent_keywords": [
-        "entra id",
-        "azure ad",
-        "identity governance",
-        "rbac audit",
-        "privilege escalation",
-        "toxic combinations",
-        "service principal",
-        "app registration secret",
-        "global admin path",
-        "cloud iam"
+      "skills": [
+        "entra-identity-analysis"
       ],
+      "tools": [
+        "entrawb"
+      ],
+      "contract_file": "agents/profiles/cops-identity-specialist.agent.md",
       "triad_defaults": {
         "skeptic_profile_id": "cops-redteam-operator",
         "auditor_profile_id": "cops-compliance-auditor"
-      }
+      },
+      "symptom_triggers": [
+        "entra id entitlement",
+        "cloud iam entitlement",
+        "service principal privilege",
+        "toxic privilege combination",
+        "identity governance",
+        "cloud privilege escalation"
+      ],
+      "artifact_triggers": [
+        "entra_export",
+        "iam_policy",
+        "role_assignment",
+        "service_principal_export",
+        "access_review"
+      ],
+      "anti_triggers": [
+        "active directory forest trust",
+        "host local privilege",
+        "api object authorization"
+      ],
+      "purpose": "Cloud identity and access specialist analyzing Entra ID (Azure AD) and cloud IAM entitlements, toxic privilege combinations, service principal governance, and privilege escalation paths.",
+      "required_permissions": [
+        "explicit_scoped_execution_authorization"
+      ],
+      "example_prompts": [
+        "Review these Entra ID role assignments for toxic privilege combinations.",
+        "Assess the service principal permissions for a cloud privilege-escalation path.",
+        "Explain which IAM entitlements exceed the workload's stated purpose.",
+        "Reconcile the access review with current cloud role assignments.",
+        "Prioritize identity-governance fixes for dormant privileged principals."
+      ],
+      "capabilities": [
+        "entra-identity-analysis",
+        "identity-exposure"
+      ]
     },
     {
       "schema_version": "1.0",
@@ -530,19 +905,50 @@
       "interactive_authorization_required": false,
       "description": "Vulnerability triage specialist prioritizing CVEs through software bill of materials (SBOM) reachability, EPSS scoring, CISA KEV exploitation telemetry, and contextual business exposure.",
       "primary_plugin": "exposure-triage-workbench",
-      "skills": ["exposure-triage", "cve-reachability"],
-      "tools": ["exposuretriage", "reachability-report.py"],
+      "skills": [
+        "exposure-triage",
+        "cve-reachability"
+      ],
+      "tools": [
+        "exposuretriage",
+        "reachability-report.py"
+      ],
       "contract_file": "agents/profiles/cops-exposure-analyst.agent.md",
-      "intent_keywords": [
-        "vulnerability management",
-        "cve triage",
-        "epss",
+      "symptom_triggers": [
+        "cve prioritization",
+        "vulnerability prioritization",
+        "epss score",
         "cisa kev",
         "sbom reachability",
+        "exploit likelihood"
+      ],
+      "artifact_triggers": [
+        "sbom_file",
         "cyclonedx",
-        "exposure score",
-        "vulnerability prioritization",
-        "call path reachability"
+        "spdx",
+        "vulnerability_scan",
+        "cve_list"
+      ],
+      "anti_triggers": [
+        "ci workflow permissions",
+        "registry resolution",
+        "source code flaw"
+      ],
+      "purpose": "Vulnerability triage specialist prioritizing CVEs through software bill of materials (SBOM) reachability, EPSS scoring, CISA KEV exploitation telemetry, and contextual business exposure.",
+      "required_permissions": [
+        "read_supplied_artifacts"
+      ],
+      "example_prompts": [
+        "Prioritize these CVEs using reachability, EPSS, KEV status, and business exposure.",
+        "Map the vulnerability scan to the SBOM and identify reachable packages.",
+        "Explain which reported vulnerabilities need action before the next release.",
+        "Review this CVE list for known exploitation and exposed deployment context.",
+        "Turn the scanner output into an evidence-backed remediation order."
+      ],
+      "capabilities": [
+        "cve-reachability",
+        "exposure-triage",
+        "identity-exposure"
       ]
     },
     {
@@ -554,19 +960,47 @@
       "interactive_authorization_required": false,
       "description": "Application security and code review specialist analyzing pull request diffs, patch security impacts, static code security flaws, and API authorization boundaries.",
       "primary_plugin": "patch-security-review",
-      "skills": ["patch-review"],
-      "tools": ["patchreview"],
+      "skills": [
+        "patch-review"
+      ],
+      "tools": [
+        "patchreview"
+      ],
       "contract_file": "agents/profiles/cops-appsec-engineer.agent.md",
-      "intent_keywords": [
-        "appsec",
-        "application security",
-        "patch security review",
-        "code security audit",
-        "secure coding",
-        "sast review",
-        "taint analysis",
-        "owasp top 10",
-        "security diff review"
+      "symptom_triggers": [
+        "secure code review",
+        "application security review",
+        "source code vulnerability",
+        "sast finding",
+        "security diff review",
+        "taint analysis"
+      ],
+      "artifact_triggers": [
+        "source_diff",
+        "sarif_file",
+        "sast_report",
+        "pull_request_diff",
+        "source_tree"
+      ],
+      "anti_triggers": [
+        "runtime api traffic only",
+        "dependency lockfile only",
+        "infrastructure posture"
+      ],
+      "purpose": "Application security and code review specialist analyzing pull request diffs, patch security impacts, static code security flaws, and API authorization boundaries.",
+      "required_permissions": [
+        "read_supplied_artifacts"
+      ],
+      "example_prompts": [
+        "Review this pull-request diff for authentication and injection flaws.",
+        "Trace the untrusted input in this SAST finding to determine whether it is exploitable.",
+        "Assess the security impact of this code change before merge.",
+        "Review the source for unsafe deserialization and propose a focused fix.",
+        "Triage the SARIF findings against the changed application code."
+      ],
+      "capabilities": [
+        "identity-exposure",
+        "patch-review"
       ]
     },
     {
@@ -578,20 +1012,47 @@
       "interactive_authorization_required": false,
       "description": "Threat intelligence specialist ingesting MISP, TAXII, and STIX feeds, correlating observed indicators against known threat actor intrusion sets, and preparing threat-informed defense profiles.",
       "primary_plugin": "threat-intelligence-enrichment",
-      "skills": ["threat-intelligence-enrichment"],
-      "tools": ["threat_intel"],
+      "skills": [
+        "threat-intelligence-enrichment"
+      ],
+      "tools": [
+        "threat_intel"
+      ],
       "contract_file": "agents/profiles/cops-threat-intel-analyst.agent.md",
-      "intent_keywords": [
-        "threat intelligence",
-        "cti",
-        "misp",
-        "taxii",
-        "stix",
-        "threat actor profile",
-        "apt attribution",
+      "symptom_triggers": [
+        "threat intelligence analysis",
         "ioc enrichment",
+        "threat actor profile",
         "campaign tracking",
-        "threat landscape"
+        "stix correlation",
+        "misp enrichment"
+      ],
+      "artifact_triggers": [
+        "stix_bundle",
+        "taxii_collection",
+        "misp_export",
+        "indicator_list",
+        "threat_report"
+      ],
+      "anti_triggers": [
+        "live alert triage",
+        "malware reverse engineering",
+        "threat hunting plan"
+      ],
+      "purpose": "Threat intelligence specialist ingesting MISP, TAXII, and STIX feeds, correlating observed indicators against known threat actor intrusion sets, and preparing threat-informed defense profiles.",
+      "required_permissions": [
+        "read_supplied_artifacts"
+      ],
+      "example_prompts": [
+        "Enrich these indicators and relate them to known campaigns without overstating attribution.",
+        "Correlate the STIX bundle with the supplied MISP observations.",
+        "Build a threat-actor profile that separates evidence from assessment.",
+        "Review this TAXII collection for indicators relevant to our sector.",
+        "Summarize the campaign timeline and confidence behind each attribution."
+      ],
+      "capabilities": [
+        "identity-exposure",
+        "threat-intelligence-enrichment"
       ]
     },
     {
@@ -603,18 +1064,48 @@
       "interactive_authorization_required": false,
       "description": "Collaborative security exercise lead aligning red team adversary emulation with blue team detection telemetry, measuring detection coverage deltas, and prioritizing defensive backlog items.",
       "primary_plugin": "detection-quality-workbench",
-      "skills": ["detection-quality-review"],
-      "tools": ["python3 -m cops coverage", "coverage.py"],
+      "skills": [
+        "detection-quality-review"
+      ],
+      "tools": [
+        "python3 -m cops coverage",
+        "coverage.py"
+      ],
       "contract_file": "agents/profiles/cops-purple-team-coordinator.agent.md",
-      "intent_keywords": [
-        "purple team",
-        "security efficacy",
-        "detection gap",
-        "attack coverage matrix",
-        "red and blue",
-        "collaborative exercise",
-        "mitre att&ck coverage",
-        "gap analysis detection"
+      "symptom_triggers": [
+        "purple team exercise",
+        "red blue validation",
+        "detection coverage gap",
+        "attack simulation telemetry",
+        "control efficacy exercise",
+        "collaborative security exercise"
+      ],
+      "artifact_triggers": [
+        "attack_coverage_matrix",
+        "exercise_plan",
+        "detection_results",
+        "attack_layer",
+        "exercise_report"
+      ],
+      "anti_triggers": [
+        "red team only",
+        "detection implementation only",
+        "compliance control mapping"
+      ],
+      "purpose": "Collaborative security exercise lead aligning red team adversary emulation with blue team detection telemetry, measuring detection coverage deltas, and prioritizing defensive backlog items.",
+      "required_permissions": [
+        "read_supplied_artifacts"
+      ],
+      "example_prompts": [
+        "Plan a purple-team exercise that validates detection coverage for credential dumping.",
+        "Compare the red-team actions with the blue-team telemetry and identify missed signals.",
+        "Turn this ATT&CK coverage matrix into a prioritized collaborative exercise.",
+        "Review the exercise evidence and quantify which controls detected each technique.",
+        "Coordinate a safe retest of the detection gaps found in the last emulation."
+      ],
+      "capabilities": [
+        "detection-quality-review",
+        "governance-operations"
       ]
     },
     {
@@ -626,18 +1117,51 @@
       "interactive_authorization_required": false,
       "description": "Enterprise audit telemetry architect analyzing codebases for audit logging gaps, identifying sensitive variable leakage in logs, and designing cost-aware telemetry pipelines.",
       "primary_plugin": "security-logging-advisor",
-      "skills": ["repository-context", "logging-recommendations"],
-      "tools": ["repo_context.py", "logging_recs.py"],
+      "skills": [
+        "repository-context",
+        "logging-recommendations"
+      ],
+      "tools": [
+        "repo_context.py",
+        "logging_recs.py"
+      ],
       "contract_file": "agents/profiles/cops-logging-architect.agent.md",
-      "intent_keywords": [
+      "symptom_triggers": [
         "security logging",
-        "logging recommendations",
-        "audit telemetry",
-        "missing audit logs",
-        "log cost optimization",
-        "pii in logs",
-        "sensitive data logging",
-        "telemetry design"
+        "security logging design",
+        "audit logging gap",
+        "sensitive data in logs",
+        "telemetry pipeline",
+        "audit event coverage",
+        "log retention cost"
+      ],
+      "artifact_triggers": [
+        "logging_config",
+        "telemetry_schema",
+        "log_sample",
+        "pipeline_export",
+        "audit_event_inventory"
+      ],
+      "anti_triggers": [
+        "kql query optimization",
+        "detection rule authoring",
+        "active incident triage"
+      ],
+      "purpose": "Enterprise audit telemetry architect analyzing codebases for audit logging gaps, identifying sensitive variable leakage in logs, and designing cost-aware telemetry pipelines.",
+      "required_permissions": [
+        "read_supplied_artifacts"
+      ],
+      "example_prompts": [
+        "Review this service for missing security audit events and sensitive log fields.",
+        "Design a cost-aware telemetry pipeline for authentication and authorization events.",
+        "Assess the logging schema for secrets, personal data, and weak provenance.",
+        "Map the required audit events to the current application logging configuration.",
+        "Explain which logs should be retained, sampled, or excluded for this threat model."
+      ],
+      "capabilities": [
+        "governance-operations",
+        "logging-recommendations",
+        "repository-context"
       ]
     },
     {
@@ -648,21 +1172,370 @@
       "criticality": "normal",
       "interactive_authorization_required": false,
       "description": "Governance and regulatory compliance specialist mapping technical security controls to NIST CSF 2.0, ISO 27001, SOC 2, HIPAA, and PCI-DSS frameworks and verifying evidence integrity.",
-      "primary_plugin": "security-logging-advisor",
-      "skills": ["logging-recommendations", "telemetry-proof-tracing"],
-      "tools": ["python3 -m cops.evidence"],
+      "primary_plugin": "compliance-posture-workbench",
+      "skills": [
+        "compliance-posture-workbench",
+        "logging-recommendations",
+        "telemetry-proof-tracing"
+      ],
+      "tools": [
+        "python3 -m cops.evidence"
+      ],
       "contract_file": "agents/profiles/cops-compliance-auditor.agent.md",
-      "intent_keywords": [
-        "grc",
-        "compliance audit",
-        "nist csf",
-        "iso 27001",
-        "soc 2",
-        "hipaa",
-        "pci-dss",
-        "control verification",
-        "compliance drift",
-        "audit evidence binder"
+      "symptom_triggers": [
+        "soc 2 control mapping",
+        "nist control mapping",
+        "cis control assessment",
+        "iso 27001 evidence",
+        "pci dss evidence",
+        "compliance evidence review"
+      ],
+      "artifact_triggers": [
+        "control_evidence",
+        "evidence_binder",
+        "control_matrix",
+        "policy_document",
+        "audit_report"
+      ],
+      "anti_triggers": [
+        "penetration test execution",
+        "active incident response",
+        "vulnerability exploitability"
+      ],
+      "purpose": "Map versioned SOC 2, CIS and NIST controls to dated evidence; identify unsupported and unknown control claims.",
+      "required_permissions": [
+        "read_supplied_artifacts"
+      ],
+      "example_prompts": [
+        "Map the dated evidence to our SOC 2 controls and mark unsupported claims.",
+        "Review this NIST control matrix and identify evidence that is missing or stale.",
+        "Assess the audit binder against the stated CIS control version.",
+        "Trace each ISO 27001 claim to a specific policy, record, or unresolved gap.",
+        "Prepare a compliance evidence review that separates observed, supported, and unknown controls."
+      ],
+      "capabilities": [
+        "compliance-posture-workbench",
+        "governance-operations",
+        "logging-recommendations",
+        "telemetry-proof-tracing"
+      ]
+    },
+    {
+      "schema_version": "1.0",
+      "id": "cops-cloud-posture-specialist",
+      "display_name": "COPS Cloud Posture Specialist",
+      "domain": "defensive-operations",
+      "criticality": "normal",
+      "interactive_authorization_required": false,
+      "description": "Review exported cloud configuration and rendered workloads for IAM, storage, RBAC and workload policy weaknesses.",
+      "primary_plugin": "cloud-posture-workbench",
+      "skills": [
+        "cloud-posture-workbench"
+      ],
+      "tools": [
+        "python3 -m cops assess cloud_configuration"
+      ],
+      "contract_file": "agents/profiles/cops-cloud-posture-specialist.agent.md",
+      "symptom_triggers": [
+        "cloud security posture",
+        "terraform plan review",
+        "public cloud storage",
+        "cloud workload configuration",
+        "cloud iam configuration",
+        "kubernetes workload configuration"
+      ],
+      "artifact_triggers": [
+        "terraform_plan",
+        "terraform_file",
+        "cloud_configuration",
+        "kubernetes_manifest",
+        "helm_rendered_manifest",
+        "iam_policy"
+      ],
+      "anti_triggers": [
+        "identity entitlement path only",
+        "kubernetes cluster scope only",
+        "network reachability only"
+      ],
+      "purpose": "Review exported cloud configuration and rendered workloads for IAM, storage, RBAC and workload policy weaknesses.",
+      "required_permissions": [
+        "read_supplied_artifacts"
+      ],
+      "example_prompts": [
+        "Review this Terraform plan for public storage and excessive cloud IAM access.",
+        "Assess the rendered Helm workloads for unsafe cloud identity bindings.",
+        "Find posture weaknesses in the exported storage, RBAC, and workload configuration.",
+        "Explain which planned cloud changes violate least-privilege policy.",
+        "Prioritize remediation for the risky cloud resources in this offline configuration export."
+      ],
+      "capabilities": [
+        "cloud-posture-workbench",
+        "defensive-operations"
+      ]
+    },
+    {
+      "schema_version": "1.0",
+      "id": "cops-supply-chain-specialist",
+      "display_name": "COPS Supply Chain and CI/CD Specialist",
+      "domain": "defensive-operations",
+      "criticality": "normal",
+      "interactive_authorization_required": false,
+      "description": "Inspect dependency, SBOM and CI evidence for vulnerable packages, unsafe permissions and registry resolution risks.",
+      "primary_plugin": "supply-chain-cicd-workbench",
+      "skills": [
+        "supply-chain-cicd-workbench"
+      ],
+      "tools": [
+        "python3 -m cops assess supply_chain"
+      ],
+      "contract_file": "agents/profiles/cops-supply-chain-specialist.agent.md",
+      "symptom_triggers": [
+        "software supply chain",
+        "dependency vulnerability",
+        "build pipeline permission",
+        "registry resolution",
+        "lockfile review",
+        "sbom provenance"
+      ],
+      "artifact_triggers": [
+        "package-lock.json",
+        "requirements.txt",
+        "poetry.lock",
+        "go.sum",
+        "cyclonedx",
+        "spdx",
+        "github_actions_workflow"
+      ],
+      "anti_triggers": [
+        "cve exploit reachability only",
+        "application source flaw",
+        "leaked credential rotation"
+      ],
+      "purpose": "Inspect dependency, SBOM and CI evidence for vulnerable packages, unsafe permissions and registry resolution risks.",
+      "required_permissions": [
+        "read_supplied_artifacts"
+      ],
+      "example_prompts": [
+        "Review the lockfiles and SBOM for dependency drift and vulnerable packages.",
+        "Assess this GitHub Actions workflow for unsafe permissions and unpinned actions.",
+        "Investigate whether registry resolution permits dependency confusion.",
+        "Compare the release artifact to its SBOM and build provenance.",
+        "Prioritize supply-chain fixes across the package manifest and CI workflow."
+      ],
+      "capabilities": [
+        "defensive-operations",
+        "supply-chain-cicd-workbench"
+      ]
+    },
+    {
+      "schema_version": "1.0",
+      "id": "cops-secrets-remediation-specialist",
+      "display_name": "COPS Secrets Remediation Specialist",
+      "domain": "identity-exposure",
+      "criticality": "normal",
+      "interactive_authorization_required": false,
+      "description": "Assess redacted Git history and identity evidence to plan credential exposure remediation and verify lab revocation.",
+      "primary_plugin": "secrets-remediation-workbench",
+      "skills": [
+        "secrets-remediation-workbench"
+      ],
+      "tools": [
+        "python3 -m cops assess credential_history"
+      ],
+      "contract_file": "agents/profiles/cops-secrets-remediation-specialist.agent.md",
+      "symptom_triggers": [
+        "leaked credential",
+        "secret exposure",
+        "credential in git history",
+        "credential revocation",
+        "credential rotation",
+        "token exposure remediation"
+      ],
+      "artifact_triggers": [
+        "git_history",
+        "secret_scan_report",
+        "identity_log",
+        "credential_inventory",
+        "commit_diff"
+      ],
+      "anti_triggers": [
+        "generic source code flaw",
+        "cryptographic configuration",
+        "iam entitlement review"
+      ],
+      "purpose": "Assess redacted Git history and identity evidence to plan credential exposure remediation and verify lab revocation.",
+      "required_permissions": [
+        "read_supplied_artifacts"
+      ],
+      "example_prompts": [
+        "A cloud key was committed to Git; plan revocation, rotation, and consumer updates.",
+        "Review the redacted secret-scan evidence and identify which credentials remain active.",
+        "Sequence safe remediation for a leaked token that multiple deployments still use.",
+        "Verify that the exposed credential was revoked and replaced everywhere it was consumed.",
+        "Assess the blast radius of a repository secret without revealing the secret value."
+      ],
+      "capabilities": [
+        "identity-exposure",
+        "secrets-remediation-workbench"
+      ]
+    },
+    {
+      "schema_version": "1.0",
+      "id": "cops-network-segmentation-specialist",
+      "display_name": "COPS Network Segmentation Specialist",
+      "domain": "defensive-operations",
+      "criticality": "normal",
+      "interactive_authorization_required": false,
+      "description": "Compare firewall and workload policy intent with flow, DNS and bounded laboratory reachability evidence.",
+      "primary_plugin": "network-segmentation-workbench",
+      "skills": [
+        "network-segmentation-workbench"
+      ],
+      "tools": [
+        "python3 -m cops assess network_segmentation"
+      ],
+      "contract_file": "agents/profiles/cops-network-segmentation-specialist.agent.md",
+      "symptom_triggers": [
+        "network segmentation",
+        "firewall policy",
+        "kubernetes networkpolicy",
+        "forbidden reachability",
+        "allowed reachability",
+        "east-west traffic"
+      ],
+      "artifact_triggers": [
+        "network_policy",
+        "firewall_ruleset",
+        "flow_log",
+        "dns_evidence",
+        "pcap_file",
+        "reachability_matrix"
+      ],
+      "anti_triggers": [
+        "internet attack surface",
+        "tls certificate chain",
+        "generic kubernetes workload security"
+      ],
+      "purpose": "Compare firewall and workload policy intent with flow, DNS and bounded laboratory reachability evidence.",
+      "required_permissions": [
+        "read_supplied_artifacts"
+      ],
+      "example_prompts": [
+        "Compare the firewall policy with flow logs for unintended east-west access.",
+        "Review this Kubernetes NetworkPolicy for forbidden cross-namespace reachability.",
+        "Validate that the proposed segmentation still permits required DNS traffic.",
+        "Explain why the database is reachable from a zone that should be denied.",
+        "Build an allowed and forbidden reachability matrix from the supplied network evidence."
+      ],
+      "capabilities": [
+        "defensive-operations",
+        "network-segmentation-workbench"
+      ]
+    },
+    {
+      "schema_version": "1.0",
+      "id": "cops-tls-crypto-specialist",
+      "display_name": "COPS TLS and Crypto Specialist",
+      "domain": "defensive-operations",
+      "criticality": "normal",
+      "interactive_authorization_required": false,
+      "description": "Review TLS chains, mTLS client authorization and JWT/JWKS signing configuration using ephemeral laboratory credentials.",
+      "primary_plugin": "tls-crypto-workbench",
+      "skills": [
+        "tls-crypto-workbench"
+      ],
+      "tools": [
+        "python3 -m cops assess transport_identity"
+      ],
+      "contract_file": "agents/profiles/cops-tls-crypto-specialist.agent.md",
+      "symptom_triggers": [
+        "tls certificate chain",
+        "mtls client verification",
+        "jwt signature verification",
+        "jwks signing configuration",
+        "tls protocol configuration",
+        "certificate trust failure"
+      ],
+      "artifact_triggers": [
+        "certificate_chain",
+        "pem_file",
+        "tls_configuration",
+        "jwt_configuration",
+        "jwks_document",
+        "openssl_output"
+      ],
+      "anti_triggers": [
+        "leaked credential rotation",
+        "api object authorization",
+        "network firewall policy"
+      ],
+      "purpose": "Review TLS chains, mTLS client authorization and JWT/JWKS signing configuration using ephemeral laboratory credentials.",
+      "required_permissions": [
+        "read_supplied_artifacts"
+      ],
+      "example_prompts": [
+        "Review this TLS certificate chain for a missing intermediate and weak algorithms.",
+        "Assess mTLS client verification against the configured trust anchors.",
+        "Check whether JWT signature verification safely handles JWKS key rotation.",
+        "Review the TLS protocol and cipher configuration for obsolete choices.",
+        "Explain this certificate trust failure using the supplied OpenSSL output."
+      ],
+      "capabilities": [
+        "defensive-operations",
+        "tls-crypto-workbench"
+      ]
+    },
+    {
+      "schema_version": "1.0",
+      "id": "cops-api-security-specialist",
+      "display_name": "COPS API Security Specialist",
+      "domain": "offensive-security",
+      "criticality": "normal",
+      "interactive_authorization_required": false,
+      "description": "Review REST and GraphQL interfaces for object-level authorization, abuse controls, and replayable API security evidence.",
+      "primary_plugin": "web-api-assessment-workbench",
+      "skills": [
+        "web-api-inventory-and-replay"
+      ],
+      "tools": [
+        "python3 -m cops web-api"
+      ],
+      "contract_file": "agents/profiles/cops-api-security-specialist.agent.md",
+      "symptom_triggers": [
+        "api authorization",
+        "object-level authorization",
+        "bola vulnerability",
+        "idor vulnerability",
+        "rest api security",
+        "graphql security",
+        "api rate limiting"
+      ],
+      "artifact_triggers": [
+        "har_file",
+        "openapi_spec",
+        "graphql_schema",
+        "postman_collection",
+        "api_gateway_config"
+      ],
+      "anti_triggers": [
+        "source code sast only",
+        "tls certificate configuration",
+        "network firewall policy"
+      ],
+      "purpose": "Review REST and GraphQL interfaces for object-level authorization, abuse controls, and replayable API security evidence.",
+      "required_permissions": [
+        "read_supplied_artifacts"
+      ],
+      "example_prompts": [
+        "Review this REST API for object-level authorization failures between tenants.",
+        "Assess the GraphQL resolvers for BOLA and IDOR paths.",
+        "Replay the supplied HAR evidence against the API contract without sending network traffic.",
+        "Evaluate rate-limit coverage for expensive authentication and search endpoints.",
+        "Map the OpenAPI operations to required roles and identify authorization gaps."
+      ],
+      "capabilities": [
+        "offensive-security",
+        "web-api-inventory-and-replay"
       ]
     }
   ]

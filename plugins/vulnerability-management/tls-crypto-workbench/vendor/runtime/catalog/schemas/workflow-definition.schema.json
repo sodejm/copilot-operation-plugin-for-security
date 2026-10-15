@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cops.example/schemas/workflow-definition.schema.json",
+  "title": "COPS workflow definition v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "workflow_id", "engagement_id", "scenario_id", "inputs", "outputs", "budget", "stages"],
+  "properties": {
+    "schema_version": {"const": "cops.workflow-definition/v1"},
+    "workflow_id": {"$ref": "#/$defs/id"},
+    "engagement_id": {"$ref": "#/$defs/id"},
+    "scenario_id": {"$ref": "#/$defs/id"},
+    "description": {"type": "string", "maxLength": 4096},
+    "inputs": {"type": "object", "maxProperties": 256, "additionalProperties": {"$ref": "#/$defs/inputSpec"}},
+    "outputs": {"type": "object", "maxProperties": 256, "additionalProperties": {"$ref": "#/$defs/workflowOutput"}},
+    "budget": {
+      "type": "object", "additionalProperties": false,
+      "required": ["max_stages", "max_total_attempts", "max_output_bytes", "max_evidence_refs"],
+      "properties": {
+        "max_stages": {"type": "integer", "minimum": 1, "maximum": 256},
+        "max_total_attempts": {"type": "integer", "minimum": 1, "maximum": 1024},
+        "max_output_bytes": {"type": "integer", "minimum": 1, "maximum": 104857600},
+        "max_evidence_refs": {"type": "integer", "minimum": 1, "maximum": 10000}
+      }
+    },
+    "stages": {"type": "array", "minItems": 1, "maxItems": 256, "items": {"$ref": "#/$defs/stage"}}
+  },
+  "$defs": {
+    "id": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_.-]+$"},
+    "jsonType": {"enum": ["string", "integer", "number", "boolean", "object", "array", "null"]},
+    "inputSpec": {
+      "type": "object", "additionalProperties": false, "required": ["type"],
+      "properties": {"type": {"$ref": "#/$defs/jsonType"}, "required": {"type": "boolean"}, "default": {}}
+    },
+    "stageOutput": {
+      "type": "object", "additionalProperties": false, "required": ["type"],
+      "properties": {"type": {"$ref": "#/$defs/jsonType"}}
+    },
+    "workflowOutput": {
+      "type": "object", "additionalProperties": false, "required": ["type", "source"],
+      "properties": {"type": {"$ref": "#/$defs/jsonType"}, "source": {"type": "string", "pattern": "^stage\\.[A-Za-z0-9_.-]+\\.output\\.[A-Za-z0-9_.-]+$"}}
+    },
+    "binding": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": false, "required": ["type", "source"], "properties": {"type": {"$ref": "#/$defs/jsonType"}, "source": {"type": "string"}}},
+        {"type": "object", "additionalProperties": false, "required": ["type", "value"], "properties": {"type": {"$ref": "#/$defs/jsonType"}, "value": {}}}
+      ]
+    },
+    "condition": {
+      "type": "object", "additionalProperties": false, "required": ["source", "operator"],
+      "properties": {"source": {"type": "string"}, "operator": {"enum": ["exists", "eq", "not_eq"]}, "value": {}}
+    },
+    "limits": {
+      "type": "object", "additionalProperties": false,
+      "required": ["max_duration_seconds", "max_output_bytes", "egress_allowed"],
+      "properties": {
+        "max_duration_seconds": {"type": "integer", "minimum": 1, "maximum": 604800},
+        "max_output_bytes": {"type": "integer", "minimum": 1, "maximum": 104857600},
+        "egress_allowed": {"type": "boolean"}
+      }
+    },
+    "action": {
+      "type": "object", "additionalProperties": false,
+      "required": ["target", "specialist_id", "tool", "tool_version", "action", "timeout_seconds", "limits"],
+      "properties": {
+        "target": {"type": "string", "minLength": 1, "pattern": "^(?!.*\\$\\{).+$"}, "specialist_id": {"type": "string", "minLength": 1, "pattern": "^(?!.*\\$\\{).+$"},
+        "tool": {"type": "string", "minLength": 1, "pattern": "^(?!.*\\$\\{).+$"}, "tool_version": {"type": "string", "minLength": 1, "pattern": "^(?!.*\\$\\{).+$"},
+        "action": {"type": "string", "minLength": 1, "pattern": "^(?!.*\\$\\{).+$"}, "timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 86400},
+        "limits": {"$ref": "#/$defs/limits"},
+        "credential_references": {"type": "array", "items": {"type": "string"}},
+        "expected_evidence": {"type": "array", "items": {"type": "string"}},
+        "side_effects": {"type": "array", "items": {"type": "string"}},
+        "platform_prerequisites": {"type": "array", "items": {"type": "string"}},
+        "cleanup": {"type": "object"}, "egress_policy": {"type": "object"}
+      }
+    },
+    "stage": {
+      "type": "object", "additionalProperties": false,
+      "required": ["stage_id", "depends_on", "inputs", "outputs", "action"],
+      "properties": {
+        "stage_id": {"$ref": "#/$defs/id"},
+        "depends_on": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
+        "inputs": {"type": "object", "maxProperties": 256, "additionalProperties": {"$ref": "#/$defs/binding"}},
+        "outputs": {"type": "object", "maxProperties": 256, "additionalProperties": {"$ref": "#/$defs/stageOutput"}},
+        "condition": {"$ref": "#/$defs/condition"},
+        "retry": {"type": "object", "additionalProperties": false, "required": ["max_attempts"], "properties": {"max_attempts": {"type": "integer", "minimum": 1, "maximum": 10}}},
+        "action": {"$ref": "#/$defs/action"}
+      }
+    }
+  }
+}

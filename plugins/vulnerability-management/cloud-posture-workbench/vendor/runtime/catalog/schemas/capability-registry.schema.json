@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sodejm/copilot-operation-plugin-for-security/catalog/schemas/capability-registry.schema.json",
+  "title": "COPS Capability Reconciliation and Truth-in-Advertising Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "updated_at",
+    "summary",
+    "capabilities"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "cops.capabilities/v1"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total_capabilities",
+        "by_kind",
+        "by_mode"
+      ],
+      "properties": {
+        "total_capabilities": {"type": "integer", "minimum": 0},
+        "by_kind": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["plugin", "specialist", "scenario"],
+          "properties": {
+            "plugin": {"type": "integer", "minimum": 0},
+            "specialist": {"type": "integer", "minimum": 0},
+            "scenario": {"type": "integer", "minimum": 0}
+          }
+        },
+        "by_mode": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["planned", "import", "laboratory", "live-validated"],
+          "properties": {
+            "planned": {"type": "integer", "minimum": 0},
+            "import": {"type": "integer", "minimum": 0},
+            "laboratory": {"type": "integer", "minimum": 0},
+            "live-validated": {"type": "integer", "minimum": 0}
+          }
+        }
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "mode",
+          "domain",
+          "validation_status",
+          "truth_boundaries",
+          "evidence_requirements",
+          "live_evidence_verified"
+        ],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "name": {"type": "string", "minLength": 1},
+          "kind": {
+            "enum": ["plugin", "specialist", "scenario"]
+          },
+          "mode": {
+            "enum": ["planned", "import", "laboratory", "live-validated"]
+          },
+          "domain": {"type": "string", "minLength": 1},
+          "validation_status": {
+            "enum": ["validated", "unverified"]
+          },
+          "truth_boundaries": {"type": "string", "minLength": 1},
+          "evidence_requirements": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "live_evidence_verified": {"type": "boolean"}
+        }
+      }
+    }
+  }
+}

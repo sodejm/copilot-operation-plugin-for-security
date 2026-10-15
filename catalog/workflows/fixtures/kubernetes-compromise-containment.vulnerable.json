@@ -1,0 +1,17 @@
+{
+  "expected_outcome": "insufficient_lab_validation",
+  "inputs": {
+    "cluster_evidence": {
+      "bindings": [
+        {
+          "cluster_admin": true,
+          "subject": "system:serviceaccount:demo:builder",
+          "wildcard": false
+        }
+      ]
+    }
+  },
+  "profile_id": "vulnerable",
+  "schema_version": "cops.integrated-workflow-fixture/v1",
+  "workflow_id": "kubernetes-compromise-containment"
+}

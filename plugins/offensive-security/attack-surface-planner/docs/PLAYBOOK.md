@@ -248,3 +248,10 @@ The manifest pins the synthetic scope manifest and expected semantics. The runne
 A `status` of `passed` means the current implementation reproduced the manifest's expected fixture semantics. It does not prove that an external asset exists or is exploitable. Excluded and unresolved entries remain quarantined from the proposal list. The negative case must return code 2 and an `input gate` error for active mode. Declared FIFOs, symlinks, traversal paths, and oversized files fail before staging; unrelated files beside the declared inputs are outside the playback input set. JSON parse errors, changed counts, changed ordering, non-passive methods, or unequal reruns fail the playback with a nonzero exit.
 
 Reruns create fresh temporary directories and do not reuse prior output. The standard temporary-directory cleanup runs on success and exceptions. If a process is forcibly terminated, remove any `cops-planner-playback-*` directory left in the operating system temporary directory. The playback covers pinned local exports and planner semantics only; it does not validate export freshness, ownership assertions, live systems, or authorization outside the fixture.
+
+<!-- BEGIN COPS GENERATED OFFLINE ASSESSMENT LINKS -->
+## Generated offline assessment
+
+- [Machine-readable playbook](../playbooks/offline-assessment.json)
+- [Runnable offline walkthrough](../walkthroughs/offline-assessment.md)
+<!-- END COPS GENERATED OFFLINE ASSESSMENT LINKS -->

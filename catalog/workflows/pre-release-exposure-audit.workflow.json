@@ -1,0 +1,207 @@
+{
+  "budget": {
+    "max_evidence_refs": 4,
+    "max_output_bytes": 1048576,
+    "max_stages": 4,
+    "max_total_attempts": 4
+  },
+  "description": "Restrict DNS and service inventory to declared hosts, assess port and route exposure, check authentication, and build a remediation report.",
+  "engagement_id": "eng-integrated-offline-fixtures",
+  "inputs": {
+    "auth_evidence": {
+      "required": true,
+      "type": "object"
+    },
+    "dns_service_inventory": {
+      "required": true,
+      "type": "object"
+    },
+    "port_route_evidence": {
+      "required": true,
+      "type": "object"
+    },
+    "scope": {
+      "required": true,
+      "type": "object"
+    }
+  },
+  "outputs": {
+    "outcome": {
+      "source": "stage.report.output.outcome",
+      "type": "string"
+    },
+    "remediation_report": {
+      "source": "stage.report.output.remediation_report",
+      "type": "object"
+    }
+  },
+  "scenario_id": "COPS-E04.01-S01",
+  "schema_version": "cops.workflow-definition/v1",
+  "stages": [
+    {
+      "action": {
+        "action": "exposure.scope_inventory",
+        "expected_evidence": [
+          "scoped DNS records",
+          "service inventory"
+        ],
+        "limits": {
+          "egress_allowed": false,
+          "max_duration_seconds": 30,
+          "max_output_bytes": 262144
+        },
+        "side_effects": [],
+        "specialist_id": "cops-attack-surface-planner",
+        "target": "fixture://pre-release-exposure-audit",
+        "timeout_seconds": 30,
+        "tool": "integrated-fixture-playback",
+        "tool_version": "1.0.0"
+      },
+      "depends_on": [],
+      "inputs": {
+        "dns_service_inventory": {
+          "source": "workflow.input.dns_service_inventory",
+          "type": "object"
+        },
+        "scope": {
+          "source": "workflow.input.scope",
+          "type": "object"
+        }
+      },
+      "outputs": {
+        "scoped_inventory": {
+          "type": "object"
+        }
+      },
+      "retry": {
+        "max_attempts": 1
+      },
+      "stage_id": "inventory"
+    },
+    {
+      "action": {
+        "action": "exposure.check_ports_routes",
+        "expected_evidence": [
+          "port checks",
+          "route checks"
+        ],
+        "limits": {
+          "egress_allowed": false,
+          "max_duration_seconds": 30,
+          "max_output_bytes": 262144
+        },
+        "side_effects": [],
+        "specialist_id": "cops-pentest-specialist",
+        "target": "fixture://pre-release-exposure-audit",
+        "timeout_seconds": 30,
+        "tool": "integrated-fixture-playback",
+        "tool_version": "1.0.0"
+      },
+      "depends_on": [
+        "inventory"
+      ],
+      "inputs": {
+        "port_route_evidence": {
+          "source": "workflow.input.port_route_evidence",
+          "type": "object"
+        },
+        "scoped_inventory": {
+          "source": "stage.inventory.output.scoped_inventory",
+          "type": "object"
+        }
+      },
+      "outputs": {
+        "route_assessment": {
+          "type": "object"
+        }
+      },
+      "retry": {
+        "max_attempts": 1
+      },
+      "stage_id": "routes"
+    },
+    {
+      "action": {
+        "action": "exposure.check_authentication",
+        "expected_evidence": [
+          "authentication checks"
+        ],
+        "limits": {
+          "egress_allowed": false,
+          "max_duration_seconds": 30,
+          "max_output_bytes": 262144
+        },
+        "side_effects": [],
+        "specialist_id": "cops-appsec-engineer",
+        "target": "fixture://pre-release-exposure-audit",
+        "timeout_seconds": 30,
+        "tool": "integrated-fixture-playback",
+        "tool_version": "1.0.0"
+      },
+      "depends_on": [
+        "routes"
+      ],
+      "inputs": {
+        "auth_evidence": {
+          "source": "workflow.input.auth_evidence",
+          "type": "object"
+        },
+        "route_assessment": {
+          "source": "stage.routes.output.route_assessment",
+          "type": "object"
+        }
+      },
+      "outputs": {
+        "auth_assessment": {
+          "type": "object"
+        }
+      },
+      "retry": {
+        "max_attempts": 1
+      },
+      "stage_id": "auth"
+    },
+    {
+      "action": {
+        "action": "exposure.build_remediation_report",
+        "expected_evidence": [
+          "exposure findings",
+          "remediation steps"
+        ],
+        "limits": {
+          "egress_allowed": false,
+          "max_duration_seconds": 30,
+          "max_output_bytes": 262144
+        },
+        "side_effects": [],
+        "specialist_id": "cops-exposure-analyst",
+        "target": "fixture://pre-release-exposure-audit",
+        "timeout_seconds": 30,
+        "tool": "integrated-fixture-playback",
+        "tool_version": "1.0.0"
+      },
+      "depends_on": [
+        "auth"
+      ],
+      "inputs": {
+        "auth_assessment": {
+          "source": "stage.auth.output.auth_assessment",
+          "type": "object"
+        }
+      },
+      "outputs": {
+        "outcome": {
+          "type": "string"
+        },
+        "remediation_report": {
+          "type": "object"
+        }
+      },
+      "retry": {
+        "max_attempts": 1
+      },
+      "stage_id": "report"
+    }
+  ],
+  "workflow_id": "pre-release-exposure-audit"
+}

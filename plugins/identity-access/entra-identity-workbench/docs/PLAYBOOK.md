@@ -60,3 +60,10 @@ For a rerun, use a new workspace or delete a disposable workspace after review. 
 ## Production use limits
 
 Replace the fixture only with an authorized, local export and preserve its manifest and hashes with the assessment record. This playback proves the offline pipeline works for the synthetic contract. It does not prove live Microsoft integration, production export completeness, exploitability, or tenant security.
+
+<!-- BEGIN COPS GENERATED OFFLINE ASSESSMENT LINKS -->
+## Generated offline assessment
+
+- [Machine-readable playbook](../playbooks/offline-assessment.json)
+- [Runnable offline walkthrough](../walkthroughs/offline-assessment.md)
+<!-- END COPS GENERATED OFFLINE ASSESSMENT LINKS -->

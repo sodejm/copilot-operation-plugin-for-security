@@ -54,3 +54,10 @@ The demo refuses an existing workspace. Use a new directory for every retained r
 ## Limits
 
 The playback uses a synthetic graph and no live service. It proves the bounded importer and analyzer behave as documented for that fixture. It cannot establish directory completeness, effective access, exploitability, attack activity, or production security.
+
+<!-- BEGIN COPS GENERATED OFFLINE ASSESSMENT LINKS -->
+## Generated offline assessment
+
+- [Machine-readable playbook](../playbooks/offline-assessment.json)
+- [Runnable offline walkthrough](../walkthroughs/offline-assessment.md)
+<!-- END COPS GENERATED OFFLINE ASSESSMENT LINKS -->

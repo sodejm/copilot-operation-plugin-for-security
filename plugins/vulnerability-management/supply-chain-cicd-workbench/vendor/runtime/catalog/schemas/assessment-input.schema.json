@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "COPS Offline Assessment Input Bundle",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "report_id", "generated_at", "engagement", "action_plans", "run_results", "findings", "evidence_envelopes", "coverage", "finding_contexts", "limitations"],
+  "properties": {
+    "schema_version": {"const": "cops.assessment-input/v1"},
+    "report_id": {"type": "string", "pattern": "^report-[a-z0-9_-]{4,64}$"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "engagement": {"type": "object"},
+    "action_plans": {"type": "array", "maxItems": 10000, "items": {"type": "object"}},
+    "run_results": {"type": "array", "maxItems": 10000, "items": {"type": "object"}},
+    "findings": {"type": "array", "maxItems": 10000, "items": {"type": "object"}},
+    "evidence_envelopes": {"type": "array", "maxItems": 10000, "items": {"type": "object"}},
+    "coverage": {
+      "type": "array", "maxItems": 10000, "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["scenario_id", "target", "mode", "access", "result_id"],
+        "properties": {
+          "scenario_id": {"type": "string", "pattern": "^(scen-[a-z0-9_-]{4,64}|COPS-[A-Z0-9_.-]+)$"},
+          "target": {"type": "string", "minLength": 1},
+          "mode": {"enum": ["planning", "import", "laboratory", "live"]},
+          "access": {"enum": ["available", "unavailable", "unknown"]},
+          "result_id": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "finding_contexts": {
+      "type": "array", "maxItems": 10000, "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["finding_id", "kind", "affected_assets", "reproducibility", "attack_path_dependencies", "limitations"],
+        "properties": {
+          "finding_id": {"type": "string", "pattern": "^find-[a-z0-9_-]{4,64}$"},
+          "kind": {"enum": ["configuration_observation", "scanner_assertion", "observed_behavior", "reproduced_attack_path"]},
+          "affected_assets": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "reproducibility": {"enum": ["repeatable", "limited", "historical_import", "unknown"]},
+          "attack_path_dependencies": {"type": "array", "items": {"type": "string", "pattern": "^find-[a-z0-9_-]{4,64}$"}},
+          "limitations": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
+    "limitations": {"type": "array", "maxItems": 10000, "items": {"type": "string"}}
+  }
+}

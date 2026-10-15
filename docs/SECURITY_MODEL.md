@@ -87,7 +87,7 @@ flowchart TD
 ### Threat 4: Supply Chain Poisoning & Adapter Drift
 - **The Risk**: A malicious dependency or a drifted host manifest quietly introduces altered behavior into one assistant while passing tests in another.
 - **Our Defense**:
-  - Core tools use Python standard library only—no third-party dependencies required for normal operations. The optional laboratory receipt verifier loads `cryptography` only when checking signed observations.
+  - Core offline parsing and routing use the Python standard library. Optional laboratory receipt verification and Ed25519 evidence-bundle signing use `cryptography`; official SARIF schema validation uses the development-only `jsonschema` dependency. An opt-in classifier is a caller-provided integration with explicit model, deadline, budget, and redacted inputs.
   - Manifests for Copilot, Claude Code, and Codex are generated from a single canonical catalog and validated for byte-for-byte agreement in CI (`python3 -m cops generate --check`).
 
 ### Threat 5: False Assurance & Hallucinated Proof
@@ -154,6 +154,39 @@ While COPS enforces rigorous safeguards within our own packages and scripts, pra
 - **Host Model Behavior**: COPS cannot control how a proprietary third-party model (e.g., Claude, GPT-4, Copilot) formats, truncates, or interprets text.
 - **Host Sandboxes**: Host application sandboxes differ. Claude Code, Codex, and VS Code apply different limits on filesystem and network access.
 - **Human Authority**: Automated tools assist, suggest, and structure data, but **the human engineer is the ultimate decision-maker**. No high-consequence action (such as modifying firewall rules, blocking accounts, or deploying hunt rules) should take place without human authorization.
+
+## Expansion boundaries
+
+Repository discovery inventories only allowed local artifact metadata and excludes
+credentials, raw Terraform state, terminal history, symlinks, and unrelated paths.
+Routing requires clarification for uncertain matches; optional classification sees
+redacted feature categories and registered candidate IDs. Routing and preview do
+not launch workers, call action connectors, consume approvals, or change execution
+state.
+
+Typed workflows compile each executable step into the existing ActionPlan. A new
+target or changed action requires a newly validated plan and authorization. Resume
+checks bind persisted outputs by digest; retries do not repeat uncertain writes.
+Purple-team results preserve instrumentation gaps, detection gaps, verified
+detections, and indeterminate evidence. Report exports retain those distinctions
+and do not turn inconclusive results into verified findings or passing tests.
+
+Artifact assessors accept bounded documented formats. Heavy acquisition and
+platform parsers require registered adapters with pinned prerequisites. Imported
+custody metadata does not independently authenticate an evidence source. Synthetic
+fixtures demonstrate supported behavior without establishing complete vulnerability
+coverage or production integration support.
+
+The required laboratory gate demands observed activity, correlated telemetry,
+verified isolation, and restoration. Loopback services and marker files cannot
+establish network isolation. Unsupported isolation platforms remain incomplete
+even when functional service tests pass. The Docker gate trusts an independently
+provisioned immutable image and the local daemon. It mounts only a digest-bound
+allowlisted source snapshot, with no host credentials, and checks container
+configuration before execution plus kernel interfaces, routes, and bounded
+IPv4/IPv6 egress rejection inside the container. This adapter does not establish
+the production approval authority's distinct-UID boundary. See [service laboratories](SERVICE_LABORATORY.md),
+[workflow contracts](WORKFLOWS.md), and [artifact assessments](ARTIFACT_ASSESSMENTS.md).
 
 ## Detailed model and review obligations
 

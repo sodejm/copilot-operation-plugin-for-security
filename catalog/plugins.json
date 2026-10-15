@@ -18,6 +18,34 @@
         "codex",
         "logging",
         "telemetry"
+      ],
+      "symptom_triggers": [
+        "security logging",
+        "security logging design",
+        "audit logging gap",
+        "sensitive data in logs",
+        "telemetry pipeline",
+        "audit event coverage",
+        "log retention cost"
+      ],
+      "artifact_triggers": [
+        "logging_config",
+        "telemetry_schema",
+        "log_sample",
+        "pipeline_export",
+        "audit_event_inventory"
+      ],
+      "anti_triggers": [
+        "kql query optimization",
+        "detection rule authoring",
+        "active incident triage"
+      ],
+      "example_prompts": [
+        "Review this service for missing security audit events and sensitive log fields.",
+        "Design a cost-aware telemetry pipeline for authentication and authorization events.",
+        "Assess the logging schema for secrets, personal data, and weak provenance.",
+        "Map the required audit events to the current application logging configuration.",
+        "Explain which logs should be retained, sampled, or excluded for this threat model."
       ]
     },
     {
@@ -33,6 +61,47 @@
         "investigation",
         "soc",
         "threat-hunting"
+      ],
+      "symptom_triggers": [
+        "alert triage",
+        "security alert investigation",
+        "false positive analysis",
+        "alert correlation",
+        "competing hypotheses",
+        "soc case review",
+        "malware triage",
+        "static binary analysis",
+        "deobfuscate powershell",
+        "malicious macro analysis",
+        "ioc extraction",
+        "suspicious script analysis"
+      ],
+      "artifact_triggers": [
+        "case.json",
+        "alert_export",
+        "incident_ticket",
+        "evidence_ledger",
+        "siem_alert",
+        "binary_file",
+        "pe_file",
+        "script_file",
+        "macro_document",
+        "file_hash"
+      ],
+      "anti_triggers": [
+        "proactive threat hunt",
+        "detection rule authoring",
+        "compliance audit",
+        "dynamic execution request",
+        "threat feed only",
+        "generic application review"
+      ],
+      "example_prompts": [
+        "Triage this security alert and compare malicious and benign explanations.",
+        "Correlate the endpoint and identity alerts into a single evidence-backed case.",
+        "Review case.json and identify the next fact needed to reduce uncertainty.",
+        "Explain whether this alert is likely a false positive without closing the case.",
+        "Build a concise investigation timeline from the supplied SIEM alerts."
       ]
     },
     {
@@ -48,6 +117,47 @@
         "kql",
         "microsoft-sentinel",
         "threat-hunting"
+      ],
+      "symptom_triggers": [
+        "kql query",
+        "microsoft sentinel",
+        "defender advanced hunting",
+        "kusto query",
+        "log analytics query",
+        "sentinel analytic rule",
+        "hypothesis-driven hunt",
+        "threat hunting",
+        "beaconing hunt",
+        "persistence hunt",
+        "living off the land",
+        "adversary behavior hunt"
+      ],
+      "artifact_triggers": [
+        "kql_file",
+        "sentinel_rule_template",
+        "hunting_query",
+        "analytics_export",
+        "kusto_query",
+        "hunt_plan",
+        "telemetry_export",
+        "event_timeline",
+        "query_results",
+        "hunt_notebook"
+      ],
+      "anti_triggers": [
+        "sigma only",
+        "splunk spl only",
+        "logging architecture",
+        "alert triage only",
+        "incident containment",
+        "threat feed ingestion"
+      ],
+      "example_prompts": [
+        "Optimize this Sentinel KQL query so it scans less data without changing the result.",
+        "Write a Defender Advanced Hunting query for suspicious service creation.",
+        "Review this Kusto join for correctness and cost.",
+        "Convert the detection logic into a testable Microsoft Sentinel analytic rule.",
+        "Explain why this Log Analytics query duplicates events and propose a verified fix."
       ]
     },
     {
@@ -64,6 +174,33 @@
         "graph",
         "offline-analysis",
         "wiz"
+      ],
+      "symptom_triggers": [
+        "adversary emulation",
+        "assumed breach",
+        "multi-stage attack path",
+        "lateral movement",
+        "defense evasion",
+        "kill chain"
+      ],
+      "artifact_triggers": [
+        "emulation_plan",
+        "attack_flow",
+        "attack_plan",
+        "attack_matrix",
+        "mitre_attack_layer"
+      ],
+      "anti_triggers": [
+        "single vulnerability validation",
+        "alert triage only",
+        "compliance evidence mapping"
+      ],
+      "example_prompts": [
+        "Design an assumed-breach exercise that tests lateral movement toward the finance systems.",
+        "Model a multi-stage adversary path and identify the defensive choke points.",
+        "Build an emulation plan for the selected ATT&CK techniques without touching production.",
+        "Review this red-team attack flow for unsafe scope expansion and missing stop conditions.",
+        "Plan a controlled defense-evasion exercise that produces evidence for the blue team."
       ]
     },
     {
@@ -80,6 +217,46 @@
         "github-copilot",
         "offline-planning",
         "offensive-security"
+      ],
+      "symptom_triggers": [
+        "authorized penetration test",
+        "penetration test",
+        "rules of engagement",
+        "exploitability validation",
+        "vulnerability assessment",
+        "scoped security test",
+        "external attack surface",
+        "internet exposure",
+        "public ip exposure",
+        "dns exposure",
+        "certificate transparency",
+        "shadow it"
+      ],
+      "artifact_triggers": [
+        "rules_of_engagement",
+        "scope_file",
+        "nmap_xml",
+        "burp_project",
+        "vulnerability_report",
+        "dns_export",
+        "public_ip_inventory",
+        "certificate_transparency_export",
+        "port_scan_export",
+        "asset_inventory"
+      ],
+      "anti_triggers": [
+        "alert triage only",
+        "incident containment",
+        "compliance evidence mapping",
+        "internal privilege escalation",
+        "source code review"
+      ],
+      "example_prompts": [
+        "Plan an authorized penetration test of our internal web tier under the attached rules of engagement.",
+        "Validate whether the reported deserialization weakness is exploitable within the approved scope.",
+        "Review the assessment scope and build a safe vulnerability testing plan for the staging network.",
+        "Turn these authorized service findings into a prioritized penetration test roadmap.",
+        "Check the supplied scan evidence and define bounded follow-up tests for the approved targets."
       ]
     },
     {
@@ -95,6 +272,33 @@
         "kubernetes",
         "offline-assessment",
         "offensive-security"
+      ],
+      "symptom_triggers": [
+        "kubernetes context",
+        "cluster identity",
+        "namespace scope",
+        "managed control plane",
+        "kubernetes assessment",
+        "cluster access scope"
+      ],
+      "artifact_triggers": [
+        "kubeconfig_metadata",
+        "cluster_inventory",
+        "namespace_export",
+        "rbac_export",
+        "admission_policy"
+      ],
+      "anti_triggers": [
+        "terraform plan review",
+        "container dependency vulnerability",
+        "network reachability only"
+      ],
+      "example_prompts": [
+        "Reconcile the approved Kubernetes target with this sanitized cluster context.",
+        "Verify that the namespace UID and cluster identity match the assessment plan.",
+        "Review this offline cluster inventory for scope gaps before any Kubernetes work.",
+        "Explain which managed control-plane details are still missing from the export.",
+        "Check whether the supplied namespace and RBAC metadata support the requested assessment."
       ]
     },
     {
@@ -111,6 +315,33 @@
         "identity",
         "offline-analysis",
         "privilege-paths"
+      ],
+      "symptom_triggers": [
+        "active directory privilege path",
+        "active directory trust",
+        "ad acl delegation",
+        "forest trust boundary",
+        "domain group membership",
+        "directory privilege path"
+      ],
+      "artifact_triggers": [
+        "bloodhound_export",
+        "directory_inventory",
+        "group_membership_export",
+        "trust_export",
+        "ad_acl_export"
+      ],
+      "anti_triggers": [
+        "entra id only",
+        "cloud iam entitlement",
+        "host local privilege only"
+      ],
+      "example_prompts": [
+        "Review this Active Directory export for a privilege path to domain administration.",
+        "Analyze the forest trusts for unintended cross-domain access.",
+        "Explain which delegated ACLs create risky directory control paths.",
+        "Reconcile group membership evidence with the claimed domain privilege boundary.",
+        "Identify missing collection data before confirming this Active Directory attack path."
       ]
     },
     {
@@ -128,6 +359,33 @@
         "identity",
         "offline-analysis",
         "rbac"
+      ],
+      "symptom_triggers": [
+        "entra id entitlement",
+        "cloud iam entitlement",
+        "service principal privilege",
+        "toxic privilege combination",
+        "identity governance",
+        "cloud privilege escalation"
+      ],
+      "artifact_triggers": [
+        "entra_export",
+        "iam_policy",
+        "role_assignment",
+        "service_principal_export",
+        "access_review"
+      ],
+      "anti_triggers": [
+        "active directory forest trust",
+        "host local privilege",
+        "api object authorization"
+      ],
+      "example_prompts": [
+        "Review these Entra ID role assignments for toxic privilege combinations.",
+        "Assess the service principal permissions for a cloud privilege-escalation path.",
+        "Explain which IAM entitlements exceed the workload's stated purpose.",
+        "Reconcile the access review with current cloud role assignments.",
+        "Prioritize identity-governance fixes for dormant privileged principals."
       ]
     },
     {
@@ -143,6 +401,33 @@
         "risk-prioritization",
         "sbom",
         "vulnerability-management"
+      ],
+      "symptom_triggers": [
+        "cve prioritization",
+        "vulnerability prioritization",
+        "epss score",
+        "cisa kev",
+        "sbom reachability",
+        "exploit likelihood"
+      ],
+      "artifact_triggers": [
+        "sbom_file",
+        "cyclonedx",
+        "spdx",
+        "vulnerability_scan",
+        "cve_list"
+      ],
+      "anti_triggers": [
+        "ci workflow permissions",
+        "registry resolution",
+        "source code flaw"
+      ],
+      "example_prompts": [
+        "Prioritize these CVEs using reachability, EPSS, KEV status, and business exposure.",
+        "Map the vulnerability scan to the SBOM and identify reachable packages.",
+        "Explain which reported vulnerabilities need action before the next release.",
+        "Review this CVE list for known exploitation and exposed deployment context.",
+        "Turn the scanner output into an evidence-backed remediation order."
       ]
     },
     {
@@ -157,6 +442,22 @@
         "reproduction",
         "versioned",
         "vulnerability-management"
+      ],
+      "symptom_triggers": [
+        "exploit validation workbench",
+        "cve",
+        "laboratory",
+        "reproduction",
+        "versioned"
+      ],
+      "artifact_triggers": [],
+      "anti_triggers": [],
+      "example_prompts": [
+        "Analyze exploit validation workbench evidence.",
+        "Our team sees cve; how do we investigate?",
+        "How should we deploy laboratory safely?",
+        "Review our reproduction configuration.",
+        "What permissions are needed for versioned?"
       ]
     },
     {
@@ -175,6 +476,33 @@
         "mock-sandbox",
         "offensive-security",
         "prompt-injection"
+      ],
+      "symptom_triggers": [
+        "prompt injection",
+        "indirect prompt injection",
+        "jailbreak attempt",
+        "llm security",
+        "agent tool abuse",
+        "system prompt leakage"
+      ],
+      "artifact_triggers": [
+        "conversation_transcript",
+        "agent_trace",
+        "tool_call_log",
+        "evaluation_dataset",
+        "model_card"
+      ],
+      "anti_triggers": [
+        "malware binary",
+        "network firewall policy",
+        "generic source code review"
+      ],
+      "example_prompts": [
+        "Evaluate this agent transcript for indirect prompt injection and unsafe tool use.",
+        "Design a mock-harness test for system prompt leakage without using real customer data.",
+        "Review these jailbreak attempts and identify missing guardrail coverage.",
+        "Test whether untrusted retrieved text can make the assistant call a privileged tool.",
+        "Turn the supplied model interactions into a reproducible AI security evaluation set."
       ]
     },
     {
@@ -194,6 +522,47 @@
         "regression-testing",
         "splunk",
         "spl"
+      ],
+      "symptom_triggers": [
+        "detection rule authoring",
+        "detection as code",
+        "detection regression test",
+        "false positive testing",
+        "telemetry coverage",
+        "rule quality",
+        "purple team exercise",
+        "red blue validation",
+        "detection coverage gap",
+        "attack simulation telemetry",
+        "control efficacy exercise",
+        "collaborative security exercise"
+      ],
+      "artifact_triggers": [
+        "sigma_rule",
+        "yara_rule",
+        "analytic_rule",
+        "detection_test_fixture",
+        "rule_repository",
+        "attack_coverage_matrix",
+        "exercise_plan",
+        "detection_results",
+        "attack_layer",
+        "exercise_report"
+      ],
+      "anti_triggers": [
+        "active incident triage",
+        "threat feed ingestion",
+        "logging pipeline design",
+        "red team only",
+        "detection implementation only",
+        "compliance control mapping"
+      ],
+      "example_prompts": [
+        "Write a Sigma rule for the supplied behavior and include false-positive tests.",
+        "Review this detection-as-code change for missing regression coverage.",
+        "Validate that the analytic rule fires on the attack fixture and stays quiet on benign data.",
+        "Identify telemetry gaps that prevent this behavior from being detected reliably.",
+        "Improve the rule logic while preserving the existing test corpus."
       ]
     },
     {
@@ -202,7 +571,42 @@
       "version": "0.1.0",
       "primary_category": "vulnerability-management",
       "path": "plugins/vulnerability-management/patch-security-review",
-      "tags": ["appsec", "claude", "codex", "github-copilot", "offline-analysis", "patch-review", "vulnerability-management"]
+      "tags": [
+        "appsec",
+        "claude",
+        "codex",
+        "github-copilot",
+        "offline-analysis",
+        "patch-review",
+        "vulnerability-management"
+      ],
+      "symptom_triggers": [
+        "secure code review",
+        "application security review",
+        "source code vulnerability",
+        "sast finding",
+        "security diff review",
+        "taint analysis"
+      ],
+      "artifact_triggers": [
+        "source_diff",
+        "sarif_file",
+        "sast_report",
+        "pull_request_diff",
+        "source_tree"
+      ],
+      "anti_triggers": [
+        "runtime api traffic only",
+        "dependency lockfile only",
+        "infrastructure posture"
+      ],
+      "example_prompts": [
+        "Review this pull-request diff for authentication and injection flaws.",
+        "Trace the untrusted input in this SAST finding to determine whether it is exploitable.",
+        "Assess the security impact of this code change before merge.",
+        "Review the source for unsafe deserialization and propose a focused fix.",
+        "Triage the SARIF findings against the changed application code."
+      ]
     },
     {
       "id": "threat-intelligence-enrichment",
@@ -210,7 +614,40 @@
       "version": "0.1.0",
       "primary_category": "detection-hunting",
       "path": "plugins/detection-hunting/threat-intelligence-enrichment",
-      "tags": ["threat-intelligence", "misp", "taxii", "microsoft", "enrichment"]
+      "tags": [
+        "threat-intelligence",
+        "misp",
+        "taxii",
+        "microsoft",
+        "enrichment"
+      ],
+      "symptom_triggers": [
+        "threat intelligence analysis",
+        "ioc enrichment",
+        "threat actor profile",
+        "campaign tracking",
+        "stix correlation",
+        "misp enrichment"
+      ],
+      "artifact_triggers": [
+        "stix_bundle",
+        "taxii_collection",
+        "misp_export",
+        "indicator_list",
+        "threat_report"
+      ],
+      "anti_triggers": [
+        "live alert triage",
+        "malware reverse engineering",
+        "threat hunting plan"
+      ],
+      "example_prompts": [
+        "Enrich these indicators and relate them to known campaigns without overstating attribution.",
+        "Correlate the STIX bundle with the supplied MISP observations.",
+        "Build a threat-actor profile that separates evidence from assessment.",
+        "Review this TAXII collection for indicators relevant to our sector.",
+        "Summarize the campaign timeline and confidence behind each attribution."
+      ]
     },
     {
       "id": "telemetry-proof-pack",
@@ -229,6 +666,33 @@
         "proof-pack",
         "splunk",
         "telemetry"
+      ],
+      "symptom_triggers": [
+        "forensic acquisition",
+        "chain of custody",
+        "evidence collection",
+        "tamper-evident evidence",
+        "acquisition receipt",
+        "forensic preservation"
+      ],
+      "artifact_triggers": [
+        "evidence_manifest",
+        "acquisition_receipt",
+        "sha256",
+        "evtx_file",
+        "memory_image"
+      ],
+      "anti_triggers": [
+        "malware reverse engineering only",
+        "incident containment action",
+        "compliance control mapping"
+      ],
+      "example_prompts": [
+        "Prepare a chain-of-custody plan for the supplied disk and event-log evidence.",
+        "Verify the evidence manifest and SHA-256 acquisition receipts.",
+        "Design a forensic collection sequence that preserves volatile data first.",
+        "Review this evidence envelope for missing provenance and tamper checks.",
+        "Explain how to preserve the memory image and EVTX files for later analysis."
       ]
     },
     {
@@ -243,6 +707,33 @@
         "github-copilot",
         "incident-response",
         "offline-sandbox"
+      ],
+      "symptom_triggers": [
+        "incident containment",
+        "containment plan",
+        "compromised account",
+        "isolate affected host",
+        "blast radius",
+        "incident recovery"
+      ],
+      "artifact_triggers": [
+        "incident_timeline",
+        "containment_plan",
+        "incident_ticket",
+        "forensic_report",
+        "recovery_plan"
+      ],
+      "anti_triggers": [
+        "planned exercise",
+        "generic vulnerability prioritization",
+        "compliance audit"
+      ],
+      "example_prompts": [
+        "Plan containment for the compromised account and identify the likely blast radius.",
+        "Review this ransomware timeline and sequence safe host isolation steps.",
+        "Prepare a reversible containment plan with evidence and rollback checkpoints.",
+        "Identify recovery prerequisites after the affected service credentials are revoked.",
+        "Turn these incident facts into immediate actions, open questions, and stop conditions."
       ]
     },
     {
@@ -261,6 +752,33 @@
         "offensive-security",
         "privilege-boundaries",
         "windows"
+      ],
+      "symptom_triggers": [
+        "linux privilege escalation",
+        "windows privilege escalation",
+        "host privilege boundary",
+        "sudo policy",
+        "suid binary",
+        "windows service permissions"
+      ],
+      "artifact_triggers": [
+        "sudoers_file",
+        "systemd_unit",
+        "windows_service_export",
+        "accesschk_report",
+        "host_inventory"
+      ],
+      "anti_triggers": [
+        "active directory trust",
+        "cloud iam entitlement",
+        "kubernetes rbac"
+      ],
+      "example_prompts": [
+        "Review this Linux host export for unsafe sudo rules and privilege escalation paths.",
+        "Check the Windows service permission inventory for paths a local user could abuse.",
+        "Assess SUID binaries and file capabilities on this server without connecting to it.",
+        "Explain which host privilege boundaries are weakened by the supplied configuration.",
+        "Prioritize remediation for writable service paths and excessive token privileges."
       ]
     },
     {
@@ -278,6 +796,330 @@
         "offline-planning",
         "offensive-security",
         "rules-of-engagement"
+      ],
+      "symptom_triggers": [
+        "offensive engagement workbench",
+        "claude",
+        "codex",
+        "engagement",
+        "github-copilot"
+      ],
+      "artifact_triggers": [],
+      "anti_triggers": [],
+      "example_prompts": [
+        "Analyze offensive engagement workbench evidence.",
+        "Our team sees claude; how do we investigate?",
+        "How should we deploy codex safely?",
+        "Review our engagement configuration.",
+        "What permissions are needed for github-copilot?"
+      ]
+    },
+    {
+      "id": "compliance-posture-workbench",
+      "name": "COPS Compliance Posture Workbench",
+      "version": "0.1.0",
+      "primary_category": "governance-compliance",
+      "path": "plugins/governance-compliance/compliance-posture-workbench",
+      "tags": [
+        "claude",
+        "codex",
+        "github-copilot",
+        "governance-compliance",
+        "offline-analysis"
+      ],
+      "symptom_triggers": [
+        "soc 2 control mapping",
+        "nist control mapping",
+        "cis control assessment",
+        "iso 27001 evidence",
+        "pci dss evidence",
+        "compliance evidence review"
+      ],
+      "artifact_triggers": [
+        "control_evidence",
+        "evidence_binder",
+        "control_matrix",
+        "policy_document",
+        "audit_report"
+      ],
+      "anti_triggers": [
+        "penetration test execution",
+        "active incident response",
+        "vulnerability exploitability"
+      ],
+      "example_prompts": [
+        "Map the dated evidence to our SOC 2 controls and mark unsupported claims.",
+        "Review this NIST control matrix and identify evidence that is missing or stale.",
+        "Assess the audit binder against the stated CIS control version.",
+        "Trace each ISO 27001 claim to a specific policy, record, or unresolved gap.",
+        "Prepare a compliance evidence review that separates observed, supported, and unknown controls."
+      ]
+    },
+    {
+      "id": "cloud-posture-workbench",
+      "name": "COPS Cloud Posture Workbench",
+      "version": "0.1.0",
+      "primary_category": "vulnerability-management",
+      "path": "plugins/vulnerability-management/cloud-posture-workbench",
+      "tags": [
+        "aws",
+        "azure",
+        "claude",
+        "codex",
+        "gcp",
+        "github-copilot",
+        "kubernetes",
+        "offline-analysis",
+        "terraform",
+        "vulnerability-management"
+      ],
+      "symptom_triggers": [
+        "cloud security posture",
+        "terraform plan review",
+        "public cloud storage",
+        "cloud workload configuration",
+        "cloud iam configuration",
+        "kubernetes workload configuration"
+      ],
+      "artifact_triggers": [
+        "terraform_plan",
+        "terraform_file",
+        "cloud_configuration",
+        "kubernetes_manifest",
+        "helm_rendered_manifest",
+        "iam_policy"
+      ],
+      "anti_triggers": [
+        "identity entitlement path only",
+        "kubernetes cluster scope only",
+        "network reachability only"
+      ],
+      "example_prompts": [
+        "Review this Terraform plan for public storage and excessive cloud IAM access.",
+        "Assess the rendered Helm workloads for unsafe cloud identity bindings.",
+        "Find posture weaknesses in the exported storage, RBAC, and workload configuration.",
+        "Explain which planned cloud changes violate least-privilege policy.",
+        "Prioritize remediation for the risky cloud resources in this offline configuration export."
+      ]
+    },
+    {
+      "id": "supply-chain-cicd-workbench",
+      "name": "COPS Supply Chain and CI/CD Workbench",
+      "version": "0.1.0",
+      "primary_category": "vulnerability-management",
+      "path": "plugins/vulnerability-management/supply-chain-cicd-workbench",
+      "tags": [
+        "claude",
+        "codex",
+        "containers",
+        "github-actions",
+        "github-copilot",
+        "npm",
+        "offline-analysis",
+        "python",
+        "vulnerability-management"
+      ],
+      "symptom_triggers": [
+        "software supply chain",
+        "dependency vulnerability",
+        "build pipeline permission",
+        "registry resolution",
+        "lockfile review",
+        "sbom provenance"
+      ],
+      "artifact_triggers": [
+        "package-lock.json",
+        "requirements.txt",
+        "poetry.lock",
+        "go.sum",
+        "cyclonedx",
+        "spdx",
+        "github_actions_workflow"
+      ],
+      "anti_triggers": [
+        "cve exploit reachability only",
+        "application source flaw",
+        "leaked credential rotation"
+      ],
+      "example_prompts": [
+        "Review the lockfiles and SBOM for dependency drift and vulnerable packages.",
+        "Assess this GitHub Actions workflow for unsafe permissions and unpinned actions.",
+        "Investigate whether registry resolution permits dependency confusion.",
+        "Compare the release artifact to its SBOM and build provenance.",
+        "Prioritize supply-chain fixes across the package manifest and CI workflow."
+      ]
+    },
+    {
+      "id": "secrets-remediation-workbench",
+      "name": "COPS Secrets Remediation Workbench",
+      "version": "0.1.0",
+      "primary_category": "identity-access",
+      "path": "plugins/identity-access/secrets-remediation-workbench",
+      "tags": [
+        "claude",
+        "codex",
+        "github-copilot",
+        "identity-access",
+        "offline-analysis"
+      ],
+      "symptom_triggers": [
+        "leaked credential",
+        "secret exposure",
+        "credential in git history",
+        "credential revocation",
+        "credential rotation",
+        "token exposure remediation"
+      ],
+      "artifact_triggers": [
+        "git_history",
+        "secret_scan_report",
+        "identity_log",
+        "credential_inventory",
+        "commit_diff"
+      ],
+      "anti_triggers": [
+        "generic source code flaw",
+        "cryptographic configuration",
+        "iam entitlement review"
+      ],
+      "example_prompts": [
+        "A cloud key was committed to Git; plan revocation, rotation, and consumer updates.",
+        "Review the redacted secret-scan evidence and identify which credentials remain active.",
+        "Sequence safe remediation for a leaked token that multiple deployments still use.",
+        "Verify that the exposed credential was revoked and replaced everywhere it was consumed.",
+        "Assess the blast radius of a repository secret without revealing the secret value."
+      ]
+    },
+    {
+      "id": "network-segmentation-workbench",
+      "name": "COPS Network Segmentation Workbench",
+      "version": "0.1.0",
+      "primary_category": "vulnerability-management",
+      "path": "plugins/vulnerability-management/network-segmentation-workbench",
+      "tags": [
+        "claude",
+        "codex",
+        "firewall",
+        "github-copilot",
+        "kubernetes",
+        "offline-analysis",
+        "vulnerability-management"
+      ],
+      "symptom_triggers": [
+        "network segmentation",
+        "firewall policy",
+        "kubernetes networkpolicy",
+        "forbidden reachability",
+        "allowed reachability",
+        "east-west traffic"
+      ],
+      "artifact_triggers": [
+        "network_policy",
+        "firewall_ruleset",
+        "flow_log",
+        "dns_evidence",
+        "pcap_file",
+        "reachability_matrix"
+      ],
+      "anti_triggers": [
+        "internet attack surface",
+        "tls certificate chain",
+        "generic kubernetes workload security"
+      ],
+      "example_prompts": [
+        "Compare the firewall policy with flow logs for unintended east-west access.",
+        "Review this Kubernetes NetworkPolicy for forbidden cross-namespace reachability.",
+        "Validate that the proposed segmentation still permits required DNS traffic.",
+        "Explain why the database is reachable from a zone that should be denied.",
+        "Build an allowed and forbidden reachability matrix from the supplied network evidence."
+      ]
+    },
+    {
+      "id": "tls-crypto-workbench",
+      "name": "COPS TLS and Crypto Workbench",
+      "version": "0.1.0",
+      "primary_category": "vulnerability-management",
+      "path": "plugins/vulnerability-management/tls-crypto-workbench",
+      "tags": [
+        "claude",
+        "codex",
+        "github-copilot",
+        "jwt",
+        "mtls",
+        "offline-analysis",
+        "tls",
+        "vulnerability-management"
+      ],
+      "symptom_triggers": [
+        "tls certificate chain",
+        "mtls client verification",
+        "jwt signature verification",
+        "jwks signing configuration",
+        "tls protocol configuration",
+        "certificate trust failure"
+      ],
+      "artifact_triggers": [
+        "certificate_chain",
+        "pem_file",
+        "tls_configuration",
+        "jwt_configuration",
+        "jwks_document",
+        "openssl_output"
+      ],
+      "anti_triggers": [
+        "leaked credential rotation",
+        "api object authorization",
+        "network firewall policy"
+      ],
+      "example_prompts": [
+        "Review this TLS certificate chain for a missing intermediate and weak algorithms.",
+        "Assess mTLS client verification against the configured trust anchors.",
+        "Check whether JWT signature verification safely handles JWKS key rotation.",
+        "Review the TLS protocol and cipher configuration for obsolete choices.",
+        "Explain this certificate trust failure using the supplied OpenSSL output."
+      ]
+    },
+    {
+      "id": "web-api-assessment-workbench",
+      "name": "COPS Web API Assessment Workbench",
+      "version": "0.1.0",
+      "primary_category": "offensive-security",
+      "path": "plugins/offensive-security/web-api-assessment-workbench",
+      "tags": [
+        "claude",
+        "codex",
+        "github-copilot",
+        "web-api",
+        "graphql",
+        "request-replay"
+      ],
+      "symptom_triggers": [
+        "api authorization",
+        "object-level authorization",
+        "bola vulnerability",
+        "idor vulnerability",
+        "rest api security",
+        "graphql security",
+        "api rate limiting"
+      ],
+      "artifact_triggers": [
+        "har_file",
+        "openapi_spec",
+        "graphql_schema",
+        "postman_collection",
+        "api_gateway_config"
+      ],
+      "anti_triggers": [
+        "source code sast only",
+        "tls certificate configuration",
+        "network firewall policy"
+      ],
+      "example_prompts": [
+        "Review this REST API for object-level authorization failures between tenants.",
+        "Assess the GraphQL resolvers for BOLA and IDOR paths.",
+        "Replay the supplied HAR evidence against the API contract without sending network traffic.",
+        "Evaluate rate-limit coverage for expensive authentication and search endpoints.",
+        "Map the OpenAPI operations to required roles and identify authorization gaps."
       ]
     }
   ]
