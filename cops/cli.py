@@ -256,15 +256,28 @@ def command_coverage(
     return 0
 
 
-def command_contract_validate(file_path: Path, contract_type: str | None = None) -> int:
+def command_contract_validate(file_path: Path, contract_type: str | None = None,
+                              source_input: Path | None = None) -> int:
     from .contracts import ContractError, validate_contract
+    from .evidence.canonical import EvidenceError, decode_json
+    from .reporting.retest import verify_retest_report_derivation
 
     try:
         data = json.loads(file_path.read_text(encoding="utf-8"))
         validate_contract(data, contract_type)
-        print(f"Contract valid ({data.get('schema_version')}): {file_path}")
+        if source_input is not None:
+            if data.get("schema_version") != "cops.retest-report/v1":
+                raise ReportError("--source-input requires a retest report")
+            with source_input.open("rb") as source_file:
+                source = decode_json(source_file.read(4 * 1024 * 1024 + 1))
+            verify_retest_report_derivation(data, source)
+            print(f"Contract and supplied-source derivation valid ({data.get('schema_version')}): {file_path}")
+        else:
+            print(f"Contract structurally valid ({data.get('schema_version')}): {file_path}")
+        if data.get("schema_version") == "cops.retest-report/v1":
+            print("Source authenticity, observation time, ownership, cleanup, and authority remain unverified.")
         return 0
-    except (json.JSONDecodeError, ContractError, OSError) as err:
+    except (json.JSONDecodeError, ContractError, EvidenceError, ReportError, OSError) as err:
         print(f"error: {err}", file=sys.stderr)
         return 1
 
@@ -596,6 +609,8 @@ def build_parser() -> argparse.ArgumentParser:
     contract_sub = contract_p.add_subparsers(dest="contract_command", required=True)
     c_val = contract_sub.add_parser("validate", help="validate an operational contract file")
     c_val.add_argument("file", type=Path, help="path to contract JSON file")
+    c_val.add_argument("--source-input", type=Path,
+                       help="recompute an offline retest report from its supplied input")
     c_val.add_argument(
         "--type",
         choices=[
@@ -608,6 +623,8 @@ def build_parser() -> argparse.ArgumentParser:
             "assessment_report",
             "detection_validation_input",
             "detection_validation_report",
+            "retest_input",
+            "retest_report",
             "execution_authorization",
             "specialist_handoff",
             "laboratory_environment",
@@ -766,6 +783,11 @@ def build_parser() -> argparse.ArgumentParser:
     e_detection.add_argument("--input", required=True, type=Path, help="bounded detection input JSON")
     e_detection.add_argument("--json-output", required=True, type=Path, help="new private detection report JSON file")
     e_detection.add_argument("--markdown-output", required=True, type=Path, help="new private Markdown report file")
+
+    e_retest = eng_sub.add_parser("retest", help="compare saved assessment evidence for closure review")
+    e_retest.add_argument("--input", required=True, type=Path, help="bounded retest input JSON")
+    e_retest.add_argument("--json-output", required=True, type=Path, help="new private retest report JSON file")
+    e_retest.add_argument("--markdown-output", required=True, type=Path, help="new private Markdown report file")
 
     e_handoff = eng_sub.add_parser("handoff", help="specialist routing and bounded workflow handoffs")
     e_h_sub = e_handoff.add_subparsers(dest="handoff_command", required=True)
@@ -966,7 +988,7 @@ def main(argv: list[str] | None = None, *, root: Path = ROOT) -> int:
             return spec_list(args)
         if args.command == "contract":
             if args.contract_command == "validate":
-                return command_contract_validate(args.file, args.type)
+                return command_contract_validate(args.file, args.type, args.source_input)
             if args.contract_command == "transition":
                 return command_contract_transition(args.current, args.target, args.type)
         if args.command == "scenario":
@@ -1025,6 +1047,10 @@ def main(argv: list[str] | None = None, *, root: Path = ROOT) -> int:
                 from .reporting.cli import command_engagement_detection_validate
 
                 return command_engagement_detection_validate(args)
+            if args.engagement_command == "retest":
+                from .reporting.cli import command_engagement_retest
+
+                return command_engagement_retest(args)
         if args.command == "lab":
             from .laboratory.cli import command_laboratory
 

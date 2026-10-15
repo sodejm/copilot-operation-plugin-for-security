@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "COPS Offline Retest Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "retest_id", "engagement_id", "baseline_report_id", "retest_report_id", "generated_at", "input_digest", "review_context", "results", "closure_status", "closure_gates", "next_actions", "evidence_notice"],
+  "properties": {
+    "schema_version": {"const": "cops.retest-report/v1"},
+    "retest_id": {"type": "string", "pattern": "^retest-[a-z0-9_-]{4,64}$"},
+    "engagement_id": {"type": "string", "pattern": "^eng-[a-z0-9_-]{4,64}$"},
+    "baseline_report_id": {"type": "string", "pattern": "^report-[a-z0-9_-]{4,64}$"},
+    "retest_report_id": {"type": "string", "pattern": "^report-[a-z0-9_-]{4,64}$"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "input_digest": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "review_context": {"type": "object", "additionalProperties": false,
+      "required": ["baseline_plan_id", "retest_plan_id", "owner_reference", "owner_acknowledged", "cleanup_receipts", "residual_risks"],
+      "properties": {
+        "baseline_plan_id": {"type": "string", "pattern": "^plan-[a-z0-9_-]{4,64}$"},
+        "retest_plan_id": {"type": "string", "pattern": "^plan-[a-z0-9_-]{4,64}$"},
+        "owner_reference": {"type": "string", "minLength": 1},
+        "owner_acknowledged": {"type": "boolean"},
+        "cleanup_receipts": {"type": "array", "items": {"type": "object", "additionalProperties": false,
+          "required": ["receipt_id", "plan_id", "status", "unresolved_effects"],
+          "properties": {
+            "receipt_id": {"type": "string", "pattern": "^cln-[a-z0-9_-]{4,64}$"},
+            "plan_id": {"type": "string", "pattern": "^plan-[a-z0-9_-]{4,64}$"},
+            "status": {"enum": ["completed", "partial", "failed", "not_required"]},
+            "unresolved_effects": {"type": "array", "items": {"type": "object", "additionalProperties": false,
+              "required": ["effect_id", "resource_type", "target", "reason"],
+              "properties": {
+                "effect_id": {"type": "string", "minLength": 1},
+                "resource_type": {"type": "string", "minLength": 1},
+                "target": {"type": "string", "minLength": 1},
+                "reason": {"type": "string", "minLength": 1}
+              }
+            }}
+          }
+        }},
+        "residual_risks": {"type": "array", "maxItems": 1000, "items": {"type": "string", "minLength": 1, "maxLength": 2000}}
+      }
+    },
+    "results": {"type": "array", "items": {
+      "type": "object", "additionalProperties": false,
+      "required": ["finding_id", "asset", "retest_asset", "scenario_id", "status", "evidence_records", "reason"],
+      "properties": {
+        "finding_id": {"type": "string", "pattern": "^find-[a-z0-9_-]{4,64}$"},
+        "asset": {"type": "string", "minLength": 1},
+        "retest_asset": {"type": "string", "minLength": 1},
+        "scenario_id": {"type": "string", "minLength": 1},
+        "status": {"enum": ["candidate_fixed", "candidate_still_vulnerable", "inaccessible", "blocked", "not_assessed", "identity_changed", "evidence_gap"]},
+        "evidence_records": {"type": "array", "items": {"type": "string", "pattern": "^[a-f0-9]{64}$"}},
+        "reason": {"type": "string", "minLength": 1}
+      }
+    }},
+    "closure_status": {"const": "blocked"},
+    "closure_gates": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "next_actions": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "evidence_notice": {"const": "All conclusions are candidates based on supplied records. Independently verify source authenticity, observation time, ownership, cleanup, and execution authority before closure."}
+  }
+}
