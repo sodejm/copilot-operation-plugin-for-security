@@ -9,6 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import cops.reporting.detection as detection
 from cops.coverage import load_attack_coverage
 from cops.evidence import build_envelope
 from cops.reporting.assessment import ReportError
@@ -24,25 +25,52 @@ def record(payload, *, tenant="tenant-1", observed_at="2026-10-02T10:00:30Z", pr
     if product is None:
         product = MAPPING.evidence_sources[0].product if payload["kind"] == "telemetry" else "test-import"
     return build_envelope(
-        acquisition_id="import-1", product=product, api="records/v1", tenant=tenant,
-        scope=["lab-1"], identity=payload["kind"] + "-" + str(len(payload)), locator="local-test",
-        payload=payload, acquired_at="2026-10-02T10:03:00Z", transformed_at="2026-10-02T10:03:00Z",
-        observed_at=observed_at, request_fingerprint="a" * 64, page=1,
+        acquisition_id="import-1",
+        product=product,
+        api="records/v1",
+        tenant=tenant,
+        scope=["lab-1"],
+        identity=payload["kind"] + "-" + str(len(payload)),
+        locator="local-test",
+        payload=payload,
+        acquired_at="2026-10-02T10:03:00Z",
+        transformed_at="2026-10-02T10:03:00Z",
+        observed_at=observed_at,
+        request_fingerprint="a" * 64,
+        page=1,
     )
 
 
 def bundle_for(status="detected"):
-    action = {"action_id": "act-1", "technique_id": MAPPING.technique_id, "started_at": START, "ended_at": END, "status": "completed"}
+    action = {
+        "action_id": "act-1",
+        "technique_id": MAPPING.technique_id,
+        "started_at": START,
+        "ended_at": END,
+        "status": "completed",
+    }
     check = {
-        "action_id": "act-1", "mapping_id": MAPPING.mapping_id, "rule_id": "rule-1",
-        "collection_status": "complete", "correlation_status": "exact", "clock_skew_seconds": 0,
-        "ingest_lag_seconds": 0, "execution_record_id": None, "telemetry_record_ids": [],
-        "alert_record_ids": [], "search_receipt_record_id": None,
+        "action_id": "act-1",
+        "mapping_id": MAPPING.mapping_id,
+        "rule_id": "rule-1",
+        "collection_status": "complete",
+        "correlation_status": "exact",
+        "clock_skew_seconds": 0,
+        "ingest_lag_seconds": 0,
+        "execution_record_id": None,
+        "telemetry_record_ids": [],
+        "alert_record_ids": [],
+        "search_receipt_record_id": None,
     }
     bundle = {
-        "schema_version": "cops.detection-validation-input/v1", "validation_id": "validation-1",
-        "generated_at": "2026-10-02T10:04:00Z", "engagement_id": "eng-lab1", "tenant": "tenant-1",
-        "actions": [action], "checks": [check], "evidence_envelopes": [],
+        "schema_version": "cops.detection-validation-input/v1",
+        "validation_id": "validation-1",
+        "generated_at": "2026-10-02T10:04:00Z",
+        "engagement_id": "eng-lab1",
+        "tenant": "tenant-1",
+        "actions": [action],
+        "checks": [check],
+        "evidence_envelopes": [],
     }
 
     def add(payload, field):
@@ -54,16 +82,41 @@ def bundle_for(status="detected"):
             check[field] = item["record_id"]
 
     if status != "unavailable":
-        add({"kind": "action_execution", "action_id": "act-1", "technique_id": MAPPING.technique_id, "status": "completed"}, "execution_record_id")
-        add({"kind": "telemetry", "action_id": "act-1", "rule_id": "rule-1",
-             "table_or_log": MAPPING.evidence_sources[0].table_or_log,
-             "observed_fields": list(MAPPING.evidence_sources[0].required_fields)}, "telemetry_record_ids")
+        add(
+            {
+                "kind": "action_execution",
+                "action_id": "act-1",
+                "technique_id": MAPPING.technique_id,
+                "status": "completed",
+            },
+            "execution_record_id",
+        )
+        add(
+            {
+                "kind": "telemetry",
+                "action_id": "act-1",
+                "rule_id": "rule-1",
+                "table_or_log": MAPPING.evidence_sources[0].table_or_log,
+                "observed_fields": list(MAPPING.evidence_sources[0].required_fields),
+            },
+            "telemetry_record_ids",
+        )
     if status == "detected":
         add({"kind": "alert", "action_id": "act-1", "rule_id": "rule-1"}, "alert_record_ids")
     if status in {"missed", "ambiguous"}:
-        add({"kind": "search_receipt", "action_id": "act-1", "rule_id": "rule-1",
-             "status": "complete" if status == "missed" else "partial", "result_count": 0,
-             "window_start": START, "window_end": END, "finished_at": "2026-10-02T10:02:00Z"}, "search_receipt_record_id")
+        add(
+            {
+                "kind": "search_receipt",
+                "action_id": "act-1",
+                "rule_id": "rule-1",
+                "status": "complete" if status == "missed" else "partial",
+                "result_count": 0,
+                "window_start": START,
+                "window_end": END,
+                "finished_at": "2026-10-02T10:02:00Z",
+            },
+            "search_receipt_record_id",
+        )
     return bundle
 
 
@@ -75,8 +128,12 @@ def test_outcome_status(status):
     assert row["expected_telemetry"]
     assert row["technique_id"] == MAPPING.technique_id
     assert report["mode"] == "offline_import"
-    assert sum(signal["kind"] == "telemetry" and signal["in_window"] for signal in row["observed_signals"]) == (status != "unavailable")
-    assert sum(signal["kind"] == "alert" and signal["in_window"] for signal in row["observed_signals"]) == (status == "detected")
+    assert sum(signal["kind"] == "telemetry" and signal["in_window"] for signal in row["observed_signals"]) == (
+        status != "unavailable"
+    )
+    assert sum(signal["kind"] == "alert" and signal["in_window"] for signal in row["observed_signals"]) == (
+        status == "detected"
+    )
     assert (row["search_evidence"] is not None) == (status in {"missed", "ambiguous"})
     assert row["next_action"]
 
@@ -88,14 +145,20 @@ def test_missing_telemetry_cannot_be_missed():
     bundle["evidence_envelopes"] = [item for item in bundle["evidence_envelopes"] if item["record_id"] != telemetry_id]
     row = build_detection_report(bundle)["checks"][0]
     assert row["status"] == "ambiguous"
-    assert row["next_action"] == "Import in-window telemetry from an expected source with required fields, or document the collection gap."
+    assert (
+        row["next_action"]
+        == "Import in-window telemetry from an expected source with required fields, or document the collection gap."
+    )
 
 
-@pytest.mark.parametrize("product,table,fields", [
-    ("other-product", None, None),
-    (None, "other-log", None),
-    (None, None, []),
-])
+@pytest.mark.parametrize(
+    "product,table,fields",
+    [
+        ("other-product", None, None),
+        (None, "other-log", None),
+        (None, None, []),
+    ],
+)
 def test_unexpected_telemetry_cannot_establish_missed(product, table, fields):
     bundle = bundle_for("missed")
     original = bundle["evidence_envelopes"][1]
@@ -133,6 +196,18 @@ def test_unlinked_evidence_cannot_be_ignored():
         build_detection_report(bundle)
 
 
+def test_aggregate_link_count_bounds_reused_evidence(monkeypatch):
+    bundle = bundle_for("detected")
+    second_check = bundle["checks"][0].copy()
+    second_check["rule_id"] = "rule-2"
+    second_check["telemetry_record_ids"] = []
+    second_check["alert_record_ids"] = []
+    bundle["checks"].append(second_check)
+    monkeypatch.setattr(detection, "_MAX_LINKED_RECORDS", 3)
+    with pytest.raises(ReportError, match="too many linked evidence records"):
+        build_detection_report(bundle)
+
+
 @pytest.mark.parametrize("field", ["actions", "checks"])
 def test_empty_work_is_rejected(field):
     bundle = bundle_for("detected")
@@ -143,7 +218,15 @@ def test_empty_work_is_rejected(field):
 
 def test_every_action_needs_a_check():
     bundle = bundle_for("detected")
-    bundle["actions"].append({"action_id": "act-2", "technique_id": MAPPING.technique_id, "started_at": START, "ended_at": END, "status": "not_executed"})
+    bundle["actions"].append(
+        {
+            "action_id": "act-2",
+            "technique_id": MAPPING.technique_id,
+            "started_at": START,
+            "ended_at": END,
+            "status": "not_executed",
+        }
+    )
     with pytest.raises(ReportError, match="every action"):
         build_detection_report(bundle)
 
@@ -237,13 +320,16 @@ def test_input_rejects_unbounded_integer_and_unknown_mapping():
         build_detection_report(bundle)
 
 
-@pytest.mark.parametrize("field,value", [
-    ("action_status", []),
-    ("collection_status", []),
-    ("correlation_status", {}),
-    ("evidence_kind", []),
-    ("search_status", []),
-])
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("action_status", []),
+        ("collection_status", []),
+        ("correlation_status", {}),
+        ("evidence_kind", []),
+        ("search_status", []),
+    ],
+)
 def test_unhashable_untrusted_values_are_report_errors(field, value):
     bundle = bundle_for("missed" if field == "search_status" else "detected")
     if field == "action_status":

@@ -760,7 +760,9 @@ def build_parser() -> argparse.ArgumentParser:
     e_report.add_argument("--json-output", required=True, type=Path, help="new private report JSON file")
     e_report.add_argument("--markdown-output", required=True, type=Path, help="new private Markdown report file")
 
-    e_detection = eng_sub.add_parser("detection-validate", help="validate imported action-linked detection evidence offline")
+    e_detection = eng_sub.add_parser(
+        "detection-validate", help="validate imported action-linked detection evidence offline"
+    )
     e_detection.add_argument("--input", required=True, type=Path, help="bounded detection input JSON")
     e_detection.add_argument("--json-output", required=True, type=Path, help="new private detection report JSON file")
     e_detection.add_argument("--markdown-output", required=True, type=Path, help="new private Markdown report file")
