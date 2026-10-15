@@ -66,11 +66,14 @@ An unverified observation does not corroborate a
 scanner assertion. Live evidence needs an observation time within
 its RunResult window; collection time alone does not establish when the target
 was observed. An assessed Finding needs linked evidence for every affected asset.
+If a broad coverage row is limited by an uncorroborated scanner assertion,
+other Findings on that row remain partial unless separate assessed coverage
+supports their affected assets.
 A `reproduced_attack_path` requires repeatable, scoped laboratory or live evidence,
 declared dependencies, and assessed prerequisite Findings. Contradicted findings
 remain unresolved. Every dependency must name another Finding included in the
 same report, appear once, and form an acyclic prerequisite chain. Each ActionPlan
-must have a RunResult or a planning coverage row for its full canonical target.
+must have a RunResult or a planning coverage row for its full, canonically equivalent target; a single-host row cannot represent a network-wide plan.
 
 Validating a saved `assessment_report` also checks coverage, provenance, asset
 joins, and Finding claims for contradictions, including scanner corroboration

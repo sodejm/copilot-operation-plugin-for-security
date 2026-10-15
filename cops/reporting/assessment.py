@@ -190,7 +190,7 @@ def _validate_dependency_graph(findings: list[dict[str, Any]]) -> None:
 
 
 def _has_assessed_scanner_corroboration(row: dict[str, Any], findings: list[dict[str, Any]]) -> bool:
-    """Corroborate each scanner-asserted asset, not another asset in a broad row."""
+    """Require linked assessed observations for every scanner-asserted asset in this row."""
     asserted_assets = [
         asset
         for finding in findings
@@ -206,11 +206,14 @@ def _has_assessed_scanner_corroboration(row: dict[str, Any], findings: list[dict
             and finding["scenario_id"] == row["scenario_id"]
             and finding["kind"] != "scanner_assertion"
             and finding["assessment_status"] == "assessed"
-            and any(_contains(observed_asset, asset) for observed_asset in finding["affected_assets"])
+            and any(
+                _parse_target(observed_asset) == _parse_target(asserted_asset)
+                for observed_asset in finding["affected_assets"]
+            )
             and bool(set(finding["evidence_references"]) & set(row["evidence_records"]))
             for finding in findings
         )
-        for asset in asserted_assets
+        for asserted_asset in asserted_assets
     )
 
 
@@ -232,7 +235,7 @@ def validate_report_semantics(report: dict[str, Any]) -> None:
     It rejects internally contradictory coverage and finding claims.
     """
     if report["evidence_notice"] != _EVIDENCE_NOTICE:
-        raise ReportError("report evidence notice must retain the fixed trust warning")
+        raise ReportError("report evidence notice must retain the source-authenticity limitation")
     scope = report["scope"]
     coverage_keys: set[tuple[str, str, str]] = set()
     rows_by_result: dict[str, list[dict[str, Any]]] = {}
@@ -275,7 +278,7 @@ def validate_report_semantics(report: dict[str, Any]) -> None:
         if result_id is None and row["status"] != "not_assessed":
             raise ReportError("report coverage without a result cannot be assessed")
         if result_id is None and row["evidence_records"]:
-            raise ReportError("report coverage without a result cannot reference evidence")
+            raise ReportError("report coverage without a result cannot carry evidence")
         if len(set(row["evidence_records"])) != len(row["evidence_records"]):
             raise ReportError("duplicate report coverage evidence reference")
 
@@ -317,6 +320,8 @@ def validate_report_semantics(report: dict[str, Any]) -> None:
             raise ReportError("recorded report finding must be assessed with linked evidence")
         if status == "partial" and strength != "limited":
             raise ReportError("partial report finding requires limited evidence strength")
+        if status == "partial" and not any(row["status"] in {"assessed", "partial"} for row in rows):
+            raise ReportError("partial report finding requires assessed or partial matching coverage")
         if status == "not_assessed" and strength not in {"limited", "missing"}:
             raise ReportError("unassessed report finding has contradictory evidence strength")
         # Scanner partial means collection occurred but independent corroboration
@@ -343,22 +348,10 @@ def validate_report_semantics(report: dict[str, Any]) -> None:
             raise ReportError("contradicted report evidence requires a linked record")
         if finding["assessment_status"] == "assessed":
             if (
-                finding["verification"] != "verified"
+                verification != "verified"
                 or finding["kind"] == "scanner_assertion"
-                or finding["evidence_strength"] != "recorded"
-                or not references
                 or any(row["mode"] == "import" for row in rows)
-                or any(
-                    not references
-                    & set().union(
-                        *(
-                            set(row["evidence_records"])
-                            for row in rows
-                            if row["status"] == "assessed" and _contains(row["target"], asset)
-                        )
-                    )
-                    for asset in finding["affected_assets"]
-                )
+                or unsupported_assets
             ):
                 raise ReportError("assessed report finding lacks per-asset validated evidence")
         if finding["kind"] == "scanner_assertion" and finding["evidence_strength"] == "recorded":
@@ -626,20 +619,31 @@ def build_assessment_report(bundle: dict[str, Any]) -> dict[str, Any]:
             row["status"] = "partial"
             row["provenance"] = _provenance(row["mode"], "partial")
     for finding in findings:
-        if finding["assessment_status"] != "assessed":
-            continue
         matching_rows = [
             row
             for row in coverage
-            if row["result_id"] == finding["result_id"] and row["scenario_id"] == finding["scenario_id"]
+            if row["result_id"] == finding["result_id"]
+            and row["scenario_id"] == finding["scenario_id"]
+            and any(_contains(row["target"], asset) for asset in finding["affected_assets"])
         ]
+        accepted_asset_statuses = (
+            frozenset({"assessed", "partial"})
+            if finding["kind"] == "scanner_assertion"
+            else frozenset({"assessed"})
+        )
         unsupported_assets = _assets_without_assessed_evidence(
-            finding["affected_assets"], matching_rows, set(finding["evidence_references"])
+            finding["affected_assets"],
+            matching_rows,
+            set(finding["evidence_references"]),
+            accepted_statuses=accepted_asset_statuses,
         )
         if unsupported_assets:
-            finding["assessment_status"] = "partial"
-            finding["evidence_strength"] = "limited"
-            finding["limitations"].append(_asset_gap_limitation(unsupported_assets))
+            if finding["assessment_status"] == "assessed":
+                finding["assessment_status"] = "partial"
+                finding["evidence_strength"] = "limited"
+            gap = _asset_gap_limitation(unsupported_assets)
+            if gap not in finding["limitations"]:
+                finding["limitations"].append(gap)
     if finding_ids != contexts.keys():
         raise ReportError("orphan finding context")
     for finding in findings:

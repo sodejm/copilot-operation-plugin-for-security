@@ -15,7 +15,8 @@ authorization grant, or report publication occurs in this workflow.
    identifiers and conflicting joins, and keep all reported targets within the
    Engagement's included scope and outside its exclusions. A RunResult has one
    provenance mode; planning coverage cannot reference a RunResult. An ActionPlan
-   has a RunResult or a planning coverage row for its full canonical target.
+   has a RunResult or a planning coverage row for its full, canonically equivalent
+   target; a single-host row cannot represent a network-wide plan.
    Normalize single-address CIDRs
    to their host identity when detecting duplicate targets. A non-import
    RunResult cannot be reused across different scenarios in a saved report.

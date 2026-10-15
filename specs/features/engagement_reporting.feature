@@ -101,6 +101,12 @@ Feature: Evidence-bounded offline engagement reports
     And the saved asset limitation is replaced
     Then the saved assessment report is rejected
 
+  Scenario: A saved partial finding requires matching assessed or partial coverage
+    Given a valid offline assessment bundle
+    When the assessment report is built
+    And the saved finding claims partial status over only unassessed coverage
+    Then the saved assessment report is rejected
+
   Scenario: A singleton CIDR cannot duplicate host coverage
     Given a valid offline assessment bundle
     And it repeats host coverage as a singleton CIDR
@@ -158,3 +164,47 @@ Feature: Evidence-bounded offline engagement reports
     When the assessment report is built
     And the saved contradicted finding claims limited strength
     Then the saved assessment report is rejected
+
+  Scenario: Narrow planning coverage cannot represent a network-wide action plan
+    Given a valid offline assessment bundle
+    And it contains a broad action plan with only narrow planning coverage
+    When the assessment report is built
+    Then report building fails with an orphan action plan
+
+  Scenario: A single-address IPv6 network is the same coverage target as its host
+    Given a valid offline assessment bundle
+    When the assessment report is built
+    And saved coverage repeats an IPv6 host as a single-address network
+    Then the saved assessment report is rejected
+
+  Scenario: Saved finding labels cannot contradict one another
+    Given a valid offline assessment bundle
+    When the assessment report is built
+    And the saved assessed finding claims missing evidence strength
+    Then the saved assessment report is rejected
+
+  Scenario: Resultless planning coverage cannot borrow execution evidence
+    Given a valid offline assessment bundle
+    When the assessment report is built
+    And saved resultless coverage borrows execution evidence
+    Then the saved assessment report is rejected
+
+  Scenario: A saved report must disclose the limits of record hashes
+    Given a valid offline assessment bundle
+    When the assessment report is built
+    And the saved evidence notice claims source authenticity
+    Then the saved assessment report is rejected
+
+  Scenario: A saved finding cannot hide an unassessed asset
+    Given a valid offline assessment bundle
+    And its finding affects a second unassessed asset
+    When the assessment report is built
+    And the saved finding removes its asset gap
+    Then the saved assessment report is rejected
+
+  Scenario: A broad scanner limit also constrains another finding on the same row
+    Given a valid offline assessment bundle
+    And a broad scanner row has a separate observation for another asset
+    When the assessment report is built
+    Then both findings are partial and the second asset gap is disclosed
+    And the saved assessment report validates
