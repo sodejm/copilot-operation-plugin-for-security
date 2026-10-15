@@ -60,6 +60,12 @@
       "source": "./plugins/vulnerability-management/exposure-triage-workbench"
     },
     {
+      "name": "exploit-validation-workbench",
+      "description": "Validate offline versioned vulnerability reproduction plans and local evidence digests.",
+      "version": "0.1.0",
+      "source": "./plugins/vulnerability-management/exploit-validation-workbench"
+    },
+    {
       "name": "foundry-agent-harness",
       "description": "Rehearse synthetic agent/MCP authorization and normalize provider-shaped responses from deterministic offline fixtures.",
       "version": "0.1.0",

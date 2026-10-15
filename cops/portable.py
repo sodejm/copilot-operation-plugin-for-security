@@ -57,6 +57,7 @@ PORTABLE_ENTRIES = {
     "adwb",
     "host_assessment_workbench",
     "kubernetes_assessment_context",
+    "reproduction",
     "agents",
     "com.github.copilot",
     "org.cops",

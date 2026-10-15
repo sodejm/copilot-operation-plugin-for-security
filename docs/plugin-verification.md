@@ -28,6 +28,7 @@ limits. The index deliberately does not repeat status labels.
 | COPS AD Assessment Workbench | [Run the playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/identity-access/ad-assessment-workbench/docs/VERIFICATION.md) |
 | COPS Entra Identity Workbench | [Run the playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/identity-access/entra-identity-workbench/docs/VERIFICATION.md) |
 | COPS Exposure Triage Workbench | [Run the playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/vulnerability-management/exposure-triage-workbench/docs/VERIFICATION.md) |
+| COPS Exploit Validation Workbench | [Run the playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/vulnerability-management/exploit-validation-workbench/docs/VERIFICATION.md) |
 | COPS Microsoft Foundry Adversarial Agent Review Harness | [Run the playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/offensive-security/foundry-agent-harness/docs/VERIFICATION.md) |
 | COPS Detection Quality & Regression Workbench | [Run the playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/detection-hunting/detection-quality-workbench/docs/VERIFICATION.md) |
 | COPS Patch Security Review | [Run the playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/vulnerability-management/patch-security-review/docs/VERIFICATION.md) |
