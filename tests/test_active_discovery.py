@@ -160,6 +160,120 @@ class TestActiveDiscoveryModelsAndFingerprinting(unittest.TestCase):
         self.assertEqual(restored.total_side_effects, 1)
         self.assertEqual([item.probe_id for item in restored.assessments], ["journal-probe"])
 
+    def test_checkpoint_journal_portable_path_replays_and_compacts(self):
+        session = self._journal_session()
+        with tempfile.TemporaryDirectory() as directory:
+            checkpoint = Path(directory) / "checkpoint.json"
+            session.save_checkpoint(checkpoint)
+            key = session.make_probe_key(session.vantage, "tcp", "127.0.0.1", 65000)
+            assessment = ActiveServiceAssessment(
+                probe_id="portable-journal-probe",
+                target_host="127.0.0.1",
+                resolved_ip="127.0.0.1",
+                port=65000,
+                vantage=session.vantage,
+            )
+
+            with patch.object(
+                ActiveScanSession,
+                "_supports_checkpoint_directory_fd",
+                return_value=False,
+            ):
+                session.append_probe_reservation(checkpoint, key)
+                session.append_probe_completion(checkpoint, key, assessment)
+                restored = ActiveScanSession.load_checkpoint(checkpoint)
+                restored.save_checkpoint(checkpoint)
+
+            self.assertFalse(session.checkpoint_journal_path(checkpoint).exists())
+            compacted = ActiveScanSession.load_checkpoint(checkpoint)
+
+        self.assertEqual(compacted.completed_probe_keys, {key})
+        self.assertEqual(compacted.pending_probe_keys, set())
+        self.assertEqual([item.probe_id for item in compacted.assessments], ["portable-journal-probe"])
+
+    def test_checkpoint_journal_portable_cleanup_closes_before_unlink(self):
+        session = self._journal_session()
+        with tempfile.TemporaryDirectory() as directory:
+            checkpoint = Path(directory) / "checkpoint.json"
+            session.save_checkpoint(checkpoint)
+            key = session.make_probe_key(session.vantage, "tcp", "127.0.0.1", 65000)
+            journal = session.checkpoint_journal_path(checkpoint)
+            with patch.object(
+                ActiveScanSession,
+                "_supports_checkpoint_directory_fd",
+                return_value=False,
+            ):
+                session.append_probe_reservation(checkpoint, key)
+
+            real_open = os.open
+            real_close = os.close
+            real_unlink = os.unlink
+            journal_descriptors: set[int] = set()
+            unlink_saw_open_descriptor: list[bool] = []
+
+            def tracking_open(path, *args, **kwargs):
+                descriptor = real_open(path, *args, **kwargs)
+                if Path(path) == journal:
+                    journal_descriptors.add(descriptor)
+                return descriptor
+
+            def tracking_close(descriptor):
+                journal_descriptors.discard(descriptor)
+                real_close(descriptor)
+
+            def windows_unlink(path, *args, **kwargs):
+                if Path(path) == journal:
+                    unlink_saw_open_descriptor.append(bool(journal_descriptors))
+                    if journal_descriptors:
+                        raise PermissionError(errno.EACCES, "file is open", path)
+                real_unlink(path, *args, **kwargs)
+
+            with (
+                patch.object(
+                    ActiveScanSession,
+                    "_supports_checkpoint_directory_fd",
+                    return_value=False,
+                ),
+                patch("cops.discovery.active_models.os.open", side_effect=tracking_open),
+                patch("cops.discovery.active_models.os.close", side_effect=tracking_close),
+                patch("cops.discovery.active_models.os.unlink", side_effect=windows_unlink),
+            ):
+                self.assertTrue(session._remove_checkpoint_journal(checkpoint))
+
+            self.assertEqual(unlink_saw_open_descriptor, [False])
+            self.assertFalse(journal.exists())
+
+    def test_checkpoint_journal_portable_path_rejects_links_without_mutation(self):
+        for link_kind in ("symlink", "hardlink"):
+            with self.subTest(link_kind=link_kind), tempfile.TemporaryDirectory() as directory:
+                session = self._journal_session()
+                checkpoint = Path(directory) / "checkpoint.json"
+                victim = Path(directory) / "victim"
+                session.save_checkpoint(checkpoint)
+                victim.write_bytes(b"unchanged")
+                victim.chmod(0o600)
+                journal = session.checkpoint_journal_path(checkpoint)
+                try:
+                    if link_kind == "symlink":
+                        journal.symlink_to(victim)
+                    else:
+                        os.link(victim, journal)
+                except (NotImplementedError, OSError) as error:
+                    self.skipTest(f"{link_kind} unavailable: {error}")
+                key = session.make_probe_key(session.vantage, "tcp", "127.0.0.1", 65000)
+
+                with (
+                    patch.object(
+                        ActiveScanSession,
+                        "_supports_checkpoint_directory_fd",
+                        return_value=False,
+                    ),
+                    self.assertRaisesRegex(ValueError, "unsafe|hard links"),
+                ):
+                    session.append_probe_reservation(checkpoint, key)
+
+                self.assertEqual(victim.read_bytes(), b"unchanged")
+
     def test_truncated_final_completion_keeps_durable_reservation_pending(self):
         session = self._journal_session()
         with tempfile.TemporaryDirectory() as directory:
