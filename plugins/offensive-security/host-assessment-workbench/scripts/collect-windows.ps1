@@ -91,18 +91,25 @@ $integrityRid = @(
         Where-Object { $_ -match '^S-1-16-[0-9]+$' } |
         ForEach-Object { [int]($_ -replace '^S-1-16-', '') }
 )
-if ($integrityRid.Count -ne 1) {
-    throw "Unable to determine a single Windows token integrity level."
+if (@($integrityRid | Sort-Object -Unique).Count -ne 1) {
+    try {
+        $groupRows = @(& "$env:SystemRoot\System32\whoami.exe" /groups /fo csv /nh 2>$null)
+        if ($LASTEXITCODE -ne 0) {
+            throw "whoami group collection failed."
+        }
+        $integrityRid = @(
+            foreach ($line in $groupRows) {
+                $row = $line | ConvertFrom-Csv -Header GroupName, GroupType, Sid, Attributes
+                if ($row.Sid -match '^S-1-16-[0-9]+$') {
+                    [int]($row.Sid -replace '^S-1-16-', '')
+                }
+            }
+        )
+    } catch {
+        $integrityRid = @()
+    }
 }
-$integrity = if ($integrityRid[0] -ge 16384) {
-    "system"
-} elseif ($integrityRid[0] -ge 12288) {
-    "high"
-} elseif ($integrityRid[0] -ge 8192) {
-    "medium"
-} else {
-    "low"
-}
+$integrity = Resolve-CopsIntegrityLevel -Rids $integrityRid
 
 $privilegeCoverage = "assessed"
 $privileges = @()
@@ -260,13 +267,16 @@ try {
 $familyCoverage = if ($privilegeCoverage -eq "assessed") { "assessed" } else { "not_assessed" }
 $familyConfiguration = if ($privileges -contains "SeImpersonatePrivilege" -or
     $privileges -contains "SeAssignPrimaryTokenPrivilege") { "interesting" } else { "ordinary" }
+# Requirements use concrete enum values. An unknown host integrity remains explicit in
+# host.token.integrity, which makes the assessor resolve these observations as unresolved.
+$requirementsIntegrity = if ($integrity -eq "unknown") { "low" } else { $integrity }
 
 $requirements = [ordered]@{
     build_min = $osBuild
     build_max = $osBuild
     architecture = $architecture
     token = [ordered]@{
-        min_integrity = $integrity
+        min_integrity = $requirementsIntegrity
         elevated = $elevated
         privileges = $privileges
     }

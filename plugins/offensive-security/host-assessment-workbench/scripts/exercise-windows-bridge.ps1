@@ -24,6 +24,15 @@ if (-not (Test-CopsExplicitMutationRight -Rights (
         ))) {
     throw "WriteData must be classified as a mutation right."
 }
+if ((Resolve-CopsIntegrityLevel -Rids @()) -ne "unknown") {
+    throw "A missing token integrity SID must remain unknown."
+}
+if ((Resolve-CopsIntegrityLevel -Rids @(8192)) -ne "medium") {
+    throw "The medium token integrity SID must resolve to medium."
+}
+if ((Resolve-CopsIntegrityLevel -Rids @(8192, 12288)) -ne "unknown") {
+    throw "Ambiguous token integrity SIDs must remain unknown."
+}
 
 $runFull = [IO.Path]::GetFullPath($RunRoot)
 if ($runFull.StartsWith("\\") -or (Test-Path -LiteralPath $runFull)) {

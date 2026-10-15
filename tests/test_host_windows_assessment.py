@@ -229,6 +229,10 @@ def test_native_collector_has_bounded_static_contract() -> None:
         )
     )
     assert all(composite not in common for composite in ("::Write -bor", "::Modify", "::FullControl"))
+    assert "Resolve-CopsIntegrityLevel" in common
+    assert 'return "unknown"' in common
+    assert 'whoami.exe" /groups /fo csv /nh' in script
+    assert "Unable to determine a single Windows token integrity level" not in script
     assert "windows-bridge-receipt-1.1" in script
     assert "ownership_sha256" in script
     assert script.index("$ownershipVerified = $true") < script.index("Remove-Item -LiteralPath $canaryPath")
@@ -238,6 +242,8 @@ def test_native_collector_has_bounded_static_contract() -> None:
     exercise = (PACKAGE / "scripts" / "exercise-windows-bridge.ps1").read_text()
     assert "ReadAndExecute" in exercise
     assert "WriteData" in exercise
+    assert "Resolve-CopsIntegrityLevel -Rids @()" in exercise
+    assert "Resolve-CopsIntegrityLevel -Rids @(8192, 12288)" in exercise
     assert 'report.mode -ne "native_bridge_import"' in exercise
     assert "ownership_verified" in exercise
 
