@@ -59,8 +59,10 @@ Missing access, a missing
 RunResult, absent validated evidence, and planning-only rows are `not_assessed`.
 Partial outcomes, scanner-only assertions, and historical imports cannot be
 promoted to a complete assessment. Scanner-associated coverage needs an assessed
-non-scanner Finding for the same RunResult, scenario and target, linked to the
-row's validated evidence. An unverified observation does not corroborate a
+non-scanner Finding for the same RunResult and scenario, covering each asset
+asserted by the scanner and sharing the row's validated evidence. An observation
+on a different asset in a broad row cannot corroborate a scanner assertion.
+An unverified observation does not corroborate a
 scanner assertion. Live evidence needs an observation time within
 its RunResult window; collection time alone does not establish when the target
 was observed. An assessed Finding needs linked evidence for every affected asset.
@@ -68,7 +70,7 @@ A `reproduced_attack_path` requires repeatable, scoped laboratory or live eviden
 declared dependencies, and assessed prerequisite Findings. Contradicted findings
 remain unresolved. Every dependency must name another Finding included in the
 same report, appear once, and form an acyclic prerequisite chain. Each ActionPlan
-must have a RunResult or a planning coverage row.
+must have a RunResult or a planning coverage row for its full canonical target.
 
 Validating a saved `assessment_report` also checks coverage, provenance, asset
 joins, and Finding claims for contradictions, including scanner corroboration

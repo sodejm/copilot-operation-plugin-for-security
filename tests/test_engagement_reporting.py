@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from cops.contracts.lifecycle import ContractError
-from cops.contracts.validation import validate_contract
+from cops.contracts.validation import build_action_plan_digest, validate_contract
 from cops.evidence import build_envelope
 from cops.reporting.assessment import ReportError, build_assessment_report, render_markdown
 from cops.reporting.cli import command_engagement_report
@@ -81,6 +81,14 @@ def _bundle(*, mode: str = "laboratory") -> dict:
         ],
         "limitations": ["Only the selected service was reviewed."],
     }
+
+
+def _retarget_plan(bundle: dict, target: str) -> None:
+    plan = bundle["action_plans"][0]
+    plan["target"] = target
+    plan["plan_digest"] = build_action_plan_digest(
+        snapshot={key: value for key, value in plan.items() if key not in {"status", "plan_digest"}}
+    )
 
 
 def test_accepted_and_rejected_bundle_fixtures():
@@ -265,6 +273,36 @@ def test_unverified_non_scanner_finding_does_not_promote_scanner_coverage():
     validate_contract(report, "assessment_report")
 
 
+def test_observation_on_other_asset_cannot_corroborate_scanner_claim_in_broad_row():
+    bundle = _bundle()
+    bundle["engagement"]["scope"]["excluded_targets"] = []
+    _retarget_plan(bundle, "10.0.0.0/24")
+    evidence = _envelope(target="10.0.0.0/24")
+    bundle["evidence_envelopes"] = [evidence]
+    bundle["run_results"][0]["evidence_records"] = [evidence["record_id"]]
+    bundle["findings"][0]["evidence_references"] = [evidence["record_id"]]
+    bundle["coverage"][0]["target"] = "10.0.0.0/24"
+    bundle["finding_contexts"][0]["kind"] = "scanner_assertion"
+
+    observation = deepcopy(bundle["findings"][0])
+    observation["finding_id"] = "find-observed-001"
+    bundle["findings"].append(observation)
+    context = deepcopy(bundle["finding_contexts"][0])
+    context.update(finding_id=observation["finding_id"], kind="observed_behavior", affected_assets=["10.0.0.6"])
+    bundle["finding_contexts"].append(context)
+
+    report = build_assessment_report(bundle)
+    assert report["coverage"][0]["status"] == "partial"
+    assert all(finding["assessment_status"] != "assessed" for finding in report["findings"])
+    validate_contract(report, "assessment_report")
+
+    report["coverage"][0]["status"] = "assessed"
+    report["findings"][1]["assessment_status"] = "assessed"
+    report["findings"][1]["evidence_strength"] = "recorded"
+    with pytest.raises(ContractError, match="scanner result lacks assessed corroboration"):
+        validate_contract(report, "assessment_report")
+
+
 @pytest.mark.parametrize("missing_field", ["finding_id", "result_id"])
 def test_malformed_embedded_finding_is_rejected_as_report_error(missing_field):
     bundle = _bundle()
@@ -327,6 +365,33 @@ def test_orphan_action_plan_is_rejected():
     bundle["action_plans"].append(extra)
     with pytest.raises(ReportError, match="every action plan requires"):
         build_assessment_report(bundle)
+
+
+def test_narrow_planning_row_does_not_represent_broader_plan():
+    bundle = _bundle()
+    bundle["engagement"]["scope"]["excluded_targets"] = []
+    extra = deepcopy(bundle["action_plans"][0])
+    extra["plan_id"] = "plan-broad-001"
+    extra["target"] = "10.0.0.0/24"
+    extra["plan_digest"] = build_action_plan_digest(
+        snapshot={key: value for key, value in extra.items() if key not in {"status", "plan_digest"}}
+    )
+    bundle["action_plans"].append(extra)
+    bundle["coverage"].append(
+        {
+            "scenario_id": extra["scenario_id"],
+            "target": "10.0.0.6",
+            "mode": "planning",
+            "access": "unavailable",
+            "result_id": None,
+        }
+    )
+    with pytest.raises(ReportError, match="every action plan requires"):
+        build_assessment_report(bundle)
+    bundle["coverage"][1]["target"] = "10.0.0.0/24"
+    report = build_assessment_report(bundle)
+    assert report["coverage"][1]["status"] == "not_assessed"
+    validate_contract(report, "assessment_report")
 
 
 @pytest.mark.parametrize("duplicate_target", ["2001:0db8:0:0:0:0:0:5", "2001:db8::5/128"])

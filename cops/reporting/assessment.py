@@ -162,15 +162,27 @@ def _validate_dependency_graph(findings: list[dict[str, Any]]) -> None:
 
 
 def _has_assessed_scanner_corroboration(row: dict[str, Any], findings: list[dict[str, Any]]) -> bool:
-    """Require an assessed observation tied to this exact coverage row."""
-    return any(
-        finding["result_id"] == row["result_id"]
-        and finding["scenario_id"] == row["scenario_id"]
-        and finding["kind"] != "scanner_assertion"
-        and finding["assessment_status"] == "assessed"
-        and any(_contains(row["target"], asset) for asset in finding["affected_assets"])
-        and bool(set(finding["evidence_references"]) & set(row["evidence_records"]))
+    """Corroborate each scanner-asserted asset, not another asset in a broad row."""
+    asserted_assets = [
+        asset
         for finding in findings
+        if finding["kind"] == "scanner_assertion"
+        and finding["result_id"] == row["result_id"]
+        and finding["scenario_id"] == row["scenario_id"]
+        for asset in finding["affected_assets"]
+        if _contains(row["target"], asset)
+    ]
+    return bool(asserted_assets) and all(
+        any(
+            finding["result_id"] == row["result_id"]
+            and finding["scenario_id"] == row["scenario_id"]
+            and finding["kind"] != "scanner_assertion"
+            and finding["assessment_status"] == "assessed"
+            and any(_contains(observed_asset, asset) for observed_asset in finding["affected_assets"])
+            and bool(set(finding["evidence_references"]) & set(row["evidence_records"]))
+            for finding in findings
+        )
+        for asset in asserted_assets
     )
 
 
@@ -436,7 +448,7 @@ def build_assessment_report(bundle: dict[str, Any]) -> dict[str, Any]:
         if any(
             row["mode"] == "planning"
             and row["scenario_id"] == plan["scenario_id"]
-            and _contains(plan["target"], row["target"])
+            and _parse_target(plan["target"]) == _parse_target(row["target"])
             for row in coverage
         )
     )
@@ -576,6 +588,28 @@ def build_assessment_report(bundle: dict[str, Any]) -> dict[str, Any]:
         ):
             row["status"] = "partial"
             row["provenance"] = _provenance(row["mode"], "partial")
+    for finding in findings:
+        if finding["assessment_status"] != "assessed":
+            continue
+        unsupported_assets = [
+            asset
+            for asset in finding["affected_assets"]
+            if not set(finding["evidence_references"])
+            & set().union(
+                *(
+                    set(row["evidence_records"])
+                    for row in coverage
+                    if row["status"] == "assessed"
+                    and row["result_id"] == finding["result_id"]
+                    and row["scenario_id"] == finding["scenario_id"]
+                    and _contains(row["target"], asset)
+                )
+            )
+        ]
+        if unsupported_assets:
+            finding["assessment_status"] = "partial"
+            finding["evidence_strength"] = "limited"
+            finding["limitations"].append("Not assessed for assets: " + ", ".join(unsupported_assets))
     if finding_ids != contexts.keys():
         raise ReportError("orphan finding context")
     for finding in findings:
