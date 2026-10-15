@@ -17,11 +17,18 @@ after the playback. Use the package runner directly with a new directory when
 you need to retain artifacts for inspection:
 
 ```bash
-python3 plugins/identity-access/entra-identity-workbench/scripts/run_demo.py \
-  --workspace /tmp/entra-playback
+PYTHON="${PYTHON:-python3.11}"
+scratch="$(mktemp -d "${TMPDIR:-/tmp}/cops-entra-playback.XXXXXX")"
+chmod 700 "$scratch"
+"$PYTHON" plugins/identity-access/entra-identity-workbench/scripts/run_demo.py \
+  --workspace "$scratch/playback"
+cat "$scratch/playback/playback-summary.json"
 ```
 
-The playback refuses an existing workspace so that a prior report cannot be mistaken for current output.
+The playback refuses an existing workspace so that a prior report cannot be
+mistaken for current output. The command retains artifacts under
+`$scratch/playback`; after review, remove the private scratch directory with
+`rm -rf "$scratch"` in the same shell.
 
 For a separate export, create a manifest conforming to `schemas/manifest.schema.json`, include the declared SHA-256 for every source file, and use the package modules as shown in `scripts/run_demo.py`. See [the playbook](docs/PLAYBOOK.md) for the operational sequence and [the verification guide](docs/VERIFICATION.md) for package checks.
 
