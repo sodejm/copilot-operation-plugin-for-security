@@ -22,3 +22,26 @@ Feature: Offline Linux privilege-boundary evidence classification
     Given a positive synthetic Linux host fixture without verified cleanup
     When the host privilege-boundary importer attempts to assess it
     Then the importer rejects the incomplete canary report
+
+  Scenario: AppArmor complain mode is a valid matching protection state
+    Given a positive synthetic Linux host fixture with AppArmor complain mode
+    When the host privilege-boundary importer assesses it
+    Then the observation is selected as a reported canary crossing
+
+  Scenario Outline: A protection state from another control fails closed
+    Given a positive synthetic Linux host fixture with <control> set to <state> in <field> protections
+    When the host privilege-boundary importer attempts to assess it
+    Then the importer rejects the unsupported <field> <control> state
+
+    Examples:
+      | field        | control         | state      |
+      | host         | selinux         | enabled    |
+      | requirements | selinux         | enabled    |
+      | host         | apparmor        | enabled    |
+      | requirements | apparmor        | enabled    |
+      | host         | no_new_privs    | enforcing  |
+      | requirements | no_new_privs    | enforcing  |
+      | host         | seccomp         | permissive |
+      | requirements | seccomp         | permissive |
+      | host         | user_namespaces | enforcing  |
+      | requirements | user_namespaces | enforcing  |
