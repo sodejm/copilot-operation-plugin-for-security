@@ -384,9 +384,7 @@ print(json.dumps({
         )
         # Local UDP sendto may succeed inside a private namespace. Only the
         # host-side canary can establish whether the packet crossed it.
-        readable, _, _ = select.select(
-            [tcp_canary, udp_canary, dns_tcp_canary, dns_udp_canary, peer], [], [], 0.1
-        )
+        readable, _, _ = select.select([tcp_canary, udp_canary, dns_tcp_canary, dns_udp_canary, peer], [], [], 0.1)
 
     assert observed == {
         "tcp_connected": False,
