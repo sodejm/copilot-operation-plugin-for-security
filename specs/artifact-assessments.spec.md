@@ -30,7 +30,7 @@ The returned mapping has schema `cops.artifact-assessment/v1`, uses repository-v
 - Forensic evidence verifies original-byte SHA-256, collection permission, and chronological custody metadata.
 - Malware analysis performs static byte checks and bounded base64 decoding without execution or attribution claims.
 - Cloud analysis walks structured Terraform, rendered Kubernetes/Helm, or provider exports for IAM, storage, ingress, and workload risks.
-- Supply-chain analysis processes npm and Python locks, CycloneDX/SPDX/container SBOMs, GitHub Actions references, and caller-supplied pinned advisory fixtures.
+- Supply-chain analysis processes npm and Python locks, CycloneDX/SPDX/container SBOMs, GitHub Actions references, and caller-supplied pinned advisory fixtures. npm root/workspace/link records are not registry packages. Registry identity is an exact HTTPS hostname check. Python continuation lines are joined before exact-version/hash validation. Advisory matching retains the package ecosystem and normalizes Python names. Workflow write permissions and privileged untrusted-head checkout are reported. Unsupported includes, substitutions, aliases, dynamic action references, and malformed components remain unresolved; no dependency or workflow is executed.
 - Credential history correlates exposure state, redaction, rotation, and author identity by opaque fingerprint without retaining a credential value.
 - Network segmentation computes expected reachability from structured allow rules and validates structured DNS evidence.
 - Transport identity inspects TLS metadata, mTLS settings, JWT claims and algorithms, and JWKS metadata while explicitly reserving signature, trust-anchor, revocation, and handshake checks for registered adapters or laboratories.
@@ -45,3 +45,8 @@ The returned mapping has schema `cops.artifact-assessment/v1`, uses repository-v
 - benign evidence that exercises the parser without a false positive
 
 `tests/test_artifact_assessments.py` validates all 40 cases, every serialized Finding, input immutability, hashes and byte counts, output redaction, hard bounds, recursive credential rejection, and an unsupported PCAP adapter boundary.
+
+`tests/test_supply_chain_corrections.py` covers nested/scoped npm identity,
+workspace exclusions, deceptive registry URLs, multiline requirements, ecosystem
+collisions, quoted/local actions, write permissions, and pull-request checkout
+boundaries, including corrected and unsupported inputs.

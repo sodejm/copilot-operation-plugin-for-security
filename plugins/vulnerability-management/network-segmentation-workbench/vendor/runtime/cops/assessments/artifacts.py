@@ -22,6 +22,7 @@ from typing import Any, Callable
 
 from cops.contracts.models import Finding
 from cops.evidence.canonical import EvidenceError, canonical, timestamp
+from cops.assessments.supply_inputs import github_actions, npm_lock, package_name, requirements_lock
 
 
 REPORT_SCHEMA = "cops.artifact-assessment/v1"
@@ -491,71 +492,70 @@ def _supply_chain(items: list[_Artifact], _as_of: datetime) -> tuple[list[_Issue
     issues: list[_Issue] = []
     analyzed: set[str] = set()
     limitations: list[str] = []
-    components: dict[tuple[str, str], _Artifact] = {}
+    components: dict[tuple[str, str, str], _Artifact] = {}
     advisories: list[dict[str, Any]] = []
+    messages = {
+        "npm_registry_resolution": ("npm lock resolves outside the expected registry", "A locked npm package does not resolve to the expected HTTPS registry identity.", "Pin the approved registry and regenerate the lockfile under trusted configuration."),
+        "npm_integrity_missing": ("npm lock entry lacks integrity metadata", "A registry package entry has no integrity value.", "Regenerate the lockfile with integrity metadata and verify the registry source."),
+        "python_dependency_unhashed": ("Python dependency is not fully hash-pinned", "A requirements entry lacks an exact version and valid SHA-256 hashes.", "Generate a locked requirements file with exact versions and hashes."),
+        "action_container_unpinned": ("Workflow container action is not digest-pinned", "A workflow container reference lacks a complete SHA-256 digest.", "Pin the container image by digest."),
+        "action_unpinned": ("GitHub Action is not commit-pinned", "A remote workflow action reference is not pinned to a 40-character commit SHA.", "Pin the action to a reviewed commit SHA and retain update provenance."),
+        "workflow_write_permissions": ("Workflow grants token write permissions", "A workflow or job requests write permissions for its GitHub token.", "Use read permissions by default and scope necessary writes to reviewed jobs."),
+        "workflow_untrusted_head": ("Privileged workflow checks out an untrusted pull-request head", "A pull_request_target workflow explicitly checks out pull-request head code.", "Keep privileged workflows on trusted base code and isolate untrusted pull-request execution."),
+    }
+    parsers = {"package_lock": (dict, npm_lock, "npm_lock"),
+               "requirements_lock": (str, requirements_lock, "python_lock"),
+               "github_actions": (str, github_actions, "github_actions")}
     for artifact in items:
         if artifact.kind == "advisory_fixture" and isinstance(artifact.content, dict) and isinstance(artifact.content.get("advisories"), list):
             analyzed.add(artifact.artifact_id)
-            advisories.extend(record for record in artifact.content["advisories"] if isinstance(record, dict))
-        elif artifact.kind == "package_lock" and isinstance(artifact.content, dict):
+            records = artifact.content["advisories"]
+            if len(records) > 5000 or any(not isinstance(record, dict) for record in records):
+                issues.append(_unresolved(artifact, "advisory_fixture"))
+            advisories.extend(record for record in records[:5000] if isinstance(record, dict))
+        elif artifact.kind in parsers and isinstance(artifact.content, parsers[artifact.kind][0]):
             analyzed.add(artifact.artifact_id)
-            packages = artifact.content.get("packages")
-            if not isinstance(packages, dict):
-                issues.append(_unresolved(artifact, "npm_lock"))
-                continue
-            for record in packages.values():
-                if not isinstance(record, dict):
-                    continue
-                resolved, integrity = record.get("resolved"), record.get("integrity")
-                if isinstance(resolved, str) and not resolved.startswith("https://registry.npmjs.org/"):
-                    issues.append(_issue(artifact, "npm_registry_resolution", "npm lock resolves outside the expected registry", "medium", "A locked npm package resolves outside the expected HTTPS registry.", "Pin the approved registry and regenerate the lockfile under trusted configuration."))
-                if record.get("version") and not isinstance(integrity, str):
-                    issues.append(_issue(artifact, "npm_integrity_missing", "npm lock entry lacks integrity metadata", "medium", "A versioned npm lock entry has no integrity value.", "Regenerate the lockfile with integrity metadata and verify the registry source."))
-                if isinstance(record.get("name"), str) and isinstance(record.get("version"), str):
-                    components[(record["name"], record["version"])] = artifact
-        elif artifact.kind == "requirements_lock" and isinstance(artifact.content, str):
-            analyzed.add(artifact.artifact_id)
-            lines = [line.strip() for line in artifact.content.splitlines() if line.strip() and not line.lstrip().startswith("#")]
-            if not lines:
-                issues.append(_unresolved(artifact, "python_lock"))
-            for line in lines[:2000]:
-                if "==" not in line or "--hash=sha256:" not in line:
-                    issues.append(_issue(artifact, "python_dependency_unhashed", "Python dependency is not fully hash-pinned", "medium", "A non-comment requirements entry lacks an exact version or SHA-256 hash.", "Generate a locked requirements file with exact versions and hashes."))
-                    break
+            parsed = parsers[artifact.kind][1](artifact.content)
+            components.update({identity: artifact for identity in parsed.components})
+            if parsed.incomplete:
+                issues.append(_unresolved(artifact, parsers[artifact.kind][2]))
+            for code in sorted(parsed.codes):
+                title, claim, remediation = messages[code]
+                issues.append(_issue(artifact, code, title, "high" if code == "workflow_untrusted_head" else "medium", claim, remediation))
         elif artifact.kind in {"cyclonedx", "spdx", "container_sbom"} and isinstance(artifact.content, dict):
             analyzed.add(artifact.artifact_id)
             records = artifact.content.get("components", artifact.content.get("packages", []))
             if not isinstance(records, list):
                 issues.append(_unresolved(artifact, "sbom"))
                 continue
+            if not records or len(records) > 5000:
+                issues.append(_unresolved(artifact, "sbom"))
             for record in records[:5000]:
                 if not isinstance(record, dict):
+                    issues.append(_unresolved(artifact, "versioned_sbom_component"))
                     continue
                 name = record.get("name", record.get("PackageName"))
                 version = record.get("version", record.get("versionInfo"))
                 if not isinstance(name, str) or not isinstance(version, str):
                     issues.append(_unresolved(artifact, "versioned_sbom_component"))
                 else:
-                    components[(name, version)] = artifact
-        elif artifact.kind == "github_actions" and isinstance(artifact.content, str):
-            analyzed.add(artifact.artifact_id)
-            uses = re.findall(r"(?m)^\s*-?\s*uses:\s*([^\s#]+)", artifact.content)
-            if not uses:
-                issues.append(_unresolved(artifact, "github_actions"))
-            for use in uses:
-                if use.startswith("docker://"):
-                    if "@sha256:" not in use:
-                        issues.append(_issue(artifact, "action_container_unpinned", "Workflow container action is not digest-pinned", "medium", "A workflow container reference lacks a SHA-256 digest.", "Pin the container image by digest."))
-                elif "@" not in use or not re.fullmatch(r"[^@]+@[0-9a-fA-F]{40}", use):
-                    issues.append(_issue(artifact, "action_unpinned", "GitHub Action is not commit-pinned", "medium", "A workflow action reference is not pinned to a 40-character commit SHA.", "Pin the action to a reviewed commit SHA and retain update provenance."))
+                    purl = record.get("purl", "")
+                    ecosystem = "npm" if isinstance(purl, str) and purl.startswith("pkg:npm/") else "pypi" if isinstance(purl, str) and purl.startswith("pkg:pypi/") else ""
+                    components[(ecosystem, package_name(name, ecosystem), version)] = artifact
         else:
             limitations.append(f"Unsupported supply-chain artifact kind: {artifact.kind}.")
     for advisory in advisories[:5000]:
         name, version = advisory.get("package"), advisory.get("version")
-        if isinstance(name, str) and isinstance(version, str) and (name, version) in components:
-            artifact = components[(name, version)]
-            issues.append(_issue(artifact, "pinned_advisory_match", "Pinned advisory fixture matches a component", "high", "A package name and version match the supplied pinned advisory fixture.", "Upgrade to the fixture's fixed version after independently verifying the advisory source."))
+        ecosystem = str(advisory.get("ecosystem", "")).lower()
+        if ecosystem == "python":
+            ecosystem = "pypi"
+        if isinstance(name, str) and isinstance(version, str):
+            for (component_ecosystem, component_name, component_version), artifact in components.items():
+                if ((not ecosystem or ecosystem == component_ecosystem)
+                        and package_name(name, component_ecosystem) == component_name and version == component_version):
+                    issues.append(_issue(artifact, "pinned_advisory_match", "Pinned advisory fixture matches a component", "high", "A package ecosystem, name, and version match the supplied pinned advisory fixture; legacy fixtures may omit the ecosystem.", "Upgrade to the fixture's fixed version after independently verifying the advisory source."))
     limitations.append("Offline fixtures do not establish current vulnerability status or registry availability.")
+    limitations.append("Lockfile includes, substitutions, general YAML features, advisory version ranges, and dynamic action expressions are outside the bounded parser subsets.")
     return issues, limitations, ["registered-adapter:advisory-snapshot@1", "registered-adapter:registry-resolution@1"], analyzed
 
 
