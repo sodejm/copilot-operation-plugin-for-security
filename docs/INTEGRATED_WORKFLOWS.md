@@ -94,7 +94,7 @@ not an authorization record and does not execute a worker.
 
 ## Authorization and evidence boundaries
 
-These definitions are deliberately limited to offline evidence transformation.
+The catalog fixture definitions are limited to offline evidence transformation.
 A live target, a different action, or an action with side effects requires a new
 workflow definition and a newly authorized ActionPlan through the existing worker
 authorization flow. The workflow layer does not create another approval system
@@ -133,8 +133,42 @@ carry RFC 3339 `timestamp` and `correlation_id` values; alerts also carry
 `alert: true`. Passing those arrays into the detection workflow evaluates the
 same purple-team handoff rules used by offline playback.
 
+## Active service chains
+
+`cops.laboratory.integrated_lab.run_integrated_service_laboratory` executes five
+additional chains against disposable services: leaked-credential blast radius,
+CVE reachability, illicit consent, detection CI, and pre-release exposure. Pass
+the workflow ID and a new private state directory. Set `require_isolation=True`
+for acceptance; the strict Docker gate runs all five chains automatically.
+
+Each stage receives typed configuration and the preceding stage's observations.
+The laboratory approval adapter reconstructs the expected ActionPlan from those
+exact inputs, the next stage, run identity, worker, and service URLs before issuing
+and consuming a one-use execution authorization. Changed destinations, actions,
+prior outputs, workers, or authorization IDs fail before consumption. Persisted
+results retain plan and output digests. The service-issued credential remains in
+memory and is excluded from results and state.
+
+The credential and consent chains prove authenticated access, revocation, and
+subsequent HTTP 401. The credential chain signs its redacted evidence bundle with
+an ephemeral Ed25519 key and verifies the signature. Detection CI measures actual
+captured attack and benign events. Exposure checks make authenticated and anonymous
+requests to the scoped graph. CVE triage sends the injection fixture to vulnerable
+and corrected servers and preserves missing reachability as unknown. Every chain
+collects correlated telemetry and verifies baseline restoration and stopped services.
+
+These cases have explicit coverage limits. The credential case does not scan Git
+history; CVE triage uses a pinned synthetic injection advisory rather than a
+dependency build; consent uses an application-grant emulator rather than Entra;
+active detection uses registered laboratory event rules rather than a production
+Sigma/KQL engine; the exposure inventory uses numeric loopback addresses rather
+than DNS discovery. Kubernetes policy enforcement remains unvalidated. An ephemeral
+signing key proves bundle integrity, not external source authenticity. These
+laboratory cases do not establish the production worker's distinct-user boundary.
+
 Run the focused validation with the repository environment:
 
 ```console
 python -m pytest -q tests/test_integrated_workflows.py
+python -m pytest -q tests/test_integrated_service_laboratory.py
 ```

@@ -57,7 +57,15 @@ No persistent state is required. Stop an interrupted runner to close its listene
 
 ## Required repository gate
 
-`scripts/check_laboratory.py` is the strict acceptance entry point. It runs fixture playback; vulnerable and corrected process acceptance; and authorized workflow success, injected failure, and cancellation. The process cases assert actual TCP request results, mTLS acceptance and rejection, telemetry persistence, detection counts, post-revocation denial, stopped services, and restored baselines.
+`scripts/check_laboratory.py` is the strict acceptance entry point. Its eleven cases
+run fixture playback; vulnerable and corrected process acceptance; authorized IOC
+workflow success, injected failure, and cancellation; and five integrated service
+chains. The process cases assert actual TCP request results, mTLS acceptance and
+rejection, telemetry persistence, detection counts, post-revocation denial, stopped
+services, and restored baselines. The integrated cases verify typed stage outputs,
+exact plan and service-URL binding, and single-use authorization consumption. See
+[integrated workflows](INTEGRATED_WORKFLOWS.md#active-service-chains) for their
+synthetic-service limits and remaining production validation.
 
 The gate prints one compact JSON object. `status` is `passed`, `blocked`, or `failed`; `blockers` contains the exact isolation blocker; `failures` contains behavioral mismatches; and each item in `cases` contains bounded metrics for service, API, gateway, acquisition, TLS, and JWT checks. Exit status 0 requires verified network isolation and every functional assertion. Exit status 2 means the functional evidence passed but the isolation prerequisite is blocked. Exit status 1 means functional evidence or strict preflight failed.
 
