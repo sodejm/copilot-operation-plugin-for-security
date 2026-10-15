@@ -256,8 +256,9 @@ def command_coverage(
     return 0
 
 
-def command_contract_validate(file_path: Path, contract_type: str | None = None,
-                              source_input: Path | None = None) -> int:
+def command_contract_validate(
+    file_path: Path, contract_type: str | None = None, source_input: Path | None = None
+) -> int:
     from .contracts import ContractError, validate_contract
     from .evidence.canonical import EvidenceError, decode_json
     from .reporting.retest import verify_retest_report_derivation
@@ -609,8 +610,7 @@ def build_parser() -> argparse.ArgumentParser:
     contract_sub = contract_p.add_subparsers(dest="contract_command", required=True)
     c_val = contract_sub.add_parser("validate", help="validate an operational contract file")
     c_val.add_argument("file", type=Path, help="path to contract JSON file")
-    c_val.add_argument("--source-input", type=Path,
-                       help="recompute an offline retest report from its supplied input")
+    c_val.add_argument("--source-input", type=Path, help="recompute an offline retest report from its supplied input")
     c_val.add_argument(
         "--type",
         choices=[
