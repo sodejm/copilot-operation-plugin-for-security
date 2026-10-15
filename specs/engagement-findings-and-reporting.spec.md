@@ -27,7 +27,8 @@ authorization grant, or report publication occurs in this workflow.
    non-scanner Finding can corroborate a scanner-associated row only when it is
    itself assessed, names that RunResult and scenario, names every
    scanner-asserted asset within the row, and shares validated evidence with
-   the row.
+   the row. If an uncorroborated scanner assertion limits a broad row, every
+   Finding depending only on that row retains partial or unassessed status.
 3. Distinguish configuration observations, scanner assertions, observed behavior
    and reproduced attack paths. A reproduced path needs scoped, repeatable
    laboratory or live evidence and unique, acyclic Finding dependencies.
@@ -41,7 +42,10 @@ authorization grant, or report publication occurs in this workflow.
    contradicted verification with unresolved/contradicted or missing.
    `recorded`, `limited`, and `contradicted` strength require linked evidence.
    Saved scanner-associated coverage cannot become assessed without assessed
-   non-scanner corroboration.
+   non-scanner corroboration. Resultless coverage cannot carry evidence records.
+   Each Finding retains an explicit limitation for affected assets lacking
+   assessed coverage with linked evidence. The saved report retains the notice
+   that record hashes do not prove source authenticity or authorization.
 5. Omit source payloads, credential references, source locators and artifact
    paths. Escape caller-supplied Markdown text and control characters. Create new owner-only files and
    never overwrite an existing output.

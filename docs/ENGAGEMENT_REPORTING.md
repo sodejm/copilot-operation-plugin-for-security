@@ -65,6 +65,9 @@ An unverified observation does not corroborate a scanner assertion. Live
 evidence needs an observation time within
 its RunResult window; collection time alone does not establish when the target
 was observed. An assessed Finding needs linked evidence for every affected asset.
+If a broad coverage row is limited by an uncorroborated scanner assertion,
+other Findings on that row remain partial unless separate assessed coverage
+supports their affected assets.
 A `reproduced_attack_path` requires repeatable, scoped laboratory or live evidence,
 declared dependencies, and assessed prerequisite Findings. Contradicted findings
 remain unresolved. Every dependency must name another Finding included in the
@@ -74,7 +77,12 @@ equivalent target; a single-host row cannot represent a network-wide plan.
 
 Validating a saved `assessment_report` also checks coverage, provenance, asset
 joins, and Finding claims for contradictions, including scanner corroboration
-and the match between a Finding's status and evidence strength:
+and the match between a Finding's status and evidence strength. A coverage row
+without a RunResult cannot carry evidence records. Saved Findings must retain
+the per-asset gap limitation where no assessed coverage and linked evidence
+support an affected asset. The report's notice that hashes do not establish
+source authenticity or authorization is required during saved-report validation
+and rendering:
 
 | Assessment status | Verification | Evidence strength | Meaning |
 | --- | --- | --- | --- |

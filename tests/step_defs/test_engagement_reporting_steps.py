@@ -176,6 +176,62 @@ def broad_plan_narrow_coverage(report_ctx):
     )
 
 
+@given("a broad scanner row has a separate observation for another asset")
+def broad_scanner_with_other_observation(report_ctx):
+    bundle = report_ctx["bundle"]
+    bundle["engagement"]["scope"]["excluded_targets"] = []
+    plan = bundle["action_plans"][0]
+    plan["target"] = "10.0.0.0/24"
+    plan["plan_digest"] = build_action_plan_digest(
+        snapshot={key: value for key, value in plan.items() if key not in {"status", "plan_digest"}}
+    )
+    source = bundle["evidence_envelopes"][0]
+    scanner_evidence = build_envelope(
+        acquisition_id="collection-scanner-bdd",
+        product="offline-import",
+        api="records/v1",
+        tenant="tenant-1",
+        scope=["10.0.0.0/24"],
+        identity="scanner-row",
+        locator="private-locator",
+        payload={"observation": "scanner assertion"},
+        acquired_at=source["acquired_at"],
+        transformed_at=source["transformed_at"],
+        observed_at=source["observed"]["at"],
+        request_fingerprint="a" * 64,
+        page=1,
+        raw_reference={"store_id": "PRIVATE_STORE_ID", "sha256": "b" * 64},
+    )
+    other_evidence = build_envelope(
+        acquisition_id="collection-other-bdd",
+        product="offline-import",
+        api="records/v1",
+        tenant="tenant-1",
+        scope=["10.0.0.0/24"],
+        identity="other-asset",
+        locator="private-locator",
+        payload={"observation": "HTTP service on 10.0.0.6"},
+        acquired_at=source["acquired_at"],
+        transformed_at=source["transformed_at"],
+        observed_at=source["observed"]["at"],
+        request_fingerprint="c" * 64,
+        page=2,
+        raw_reference={"store_id": "PRIVATE_STORE_ID", "sha256": "d" * 64},
+    )
+    bundle["evidence_envelopes"] = [scanner_evidence, other_evidence]
+    bundle["run_results"][0]["evidence_records"] = [scanner_evidence["record_id"], other_evidence["record_id"]]
+    bundle["coverage"][0]["target"] = "10.0.0.0/24"
+    bundle["finding_contexts"][0]["kind"] = "scanner_assertion"
+    bundle["findings"][0]["evidence_references"] = [scanner_evidence["record_id"]]
+    observation = deepcopy(bundle["findings"][0])
+    observation["finding_id"] = "find-other-asset-bdd-001"
+    observation["evidence_references"] = [other_evidence["record_id"]]
+    bundle["findings"].append(observation)
+    context = deepcopy(bundle["finding_contexts"][0])
+    context.update(finding_id=observation["finding_id"], kind="observed_behavior", affected_assets=["10.0.0.6"])
+    bundle["finding_contexts"].append(context)
+
+
 @when("the assessment report is built")
 def build_report(report_ctx):
     try:
@@ -248,6 +304,23 @@ def assessed_with_missing_strength(report_ctx):
     report_ctx["report"]["findings"][0]["evidence_strength"] = "missing"
 
 
+@when("saved resultless coverage borrows execution evidence")
+def resultless_coverage_with_evidence(report_ctx):
+    row = deepcopy(report_ctx["report"]["coverage"][0])
+    row.update(scenario_id="COPS-E17.01-S02", mode="planning", provenance="planned", status="not_assessed", result_id=None)
+    report_ctx["report"]["coverage"].append(row)
+
+
+@when("the saved evidence notice claims source authenticity")
+def false_evidence_notice(report_ctx):
+    report_ctx["report"]["evidence_notice"] = "Record hashes prove source authenticity and authorization."
+
+
+@when("the saved finding removes its asset gap")
+def removed_asset_gap(report_ctx):
+    report_ctx["report"]["findings"][0]["limitations"] = []
+
+
 @then("its coverage and finding are assessed")
 def assessed_claims(report_ctx):
     assert report_ctx["error"] is None
@@ -283,6 +356,15 @@ def second_asset_not_assessed(report_ctx):
     finding = report_ctx["report"]["findings"][0]
     assert finding["assessment_status"] == "partial"
     assert finding["limitations"] == ["Not assessed for assets: 10.0.0.6"]
+
+
+@then("both findings are partial and the second asset gap is disclosed")
+def broad_row_limits_both_findings(report_ctx):
+    assert report_ctx["error"] is None
+    report = report_ctx["report"]
+    assert report["coverage"][0]["status"] == "partial"
+    assert [finding["assessment_status"] for finding in report["findings"]] == ["partial", "partial"]
+    assert report["findings"][1]["limitations"] == ["Not assessed for assets: 10.0.0.6"]
 
 
 @then("its attack path and prerequisite validate")

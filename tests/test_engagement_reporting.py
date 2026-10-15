@@ -21,7 +21,9 @@ def _fixture(name: str) -> dict:
     return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
 
 
-def _envelope(*, observed_at: str | None = "2026-10-02T10:05:00Z", target: str = "10.0.0.5") -> dict:
+def _envelope(
+    *, observed_at: str | None = "2026-10-02T10:05:00Z", target: str = "10.0.0.5", observation: str = "HTTP service"
+) -> dict:
     return build_envelope(
         acquisition_id="collection-1",
         product="offline-import",
@@ -30,7 +32,7 @@ def _envelope(*, observed_at: str | None = "2026-10-02T10:05:00Z", target: str =
         scope=[target],
         identity=f"host-{target}",
         locator="private-locator",
-        payload={"secret": "DO_NOT_EXPORT", "observation": "HTTP service"},
+        payload={"secret": "DO_NOT_EXPORT", "observation": observation},
         acquired_at="2026-10-02T10:05:00Z",
         transformed_at="2026-10-02T10:05:00Z",
         observed_at=observed_at,
@@ -107,6 +109,42 @@ def test_report_joins_evidence_and_excludes_sensitive_source_fields():
     serialized = json.dumps(report) + render_markdown(report)
     for marker in ("DO_NOT_EXPORT", "PRIVATE_STORE_ID", "private-locator", "tenant-1"):
         assert marker not in serialized
+
+
+def test_saved_report_rejects_evidence_on_resultless_coverage():
+    report = build_assessment_report(_bundle())
+    report["coverage"].append(
+        {
+            "scenario_id": "COPS-E17.01-S02",
+            "target": "10.0.0.5",
+            "mode": "planning",
+            "provenance": "planned",
+            "access": "available",
+            "status": "not_assessed",
+            "result_id": None,
+            "evidence_records": [report["coverage"][0]["evidence_records"][0]],
+        }
+    )
+    with pytest.raises(ContractError, match="coverage without a result cannot carry evidence"):
+        validate_contract(report, "assessment_report")
+
+
+def test_saved_report_rejects_replaced_evidence_notice():
+    report = build_assessment_report(_bundle())
+    report["evidence_notice"] = "Record hashes prove this source is authentic and authorized."
+    with pytest.raises(ContractError, match="evidence notice"):
+        validate_contract(report, "assessment_report")
+    with pytest.raises(ReportError, match="invalid assessment_report contract"):
+        render_markdown(report)
+
+
+def test_saved_report_rejects_removed_per_asset_gap():
+    bundle = _bundle()
+    bundle["finding_contexts"][0]["affected_assets"].append("10.0.0.6")
+    report = build_assessment_report(bundle)
+    report["findings"][0]["limitations"] = []
+    with pytest.raises(ContractError, match="finding omits unassessed assets"):
+        validate_contract(report, "assessment_report")
 
 
 def test_partial_and_missing_access_stay_not_assessed():
@@ -270,7 +308,12 @@ def test_observation_on_other_asset_does_not_corroborate_broad_scanner_coverage(
     observation["evidence_references"] = [other_evidence["record_id"]]
     bundle["findings"].append(observation)
     context = deepcopy(bundle["finding_contexts"][0])
-    context.update({"finding_id": observation["finding_id"], "kind": "observed_behavior", "affected_assets": ["10.0.0.6"]})
+    context.update({
+        "finding_id": observation["finding_id"],
+        "kind": "observed_behavior",
+        "affected_assets": ["10.0.0.6"],
+        "limitations": ["Not assessed for assets: 10.0.0.6"],
+    })
     bundle["finding_contexts"].append(context)
 
     report = build_assessment_report(bundle)
@@ -280,6 +323,39 @@ def test_observation_on_other_asset_does_not_corroborate_broad_scanner_coverage(
     report["coverage"][0]["status"] = "assessed"
     with pytest.raises(ContractError, match="scanner result lacks assessed corroboration"):
         validate_contract(report, "assessment_report")
+
+
+def test_broad_scanner_row_downgrade_also_limits_other_findings_on_that_row():
+    bundle = _bundle()
+    bundle["engagement"]["scope"]["excluded_targets"] = []
+    plan = bundle["action_plans"][0]
+    plan["target"] = "10.0.0.0/24"
+    from cops.contracts.validation import build_action_plan_digest
+
+    plan["plan_digest"] = build_action_plan_digest(
+        snapshot={key: value for key, value in plan.items() if key not in {"status", "plan_digest"}}
+    )
+    broad_evidence = _envelope(target="10.0.0.0/24")
+    other_evidence = _envelope(target="10.0.0.0/24", observation="HTTP service on 10.0.0.6")
+    bundle["evidence_envelopes"] = [broad_evidence, other_evidence]
+    bundle["run_results"][0]["evidence_records"] = [broad_evidence["record_id"], other_evidence["record_id"]]
+    bundle["coverage"][0]["target"] = "10.0.0.0/24"
+    bundle["finding_contexts"][0]["kind"] = "scanner_assertion"
+    bundle["findings"][0]["evidence_references"] = [broad_evidence["record_id"]]
+    observation = deepcopy(bundle["findings"][0])
+    observation["finding_id"] = "find-other-asset-001"
+    observation["evidence_references"] = [other_evidence["record_id"]]
+    bundle["findings"].append(observation)
+    context = deepcopy(bundle["finding_contexts"][0])
+    context.update({"finding_id": observation["finding_id"], "kind": "observed_behavior", "affected_assets": ["10.0.0.6"]})
+    bundle["finding_contexts"].append(context)
+
+    report = build_assessment_report(bundle)
+    assert report["coverage"][0]["status"] == "partial"
+    assert [finding["assessment_status"] for finding in report["findings"]] == ["partial", "partial"]
+    assert report["findings"][1]["evidence_strength"] == "limited"
+    assert report["findings"][1]["limitations"] == ["Not assessed for assets: 10.0.0.6"]
+    validate_contract(report, "assessment_report")
 
 
 def test_unverified_non_scanner_finding_does_not_promote_scanner_coverage():

@@ -144,3 +144,29 @@ Feature: Evidence-bounded offline engagement reports
     When the assessment report is built
     And the saved assessed finding claims missing evidence strength
     Then the saved assessment report is rejected
+
+  Scenario: Resultless planning coverage cannot borrow execution evidence
+    Given a valid offline assessment bundle
+    When the assessment report is built
+    And saved resultless coverage borrows execution evidence
+    Then the saved assessment report is rejected
+
+  Scenario: A saved report must disclose the limits of record hashes
+    Given a valid offline assessment bundle
+    When the assessment report is built
+    And the saved evidence notice claims source authenticity
+    Then the saved assessment report is rejected
+
+  Scenario: A saved finding cannot hide an unassessed asset
+    Given a valid offline assessment bundle
+    And its finding affects a second unassessed asset
+    When the assessment report is built
+    And the saved finding removes its asset gap
+    Then the saved assessment report is rejected
+
+  Scenario: A broad scanner limit also constrains another finding on the same row
+    Given a valid offline assessment bundle
+    And a broad scanner row has a separate observation for another asset
+    When the assessment report is built
+    Then both findings are partial and the second asset gap is disclosed
+    And the saved assessment report validates
