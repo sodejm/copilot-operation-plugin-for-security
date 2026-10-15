@@ -293,12 +293,17 @@ def test_attested_offline_run_denies_host_network_and_inherited_socket(
     with ExitStack() as stack:
         tcp_canary = stack.enter_context(socket.socket(socket.AF_INET, socket.SOCK_STREAM))
         udp_canary = stack.enter_context(socket.socket(socket.AF_INET, socket.SOCK_DGRAM))
+        dns_tcp_canary = stack.enter_context(socket.socket(socket.AF_INET, socket.SOCK_STREAM))
+        dns_udp_canary = stack.enter_context(socket.socket(socket.AF_INET, socket.SOCK_DGRAM))
         inherited, peer = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
         stack.enter_context(inherited)
         stack.enter_context(peer)
         tcp_canary.bind(("127.0.0.1", 0))
         tcp_canary.listen(1)
         udp_canary.bind(("127.0.0.1", 0))
+        dns_tcp_canary.bind(("127.0.0.1", 0))
+        dns_tcp_canary.listen(1)
+        dns_udp_canary.bind(("127.0.0.1", 0))
         os.set_inheritable(inherited.fileno(), True)
         identity = os.fstat(inherited.fileno())
         observations: list[dict[str, object]] = []
@@ -310,7 +315,7 @@ import os
 import socket
 import sys
 
-tcp_port, udp_port, inherited_fd, device, inode = map(int, sys.argv[1:])
+tcp_port, udp_port, dns_tcp_port, dns_udp_port, inherited_fd, device, inode = map(int, sys.argv[1:])
 try:
     with socket.create_connection(("127.0.0.1", tcp_port), timeout=0.5):
         tcp_connected = True
@@ -326,6 +331,19 @@ try:
     dns_resolved = True
 except socket.gaierror:
     dns_resolved = False
+# A resolver failure alone does not establish DNS egress denial. Send a DNS
+# query to host-side TCP and UDP listeners and check those listeners outside.
+dns_query = bytes.fromhex("123401000001000000000000") + b"\x07offline\x07invalid\x00\x00\x01\x00\x01"
+try:
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as outgoing:
+        outgoing.sendto(dns_query, ("127.0.0.1", dns_udp_port))
+except OSError:
+    pass
+try:
+    with socket.create_connection(("127.0.0.1", dns_tcp_port), timeout=0.5) as outgoing:
+        outgoing.sendall(len(dns_query).to_bytes(2, "big") + dns_query)
+except OSError:
+    pass
 try:
     descriptor = os.fstat(inherited_fd)
     inherited_socket = descriptor.st_dev == device and descriptor.st_ino == inode
@@ -348,6 +366,8 @@ print(json.dumps({
             (
                 str(tcp_canary.getsockname()[1]),
                 str(udp_canary.getsockname()[1]),
+                str(dns_tcp_canary.getsockname()[1]),
+                str(dns_udp_canary.getsockname()[1]),
                 str(inherited.fileno()),
                 str(identity.st_dev),
                 str(identity.st_ino),
@@ -364,7 +384,9 @@ print(json.dumps({
         )
         # Local UDP sendto may succeed inside a private namespace. Only the
         # host-side canary can establish whether the packet crossed it.
-        readable, _, _ = select.select([tcp_canary, udp_canary, peer], [], [], 0.1)
+        readable, _, _ = select.select(
+            [tcp_canary, udp_canary, dns_tcp_canary, dns_udp_canary, peer], [], [], 0.1
+        )
 
     assert observed == {
         "tcp_connected": False,

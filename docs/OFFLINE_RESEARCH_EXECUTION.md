@@ -72,10 +72,11 @@ worker's authority can interfere with its local evidence. See the
 [Authenticated Execution Guide](AUTHENTICATED_EXECUTION.md) and
 [Security Model](SECURITY_MODEL.md) for the common approval and host controls.
 
-The repository's Linux bubblewrap gate also attempts TCP, UDP, and DNS access
-from a released, attested sandbox. Host-side TCP, UDP, and inherited-socket
-canaries detect boundary escape. The gate checks that proxy variables do not
-cross the boundary and that a mismatched attestation prevents the child from
-starting. A passing hosted runner check establishes these behaviors on that
-runner; it is not an attestation of a separately deployed worker or its ongoing
-host policy.
+The repository's Linux bubblewrap gate also attempts TCP, UDP, and DNS-protocol
+access from a released, attested sandbox. Host-side TCP, UDP, DNS-protocol, and
+inherited-socket canaries detect boundary escape; a separate resolver call is
+checked for failure but does not establish DNS egress denial by itself. The gate
+checks that proxy variables do not cross the boundary and that a mismatched
+attestation prevents the child from starting. A passing hosted runner check
+establishes these behaviors on that runner; it is not an attestation of a
+separately deployed worker or its ongoing host policy.
