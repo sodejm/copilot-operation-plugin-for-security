@@ -512,10 +512,41 @@ class ActiveScanSession:
             raise ValueError("Active scan checkpoint journal must be a regular file")
         if hasattr(os, "getuid") and metadata.st_uid != os.getuid():
             raise ValueError("Active scan checkpoint journal must be owned by the current user")
-        if stat.S_IMODE(metadata.st_mode) & 0o077:
+        if hasattr(os, "getuid") and stat.S_IMODE(metadata.st_mode) & 0o077:
             raise ValueError("Active scan checkpoint journal permissions must be private")
         if metadata.st_nlink != 1:
             raise ValueError("Active scan checkpoint journal must not have hard links")
+        return metadata
+
+    @staticmethod
+    def _supports_checkpoint_directory_fd() -> bool:
+        supports_dir_fd = getattr(os, "supports_dir_fd", set())
+        return all(operation in supports_dir_fd for operation in (os.open, os.stat, os.unlink))
+
+    @staticmethod
+    def _same_file_identity(left: os.stat_result, right: os.stat_result) -> bool:
+        return (left.st_dev, left.st_ino) == (right.st_dev, right.st_ino)
+
+    @staticmethod
+    def _is_reparse_point(metadata: os.stat_result) -> bool:
+        attributes = getattr(metadata, "st_file_attributes", 0)
+        reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+        return bool(attributes & reparse_flag)
+
+    @classmethod
+    def _validate_portable_checkpoint_parent(cls, path: Path) -> os.stat_result:
+        metadata = os.lstat(path.parent)
+        if not stat.S_ISDIR(metadata.st_mode) or stat.S_ISLNK(metadata.st_mode) or cls._is_reparse_point(metadata):
+            raise ValueError("Active scan checkpoint directory is unavailable or unsafe")
+        return metadata
+
+    @classmethod
+    def _validate_portable_journal_path(cls, journal: Path) -> os.stat_result:
+        metadata = os.lstat(journal)
+        if stat.S_ISLNK(metadata.st_mode) or cls._is_reparse_point(metadata):
+            raise ValueError("Active scan checkpoint journal is unavailable or unsafe")
+        if not stat.S_ISREG(metadata.st_mode):
+            raise ValueError("Active scan checkpoint journal must be a regular file")
         return metadata
 
     @staticmethod
@@ -526,6 +557,16 @@ class ActiveScanSession:
 
     @classmethod
     def _checkpoint_journal_exists(cls, path: Path) -> bool:
+        if not cls._supports_checkpoint_directory_fd():
+            parent = cls._validate_portable_checkpoint_parent(path)
+            try:
+                cls._validate_portable_journal_path(cls.checkpoint_journal_path(path))
+            except FileNotFoundError:
+                return False
+            current_parent = cls._validate_portable_checkpoint_parent(path)
+            if not cls._same_file_identity(parent, current_parent):
+                raise ValueError("Active scan checkpoint directory changed during access")
+            return True
         directory = cls._open_checkpoint_directory(path)
         try:
             try:
@@ -538,6 +579,28 @@ class ActiveScanSession:
 
     @classmethod
     def _open_checkpoint_journal(cls, path: Path, flags: int) -> int:
+        if not cls._supports_checkpoint_directory_fd():
+            parent = cls._validate_portable_checkpoint_parent(path)
+            journal = cls.checkpoint_journal_path(path)
+            try:
+                before = cls._validate_portable_journal_path(journal)
+                descriptor = os.open(journal, cls._journal_open_flags(flags))
+            except OSError as error:
+                raise ValueError("Active scan checkpoint journal is unavailable or unsafe") from error
+            try:
+                opened = cls._validate_journal_descriptor(descriptor)
+                current = cls._validate_portable_journal_path(journal)
+                current_parent = cls._validate_portable_checkpoint_parent(path)
+                if not (
+                    cls._same_file_identity(before, opened)
+                    and cls._same_file_identity(opened, current)
+                    and cls._same_file_identity(parent, current_parent)
+                ):
+                    raise ValueError("Active scan checkpoint journal changed during access")
+            except Exception:
+                os.close(descriptor)
+                raise
+            return descriptor
         directory = cls._open_checkpoint_directory(path)
         try:
             try:
@@ -559,6 +622,43 @@ class ActiveScanSession:
 
     @classmethod
     def _remove_checkpoint_journal(cls, path: Path) -> bool:
+        if not cls._supports_checkpoint_directory_fd():
+            parent = cls._validate_portable_checkpoint_parent(path)
+            journal = cls.checkpoint_journal_path(path)
+            descriptor: int | None = None
+            try:
+                before = cls._validate_portable_journal_path(journal)
+                descriptor = os.open(journal, cls._journal_open_flags(os.O_RDONLY))
+            except FileNotFoundError:
+                return False
+            except OSError as error:
+                raise ValueError("Active scan checkpoint journal is unavailable or unsafe") from error
+            try:
+                opened = cls._validate_journal_descriptor(descriptor)
+                current = cls._validate_portable_journal_path(journal)
+                current_parent = cls._validate_portable_checkpoint_parent(path)
+                if not (
+                    cls._same_file_identity(before, opened)
+                    and cls._same_file_identity(opened, current)
+                    and cls._same_file_identity(parent, current_parent)
+                ):
+                    raise ValueError("Active scan checkpoint journal changed during cleanup")
+            finally:
+                if descriptor is not None:
+                    os.close(descriptor)
+
+            current = cls._validate_portable_journal_path(journal)
+            current_parent = cls._validate_portable_checkpoint_parent(path)
+            if not (cls._same_file_identity(opened, current) and cls._same_file_identity(parent, current_parent)):
+                raise ValueError("Active scan checkpoint journal changed during cleanup")
+            try:
+                os.unlink(journal)
+                final_parent = cls._validate_portable_checkpoint_parent(path)
+                if not cls._same_file_identity(parent, final_parent):
+                    raise ValueError("Active scan checkpoint directory changed during cleanup")
+            except OSError as error:
+                raise ValueError("Active scan checkpoint journal is unavailable or unsafe") from error
+            return True
         directory = cls._open_checkpoint_directory(path)
         name = cls.checkpoint_journal_path(path).name
         try:
@@ -592,21 +692,34 @@ class ActiveScanSession:
             "bound_plan_sha256": self.bound_plan_sha256,
             "base_sha256": hashlib.sha256(raw_checkpoint).hexdigest(),
         }
-        directory = self._open_checkpoint_directory(p)
+        directory = self._open_checkpoint_directory(p) if self._supports_checkpoint_directory_fd() else None
+        parent = self._validate_portable_checkpoint_parent(p) if directory is None else None
         descriptor: int | None = None
         try:
             try:
-                descriptor = os.open(
-                    journal.name,
-                    self._journal_open_flags(os.O_WRONLY | os.O_CREAT | os.O_EXCL),
-                    0o600,
-                    dir_fd=directory,
-                )
+                if directory is None:
+                    descriptor = os.open(
+                        journal,
+                        self._journal_open_flags(os.O_WRONLY | os.O_CREAT | os.O_EXCL),
+                        0o600,
+                    )
+                else:
+                    descriptor = os.open(
+                        journal.name,
+                        self._journal_open_flags(os.O_WRONLY | os.O_CREAT | os.O_EXCL),
+                        0o600,
+                        dir_fd=directory,
+                    )
             except FileExistsError:
                 existing = self._open_checkpoint_journal(p, os.O_RDONLY)
                 os.close(existing)
                 return journal
-            self._validate_journal_descriptor(descriptor)
+            opened = self._validate_journal_descriptor(descriptor)
+            if directory is None:
+                current = self._validate_portable_journal_path(journal)
+                current_parent = self._validate_portable_checkpoint_parent(p)
+                if not (self._same_file_identity(opened, current) and self._same_file_identity(parent, current_parent)):
+                    raise ValueError("Active scan checkpoint journal changed during creation")
             record = canonical(header, max_bytes=MAX_ACTIVE_CHECKPOINT_BYTES - 1) + b"\n"
             view = memoryview(record)
             while view:
@@ -615,12 +728,13 @@ class ActiveScanSession:
                     raise OSError("Could not initialize active scan checkpoint journal")
                 view = view[written:]
             os.fsync(descriptor)
-            if os.name != "nt":
+            if directory is not None and os.name != "nt":
                 os.fsync(directory)
         finally:
             if descriptor is not None:
                 os.close(descriptor)
-            os.close(directory)
+            if directory is not None:
+                os.close(directory)
         return journal
 
     def _append_checkpoint_event(
