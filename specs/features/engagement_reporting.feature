@@ -34,3 +34,73 @@ Feature: Evidence-bounded offline engagement reports
     When the assessment report is built
     And the saved scanner coverage is changed to assessed
     Then the saved assessment report is rejected
+
+  Scenario: A live observation outside the run window remains unassessed
+    Given a valid offline assessment bundle
+    And its live observation is after the run window
+    When the assessment report is built
+    Then its live coverage and finding are not assessed
+    And the saved assessment report validates
+
+  Scenario: A multi-asset finding discloses the asset without evidence
+    Given a valid offline assessment bundle
+    And its finding affects a second unassessed asset
+    When the assessment report is built
+    Then its finding is partial with an asset limitation
+    And the saved assessment report validates
+
+  Scenario: An action plan without a run result cannot enter the report
+    Given a valid offline assessment bundle
+    And it contains an orphan action plan
+    When the assessment report is built
+    Then report building fails with an orphan action plan
+
+  Scenario: A singleton CIDR cannot duplicate host coverage
+    Given a valid offline assessment bundle
+    And it repeats host coverage as a singleton CIDR
+    When the assessment report is built
+    Then report building fails with duplicate coverage
+
+  Scenario: A saved report cannot reuse a result across scenarios
+    Given a valid offline assessment bundle
+    When the assessment report is built
+    And the saved result is reused in another scenario
+    Then the saved assessment report is rejected
+
+  Scenario: A saved attack path cannot repeat a dependency
+    Given a valid offline assessment bundle
+    And its attack path has an assessed prerequisite
+    When the assessment report is built
+    And the saved attack path repeats its prerequisite
+    Then the saved assessment report is rejected
+
+  Scenario: A saved attack path cannot contain a dependency cycle
+    Given a valid offline assessment bundle
+    And its attack path has an assessed prerequisite
+    When the assessment report is built
+    And the saved prerequisite depends on the attack path
+    Then the saved assessment report is rejected
+
+  Scenario: Untrusted Unicode controls do not alter rendered finding text
+    Given a valid offline assessment bundle
+    And its finding title contains a Unicode direction control
+    When the assessment report is built
+    Then the rendered report omits the direction control
+
+  Scenario: A saved verified finding cannot claim contradicted strength
+    Given a valid offline assessment bundle
+    When the assessment report is built
+    And the saved verified finding claims partial status and contradicted strength
+    Then the saved assessment report is rejected
+
+  Scenario: A saved unresolved finding cannot claim limited strength
+    Given a valid offline assessment bundle
+    When the assessment report is built
+    And the saved verified finding claims unresolved status and limited strength
+    Then the saved assessment report is rejected
+
+  Scenario: A saved contradicted finding cannot claim limited strength
+    Given a valid offline assessment bundle
+    When the assessment report is built
+    And the saved contradicted finding claims limited strength
+    Then the saved assessment report is rejected

@@ -258,14 +258,29 @@ def validate_report_semantics(report: dict[str, Any]) -> None:
             raise ReportError("duplicate report finding evidence reference")
         if not references <= set().union(*(set(row["evidence_records"]) for row in rows)):
             raise ReportError("report finding references evidence outside matching coverage")
+        status = finding["assessment_status"]
+        strength = finding["evidence_strength"]
+        verification = finding["verification"]
         if finding["verification"] == "contradicted" and (
-            finding["assessment_status"] != "unresolved" or finding["classification"] != "unresolved"
+            status != "unresolved"
+            or finding["classification"] != "unresolved"
+            or strength not in {"contradicted", "missing"}
         ):
             raise ReportError("contradicted report finding must remain unresolved")
-        if finding["evidence_strength"] == "recorded" and (
-            finding["assessment_status"] != "assessed" or not references
-        ):
+        if verification != "contradicted" and (status == "unresolved" or strength == "contradicted"):
+            raise ReportError("unresolved or contradicted report finding requires contradictory verification")
+        if strength == "recorded" and (status != "assessed" or not references):
             raise ReportError("recorded report finding must be assessed with linked evidence")
+        if status == "partial" and strength != "limited":
+            raise ReportError("partial report finding requires limited evidence strength")
+        if status == "not_assessed" and strength not in {"limited", "missing"}:
+            raise ReportError("unassessed report finding has contradictory evidence strength")
+        if strength == "limited" and (status not in {"partial", "not_assessed"} or not references):
+            raise ReportError("limited report finding requires linked evidence and a bounded assessment")
+        if strength == "missing" and status not in {"not_assessed", "unresolved"}:
+            raise ReportError("missing report evidence cannot support an assessed finding")
+        if strength == "contradicted" and not references:
+            raise ReportError("contradicted report evidence requires a linked record")
         if finding["assessment_status"] == "assessed":
             if (
                 finding["verification"] != "verified"

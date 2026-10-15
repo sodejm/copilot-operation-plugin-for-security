@@ -403,6 +403,28 @@ def test_saved_report_rejects_recorded_strength_without_assessed_evidence(status
         validate_contract(report, "assessment_report")
 
 
+@pytest.mark.parametrize(
+    "verification,status,strength",
+    [
+        ("verified", "partial", "contradicted"),
+        ("verified", "unresolved", "limited"),
+        ("contradicted", "unresolved", "limited"),
+        ("contradicted", "unresolved", "recorded"),
+        ("unverified", "partial", "missing"),
+        ("verified", "not_assessed", "recorded"),
+        ("verified", "assessed", "missing"),
+    ],
+)
+def test_saved_report_rejects_conflicting_verification_status_and_strength(verification, status, strength):
+    report = build_assessment_report(_bundle())
+    finding = report["findings"][0]
+    finding.update(verification=verification, assessment_status=status, evidence_strength=strength)
+    if verification == "contradicted":
+        finding["classification"] = "unresolved"
+    with pytest.raises(ContractError):
+        validate_contract(report, "assessment_report")
+
+
 def test_saved_report_rejects_scanner_coverage_with_unverified_corroboration():
     bundle = _bundle()
     bundle["finding_contexts"][0]["kind"] = "scanner_assertion"

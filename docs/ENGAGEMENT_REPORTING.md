@@ -26,14 +26,19 @@ show that join rule. Every Finding needs a `finding_contexts` row with its `find
 `limitations`. The four kinds are `configuration_observation`,
 `scanner_assertion`, `observed_behavior`, and `reproduced_attack_path`.
 
-Store the input and outputs in a private directory outside the repository:
+With Python 3.11 or newer selected (see the [repository setup](../README.md)),
+run this from the repository root to copy the accepted fixture into a private
+directory outside the repository and build a report:
 
 ```bash
+private_dir="$(mktemp -d)"
+chmod 700 "$private_dir"
+cp cops/contracts/fixtures/valid_assessment_input.json "$private_dir/assessment.local.json"
 python3 -m cops engagement report \
-  --input assessment.local.json \
-  --json-output assessment-report.local.json \
-  --markdown-output assessment-report.local.md
-python3 -m cops contract validate --type assessment_report assessment-report.local.json
+  --input "$private_dir/assessment.local.json" \
+  --json-output "$private_dir/assessment-report.local.json" \
+  --markdown-output "$private_dir/assessment-report.local.md"
+python3 -m cops contract validate --type assessment_report "$private_dir/assessment-report.local.json"
 ```
 
 The input is limited to 4 MiB. Both output paths must be new and distinct; the
@@ -67,8 +72,19 @@ must have a RunResult or a planning coverage row.
 
 Validating a saved `assessment_report` also checks coverage, provenance, asset
 joins, and Finding claims for contradictions, including scanner corroboration
-and the match between a Finding's status and evidence strength. This cannot reconstruct the input
-bundle or authenticate its source; retain the private source bundle for review.
+and the match between a Finding's status and evidence strength:
+
+| Assessment status | Verification | Evidence strength | Meaning |
+| --- | --- | --- | --- |
+| `assessed` | `verified` | `recorded` | Validated, linked evidence supports the scoped finding. |
+| `partial` | `verified` or `unverified` | `limited` | Linked evidence exists, but the claim has a stated coverage or verification limit. |
+| `not_assessed` | `verified` or `unverified` | `limited` or `missing` | Coverage or validated evidence is insufficient to assess the claim. |
+| `unresolved` | `contradicted` | `contradicted` or `missing` | Conflicting evidence or missing validated evidence prevents a conclusion. |
+
+`recorded`, `limited`, and `contradicted` require linked evidence records.
+These combinations are necessary checks, not proof of a claim: saved-report
+validation cannot reconstruct the input bundle or authenticate its source.
+Retain the private source bundle for review.
 
 `planned`, `imported`, `laboratory`, and `live_validated` are distinct provenance
 labels; a live row that does not meet assessment requirements is
