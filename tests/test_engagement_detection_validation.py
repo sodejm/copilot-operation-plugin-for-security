@@ -294,6 +294,20 @@ def test_out_of_window_alert_is_visible_but_not_a_detection():
     assert any(signal["kind"] == "alert" and not signal["in_window"] for signal in row["observed_signals"])
 
 
+def test_out_of_window_alert_does_not_conflict_with_covering_zero_result_search():
+    bundle = bundle_for("missed")
+    late = record(
+        {"kind": "alert", "action_id": "act-1", "rule_id": "rule-1"},
+        observed_at="2026-10-02T10:05:00Z",
+    )
+    bundle["evidence_envelopes"].append(late)
+    bundle["checks"][0]["alert_record_ids"] = [late["record_id"]]
+    row = build_detection_report(bundle)["checks"][0]
+    assert row["status"] == "missed"
+    assert any(signal["kind"] == "alert" and not signal["in_window"] for signal in row["observed_signals"])
+    assert "Alert conflicts with zero-result search" not in row["limitations"]
+
+
 def test_cli_writes_private_exclusive_files(tmp_path: Path):
     source = tmp_path / "input.json"
     source.write_text(json.dumps(bundle_for("detected")), encoding="utf-8")
