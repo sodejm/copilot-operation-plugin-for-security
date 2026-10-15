@@ -566,6 +566,7 @@ class ActiveScanner:
         scope: dict[str, Any] | None = None,
         sleeper: Callable[[float], None] = time.sleep,
         checkpoint: Path | str | None = None,
+        cancel_requested: Callable[[], bool] | None = None,
     ) -> None:
         self.session = session
         self.dispatcher = dispatcher
@@ -577,6 +578,7 @@ class ActiveScanner:
         # A live checkpoint and its controller lock must share the same name
         # even when a caller supplies a symlink or a relative path.
         self.checkpoint = Path(checkpoint).resolve() if checkpoint is not None else None
+        self.cancel_requested = cancel_requested or (lambda: False)
 
     def _validate_run(self) -> None:
         budget = self.session.budget
@@ -632,6 +634,12 @@ class ActiveScanner:
             raise ActiveScanError("Retry limit must be a nonnegative integer")
         if isinstance(budget.max_probes, bool) or not isinstance(budget.max_probes, int) or budget.max_probes <= 0:
             raise ActiveScanError("A positive cumulative probe cap is required")
+        if (
+            isinstance(budget.max_concurrency, bool)
+            or not isinstance(budget.max_concurrency, int)
+            or budget.max_concurrency != 1
+        ):
+            raise ActiveScanError("Active discovery currently requires max_concurrency=1 for bounded serial dispatch")
         if not isinstance(self.scope, dict):
             raise ActiveScanError("Scope must be a JSON object")
         if self._live_dispatcher:
@@ -893,8 +901,23 @@ class ActiveScanner:
             if self.checkpoint is not None:
                 self.session.save_checkpoint(self.checkpoint)
 
+        def stop_if_cancelled() -> bool:
+            try:
+                cancelled = bool(self.cancel_requested())
+            except Exception as err:
+                raise ActiveScanError("Cancellation check failed before dispatch") from err
+            if not cancelled:
+                return False
+            self.session.status = "cancelled"
+            self.session.completed_at = utc_now()
+            persist()
+            return True
+
         self.session.status = "in_progress"
+        self.session.completed_at = None
         persist()
+        if stop_if_cancelled():
+            return self.session
         planned_probes = [(Protocol.TCP.value, port) for port in self.session.approved_ports] + [
             (Protocol.UDP.value, port) for port in self.session.approved_udp_ports
         ]
@@ -1008,6 +1031,9 @@ class ActiveScanner:
                 if probe_key in self.session.completed_probe_keys:
                     continue
 
+                if stop_if_cancelled():
+                    return self.session
+
                 # 4. Check time budget
                 if budget.max_total_seconds is not None:
                     elapsed = elapsed_before_run + (time.monotonic() - start_time)
@@ -1028,6 +1054,8 @@ class ActiveScanner:
                     ):
                         self.session.status = "budget_exhausted"
                         persist()
+                        return self.session
+                    if stop_if_cancelled():
                         return self.session
 
                 # 5. Confirm the target still resolves to the approved address before

@@ -13,11 +13,13 @@ Execute authorized, bounded active network assessment across approved hosts, por
    - Explicit scan vantages: `external` (perimeter), `internal` (VPC/LAN), `egress_point`, `cloud_tenant`.
    - Explicit rate limits: `rate_limit_pps` with automated probe spacing to prevent denial of service or perimeter disruption.
    - Resource and execution budgets: per-probe timeouts (`timeout_seconds`), mandatory live execution duration (`max_total_seconds`), cumulative probe cap (`max_probes`), and target caps (`max_targets`).
+   - Execution is explicitly serial (`max_concurrency: 1`). Plans that request higher concurrency are rejected before any network side effect.
 
 2. **Resumable Execution & Side-Effect Checkpoints**:
    - A live checkpoint binds the plan, scope, cumulative time, completed probes, and uncertain pending probes. Keep its path durable and protected from unrelated local writers.
    - Resumption rejects a changed plan or scope and skips completed probes (`completed_probe_keys`) without repeating network side effects.
    - A probe reserved before dispatch but lacking a result requires reconciliation; it is never retried automatically.
+   - The checkpoint includes normalized coverage counts for planned, attempted, completed, pending, quarantined, unassessed, timed-out, and observed port-state outcomes.
 
 3. **Grounded Service Identification with Visible Uncertainty**:
    - Clearly separates **Observed Configuration** from **Inferred Fingerprints**. The built-in live dispatcher checks TCP reachability; on ports 443/8443 it records TLS version and cipher without peer authentication. On other TCP ports it may read up to 512 bytes of an unsolicited server-first banner. A UDP reply is recorded by length and digest; an opted-in DNS query can identify a matching DNS response. It does not send HTTP requests, collect HTTP headers or certificates, or retain UDP response bodies. Banner-based product and version claims are untrusted self-reports.
@@ -45,6 +47,7 @@ python3 -m cops discovery active plan \
   --timeout 2.0 \
   --max-total-seconds 120 \
   --max-probes 6 \
+  --max-concurrency 1 \
   --scope-ref "ROE-2026-001" \
   --output session_plan.json
 ```
@@ -60,6 +63,7 @@ python3 -m cops discovery active scan session_plan.json \
   --mode live \
   --scope engagement_scope.json \
   --checkpoint session_checkpoint.json \
+  --cancel-file stop-active-scan \
   --output scan_results.json
 ```
 
@@ -73,7 +77,10 @@ python3 -m cops discovery active resume session_checkpoint.json \
 
 An incomplete result returns exit status 2. Inspect its status and checkpoint:
 an uncertain pending probe requires an operator to reconcile the external effect
-before any new plan. The default mode is synthetic and performs no network scan.
+before any new plan. Creating the optional cancel file stops execution between
+durably recorded serial probes, writes status `cancelled`, and leaves unattempted
+coverage visible for resume. Remove the file before resuming. The default mode is
+synthetic and performs no network scan.
 
 ### 4. Compare Baseline and Re-test for Exposure Remediation
 ```bash

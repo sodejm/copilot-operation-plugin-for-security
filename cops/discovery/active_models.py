@@ -231,6 +231,7 @@ class ScanBudget:
     rate_limit_pps: float = 10.0
     max_targets: int | None = None
     max_probes: int | None = 1024
+    max_concurrency: int = 1
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -260,6 +261,7 @@ class ScanBudget:
             rate_limit_pps=number("rate_limit_pps", 10.0),
             max_targets=integer("max_targets", None),
             max_probes=integer("max_probes", 1024),
+            max_concurrency=integer("max_concurrency", 1),
         )
 
 
@@ -301,7 +303,7 @@ class ActiveScanSession:
     budget: ScanBudget = field(default_factory=ScanBudget)
     started_at: str = field(default_factory=utc_now)
     completed_at: str | None = None
-    status: str = "in_progress"  # in_progress, completed, budget_exhausted, requires_reconciliation
+    status: str = "in_progress"  # in_progress, completed, cancelled, budget_exhausted, requires_reconciliation
     completed_probe_keys: set[str] = field(default_factory=set)
     pending_probe_keys: set[str] = field(default_factory=set)
     assessments: list[ActiveServiceAssessment] = field(default_factory=list)
@@ -315,6 +317,46 @@ class ActiveScanSession:
     def make_probe_key(vantage: str, protocol: str, host: str, port: int) -> str:
         """Deterministic unique key for a probe target/port."""
         return f"{vantage}:{protocol.lower()}:{host.lower()}:{port}"
+
+    def coverage_summary(self) -> dict[str, Any]:
+        """Summarize durable attempted, skipped, and outstanding plan coverage."""
+        planned = {
+            self.make_probe_key(self.vantage, protocol, target, port)
+            for target in self.approved_targets
+            for protocol, ports in (
+                (Protocol.TCP.value, self.approved_ports),
+                (Protocol.UDP.value, self.approved_udp_ports),
+            )
+            for port in ports
+        }
+        attempted = self.completed_probe_keys | self.pending_probe_keys
+        quarantined_hosts = {item.target_host.lower() for item in self.quarantined_targets}
+        quarantined = {
+            key
+            for key in planned - attempted
+            if any(
+                key.startswith(f"{self.vantage}:{protocol}:{host}:")
+                for host in quarantined_hosts
+                for protocol in (Protocol.TCP.value, Protocol.UDP.value)
+            )
+        }
+        port_states: dict[str, int] = {}
+        timed_out = 0
+        for assessment in self.assessments:
+            port_states[assessment.port_state] = port_states.get(assessment.port_state, 0) + 1
+            error = (assessment.error_message or "").lower()
+            if assessment.port_state == PortState.TIMED_OUT.value or "timed out" in error:
+                timed_out += 1
+        return {
+            "planned": len(planned),
+            "attempted": len(attempted),
+            "completed": len(self.completed_probe_keys),
+            "pending_reconciliation": len(self.pending_probe_keys),
+            "skipped": {"total": len(quarantined), "quarantined": len(quarantined)},
+            "unassessed": len(planned - attempted - quarantined),
+            "port_states": dict(sorted(port_states.items())),
+            "timed_out": timed_out,
+        }
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -337,6 +379,7 @@ class ActiveScanSession:
             "total_side_effects": self.total_side_effects,
             "elapsed_seconds": self.elapsed_seconds,
             "bound_plan_sha256": self.bound_plan_sha256,
+            "coverage": self.coverage_summary(),
         }
 
     @classmethod
