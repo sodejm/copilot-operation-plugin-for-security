@@ -16,8 +16,16 @@ ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "plugins" / "offensive-security" / "host-assessment-workbench"
 sys.path.insert(0, str(PACKAGE))
 
-from host_assessment_workbench.core import ContractError, assess_document, load_report_bytes  # noqa: E402
-from host_assessment_workbench.windows_bridge import validate_bridge_receipt  # noqa: E402
+from host_assessment_workbench.core import (  # noqa: E402
+    MAX_INPUT_BYTES,
+    ContractError,
+    assess_document,
+    load_report_bytes,
+)
+from host_assessment_workbench.windows_bridge import (  # noqa: E402
+    _missing_path_component,
+    validate_bridge_receipt,
+)
 
 
 def fixture(name: str) -> dict:
@@ -70,6 +78,12 @@ def native_receipt(export_bytes: bytes, canary_root: Path) -> dict:
             ],
         },
     }
+
+
+def powershell_function(source: str, name: str) -> str:
+    start = source.index(f"function {name} {{")
+    end = source.find("\nfunction ", start + 1)
+    return source[start:] if end == -1 else source[start:end]
 
 
 def test_host_discovery_metadata_tracks_portable_platforms() -> None:
@@ -236,6 +250,258 @@ def test_native_bridge_receipt_requires_identity_and_ownership_evidence(tmp_path
 
     with pytest.raises(ContractError, match="bounded evidence IDs"):
         validate_bridge_receipt(receipt, export_bytes, canary_root)
+
+
+@pytest.mark.parametrize("oversize_target", ["receipt", "export"])
+def test_bridge_validator_rejects_oversize_input_before_parsing(tmp_path: Path, oversize_target: str) -> None:
+    export_bytes = json.dumps(native_payload(), sort_keys=True, separators=(",", ":")).encode()
+    canary_root = tmp_path / "canary"
+    canary_root.mkdir()
+    receipt_path = tmp_path / "receipt.json"
+    export_path = tmp_path / "export.json"
+    receipt_path.write_text(
+        json.dumps(native_receipt(export_bytes, canary_root), sort_keys=True, separators=(",", ":"))
+    )
+    export_path.write_bytes(export_bytes)
+    selected_path = receipt_path if oversize_target == "receipt" else export_path
+    selected_path.write_bytes(b" " * (MAX_INPUT_BYTES + 1))
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(PACKAGE / "scripts" / "validate-windows-bridge.py"),
+            str(receipt_path),
+            str(export_path),
+            "--canary-root",
+            str(canary_root),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert f"{selected_path.name} exceeds the {MAX_INPUT_BYTES}-byte input limit" in result.stderr
+
+
+def test_native_collector_records_only_enabled_privileges() -> None:
+    script = (PACKAGE / "scripts" / "collect-windows.ps1").read_text()
+    common = (PACKAGE / "scripts" / "windows-bridge-common.ps1").read_text()
+    resolver = powershell_function(common, "Resolve-CopsEnabledPrivileges")
+
+    assert "$row.State -notin @('Enabled', 'Disabled')" in resolver
+    assert "if ($row.State -eq 'Enabled')" in resolver
+    assert "$enabled += $row.Privilege" in resolver
+    assert "Resolve-CopsEnabledPrivileges -Rows $privilegeRows" in script
+    assert "$line | ConvertFrom-Csv -Header Privilege, Description, State" not in script
+
+
+def test_native_collector_validates_every_path_before_filesystem_probe() -> None:
+    script = (PACKAGE / "scripts" / "collect-windows.ps1").read_text()
+    common = (PACKAGE / "scripts" / "windows-bridge-common.ps1").read_text()
+    exercise = (PACKAGE / "scripts" / "exercise-windows-bridge.ps1").read_text()
+    observer = (PACKAGE / "scripts" / "observe-windows-canary.ps1").read_text()
+    cli_validator = (PACKAGE / "scripts" / "validate-windows-bridge.py").read_text()
+    validator = powershell_function(common, "Resolve-CopsLocalPath")
+
+    assert "$Path -notmatch '^[A-Za-z]:" in validator
+    assert "$Path -match" in validator
+    assert r"\.{1,2}" in validator
+    assert "$Path.Substring(2).Contains(':')" in validator
+    assert "$drive.DisplayRoot" in validator
+    assert "[IO.DriveInfo]::new" in validator
+    assert "[IO.DriveType]::Fixed" in validator
+    assert "[IO.FileAttributes]::ReparsePoint" in validator
+    syntax_validation = validator.index("if ($Path -notmatch")
+    canonicalization = validator.index("$full = [IO.Path]::GetFullPath($Path)")
+    drive_probe = validator.index("$drive = Get-PSDrive")
+    ancestor_probe = validator.index("$item = Get-Item")
+    assert syntax_validation < canonicalization < drive_probe < ancestor_probe
+    assert "Assert-CopsLocalPathEntry -Path '\\\\server\\share'" in exercise
+    assert "A remote PATH entry must be rejected before filesystem inspection." in exercise
+
+    collector_main = script[script.index("$outputFull = Resolve-CopsLocalPath") :]
+    assert collector_main.index("$outputFull = Resolve-CopsLocalPath") < collector_main.index("Get-ChildItem")
+    assert collector_main.index("$receiptFull = Resolve-CopsLocalPath") < collector_main.index("Get-ChildItem")
+    assert collector_main.index("$canaryFull = Resolve-CopsLocalPath") < collector_main.index("Get-ChildItem")
+
+    observer_main = observer[observer.index("$rootFull = Resolve-CopsLocalPath") :]
+    assert observer_main.index("$rootFull = Resolve-CopsLocalPath") < observer_main.index("Test-Path")
+
+    exercise_main = exercise[exercise.index("$runFull = Resolve-CopsLocalPath") :]
+    assert exercise_main.index("$runFull = Resolve-CopsLocalPath") < exercise_main.index("New-Item")
+
+    python_main = cli_validator[cli_validator.index("def main(") :]
+    first_read = python_main.index("read_bounded_input(")
+    assert python_main.index("validate_windows_existing_path(args.receipt") < first_read
+    assert python_main.index("validate_windows_existing_path(args.export") < first_read
+    assert python_main.index("validate_windows_existing_path(args.canary_root") < first_read
+
+    section_start = script.index("$pathDirectories =")
+    section_end = script.index("$familyCoverage", section_start)
+    section = script[section_start:section_end]
+    validation_loop = section.index("foreach ($directory in $pathDirectories)")
+    probe_loop = section.index("foreach ($directory in $pathDirectories)", validation_loop + 1)
+    validation = section.index("Assert-CopsLocalPathEntry -Path $directory")
+    existence_probe = section.index("Test-Path -LiteralPath $directory")
+    acl_probe = section.index("Get-Acl -LiteralPath $directory")
+
+    assert validation_loop < validation < probe_loop < existence_probe < acl_probe
+
+
+def test_native_collector_uses_exclusive_create_for_all_artifact_writes() -> None:
+    script = (PACKAGE / "scripts" / "collect-windows.ps1").read_text()
+    common = (PACKAGE / "scripts" / "windows-bridge-common.ps1").read_text()
+    writer = powershell_function(common, "Invoke-CopsExclusiveFileWrite")
+    native = powershell_function(common, "Initialize-CopsNativeFileDisposition")
+    wrapper = powershell_function(common, "Write-CopsNewUtf8File")
+
+    assert "Resolve-CopsLocalPath" in writer
+    assert ".cops-" in writer
+    assert "::CreateExclusive" in writer
+    assert "::OpenDirectory($parent)" in writer
+    assert "$stream.Flush($true)" in writer
+    assert "::RenameNoReplace(" in writer
+    assert "$stream.SafeFileHandle, $directoryHandle, $leaf" in writer
+    assert "::DeleteOnClose($handle)" in writer
+    assert "finally {" in writer
+    assert "$stream.Dispose()" in writer
+    assert "$handle.Dispose()" in writer
+    assert "GENERIC_WRITE | DELETE" in native
+    assert "CREATE_NEW" in native
+    assert "CreateFileW" in native
+    assert "FILE_FLAG_OPEN_REPARSE_POINT" in native
+    assert "NtSetInformationFile" in native
+    assert "FILE_RENAME_INFORMATION_CLASS = 10" in native
+    assert "directory.DangerousGetHandle()" in native
+    assert "Path.GetFileName(leaf) != leaf" in native
+    assert "RenameNoReplace($stream.SafeFileHandle, $full)" not in writer
+    assert "RenameNoReplace" in native
+    assert "DeleteOnClose" in native
+    assert "Invoke-CopsExclusiveFileWrite" in wrapper
+    assert "[IO.File]::WriteAllText" not in script
+    assert "Write-CopsNewUtf8File -Path $markerPath" in script
+    assert "Write-CopsNewUtf8File -Path $outputFull" in script
+    assert "Write-CopsNewUtf8File -Path $receiptFull" in script
+
+
+def test_native_exercise_uses_exclusive_create_for_derived_artifacts() -> None:
+    exercise = (PACKAGE / "scripts" / "exercise-windows-bridge.ps1").read_text()
+
+    assert "[IO.File]::WriteAllText" not in exercise
+    assert "Write-CopsNewUtf8File -Path $reportPath" in exercise
+    assert "Write-CopsNewUtf8File -Path $validatedReceiptPath" in exercise
+
+
+def test_native_exercise_injects_junction_and_partial_write_failures() -> None:
+    exercise = (PACKAGE / "scripts" / "exercise-windows-bridge.ps1").read_text()
+
+    assert "New-Item -ItemType Junction" in exercise
+    assert "Resolve-CopsLocalPath" in exercise
+    assert "Ancestor junction self-test did not fail closed." in exercise
+    assert "Invoke-CopsExclusiveFileWrite" in exercise
+    assert "$stream.WriteByte(123)" in exercise
+    assert "controlled partial write failure" in exercise
+    assert ".partial.json.cops-*.tmp" in exercise
+    assert "Partial-write cleanup self-test did not fail closed without residue." in exercise
+
+
+def test_native_writer_verifies_completed_files_and_exercises_sequential_writes() -> None:
+    common = (PACKAGE / "scripts" / "windows-bridge-common.ps1").read_text()
+    exercise = (PACKAGE / "scripts" / "exercise-windows-bridge.ps1").read_text()
+
+    assert "'ExistingFile'" in common
+    assert "-Kind ExistingFile" in common
+    assert common.index("$stream.Dispose()") < common.index("-Path $full -Name 'Output file' -Kind ExistingFile")
+    assert "sequential-first.json" in exercise
+    assert "sequential-second.json" in exercise
+    assert "Sequential atomic-write self-test" in exercise
+    assert exercise.index("Native Windows collection did not materialize") < exercise.index(
+        'Join-Path $PSScriptRoot "assess.py"'
+    )
+
+
+def test_windows_missing_path_diagnostic_identifies_component_without_path_data() -> None:
+    assert _missing_path_component(0, 3) == "drive root"
+    assert _missing_path_component(1, 3) == "ancestor 1 of 2"
+    assert _missing_path_component(2, 3) == "ancestor 2 of 2"
+    assert _missing_path_component(3, 3) == "leaf"
+
+    validator = (PACKAGE / "host_assessment_workbench" / "windows_bridge.py").read_text()
+    missing_handler = validator[validator.index("except FileNotFoundError") :]
+    assert "_missing_path_component(index, leaf_index)" in missing_handler
+    assert "candidate" not in missing_handler.split("except OSError", 1)[0]
+
+
+def test_native_exercise_reports_only_artifact_names() -> None:
+    exercise = (PACKAGE / "scripts" / "exercise-windows-bridge.ps1").read_text()
+    summary = exercise[exercise.rindex("[ordered]@{") :]
+
+    for artifact in (
+        "windows-export.json",
+        "windows-receipt.json",
+        "windows-report.json",
+        "windows-validated-receipt.json",
+    ):
+        assert f'"{artifact}"' in summary
+    for path_variable in (
+        "$runFull",
+        "$canaryRoot",
+        "$exportPath",
+        "$receiptPath",
+        "$reportPath",
+        "$validatedReceiptPath",
+    ):
+        assert path_variable not in summary
+
+
+@pytest.mark.skipif(shutil.which("pwsh") is None, reason="PowerShell runtime is unavailable")
+def test_native_path_validator_rejects_unc_before_probe_runtime() -> None:
+    common_path = PACKAGE / "scripts" / "windows-bridge-common.ps1"
+    quoted_common_path = str(common_path).replace("'", "''")
+    command = (
+        f". '{quoted_common_path}'; "
+        "try { Assert-CopsLocalPathEntry -Path '\\\\server\\share'; exit 1 } "
+        "catch { if ($_.Exception.Message -ne "
+        "'PATH entry is not a fully qualified local drive path.') { exit 2 } }; exit 0"
+    )
+
+    result = subprocess.run(
+        ["pwsh", "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", command],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_native_canary_cleanup_is_identity_bound_and_fails_closed() -> None:
+    script = (PACKAGE / "scripts" / "collect-windows.ps1").read_text()
+    section_start = script.index("New-Item -ItemType Directory -Path $canaryPath")
+    section_end = script.index("$exportJson =", section_start)
+    section = script[section_start:section_end]
+    failure_cleanup = section[section.index("} catch {") :]
+
+    assert section.index("Assert-CopsCanaryDirectoryIdentity") < section.index(
+        "Write-CopsNewUtf8File -Path $markerPath"
+    )
+    assert section.index("Assert-CopsCanaryOwnership") < section.index("Remove-Item -LiteralPath $markerPath")
+    assert section.index("Remove-Item -LiteralPath $markerPath") < section.index("Remove-Item -LiteralPath $canaryPath")
+    assert "$lifecycleFailure = $_" in failure_cleanup
+    assert failure_cleanup.index("Assert-CopsCanaryDirectoryIdentity") < failure_cleanup.index(
+        "Get-ChildItem -LiteralPath $canaryPath"
+    )
+    assert "$children.Count -eq 1" in failure_cleanup
+    assert "$children.Count -ne 0" in failure_cleanup
+    assert failure_cleanup.index("Assert-CopsCanaryOwnership") < failure_cleanup.index(
+        "Remove-Item -LiteralPath $markerPath"
+    )
+    assert "ownership-aware cleanup was refused or failed" in failure_cleanup
+    assert "Residue may remain under the assessment canary root" in failure_cleanup
+    assert "throw $lifecycleFailure" in failure_cleanup
+    assert section.rindex("Invoke-CopsCanaryObserver") > section.index("Remove-Item -LiteralPath $canaryPath")
 
 
 def test_native_collector_has_bounded_static_contract() -> None:

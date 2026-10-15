@@ -44,7 +44,7 @@ revision.
 ```bash
 P=plugins/offensive-security/host-assessment-workbench
 python3 "$P/scripts/assess.py" "$P/fixtures/synthetic/host_linux_positive_v1.json"
-python3 "$P/scripts/assess.py" "$P/fixtures/synthetic/host_windows_positive_v1.json"
+python3 "$P/scripts/assess.py" "$P/fixtures/synthetic/host_windows_vulnerable_v1.json"
 python3 "$P/scripts/demo.py"
 ```
 
@@ -78,7 +78,9 @@ Inspect `coverage` before interpreting observations. `access_denied`,
 `not_assessed`, and `unsupported` remain gaps and do not establish a safe host.
 The exercise runs the collector, importer, and validator; checks all declared
 capabilities and coverage values; exercises the explicit ACL mutation predicate
-with read-only and writable rights; and invokes a separate same-token process to
+with read-only and writable rights; rejects a native junction-ancestor fixture;
+injects a partial temporary-file write and requires cleanup with no final
+artifact or temporary residue; and invokes a separate same-token process to
 observe the resource absent before creation, readable with the exact marker hash
 after creation, and absent after deletion. The validator rehashes the exact
 export, binds the receipt's canonical root and child identities to the supplied
@@ -105,6 +107,9 @@ Remove-Item -LiteralPath $Run -Recurse -Force
   it absent, readable with the exact owned marker, and absent after cleanup. The
   collector independently verifies its marker hash before deletion; a mismatch
   fails closed. No result claims cross-identity denial or a privilege crossing.
+- User paths are fixed-drive paths whose existing ancestors contain no reparse
+  point. The native self-tests reject a junction ancestor and leave no final or
+  temporary artifact after the injected partial-write failure.
 - A native Windows run at the exact candidate revision passes before claiming
   the native integration is qualified. Linux/macOS package checks establish only
   the offline and static-contract paths.

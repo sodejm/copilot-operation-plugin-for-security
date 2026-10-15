@@ -1,0 +1,187 @@
+{
+  "actions": [
+    {
+      "action_id": "act-1",
+      "ended_at": "2026-10-02T10:01:00Z",
+      "started_at": "2026-10-02T10:00:00Z",
+      "status": "completed",
+      "technique_id": "T1110.003"
+    }
+  ],
+  "checks": [
+    {
+      "action_id": "act-1",
+      "alert_record_ids": [
+        "67a7bfa9475d3da090bd6209c735f179f40a6edffa10be1590341c6f4c9aa898"
+      ],
+      "clock_skew_seconds": 0,
+      "collection_status": "complete",
+      "correlation_status": "exact",
+      "execution_record_id": "da0df5652dc5874640cb9267b73919414ceba1051ec7d7bea79efa1f94354bb1",
+      "ingest_lag_seconds": 0,
+      "mapping_id": "COPS-COV-H01-A",
+      "rule_id": "rule-1",
+      "search_receipt_record_id": null,
+      "telemetry_record_ids": [
+        "677555f8cbd4d04598bdd060738820569db360f863c1afed2a89427d2ca9c737"
+      ]
+    }
+  ],
+  "engagement_id": "eng-lab1",
+  "evidence_envelopes": [
+    {
+      "acquired_at": "2026-10-02T10:03:00Z",
+      "acquisition_id": "import-1",
+      "content_hash": "d59176226653ded105a98b572e6963c2fb401b755c558ae7f8bc2701ae5442f6",
+      "emitted": {
+        "at": null,
+        "unknown_reason": "not_available"
+      },
+      "normalization": [
+        "projection/v1"
+      ],
+      "observed": {
+        "at": "2026-10-02T10:00:30Z",
+        "unknown_reason": null
+      },
+      "page": 1,
+      "parents": [],
+      "payload": {
+        "action_id": "act-1",
+        "kind": "action_execution",
+        "status": "completed",
+        "technique_id": "T1110.003"
+      },
+      "raw_reference": null,
+      "record_id": "da0df5652dc5874640cb9267b73919414ceba1051ec7d7bea79efa1f94354bb1",
+      "redaction": [
+        "omit-unselected-fields/v1"
+      ],
+      "request_fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "schema_version": "cops.evidence/v1",
+      "sensitivity": "restricted",
+      "source": {
+        "api": "records/v1",
+        "identity": "action_execution-4",
+        "locator": "local-test",
+        "product": "test-import",
+        "region": {
+          "unknown_reason": "not_available",
+          "value": null
+        },
+        "scope": [
+          "lab-1"
+        ],
+        "tenant": "tenant-1",
+        "version": null
+      },
+      "transformed_at": "2026-10-02T10:03:00Z"
+    },
+    {
+      "acquired_at": "2026-10-02T10:03:00Z",
+      "acquisition_id": "import-1",
+      "content_hash": "6c7399f20abe814b4aac0ff71ffd02a7c8adf834da30f4fa51def7aecd97fbcd",
+      "emitted": {
+        "at": null,
+        "unknown_reason": "not_available"
+      },
+      "normalization": [
+        "projection/v1"
+      ],
+      "observed": {
+        "at": "2026-10-02T10:00:30Z",
+        "unknown_reason": null
+      },
+      "page": 1,
+      "parents": [],
+      "payload": {
+        "action_id": "act-1",
+        "kind": "telemetry",
+        "observed_fields": [
+          "TimeGenerated",
+          "UserPrincipalName",
+          "IPAddress",
+          "ResultType",
+          "AppDisplayName"
+        ],
+        "rule_id": "rule-1",
+        "table_or_log": "SigninLogs"
+      },
+      "raw_reference": null,
+      "record_id": "677555f8cbd4d04598bdd060738820569db360f863c1afed2a89427d2ca9c737",
+      "redaction": [
+        "omit-unselected-fields/v1"
+      ],
+      "request_fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "schema_version": "cops.evidence/v1",
+      "sensitivity": "restricted",
+      "source": {
+        "api": "records/v1",
+        "identity": "telemetry-3",
+        "locator": "local-test",
+        "product": "Sentinel",
+        "region": {
+          "unknown_reason": "not_available",
+          "value": null
+        },
+        "scope": [
+          "lab-1"
+        ],
+        "tenant": "tenant-1",
+        "version": null
+      },
+      "transformed_at": "2026-10-02T10:03:00Z"
+    },
+    {
+      "acquired_at": "2026-10-02T10:03:00Z",
+      "acquisition_id": "import-1",
+      "content_hash": "fe3dc1d48036f57acb68ddd9c77debe64d11dfbee4da3795196bc3e9921d5f26",
+      "emitted": {
+        "at": null,
+        "unknown_reason": "not_available"
+      },
+      "normalization": [
+        "projection/v1"
+      ],
+      "observed": {
+        "at": "2026-10-02T10:00:30Z",
+        "unknown_reason": null
+      },
+      "page": 1,
+      "parents": [],
+      "payload": {
+        "action_id": "act-1",
+        "kind": "alert",
+        "rule_id": "rule-1"
+      },
+      "raw_reference": null,
+      "record_id": "67a7bfa9475d3da090bd6209c735f179f40a6edffa10be1590341c6f4c9aa898",
+      "redaction": [
+        "omit-unselected-fields/v1"
+      ],
+      "request_fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "schema_version": "cops.evidence/v1",
+      "sensitivity": "restricted",
+      "source": {
+        "api": "records/v1",
+        "identity": "alert-3",
+        "locator": "local-test",
+        "product": "test-import",
+        "region": {
+          "unknown_reason": "not_available",
+          "value": null
+        },
+        "scope": [
+          "lab-1"
+        ],
+        "tenant": "tenant-1",
+        "version": null
+      },
+      "transformed_at": "2026-10-02T10:03:00Z"
+    }
+  ],
+  "generated_at": "2026-10-02T10:04:00Z",
+  "schema_version": "cops.detection-validation-input/v1",
+  "tenant": "tenant-1",
+  "validation_id": "validation-1"
+}

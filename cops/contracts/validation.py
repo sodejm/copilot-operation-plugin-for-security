@@ -26,6 +26,8 @@ IDENTIFIER_PATTERNS: dict[str, re.Pattern[str]] = {
     "laboratory_environment": re.compile(r"^env-lab-[a-z0-9_-]{4,64}$"),
     "assessment_report": re.compile(r"^report-[a-z0-9_-]{4,64}$"),
     "assessment_input": re.compile(r"^report-[a-z0-9_-]{4,64}$"),
+    "detection_validation_input": re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"),
+    "detection_validation_report": re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"),
 }
 
 SCHEMA_MAP: dict[str, str] = {
@@ -41,6 +43,8 @@ SCHEMA_MAP: dict[str, str] = {
     "cops.laboratory-environment/v1": "laboratory-environment.schema.json",
     "cops.assessment-report/v1": "assessment-report.schema.json",
     "cops.assessment-input/v1": "assessment-input.schema.json",
+    "cops.detection-validation-input/v1": "detection-validation-input.schema.json",
+    "cops.detection-validation-report/v1": "detection-validation-report.schema.json",
 }
 
 TYPE_MAP: dict[str, str] = {
@@ -56,6 +60,8 @@ TYPE_MAP: dict[str, str] = {
     "cops.laboratory-environment/v1": "laboratory_environment",
     "cops.assessment-report/v1": "assessment_report",
     "cops.assessment-input/v1": "assessment_input",
+    "cops.detection-validation-input/v1": "detection_validation_input",
+    "cops.detection-validation-report/v1": "detection_validation_report",
 }
 
 
@@ -141,6 +147,8 @@ def validate_contract(
         "laboratory_environment": "environment_id",
         "assessment_report": "report_id",
         "assessment_input": "report_id",
+        "detection_validation_input": "validation_id",
+        "detection_validation_report": "validation_id",
     }
     primary_id_field = id_field_map.get(expected_type)
     if primary_id_field and primary_id_field in document:
@@ -285,6 +293,24 @@ def validate_contract(
 
         try:
             validate_report_semantics(document)
+        except ReportError as err:
+            raise ContractError("invalid_contract", str(err)) from err
+
+    elif expected_type == "detection_validation_input":
+        from cops.reporting.assessment import ReportError
+        from cops.reporting.detection import build_detection_report
+
+        try:
+            build_detection_report(document)
+        except ReportError as err:
+            raise ContractError("invalid_contract", str(err)) from err
+
+    elif expected_type == "detection_validation_report":
+        from cops.reporting.assessment import ReportError
+        from cops.reporting.detection import validate_detection_report_semantics
+
+        try:
+            validate_detection_report_semantics(document)
         except ReportError as err:
             raise ContractError("invalid_contract", str(err)) from err
 

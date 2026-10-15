@@ -16,6 +16,7 @@ $ErrorActionPreference = "Stop"
 if ($env:OS -ne "Windows_NT") {
     throw "The Windows canary observer can run only on Windows."
 }
+. (Join-Path $PSScriptRoot "windows-bridge-common.ps1")
 if ($ResourceId -notmatch '^[A-Za-z0-9._-]{1,128}$') {
     throw "ResourceId must be a bounded path token."
 }
@@ -23,16 +24,7 @@ if ($ExpectedState -eq "readable" -and $ExpectedSha256 -notmatch '^[0-9a-f]{64}$
     throw "ExpectedSha256 must be a lowercase SHA-256 value for readable observations."
 }
 
-$rootFull = [IO.Path]::GetFullPath($CanaryRoot)
-if ($rootFull.StartsWith("\\") -or -not (Test-Path -LiteralPath $rootFull -PathType Container)) {
-    throw "CanaryRoot must be an existing local directory."
-}
-$rootItem = Get-Item -LiteralPath $rootFull -Force -ErrorAction Stop
-if ($rootItem.PSProvider.Name -ne "FileSystem" -or $rootItem.PSDrive.DisplayRoot -or
-    ($rootItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
-    throw "CanaryRoot must be a local non-reparse filesystem directory."
-}
-$rootFull = [IO.Path]::GetFullPath($rootItem.FullName)
+$rootFull = Resolve-CopsLocalPath -Path $CanaryRoot -Name "CanaryRoot" -Kind ExistingDirectory
 $resourceFull = [IO.Path]::GetFullPath((Join-Path $rootFull $ResourceId))
 $expectedResource = $rootFull.TrimEnd([IO.Path]::DirectorySeparatorChar) +
     [IO.Path]::DirectorySeparatorChar + $ResourceId
