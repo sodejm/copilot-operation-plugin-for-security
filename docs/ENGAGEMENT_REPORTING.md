@@ -56,7 +56,8 @@ was observed. An assessed Finding needs linked evidence for every affected asset
 A `reproduced_attack_path` requires repeatable, scoped laboratory or live evidence,
 declared dependencies, and assessed prerequisite Findings. Contradicted findings
 remain unresolved. Every dependency must name another Finding included in the
-same report. Each ActionPlan must have a RunResult or a planning coverage row.
+same report, appear once, and form an acyclic prerequisite chain. Each ActionPlan
+must have a RunResult or a planning coverage row.
 
 Validating a saved `assessment_report` also checks coverage, provenance, asset
 joins, and Finding claims for contradictions. This cannot reconstruct the input

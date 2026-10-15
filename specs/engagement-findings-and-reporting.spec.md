@@ -23,7 +23,7 @@ authorization grant, or report publication occurs in this workflow.
    window; scanner-only assertions cannot establish assessed coverage.
 3. Distinguish configuration observations, scanner assertions, observed behavior
    and reproduced attack paths. A reproduced path needs scoped, repeatable
-   laboratory or live evidence and declared Finding dependencies.
+   laboratory or live evidence and unique, acyclic Finding dependencies.
 4. Include scope, coverage, affected assets, reproducibility, evidence strength,
    dependencies, remediation, uncertainty and limitations in both output forms.
    Contradictory findings stay unresolved; references with missing validated

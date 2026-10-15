@@ -6,6 +6,7 @@ import html
 import ipaddress
 import re
 import unicodedata
+from collections import deque
 from typing import Any
 
 from cops.contracts.validation import validate_contract, validate_identifier
@@ -132,6 +133,31 @@ def _provenance(mode: str, status: str) -> str:
     return "live_validated" if status == "assessed" else "live_unvalidated"
 
 
+def _validate_dependency_graph(findings: list[dict[str, Any]]) -> None:
+    """Require unique prerequisites and a reachable start for every path."""
+    dependents: dict[str, list[str]] = {finding["finding_id"]: [] for finding in findings}
+    remaining: dict[str, int] = {}
+    for finding in findings:
+        dependencies = finding["attack_path_dependencies"]
+        if len(dependencies) != len(set(dependencies)):
+            raise ReportError("duplicate attack path dependency")
+        finding_id = finding["finding_id"]
+        remaining[finding_id] = len(dependencies)
+        for dependency in dependencies:
+            dependents[dependency].append(finding_id)
+    ready = deque(finding_id for finding_id, count in remaining.items() if count == 0)
+    visited = 0
+    while ready:
+        finding_id = ready.popleft()
+        visited += 1
+        for dependent in dependents[finding_id]:
+            remaining[dependent] -= 1
+            if remaining[dependent] == 0:
+                ready.append(dependent)
+    if visited != len(findings):
+        raise ReportError("cyclic attack path dependencies")
+
+
 def validate_report_semantics(report: dict[str, Any]) -> None:
     """Reject contradictory claims in a stored report after schema validation.
 
@@ -240,6 +266,7 @@ def validate_report_semantics(report: dict[str, Any]) -> None:
             or any(findings_by_id[dependency]["assessment_status"] != "assessed" for dependency in dependencies)
         ):
             raise ReportError("report reproduced attack path lacks assessed prerequisites")
+    _validate_dependency_graph(report["findings"])
 
 
 def build_assessment_report(bundle: dict[str, Any]) -> dict[str, Any]:
@@ -507,6 +534,7 @@ def build_assessment_report(bundle: dict[str, Any]) -> dict[str, Any]:
             if prerequisite["finding_id"] in dependencies
         ):
             raise ReportError("reproduced attack path requires assessed prerequisites")
+    _validate_dependency_graph(findings)
     report = {
         "schema_version": "cops.assessment-report/v1",
         "report_id": bundle["report_id"],

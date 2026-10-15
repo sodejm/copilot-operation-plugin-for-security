@@ -402,6 +402,34 @@ def test_reproduced_attack_path_requires_reproduction_evidence():
         build_assessment_report(bundle)
 
 
+def test_attack_path_dependencies_are_unique_and_acyclic_in_new_and_saved_reports():
+    bundle = _bundle()
+    context = bundle["finding_contexts"][0]
+    context["kind"] = "reproduced_attack_path"
+    context["attack_path_dependencies"] = ["find-prerequisite-001"]
+    prerequisite = deepcopy(bundle["findings"][0])
+    prerequisite["finding_id"] = "find-prerequisite-001"
+    bundle["findings"].append(prerequisite)
+    prerequisite_context = deepcopy(context)
+    prerequisite_context.update(
+        {"finding_id": "find-prerequisite-001", "kind": "observed_behavior", "attack_path_dependencies": []}
+    )
+    bundle["finding_contexts"].append(prerequisite_context)
+    report = build_assessment_report(bundle)
+    validate_contract(report, "assessment_report")
+
+    bundle["finding_contexts"][1]["attack_path_dependencies"] = ["find-open-port-http-80"]
+    with pytest.raises(ReportError, match="cyclic attack path"):
+        build_assessment_report(bundle)
+    report["findings"][1]["attack_path_dependencies"] = ["find-open-port-http-80"]
+    with pytest.raises(ContractError, match="cyclic attack path"):
+        validate_contract(report, "assessment_report")
+    report["findings"][1]["attack_path_dependencies"] = []
+    report["findings"][0]["attack_path_dependencies"].append("find-prerequisite-001")
+    with pytest.raises(ContractError, match="duplicate attack path"):
+        validate_contract(report, "assessment_report")
+
+
 @pytest.mark.parametrize("dependency", ["find-absent-001", "find-open-port-http-80"])
 def test_rejects_dangling_or_self_attack_path_dependency(dependency):
     bundle = _bundle()
