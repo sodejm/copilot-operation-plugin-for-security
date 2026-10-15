@@ -25,6 +25,8 @@ general-purpose research command or network fetcher.
    SHA-256 in `offline_research.corpora`. Keep private source content out of
    plans, logs, and committed fixtures. The worker copies each approved file
    into a private temporary workspace using held, non-following descriptors.
+   Source opens are nonblocking so a substituted FIFO is rejected as a
+   non-regular file without holding the worker indefinitely.
 3. Bind `offline_research.profile` to `offline-research`, `version` to `v1`,
    `worker_identity` to the verified inventory identity, and
    `worker_inventory_sha256` to the canonical digest of that inventory. Use a
@@ -60,8 +62,8 @@ the inventory and executable digests, and the staged corpus digests. Compare
 those records with the signed plan and the worker's protected inventory before
 accepting a result. Treat tool output and corpus content as untrusted data.
 
-Repository tests exercise the profile with synthetic files and mocked
-observations. They do not establish that a particular host actually denied
+Repository unit and executable feature tests exercise preflight with synthetic
+files and observations. They do not establish that a particular host actually denied
 network access or protected the corpus mount, approval store, worker UID, or
 cleanup journal. Before using real data, independently verify the deployed
 Linux namespace and network policy, account separation, corpus provisioning,

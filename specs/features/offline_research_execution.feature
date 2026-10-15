@@ -1,31 +1,29 @@
-Feature: Offline research execution profile
+Feature: Offline research request preflight
   As an engagement operator
-  I need signed local inputs and an observed Linux network boundary
-  So that the worker rejects unapproved data and egress paths before execution
+  I need executable checks for the approval-bound local profile
+  So that unsafe inputs are rejected during preflight
 
-  Scenario: Read an approved local corpus
-    Given a signed offline research plan for a pinned local corpus and worker
-    And a fresh matching observation of an isolated Linux network namespace
-    When the worker consumes approval and reads the corpus
-    Then the result records the approved and observed isolation digests
-    And the result records the staged corpus digest and observation scope
+  Scenario: Stage an approved local corpus with matching synthetic observation
+    Given an offline research plan for a pinned local corpus and worker
+    When preflight validates and stages the approved corpus
+    Then the staged digest and synthetic isolation observation match the plan
 
-  Scenario: Reject a substituted or unsafe corpus
-    Given a signed offline research plan for a pinned local corpus and worker
+  Scenario: Reject substituted or unsafe corpus files
+    Given an offline research plan for a pinned local corpus and worker
     When the corpus changes, is oversized, or becomes a symlink
-    Then the worker rejects the request before consuming approval
+    Then corpus staging rejects every unsafe source
 
-  Scenario: Reject egress and credential requests
-    Given a signed offline research plan
-    When its target, adapter, arguments, egress policy, or credentials request an external channel
-    Then the worker rejects the request before consuming approval
+  Scenario: Reject external channels
+    Given an offline research plan for a pinned local corpus and worker
+    When the target, adapter, arguments, egress policy, or credentials request an external channel
+    Then offline request preflight rejects every external channel
 
   Scenario: Reject stale or mismatched isolation evidence
-    Given a signed offline research plan
-    When the isolation observation is missing, stale, or differs from the approved digest
-    Then the worker rejects the request before consuming approval
+    Given an offline research plan for a pinned local corpus and worker
+    When the isolation observation is stale or differs from the approved digest
+    Then isolation preflight rejects the invalid evidence
 
   Scenario: Reject a substituted authorization receipt
-    Given a signed offline research plan and a one-use approval
-    When a different authorization receipt is supplied to the worker
-    Then the worker rejects execution
+    Given an offline research plan for a pinned local corpus and worker
+    When the approval client receives a substituted receipt
+    Then receipt provenance validation rejects the substitution

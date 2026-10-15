@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
+import subprocess
+import sys
 from copy import deepcopy
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -106,6 +109,27 @@ def test_profile_is_bound_to_signed_plan_and_trusted_inventory(tmp_path):
         ActionPlan.from_dict(altered)
     with pytest.raises(OfflineResearchError, match="inventory digest mismatch"):
         _validate(plan, worker_inventory={"worker_identity": WORKER_ID, "tools": {}})
+
+
+def test_inert_empty_array_arguments_survive_action_plan_freezing(tmp_path):
+    source = tmp_path.resolve() / "sample.txt"
+    source.write_bytes(b"fixture")
+    plan = _plan(
+        _profile(source),
+        operations=[
+            {
+                "step_id": "step-1",
+                "tool": "inert",
+                "tool_version": "0.7.0",
+                "action": "print_status",
+                "arguments": [],
+                "timeout_seconds": 10,
+            }
+        ],
+    )
+
+    assert plan.operations[0]["arguments"] == ()
+    _validate(plan)
 
 
 @pytest.mark.parametrize("violation", ["url", "egress", "credentials", "proxy", "adapter", "stale"])
@@ -272,6 +296,50 @@ def test_corpus_staging_rejects_symlink_and_oversized_file(tmp_path):
             stage_corpora(profile, workspace=workspace, workspace_fd=workspace_fd, ledger=ledger)
     finally:
         os.close(workspace_fd)
+
+
+def test_corpus_staging_rejects_fifo_without_blocking(tmp_path):
+    root = tmp_path.resolve()
+    source = root / "sample.txt"
+    source.write_bytes(b"approved")
+    profile = _profile(source)
+    source.unlink()
+    os.mkfifo(source)
+    workspace = root / "workspace"
+    workspace.mkdir(mode=0o700)
+
+    probe = """
+import json
+import os
+import sys
+from pathlib import Path
+from cops.execution.cleanup import SideEffectLedger
+from cops.execution.filesystem import open_directory_no_symlinks
+from cops.execution.offline_research import OfflineResearchError, stage_corpora
+
+profile = json.loads(sys.argv[1])
+workspace = Path(sys.argv[2])
+workspace_fd = open_directory_no_symlinks(workspace)
+try:
+    ledger = SideEffectLedger("plan-offline-test", "eng-offline-test", "worker-offline-test", workspace_dir=workspace)
+    try:
+        stage_corpora(profile, workspace=workspace, workspace_fd=workspace_fd, ledger=ledger)
+    except OfflineResearchError as err:
+        if "bounded regular file" in str(err):
+            sys.exit(0)
+        raise
+    sys.exit(1)
+finally:
+    os.close(workspace_fd)
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", probe, json.dumps(profile), str(workspace)],
+        capture_output=True,
+        text=True,
+        timeout=3,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def test_configuration_alone_does_not_satisfy_isolation_attestation(tmp_path):
