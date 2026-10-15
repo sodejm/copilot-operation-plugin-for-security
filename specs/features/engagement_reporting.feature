@@ -34,3 +34,25 @@ Feature: Evidence-bounded offline engagement reports
     When the assessment report is built
     And the saved scanner coverage is changed to assessed
     Then the saved assessment report is rejected
+
+  Scenario: A live observation outside the run window cannot validate coverage
+    Given a valid offline assessment bundle
+    And its live observation precedes the run window
+    When the assessment report is built
+    Then its live coverage and finding are not assessed
+    And the saved assessment report validates
+
+  Scenario: Evidence for one asset cannot assess a second asset
+    Given a valid offline assessment bundle
+    And its finding also affects a second asset without evidence
+    When the assessment report is built
+    Then the second asset is not assessed and the finding is partial
+    And the saved assessment report validates
+
+  Scenario: An attack path requires an acyclic prerequisite
+    Given a valid offline assessment bundle
+    And its attack path has a supported prerequisite
+    When the assessment report is built
+    Then its attack path and prerequisite validate
+    When the saved prerequisite points back to the attack path
+    Then the saved assessment report is rejected
