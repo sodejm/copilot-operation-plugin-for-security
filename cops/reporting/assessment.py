@@ -328,9 +328,7 @@ def validate_report_semantics(report: dict[str, Any]) -> None:
         # was insufficient. Other partial findings still disclose each asset that
         # lacks assessed evidence.
         accepted_asset_statuses = (
-            frozenset({"assessed", "partial"})
-            if finding["kind"] == "scanner_assertion"
-            else frozenset({"assessed"})
+            frozenset({"assessed", "partial"}) if finding["kind"] == "scanner_assertion" else frozenset({"assessed"})
         )
         unsupported_assets = _assets_without_assessed_evidence(
             finding["affected_assets"],
@@ -627,9 +625,7 @@ def build_assessment_report(bundle: dict[str, Any]) -> dict[str, Any]:
             and any(_contains(row["target"], asset) for asset in finding["affected_assets"])
         ]
         accepted_asset_statuses = (
-            frozenset({"assessed", "partial"})
-            if finding["kind"] == "scanner_assertion"
-            else frozenset({"assessed"})
+            frozenset({"assessed", "partial"}) if finding["kind"] == "scanner_assertion" else frozenset({"assessed"})
         )
         unsupported_assets = _assets_without_assessed_evidence(
             finding["affected_assets"],
