@@ -31,6 +31,7 @@ from .active_models import (
     ScanDelta,
     ServiceReachability,
     TargetShiftQuarantine,
+    canonical_target_identity,
 )
 from .fingerprinter import infer_service_fingerprint
 from .models import EvidenceProvenance
@@ -591,7 +592,7 @@ class ActiveScanner:
             for port in self.session.approved_ports + self.session.approved_udp_ports
         ):
             raise ActiveScanError("TCP and UDP ports must be integers from 1 through 65535")
-        if len({target.lower() for target in self.session.approved_targets}) != len(
+        if len({canonical_target_identity(target) for target in self.session.approved_targets}) != len(
             self.session.approved_targets
         ) or any(
             len(set(ports)) != len(ports) for ports in (self.session.approved_ports, self.session.approved_udp_ports)
@@ -734,7 +735,7 @@ class ActiveScanner:
             Protocol.TCP.value: set(session.approved_ports),
             Protocol.UDP.value: set(session.approved_udp_ports),
         }
-        targets = {target.lower() for target in session.approved_targets}
+        targets = {canonical_target_identity(target) for target in session.approved_targets}
 
         def planned_key(key: str) -> bool:
             if not isinstance(key, str):
@@ -777,7 +778,7 @@ class ActiveScanner:
             if (
                 key not in completed
                 or key in assessment_keys
-                or assessment.target_host.lower() not in targets
+                or canonical_target_identity(assessment.target_host) not in targets
                 or not self._is_ip_in_scope(assessment.resolved_ip)
             ):
                 raise ActiveScanError("Live checkpoint assessment evidence is inconsistent")
@@ -923,8 +924,12 @@ class ActiveScanner:
         ]
 
         for target_host in self.session.approved_targets:
+            target_identity = canonical_target_identity(target_host)
             # A quarantined target stays halted across checkpoint resumes.
-            if any(q.target_host.lower() == target_host.lower() for q in self.session.quarantined_targets):
+            if any(
+                canonical_target_identity(q.target_host) == target_identity
+                for q in self.session.quarantined_targets
+            ):
                 continue
 
             # 1. Validate target host against scope
@@ -945,11 +950,13 @@ class ActiveScanner:
             # probes. Completed keys without assessment evidence cannot prove
             # which address received those side effects.
             prior_ips = {
-                a.resolved_ip for a in self.session.assessments if a.target_host.lower() == target_host.lower()
+                a.resolved_ip
+                for a in self.session.assessments
+                if canonical_target_identity(a.target_host) == target_identity
             }
             prior_ip = next(iter(prior_ips)) if len(prior_ips) == 1 else None
             probe_prefixes = tuple(
-                f"{self.session.vantage}:{protocol}:{target_host.lower()}:"
+                f"{self.session.vantage}:{protocol}:{target_identity}:"
                 for protocol, ports in (
                     (Protocol.TCP.value, self.session.approved_ports),
                     (Protocol.UDP.value, self.session.approved_udp_ports),
@@ -1151,23 +1158,17 @@ class ActiveScanner:
 def compare_active_scans(baseline: ActiveScanSession, current: ActiveScanSession) -> ScanDelta:
     """Compare baseline scan against current scan to compute remediated and altered exposures."""
 
-    def canonical_address(value: str) -> str:
-        try:
-            return str(ipaddress.ip_address(value))
-        except ValueError:
-            return value
-
     def identity(a: ActiveServiceAssessment) -> tuple[str, str, int, str, str]:
         return (
-            canonical_address(a.target_host.lower()),
+            canonical_target_identity(a.target_host),
             a.protocol,
             a.port,
-            canonical_address(a.resolved_ip),
+            canonical_target_identity(a.resolved_ip),
             a.vantage,
         )
 
     def slot(a: ActiveServiceAssessment) -> tuple[str, str, int]:
-        return (canonical_address(a.target_host.lower()), a.protocol, a.port)
+        return (canonical_target_identity(a.target_host), a.protocol, a.port)
 
     baseline_open: dict[tuple[str, str, int, str, str], ActiveServiceAssessment] = {}
     for a in baseline.assessments:
