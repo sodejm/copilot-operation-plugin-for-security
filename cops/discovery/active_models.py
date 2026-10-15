@@ -771,10 +771,7 @@ class ActiveScanSession:
                     or len(set(probe_keys)) != len(probe_keys)
                 ):
                     raise ValueError("Active scan checkpoint journal probe keys are invalid")
-                if any(
-                    key in session.pending_probe_keys or key in session.completed_probe_keys
-                    for key in probe_keys
-                ):
+                if any(key in session.pending_probe_keys or key in session.completed_probe_keys for key in probe_keys):
                     raise ValueError("Active scan checkpoint journal contains a duplicate reservation")
                 session.pending_probe_keys.update(probe_keys)
                 session.total_probes_dispatched += len(probe_keys)
