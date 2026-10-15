@@ -162,6 +162,17 @@ from .service_entry_validation import (
     ServiceValidationPlan,
     prepare_session_service_handoffs,
 )
+from .service_validation_execution import (
+    AttackMapping,
+    AuthorizationReceipt,
+    ValidationActionResult,
+    ValidationEvidenceVerification,
+    ValidationFinding,
+    ValidationProbeOutput,
+    ValidationSelection,
+    VersionedReproduction,
+    execute_service_validation_action,
+)
 
 __all__ = [
     "ActiveScanError",
@@ -169,6 +180,8 @@ __all__ = [
     "ActiveScanner",
     "ActiveServiceAssessment",
     "ApprovedEndpoint",
+    "AttackMapping",
+    "AuthorizationReceipt",
     "AssetType",
     "AuthPrerequisite",
     "ConfidenceLevel",
@@ -200,6 +213,12 @@ __all__ = [
     "ServiceEntryHandoff",
     "ServiceReachability",
     "ServiceValidationPlan",
+    "ValidationActionResult",
+    "ValidationEvidenceVerification",
+    "ValidationFinding",
+    "ValidationProbeOutput",
+    "ValidationSelection",
+    "VersionedReproduction",
     "StandardSocketDispatcher",
     "StandardSocketInfraCollector",
     "TargetShiftQuarantine",
@@ -207,6 +226,7 @@ __all__ = [
     "build_discovery_parser",
     "command_discovery",
     "compare_active_scans",
+    "execute_service_validation_action",
     "expand_target_specs",
     "import_masscan_json",
     "import_nmap_xml",
