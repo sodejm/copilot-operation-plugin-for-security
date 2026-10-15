@@ -333,7 +333,7 @@ except socket.gaierror:
     dns_resolved = False
 # A resolver failure alone does not establish DNS egress denial. Send a DNS
 # query to host-side TCP and UDP listeners and check those listeners outside.
-dns_query = bytes.fromhex("123401000001000000000000") + b"\x07offline\x07invalid\x00\x00\x01\x00\x01"
+dns_query = bytes.fromhex("123401000001000000000000076f66666c696e6507696e76616c69640000010001")
 try:
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as outgoing:
         outgoing.sendto(dns_query, ("127.0.0.1", dns_udp_port))
