@@ -198,6 +198,7 @@ __all__ = [
     "build_discovery_parser",
     "command_discovery",
     "compare_active_scans",
+    "expand_target_specs",
     "import_masscan_json",
     "import_nmap_xml",
     "infer_service_fingerprint",

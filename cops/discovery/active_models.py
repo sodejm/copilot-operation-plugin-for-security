@@ -630,7 +630,7 @@ class ActiveScanSession:
         *,
         durable: bool,
     ) -> None:
-        journal = self._ensure_checkpoint_journal(path)
+        self._ensure_checkpoint_journal(path)
         record = canonical(event, max_bytes=MAX_ACTIVE_CHECKPOINT_BYTES - 1) + b"\n"
         checkpoint_size = Path(path).stat().st_size
         descriptor = self._open_checkpoint_journal(Path(path), os.O_WRONLY | os.O_APPEND)
@@ -712,7 +712,6 @@ class ActiveScanSession:
             raise ValueError("Active scan checkpoint exceeds the size limit")
         data = decode_json(raw, max_bytes=MAX_ACTIVE_CHECKPOINT_BYTES)
         session = cls.from_dict(data)
-        journal = cls.checkpoint_journal_path(p)
         if not cls._checkpoint_journal_exists(p):
             return session
         descriptor = cls._open_checkpoint_journal(p, os.O_RDONLY)
