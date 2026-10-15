@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 import os
 import tempfile
 from dataclasses import asdict, dataclass, field
@@ -16,6 +17,15 @@ from .models import EvidenceProvenance
 # A complete TCP sweep can exceed the evidence module's smaller default limit.
 # Keep checkpoint reads and writes bounded to the same explicit ceiling.
 MAX_ACTIVE_CHECKPOINT_BYTES = 256 * 1024 * 1024
+
+
+def canonical_target_identity(host: str) -> str:
+    """Return one comparison and ledger identity for a hostname or IP literal."""
+    normalized = host.lower()
+    try:
+        return str(ipaddress.ip_address(normalized))
+    except ValueError:
+        return normalized
 
 
 class ScanVantage(str, Enum):
@@ -316,7 +326,7 @@ class ActiveScanSession:
     @staticmethod
     def make_probe_key(vantage: str, protocol: str, host: str, port: int) -> str:
         """Deterministic unique key for a probe target/port."""
-        return f"{vantage}:{protocol.lower()}:{host.lower()}:{port}"
+        return f"{vantage}:{protocol.lower()}:{canonical_target_identity(host)}:{port}"
 
     def coverage_summary(self) -> dict[str, Any]:
         """Summarize durable attempted, skipped, and outstanding plan coverage."""
@@ -330,7 +340,7 @@ class ActiveScanSession:
             for port in ports
         }
         attempted = self.completed_probe_keys | self.pending_probe_keys
-        quarantined_hosts = {item.target_host.lower() for item in self.quarantined_targets}
+        quarantined_hosts = {canonical_target_identity(item.target_host) for item in self.quarantined_targets}
         quarantined = {
             key
             for key in planned - attempted

@@ -594,7 +594,11 @@ class TestLiveScanSafety(unittest.TestCase):
         self.assertEqual(dispatcher.probes, [])
 
     def test_duplicate_targets_and_ports_cannot_repeat_network_effects(self):
-        for targets, ports in ((["app.corp.internal", "APP.CORP.INTERNAL"], [80]), (["app.corp.internal"], [80, 80])):
+        for targets, ports in (
+            (["app.corp.internal", "APP.CORP.INTERNAL"], [80]),
+            (["::1", "0:0:0:0:0:0:0:1"], [80]),
+            (["app.corp.internal"], [80, 80]),
+        ):
             with self.subTest(targets=targets, ports=ports):
                 session = self.session(ports=ports)
                 session.approved_targets = targets
@@ -602,6 +606,12 @@ class TestLiveScanSafety(unittest.TestCase):
                 with self.assertRaisesRegex(ActiveScanError, "Duplicate"):
                     self.scanner(session, dispatcher).run()
                 self.assertEqual(dispatcher.probes, [])
+
+    def test_equivalent_ipv6_literals_have_one_probe_key_identity(self):
+        self.assertEqual(
+            ActiveScanSession.make_probe_key("external", "tcp", "::1", 443),
+            ActiveScanSession.make_probe_key("external", "tcp", "0:0:0:0:0:0:0:1", 443),
+        )
 
     def test_bound_session_requires_its_durable_checkpoint(self):
         self.scanner(self.session()).run()
