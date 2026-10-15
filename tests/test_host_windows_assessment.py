@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import shutil
 import subprocess
@@ -16,10 +17,41 @@ PACKAGE = ROOT / "plugins" / "offensive-security" / "host-assessment-workbench"
 sys.path.insert(0, str(PACKAGE))
 
 from host_assessment_workbench.core import ContractError, assess_document, load_report_bytes  # noqa: E402
+from host_assessment_workbench.windows_bridge import validate_bridge_receipt  # noqa: E402
 
 
 def fixture(name: str) -> dict:
     return json.loads((ROOT / "tests" / "fixtures" / f"host_windows_{name}_v1.json").read_text())
+
+
+def native_payload() -> dict:
+    payload = fixture("unsupported")
+    payload["source_kind"] = "operator_export"
+    payload["source_id"] = "native_windows_ci"
+    payload["bridge"]["mode"] = "native_windows_bridge"
+    payload["bridge"]["capabilities"] = ["registry_controls", "local_credential_references"]
+    payload["coverage"]["registry_controls"] = "assessed"
+    payload["coverage"]["local_credential_references"] = "assessed"
+    return payload
+
+
+def native_receipt(export_bytes: bytes) -> dict:
+    return {
+        "schema_version": "windows-bridge-receipt-1.0",
+        "platform": "windows",
+        "bridge_mode": "native_windows_bridge",
+        "export_sha256": hashlib.sha256(export_bytes).hexdigest(),
+        "capabilities": ["registry_controls", "local_credential_references"],
+        "canary": {
+            "resource_id": "native_canary_1",
+            "assessment_owned": True,
+            "before_absent": True,
+            "created": True,
+            "removed": True,
+            "cleanup_verified": True,
+            "evidence_ids": ["canary_before", "canary_created", "canary_removed"],
+        },
+    }
 
 
 def test_host_discovery_metadata_tracks_portable_platforms() -> None:
@@ -70,6 +102,64 @@ def test_unsupported_surface_has_no_observation_or_safety_claim() -> None:
     assert report["coverage"]["versioned_escalation_families"] == "unsupported"
     assert report["observations"] == []
     assert sum(report["counts"].values()) == 0
+
+
+def test_native_bridge_import_preserves_capability_and_coverage_boundaries() -> None:
+    report = assess_document(native_payload())
+    assert report["mode"] == "native_bridge_import"
+    assert report["bridge"]["mode"] == "native_windows_bridge"
+    assert report["bridge"]["canary_assertions"] is False
+    assert report["coverage"]["registry_controls"] == "assessed"
+    assert report["coverage"]["service_permissions"] == "not_assessed"
+
+
+def test_native_bridge_cannot_self_assert_privilege_crossing() -> None:
+    payload = native_payload()
+    payload["bridge"]["canary_assertions"] = True
+    with pytest.raises(ContractError, match="cannot assert privilege crossings"):
+        assess_document(payload)
+
+
+def test_native_bridge_receipt_is_bound_to_export_and_empty_canary_root(tmp_path: Path) -> None:
+    export_bytes = json.dumps(native_payload(), sort_keys=True, separators=(",", ":")).encode()
+    canary_root = tmp_path / "canary"
+    canary_root.mkdir()
+    result = validate_bridge_receipt(native_receipt(export_bytes), export_bytes, canary_root)
+    assert result["canary"]["cleanup_verified"] is True
+    assert "crossing" not in json.dumps(result)
+
+
+@pytest.mark.parametrize("field", ["assessment_owned", "before_absent", "created", "removed", "cleanup_verified"])
+def test_native_bridge_receipt_requires_lifecycle_assertions(tmp_path: Path, field: str) -> None:
+    export_bytes = json.dumps(native_payload(), sort_keys=True, separators=(",", ":")).encode()
+    receipt = native_receipt(export_bytes)
+    receipt["canary"][field] = False
+    canary_root = tmp_path / "canary"
+    canary_root.mkdir()
+    with pytest.raises(ContractError):
+        validate_bridge_receipt(receipt, export_bytes, canary_root)
+
+
+def test_native_bridge_receipt_rejects_changed_export_and_residue(tmp_path: Path) -> None:
+    export_bytes = json.dumps(native_payload(), sort_keys=True, separators=(",", ":")).encode()
+    receipt = native_receipt(export_bytes)
+    canary_root = tmp_path / "canary"
+    canary_root.mkdir()
+    with pytest.raises(ContractError, match="hash"):
+        validate_bridge_receipt(receipt, export_bytes + b" ", canary_root)
+    (canary_root / "residue").write_text("unexpected")
+    with pytest.raises(ContractError, match="not empty"):
+        validate_bridge_receipt(receipt, export_bytes, canary_root)
+
+
+def test_native_collector_has_bounded_static_contract() -> None:
+    script = (PACKAGE / "scripts" / "collect-windows.ps1").read_text()
+    assert all(name in script for name in ("OutputPath", "ReceiptPath", "CanaryRoot"))
+    assert "native_windows_bridge" in script
+    assert "Invoke-Expression" not in script
+    assert "Start-Process" not in script
+    workflow = (ROOT / ".github" / "workflows" / "repository-contract.yml").read_text()
+    assert "Exercise native Windows host assessment bridge" in workflow
 
 
 @pytest.mark.parametrize(

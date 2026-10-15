@@ -1,4 +1,4 @@
-"""Classify bounded Windows exports without collecting or executing on a host."""
+"""Classify bounded offline and native-bridge Windows exports."""
 
 from __future__ import annotations
 
@@ -157,7 +157,9 @@ def assess_windows_document(payload: dict[str, Any]) -> dict[str, Any]:
     source_kind = _enum(document["source_kind"], {"synthetic_lab", "operator_export"}, "source_kind")
     source_id = _token(document["source_id"], "source_id")
     bridge = _exact_keys(document["bridge"], {"mode", "platform", "capabilities", "canary_assertions"}, "bridge")
-    _enum(bridge["mode"], {"offline_windows_export"}, "bridge.mode")
+    bridge_mode = _enum(
+        bridge["mode"], {"offline_windows_export", "native_windows_bridge"}, "bridge.mode"
+    )
     _enum(bridge["platform"], {"windows"}, "bridge.platform")
     raw_capabilities = bridge["capabilities"]
     if not isinstance(raw_capabilities, list) or len(raw_capabilities) > len(SURFACES):
@@ -166,6 +168,11 @@ def assess_windows_document(payload: dict[str, Any]) -> dict[str, Any]:
     if len(capabilities) != len(set(capabilities)):
         raise ContractError("bridge.capabilities has duplicate surfaces")
     canary_assertions = _boolean(bridge["canary_assertions"], "bridge.canary_assertions")
+    if bridge_mode == "native_windows_bridge":
+        if source_kind != "operator_export":
+            raise ContractError("native Windows bridge requires an operator export")
+        if canary_assertions:
+            raise ContractError("native Windows bridge cannot assert privilege crossings")
     host = _host(document["host"])
     raw_coverage = _exact_keys(document["coverage"], set(SURFACES), "coverage")
     coverage = {
@@ -236,10 +243,10 @@ def assess_windows_document(payload: dict[str, Any]) -> dict[str, Any]:
     counts = Counter(result["classification"] for result in results)
     return {
         "schema_version": "windows-1.0",
-        "mode": "offline_import",
+        "mode": "native_bridge_import" if bridge_mode == "native_windows_bridge" else "offline_import",
         "source": {"kind": source_kind, "id": source_id},
         "bridge": {
-            "mode": "offline_windows_export",
+            "mode": bridge_mode,
             "platform": "windows",
             "capabilities": capabilities,
             "canary_assertions": canary_assertions,

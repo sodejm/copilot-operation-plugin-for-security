@@ -2,11 +2,11 @@
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "host-assessment-workbench",
   "version": "0.1.0",
-  "description": "Offline import and evidence classification for Linux and Windows privilege-boundary assessments.",
+  "description": "Offline Linux and Windows evidence classification with a bounded read-only native Windows bridge.",
   "author": {"name": "Justin Soderberg", "url": "https://github.com/sodejm"},
   "repository": "https://github.com/sodejm/copilot-operation-plugin-for-security",
   "license": "PolyForm-Noncommercial-1.0.0",
-  "keywords": ["cybersecurity", "offensive-security", "linux", "windows", "host-assessment", "privilege-boundaries", "offline-import"],
+  "keywords": ["cybersecurity", "offensive-security", "linux", "windows", "host-assessment", "privilege-boundaries", "offline-import", "windows-bridge", "read-only-collection"],
   "extensions": {
     "com.openai": {"displayName": "COPS Host Assessment Workbench", "category": "Developer Tools"},
     "org.cops": {}

@@ -1,4 +1,4 @@
-Feature: Offline Windows privilege-boundary evidence classification
+Feature: Windows privilege-boundary evidence classification
   Imported Windows evidence must preserve prerequisites and never imply verified live exploitation.
 
   Scenario: A synthetic canary crossing is reported with Windows context
@@ -22,3 +22,13 @@ Feature: Offline Windows privilege-boundary evidence classification
     Given a vulnerable synthetic Windows host fixture without cleanup assertion
     When the Windows host importer attempts to assess it
     Then the Windows importer rejects the incomplete canary report
+
+  Scenario: A native Windows bridge declares only the surfaces it assessed
+    Given a capability-declared native Windows bridge export
+    When the Windows host importer assesses it
+    Then the report preserves the native bridge mode and explicit coverage
+
+  Scenario: Native bridge cleanup evidence is independently validated
+    Given a native bridge export and assessment-owned cleanup receipt
+    When the bridge receipt is validated against the export and empty canary root
+    Then the receipt proves resource lifecycle cleanup without claiming a privilege crossing

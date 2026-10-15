@@ -1,8 +1,9 @@
 # COPS Host Assessment Workbench
 
 Review sanitized Linux and Windows privilege-boundary exports and identify which observations
-apply to the reported host context. This experimental package imports local JSON;
-it does not collect host data or attempt privilege escalation.
+apply to the reported host context. On Windows, the package also provides a
+bounded read-only collector and an independently validated, assessment-owned
+cleanup receipt. It does not attempt privilege escalation or read credential values.
 
 ## Start here
 
@@ -59,11 +60,11 @@ privilege-boundary contracts define the exact schemas.
 | `source_kind`, `source_id` | Exporter labels `synthetic_lab` or `operator_export` and an opaque provenance ID | Copied to report `source`; this is not independent provenance verification |
 | `host` | Linux kernel/distribution/namespace or Windows build/architecture/token context | Compared with each observation's prerequisites; unknown values remain unresolved |
 | `host.protections` | Linux SELinux/AppArmor/seccomp/no-new-privileges/user-namespace state or Windows UAC/VBS/Credential Guard/AppLocker/WDAC state | Required host context; selected requirements must agree |
-| `bridge` | Windows exporter declares platform, offline mode, supported capabilities, and whether it supplied canary assertions | Importer rejects undeclared Windows capabilities and contradictory assertions |
+| `bridge` | Windows exporter declares platform, `offline_windows_export` or `native_windows_bridge`, supported capabilities, and whether it supplied canary assertions | Importer rejects undeclared capabilities, contradictory assertions, and native privilege-crossing canaries |
 | `coverage` | Status for eight Linux or seven Windows privilege-boundary surfaces | Each surface is `assessed`, `not_assessed`, `unsupported`, or `access_denied`; observations require assessed coverage |
 | `observations[]` | ID, surface, configuration assertion, evidence IDs, requirements, optional canary | Importer rejects duplicate IDs, unsupported fields, and contradictory claims |
 | `observations[].canary` | Case, resource ID, before/after access, evidence IDs, ownership and cleanup assertions | At least three evidence IDs; disposable host, assessment ownership, and cleanup must all be true |
-| Report `mode`, `source`, `host`, `coverage` | Importer preserves import context | Analyst sees `offline_import` and explicit coverage limits |
+| Report `mode`, `source`, `host`, `coverage` | Importer preserves import context | Analyst sees `offline_import` or `native_bridge_import` and explicit coverage limits |
 | Report `observations`, `counts` | Importer supplies decisions, classifications, prerequisites, and totals | Analyst distinguishes candidates from reported crossings and unresolved observations |
 
 The importer bounds input to 1 MiB, JSON depth 64, and 256 observations. Use opaque,
@@ -78,9 +79,17 @@ success report. Fix the input contract or preserve a missing-evidence outcome;
 do not change assertions merely to obtain a selected result. See the playback for
 repeatability and cleanup checks.
 
-A live assessment requires separately approved scope, canary privileges, an isolated
-worker, a disposable host, and ownership-aware cleanup evidence. This package
-provides none of those execution capabilities. Host installation and live integration
-remain unverified. Windows technique references `E06.01-S01`, `E06.01-S02`,
-`E06.02-S01`, and `E06.02-S02` are planning references pending exact source
-mapping under acceptance criterion `E01.1`.
+On Windows, `scripts/collect-windows.ps1` measures build, architecture, token,
+UAC state, and seven bounded privilege-boundary surfaces. Service, task, and PATH
+enumeration have fixed maximums; failures remain `access_denied` or
+`not_assessed`. The collector creates and removes only a harmless directory and
+marker beneath a caller-supplied empty canary root. The SHA-bound receipt and
+empty root are checked by `scripts/validate-windows-bridge.py`. This validates
+collector execution and assessment-owned cleanup; it does not validate a
+privilege crossing or exploitability.
+
+Host installation and live integration remain unverified until the native
+Windows workflow succeeds at the exact reviewed commit. Synthetic vulnerable,
+protected, remediated, and unsupported fixtures remain the acceptance evidence
+for result classification. The package-local [verification guide](docs/VERIFICATION.md)
+defines the native acceptance procedure and the evidence it establishes.

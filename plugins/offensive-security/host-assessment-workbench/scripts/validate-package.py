@@ -4,14 +4,21 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 PACKAGE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PACKAGE))
 
 from host_assessment_workbench.core import ContractError, load_report_bytes  # noqa: E402
+from host_assessment_workbench.windows import SURFACES  # noqa: E402
+from host_assessment_workbench.windows_bridge import (  # noqa: E402
+    load_bridge_receipt_bytes,
+    validate_bridge_receipt,
+)
 
 
 def _require(condition: bool, message: str) -> None:
@@ -62,6 +69,62 @@ def main() -> int:
         "Windows unsupported coverage mismatch",
     )
     _require(unsupported["observations"] == [], "Windows unsupported observations mismatch")
+
+    native_payload = json.loads(
+        (PACKAGE / "fixtures" / "synthetic" / "host_windows_unsupported_v1.json").read_text()
+    )
+    native_payload["source_kind"] = "operator_export"
+    native_payload["source_id"] = "native_windows_bridge"
+    native_payload["bridge"] = {
+        "mode": "native_windows_bridge",
+        "platform": "windows",
+        "capabilities": list(SURFACES),
+        "canary_assertions": False,
+    }
+    native_payload["coverage"] = {surface: "not_assessed" for surface in SURFACES}
+    native_bytes = json.dumps(native_payload, separators=(",", ":"), sort_keys=True).encode()
+    native = load_report_bytes(native_bytes)
+    _require(native["mode"] == "native_bridge_import", "Windows native bridge mode mismatch")
+    receipt = {
+        "schema_version": "windows-bridge-receipt-1.0",
+        "platform": "windows",
+        "bridge_mode": "native_windows_bridge",
+        "export_sha256": hashlib.sha256(native_bytes).hexdigest(),
+        "capabilities": list(SURFACES),
+        "canary": {
+            "resource_id": "validation_canary",
+            "assessment_owned": True,
+            "before_absent": True,
+            "created": True,
+            "removed": True,
+            "cleanup_verified": True,
+            "evidence_ids": ["before", "created", "removed"],
+        },
+    }
+    with tempfile.TemporaryDirectory() as canary_root:
+        validated_receipt = validate_bridge_receipt(
+            load_bridge_receipt_bytes(
+                json.dumps(receipt, separators=(",", ":"), sort_keys=True).encode()
+            ),
+            native_bytes,
+            Path(canary_root),
+        )
+    _require(validated_receipt["export_sha256"] == receipt["export_sha256"], "receipt hash mismatch")
+
+    collector = (PACKAGE / "scripts" / "collect-windows.ps1").read_text()
+    for required in (
+        "Get-CimInstance -ClassName Win32_Service",
+        "System32\\Tasks",
+        "whoami.exe",
+        "AlwaysInstallElevated",
+        "Get-Acl",
+        "DefaultPassword",
+        "token_impersonation_family",
+        "Remove-Item -LiteralPath $canaryPath",
+    ):
+        _require(required in collector, f"native Windows collector is missing {required}")
+    for prohibited in ("Invoke-Expression", "Start-Process", "GetValue(\"DefaultPassword\""):
+        _require(prohibited not in collector, f"native Windows collector contains {prohibited}")
     try:
         load_report_bytes(b'{"schema_version":"1.0","raw_password":"must-not-echo"}')
     except ContractError as exc:
@@ -79,7 +142,17 @@ def main() -> int:
     outputs = [subprocess.run(command, capture_output=True, text=True, check=True, timeout=30).stdout for _ in range(2)]
     _require(outputs[0] == outputs[1], "demo output is not deterministic")
     _require(json.loads(outputs[0])["mode"] == "offline_import", "demo mode mismatch")
-    print(json.dumps({"status": "passed", "reproducible": True, "mode": "offline_import"}, sort_keys=True))
+    print(
+        json.dumps(
+            {
+                "status": "passed",
+                "reproducible": True,
+                "modes": ["offline_import", "native_bridge_import"],
+                "native_bridge_contract": "validated",
+            },
+            sort_keys=True,
+        )
+    )
     return 0
 
 

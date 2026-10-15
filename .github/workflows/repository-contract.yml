@@ -60,6 +60,22 @@ jobs:
         run: python -m pytest plugins/offensive-security/foundry-agent-harness/tests/test_laboratory.py tests/step_defs/test_agent_mcp_laboratories.py -q
       - name: Exercise reachability report acceptance
         run: python -m pytest tests/step_defs/test_cve_reachability.py -q
+      - name: Exercise native Windows host assessment bridge
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $package = Join-Path $env:GITHUB_WORKSPACE "plugins/offensive-security/host-assessment-workbench"
+          $runKey = "cops-host-assessment-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+          $canaryRoot = Join-Path $env:RUNNER_TEMP "$runKey-canary"
+          $exportPath = Join-Path $env:RUNNER_TEMP "$runKey-export.json"
+          $receiptPath = Join-Path $env:RUNNER_TEMP "$runKey-receipt.json"
+          New-Item -ItemType Directory -Path $canaryRoot -ErrorAction Stop | Out-Null
+          & "$package/scripts/collect-windows.ps1" -OutputPath $exportPath -ReceiptPath $receiptPath -CanaryRoot $canaryRoot
+          python "$package/scripts/assess.py" $exportPath
+          python "$package/scripts/validate-windows-bridge.py" $receiptPath $exportPath --canary-root $canaryRoot
+          if (@(Get-ChildItem -LiteralPath $canaryRoot -Force).Count -ne 0) {
+            throw "Native bridge left assessment-owned canary residue."
+          }
       - name: Exercise bounded repository scanning
         run: python -m pytest tests/test_repository_context_reader.py tests/step_defs/test_repository_scanning.py -q
       - name: Exercise every offline demo
