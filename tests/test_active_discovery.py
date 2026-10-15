@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import errno
 import json
+import os
 import ssl
 import tempfile
 import unittest
@@ -24,6 +25,7 @@ from cops.discovery import (
     ScanVantage,
     ServiceReachability,
     compare_active_scans,
+    expand_target_specs,
     import_masscan_json,
     import_nmap_xml,
     infer_service_fingerprint,
@@ -39,6 +41,29 @@ from cops.discovery.cli import build_active_parser, command_active_discovery
 
 
 class TestActiveDiscoveryModelsAndFingerprinting(unittest.TestCase):
+    @staticmethod
+    def _journal_session() -> ActiveScanSession:
+        return ActiveScanSession(
+            session_id="journal-boundary",
+            scope_reference="approved-engagement",
+            approved_targets=["127.0.0.1"],
+            approved_ports=[65000, 65001],
+            budget=ScanBudget(max_probes=2),
+        )
+
+    def test_target_specs_expand_bounded_ipv4_and_ipv6_cidrs(self):
+        self.assertEqual(
+            expand_target_specs(
+                ["192.0.2.0/31", "2001:db8::/127", "EXAMPLE.test"],
+                max_targets=5,
+            ),
+            ["192.0.2.0", "192.0.2.1", "2001:db8::", "2001:db8::1", "example.test"],
+        )
+        with self.assertRaisesRegex(ValueError, "max_targets"):
+            expand_target_specs(["192.0.2.0/29"], max_targets=4)
+        with self.assertRaisesRegex(ValueError, "duplicate"):
+            expand_target_specs(["2001:db8::/127", "2001:0db8:0:0:0:0:0:1"], max_targets=4)
+
     def test_checkpoint_round_trips_beyond_default_evidence_limit(self):
         session = ActiveScanSession(
             session_id="full-tcp-checkpoint",
@@ -64,6 +89,92 @@ class TestActiveDiscoveryModelsAndFingerprinting(unittest.TestCase):
             restored = ActiveScanSession.load_checkpoint(checkpoint)
         self.assertEqual(len(restored.assessments), 1200)
         self.assertEqual(restored.assessments[-1].port, 1200)
+
+    def test_checkpoint_journal_rejects_symlink_without_touching_target(self):
+        session = self._journal_session()
+        with tempfile.TemporaryDirectory() as directory:
+            checkpoint = Path(directory) / "checkpoint.json"
+            victim = Path(directory) / "victim"
+            session.save_checkpoint(checkpoint)
+            victim.write_bytes(b"unchanged")
+            victim.chmod(0o600)
+            journal = session.checkpoint_journal_path(checkpoint)
+            try:
+                journal.symlink_to(victim)
+            except (NotImplementedError, OSError) as error:
+                self.skipTest(f"symlinks unavailable: {error}")
+            key = session.make_probe_key(session.vantage, "tcp", "127.0.0.1", 65000)
+            with self.assertRaisesRegex(ValueError, "unsafe"):
+                session.append_probe_reservation(checkpoint, key)
+            with self.assertRaisesRegex(ValueError, "unsafe"):
+                ActiveScanSession.load_checkpoint(checkpoint)
+            with self.assertRaisesRegex(ValueError, "unsafe"):
+                session.save_checkpoint(checkpoint)
+            self.assertEqual(victim.read_bytes(), b"unchanged")
+            self.assertTrue(journal.is_symlink())
+
+    def test_checkpoint_journal_rejects_hard_link_without_touching_target(self):
+        session = self._journal_session()
+        with tempfile.TemporaryDirectory() as directory:
+            checkpoint = Path(directory) / "checkpoint.json"
+            victim = Path(directory) / "victim"
+            session.save_checkpoint(checkpoint)
+            victim.write_bytes(b"unchanged")
+            victim.chmod(0o600)
+            journal = session.checkpoint_journal_path(checkpoint)
+            try:
+                os.link(victim, journal)
+            except OSError as error:
+                self.skipTest(f"hard links unavailable: {error}")
+            key = session.make_probe_key(session.vantage, "tcp", "127.0.0.1", 65000)
+            with self.assertRaisesRegex(ValueError, "hard links"):
+                session.append_probe_reservation(checkpoint, key)
+            with self.assertRaisesRegex(ValueError, "hard links"):
+                ActiveScanSession.load_checkpoint(checkpoint)
+            with self.assertRaisesRegex(ValueError, "hard links"):
+                session.save_checkpoint(checkpoint)
+            self.assertEqual(victim.read_bytes(), b"unchanged")
+            self.assertTrue(journal.exists())
+
+    def test_checkpoint_journal_replays_completion_and_release(self):
+        session = self._journal_session()
+        with tempfile.TemporaryDirectory() as directory:
+            checkpoint = Path(directory) / "checkpoint.json"
+            session.save_checkpoint(checkpoint)
+            first = session.make_probe_key(session.vantage, "tcp", "127.0.0.1", 65000)
+            second = session.make_probe_key(session.vantage, "tcp", "127.0.0.1", 65001)
+            session.append_probe_reservations(checkpoint, [first, second])
+            assessment = ActiveServiceAssessment(
+                probe_id="journal-probe",
+                target_host="127.0.0.1",
+                resolved_ip="127.0.0.1",
+                port=65000,
+                vantage=session.vantage,
+            )
+            session.append_probe_completion(checkpoint, first, assessment)
+            session.append_probe_release(checkpoint, [second])
+            restored = ActiveScanSession.load_checkpoint(checkpoint)
+        self.assertEqual(restored.completed_probe_keys, {first})
+        self.assertEqual(restored.pending_probe_keys, set())
+        self.assertEqual(restored.total_probes_dispatched, 1)
+        self.assertEqual(restored.total_side_effects, 1)
+        self.assertEqual([item.probe_id for item in restored.assessments], ["journal-probe"])
+
+    def test_truncated_final_completion_keeps_durable_reservation_pending(self):
+        session = self._journal_session()
+        with tempfile.TemporaryDirectory() as directory:
+            checkpoint = Path(directory) / "checkpoint.json"
+            session.save_checkpoint(checkpoint)
+            key = session.make_probe_key(session.vantage, "tcp", "127.0.0.1", 65000)
+            session.append_probe_reservation(checkpoint, key)
+            journal = session.checkpoint_journal_path(checkpoint)
+            with journal.open("ab") as stream:
+                stream.write(b'{"event":"complete"')
+            restored = ActiveScanSession.load_checkpoint(checkpoint)
+        self.assertEqual(restored.pending_probe_keys, {key})
+        self.assertEqual(restored.completed_probe_keys, set())
+        self.assertEqual(restored.total_probes_dispatched, 1)
+        self.assertEqual(restored.total_side_effects, 0)
 
     def test_live_tls_probe_requires_tls_12_or_newer(self):
         context = _create_tls_context()
@@ -1335,6 +1446,49 @@ class TestActiveDiscoveryCLI(unittest.TestCase):
         )
         self.assertEqual(command_active_discovery(args), 0)
         self.assertEqual(ActiveScanSession.load_checkpoint(plan_out).budget.rate_limit_pps, 0.0)
+
+    def test_cli_plan_expands_bounded_ipv4_and_ipv6_cidrs(self):
+        parser = argparse.ArgumentParser()
+        build_active_parser(parser)
+        plan_out = self.root / "cidr-plan.json"
+        args = parser.parse_args(
+            [
+                "plan",
+                "--targets",
+                "192.0.2.0/31,2001:db8::/127",
+                "--max-targets",
+                "4",
+                "--ports",
+                "443",
+                "--max-probes",
+                "4",
+                "--output",
+                str(plan_out),
+            ]
+        )
+        self.assertEqual(command_active_discovery(args), 0)
+        session = ActiveScanSession.load_checkpoint(plan_out)
+        self.assertEqual(
+            session.approved_targets,
+            ["192.0.2.0", "192.0.2.1", "2001:db8::", "2001:db8::1"],
+        )
+        self.assertEqual(session.budget.max_targets, 4)
+
+        args = parser.parse_args(
+            [
+                "plan",
+                "--targets",
+                "192.0.2.0/29",
+                "--max-targets",
+                "4",
+                "--ports",
+                "443",
+                "--output",
+                str(self.root / "oversized-cidr-plan.json"),
+            ]
+        )
+        with self.assertRaisesRegex(ValueError, "max_targets"):
+            command_active_discovery(args)
 
     def test_cli_plan_udp_selection_does_not_add_default_tcp_ports(self):
         parser = argparse.ArgumentParser()

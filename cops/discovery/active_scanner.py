@@ -37,6 +37,9 @@ from .fingerprinter import infer_service_fingerprint
 from .models import EvidenceProvenance
 
 
+_PROBE_RESERVATION_BATCH_SIZE = 1024
+
+
 class ActiveScanError(Exception):
     """Base error for active discovery operations."""
 
@@ -896,9 +899,25 @@ class ActiveScanner:
         prior_dispatch = self.session.total_probes_dispatched > 0
         start_time = time.monotonic()
         elapsed_before_run = self.session.elapsed_seconds
+        reserved_probe_keys: set[str] = set()
+
+        def update_elapsed() -> None:
+            self.session.elapsed_seconds = elapsed_before_run + (time.monotonic() - start_time)
+
+        def release_unused_reservations() -> None:
+            if not reserved_probe_keys:
+                return
+            probe_keys = sorted(reserved_probe_keys)
+            update_elapsed()
+            if self.checkpoint is not None:
+                self.session.append_probe_release(self.checkpoint, probe_keys)
+            self.session.pending_probe_keys.difference_update(probe_keys)
+            self.session.total_probes_dispatched -= len(probe_keys)
+            reserved_probe_keys.clear()
 
         def persist() -> None:
-            self.session.elapsed_seconds = elapsed_before_run + (time.monotonic() - start_time)
+            release_unused_reservations()
+            update_elapsed()
             if self.checkpoint is not None:
                 self.session.save_checkpoint(self.checkpoint)
 
@@ -988,19 +1007,24 @@ class ActiveScanner:
 
             # 2. Resolve target and check for DNS change / out-of-scope shift
             try:
-                resolved_ip = self.dispatcher.resolve_target(target_host)
-            except Exception as err:
-                self.session.quarantined_targets.append(
-                    TargetShiftQuarantine(
-                        target_host=target_host,
-                        original_ip=prior_ip,
-                        new_ip="unresolved",
-                        reason=f"dns_resolution_failed: {err}",
-                        timestamp_utc=utc_now(),
+                resolved_ip = str(ipaddress.ip_address(target_host))
+                target_is_literal = True
+            except ValueError:
+                target_is_literal = False
+                try:
+                    resolved_ip = self.dispatcher.resolve_target(target_host)
+                except Exception as err:
+                    self.session.quarantined_targets.append(
+                        TargetShiftQuarantine(
+                            target_host=target_host,
+                            original_ip=prior_ip,
+                            new_ip="unresolved",
+                            reason=f"dns_resolution_failed: {err}",
+                            timestamp_utc=utc_now(),
+                        )
                     )
-                )
-                persist()
-                continue
+                    persist()
+                    continue
 
             if prior_ip is not None and resolved_ip != prior_ip:
                 self.session.quarantined_targets.append(
@@ -1031,7 +1055,7 @@ class ActiveScanner:
 
             probes_for_target = 0
 
-            for protocol, port in planned_probes:
+            for planned_index, (protocol, port) in enumerate(planned_probes):
                 # 3. Skip completed operations before checking whether another
                 # dispatch is within the remaining cumulative budget.
                 probe_key = ActiveScanSession.make_probe_key(self.session.vantage, protocol, target_host, port)
@@ -1049,7 +1073,10 @@ class ActiveScanner:
                         persist()
                         return self.session
 
-                if self.session.total_probes_dispatched >= budget.max_probes:
+                if (
+                    probe_key not in reserved_probe_keys
+                    and self.session.total_probes_dispatched >= budget.max_probes
+                ):
                     self.session.status = "budget_exhausted"
                     persist()
                     return self.session
@@ -1067,7 +1094,7 @@ class ActiveScanner:
 
                 # 5. Confirm the target still resolves to the approved address before
                 # each additional side effect. Dispatch always uses the pinned IP.
-                if probes_for_target:
+                if probes_for_target and not target_is_literal:
                     try:
                         current_ip = self.dispatcher.resolve_target(target_host)
                     except Exception as err:
@@ -1109,13 +1136,44 @@ class ActiveScanner:
                         return self.session
                     probe_timeout = min(probe_timeout, remaining_seconds)
 
-                # Reserve the attempt durably before the network side effect. A
-                # crash or error leaves it pending for external reconciliation.
+                # Reserve a bounded batch durably before any included side
+                # effect. This preserves pre-dispatch crash reconciliation
+                # without rewriting the growing checkpoint for every probe.
                 self._validate_dns_probe_profile()
-                self.session.pending_probe_keys.add(probe_key)
-                self.session.total_probes_dispatched += 1
+                if probe_key not in reserved_probe_keys:
+                    available = budget.max_probes - self.session.total_probes_dispatched
+                    batch: list[str] = []
+                    for batch_protocol, batch_port in planned_probes[planned_index:]:
+                        batch_key = ActiveScanSession.make_probe_key(
+                            self.session.vantage,
+                            batch_protocol,
+                            target_host,
+                            batch_port,
+                        )
+                        if (
+                            batch_key in self.session.completed_probe_keys
+                            or batch_key in self.session.pending_probe_keys
+                        ):
+                            continue
+                        batch.append(batch_key)
+                        if len(batch) >= min(_PROBE_RESERVATION_BATCH_SIZE, available):
+                            break
+                    if not batch:
+                        self.session.status = "budget_exhausted"
+                        persist()
+                        return self.session
+                    update_elapsed()
+                    if self.checkpoint is not None:
+                        self.session.append_probe_reservations(self.checkpoint, batch)
+                    self.session.pending_probe_keys.update(batch)
+                    self.session.total_probes_dispatched += len(batch)
+                    reserved_probe_keys.update(batch)
+
+                # This key is now committed to dispatch. It must remain pending
+                # if the process or dispatcher fails; only unused keys in the
+                # same batch may be released on an orderly exit.
+                reserved_probe_keys.remove(probe_key)
                 prior_dispatch = True
-                persist()
                 try:
                     assessment = self.dispatcher.dispatch_probe(
                         target_host=target_host,
@@ -1140,13 +1198,21 @@ class ActiveScanner:
                     persist()
                     return self.session
 
-                # Record assessment and update session side-effect ledger
+                # Record the assessment durably before updating the in-memory
+                # ledger. A crash after this append is replayed on resume.
+                update_elapsed()
+                if self.checkpoint is not None:
+                    try:
+                        self.session.append_probe_completion(self.checkpoint, probe_key, assessment)
+                    except Exception:
+                        self.session.status = "requires_reconciliation"
+                        persist()
+                        return self.session
                 self.session.pending_probe_keys.remove(probe_key)
                 self.session.completed_probe_keys.add(probe_key)
                 self.session.assessments.append(assessment)
                 self.session.total_side_effects += 1
                 probes_for_target += 1
-                persist()
 
         if self.session.status == "in_progress":
             self.session.status = "partial" if self.session.quarantined_targets else "completed"

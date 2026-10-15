@@ -16,6 +16,7 @@ from .active_models import (
     ScanVantage,
     ServiceReachability,
     TargetShiftQuarantine,
+    expand_target_specs,
 )
 from .active_scanner import (
     ActiveScanError,
