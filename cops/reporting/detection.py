@@ -153,6 +153,73 @@ def _observed(record: dict[str, Any] | None):
     )
 
 
+def _classify(
+    action_status: str,
+    collection_status: str,
+    correlation_status: str,
+    signals: list[dict[str, Any]],
+    search_evidence: dict[str, Any] | None,
+) -> tuple[str, list[str], str]:
+    execution_seen = any(item["kind"] == "action_execution" and item["in_window"] for item in signals)
+    telemetry_seen = any(
+        item["kind"] == "telemetry" and item["in_window"] and item["has_required_fields"] is True for item in signals
+    )
+    alert_seen = any(item["kind"] == "alert" and item["in_window"] for item in signals)
+    receipt_covering = search_evidence is not None and search_evidence["covers_expanded_window"]
+    zero_search = receipt_covering and search_evidence["status"] == "complete" and search_evidence["result_count"] == 0
+    conflicting_search = zero_search and alert_seen
+    limitations = []
+    if not execution_seen:
+        limitations.append("No in-window execution observation")
+    if collection_status != "complete":
+        limitations.append("Collection not declared complete")
+    if correlation_status != "exact":
+        limitations.append("Correlation not exact")
+    if not telemetry_seen:
+        limitations.append("No in-window telemetry with an expected source and required fields")
+    if not receipt_covering:
+        limitations.append("No covering search receipt")
+    if conflicting_search:
+        limitations.append("Alert conflicts with zero-result search")
+    if action_status != "completed" or not execution_seen or collection_status == "unavailable":
+        status = "unavailable"
+    elif correlation_status == "exact" and alert_seen and not conflicting_search:
+        status = "detected"
+    elif (
+        collection_status == "complete"
+        and correlation_status == "exact"
+        and telemetry_seen
+        and zero_search
+        and not alert_seen
+    ):
+        status = "missed"
+    else:
+        status = "ambiguous"
+    if action_status != "completed":
+        next_action = "Complete an authorized action and import its execution observation."
+    elif not execution_seen:
+        next_action = "Import an in-window execution observation for this action."
+    elif collection_status == "unavailable":
+        next_action = "Restore telemetry collection or document why it is unavailable, then validate again."
+    elif conflicting_search:
+        next_action = "Reconcile the alert with the zero-result search receipt before classifying this rule."
+    elif correlation_status != "exact":
+        next_action = "Establish exact action-to-rule correlation and validate again."
+    elif status == "detected":
+        next_action = "Verify the imported alert's source authenticity before relying on this detection result."
+    elif not telemetry_seen:
+        next_action = (
+            "Import in-window telemetry from an expected source with required fields, or document the collection gap."
+        )
+    elif not receipt_covering or search_evidence["status"] != "complete":
+        next_action = "Import a completed search receipt covering the expanded action window."
+    elif status == "missed":
+        next_action = "Verify source authenticity and provider-wide completeness of the search receipt, then review the rule and rerun bounded validation after remediation."
+    else:
+        next_action = "Reconcile the supplied evidence and validate this action again."
+    return status, limitations, next_action
+
+
 def build_detection_report(bundle: Any, *, mappings: list[CoverageMapping] | None = None) -> dict[str, Any]:
     """Classify only action-linked imported evidence; no provider calls are made."""
     data = _object(bundle, _ROOT_KEYS, "detection input")
@@ -282,69 +349,27 @@ def build_detection_report(bundle: Any, *, mappings: list[CoverageMapping] | Non
                         else None,
                     }
                 )
-        execution_seen = any(item["kind"] == "action_execution" and item["in_window"] for item in signals)
-        telemetry_seen = any(
-            item["kind"] == "telemetry" and item["in_window"] and item["has_required_fields"] is True
-            for item in signals
-        )
-        alert_seen = any(item["kind"] == "alert" and item["in_window"] for item in signals)
         receipt_payload = receipt["payload"] if receipt is not None else None
         receipt_covering = (
             receipt_payload is not None
             and _time(receipt_payload["window_start"], "search start") <= start
             and _time(receipt_payload["window_end"], "search end") >= end
         )
-        zero_search = (
-            receipt_covering and receipt_payload["status"] == "complete" and receipt_payload["result_count"] == 0
+        search_evidence = (
+            None
+            if receipt_payload is None
+            else {
+                "record_id": receipt["record_id"],
+                "status": receipt_payload["status"],
+                "result_count": receipt_payload["result_count"],
+                "window_start": receipt_payload["window_start"],
+                "window_end": receipt_payload["window_end"],
+                "covers_expanded_window": receipt_covering,
+            }
         )
-        conflicting_search = zero_search and alert_seen
-        limitations = []
-        if not execution_seen:
-            limitations.append("No in-window execution observation")
-        if check["collection_status"] != "complete":
-            limitations.append("Collection not declared complete")
-        if check["correlation_status"] != "exact":
-            limitations.append("Correlation not exact")
-        if not telemetry_seen:
-            limitations.append("No in-window telemetry with an expected source and required fields")
-        if not receipt_covering:
-            limitations.append("No covering search receipt")
-        if conflicting_search:
-            limitations.append("Alert conflicts with zero-result search")
-        if action["status"] != "completed" or not execution_seen or check["collection_status"] == "unavailable":
-            status = "unavailable"
-        elif check["correlation_status"] == "exact" and alert_seen and not conflicting_search:
-            status = "detected"
-        elif (
-            check["collection_status"] == "complete"
-            and check["correlation_status"] == "exact"
-            and telemetry_seen
-            and zero_search
-            and not alert_seen
-        ):
-            status = "missed"
-        else:
-            status = "ambiguous"
-        if action["status"] != "completed":
-            next_action = "Complete an authorized action and import its execution observation."
-        elif not execution_seen:
-            next_action = "Import an in-window execution observation for this action."
-        elif check["collection_status"] == "unavailable":
-            next_action = "Restore telemetry collection or document why it is unavailable, then validate again."
-        elif conflicting_search:
-            next_action = "Reconcile the alert with the zero-result search receipt before classifying this rule."
-        elif check["correlation_status"] != "exact":
-            next_action = "Establish exact action-to-rule correlation and validate again."
-        elif status == "detected":
-            next_action = "Verify the imported alert's source authenticity before relying on this detection result."
-        elif not telemetry_seen:
-            next_action = "Import in-window telemetry from an expected source with required fields, or document the collection gap."
-        elif not receipt_covering or receipt_payload["status"] != "complete":
-            next_action = "Import a completed search receipt covering the expanded action window."
-        elif status == "missed":
-            next_action = "Review the rule and rerun bounded detection validation after remediation."
-        else:
-            next_action = "Reconcile the supplied evidence and validate this action again."
+        status, limitations, next_action = _classify(
+            action["status"], check["collection_status"], check["correlation_status"], signals, search_evidence
+        )
         rows.append(
             {
                 "action_id": action_id,
@@ -352,6 +377,7 @@ def build_detection_report(bundle: Any, *, mappings: list[CoverageMapping] | Non
                 "mapping_id": mapping_id,
                 "rule_id": rule_id,
                 "status": status,
+                "declared_action_status": action["status"],
                 "action_window": [action["started_at"], action["ended_at"]],
                 "expanded_window": [start.isoformat().replace("+00:00", "Z"), end.isoformat().replace("+00:00", "Z")],
                 "expected_telemetry": [
@@ -364,14 +390,7 @@ def build_detection_report(bundle: Any, *, mappings: list[CoverageMapping] | Non
                     for source in mapping.evidence_sources
                 ],
                 "observed_signals": signals,
-                "search_evidence": None
-                if receipt_payload is None
-                else {
-                    "record_id": receipt["record_id"],
-                    "status": receipt_payload["status"],
-                    "result_count": receipt_payload["result_count"],
-                    "covers_expanded_window": receipt_covering,
-                },
+                "search_evidence": search_evidence,
                 "declared_collection_status": check["collection_status"],
                 "declared_correlation_status": check["correlation_status"],
                 "clock_skew_seconds": check["clock_skew_seconds"],
@@ -404,6 +423,68 @@ def build_detection_report(bundle: Any, *, mappings: list[CoverageMapping] | Non
         "source_notice": _NOTICE,
         "checks": rows,
     }
+
+
+def validate_detection_report_semantics(report: dict[str, Any]) -> None:
+    """Recheck saved classifications against their included evidence summary.
+
+    This detects internal inconsistencies, not forged source data or provenance.
+    """
+    for row in report["checks"]:
+        action_start = _time(row["action_window"][0], "report action start")
+        action_end = _time(row["action_window"][1], "report action end")
+        expanded_start = _time(row["expanded_window"][0], "report expanded start")
+        expanded_end = _time(row["expanded_window"][1], "report expanded end")
+        if action_start > action_end or (
+            expanded_start != action_start - timedelta(seconds=row["clock_skew_seconds"])
+            or expanded_end != action_end + timedelta(seconds=row["clock_skew_seconds"] + row["ingest_lag_seconds"])
+        ):
+            raise ReportError("detection report window is inconsistent")
+
+        signals = row["observed_signals"]
+        seen_execution = 0
+        signal_ids = []
+        for signal in signals:
+            signal_ids.append(signal["record_id"])
+            observed = signal["observed_at"]
+            in_window = observed is not None and expanded_start <= _time(observed, "report observation") <= expanded_end
+            if signal["in_window"] != in_window:
+                raise ReportError("detection report signal window is inconsistent")
+            if signal["kind"] == "action_execution":
+                seen_execution += 1
+            if signal["kind"] != "telemetry":
+                if signal["matches_expected_source"] is not None or signal["has_required_fields"] is not None:
+                    raise ReportError("detection report signal fields are inconsistent")
+            elif type(signal["matches_expected_source"]) is not bool:
+                raise ReportError("detection report telemetry source match is missing")
+            elif signal["matches_expected_source"] is False and signal["has_required_fields"] is not None:
+                raise ReportError("detection report telemetry fields are inconsistent")
+            elif signal["matches_expected_source"] is True and type(signal["has_required_fields"]) is not bool:
+                raise ReportError("detection report telemetry fields are incomplete")
+        if seen_execution > 1 or (row["declared_action_status"] == "not_executed" and seen_execution):
+            raise ReportError("detection report execution evidence is inconsistent")
+
+        search_evidence = row["search_evidence"]
+        if search_evidence is not None:
+            search_start = _time(search_evidence["window_start"], "report search start")
+            search_end = _time(search_evidence["window_end"], "report search end")
+            if search_start > search_end or search_evidence["covers_expanded_window"] != (
+                search_start <= expanded_start and search_end >= expanded_end
+            ):
+                raise ReportError("detection report search coverage is inconsistent")
+            signal_ids.append(search_evidence["record_id"])
+        if len(signal_ids) != len(set(signal_ids)) or signal_ids != row["evidence_record_ids"]:
+            raise ReportError("detection report evidence references are inconsistent")
+
+        status, limitations, next_action = _classify(
+            row["declared_action_status"],
+            row["declared_collection_status"],
+            row["declared_correlation_status"],
+            signals,
+            search_evidence,
+        )
+        if (row["status"], row["limitations"], row["next_action"]) != (status, limitations, next_action):
+            raise ReportError("detection report classification is inconsistent")
 
 
 def render_detection_markdown(report: dict[str, Any]) -> str:

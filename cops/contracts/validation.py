@@ -305,4 +305,13 @@ def validate_contract(
         except ReportError as err:
             raise ContractError("invalid_contract", str(err)) from err
 
+    elif expected_type == "detection_validation_report":
+        from cops.reporting.assessment import ReportError
+        from cops.reporting.detection import validate_detection_report_semantics
+
+        try:
+            validate_detection_report_semantics(document)
+        except ReportError as err:
+            raise ContractError("invalid_contract", str(err)) from err
+
     return document
