@@ -49,10 +49,18 @@ reproducibility, evidence record IDs and strength, attack path dependencies,
 remediation, and limitations. Scope joins use exact hostnames or IP addresses and
 CIDR containment; they do not infer related hosts. Missing access, a missing
 RunResult, absent validated evidence, and planning-only rows are `not_assessed`.
-Partial outcomes and historical imports cannot be promoted to a complete live
-assessment. A `reproduced_attack_path` requires repeatable, scoped laboratory or
-live evidence and declared dependencies. Contradicted findings remain unresolved.
-Every dependency must name another Finding included in the same report.
+Partial outcomes, scanner-only assertions, and historical imports cannot be
+promoted to a complete assessment. Live evidence needs an observation time within
+its RunResult window; collection time alone does not establish when the target
+was observed. An assessed Finding needs linked evidence for every affected asset.
+A `reproduced_attack_path` requires repeatable, scoped laboratory or live evidence,
+declared dependencies, and assessed prerequisite Findings. Contradicted findings
+remain unresolved. Every dependency must name another Finding included in the
+same report. Each ActionPlan must have a RunResult or a planning coverage row.
+
+Validating a saved `assessment_report` also checks coverage, provenance, asset
+joins, and Finding claims for contradictions. This cannot reconstruct the input
+bundle or authenticate its source; retain the private source bundle for review.
 
 `planned`, `imported`, `laboratory`, and `live_validated` are distinct provenance
 labels; a live row that does not meet assessment requirements is
@@ -61,7 +69,8 @@ do not independently prove that execution happened, that a source is authentic,
 or that an operator was authorized. Record hashes establish internal integrity
 only. Verify those claims separately before sharing or relying on a report.
 
-The renderer omits evidence payloads, credential references, source locators and
+The renderer escapes Markdown punctuation and control characters in caller text.
+It omits evidence payloads, credential references, source locators and
 artifact paths. It does carry scope identifiers and caller-authored title, claim,
 remediation, uncertainty and limitation text. Those fields can still contain
 secrets or private information; review and redact the input and both outputs

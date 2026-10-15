@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from cops.contracts.lifecycle import ContractError
 from cops.contracts.validation import validate_contract
 from cops.evidence import build_envelope
 from cops.reporting.assessment import ReportError, build_assessment_report, render_markdown
@@ -20,18 +21,21 @@ def _fixture(name: str) -> dict:
     return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
 
 
-def _envelope() -> dict:
+def _envelope(
+    *, observed_at: str | None = "2026-10-02T10:05:00Z", target: str = "10.0.0.5"
+) -> dict:
     return build_envelope(
         acquisition_id="collection-1",
         product="offline-import",
         api="records/v1",
         tenant="tenant-1",
-        scope=["10.0.0.5"],
-        identity="host-5",
+        scope=[target],
+        identity=f"host-{target}",
         locator="private-locator",
         payload={"secret": "DO_NOT_EXPORT", "observation": "HTTP service"},
         acquired_at="2026-10-02T10:05:00Z",
         transformed_at="2026-10-02T10:05:00Z",
+        observed_at=observed_at,
         request_fingerprint="a" * 64,
         page=1,
         raw_reference={"store_id": "PRIVATE_STORE_ID", "sha256": "b" * 64},
@@ -204,6 +208,110 @@ def test_live_mode_requires_proven_result_and_evidence_for_live_validated_label(
     assert report["coverage"][0]["provenance"] == "live_unvalidated"
 
 
+@pytest.mark.parametrize("observed_at", [None, "2026-10-02T10:04:59Z", "2026-10-02T10:05:31Z"])
+def test_live_observation_must_be_within_run_window(observed_at):
+    bundle = _bundle(mode="live")
+    bundle["evidence_envelopes"] = [_envelope(observed_at=observed_at)]
+    report = build_assessment_report(bundle)
+    assert report["coverage"][0]["provenance"] == "live_unvalidated"
+    assert report["coverage"][0]["status"] == "not_assessed"
+    assert report["findings"][0]["assessment_status"] == "not_assessed"
+
+
+def test_scanner_only_result_cannot_be_assessed():
+    bundle = _bundle()
+    bundle["finding_contexts"][0]["kind"] = "scanner_assertion"
+    report = build_assessment_report(bundle)
+    assert report["coverage"][0]["status"] == "partial"
+    assert report["findings"][0]["assessment_status"] == "partial"
+    assert report["findings"][0]["evidence_strength"] == "limited"
+
+
+def test_evidence_for_one_asset_cannot_assess_another():
+    bundle = _bundle()
+    bundle["engagement"]["scope"]["excluded_targets"] = []
+    bundle["action_plans"][0]["target"] = "10.0.0.0/24"
+    from cops.contracts.validation import build_action_plan_digest
+
+    bundle["action_plans"][0]["plan_digest"] = build_action_plan_digest(
+        snapshot={key: value for key, value in bundle["action_plans"][0].items() if key not in {"status", "plan_digest"}}
+    )
+    bundle["finding_contexts"][0]["affected_assets"].append("10.0.0.6")
+    bundle["coverage"].append({**bundle["coverage"][0], "target": "10.0.0.6"})
+    report = build_assessment_report(bundle)
+    assert report["coverage"][1]["status"] == "not_assessed"
+    assert report["findings"][0]["assessment_status"] == "partial"
+    assert report["findings"][0]["limitations"] == ["Not assessed for assets: 10.0.0.6"]
+
+
+def test_distinct_evidence_for_each_asset_supports_multi_asset_finding():
+    bundle = _bundle()
+    bundle["engagement"]["scope"]["excluded_targets"] = []
+    bundle["action_plans"][0]["target"] = "10.0.0.0/24"
+    from cops.contracts.validation import build_action_plan_digest
+
+    bundle["action_plans"][0]["plan_digest"] = build_action_plan_digest(
+        snapshot={key: value for key, value in bundle["action_plans"][0].items() if key not in {"status", "plan_digest"}}
+    )
+    second = _envelope(target="10.0.0.6")
+    bundle["evidence_envelopes"].append(second)
+    bundle["run_results"][0]["evidence_records"].append(second["record_id"])
+    bundle["findings"][0]["evidence_references"].append(second["record_id"])
+    bundle["finding_contexts"][0]["affected_assets"].append("10.0.0.6")
+    bundle["coverage"].append({**bundle["coverage"][0], "target": "10.0.0.6"})
+    report = build_assessment_report(bundle)
+    assert [row["status"] for row in report["coverage"]] == ["assessed", "assessed"]
+    assert report["findings"][0]["assessment_status"] == "assessed"
+    validate_contract(report, "assessment_report")
+
+
+def test_orphan_action_plan_is_rejected():
+    bundle = _bundle()
+    extra = deepcopy(bundle["action_plans"][0])
+    extra["plan_id"] = "plan-orphan-001"
+    from cops.contracts.validation import build_action_plan_digest
+
+    extra["plan_digest"] = build_action_plan_digest(
+        snapshot={key: value for key, value in extra.items() if key not in {"status", "plan_digest"}}
+    )
+    bundle["action_plans"].append(extra)
+    with pytest.raises(ReportError, match="every action plan requires"):
+        build_assessment_report(bundle)
+
+
+def test_canonical_ipv6_coverage_duplicate_is_rejected():
+    bundle = _bundle()
+    bundle["engagement"]["scope"]["included_targets"] = ["2001:db8::/64"]
+    bundle["engagement"]["scope"]["excluded_targets"] = []
+    bundle["action_plans"][0]["target"] = "2001:db8::5"
+    from cops.contracts.validation import build_action_plan_digest
+
+    bundle["action_plans"][0]["plan_digest"] = build_action_plan_digest(
+        snapshot={key: value for key, value in bundle["action_plans"][0].items() if key not in {"status", "plan_digest"}}
+    )
+    bundle["coverage"][0]["target"] = "2001:db8::5"
+    bundle["coverage"].append({**bundle["coverage"][0], "target": "2001:0db8:0:0:0:0:0:5"})
+    with pytest.raises(ReportError, match="duplicate coverage entry"):
+        build_assessment_report(bundle)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda r: r["coverage"][0].__setitem__("provenance", "live_validated"),
+        lambda r: r["coverage"][0].__setitem__("evidence_records", []),
+        lambda r: r["findings"][0].__setitem__("evidence_references", []),
+        lambda r: r["findings"][0].__setitem__("affected_assets", ["10.0.0.6"]),
+        lambda r: r["findings"][0].__setitem__("kind", "scanner_assertion"),
+    ],
+)
+def test_standalone_report_rejects_promoted_or_misjoined_claims(mutation):
+    report = build_assessment_report(_bundle())
+    mutation(report)
+    with pytest.raises(ContractError):
+        validate_contract(report, "assessment_report")
+
+
 def test_run_result_requires_matching_action_plan_except_historical_import():
     bundle = _bundle()
     bundle["action_plans"] = []
@@ -308,6 +416,14 @@ def test_markdown_escapes_untrusted_text():
     assert "<img" not in markdown
     assert "&#124;" in markdown
     assert "\n# forged heading" not in markdown
+
+
+def test_markdown_removes_unicode_format_controls():
+    bundle = _bundle()
+    bundle["findings"][0]["title"] = "safe\u202eunsafe"
+    markdown = render_markdown(build_assessment_report(bundle))
+    assert "\u202e" not in markdown
+    assert "safe unsafe" in markdown
 
 
 def test_cli_writes_private_reports_and_refuses_overwrite(tmp_path: Path):

@@ -280,4 +280,12 @@ def validate_contract(
         if t_updated < t_created:
             raise ContractError("invalid_timestamp", "updated_at cannot precede created_at")
 
+    elif expected_type == "assessment_report":
+        from cops.reporting.assessment import ReportError, validate_report_semantics
+
+        try:
+            validate_report_semantics(document)
+        except ReportError as err:
+            raise ContractError("invalid_contract", str(err)) from err
+
     return document
