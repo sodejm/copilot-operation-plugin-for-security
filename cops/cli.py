@@ -606,6 +606,8 @@ def build_parser() -> argparse.ArgumentParser:
             "finding",
             "assessment_input",
             "assessment_report",
+            "detection_validation_input",
+            "detection_validation_report",
             "execution_authorization",
             "specialist_handoff",
             "laboratory_environment",
@@ -757,6 +759,11 @@ def build_parser() -> argparse.ArgumentParser:
     e_report.add_argument("--input", required=True, type=Path, help="bounded assessment input JSON")
     e_report.add_argument("--json-output", required=True, type=Path, help="new private report JSON file")
     e_report.add_argument("--markdown-output", required=True, type=Path, help="new private Markdown report file")
+
+    e_detection = eng_sub.add_parser("detection-validate", help="validate imported action-linked detection evidence offline")
+    e_detection.add_argument("--input", required=True, type=Path, help="bounded detection input JSON")
+    e_detection.add_argument("--json-output", required=True, type=Path, help="new private detection report JSON file")
+    e_detection.add_argument("--markdown-output", required=True, type=Path, help="new private Markdown report file")
 
     e_handoff = eng_sub.add_parser("handoff", help="specialist routing and bounded workflow handoffs")
     e_h_sub = e_handoff.add_subparsers(dest="handoff_command", required=True)
@@ -1012,6 +1019,10 @@ def main(argv: list[str] | None = None, *, root: Path = ROOT) -> int:
                 from .reporting.cli import command_engagement_report
 
                 return command_engagement_report(args)
+            if args.engagement_command == "detection-validate":
+                from .reporting.cli import command_engagement_detection_validate
+
+                return command_engagement_detection_validate(args)
         if args.command == "lab":
             from .laboratory.cli import command_laboratory
 

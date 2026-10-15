@@ -115,3 +115,49 @@ secrets or private information; review and redact the input and both outputs
 before publishing. Historical data needs its own age and applicability assessment.
 The report does not establish exhaustive coverage when scenarios or targets are
 absent from the input.
+
+## Validate detection coverage from imported evidence
+
+`python3 -m cops engagement detection-validate` joins completed action IDs and
+windows to the pinned ATT&CK detection mappings and supplied evidence envelopes.
+It does not run an action, contact a telemetry provider, or prove source
+authenticity or authorization. This workflow is an offline import. Start with the
+[accepted input fixture](../cops/contracts/fixtures/valid_detection_validation_input.json)
+or inspect the [rejected cross-tenant fixture](../cops/contracts/fixtures/invalid_detection_validation_cross_tenant.json).
+The [input contract](../catalog/schemas/detection-validation-input.schema.json)
+requires an engagement, tenant, action windows, mapping/rule checks, and
+`cops.evidence/v1` envelopes. The [workflow skill](../.agents/skills/engagement-detection-validation/SKILL.md)
+describes the evidence collection and review steps.
+
+```bash
+private_dir="$(mktemp -d)"
+chmod 700 "$private_dir"
+cp cops/contracts/fixtures/valid_detection_validation_input.json "$private_dir/detection.local.json"
+python3 -m cops engagement detection-validate \
+  --input "$private_dir/detection.local.json" \
+  --json-output "$private_dir/detection-report.local.json" \
+  --markdown-output "$private_dir/detection-report.local.md"
+python3 -m cops contract validate --type detection_validation_report "$private_dir/detection-report.local.json"
+```
+
+The command reads at most 4 MiB, creates new owner-only files, and prints no
+report body. Keep the source and report in a private directory. The JSON retains
+the action ID, expected telemetry, imported record IDs, action/search windows,
+limits, and a next action for each result. Markdown shows signal counts, limits,
+and next actions while omitting raw evidence payloads and source locators.
+Review IDs and private files before sharing.
+The saved report contract check verifies structure; it does not recompute the
+classification from the private input. Retain that input when a result must be
+audited or reproduced.
+
+`detected` requires an in-window execution observation and an exact, in-window
+alert for the action and rule. `missed` requires completed execution, in-window
+telemetry from an expected product and log with the catalog's required fields,
+exact correlation, declared complete collection, and a completed
+zero-result search receipt that covers the action window plus allowed clock skew
+and ingest lag. `ambiguous` means the supplied evidence cannot distinguish these
+outcomes. `unavailable` means execution was not completed or observed, or
+collection was declared unavailable. A missing signal never proves prevention.
+The source notice names a separate trust boundary: record hashes establish
+internal integrity, while provider-wide completeness and source authenticity
+need independent verification before a measured result is used operationally.
