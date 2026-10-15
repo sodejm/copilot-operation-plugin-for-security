@@ -65,28 +65,102 @@ $failedFallbackResult = Resolve-CopsIntegrityLevelFromSources `
 if ($failedFallbackResult -ne "unknown") {
     throw "A failed token integrity fallback must fail closed."
 }
+$enabledPrivileges = @(Resolve-CopsEnabledPrivileges -Rows @(
+    '"SeImpersonatePrivilege","Impersonate a client","Disabled"',
+    '"SeChangeNotifyPrivilege","Bypass traverse checking","Enabled"'
+))
+if ($enabledPrivileges.Count -ne 1 -or
+    $enabledPrivileges[0] -ne "SeChangeNotifyPrivilege") {
+    throw "Disabled token privileges must not count as enabled."
+}
+$remotePathRejected = $false
+try {
+    Assert-CopsLocalPathEntry -Path '\\server\share'
+} catch {
+    $remotePathRejected = $true
+}
+if (-not $remotePathRejected) {
+    throw "A remote PATH entry must be rejected before filesystem inspection."
+}
 
-$runFull = [IO.Path]::GetFullPath($RunRoot)
-if ($runFull.StartsWith("\\") -or (Test-Path -LiteralPath $runFull)) {
-    throw "RunRoot must be a new path on a local filesystem."
-}
+$runFull = Resolve-CopsLocalPath -Path $RunRoot -Name "RunRoot" -Kind NewDirectory
 $parent = Split-Path -Parent $runFull
-if (-not (Test-Path -LiteralPath $parent -PathType Container)) {
-    throw "RunRoot parent directory does not exist."
+
+# Exercise ancestor-junction rejection and partial-write cleanup on the native
+# filesystem before the actual run writes any artifacts.
+$selfTestRoot = Join-Path $parent (".cops-windows-bridge-test-" + [Guid]::NewGuid().ToString("N"))
+$selfTestRoot = Resolve-CopsLocalPath -Path $selfTestRoot -Name "Self-test root" -Kind NewDirectory
+New-Item -ItemType Directory -Path $selfTestRoot -ErrorAction Stop | Out-Null
+try {
+    $targetRoot = Join-Path $selfTestRoot "target"
+    $carrierRoot = Join-Path $selfTestRoot "carrier"
+    $targetRoot = Resolve-CopsLocalPath -Path $targetRoot -Name "Self-test target" -Kind NewDirectory
+    $carrierRoot = Resolve-CopsLocalPath -Path $carrierRoot -Name "Self-test carrier" -Kind NewDirectory
+    New-Item -ItemType Directory -Path $targetRoot -ErrorAction Stop | Out-Null
+    New-Item -ItemType Directory -Path $carrierRoot -ErrorAction Stop | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $targetRoot "nested") -ErrorAction Stop | Out-Null
+    $junction = Join-Path $carrierRoot "junction"
+    New-Item -ItemType Junction -Path $junction -Target $targetRoot -ErrorAction Stop | Out-Null
+    $junctionRejected = $false
+    try {
+        $null = Resolve-CopsLocalPath `
+            -Path (Join-Path $junction "nested\artifact.json") `
+            -Name "Junction self-test path" -Kind NewFile
+    } catch {
+        if ($_.Exception.Message -match "reparse point") {
+            $junctionRejected = $true
+        } else {
+            throw
+        }
+    }
+    if (-not $junctionRejected) {
+        throw "Ancestor junction self-test did not fail closed."
+    }
+
+    $partialPath = Join-Path $selfTestRoot "partial.json"
+    $partialWriteRejected = $false
+    try {
+        Invoke-CopsExclusiveFileWrite -Path $partialPath -Writer {
+            param($stream)
+            $stream.WriteByte(123)
+            throw "controlled partial write failure"
+        }
+    } catch {
+        if ($_.Exception.Message -match "controlled partial write failure") {
+            $partialWriteRejected = $true
+        } else {
+            throw
+        }
+    }
+    if (-not $partialWriteRejected -or
+        (Test-Path -LiteralPath $partialPath) -or
+        @(Get-ChildItem -LiteralPath $selfTestRoot -Filter ".partial.json.cops-*.tmp" -Force).Count -ne 0) {
+        throw "Partial-write cleanup self-test did not fail closed without residue."
+    }
+
+    # Exercise two successive completed writes because collection emits its
+    # export and receipt through separate invocations of the same primitive.
+    $firstWritePath = Join-Path $selfTestRoot "sequential-first.json"
+    $secondWritePath = Join-Path $selfTestRoot "sequential-second.json"
+    Write-CopsNewUtf8File -Path $firstWritePath -Content '{"sequence":1}'
+    Write-CopsNewUtf8File -Path $secondWritePath -Content '{"sequence":2}'
+    $null = Resolve-CopsLocalPath -Path $firstWritePath -Name "First sequential write" -Kind ExistingFile
+    $null = Resolve-CopsLocalPath -Path $secondWritePath -Name "Second sequential write" -Kind ExistingFile
+    if ((Get-Content -LiteralPath $firstWritePath -Raw) -ne '{"sequence":1}' -or
+        (Get-Content -LiteralPath $secondWritePath -Raw) -ne '{"sequence":2}' -or
+        @(Get-ChildItem -LiteralPath $selfTestRoot -Filter "*.cops-*.tmp" -Force).Count -ne 0) {
+        throw "Sequential atomic-write self-test did not preserve both completed files."
+    }
+} finally {
+    $junction = Join-Path (Join-Path $selfTestRoot "carrier") "junction"
+    if (Test-Path -LiteralPath $junction) {
+        Remove-Item -LiteralPath $junction -Force -ErrorAction Stop
+    }
+    Remove-Item -LiteralPath $selfTestRoot -Recurse -Force -ErrorAction Stop
 }
-$parentItem = Get-Item -LiteralPath $parent -Force
-if ($parentItem.PSProvider.Name -ne "FileSystem" -or $parentItem.PSDrive.DisplayRoot -or
-    ($parentItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
-    throw "RunRoot parent must be a local non-reparse filesystem directory."
-}
+
 New-Item -ItemType Directory -Path $runFull -ErrorAction Stop | Out-Null
-$runItem = Get-Item -LiteralPath $runFull -Force
-if (($runItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
-    -not [IO.Path]::GetFullPath($runItem.FullName).Equals(
-        $runFull, [StringComparison]::OrdinalIgnoreCase
-    )) {
-    throw "RunRoot identity validation failed."
-}
+$runFull = Resolve-CopsLocalPath -Path $runFull -Name "RunRoot" -Kind ExistingDirectory
 
 $canaryRoot = Join-Path $runFull "canary"
 $exportPath = Join-Path $runFull "windows-export.json"
@@ -101,6 +175,24 @@ New-Item -ItemType Directory -Path $canaryRoot -ErrorAction Stop | Out-Null
     -CanaryRoot $canaryRoot
 if (-not $?) {
     throw "Native Windows collection failed."
+}
+
+try {
+    $null = Resolve-CopsLocalPath -Path $exportPath -Name "Collected export" -Kind ExistingFile
+    $null = Resolve-CopsLocalPath -Path $receiptPath -Name "Collected receipt" -Kind ExistingFile
+} catch {
+    $expectedNames = @(
+        Split-Path -Leaf $exportPath
+        Split-Path -Leaf $receiptPath
+    )
+    $observedNames = @(
+        Get-ChildItem -LiteralPath $runFull -File -Force |
+            Where-Object { $expectedNames -contains $_.Name } |
+            Select-Object -ExpandProperty Name |
+            Sort-Object
+    )
+    $observed = if ($observedNames.Count -eq 0) { '<none>' } else { $observedNames -join ', ' }
+    throw "Native Windows collection did not materialize its required files; observed expected artifact names: $observed. $($_.Exception.Message)"
 }
 
 $reportJson = (& python (Join-Path $PSScriptRoot "assess.py") $exportPath | Out-String)
@@ -154,15 +246,15 @@ if (@(Get-ChildItem -LiteralPath $canaryRoot -Force).Count -ne 0) {
     throw "Native Windows bridge left assessment-owned canary residue."
 }
 
-$utf8 = New-Object System.Text.UTF8Encoding -ArgumentList $false
-[IO.File]::WriteAllText($reportPath, $reportJson.Trim(), $utf8)
-[IO.File]::WriteAllText($validatedReceiptPath, $validatedJson.Trim(), $utf8)
+Write-CopsNewUtf8File -Path $reportPath -Content $reportJson.Trim()
+Write-CopsNewUtf8File -Path $validatedReceiptPath -Content $validatedJson.Trim()
 
 [ordered]@{
-    run_root = $runFull
-    export = $exportPath
-    receipt = $receiptPath
-    report = $reportPath
-    validated_receipt = $validatedReceiptPath
+    artifacts = @(
+        "windows-export.json",
+        "windows-receipt.json",
+        "windows-report.json",
+        "windows-validated-receipt.json"
+    )
     coverage = $report.coverage
 } | ConvertTo-Json -Depth 5 -Compress

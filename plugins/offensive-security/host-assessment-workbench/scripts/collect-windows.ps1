@@ -16,26 +16,6 @@ if ($env:OS -ne "Windows_NT") {
     throw "The native Windows bridge can run only on Windows."
 }
 
-function Resolve-NewLocalFile {
-    param([string]$Path, [string]$Name)
-    $full = [IO.Path]::GetFullPath($Path)
-    if ($full.StartsWith("\\")) {
-        throw "$Name must be on a local filesystem."
-    }
-    if (Test-Path -LiteralPath $full) {
-        throw "$Name already exists."
-    }
-    $parent = Split-Path -Parent $full
-    if (-not (Test-Path -LiteralPath $parent -PathType Container)) {
-        throw "$Name parent directory does not exist."
-    }
-    $parentItem = Get-Item -LiteralPath $parent -Force
-    if ($parentItem.PSProvider.Name -ne "FileSystem" -or $parentItem.PSDrive.DisplayRoot) {
-        throw "$Name must be on a local filesystem."
-    }
-    return $full
-}
-
 function Get-CopsStringSha256 {
     param([string]$Value)
 
@@ -133,7 +113,6 @@ function Assert-CopsCanaryOwnership {
     $ownedIdentity = [IO.Path]::GetFullPath($ownedItem.FullName)
     $ownedMarkerIdentity = [IO.Path]::GetFullPath($ownedMarker.FullName)
     $children = @(Get-ChildItem -LiteralPath $ResourceIdentity -Force -ErrorAction Stop)
-    $markerHash = (Get-FileHash -LiteralPath $MarkerIdentity -Algorithm SHA256).Hash.ToLowerInvariant()
     if ($ownedItem.PSProvider.Name -ne "FileSystem" -or $ownedItem.PSDrive.DisplayRoot -or
         ($ownedItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
         -not $ownedIdentity.Equals($ResourceIdentity, [StringComparison]::OrdinalIgnoreCase) -or
@@ -144,24 +123,31 @@ function Assert-CopsCanaryOwnership {
         -not [IO.Path]::GetFullPath($children[0].FullName).Equals(
             $MarkerIdentity,
             [StringComparison]::OrdinalIgnoreCase
-        ) -or
-        $markerHash -ne $ExpectedSha256) {
+        )) {
         throw "Assessment-owned canary ownership validation failed."
+    }
+    $markerHash = (Get-FileHash -LiteralPath $MarkerIdentity -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($markerHash -ne $ExpectedSha256) {
+        throw "Assessment-owned canary marker hash validation failed."
     }
 }
 
-$outputFull = Resolve-NewLocalFile -Path $OutputPath -Name "OutputPath"
-$receiptFull = Resolve-NewLocalFile -Path $ReceiptPath -Name "ReceiptPath"
-$canaryFull = [IO.Path]::GetFullPath($CanaryRoot)
-if ($canaryFull.StartsWith("\\") -or -not (Test-Path -LiteralPath $canaryFull -PathType Container)) {
-    throw "CanaryRoot must be an existing local directory."
+function Assert-CopsCanaryDirectoryIdentity {
+    param([string]$ResourceIdentity)
+
+    $item = Get-Item -LiteralPath $ResourceIdentity -Force -ErrorAction Stop
+    $identity = [IO.Path]::GetFullPath($item.FullName)
+    if ($item.PSProvider.Name -ne "FileSystem" -or $item.PSDrive.DisplayRoot -or
+        -not $item.PSIsContainer -or
+        ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
+        -not $identity.Equals($ResourceIdentity, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Assessment-owned canary directory identity validation failed."
+    }
 }
-$canaryItem = Get-Item -LiteralPath $canaryFull -Force
-if ($canaryItem.PSProvider.Name -ne "FileSystem" -or $canaryItem.PSDrive.DisplayRoot -or
-    ($canaryItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
-    throw "CanaryRoot cannot be a reparse point."
-}
-$canaryFull = [IO.Path]::GetFullPath($canaryItem.FullName)
+
+$outputFull = Resolve-CopsLocalPath -Path $OutputPath -Name "OutputPath" -Kind NewFile
+$receiptFull = Resolve-CopsLocalPath -Path $ReceiptPath -Name "ReceiptPath" -Kind NewFile
+$canaryFull = Resolve-CopsLocalPath -Path $CanaryRoot -Name "CanaryRoot" -Kind ExistingDirectory
 if (@(Get-ChildItem -LiteralPath $canaryFull -Force).Count -ne 0) {
     throw "CanaryRoot must be empty before assessment."
 }
@@ -218,13 +204,7 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw "whoami privilege collection failed."
     }
-    foreach ($line in $privilegeRows) {
-        $row = $line | ConvertFrom-Csv -Header Privilege, Description, State
-        if ($row.Privilege -match '^Se[A-Za-z0-9]+Privilege$') {
-            $privileges += $row.Privilege
-        }
-    }
-    $privileges = @($privileges | Sort-Object -Unique)
+    $privileges = @(Resolve-CopsEnabledPrivileges -Rows $privilegeRows)
 } catch {
     $privilegeCoverage = "not_assessed"
     $privileges = @()
@@ -343,6 +323,10 @@ try {
     if ($pathDirectories.Count -gt 128) {
         $filesystemCoverage = "not_assessed"
     } else {
+      # Validate the entire candidate set before probing even the first entry.
+      foreach ($directory in $pathDirectories) {
+        Assert-CopsLocalPathEntry -Path $directory
+      }
       foreach ($directory in $pathDirectories) {
         if (-not (Test-Path -LiteralPath $directory -PathType Container)) { continue }
         $acl = Get-Acl -LiteralPath $directory -ErrorAction Stop
@@ -519,48 +503,49 @@ if (-not $beforeAbsent) {
     throw "Assessment-owned canary path already exists."
 }
 New-Item -ItemType Directory -Path $canaryPath -ErrorAction Stop | Out-Null
-$createdItem = Get-Item -LiteralPath $canaryPath -Force -ErrorAction Stop
-$createdIdentity = [IO.Path]::GetFullPath($createdItem.FullName)
-if ($createdItem.PSProvider.Name -ne "FileSystem" -or $createdItem.PSDrive.DisplayRoot -or
-    ($createdItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
-    -not $createdIdentity.Equals($canaryPath, [StringComparison]::OrdinalIgnoreCase)) {
-    throw "Assessment-owned canary directory identity validation failed."
-}
-$utf8 = New-Object System.Text.UTF8Encoding -ArgumentList $false
-[IO.File]::WriteAllText($markerPath, $markerContent, $utf8)
-$created = Test-Path -LiteralPath $canaryPath -PathType Container
-
-Assert-CopsCanaryOwnership `
-    -ResourceIdentity $canaryPath `
-    -MarkerIdentity $markerPath `
-    -ExpectedSha256 $ownershipHash
-$ownershipVerified = $true
-$afterCreateObservation = $null
 try {
+    Assert-CopsCanaryDirectoryIdentity -ResourceIdentity $canaryPath
+    Write-CopsNewUtf8File -Path $markerPath -Content $markerContent
+    $created = $true
+    Assert-CopsCanaryOwnership `
+        -ResourceIdentity $canaryPath `
+        -MarkerIdentity $markerPath `
+        -ExpectedSha256 $ownershipHash
+    $ownershipVerified = $true
     $afterCreateObservation = Invoke-CopsCanaryObserver `
         -RootIdentity $canaryFull `
         -ResourceId $resourceId `
         -ExpectedState "readable" `
         -ExpectedSha256 $ownershipHash
+    Assert-CopsCanaryOwnership `
+        -ResourceIdentity $canaryPath `
+        -MarkerIdentity $markerPath `
+        -ExpectedSha256 $ownershipHash
+    Remove-Item -LiteralPath $markerPath -Force -ErrorAction Stop
+    Remove-Item -LiteralPath $canaryPath -Force -ErrorAction Stop
+    $removed = $true
 } catch {
-    $observerFailure = $_
+    $lifecycleFailure = $_
     try {
-        Assert-CopsCanaryOwnership `
-            -ResourceIdentity $canaryPath `
-            -MarkerIdentity $markerPath `
-            -ExpectedSha256 $ownershipHash
-        Remove-Item -LiteralPath $canaryPath -Recurse -Force -ErrorAction Stop
+        # A failed marker write or hash check still enters this cleanup path.
+        # Remove only a verified empty directory or the exact owned marker.
+        Assert-CopsCanaryDirectoryIdentity -ResourceIdentity $canaryPath
+        $children = @(Get-ChildItem -LiteralPath $canaryPath -Force -ErrorAction Stop)
+        if ($children.Count -eq 1) {
+            Assert-CopsCanaryOwnership `
+                -ResourceIdentity $canaryPath `
+                -MarkerIdentity $markerPath `
+                -ExpectedSha256 $ownershipHash
+            Remove-Item -LiteralPath $markerPath -Force -ErrorAction Stop
+        } elseif ($children.Count -ne 0) {
+            throw "Assessment-owned canary directory has unexpected contents."
+        }
+        Remove-Item -LiteralPath $canaryPath -Force -ErrorAction Stop
     } catch {
-        throw "Independent canary observation failed and ownership changed; refusing cleanup."
+        throw "Canary lifecycle failed; ownership-aware cleanup was refused or failed. Residue may remain under the assessment canary root. Original failure: $lifecycleFailure"
     }
-    throw $observerFailure
+    throw $lifecycleFailure
 }
-Assert-CopsCanaryOwnership `
-    -ResourceIdentity $canaryPath `
-    -MarkerIdentity $markerPath `
-    -ExpectedSha256 $ownershipHash
-Remove-Item -LiteralPath $canaryPath -Recurse -Force -ErrorAction Stop
-$removed = -not (Test-Path -LiteralPath $canaryPath)
 $afterCleanupObservation = Invoke-CopsCanaryObserver `
     -RootIdentity $canaryFull `
     -ResourceId $resourceId `
@@ -570,7 +555,7 @@ if (-not ($beforeAbsent -and $created -and $ownershipVerified -and $removed)) {
 }
 
 $exportJson = $export | ConvertTo-Json -Depth 12
-[IO.File]::WriteAllText($outputFull, $exportJson, $utf8)
+Write-CopsNewUtf8File -Path $outputFull -Content $exportJson
 $exportHash = (Get-FileHash -LiteralPath $outputFull -Algorithm SHA256).Hash.ToLowerInvariant()
 $receipt = [ordered]@{
     schema_version = "windows-bridge-receipt-1.2"
@@ -613,4 +598,4 @@ $receipt = [ordered]@{
     }
 }
 $receiptJson = $receipt | ConvertTo-Json -Depth 8
-[IO.File]::WriteAllText($receiptFull, $receiptJson, $utf8)
+Write-CopsNewUtf8File -Path $receiptFull -Content $receiptJson

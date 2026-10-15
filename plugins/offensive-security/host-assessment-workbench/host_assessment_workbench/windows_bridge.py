@@ -46,6 +46,50 @@ def _is_reparse_point(path: Path) -> bool:
     return path.is_symlink() or bool(attributes & reparse_flag)
 
 
+def _missing_path_component(index: int, leaf_index: int) -> str:
+    """Describe a missing Windows path component without disclosing its name."""
+    if index == 0:
+        return "drive root"
+    if index == leaf_index:
+        return "leaf"
+    return f"ancestor {index} of {leaf_index - 1}"
+
+
+def validate_windows_existing_path(path: Path, where: str) -> Path:
+    """Reject remote drives and reparse ancestors before opening an existing path."""
+    path = Path(path)
+    if os.name != "nt":
+        return path
+    import ctypes
+
+    raw = str(path)
+    drive, tail = os.path.splitdrive(raw)
+    if not drive or not tail.startswith(("\\", "/")) or raw.startswith(("\\\\", "//")):
+        raise ContractError(f"{where} must be a fully qualified local drive path")
+    components = re.split(r"[\\/]+", tail.lstrip("\\/"))
+    if any(not component or component in {".", ".."} or ":" in component for component in components):
+        raise ContractError(f"{where} must not contain relative or ambiguous path components")
+    if ctypes.windll.kernel32.GetDriveTypeW(f"{drive}\\") != 3:
+        raise ContractError(f"{where} must be on a fixed drive")
+
+    cursor = Path(f"{drive}\\")
+    candidates = [cursor]
+    for component in components:
+        cursor /= component
+        candidates.append(cursor)
+    leaf_index = len(candidates) - 1
+    for index, candidate in enumerate(candidates):
+        try:
+            if _is_reparse_point(candidate):
+                raise ContractError(f"{where} traverses a reparse point")
+        except FileNotFoundError as exc:
+            missing = _missing_path_component(index, leaf_index)
+            raise ContractError(f"{where} {missing} does not exist") from exc
+        except OSError as exc:
+            raise ContractError(f"{where} ancestry could not be validated") from exc
+    return path
+
+
 def load_bridge_receipt_bytes(data: bytes) -> dict[str, Any]:
     """Parse a bounded receipt while rejecting duplicate JSON keys."""
     if not isinstance(data, bytes) or len(data) > MAX_INPUT_BYTES:
@@ -175,7 +219,7 @@ def validate_bridge_receipt(receipt: dict[str, Any], export_bytes: bytes, canary
         "after_cleanup_observation": after_cleanup_observation,
         "evidence_ids": _evidence_ids(raw_canary["evidence_ids"], "receipt.canary.evidence_ids", minimum=7),
     }
-    canary_root = Path(canary_root)
+    canary_root = validate_windows_existing_path(canary_root, "canary root")
     if not canary_root.is_dir():
         raise ContractError("canary root must be an existing directory")
     if _is_reparse_point(canary_root):
