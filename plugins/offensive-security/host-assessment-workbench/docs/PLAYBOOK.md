@@ -91,3 +91,10 @@ The package check validates fixture semantics, strict native receipt binding,
 declared capabilities, and collector source constraints. Native collection is
 qualified only by a Windows run at the exact candidate revision. Record the exact
 revision and result using the [verification procedure](VERIFICATION.md).
+
+<!-- BEGIN COPS GENERATED OFFLINE ASSESSMENT LINKS -->
+## Generated offline assessment
+
+- [Machine-readable playbook](../playbooks/offline-assessment.json)
+- [Runnable offline walkthrough](../walkthroughs/offline-assessment.md)
+<!-- END COPS GENERATED OFFLINE ASSESSMENT LINKS -->

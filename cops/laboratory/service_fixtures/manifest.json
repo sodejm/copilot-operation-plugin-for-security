@@ -1,0 +1,117 @@
+{
+  "schema_version": "cops.service-laboratory-fixtures/v1",
+  "provenance": {
+    "generator": "COPS deterministic synthetic fixture set",
+    "generated_on": "2026-10-15",
+    "license": "repository license",
+    "safety": "Reserved documentation address ranges, example.invalid identities, and synthetic identifiers only"
+  },
+  "profiles": {
+    "vulnerable": {
+      "configuration": "vulnerable.json",
+      "expected_outcomes": {
+        "authenticated_request": 200,
+        "lateral_request": 200,
+        "lateral_target_reached": true,
+        "post_revoke_authenticated_request": 401
+      }
+    },
+    "corrected": {
+      "configuration": "corrected.json",
+      "expected_outcomes": {
+        "authenticated_request": 200,
+        "lateral_request": 403,
+        "lateral_target_reached": false,
+        "post_revoke_authenticated_request": 401
+      }
+    }
+  },
+  "fixtures": [
+    {
+      "path": "vulnerable.json",
+      "sha256": "3d69048ad8f66c75752083e0051ac33fb320843f50e1088a3392aa432d73d770",
+      "format": "COPS service profile JSON",
+      "synthetic": true
+    },
+    {
+      "path": "corrected.json",
+      "sha256": "68ed853d8442f37fd5991a8a4b7e8762cbae8490c0703d97bf70626db64043c0",
+      "format": "COPS service profile JSON",
+      "synthetic": true
+    },
+    {
+      "path": "entra-grants.jsonl",
+      "sha256": "39c05f2d7f9d3d7ddfd55a40851ff23bd20f6eea84c4f8a77572112a5943f448",
+      "format": "Microsoft Graph oauth2PermissionGrant-shaped JSONL",
+      "synthetic": true
+    },
+    {
+      "path": "entra-signins.jsonl",
+      "sha256": "a5bc0d4f8d7f7f9c87d3249deeebfe33cb3b73072ee755740fe7b0d620794356",
+      "format": "Microsoft Graph signIn-shaped JSONL",
+      "synthetic": true
+    },
+    {
+      "path": "kubernetes-audit.jsonl",
+      "sha256": "403a0ee307c87bec2a39f799f74389e25dcbe86939f417641ae975e446555633",
+      "format": "Kubernetes audit.k8s.io/v1 JSONL",
+      "synthetic": true
+    },
+    {
+      "path": "sysmon-normalized.jsonl",
+      "sha256": "a52f4337e2794b7fb7e1dfa12bd6d450326cda4cc32a10ca8ad0cf6850250a99",
+      "format": "normalized Sysmon-shaped JSONL",
+      "synthetic": true,
+      "is_evtx": false
+    }
+  ],
+  "reset": {
+    "service_state": "Restore the in-memory baseline on normal exit, failure, and cancellation.",
+    "certificates": "Delete the temporary certificate directory after every TLS acceptance run.",
+    "persistent_data": "No database, credential, certificate, or listening service survives the runner process."
+  },
+  "heavyweight_adapters": [
+    {
+      "name": "Docker Engine",
+      "pinned_prerequisite": "preinstalled immutable image sha256 digest; Python >=3.11 and cryptography==50.0.2 inside the image",
+      "bundled": false,
+      "platforms": ["linux", "macOS-hosted-Linux-VM"],
+      "status": "explicit Docker gate adapter; requires reachable daemon, pre-start container inspection, kernel boundary probes, actual service activity, and verified cleanup"
+    },
+    {
+      "name": "kubectl",
+      "pinned_prerequisite": "1.31.3",
+      "bundled": false,
+      "platforms": ["linux", "macOS", "windows"],
+      "status": "fixture playback does not invoke a cluster"
+    },
+    {
+      "name": "Zeek",
+      "pinned_prerequisite": "7.0.4",
+      "bundled": false,
+      "platforms": ["linux", "macOS"],
+      "status": "registered for future isolated packet fixtures"
+    },
+    {
+      "name": "Suricata",
+      "pinned_prerequisite": "7.0.7",
+      "bundled": false,
+      "platforms": ["linux"],
+      "status": "registered for future isolated packet fixtures"
+    },
+    {
+      "name": "Sysmon",
+      "pinned_prerequisite": "15.15",
+      "bundled": false,
+      "platforms": ["windows"],
+      "status": "authentic EVTX acquisition blocked; bundled fixture is explicitly normalized JSON"
+    },
+    {
+      "name": "python-evtx",
+      "pinned_prerequisite": "0.8.1",
+      "bundled": false,
+      "platforms": ["linux", "macOS", "windows"],
+      "status": "adapter unsupported until an authentic harmless EVTX fixture is acquired"
+    }
+  ]
+}

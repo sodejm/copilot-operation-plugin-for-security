@@ -6,8 +6,8 @@ description: Audit capability truth-in-advertising, reconcile operational readin
 # Capability coverage and truth-in-advertising audit
 
 Audit, reconcile, and enforce strict truthfulness regarding the operational readiness of all COPS capabilities across three domains:
-- **18 Distributed Plugins** (`plugins/*/*/package.json`)
-- **21 Specialist Agent Profiles** (`agents/registry.json`)
+- **25 Distributed Plugins** (`plugins/*/*/package.json`)
+- **27 Specialist Agent Profiles** (`agents/registry.json`)
 - **37 Canonical Security Scenarios** (`catalog/scenarios.json`)
 
 ## Operational Readiness Modes
@@ -23,19 +23,19 @@ COPS strictly differentiates four operational readiness modes:
    - Zero live service mutation; zero external network egress.
    - Example: `security-logging-advisor`, `entra-identity-workbench`, `patch-security-review`.
 3. **`laboratory`**:
-   - Controlled offline simulation, synthetic event replay, or sandbox rehearsal.
-   - Zero production infrastructure impact; zero external egress.
+   - Isolated local execution with recorded activity and telemetry, verified isolation, and complete restoration.
+   - Offline fixtures and synthetic replay can exercise logic, but do not independently establish laboratory readiness.
    - Example: `sentinel-hunt-workbench`, `foundry-agent-harness`, `incident-response-sandbox`.
 4. **`live-validated`**:
-   - Fully authorized, live-tested execution path against an authorized environment.
-   - Requires cryptographic operator authorization receipt and immutable `cops.evidence/v1` receipt bundle.
-   - Currently 0 capabilities claim `live-validated`, preserving absolute honesty.
+   - Requires evidence accepted by a registered live-evidence verifier.
+   - No such verifier is currently registered, so every `live-validated` mode, true `live_evidence_verified` flag, or package `live_integration: "validated"` claim fails audit.
+   - Filenames, flags, manifests, and supplied receipt labels cannot establish live validation.
 
 ## CLI Usage
 
 ### Audit All Capabilities Against Truth-in-Advertising Rules
 
-Verify that no capability claims `live-validated` or `live_integration: validated` without verified evidence, and confirm zero catalog drift:
+Verify that no capability makes a live claim while no live-evidence verifier is registered, and confirm exact identifier and summary reconciliation:
 
 ```bash
 python3 -m cops capabilities audit --check
@@ -46,7 +46,7 @@ python3 -m cops capabilities audit --check
 List all capabilities with their verified operational modes and truth boundaries:
 
 ```bash
-# List all 76 capabilities
+# List all 89 capabilities
 python3 -m cops capabilities list
 
 # Filter by operational mode
@@ -94,7 +94,32 @@ md = generate_capability_matrix_markdown(registry)
 
 ## Truth Invariant Error Codes
 
-- `unverified_live_claim`: A capability or scenario claimed `live-validated` mode without verified live execution evidence.
-- `unverified_live_integration`: A plugin package claimed `live_integration: "validated"` without registered live evidence receipts.
+- `unverified_live_claim`: A capability claimed `live-validated` mode or set `live_evidence_verified` while no live-evidence verifier is registered.
+- `unverified_live_integration`: A plugin package claimed `live_integration: "validated"` while no live-evidence verifier is registered.
 - `missing_truth_boundary`: A capability has empty or undefined truth boundaries.
-- `catalog_descriptive_drift`: Total audited count diverged from the canonical registry (expected 18 plugins, 21 specialists, 37 scenarios).
+- `catalog_descriptive_drift`: Capability identifiers, duplicate detection, summaries, or audited counts diverged from the canonical sources (expected 25 plugins, 27 specialists, 37 scenarios; 89 total).
+
+## Readiness and Generated Assets
+
+Run the portable repository baseline for every change:
+
+```bash
+make check
+```
+
+Changes affecting laboratory behavior or readiness claims must also pass the dedicated gate:
+
+```bash
+make check-laboratory
+```
+
+That gate requires observed local activity and telemetry, verified isolation, and restoration. Passing offline fixtures alone is insufficient.
+
+Generate and verify package-owned offline playbooks and walkthroughs with:
+
+```bash
+python3 scripts/generate_plugin_playbooks.py
+python3 scripts/generate_plugin_playbooks.py --check
+```
+
+The portable exporter can carry approved, Git-tracked package assets from `examples/`, `playbooks/`, `walkthroughs/`, `datasets/`, `provenance/`, and `signatures/`. Generated assets document and package a workflow; they are not laboratory execution evidence or live-integration proof.

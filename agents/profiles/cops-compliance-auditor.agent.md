@@ -4,8 +4,9 @@ display_name: COPS Cybersecurity Compliance & GRC Auditor
 domain: governance-operations
 criticality: normal
 interactive_authorization_required: false
-primary_plugin: security-logging-advisor
+primary_plugin: compliance-posture-workbench
 skills:
+  - compliance-posture-workbench
   - logging-recommendations
   - telemetry-proof-tracing
 tools:

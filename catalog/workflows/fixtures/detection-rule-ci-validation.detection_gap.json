@@ -1,0 +1,48 @@
+{
+  "expected_outcome": "detection_gap",
+  "inputs": {
+    "alerts": [],
+    "attack_fixture": [
+      {
+        "correlation_id": "corr-002",
+        "event": "ioc_contained"
+      }
+    ],
+    "benign_fixture": [
+      {
+        "correlation_id": "corr-benign",
+        "event": "health_check"
+      }
+    ],
+    "correlation_ids": [
+      "corr-002"
+    ],
+    "evidence_refs": [
+      "evidence://finding/001"
+    ],
+    "expected_telemetry": [
+      {
+        "field": "event",
+        "value": "ioc_contained"
+      }
+    ],
+    "source_result": {
+      "kind": "finding",
+      "ref": "finding://consent-001"
+    },
+    "telemetry": [
+      {
+        "correlation_id": "corr-002",
+        "event": "ioc_contained",
+        "timestamp": "2026-01-01T00:05:00Z"
+      }
+    ],
+    "time_window": {
+      "end": "2026-01-01T00:10:00Z",
+      "start": "2026-01-01T00:00:00Z"
+    }
+  },
+  "profile_id": "detection_gap",
+  "schema_version": "cops.integrated-workflow-fixture/v1",
+  "workflow_id": "detection-rule-ci-validation"
+}

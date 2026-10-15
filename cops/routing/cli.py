@@ -113,7 +113,7 @@ def command_route(args: argparse.Namespace) -> int:
         out["model_advice"] = advice
 
     authorize = getattr(args, "authorize", False)
-    if authorize and decision.interactive_authorization_required:
+    if authorize and decision.status == "routed" and decision.interactive_authorization_required:
         scope = getattr(args, "scope", None) or ["default-workspace"]
         action = getattr(args, "action", None) or "execute-specialist-assessment"
         receipt = ensure_authorization(
@@ -132,7 +132,26 @@ def command_route(args: argparse.Namespace) -> int:
         print(json.dumps(out, indent=2))
         return 0
 
+    if decision.status == "clarification_required":
+        print("\n" + "=" * 65)
+        print("  COPS SPECIALIST ROUTING CLARIFICATION")
+        print("=" * 65)
+        print(f"  Query / Intent     : {decision.query}")
+        print(f"  Status             : {decision.status}")
+        print(f"  Routing Confidence : {decision.confidence * 100:.1f}%")
+        for reason in decision.match_reasons:
+            print(f"  Reason             : {reason}")
+        if decision.clarification:
+            print(f"\n  {decision.clarification['question']}")
+            for option in decision.clarification["options"]:
+                permissions = ", ".join(option["required_permissions"]) or "none declared"
+                print(f"    * {option['specialist_id']}: {option['purpose']}")
+                print(f"      Permissions: {permissions}")
+        print("=" * 65 + "\n")
+        return 0
+
     p = decision.primary_profile
+    assert p is not None
     print("\n" + "=" * 65)
     print("  COPS SPECIALIST ROUTING DECISION")
     print("=" * 65)

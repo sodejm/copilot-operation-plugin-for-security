@@ -36,7 +36,7 @@ cd copilot-operation-plugin-for-security
 # 2. Check local environment health and catalog synchronization
 python3 -m cops doctor
 
-# 3. List all 18 plugins and their validation status
+# 3. List all 25 plugins and their validation status
 python3 -m cops list
 
 # 4. Inspect details and operational playbooks for a specific plugin
@@ -64,7 +64,7 @@ python3 -m cops doctor
 
 ### What `cops doctor` checks:
 1. **Python Interpreter**: Confirms that your active Python interpreter is version 3.11 or newer.
-2. **Catalog Integrity**: Verifies that all 18 package manifests match their catalog declarations.
+2. **Catalog Integrity**: Verifies that all 25 package manifests match their catalog declarations.
 3. **Marketplace Synchronization**: Ensures that generated host indexes (`.github/plugin/marketplace.json`, `.claude-plugin/marketplace.json`, `.agents/plugins/marketplace.json`) are in sync with `catalog/plugins.json`.
 
 The default check does not run plugins or audit their network behavior. With `--contributor`, it also checks for the `pytest` and `pytest_bdd` modules and the `git` executable, and reports whether the optional `make` and `gh` executables are present. Use `make check-prerequisites` to check Python and the test dependencies in `requirements.txt`, including their minimum versions.
@@ -75,7 +75,7 @@ If any check reports an issue, the output provides clear, actionable instruction
 
 ## Step 2: Exploring the Plugin Catalog (`cops list` & `cops info`)
 
-COPS packages 18 dedicated security plugins across defensive and offensive domains. To view the full catalog:
+COPS packages 25 dedicated security plugins across defensive and offensive domains. To view the full catalog:
 
 ```bash
 python3 -m cops list
@@ -120,7 +120,7 @@ For recommendations on when to reach for each plugin, consult the [Plugin Select
 
 ## Step 3: Routing Tasks with Specialist Agents (`cops route`)
 
-COPS includes 21 specialist cybersecurity agent profiles. The router uses weighted local keyword rules to recommend a profile without an LLM or external API call. It does not launch an agent:
+COPS includes 27 specialist cybersecurity agent profiles. The default router extracts artifacts and uses deterministic BM25 and fuzzy matching to recommend profiles without an external API call. Uncertain or closely scored requests ask for clarification. Routing does not launch an agent:
 
 ```bash
 # Example 1: Detection Engineering
@@ -133,7 +133,7 @@ python3 -m cops route "Audit Entra ID application registrations with high-privil
 python3 -m cops route "Rehearse containment of a compromised service principal with blast radius proof"
 ```
 
-To list all 21 specialist profiles and their domain specializations:
+To list all 27 specialist profiles and their domain specializations:
 
 ```bash
 python3 -m cops specialists
@@ -187,7 +187,7 @@ To run a plugin's defined offline checks locally:
 # Check a single package
 python3 -m cops check sentinel-hunt-workbench
 
-# Check all 18 packages
+# Check all 25 packages
 python3 -m cops check
 ```
 
@@ -201,7 +201,7 @@ Passing checks mean the assertions passed for the tested cases. Coverage depends
   package and use its evidence record to propose a maturity change.
 
 - Consult the [Plugin Selection Guide](plugin-guide.md) to choose the right plugin for your operational needs.
-- Explore the [21 Specialist Agent Profiles](specialist-agents.md), triad plans, and handoff records.
+- Explore the [27 Specialist Agent Profiles](specialist-agents.md), triad plans, and handoff records.
 - Read the [ATT&CK Matrix (v18.0)](COVERAGE_MATRIX.md) for mapped defensive techniques.
 - Set up a contributor environment with the [Contributor Guide](contributing.md).
 - Resolve any environment questions with the [Troubleshooting Guide](troubleshooting.md).

@@ -110,3 +110,10 @@ This playback does not validate provider credentials, APIs, production rollback,
 concurrent writers, immutable audit storage, identity attestation, host adapter
 installation, or emergency authorization. It must not be used as evidence that a
 live containment action occurred.
+
+<!-- BEGIN COPS GENERATED OFFLINE ASSESSMENT LINKS -->
+## Generated offline assessment
+
+- [Machine-readable playbook](../playbooks/offline-assessment.json)
+- [Runnable offline walkthrough](../walkthroughs/offline-assessment.md)
+<!-- END COPS GENERATED OFFLINE ASSESSMENT LINKS -->

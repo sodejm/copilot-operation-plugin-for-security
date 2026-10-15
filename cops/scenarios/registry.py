@@ -78,6 +78,7 @@ def validate_scenario_and_provenance_integrity(root: Path = ROOT) -> dict[str, A
     4. No duplicate item_id exists within any source.
     5. Each guidance record identifies an existing in-repository document with an exact table entry for its identifier.
     6. Each licensing review identifies the same source and license as its provenance record.
+    7. Workflow references resolve to valid definitions bound to their scenario.
     """
     prov_data = load_provenance_registry(root)
     scen_data = load_scenario_registry(root)
@@ -133,6 +134,7 @@ def validate_scenario_and_provenance_integrity(root: Path = ROOT) -> dict[str, A
 
     scenarios = scen_data["scenarios"]
     scenarios_by_id: dict[str, dict[str, Any]] = {}
+    workflow_paths: set[str] = set()
     for scen in scenarios:
         sid = scen["scenario_id"]
         if sid in scenarios_by_id:
@@ -146,6 +148,24 @@ def validate_scenario_and_provenance_integrity(root: Path = ROOT) -> dict[str, A
                 "orphan_scenario_provenance", f"scenario '{sid}' references unknown source_id '{src_id}'"
             )
         scenarios_by_id[sid] = scen
+        for reference in scen.get("workflow_definitions", []):
+            if reference in workflow_paths:
+                raise RegistryError("duplicate_workflow_reference", f"workflow referenced more than once: {reference}")
+            workflow_paths.add(reference)
+            path = Path(reference)
+            if path.is_absolute() or ".." in path.parts or not (root / path).resolve().is_relative_to(root.resolve()):
+                raise RegistryError("invalid_workflow_path", f"scenario '{sid}' has an unsafe workflow path")
+            document = root / path
+            if not document.is_file():
+                raise RegistryError("missing_workflow", f"scenario '{sid}' workflow is missing: {reference}")
+            from cops.workflows.contracts import WorkflowDefinition
+
+            try:
+                definition = WorkflowDefinition.from_dict(json.loads(document.read_text(encoding="utf-8")))
+            except (OSError, ValueError) as err:
+                raise RegistryError("invalid_workflow", f"invalid workflow for scenario '{sid}': {reference}") from err
+            if definition.scenario_id != sid:
+                raise RegistryError("workflow_scenario_mismatch", f"workflow is bound to a different scenario: {reference}")
 
     # Validate that every inventoried item in provenance resolves
     all_item_ids: set[str] = set()
@@ -185,6 +205,7 @@ def validate_scenario_and_provenance_integrity(root: Path = ROOT) -> dict[str, A
         "decision_count": len(decisions_by_id),
         "inventory_items_count": total_inventory_items,
         "scenarios_count": len(scenarios_by_id),
+        "workflow_definitions_count": len(workflow_paths),
         "status": "valid",
     }
 

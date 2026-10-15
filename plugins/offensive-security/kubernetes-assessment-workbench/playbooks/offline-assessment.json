@@ -1,0 +1,124 @@
+{
+  "entrypoints": [
+    {
+      "argv": [
+        "python3",
+        "plugins/offensive-security/kubernetes-assessment-workbench/scripts/demo.py"
+      ],
+      "effects": {
+        "authorization": "explicit authorization required for any live follow-on; this entrypoint is offline only",
+        "network": "none declared by the offline package contract",
+        "read_scope": "exact argv-declared repository paths; the script can also select package-local fixtures, so inspect its implementation before invocation",
+        "reads": [
+          "plugins/offensive-security/kubernetes-assessment-workbench/scripts/demo.py"
+        ],
+        "subprocess": "the generator executes none; operator invocation may run subprocesses implemented by the declared repository script",
+        "temporary_storage": "implementation-controlled and not retained; location is not declared by argv",
+        "write_scope": "complete durable destinations explicitly declared in argv; an empty list means no durable destination is declared, not that the implementation performs no temporary writes",
+        "writes": []
+      },
+      "expectations": {
+        "evidence": [
+          "the declared command exits successfully",
+          "reported results are limited to the supplied offline fixtures and metadata"
+        ],
+        "inputs": {
+          "argv": [],
+          "implementation_selected": "package-local fixtures may be selected inside the declared script; review the script before invocation",
+          "review_sources": [
+            "plugins/offensive-security/kubernetes-assessment-workbench/package.json",
+            "plugins/offensive-security/kubernetes-assessment-workbench/docs/PLAYBOOK.md"
+          ]
+        },
+        "outputs": {
+          "durable_destinations": [],
+          "process": [
+            "exit status",
+            "standard output",
+            "standard error"
+          ],
+          "schemas": []
+        }
+      },
+      "id": "demo",
+      "purpose": "Verify matching, limited-evidence, and rejected context-switch playbacks through the offline CLI.",
+      "timeout_seconds": 30,
+      "working_directory": "."
+    },
+    {
+      "argv": [
+        "python3",
+        "plugins/offensive-security/kubernetes-assessment-workbench/scripts/validate-package.py"
+      ],
+      "effects": {
+        "authorization": "explicit authorization required for any live follow-on; this entrypoint is offline only",
+        "network": "none declared by the offline package contract",
+        "read_scope": "exact argv-declared repository paths; the script can also select package-local fixtures, so inspect its implementation before invocation",
+        "reads": [
+          "plugins/offensive-security/kubernetes-assessment-workbench/scripts/validate-package.py"
+        ],
+        "subprocess": "the generator executes none; operator invocation may run subprocesses implemented by the declared repository script",
+        "temporary_storage": "implementation-controlled and not retained; location is not declared by argv",
+        "write_scope": "complete durable destinations explicitly declared in argv; an empty list means no durable destination is declared, not that the implementation performs no temporary writes",
+        "writes": []
+      },
+      "expectations": {
+        "evidence": [
+          "the declared command exits successfully",
+          "reported results are limited to the supplied offline fixtures and metadata"
+        ],
+        "inputs": {
+          "argv": [],
+          "implementation_selected": "package-local fixtures may be selected inside the declared script; review the script before invocation",
+          "review_sources": [
+            "plugins/offensive-security/kubernetes-assessment-workbench/package.json",
+            "plugins/offensive-security/kubernetes-assessment-workbench/docs/PLAYBOOK.md"
+          ]
+        },
+        "outputs": {
+          "durable_destinations": [],
+          "process": [
+            "exit status",
+            "standard output",
+            "standard error"
+          ],
+          "schemas": []
+        }
+      },
+      "id": "validation-1",
+      "purpose": "offline package gate",
+      "timeout_seconds": 120,
+      "working_directory": "."
+    }
+  ],
+  "generation": {
+    "commands_executed": false,
+    "source": "catalog/plugins.json and package metadata"
+  },
+  "limitations": [
+    "Approval, context selection, cluster facts, and access observations are operator assertions, not independently verified.",
+    "A Namespace UID is an object identity anchor and does not prove a universal cluster identity.",
+    "No kubeconfig, kubectl, cluster API, node, control-plane, or admission-controller integration is exercised.",
+    "The report never authorizes live execution or establishes security posture, exploitability, or complete coverage."
+  ],
+  "links": {
+    "operator_playbook": "../docs/PLAYBOOK.md",
+    "package_contract": "../package.json",
+    "walkthrough": "../walkthroughs/offline-assessment.md"
+  },
+  "package_path": "plugins/offensive-security/kubernetes-assessment-workbench",
+  "plugin_id": "kubernetes-assessment-workbench",
+  "purpose": "Reconcile an approved Kubernetes context with a sanitized local observation and report identity and access limits.",
+  "schema_version": "cops.plugin-playbook/v1",
+  "status": {
+    "isolated_laboratory": "unverified",
+    "maturity": "experimental",
+    "offline_workflow": "validated",
+    "support": {
+      "host_installation": "unverified",
+      "live_integration": "unverified",
+      "offline_workflow": "validated",
+      "structural_validation": "validated"
+    }
+  }
+}

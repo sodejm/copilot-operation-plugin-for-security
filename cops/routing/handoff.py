@@ -316,7 +316,7 @@ def accept_specialist_handoff(
         set(profile.skills)
         | set(profile.tools)
         | {profile.primary_plugin}
-        | set(profile.intent_keywords)
+        | set(profile.capabilities)
         | {profile.domain}
     )
     # Match capabilities: each required capability must be contained or substring-matched in profile

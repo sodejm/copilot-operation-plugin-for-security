@@ -1,0 +1,192 @@
+{
+  "budget": {
+    "max_evidence_refs": 4,
+    "max_output_bytes": 1048576,
+    "max_stages": 4,
+    "max_total_attempts": 4
+  },
+  "description": "Correlate Entra grants and sign-ins, assess illicit consent, propose remediation, and validate identity and hunt actions in a fixture laboratory.",
+  "engagement_id": "eng-integrated-offline-fixtures",
+  "inputs": {
+    "grants": {
+      "required": true,
+      "type": "array"
+    },
+    "signins": {
+      "required": true,
+      "type": "array"
+    }
+  },
+  "outputs": {
+    "lab_validation": {
+      "source": "stage.validate.output.lab_validation",
+      "type": "object"
+    },
+    "outcome": {
+      "source": "stage.validate.output.outcome",
+      "type": "string"
+    }
+  },
+  "scenario_id": "COPS-E03.02-S01",
+  "schema_version": "cops.workflow-definition/v1",
+  "stages": [
+    {
+      "action": {
+        "action": "consent.import_entra_evidence",
+        "expected_evidence": [
+          "grant evidence",
+          "sign-in evidence"
+        ],
+        "limits": {
+          "egress_allowed": false,
+          "max_duration_seconds": 30,
+          "max_output_bytes": 262144
+        },
+        "side_effects": [],
+        "specialist_id": "cops-identity-specialist",
+        "target": "fixture://illicit-consent-remediation",
+        "timeout_seconds": 30,
+        "tool": "integrated-fixture-playback",
+        "tool_version": "1.0.0"
+      },
+      "depends_on": [],
+      "inputs": {
+        "grants": {
+          "source": "workflow.input.grants",
+          "type": "array"
+        },
+        "signins": {
+          "source": "workflow.input.signins",
+          "type": "array"
+        }
+      },
+      "outputs": {
+        "entra_evidence": {
+          "type": "object"
+        }
+      },
+      "retry": {
+        "max_attempts": 1
+      },
+      "stage_id": "import"
+    },
+    {
+      "action": {
+        "action": "consent.assess_suspicious_activity",
+        "expected_evidence": [
+          "risky applications",
+          "correlated sign-ins"
+        ],
+        "limits": {
+          "egress_allowed": false,
+          "max_duration_seconds": 30,
+          "max_output_bytes": 262144
+        },
+        "side_effects": [],
+        "specialist_id": "cops-identity-specialist",
+        "target": "fixture://illicit-consent-remediation",
+        "timeout_seconds": 30,
+        "tool": "integrated-fixture-playback",
+        "tool_version": "1.0.0"
+      },
+      "depends_on": [
+        "import"
+      ],
+      "inputs": {
+        "entra_evidence": {
+          "source": "stage.import.output.entra_evidence",
+          "type": "object"
+        }
+      },
+      "outputs": {
+        "suspicious_assessment": {
+          "type": "object"
+        }
+      },
+      "retry": {
+        "max_attempts": 1
+      },
+      "stage_id": "assess"
+    },
+    {
+      "action": {
+        "action": "consent.propose_remediation",
+        "expected_evidence": [
+          "grant revocation plan",
+          "session and hunt plan"
+        ],
+        "limits": {
+          "egress_allowed": false,
+          "max_duration_seconds": 30,
+          "max_output_bytes": 262144
+        },
+        "side_effects": [],
+        "specialist_id": "cops-identity-specialist",
+        "target": "fixture://illicit-consent-remediation",
+        "timeout_seconds": 30,
+        "tool": "integrated-fixture-playback",
+        "tool_version": "1.0.0"
+      },
+      "depends_on": [
+        "assess"
+      ],
+      "inputs": {
+        "suspicious_assessment": {
+          "source": "stage.assess.output.suspicious_assessment",
+          "type": "object"
+        }
+      },
+      "outputs": {
+        "remediation_proposal": {
+          "type": "object"
+        }
+      },
+      "retry": {
+        "max_attempts": 1
+      },
+      "stage_id": "propose"
+    },
+    {
+      "action": {
+        "action": "consent.validate_in_lab",
+        "expected_evidence": [
+          "identity package result",
+          "hunt package result"
+        ],
+        "limits": {
+          "egress_allowed": false,
+          "max_duration_seconds": 30,
+          "max_output_bytes": 262144
+        },
+        "side_effects": [],
+        "specialist_id": "cops-identity-specialist",
+        "target": "fixture://illicit-consent-remediation",
+        "timeout_seconds": 30,
+        "tool": "integrated-fixture-playback",
+        "tool_version": "1.0.0"
+      },
+      "depends_on": [
+        "propose"
+      ],
+      "inputs": {
+        "remediation_proposal": {
+          "source": "stage.propose.output.remediation_proposal",
+          "type": "object"
+        }
+      },
+      "outputs": {
+        "lab_validation": {
+          "type": "object"
+        },
+        "outcome": {
+          "type": "string"
+        }
+      },
+      "retry": {
+        "max_attempts": 1
+      },
+      "stage_id": "validate"
+    }
+  ],
+  "workflow_id": "illicit-consent-remediation"
+}

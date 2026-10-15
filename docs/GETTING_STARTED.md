@@ -26,7 +26,7 @@ If any check reports an issue, the output will give you clear, actionable instru
 
 ## 2. Choose the Right Tool for the Job
 
-COPS packages eighteen dedicated security plugins across defensive and offensive domains. To see the full catalog and current validation status, run:
+COPS packages twenty-five dedicated security plugins across defensive and offensive domains. To see the full catalog and current validation status, run:
 
 ```bash
 python3 -m cops list
@@ -117,7 +117,7 @@ python3 -m cops validate sentinel-hunt-workbench
 python3 -m cops check sentinel-hunt-workbench
 ```
 
-To run offline checks across all eighteen plugins in sequence:
+To run offline checks across all twenty-five plugins in sequence:
 
 ```bash
 python3 -m cops check

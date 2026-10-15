@@ -30,6 +30,11 @@
       "id": "incident-response",
       "name": "Incident Response",
       "description": "Post-detection containment and recovery action planning and bounded execution. Detection and Hunting covers discovery and investigation; Identity and Access Management covers entitlement analysis; neither primarily describes coordinated incident actions."
+    },
+    {
+      "id": "governance-compliance",
+      "name": "Governance and Compliance",
+      "description": "Versioned control mapping, evidence sufficiency and governance assurance. Logging and Telemetry covers collecting events; this category evaluates whether dated evidence supports a control assessment."
     }
   ]
 }

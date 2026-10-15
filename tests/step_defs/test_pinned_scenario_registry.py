@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -165,6 +166,7 @@ def setup_duplicate_scenario(tmp_path, registry_context):
     catalog.mkdir(parents=True)
     schemas = catalog / "schemas"
     schemas.mkdir(parents=True)
+    shutil.copytree(ROOT / "catalog" / "workflows", catalog / "workflows")
 
     # Copy real schemas and provenance
     real_schemas = ROOT / "catalog" / "schemas"
@@ -211,6 +213,7 @@ def setup_orphan_mapping(tmp_path_factory, registry_context):
     catalog.mkdir(parents=True)
     schemas = catalog / "schemas"
     schemas.mkdir(parents=True)
+    shutil.copytree(ROOT / "catalog" / "workflows", catalog / "workflows")
 
     # Copy real schemas and scenarios
     real_schemas = ROOT / "catalog" / "schemas"
@@ -244,6 +247,7 @@ def _copy_registry_for_provenance_test(tmp_path: Path) -> Path:
     catalog = tmp_path / "catalog"
     schemas = catalog / "schemas"
     schemas.mkdir(parents=True)
+    shutil.copytree(ROOT / "catalog" / "workflows", catalog / "workflows")
     for schema_file in (ROOT / "catalog" / "schemas").glob("*.json"):
         (schemas / schema_file.name).write_text(schema_file.read_text(encoding="utf-8"), encoding="utf-8")
     (catalog / "scenarios.json").write_text(

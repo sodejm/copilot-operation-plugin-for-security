@@ -198,3 +198,10 @@ It does not execute a model, MCP server, provider request, live tool, or attack.
 does not establish production authorization behavior or model safety. Use the
 process-backed `lab` workflow for the separate local MCP fixture, and use a
 separately authorized integration assessment for any deployed system claim.
+
+<!-- BEGIN COPS GENERATED OFFLINE ASSESSMENT LINKS -->
+## Generated offline assessment
+
+- [Machine-readable playbook](../playbooks/offline-assessment.json)
+- [Runnable offline walkthrough](../walkthroughs/offline-assessment.md)
+<!-- END COPS GENERATED OFFLINE ASSESSMENT LINKS -->

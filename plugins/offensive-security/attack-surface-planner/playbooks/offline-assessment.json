@@ -1,0 +1,124 @@
+{
+  "entrypoints": [
+    {
+      "argv": [
+        "python3",
+        "plugins/offensive-security/attack-surface-planner/scripts/run_playback.py"
+      ],
+      "effects": {
+        "authorization": "explicit authorization required for any live follow-on; this entrypoint is offline only",
+        "network": "none declared by the offline package contract",
+        "read_scope": "exact argv-declared repository paths; the script can also select package-local fixtures, so inspect its implementation before invocation",
+        "reads": [
+          "plugins/offensive-security/attack-surface-planner/scripts/run_playback.py"
+        ],
+        "subprocess": "the generator executes none; operator invocation may run subprocesses implemented by the declared repository script",
+        "temporary_storage": "implementation-controlled and not retained; location is not declared by argv",
+        "write_scope": "complete durable destinations explicitly declared in argv; an empty list means no durable destination is declared, not that the implementation performs no temporary writes",
+        "writes": []
+      },
+      "expectations": {
+        "evidence": [
+          "the declared command exits successfully",
+          "reported results are limited to the supplied offline fixtures and metadata"
+        ],
+        "inputs": {
+          "argv": [],
+          "implementation_selected": "package-local fixtures may be selected inside the declared script; review the script before invocation",
+          "review_sources": [
+            "plugins/offensive-security/attack-surface-planner/package.json",
+            "plugins/offensive-security/attack-surface-planner/docs/PLAYBOOK.md"
+          ]
+        },
+        "outputs": {
+          "durable_destinations": [],
+          "process": [
+            "exit status",
+            "standard output",
+            "standard error"
+          ],
+          "schemas": []
+        }
+      },
+      "id": "demo",
+      "purpose": "Run the passive planning playback, including semantic rerun assertions and active-mode rejection.",
+      "timeout_seconds": 30,
+      "working_directory": "."
+    },
+    {
+      "argv": [
+        "python3",
+        "plugins/offensive-security/attack-surface-planner/scripts/validate-package.py"
+      ],
+      "effects": {
+        "authorization": "explicit authorization required for any live follow-on; this entrypoint is offline only",
+        "network": "none declared by the offline package contract",
+        "read_scope": "exact argv-declared repository paths; the script can also select package-local fixtures, so inspect its implementation before invocation",
+        "reads": [
+          "plugins/offensive-security/attack-surface-planner/scripts/validate-package.py"
+        ],
+        "subprocess": "the generator executes none; operator invocation may run subprocesses implemented by the declared repository script",
+        "temporary_storage": "implementation-controlled and not retained; location is not declared by argv",
+        "write_scope": "complete durable destinations explicitly declared in argv; an empty list means no durable destination is declared, not that the implementation performs no temporary writes",
+        "writes": []
+      },
+      "expectations": {
+        "evidence": [
+          "the declared command exits successfully",
+          "reported results are limited to the supplied offline fixtures and metadata"
+        ],
+        "inputs": {
+          "argv": [],
+          "implementation_selected": "package-local fixtures may be selected inside the declared script; review the script before invocation",
+          "review_sources": [
+            "plugins/offensive-security/attack-surface-planner/package.json",
+            "plugins/offensive-security/attack-surface-planner/docs/PLAYBOOK.md"
+          ]
+        },
+        "outputs": {
+          "durable_destinations": [],
+          "process": [
+            "exit status",
+            "standard output",
+            "standard error"
+          ],
+          "schemas": []
+        }
+      },
+      "id": "validation-1",
+      "purpose": "offline package gate",
+      "timeout_seconds": 120,
+      "working_directory": "."
+    }
+  ],
+  "generation": {
+    "commands_executed": false,
+    "source": "catalog/plugins.json and package metadata"
+  },
+  "limitations": [
+    "Approval and ownership are operator assertions, not independently verified or cryptographically signed.",
+    "Only the documented local JSON export profiles are supported; no live Azure, Entra, DNS, CT, or endpoint integration is exercised.",
+    "Hypotheses do not establish exposure, exploitability, effective consent, or comprehensive inventory.",
+    "Active methods are unavailable."
+  ],
+  "links": {
+    "operator_playbook": "../docs/PLAYBOOK.md",
+    "package_contract": "../package.json",
+    "walkthrough": "../walkthroughs/offline-assessment.md"
+  },
+  "package_path": "plugins/offensive-security/attack-surface-planner",
+  "plugin_id": "attack-surface-planner",
+  "purpose": "Reconcile approved Microsoft/Azure scope with pinned local exports and produce passive review plans.",
+  "schema_version": "cops.plugin-playbook/v1",
+  "status": {
+    "isolated_laboratory": "unverified",
+    "maturity": "experimental",
+    "offline_workflow": "validated",
+    "support": {
+      "host_installation": "unverified",
+      "live_integration": "unverified",
+      "offline_workflow": "validated",
+      "structural_validation": "validated"
+    }
+  }
+}

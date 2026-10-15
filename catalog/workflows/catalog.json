@@ -1,0 +1,119 @@
+{
+  "schema_version": "cops.integrated-workflow-catalog/v1",
+  "workflows": [
+    {
+      "definition_digest": "63769b231fbec6ec4251928fb329dc27731f821156f9a5da09dbf138341205e3",
+      "path": "leaked-credential-blast-radius.workflow.json",
+      "profiles": [
+        {
+          "expected_outcome": "action_required",
+          "input_digest": "b904b5e938b133c8b96674fc292ef790786be6837289af6ec8109030cdb0434b",
+          "path": "fixtures/leaked-credential-blast-radius.vulnerable.json",
+          "profile_id": "vulnerable"
+        },
+        {
+          "expected_outcome": "no_active_exposure_observed",
+          "input_digest": "6d95db472bf09c7018057cb345444b5451dac8b14140dac0958ac1881bcf2a1a",
+          "path": "fixtures/leaked-credential-blast-radius.corrected.json",
+          "profile_id": "corrected"
+        }
+      ],
+      "workflow_id": "leaked-credential-blast-radius"
+    },
+    {
+      "definition_digest": "02ed99e84cb6cab13d31d58f3546c33692571a47b75fdc8d316c02e4a9fd3519",
+      "path": "cve-reachability-triage.workflow.json",
+      "profiles": [
+        {
+          "expected_outcome": "urgent_remediation",
+          "input_digest": "951e820aa1ba26789718747cda83bfd9bcd3c4d83bac27b952a0fb9b86eb465a",
+          "path": "fixtures/cve-reachability-triage.vulnerable.json",
+          "profile_id": "vulnerable"
+        },
+        {
+          "expected_outcome": "insufficient_evidence",
+          "input_digest": "135ddffa0d909fccc20f9061f555fac921f29eb3bae4353306134433946d15da",
+          "path": "fixtures/cve-reachability-triage.limited.json",
+          "profile_id": "limited"
+        }
+      ],
+      "workflow_id": "cve-reachability-triage"
+    },
+    {
+      "definition_digest": "157b9b72189bbd9438015dfba1999c4f4a097c8ab5fe1527b0bec00371facf28",
+      "path": "kubernetes-compromise-containment.workflow.json",
+      "profiles": [
+        {
+          "expected_outcome": "insufficient_lab_validation",
+          "input_digest": "d87e2d6c7aa704948d79fca753a2259e9a37a45eb64144e98b35bba10a7da0c0",
+          "path": "fixtures/kubernetes-compromise-containment.vulnerable.json",
+          "profile_id": "vulnerable"
+        },
+        {
+          "expected_outcome": "no_containment_required",
+          "input_digest": "b4ec58a921be8b47ebe206c0a26b99ecd252287621aedc022a90739a54fd8cff",
+          "path": "fixtures/kubernetes-compromise-containment.corrected.json",
+          "profile_id": "corrected"
+        }
+      ],
+      "workflow_id": "kubernetes-compromise-containment"
+    },
+    {
+      "definition_digest": "89023b17f36e788d03070fa1e1a8d60f19eaf932cfc380a5ae058e51b17e6564",
+      "path": "illicit-consent-remediation.workflow.json",
+      "profiles": [
+        {
+          "expected_outcome": "insufficient_lab_validation",
+          "input_digest": "df0c99e45998a182a1372b69bacc87a7b3b4942a195b5b5d443e92bdb6b442f9",
+          "path": "fixtures/illicit-consent-remediation.vulnerable.json",
+          "profile_id": "vulnerable"
+        },
+        {
+          "expected_outcome": "no_suspicious_consent_observed",
+          "input_digest": "b7e98aaa8ce00425fb7188c14f362c26df1fbc3cf55ff67c48fd9149bd619469",
+          "path": "fixtures/illicit-consent-remediation.corrected.json",
+          "profile_id": "corrected"
+        }
+      ],
+      "workflow_id": "illicit-consent-remediation"
+    },
+    {
+      "definition_digest": "4014a208bc476f149c3e7094b0eb3a4c8883ae62d8110b5b6c1d014159792f08",
+      "path": "detection-rule-ci-validation.workflow.json",
+      "profiles": [
+        {
+          "expected_outcome": "verified_detection",
+          "input_digest": "6e00ea273c6da50a69b1cc173a25f3d7b19fa30ced7683c19e739df054f9b261",
+          "path": "fixtures/detection-rule-ci-validation.verified.json",
+          "profile_id": "verified"
+        },
+        {
+          "expected_outcome": "detection_gap",
+          "input_digest": "107fb8721e0c165e48284e74888f1ddccafaaaa8ca22ec93a1acfc878fa5175c",
+          "path": "fixtures/detection-rule-ci-validation.detection_gap.json",
+          "profile_id": "detection_gap"
+        }
+      ],
+      "workflow_id": "detection-rule-ci-validation"
+    },
+    {
+      "definition_digest": "45fd9ce4f7f6cb1badef286f6a95999cd82f4db5fe13db0e02fa20a8969f7da0",
+      "path": "pre-release-exposure-audit.workflow.json",
+      "profiles": [
+        {
+          "expected_outcome": "action_required",
+          "input_digest": "5863e0628b996ad717d3ab43926dceff307635e47ce340be533acd30663701d5",
+          "path": "fixtures/pre-release-exposure-audit.vulnerable.json",
+          "profile_id": "vulnerable"
+        },
+        {
+          "expected_outcome": "no_exposure_observed",
+          "input_digest": "df6c748b3b460b374604b6312ec3c5e1ec381a889c490f35669cda7148952de9",
+          "path": "fixtures/pre-release-exposure-audit.corrected.json",
+          "profile_id": "corrected"
+        }
+      ],
+      "workflow_id": "pre-release-exposure-audit"
+    }
+  ]
+}

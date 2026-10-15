@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sodejm/copilot-operation-plugin-for-security/catalog/schemas/run-result.schema.json",
+  "title": "COPS Run Result Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "result_id",
+    "plan_id",
+    "engagement_id",
+    "status",
+    "started_at",
+    "finished_at",
+    "status_details",
+    "evidence_records",
+    "artifacts",
+    "cleanup_status",
+    "worker_identity"
+  ],
+  "properties": {
+    "schema_version": {"const": "cops.run-result/v1"},
+    "result_id": {
+      "type": "string",
+      "pattern": "^res-[a-z0-9_-]{4,64}$"
+    },
+    "plan_id": {
+      "type": "string",
+      "pattern": "^plan-[a-z0-9_-]{4,64}$"
+    },
+    "engagement_id": {
+      "type": "string",
+      "pattern": "^eng-[a-z0-9_-]{4,64}$"
+    },
+    "status": {
+      "enum": ["success", "partial", "cancelled", "failed", "uncertain", "not_assessed"]
+    },
+    "started_at": {"type": "string", "format": "date-time"},
+    "finished_at": {"type": "string", "format": "date-time"},
+    "exit_code": {
+      "type": ["integer", "null"]
+    },
+    "status_details": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["summary"],
+      "properties": {
+        "summary": {"type": "string", "minLength": 1},
+        "reason": {"type": "string"}
+      }
+    },
+    "evidence_records": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "path", "sha256"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "path": {"type": "string", "minLength": 1},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "size_bytes": {"type": "integer", "minimum": 0},
+          "truncated_bytes": {"type": "integer", "minimum": 0}
+        }
+      }
+    },
+    "cleanup_status": {
+      "enum": ["not_required", "pending", "completed", "partial", "failed"]
+    },
+    "worker_identity": {
+      "type": "string",
+      "minLength": 1
+    },
+    "offline_research": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profile", "version", "worker_inventory_sha256", "approved_isolation_attestation", "corpora", "isolation_observation", "isolation_invocations"],
+      "properties": {
+        "profile": {"const": "offline-research"},
+        "version": {"const": "v1"},
+        "worker_inventory_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "cat_executable_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "approved_isolation_attestation": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "corpora": {
+          "type": "array", "minItems": 1, "maxItems": 16,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["name", "sha256"],
+            "properties": {
+              "name": {"type": "string", "pattern": "^[a-z0-9_-]{1,48}$"},
+              "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            }
+          }
+        },
+        "isolation_observation": {"$ref": "#/$defs/isolationObservation"},
+        "isolation_invocations": {
+          "type": "array",
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["step_id", "phase", "observation", "matches_approved"],
+            "properties": {
+              "step_id": {"type": "string", "minLength": 1},
+              "phase": {"enum": ["version_probe", "adapter"]},
+              "observation": {"$ref": "#/$defs/isolationObservation"},
+              "matches_approved": {"type": "boolean"}
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "isolationObservation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["digest", "observed_at", "observation_scope", "measured"],
+      "properties": {
+        "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "observed_at": {"type": "string", "format": "date-time"},
+        "observation_scope": {"const": "pre_exec_actual_sandbox"},
+        "measured": {
+          "type": "object", "additionalProperties": false,
+          "required": ["interfaces", "routes", "ipv6_routes", "socket_fds", "separate_network_namespace"],
+          "properties": {
+            "interfaces": {"type": "array", "items": {"type": "string"}},
+            "routes": {"type": "array", "items": {"type": "string"}},
+            "ipv6_routes": {"type": "array", "items": {"type": "string"}},
+            "socket_fds": {"type": "integer", "minimum": 0},
+            "separate_network_namespace": {"type": "boolean"}
+          }
+        }
+      }
+    }
+  }
+}

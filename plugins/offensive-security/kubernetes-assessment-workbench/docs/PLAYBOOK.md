@@ -60,3 +60,10 @@ The package check covers import constraints and repeats this playback. No cluste
 resources are created. Remove any operator-created report copies according to
 your evidence retention policy. Record results with the
 [verification procedure](VERIFICATION.md); keep offline and live evidence separate.
+
+<!-- BEGIN COPS GENERATED OFFLINE ASSESSMENT LINKS -->
+## Generated offline assessment
+
+- [Machine-readable playbook](../playbooks/offline-assessment.json)
+- [Runnable offline walkthrough](../walkthroughs/offline-assessment.md)
+<!-- END COPS GENERATED OFFLINE ASSESSMENT LINKS -->
