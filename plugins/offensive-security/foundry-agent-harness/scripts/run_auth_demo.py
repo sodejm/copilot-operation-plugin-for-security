@@ -23,18 +23,19 @@ REPO_ROOT = PLUGIN_ROOT.parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(PLUGIN_ROOT))
 
+from foundryharness import auth_laboratory  # noqa: E402
+
 from cops.contracts import ActionPlan, Engagement  # noqa: E402
 from cops.execution.authorization import (  # noqa: E402
     AuthorizationSigner,
     create_execution_authorization,
 )
 from cops.execution.store import ApprovalStore  # noqa: E402
-from foundryharness import auth_laboratory  # noqa: E402
 
 WORKER_IDENTITY = "fixture-worker"
 CASES_PATH = PLUGIN_ROOT / "auth_cases"
 CLI_PATH = PLUGIN_ROOT / "foundryharness/cli.py"
-SIGNING_SECRET_ENV = "COPS_AGENT_MCP_DEMO_SIGNING_KEY"
+SIGNING_ENV_VAR_NAME = "COPS_AGENT_MCP_DEMO_SIGNING_KEY"
 OBSERVER_BOUNDARY = (
     "Provider-neutral separate process on the same host and trust boundary; this demonstration "
     "does not claim external attestation, live-provider authorization, or an OS network sandbox."
@@ -166,7 +167,7 @@ def _prepare_public_cli_run(
                     "key_id": key_id,
                     "operator_identity": engagement.operator,
                     "algorithm": "hmac-sha256",
-                    "secret_env": SIGNING_SECRET_ENV,
+                    "secret_env": SIGNING_ENV_VAR_NAME,
                     "valid_from_utc": valid_from,
                     "valid_until_utc": valid_until,
                     "status": "active",
@@ -175,25 +176,29 @@ def _prepare_public_cli_run(
         },
     )
     ApprovalStore(approval_store_path).store_authorization(authorization)
-    environment[SIGNING_SECRET_ENV] = secret_value
-    return cases, [
-        "auth-lab",
-        "--cases",
-        str(CASES_PATH),
-        "--plan",
-        str(plan_path),
-        "--engagement",
-        str(engagement_path),
-        "--authorization",
-        str(authorization_path),
-        "--trust-store",
-        str(trust_store_path),
-        "--worker-identity",
-        WORKER_IDENTITY,
-        "--approval-store",
-        str(approval_store_path),
-        "--json",
-    ], environment
+    environment[SIGNING_ENV_VAR_NAME] = secret_value
+    return (
+        cases,
+        [
+            "auth-lab",
+            "--cases",
+            str(CASES_PATH),
+            "--plan",
+            str(plan_path),
+            "--engagement",
+            str(engagement_path),
+            "--authorization",
+            str(authorization_path),
+            "--trust-store",
+            str(trust_store_path),
+            "--worker-identity",
+            WORKER_IDENTITY,
+            "--approval-store",
+            str(approval_store_path),
+            "--json",
+        ],
+        environment,
+    )
 
 
 def _validate_report(report: dict[str, Any], cases: list[Any]) -> None:
