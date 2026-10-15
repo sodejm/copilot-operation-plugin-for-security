@@ -9,21 +9,40 @@ The package does not collect from AD, LDAP, Kerberos, or hosts. A candidate path
 Run from the repository root with Python 3.11 or later:
 
 ```bash
-python3 plugins/identity-access/ad-assessment-workbench/scripts/run_demo.py
+PYTHON="${PYTHON:-python3.11}"
+"$PYTHON" -m cops demo ad-assessment-workbench
 ```
 
-Retain the two-run playback and rejection evidence in a new directory:
+The public command creates an owner-only temporary workspace, verifies both
+runs and the expected rejection, and removes the workspace. Use the package
+runner directly when you need to retain that evidence in a new directory:
 
 ```bash
-python3 plugins/identity-access/ad-assessment-workbench/scripts/run_demo.py \
-  --workspace /tmp/ad-playback-review
+PYTHON="${PYTHON:-python3.11}"
+scratch="$(mktemp -d "${TMPDIR:-/tmp}/cops-ad-playback.XXXXXX")"
+chmod 700 "$scratch"
+"$PYTHON" plugins/identity-access/ad-assessment-workbench/scripts/run_demo.py \
+  --workspace "$scratch/playback"
+cat "$scratch/playback/playback-summary.json"
 ```
 
-Analyze a separately authorized export without writing files:
+The runner requires a workspace path that does not already exist. `mktemp`
+creates a private parent while leaving the `playback` child available for the
+runner. The artifacts remain under `$scratch/playback` for review. When you no
+longer need them, optionally remove the private parent with `rm -rf "$scratch"`
+in the same shell.
+
+Analyze the bundled fixture without writing files:
 
 ```bash
-python3 plugins/identity-access/ad-assessment-workbench/scripts/analyze.py /path/to/export.json
+PYTHON="${PYTHON:-python3.11}"
+"$PYTHON" plugins/identity-access/ad-assessment-workbench/scripts/analyze.py \
+  plugins/identity-access/ad-assessment-workbench/fixtures/synthetic-two-forest.json
 ```
+
+Replace the fixture path with a separately authorized export only after reviewing
+the input contract below. The analyzer reads one local file and does not collect
+from a directory service.
 
 ## Design and data flow
 

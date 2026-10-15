@@ -351,6 +351,8 @@ def run_exported_demos(context, tmp_path):
         export_portable_package(ROOT / record.path, destination)
         assert not (destination / "tests").exists()
         assert not (destination / "package.json").exists()
+        if record.id == "exploit-validation-workbench":
+            assert (destination / "reproduction" / "preflight.py").is_file()
         command, timeout = validate_declared_command(record.package["demo"], record, runtime)
         context["exported_results"][record.id] = [
             subprocess.run(
