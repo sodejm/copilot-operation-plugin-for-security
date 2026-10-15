@@ -25,6 +25,26 @@ Each workflow accepts a versioned synthetic input, applies an authorization or n
 
 ## Run the delegation authorization laboratory
 
+Run the complete local acceptance demonstration from the repository root:
+
+```bash
+.venv/bin/python plugins/offensive-security/foundry-agent-harness/scripts/run_auth_demo.py \
+  --output /tmp/cops-agent-mcp-auth-report.json
+```
+
+The command invokes the public `auth-plan` and `auth-lab` CLI paths with an ephemeral synthetic
+engagement, signing key, verifier trust store, and single-use approval. It executes the fixed
+22-case allowed and denied matrix, validates target decisions, all eight observer-ledger effects,
+redaction, and cleanup, then invokes the identical `auth-lab` command again and requires the
+consumed approval to be denied. The JSON summary records all three CLI exit codes, the stable replay
+denial reason, the report path, and its SHA-256; the report is written atomically with mode `0600`
+on POSIX hosts.
+
+This demonstration uses the provider-neutral observer in a separate process on the same host and
+trust boundary. It does not claim external attestation, live-provider authorization, or an OS
+network sandbox. Its synthetic approval proves the local fixture contract and does not replace
+production authorization.
+
 These commands require the COPS source checkout and its Python dependencies. The portable plugin's scenario simulator, local laboratory, and package validator continue to run with the standard library alone.
 
 The issue #236 delegation laboratory exercises this bounded MCP protocol surface:

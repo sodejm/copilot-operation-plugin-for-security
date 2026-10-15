@@ -14,6 +14,28 @@ The `auth-plan` command creates an immutable assessment plan for a fixed peer an
 
 ## Run and inspect delegation authorization
 
+For a clean-checkout operator demonstration of the complete local contract, run from the repository
+root:
+
+```bash
+.venv/bin/python plugins/offensive-security/foundry-agent-harness/scripts/run_auth_demo.py \
+  --output /tmp/cops-agent-mcp-auth-report.json
+```
+
+A successful command reports `status: passed`, `case_count: 22`, the absolute report path, and its
+SHA-256. It invokes the public `auth-plan` and `auth-lab` CLI paths and records their zero exit codes.
+It has already checked the signed single-use batch approval, the complete allow/deny matrix, target
+decisions and reasons, all eight separate-process canary effects, redaction, process cleanup,
+approved-source cleanup, and removal of the ephemeral approval directory. It then invokes the same
+`auth-lab` command with the same approval and requires exit code 2 with the stable
+`already_consumed_or_revoked` denial. Retain the JSON report and printed digest together when
+attaching local evidence.
+
+The observer is provider-neutral and runs in a separate process on the same host and trust boundary.
+The result does not establish external attestation, live-provider authorization, or OS-enforced
+network isolation. The command creates synthetic ephemeral authority for the local fixture only; it
+does not grant or substitute for production authorization.
+
 ```bash
 python3 plugins/offensive-security/foundry-agent-harness/foundryharness/cli.py auth-plan \
   --plan-id plan-mcp-auth --engagement-id eng-mcp-auth \
