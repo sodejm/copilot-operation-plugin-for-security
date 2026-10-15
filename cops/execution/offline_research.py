@@ -113,7 +113,7 @@ def validate_offline_request(
         if "egress_policy" in operation or "cleanup" in operation or operation.get("side_effects"):
             raise OfflineResearchError("offline research cannot request egress or side effects")
         if operation["tool"] == "inert":
-            if operation["action"] != "print_status" or operation["arguments"] not in ({}, []):
+            if operation["action"] != "print_status" or operation["arguments"] not in ({}, [], ()):
                 raise OfflineResearchError("offline inert fixtures cannot carry destinations")
             continue
         if (
@@ -151,7 +151,7 @@ def stage_corpora(
             parent_fd = open_directory_no_symlinks(source.parent)
             source_fd = os.open(
                 source.name,
-                os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0),
+                os.O_RDONLY | os.O_NONBLOCK | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0),
                 dir_fd=parent_fd,
             )
             source_info = os.fstat(source_fd)
