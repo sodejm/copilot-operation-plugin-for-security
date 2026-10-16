@@ -67,3 +67,12 @@ Replace the fixture only with an authorized, local export and preserve its manif
 - [Machine-readable playbook](../playbooks/offline-assessment.json)
 - [Runnable offline walkthrough](../walkthroughs/offline-assessment.md)
 <!-- END COPS GENERATED OFFLINE ASSESSMENT LINKS -->
+
+## Integrated consent remediation
+
+The repository [integrated workflow guide](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/docs/INTEGRATED_WORKFLOWS.md)
+provides vulnerable, corrected and limited consent export playback. Correlation
+requires a tenant-bound service-principal mapping between grant client object IDs
+and sign-in application IDs. The isolated synthetic service validates exact-grant
+revocation while preserving unrelated access. Production Entra remediation,
+session revocation and hunting remain separately validated operations.

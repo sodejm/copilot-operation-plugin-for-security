@@ -65,20 +65,26 @@
       "workflow_id": "kubernetes-compromise-containment"
     },
     {
-      "definition_digest": "89023b17f36e788d03070fa1e1a8d60f19eaf932cfc380a5ae058e51b17e6564",
+      "definition_digest": "654549b388447064035fed37577407901162bfeafffab38d00554ce75c6a34a3",
       "path": "illicit-consent-remediation.workflow.json",
       "profiles": [
         {
           "expected_outcome": "insufficient_lab_validation",
-          "input_digest": "df0c99e45998a182a1372b69bacc87a7b3b4942a195b5b5d443e92bdb6b442f9",
+          "input_digest": "b414fe5399e2c7b5734fb817abf0b89f708a2c06fdd3ed982a0e791f03cac564",
           "path": "fixtures/illicit-consent-remediation.vulnerable.json",
           "profile_id": "vulnerable"
         },
         {
           "expected_outcome": "no_suspicious_consent_observed",
-          "input_digest": "b7e98aaa8ce00425fb7188c14f362c26df1fbc3cf55ff67c48fd9149bd619469",
+          "input_digest": "6855398123e7af6f6a8e50504747e1db9375073386a0c1e53f7b5b77de3089fc",
           "path": "fixtures/illicit-consent-remediation.corrected.json",
           "profile_id": "corrected"
+        },
+        {
+          "expected_outcome": "insufficient_evidence",
+          "input_digest": "8786b670be3fdd3f5a1bbf2ac21fd6865f5f483fb5ef38727fda38ed4f4e283b",
+          "path": "fixtures/illicit-consent-remediation.limited.json",
+          "profile_id": "limited"
         }
       ],
       "workflow_id": "illicit-consent-remediation"

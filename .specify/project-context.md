@@ -186,3 +186,9 @@ Integrated CVE playback shares exact component/advisory binding with the service
 laboratory. Real query invocation records distinguish affected and fixed source
 identities; missing or unrelated evidence remains insufficient. This is a pinned
 synthetic advisory case, with no general non-exploitability or provider claim.
+
+Consent remediation now requires tenant-bound grant, service-principal and sign-in
+exports with explicit completeness and observation windows. Offline correlation
+returns targets only for exact identity joins. Isolated acceptance must revoke
+the selected synthetic grant while preserving an unrelated grant; production
+Entra and session/hunt operations remain unverified.

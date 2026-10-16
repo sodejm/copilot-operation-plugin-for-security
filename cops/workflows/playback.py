@@ -529,26 +529,29 @@ def _kube_verify(values: dict[str, Any]) -> dict[str, Any]:
 
 
 def _consent_import(values: dict[str, Any]) -> dict[str, Any]:
-    return {"entra_evidence": {"grants": values["grants"], "signins": values["signins"]}}
+    from .consent_evidence import SCHEMA
+
+    return {"entra_evidence": {"schema_version": SCHEMA, **{
+        key: values[key] for key in ("grants", "signins", "service_principals", "coverage")
+    }}}
 
 
 def _consent_assess(values: dict[str, Any]) -> dict[str, Any]:
-    evidence = values["entra_evidence"]
-    risky_apps = {item.get("app_id") for item in evidence["grants"] if item.get("high_privilege") is True}
-    suspicious = [item for item in evidence["signins"] if item.get("suspicious") is True and item.get("app_id") in risky_apps]
-    suspicious_apps = sorted({item.get("app_id") for item in suspicious if item.get("app_id")})
-    return {"suspicious_assessment": {"apps": suspicious_apps, "events": suspicious}}
+    from .consent_evidence import assess_consent
+
+    return {"suspicious_assessment": assess_consent(values["entra_evidence"])}
 
 
 def _consent_propose(values: dict[str, Any]) -> dict[str, Any]:
-    apps = values["suspicious_assessment"]["apps"]
-    return {"remediation_proposal": {"apps": apps, "steps": ["revoke_grant", "revoke_sessions", "hunt_activity"] if apps else []}}
+    assessment = values["suspicious_assessment"]
+    return {"remediation_proposal": {**assessment, "steps": ["revoke_grant", "revoke_sessions", "hunt_activity"]
+                                     if assessment["targets"] else []}}
 
 
 def _consent_validate(values: dict[str, Any]) -> dict[str, Any]:
     proposal = values["remediation_proposal"]
-    apps = proposal["apps"]
-    outcome = "insufficient_lab_validation" if apps else "no_suspicious_consent_observed"
+    targets = proposal["targets"]
+    outcome = "insufficient_lab_validation" if targets else proposal["status"]
     return {
         "lab_validation": {
             "outcome": outcome,
@@ -556,9 +559,12 @@ def _consent_validate(values: dict[str, Any]) -> dict[str, Any]:
             "hunt_package_exercised": False,
             "fixture_only": True,
             "activity_performed": False,
-            "requires_authorized_lab": bool(apps),
+            "requires_authorized_lab": bool(targets),
+            "targets": targets,
+            "evidence_refs": proposal["evidence_refs"],
+            "limitations": proposal["limitations"],
             "modeled_expectations": ["grant_revoked", "sessions_revoked", "activity_hunted"]
-            if apps
+            if targets
             else [],
         },
         "outcome": outcome,

@@ -41,6 +41,7 @@ from cops.laboratory.service_lab import (
     _Telemetry,
     _execute_detection_rules,
     _request_json,
+    load_consent_fixture,
     probe_isolated_runtime,
     verify_fixture_manifest,
 )
@@ -52,6 +53,7 @@ from cops.laboratory.workflow_lab import (
     _action,
     _utc,
 )
+from cops.workflows.consent_evidence import assess_consent
 from cops.workflows.contracts import WorkflowDefinition
 from cops.workflows.purple import emit_purple_team_handoff, evaluate_purple_team_handoff
 from cops.workflows.runtime import (
@@ -233,22 +235,24 @@ def laboratory_workflow(workflow_id: str) -> WorkflowDefinition:
 
 class _IntegratedExecutor:
     def __init__(self, graph: _Graph, workflow_id: str, configuration: dict[str, Any],
-                 telemetry: _Telemetry, token: str) -> None:
+                 telemetry: _Telemetry, token: str, benign_token: str | None = None) -> None:
         self.graph = graph
         self.workflow_id = workflow_id
         self.configuration = copy.deepcopy(configuration)
         self.telemetry = telemetry
         self.token = token
+        self.benign_token = benign_token
         self.requests: list[dict[str, Any]] = []
         self.observations: dict[str, Any] = {}
         self.executed: list[str] = []
         self.cleanup_count = 0
 
     def request(self, service: str, path: str, *, method: str = "GET",
-                payload: dict[str, Any] | None = None, authenticated: bool = False) -> tuple[int, dict[str, Any]]:
+                payload: dict[str, Any] | None = None, authenticated: bool = False,
+                benign: bool = False) -> tuple[int, dict[str, Any]]:
         destination = self.configuration["destinations"][service] + path
         status, body = _request_json(destination, method=method, payload=payload,
-                                     token=self.token if authenticated else None)
+                                     token=(self.benign_token if benign else self.token) if authenticated else None)
         # Neither response bodies nor credential-bearing request bodies enter reports.
         self.requests.append({"destination": destination, "method": method, "status": status})
         return status, body
@@ -348,18 +352,35 @@ class _IntegratedExecutor:
             self.observations["identity_backend"] = "disposable-application-grant-emulator"
             self.observations["production_entra_validation"] = "unverified"
             self.observations["snapshot_digest"] = self.graph.state.snapshot()
+            self.observations["evidence_digest"] = digest(self.configuration["consent_evidence"])
         elif name == "correlate":
+            self.observations["assessment"] = assess_consent(self.configuration["consent_evidence"])
             status, _ = self.request("resource", "/protected", authenticated=True)
             self.observations["grant_access_before"] = status
+            self.observations["benign_access_before"] = self.request("resource", "/protected", authenticated=True, benign=True)[0]
         elif name == "propose":
-            self.observations["proposal"] = "revoke the approved synthetic application grant"
+            assessment = self.observations["assessment"]
+            targets = assessment["targets"]
+            self.observations["proposal"] = {
+                "targets": targets, "action": "revoke_grant", "evidence_refs": assessment["evidence_refs"],
+                "eligible": assessment["status"] == "suspicious_consent_observed" and len(targets) == 1,
+                "limitations": ["session revocation and hunt remain proposed; production Entra unverified"],
+            }
         elif name == "revoke":
-            status, _ = self.request("identity", "/revoke", method="POST", payload={"token": self.token})
-            self.observations["revocation"] = status
+            proposal = self.observations["proposal"]
+            self.observations["revocation"] = None
+            if proposal["eligible"]:
+                status, _ = self.request("identity", "/revoke-grant", method="POST", payload={"identity": proposal["targets"][0]})
+                self.observations["revocation"] = status
         elif name == "verify":
             status, _ = self.request("resource", "/protected", authenticated=True)
             self.observations["grant_access_after"] = status
-            self.observations["remediation_verified"] = status == 401
+            self.observations["benign_access_after"] = self.request("resource", "/protected", authenticated=True, benign=True)[0]
+            self.observations["remediation_verified"] = (
+                self.observations["grant_access_before"] == 200 and status == 401
+                and self.observations["revocation"] == 200
+                and self.observations["benign_access_before"] == self.observations["benign_access_after"] == 200
+            )
 
     def _detection_rule_ci_validation(self, name: str) -> None:
         if name == "rules":
@@ -445,6 +466,7 @@ class _IntegratedApprovalControl(_LaboratoryApprovalControl):
 def run_integrated_service_laboratory(
     state_dir: str | Path, *, workflow_id: str, require_isolation: bool = False,
     run_id: str | None = None, git_sha256: str | None = None,
+    consent_evidence: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Exercise one catalog workflow with one-use, action-bound approvals."""
     probe = probe_isolated_runtime()
@@ -484,6 +506,15 @@ def run_integrated_service_laboratory(
     store = ApprovalStore(path / "approvals.sqlite3")
     authorization_ids: dict[str, str] = {}
     fixture = json.loads((FIXTURE_DIRECTORY / "corrected.json").read_text())
+    benign_token = None
+    if workflow_id == "illicit-consent-remediation":
+        canonical_consent = load_consent_fixture()
+        principals = {item["id"]: item for item in canonical_consent["service_principals"]}
+        fixture["synthetic_grants"] = [{
+            "tenant_id": grant["tenant_id"], "grant_id": grant["id"], "client_id": grant["client_id"],
+            "app_id": principals[grant["client_id"]]["app_id"],
+        } for grant in canonical_consent["grants"]]
+        benign_token = "COPS_BENIGN_TOKEN_" + secrets.token_urlsafe(32)
     with _Graph(fixture, telemetry) as graph:
         configuration = {
             "destinations": {name: getattr(graph, name).url for name in ("identity", "resource", "hunt", "sink")},
@@ -491,8 +522,17 @@ def run_integrated_service_laboratory(
         }
         if workflow_id == "leaked-credential-blast-radius":
             configuration["git_sha256"] = git_sha256
-        setup_status, _ = _request_json(graph.identity.url + "/issue", method="POST", payload={"token": token})
-        executor = _IntegratedExecutor(graph, workflow_id, configuration, telemetry, token)
+        if workflow_id == "illicit-consent-remediation":
+            configuration["consent_evidence"] = copy.deepcopy(canonical_consent if consent_evidence is None else consent_evidence)
+            setup_status, _ = _request_json(graph.identity.url + "/issue-grant", method="POST",
+                                            payload={"token": token, "identity": fixture["synthetic_grants"][0]})
+            benign_status, _ = _request_json(graph.identity.url + "/issue-grant", method="POST",
+                                             payload={"token": benign_token, "identity": fixture["synthetic_grants"][1]})
+            if benign_status != 201:
+                raise ValueError("benign grant setup failed")
+        else:
+            setup_status, _ = _request_json(graph.identity.url + "/issue", method="POST", payload={"token": token})
+        executor = _IntegratedExecutor(graph, workflow_id, configuration, telemetry, token, benign_token)
         for name in WORKFLOW_STAGES[workflow_id]:
             authorization_id = "auth-" + digest({"run_id": actual_run_id, "stage": name})[:24]
             authorization_ids[name] = authorization_id
@@ -531,6 +571,7 @@ def run_integrated_service_laboratory(
         "limitations": ["synthetic service laboratory; production integrations require live validation"],
     }
     # A credential value must never enter persisted workflow state or the report.
-    if token in json.dumps(report) or any(token in item.read_text() for item in (path / "workflow-state").rglob("*.json")):
+    if any(secret in json.dumps(report) or any(secret in item.read_text() for item in (path / "workflow-state").rglob("*.json"))
+           for secret in (token, benign_token) if secret):
         raise ValueError("laboratory credential escaped the executor")
     return report
