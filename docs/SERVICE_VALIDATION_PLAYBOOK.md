@@ -79,7 +79,14 @@ Every action uses its own attempt identifier, budget reservation, and approval
 receipt. A terminal or reused attempt fails before approval and provider dispatch.
 The provider's retained-output byte count is an upper bound, not the charged
 usage: the dispatcher charges the canonical serialized size of the retained
-result and marks an over-bound result uncertain.
+result and marks an over-bound result uncertain. Before reservation, the
+dispatcher rejects a request whose retained-output budget cannot hold its
+canonical control record. After dispatch, an impossible provider-declared bound
+leaves the attempt uncertain and raises `RetainedResultBudgetExceeded` instead
+of returning an oversized record. This limit also applies when the dispatcher
+must retain an uncertain effect or missing-cleanup result; a generic uncertainty
+record is returned only when it fits both the request reservation and the
+provider declaration.
 Authorization and dispatch-intent failures release an undispatched reservation.
 Once dispatch is durably recorded, provider, verifier, or settlement ambiguity
 becomes an uncertain attempt and is not retried automatically. Incomplete
@@ -89,10 +96,15 @@ An invalid candidate claim retains that insufficient state instead of being
 silently reported as a completed non-candidate.
 
 Results retain bounded ATT&CK mappings and explicit coverage. `T1046` records
-only that the approved service responded. `T1210` is recorded only for a
+only that a complete correlated protocol response exists; an incomplete
+response receives no technique mapping. `T1210` is recorded only for a
 version-bound `#143` candidate and remains a candidate until controlled proof
 records the exact effect and cleanup. Each assessment and finding field is marked
 `tested`, `documented`, `untested`, or `unverified`.
+
+A completed recorded probe from a cancelled discovery session remains eligible
+for handoff. A session in `requires_reconciliation` remains quarantined until its
+uncertain scanner state is resolved.
 
 ## Run the disposable laboratory
 

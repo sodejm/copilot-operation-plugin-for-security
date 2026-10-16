@@ -18,6 +18,7 @@ import pytest
 from cops.assessment_budget import (
     AssessmentBudgetLedger,
     AttemptRequest,
+    BudgetDenied,
     BudgetLimits,
     BudgetPolicy,
     BudgetStoreError,
@@ -34,6 +35,7 @@ from cops.discovery import (
     load_trusted_issue_143_reproduction,
     service_validation_plan_digest,
 )
+from cops.discovery.service_validation_execution import RetainedResultBudgetExceeded
 from cops.discovery.service_validation_lab import _read_wire_request
 
 
@@ -660,6 +662,7 @@ def test_missing_fixture_audit_evidence_is_insufficient_even_with_provider_claim
     assert result.status == "insufficient_evidence"
     assert not result.observed_exposure and result.protocol_evidence == ()
     assert not result.candidate and not result.verified_finding and not result.successful_authorized_use
+    assert result.attack_mappings == ()
 
 
 @pytest.mark.parametrize(
@@ -927,27 +930,36 @@ def test_dispatch_intent_failure_releases_undispatched_reservation(tmp_path, mon
 
 
 def test_provider_exception_after_dispatch_marks_usage_uncertain(tmp_path):
+    provider_exception_type = type("X" * 20_000, (Exception,), {})
+    request = replace(attempt("provider-exception"), reserved_output_bytes=1_000)
+
     with loopback_service(b"SSH-2.0-Lab_9.0\r\n") as server:
         plan = plan_for(server.server_address[1], service="ssh", skill_id="network-remote-and-file-services")
         ledger = budget_ledger(tmp_path)
         verifier = LoopbackEvidenceVerifier(server)
 
         def failing_provider(_plan, _action, _context):
-            raise RuntimeError("provider connection outcome unknown")
+            raise provider_exception_type("provider connection outcome unknown")
 
         result = execute_service_validation_action(
             plan,
             ValidationSelection(plan.plan_id, "low_impact_validation"),
             ledger=ledger,
-            request=attempt("provider-exception"),
+            request=request,
             authorization_gate=ExactApprovalGate(),
             provider=failing_provider,
             evidence_verifier=verifier,
         )
 
     snapshot = ledger.snapshot()
+    retained_output_bytes = len(
+        json.dumps(asdict(result), sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    )
     assert result.status == "dispatch_uncertain"
-    assert ledger.get_attempt("provider-exception").state == "uncertain"
+    assert result.reason == "provider did not return a receipt"
+    assert retained_output_bytes <= request.reserved_output_bytes
+    assert "X" * 20_000 not in result.reason
+    assert ledger.get_attempt(request.attempt_id).state == "uncertain"
     assert snapshot.charged_attempts == 1 and snapshot.active_concurrency == 1
     assert verifier.calls == 0
     assert server.connection_count == 0
@@ -1154,6 +1166,70 @@ def test_independently_verified_low_impact_effect_marks_dispatch_uncertain(tmp_p
     assert ledger.get_attempt("unexpected-low-impact-effect").state == "uncertain"
 
 
+def test_low_impact_uncertain_effect_respects_retained_output_bound(tmp_path):
+    with loopback_service(b"SSH-2.0-Lab_9.0\r\n") as server:
+        plan = plan_for(server.server_address[1], service="ssh", skill_id="network-remote-and-file-services")
+        ledger = budget_ledger(tmp_path)
+        provider = LoopbackProvider(server)
+        delegate = LoopbackEvidenceVerifier(server)
+
+        def underreporting_provider(*args):
+            return replace(provider(*args), retained_output_bytes=2_000)
+
+        def verifier(*args):
+            return replace(
+                delegate(*args),
+                finding_effect="unexpected verified effect",
+                effect_evidence=("x" * 4_096,),
+                finding_effect_verified=True,
+            )
+
+        result = execute_service_validation_action(
+            plan,
+            ValidationSelection(plan.plan_id, "low_impact_validation"),
+            ledger=ledger,
+            request=attempt("bounded-unexpected-low-impact-effect"),
+            authorization_gate=ExactApprovalGate(),
+            provider=underreporting_provider,
+            evidence_verifier=verifier,
+        )
+
+    assert result.status == "dispatch_uncertain"
+    assert result.reason == "retained result exceeded its declared or reserved output bound"
+    assert result.effect_evidence == ()
+    assert ledger.get_attempt("bounded-unexpected-low-impact-effect").state == "uncertain"
+
+
+def test_controlled_action_without_cleanup_respects_retained_output_bound(tmp_path):
+    with loopback_service(b"-ERR Redis 5.0 no password configured\r\n", b"+PONG\r\n") as server:
+        plan = plan_for(server.server_address[1])
+        low_impact, provider, ledger = _run_candidate(plan, server, tmp_path)
+        delegate = LoopbackEvidenceVerifier(server)
+
+        def underreporting_provider(*args):
+            return replace(provider(*args), retained_output_bytes=2_000)
+
+        def verifier(*args):
+            return replace(delegate(*args), cleanup_evidence=("x" * 4_096,), cleanup_verified=False)
+
+        result = execute_service_validation_action(
+            plan,
+            ValidationSelection(plan.plan_id, "controlled_proof"),
+            ledger=ledger,
+            request=attempt("bounded-controlled-action-without-cleanup"),
+            authorization_gate=ExactApprovalGate(),
+            provider=underreporting_provider,
+            evidence_verifier=verifier,
+            prerequisite_receipt=low_impact.prerequisite_receipt,
+        )
+
+    assert result.status == "dispatch_uncertain"
+    assert result.reason == "retained result exceeded its declared or reserved output bound"
+    assert result.effect_evidence == ()
+    assert result.cleanup_evidence == ()
+    assert ledger.get_attempt("bounded-controlled-action-without-cleanup").state == "uncertain"
+
+
 def test_independently_verified_low_impact_authorized_use_marks_dispatch_uncertain(
     tmp_path,
 ):
@@ -1213,6 +1289,39 @@ def test_cleanup_verified_without_evidence_is_rejected(tmp_path):
     assert result.status == "dispatch_uncertain"
     assert result.reason == ("passive evidence could not be bound to the dispatched action: malformed evidence fields")
     assert ledger.get_attempt("cleanup-without-evidence").state == "uncertain"
+
+
+def test_invalid_verifier_return_type_uses_bounded_uncertainty_reason(tmp_path):
+    invalid_verification_type = type("X" * 20_000, (), {})
+    request = replace(attempt("invalid-verifier-return-type"), reserved_output_bytes=1_000)
+
+    with loopback_service(b"SSH-2.0-Lab_9.0\r\n") as server:
+        plan = plan_for(server.server_address[1], service="ssh", skill_id="network-remote-and-file-services")
+        ledger = budget_ledger(tmp_path)
+
+        def verifier(*_args):
+            return invalid_verification_type()
+
+        result = execute_service_validation_action(
+            plan,
+            ValidationSelection(plan.plan_id, "low_impact_validation"),
+            ledger=ledger,
+            request=request,
+            authorization_gate=ExactApprovalGate(),
+            provider=LoopbackProvider(server),
+            evidence_verifier=verifier,
+        )
+
+    retained_output_bytes = len(
+        json.dumps(asdict(result), sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    )
+    assert result.status == "dispatch_uncertain"
+    assert result.reason == (
+        "passive evidence could not be bound to the dispatched action: verifier returned an invalid type"
+    )
+    assert retained_output_bytes <= request.reserved_output_bytes
+    assert "X" * 20_000 not in result.reason
+    assert ledger.get_attempt(request.attempt_id).state == "uncertain"
 
 
 def test_unverified_cleanup_receipt_is_retained_without_claiming_coverage(tmp_path):
@@ -1411,28 +1520,84 @@ def test_maximum_length_attempt_id_produces_bounded_receipt(tmp_path, monkeypatc
     assert ledger.get_attempt(attempt_id).state == "settled"
 
 
-def test_provider_retained_output_declaration_is_an_upper_bound(tmp_path):
+@pytest.mark.parametrize("reserved_output_bytes", (0, 1))
+def test_impossible_request_retained_output_budget_is_rejected_before_reservation(tmp_path, reserved_output_bytes):
+    with loopback_service(b"SSH-2.0-Lab_9.0\r\n") as server:
+        plan = plan_for(server.server_address[1], service="ssh", skill_id="network-remote-and-file-services")
+        ledger = budget_ledger(tmp_path)
+        gate = ExactApprovalGate()
+        provider = LoopbackProvider(server)
+        verifier = LoopbackEvidenceVerifier(server)
+        request = replace(
+            attempt(f"impossible-request-bound-{reserved_output_bytes}"),
+            reserved_output_bytes=reserved_output_bytes,
+        )
+
+        with pytest.raises(
+            RetainedResultBudgetExceeded,
+            match="cannot hold a dispatcher control record",
+        ):
+            execute_service_validation_action(
+                plan,
+                ValidationSelection(plan.plan_id, "low_impact_validation"),
+                ledger=ledger,
+                request=request,
+                authorization_gate=gate,
+                provider=provider,
+                evidence_verifier=verifier,
+            )
+
+        assert gate.calls == []
+        assert provider.calls == []
+        assert verifier.calls == 0
+        assert server.connection_count == 0
+        snapshot = ledger.snapshot()
+        assert snapshot.charged_attempts == 0
+        assert snapshot.active_concurrency == 0
+        with pytest.raises(BudgetDenied, match="attempt not found"):
+            ledger.get_attempt(request.attempt_id)
+
+
+@pytest.mark.parametrize("retained_output_bytes", (0, 1))
+def test_provider_retained_output_declaration_is_an_upper_bound(tmp_path, retained_output_bytes):
     with loopback_service(b"SSH-2.0-Lab_9.0\r\n") as server:
         plan = plan_for(server.server_address[1], service="ssh", skill_id="network-remote-and-file-services")
         ledger = budget_ledger(tmp_path)
         provider = LoopbackProvider(server)
+        gate = ExactApprovalGate()
+        request = attempt(f"underreported-retained-output-{retained_output_bytes}")
 
         def underreporting_provider(*args):
-            return replace(provider(*args), retained_output_bytes=1)
+            return replace(provider(*args), retained_output_bytes=retained_output_bytes)
 
-        result = execute_service_validation_action(
+        with pytest.raises(RetainedResultBudgetExceeded, match="cannot hold"):
+            execute_service_validation_action(
+                plan,
+                ValidationSelection(plan.plan_id, "low_impact_validation"),
+                ledger=ledger,
+                request=request,
+                authorization_gate=gate,
+                provider=underreporting_provider,
+                evidence_verifier=LoopbackEvidenceVerifier(server),
+            )
+
+        assert ledger.get_attempt(request.attempt_id).state == "uncertain"
+        assert len(gate.calls) == 1
+        assert len(provider.calls) == 1
+
+        replay = execute_service_validation_action(
             plan,
             ValidationSelection(plan.plan_id, "low_impact_validation"),
             ledger=ledger,
-            request=attempt("underreported-retained-output"),
-            authorization_gate=ExactApprovalGate(),
+            request=request,
+            authorization_gate=gate,
             provider=underreporting_provider,
             evidence_verifier=LoopbackEvidenceVerifier(server),
         )
 
-    assert result.status == "dispatch_uncertain"
-    assert result.reason == "retained result exceeded its declared or reserved output bound"
-    assert ledger.get_attempt("underreported-retained-output").state == "uncertain"
+    assert replay.status == "budget_denied"
+    assert len(gate.calls) == 1
+    assert len(provider.calls) == 1
 
 
 @pytest.mark.parametrize(

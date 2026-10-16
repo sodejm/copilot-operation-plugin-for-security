@@ -213,6 +213,10 @@ class ValidationActionResult:
     prerequisite_receipt: ValidationPrerequisiteReceipt | None = None
 
 
+class RetainedResultBudgetExceeded(RuntimeError):
+    """No dispatcher control record can fit the retained-output budget."""
+
+
 @dataclass(frozen=True)
 class ValidationPrerequisiteReceipt:
     """Durable, single-use provenance for a controlled proof prerequisite."""
@@ -342,6 +346,51 @@ def _string_mapping(value: object) -> bool:
 
 def _canonical_retained_output_bytes(result: ValidationActionResult) -> int:
     return len(json.dumps(asdict(result), sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8"))
+
+
+_RETAINED_OUTPUT_BOUND_REASON = "retained result exceeded its declared or reserved output bound"
+_RETAINED_OUTPUT_BUDGET_ERROR = "retained output budget cannot hold a dispatcher control record"
+
+
+def _retained_result_fits_bound(
+    result: ValidationActionResult,
+    request: AttemptRequest,
+    output: ValidationProbeOutput | None = None,
+) -> bool:
+    retained_output_bytes = _canonical_retained_output_bytes(result)
+    return retained_output_bytes <= request.reserved_output_bytes and (
+        output is None or retained_output_bytes <= output.retained_output_bytes
+    )
+
+
+def _retained_bound_result(
+    plan: ServiceValidationPlan,
+    request: AttemptRequest,
+    *,
+    dispatched: bool,
+) -> ValidationActionResult:
+    return _result(
+        "dispatch_uncertain" if dispatched else "budget_denied",
+        _RETAINED_OUTPUT_BOUND_REASON,
+        plan,
+        request.attempt_id,
+    )
+
+
+def _bounded_result(
+    result: ValidationActionResult,
+    plan: ServiceValidationPlan,
+    request: AttemptRequest,
+    *,
+    dispatched: bool,
+    output: ValidationProbeOutput | None = None,
+) -> ValidationActionResult:
+    if _retained_result_fits_bound(result, request, output):
+        return result
+    fallback = _retained_bound_result(plan, request, dispatched=dispatched)
+    if _retained_result_fits_bound(fallback, request, output):
+        return fallback
+    raise RetainedResultBudgetExceeded(_RETAINED_OUTPUT_BUDGET_ERROR)
 
 
 def _probe_output_shape_is_valid(output: ValidationProbeOutput) -> bool:
@@ -484,14 +533,38 @@ def execute_service_validation_action(
     prerequisite_receipt: ValidationPrerequisiteReceipt | None = None,
 ) -> ValidationActionResult:
     """Run one exact action; every retry needs a new ledger and approval identity."""
+    # Validate the exact identifiers in the smallest fail-closed control records
+    # before reserving budget or invoking any runtime adapter.
+    _bounded_result(
+        _retained_bound_result(plan, request, dispatched=False),
+        plan,
+        request,
+        dispatched=False,
+    )
+    _bounded_result(
+        _retained_bound_result(plan, request, dispatched=True),
+        plan,
+        request,
+        dispatched=True,
+    )
     if selection.plan_id != plan.plan_id or not service_validation_plan_is_intact(plan):
-        return _result("blocked_selection", "selection does not bind the exact plan", plan, request.attempt_id)
-    if provider is None or evidence_verifier is None:
-        return _result(
-            "provider_unavailable",
-            "no native provider and passive evidence verifier are registered",
+        return _bounded_result(
+            _result("blocked_selection", "selection does not bind the exact plan", plan, request.attempt_id),
             plan,
-            request.attempt_id,
+            request,
+            dispatched=False,
+        )
+    if provider is None or evidence_verifier is None:
+        return _bounded_result(
+            _result(
+                "provider_unavailable",
+                "no native provider and passive evidence verifier are registered",
+                plan,
+                request.attempt_id,
+            ),
+            plan,
+            request,
+            dispatched=False,
         )
     trusted = load_trusted_issue_143_reproduction(plan.endpoint)
     issue_143_route = plan.service == "redis" and plan.skill_id == "network-data-services"
@@ -506,26 +579,49 @@ def execute_service_validation_action(
         or prerequisite_receipt.observed_version != trusted.reproduction.affected_version
         or prerequisite_receipt.state != "candidate_verified"
     ):
-        return _result(
-            "blocked_prerequisite", "controlled proof requires a versioned #143 candidate", plan, request.attempt_id
+        return _bounded_result(
+            _result(
+                "blocked_prerequisite",
+                "controlled proof requires a versioned #143 candidate",
+                plan,
+                request.attempt_id,
+            ),
+            plan,
+            request,
+            dispatched=False,
         )
 
     try:
         reserved = ledger.reserve(request)
         if reserved.state != "reserved":
-            return _result("budget_denied", "attempt identifier is not a fresh reservation", plan, request.attempt_id)
-    except BudgetDenied as exc:
-        return _result("budget_denied", str(exc), plan, request.attempt_id)
+            return _bounded_result(
+                _result("budget_denied", "attempt identifier is not a fresh reservation", plan, request.attempt_id),
+                plan,
+                request,
+                dispatched=False,
+            )
+    except BudgetDenied:
+        return _bounded_result(
+            _result("budget_denied", "assessment budget denied the attempt", plan, request.attempt_id),
+            plan,
+            request,
+            dispatched=False,
+        )
 
     try:
         approval = authorization_gate(plan, selection, request.attempt_id)
-    except Exception as exc:
+    except Exception:
         ledger.release_undispatched(request.attempt_id)
-        return _result(
-            "authorization_error",
-            f"authorization gate did not return a receipt: {type(exc).__name__}",
+        return _bounded_result(
+            _result(
+                "authorization_error",
+                "authorization gate did not return a receipt",
+                plan,
+                request.attempt_id,
+            ),
             plan,
-            request.attempt_id,
+            request,
+            dispatched=False,
         )
     except BaseException:
         try:
@@ -559,8 +655,16 @@ def execute_service_validation_action(
     )
     if not exact_approval:
         ledger.release_undispatched(request.attempt_id)
-        return _result(
-            "authorization_denied", "approval does not bind the exact action and endpoint", plan, request.attempt_id
+        return _bounded_result(
+            _result(
+                "authorization_denied",
+                "approval does not bind the exact action and endpoint",
+                plan,
+                request.attempt_id,
+            ),
+            plan,
+            request,
+            dispatched=False,
         )
 
     dispatch_context = ValidationDispatchContext(
@@ -600,7 +704,7 @@ def execute_service_validation_action(
                 approval_receipt_id=approval.receipt_id,
                 dispatch_intent=dispatch_intent,
             )
-    except Exception as exc:
+    except Exception:
         try:
             attempt_state = ledger.get_attempt(request.attempt_id).state
         except Exception:
@@ -615,21 +719,26 @@ def execute_service_validation_action(
                 ledger.mark_uncertain(request.attempt_id)
             except (BudgetDenied, ValueError):
                 pass
-        return _result(
-            (
-                "blocked_prerequisite"
-                if attempt_state == "reserved" and selection.action == "controlled_proof"
-                else "dispatch_error"
-                if attempt_state == "reserved"
-                else "dispatch_uncertain"
-            ),
-            (
-                f"attempt was not dispatched: {type(exc).__name__}"
-                if attempt_state == "reserved"
-                else f"dispatch state could not be confirmed: {type(exc).__name__}"
+        return _bounded_result(
+            _result(
+                (
+                    "blocked_prerequisite"
+                    if attempt_state == "reserved" and selection.action == "controlled_proof"
+                    else "dispatch_error"
+                    if attempt_state == "reserved"
+                    else "dispatch_uncertain"
+                ),
+                (
+                    "attempt was not dispatched"
+                    if attempt_state == "reserved"
+                    else "dispatch state could not be confirmed"
+                ),
+                plan,
+                request.attempt_id,
             ),
             plan,
-            request.attempt_id,
+            request,
+            dispatched=attempt_state != "reserved",
         )
     except BaseException:
         try:
@@ -651,13 +760,16 @@ def execute_service_validation_action(
     dispatch_started_at = datetime.now(UTC)
     try:
         output = provider(plan, selection.action, dispatch_context)
-    except Exception as exc:
+    except Exception:
         try:
             ledger.mark_uncertain(request.attempt_id)
         except (BudgetDenied, ValueError):
             pass
-        return _result(
-            "dispatch_uncertain", f"provider did not return a receipt: {type(exc).__name__}", plan, request.attempt_id
+        return _bounded_result(
+            _result("dispatch_uncertain", "provider did not return a receipt", plan, request.attempt_id),
+            plan,
+            request,
+            dispatched=True,
         )
     except BaseException:
         try:
@@ -665,24 +777,70 @@ def execute_service_validation_action(
         except (BudgetDenied, ValueError):
             pass
         raise
-    if not isinstance(output, ValidationProbeOutput) or not _probe_output_shape_is_valid(output):
+    if not isinstance(output, ValidationProbeOutput):
         try:
             ledger.mark_uncertain(request.attempt_id)
         except (BudgetDenied, ValueError):
             pass
-        return _result(
-            "dispatch_uncertain",
-            "provider returned malformed or unbounded usage evidence",
+        return _bounded_result(
+            _result(
+                "dispatch_uncertain",
+                "provider returned malformed or unbounded usage evidence",
+                plan,
+                request.attempt_id,
+            ),
             plan,
-            request.attempt_id,
+            request,
+            dispatched=True,
+        )
+    output_retained_bound_is_valid = (
+        type(output.retained_output_bytes) is int and 0 <= output.retained_output_bytes <= 2**63 - 1
+    )
+    if not output_retained_bound_is_valid:
+        try:
+            ledger.mark_uncertain(request.attempt_id)
+        except (BudgetDenied, ValueError):
+            pass
+        raise RetainedResultBudgetExceeded(_RETAINED_OUTPUT_BUDGET_ERROR)
+    try:
+        _bounded_result(
+            _retained_bound_result(plan, request, dispatched=True),
+            plan,
+            request,
+            dispatched=True,
+            output=output,
+        )
+    except RetainedResultBudgetExceeded:
+        try:
+            ledger.mark_uncertain(request.attempt_id)
+        except (BudgetDenied, ValueError):
+            pass
+        raise
+    output_usage_is_bounded = _usage_is_bounded(output)
+    if not output_usage_is_bounded or not _probe_output_shape_is_valid(output):
+        try:
+            ledger.mark_uncertain(request.attempt_id)
+        except (BudgetDenied, ValueError):
+            pass
+        return _bounded_result(
+            _result(
+                "dispatch_uncertain",
+                "provider returned malformed or unbounded usage evidence",
+                plan,
+                request.attempt_id,
+            ),
+            plan,
+            request,
+            dispatched=True,
+            output=output,
         )
 
     verification_started_at = datetime.now(UTC)
     try:
         candidate_verification = evidence_verifier(plan, selection, approval, output, dispatch_context)
-    except Exception as exc:
+    except Exception:
         verification = None
-        verification_error = type(exc).__name__
+        verification_error = "verifier raised an exception"
     except BaseException:
         try:
             ledger.mark_uncertain(request.attempt_id)
@@ -700,7 +858,7 @@ def execute_service_validation_action(
             verification_error = "malformed evidence fields"
         else:
             verification = None
-            verification_error = f"invalid return type: {type(candidate_verification).__name__}"
+            verification_error = "verifier returned an invalid type"
     verification_finished_at = datetime.now(UTC)
 
     exact_verification = bool(
@@ -728,11 +886,17 @@ def execute_service_validation_action(
         except (BudgetDenied, ValueError):
             pass
         detail = f": {verification_error}" if verification_error else ""
-        return _result(
-            "dispatch_uncertain",
-            f"passive evidence could not be bound to the dispatched action{detail}",
+        return _bounded_result(
+            _result(
+                "dispatch_uncertain",
+                f"passive evidence could not be bound to the dispatched action{detail}",
+                plan,
+                request.attempt_id,
+            ),
             plan,
-            request.attempt_id,
+            request,
+            dispatched=True,
+            output=output,
         )
     complete = exact_verification and verification is not None and _evidence_complete(verification)
     candidate_claimed = bool(
@@ -801,7 +965,7 @@ def execute_service_validation_action(
             ledger.mark_uncertain(request.attempt_id)
         except (BudgetDenied, ValueError):
             pass
-        return ValidationActionResult(
+        result = ValidationActionResult(
             status="dispatch_uncertain",
             reason="the low-impact action produced an independently verified effect",
             plan_id=plan.plan_id,
@@ -816,12 +980,13 @@ def execute_service_validation_action(
             cleanup_evidence=verification.cleanup_evidence,
             dimensions=dict(verification.dimensions),
         )
+        return _bounded_result(result, plan, request, dispatched=True, output=output)
     if controlled_action_observed_without_cleanup:
         try:
             ledger.mark_uncertain(request.attempt_id)
         except (BudgetDenied, ValueError):
             pass
-        return ValidationActionResult(
+        result = ValidationActionResult(
             status="dispatch_uncertain",
             reason="the controlled action was observed but cleanup was not positively verified",
             plan_id=plan.plan_id,
@@ -836,6 +1001,7 @@ def execute_service_validation_action(
             cleanup_evidence=verification.cleanup_evidence,
             dimensions=dict(verification.dimensions),
         )
+        return _bounded_result(result, plan, request, dispatched=True, output=output)
     status = (
         "completed"
         if complete and ((selection.action == "low_impact_validation" and not invalid_candidate_claim) or verified)
@@ -873,7 +1039,11 @@ def execute_service_validation_action(
     coverage["reproduction"] = "versioned-#143" if candidate else "unverified"
     for field in ("observation", "evidence", "impact", "remediation", "detection"):
         coverage[f"finding_{field}"] = "documented" if candidate else "unverified"
-    mappings = (AttackMapping("T1046", "The approved service responded to a bounded probe.", "Shows exposure only."),)
+    mappings = (
+        (AttackMapping("T1046", "The approved service responded to a bounded probe.", "Shows exposure only."),)
+        if complete
+        else ()
+    )
     if candidate:
         mappings += (
             AttackMapping(
@@ -916,17 +1086,12 @@ def execute_service_validation_action(
         prerequisite_receipt=new_prerequisite,
     )
     retained_output_bytes = _canonical_retained_output_bytes(result)
-    if retained_output_bytes > output.retained_output_bytes or retained_output_bytes > request.reserved_output_bytes:
+    if not _retained_result_fits_bound(result, request, output):
         try:
             ledger.mark_uncertain(request.attempt_id)
         except (BudgetDenied, ValueError):
             pass
-        return _result(
-            "dispatch_uncertain",
-            "retained result exceeded its declared or reserved output bound",
-            plan,
-            request.attempt_id,
-        )
+        return _bounded_result(result, plan, request, dispatched=True, output=output)
     receipt = Receipt(
         receipt_id=f"service-validation:{sha256(request.attempt_id.encode('utf-8')).hexdigest()}",
         attempt_id=request.attempt_id,
@@ -942,7 +1107,7 @@ def execute_service_validation_action(
             validation_prerequisite_id=new_prerequisite.receipt_id if new_prerequisite else None,
             validation_prerequisite=prerequisite_payload,
         )
-    except Exception as exc:
+    except Exception:
         try:
             recovered = ledger.reconciliation_is_durable(
                 receipt,
@@ -956,11 +1121,17 @@ def execute_service_validation_action(
                 ledger.mark_uncertain(request.attempt_id)
             except (BudgetDenied, ValueError):
                 pass
-            return _result(
-                "dispatch_uncertain",
-                f"usage could not be settled: {type(exc).__name__}",
+            return _bounded_result(
+                _result(
+                    "dispatch_uncertain",
+                    "usage could not be settled",
+                    plan,
+                    request.attempt_id,
+                ),
                 plan,
-                request.attempt_id,
+                request,
+                dispatched=True,
+                output=output,
             )
     except BaseException:
         try:
@@ -977,4 +1148,4 @@ def execute_service_validation_action(
             except (BudgetDenied, ValueError):
                 pass
         raise
-    return result
+    return _bounded_result(result, plan, request, dispatched=True, output=output)
