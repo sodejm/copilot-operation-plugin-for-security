@@ -13,7 +13,13 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from cops.assessment_budget import AssessmentBudgetLedger, AttemptRequest, BudgetLimits, BudgetPolicy
+from cops.assessment_budget import (
+    AssessmentBudgetLedger,
+    AttemptRequest,
+    BudgetLimits,
+    BudgetPolicy,
+    BudgetStoreError,
+)
 from cops.discovery import (
     ApprovedEndpoint,
     AuthorizationReceipt,
@@ -891,3 +897,111 @@ def test_provider_exception_after_dispatch_marks_usage_uncertain(tmp_path):
     assert snapshot.charged_attempts == 1 and snapshot.active_concurrency == 1
     assert verifier.calls == 0
     assert server.connection_count == 0
+
+
+def test_postcommit_reconciliation_error_recovers_exact_completed_result(tmp_path, monkeypatch):
+    with loopback_service(b"-ERR Redis 5.0 no password configured\r\n") as server:
+        plan = plan_for(server.server_address[1])
+        ledger = budget_ledger(tmp_path)
+        original_reconcile = ledger.reconcile
+
+        def commit_then_raise(receipt, **kwargs):
+            original_reconcile(receipt, **kwargs)
+            raise BudgetStoreError("lost commit acknowledgement")
+
+        monkeypatch.setattr(ledger, "reconcile", commit_then_raise)
+        result = execute_service_validation_action(
+            plan,
+            ValidationSelection(plan.plan_id, "low_impact_validation"),
+            ledger=ledger,
+            request=attempt("postcommit-reconcile"),
+            authorization_gate=ExactApprovalGate(),
+            provider=LoopbackProvider(server),
+            evidence_verifier=LoopbackEvidenceVerifier(server),
+        )
+
+    assert result.status == "completed"
+    assert result.prerequisite_receipt is not None
+    assert ledger.get_attempt("postcommit-reconcile").state == "settled"
+
+
+def test_postcommit_recovery_rejects_concurrently_consumed_prerequisite(tmp_path, monkeypatch):
+    with loopback_service(b"-ERR Redis 5.0 no password configured\r\n") as server:
+        plan = plan_for(server.server_address[1])
+        ledger = budget_ledger(tmp_path)
+        original_reconcile = ledger.reconcile
+
+        def commit_consume_then_raise(receipt, **kwargs):
+            original_reconcile(receipt, **kwargs)
+            ledger.reserve(attempt("concurrent-prerequisite-consumer"))
+            ledger.mark_dispatched(
+                "concurrent-prerequisite-consumer",
+                prerequisite_receipt_id=kwargs["validation_prerequisite_id"],
+                expected_prerequisite=kwargs["validation_prerequisite"],
+            )
+            raise BudgetStoreError("lost commit acknowledgement")
+
+        monkeypatch.setattr(ledger, "reconcile", commit_consume_then_raise)
+        result = execute_service_validation_action(
+            plan,
+            ValidationSelection(plan.plan_id, "low_impact_validation"),
+            ledger=ledger,
+            request=attempt("postcommit-consumed-prerequisite"),
+            authorization_gate=ExactApprovalGate(),
+            provider=LoopbackProvider(server),
+            evidence_verifier=LoopbackEvidenceVerifier(server),
+        )
+
+    assert result.status == "dispatch_uncertain"
+    assert result.prerequisite_receipt is None
+    assert ledger.get_attempt("postcommit-consumed-prerequisite").state == "settled"
+    assert ledger.get_attempt("concurrent-prerequisite-consumer").state == "dispatched"
+
+
+def test_postcommit_reconciliation_error_recovers_exact_failed_result(tmp_path, monkeypatch):
+    with loopback_service(b"SSH-2.0-Lab_9.0\r\n") as server:
+        plan = plan_for(server.server_address[1], service="ssh", skill_id="network-remote-and-file-services")
+        ledger = budget_ledger(tmp_path)
+        original_reconcile = ledger.reconcile
+
+        def commit_then_raise(receipt, **kwargs):
+            original_reconcile(receipt, **kwargs)
+            raise BudgetStoreError("lost commit acknowledgement")
+
+        monkeypatch.setattr(ledger, "reconcile", commit_then_raise)
+        result = execute_service_validation_action(
+            plan,
+            ValidationSelection(plan.plan_id, "low_impact_validation"),
+            ledger=ledger,
+            request=attempt("postcommit-failed-reconcile"),
+            authorization_gate=ExactApprovalGate(),
+            provider=LoopbackProvider(server),
+            evidence_verifier=LoopbackEvidenceVerifier(server, incomplete=True),
+        )
+
+    assert result.status == "insufficient_evidence"
+    assert result.prerequisite_receipt is None
+    assert ledger.get_attempt("postcommit-failed-reconcile").state == "settled"
+
+
+def test_precommit_reconciliation_error_marks_result_uncertain(tmp_path, monkeypatch):
+    with loopback_service(b"-ERR Redis 5.0 no password configured\r\n") as server:
+        plan = plan_for(server.server_address[1])
+        ledger = budget_ledger(tmp_path)
+
+        def fail_before_commit(*_args, **_kwargs):
+            raise BudgetStoreError("commit unavailable")
+
+        monkeypatch.setattr(ledger, "reconcile", fail_before_commit)
+        result = execute_service_validation_action(
+            plan,
+            ValidationSelection(plan.plan_id, "low_impact_validation"),
+            ledger=ledger,
+            request=attempt("precommit-reconcile"),
+            authorization_gate=ExactApprovalGate(),
+            provider=LoopbackProvider(server),
+            evidence_verifier=LoopbackEvidenceVerifier(server),
+        )
+
+    assert result.status == "dispatch_uncertain"
+    assert ledger.get_attempt("precommit-reconcile").state == "uncertain"

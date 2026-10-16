@@ -17,6 +17,9 @@ from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from datetime import date
 from pathlib import Path
+from urllib.parse import quote
+
+from cops.execution.filesystem import open_directory_no_symlinks, same_directory_identity
 
 _ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 _ACTIVE = frozenset({"reserved", "dispatched", "uncertain"})
@@ -225,13 +228,21 @@ CREATE TABLE IF NOT EXISTS validation_dispatch_intents (
 class AssessmentBudgetLedger:
     """SQLite ledger with one immediate transaction per state transition."""
 
-    def __init__(self, db_path: Path | str, policy: BudgetPolicy, *, clock: Callable[[], int] | None = None) -> None:
+    def __init__(
+        self,
+        db_path: Path | str,
+        policy: BudgetPolicy,
+        *,
+        clock: Callable[[], int] | None = None,
+        directory_fd: int | None = None,
+    ) -> None:
         if not isinstance(policy, BudgetPolicy):
             raise ValueError("policy must be a BudgetPolicy")
         source = Path(db_path).expanduser()
         self.db_path = source if source.is_absolute() else Path.cwd() / source
         self.policy = policy
         self._clock = clock or (lambda: time.time_ns() // 1_000_000)
+        self._directory_fd = directory_fd
         self._prepare_store()
         try:
             with self._connect() as db:
@@ -268,38 +279,106 @@ class AssessmentBudgetLedger:
     def _prepare_store(self) -> None:
         parent = self.db_path.parent
         try:
-            if not parent.exists():
-                parent.mkdir(parents=True, mode=0o700)
-            info = parent.lstat()
+            if self._directory_fd is not None:
+                self._check_parent_identity()
+                info = os.fstat(self._directory_fd)
+            else:
+                if not parent.exists():
+                    parent.mkdir(parents=True, mode=0o700)
+                info = parent.lstat()
             if not stat.S_ISDIR(info.st_mode) or stat.S_IMODE(info.st_mode) != 0o700:
                 raise BudgetStoreError("budget directory must be owner-only")
             if os.name == "posix" and info.st_uid != os.geteuid():
                 raise BudgetStoreError("budget directory must be owned by the current account")
-            if not self.db_path.exists():
+            try:
+                if self._directory_fd is None:
+                    os.lstat(self.db_path)
+                else:
+                    os.stat(self.db_path.name, dir_fd=self._directory_fd, follow_symlinks=False)
+            except FileNotFoundError:
                 flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
                 if hasattr(os, "O_NOFOLLOW"):
                     flags |= os.O_NOFOLLOW
-                fd = os.open(self.db_path, flags, 0o600)
+                if self._directory_fd is None:
+                    fd = os.open(self.db_path, flags, 0o600)
+                else:
+                    fd = os.open(self.db_path.name, flags, 0o600, dir_fd=self._directory_fd)
                 os.close(fd)
             self._check_file()
         except OSError as exc:
             raise BudgetStoreError("budget storage unavailable") from exc
 
-    def _check_file(self) -> None:
+    def _check_parent_identity(self) -> None:
+        if self._directory_fd is None:
+            return
+        reopened = -1
         try:
-            info = self.db_path.lstat()
+            reopened = open_directory_no_symlinks(self.db_path.parent)
+            if not same_directory_identity(reopened, self._directory_fd):
+                raise BudgetStoreError("budget directory identity changed")
+        except BudgetStoreError:
+            raise
+        except OSError as exc:
+            raise BudgetStoreError("budget directory identity changed") from exc
+        finally:
+            if reopened >= 0:
+                os.close(reopened)
+
+    def _check_file(self) -> os.stat_result:
+        try:
+            self._check_parent_identity()
+            if self._directory_fd is None:
+                info = self.db_path.lstat()
+            else:
+                info = os.stat(self.db_path.name, dir_fd=self._directory_fd, follow_symlinks=False)
         except OSError as exc:
             raise BudgetStoreError("budget storage unavailable") from exc
         if not stat.S_ISREG(info.st_mode) or stat.S_IMODE(info.st_mode) != 0o600:
             raise BudgetStoreError("budget file must be owner-only and regular")
         if os.name == "posix" and info.st_uid != os.geteuid():
             raise BudgetStoreError("budget file must be owned by the current account")
+        return info
+
+    def _open_database(self, *, read_only: bool) -> sqlite3.Connection:
+        expected = self._check_file()
+        descriptor = -1
+        db: sqlite3.Connection | None = None
+        try:
+            flags = (os.O_RDONLY if read_only else os.O_RDWR) | getattr(os, "O_CLOEXEC", 0)
+            if hasattr(os, "O_NOFOLLOW"):
+                flags |= os.O_NOFOLLOW
+            if self._directory_fd is None:
+                descriptor = os.open(self.db_path, flags)
+            else:
+                descriptor = os.open(self.db_path.name, flags, dir_fd=self._directory_fd)
+            opened = os.fstat(descriptor)
+            if (opened.st_dev, opened.st_ino) != (expected.st_dev, expected.st_ino):
+                raise BudgetStoreError("budget file identity changed")
+            database_uri = (
+                f"file:{quote(os.fspath(self.db_path), safe='/')}?mode={'ro' if read_only else 'rw'}&nofollow=1"
+            )
+            db = sqlite3.connect(database_uri, uri=True, timeout=30, isolation_level=None)
+            current = self._check_file()
+            if (current.st_dev, current.st_ino) != (opened.st_dev, opened.st_ino):
+                raise BudgetStoreError("budget file identity changed while opening")
+            return db
+        except BudgetStoreError:
+            if db is not None:
+                db.close()
+            raise
+        except (OSError, sqlite3.Error) as exc:
+            if db is not None:
+                db.close()
+            raise BudgetStoreError("budget storage unavailable") from exc
+        finally:
+            if descriptor >= 0:
+                os.close(descriptor)
 
     @contextmanager
     def _connect(self) -> Iterator[sqlite3.Connection]:
-        self._check_file()
+        db: sqlite3.Connection | None = None
         try:
-            db = sqlite3.connect(self.db_path.as_uri() + "?mode=rw", uri=True, timeout=30, isolation_level=None)
+            db = self._open_database(read_only=False)
             db.row_factory = sqlite3.Row
             db.execute("PRAGMA foreign_keys = ON")
             db.execute("PRAGMA journal_mode = DELETE")
@@ -309,7 +388,31 @@ class AssessmentBudgetLedger:
         try:
             yield db
         finally:
-            db.close()
+            if db is not None:
+                db.close()
+
+    @contextmanager
+    def _read_connect(self) -> Iterator[sqlite3.Connection]:
+        """Open a coherent read-only snapshot without advancing ledger state."""
+        db: sqlite3.Connection | None = None
+        try:
+            db = self._open_database(read_only=True)
+            db.row_factory = sqlite3.Row
+            db.execute("PRAGMA query_only = ON")
+            db.execute("BEGIN")
+        except sqlite3.Error as exc:
+            if db is not None:
+                db.close()
+            raise BudgetStoreError("budget storage unavailable") from exc
+        try:
+            yield db
+        finally:
+            try:
+                if db is not None and db.in_transaction:
+                    db.rollback()
+            finally:
+                if db is not None:
+                    db.close()
 
     @contextmanager
     def _transaction(self) -> Iterator[tuple[sqlite3.Connection, sqlite3.Row, int]]:
@@ -704,6 +807,82 @@ class AssessmentBudgetLedger:
                 (receipt.receipt_id, receipt.attempt_id, payload),
             )
             return Attempt(receipt.attempt_id, row["parent_id"], state, row["depth"])
+
+    def reconciliation_is_durable(
+        self,
+        receipt: Receipt,
+        *,
+        validation_prerequisite_id: str | None = None,
+        validation_prerequisite: Mapping[str, object] | None = None,
+    ) -> bool:
+        """Return whether an exact reconciliation is present in durable storage."""
+        if not isinstance(receipt, Receipt):
+            raise ValueError("receipt must be a Receipt")
+        if (validation_prerequisite_id is None) != (validation_prerequisite is None):
+            raise ValueError("validation prerequisite id and payload must be supplied together")
+        if validation_prerequisite_id is not None:
+            _identifier(validation_prerequisite_id, "validation_prerequisite_id")
+            if not isinstance(validation_prerequisite, Mapping):
+                raise ValueError("validation prerequisite must be a mapping")
+            prerequisite_payload = _canonical(dict(validation_prerequisite))
+            if receipt.outcome != "completed":
+                raise ValueError("only a completed attempt can establish a validation prerequisite")
+        else:
+            prerequisite_payload = None
+
+        receipt_payload = _canonical(asdict(receipt))
+        expected_state = (
+            "settled"
+            if all(
+                value is not None for value in (receipt.tokens, receipt.cost_microunits, receipt.retained_output_bytes)
+            )
+            else "usage_unknown"
+        )
+        with self._read_connect() as db:
+            engagement = db.execute("SELECT policy_json FROM engagement WHERE singleton = 1").fetchone()
+            if engagement is None or engagement["policy_json"] != _canonical(asdict(self.policy)):
+                raise BudgetStoreError("budget policy or engagement missing")
+
+            stored_receipt = db.execute(
+                "SELECT attempt_id,payload_json FROM receipts WHERE receipt_id = ?",
+                (receipt.receipt_id,),
+            ).fetchone()
+            if stored_receipt is None or (
+                stored_receipt["attempt_id"] != receipt.attempt_id or stored_receipt["payload_json"] != receipt_payload
+            ):
+                return False
+
+            attempt = db.execute(
+                """SELECT state,actual_tokens,actual_cost_microunits,actual_output_bytes,outcome
+                   FROM attempts WHERE attempt_id = ?""",
+                (receipt.attempt_id,),
+            ).fetchone()
+            if attempt is None or (
+                attempt["state"] != expected_state
+                or attempt["actual_tokens"] != receipt.tokens
+                or attempt["actual_cost_microunits"] != receipt.cost_microunits
+                or attempt["actual_output_bytes"] != receipt.retained_output_bytes
+                or attempt["outcome"] != receipt.outcome
+            ):
+                return False
+
+            if validation_prerequisite_id is not None:
+                prerequisite = db.execute(
+                    """SELECT source_attempt_id,payload_json,consumed_by_attempt_id FROM validation_prerequisites
+                       WHERE receipt_id = ?""",
+                    (validation_prerequisite_id,),
+                ).fetchone()
+                return prerequisite is not None and (
+                    prerequisite["source_attempt_id"] == receipt.attempt_id
+                    and prerequisite["payload_json"] == prerequisite_payload
+                    and prerequisite["consumed_by_attempt_id"] is None
+                )
+
+            unexpected_prerequisite = db.execute(
+                "SELECT receipt_id FROM validation_prerequisites WHERE source_attempt_id = ?",
+                (receipt.attempt_id,),
+            ).fetchone()
+            return unexpected_prerequisite is None
 
     def cancel(self) -> None:
         with self._transaction() as (db, _, _now):

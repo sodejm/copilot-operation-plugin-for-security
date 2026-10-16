@@ -722,6 +722,34 @@ class TestLiveScanSafety(unittest.TestCase):
         self.assertEqual(next_dispatcher.resolutions, 0)
         self.assertEqual(next_dispatcher.probes, [])
 
+    def test_completion_journal_replays_provenance_after_crash_before_memory_update(self):
+        session = self.session()
+        original_append = ActiveScanSession.append_probe_completion
+
+        def append_then_crash(current, path, probe_key, assessment):
+            original_append(current, path, probe_key, assessment)
+            raise KeyboardInterrupt("simulated crash")
+
+        with patch.object(ActiveScanSession, "append_probe_completion", append_then_crash):
+            with self.assertRaises(KeyboardInterrupt):
+                self.scanner(session).run()
+
+        probe_key = "external:tcp:app.corp.internal:80"
+        self.assertIn(probe_key, session.pending_probe_keys)
+        self.assertNotIn(probe_key, session.completed_probe_keys)
+        self.assertEqual(session.assessments, [])
+
+        replayed = ActiveScanSession.load_checkpoint(self.checkpoint)
+        self.assertNotIn(probe_key, replayed.pending_probe_keys)
+        self.assertIn(probe_key, replayed.completed_probe_keys)
+        self.assertEqual(len(replayed.assessments), 1)
+        provenance = replayed.assessments[0].provenance
+        self.assertIsNotNone(provenance)
+        assert provenance is not None
+        self.assertEqual(provenance.source_id, replayed.session_id)
+        self.assertEqual(provenance.raw_record_ref, probe_key)
+        self.assertEqual(provenance.sha256, active_assessment_digest(replayed.assessments[0]))
+
     def test_pending_checkpoint_status_is_reconciled_durably(self):
         self.scanner(self.session(), RecordingSocketDispatcher(fail=True)).run()
         data = json.loads(self.checkpoint.read_text(encoding="utf-8"))

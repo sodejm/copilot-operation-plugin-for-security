@@ -1378,9 +1378,8 @@ class ActiveScanner:
                     persist()
                     return self.session
 
-                # Record a checkpoint-bound digest when the response is small
-                # enough to canonicalize. A malformed response still enters the
-                # side-effect ledger and cannot become a validation candidate.
+                # Bind provenance before checkpointing so replay restores the
+                # same evidence identity after a crash.
                 try:
                     assessment.provenance = EvidenceProvenance(
                         source_id=self.session.session_id,
@@ -1391,7 +1390,11 @@ class ActiveScanner:
                         raw_record_ref=probe_key,
                     )
                 except (EvidenceError, AttributeError, TypeError, ValueError):
-                    assessment.provenance = None
+                    # Dispatch may have taken effect, but this result cannot be
+                    # bound to replayable evidence. Keep its reservation pending.
+                    self.session.status = "requires_reconciliation"
+                    persist()
+                    return self.session
 
                 # Record the assessment durably before updating the in-memory
                 # ledger. A crash after this append is replayed on resume.

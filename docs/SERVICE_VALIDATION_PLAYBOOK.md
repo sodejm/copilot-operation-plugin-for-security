@@ -31,9 +31,9 @@ it does not prove a service, vulnerability, or successful use.
 These seven adapters are registered only by the disposable laboratory. They
 exercise the public selection, authorization, dispatcher, verifier, budget,
 reporting, and cleanup boundaries without claiming production coverage for an
-external target. The provider and verifier use separate loopback connections.
-The verifier disregards provider-authored output and reads a fixture-owned passive
-audit record through the same bounded protocol parser. Here, "independent
+external target. The provider opens one loopback connection, and the verifier
+reads the fixture-owned passive audit after the server closes that connection.
+The verifier disregards provider-authored output. Here, "independent
 evidence" means independent of provider-authored output only. The fixture and
 verifier share one Python process, administrative authority, and parser, so this
 laboratory does not establish independently administered observation or native
@@ -102,12 +102,22 @@ Redis `#143` candidate and separately authorized proof, remediated Redis, and an
 HTTP insufficient-evidence outcome. It stops every service and confirms that all
 fixture transport connections have closed. This does not prove rollback, effect
 reversal, external process cleanup, or target-side reconciliation. To retain the
-state artifacts for inspection, select a directory explicitly:
+state artifacts for inspection, select a fresh path that does not yet exist:
 
 ```bash
 .venv/bin/python scripts/service_validation_loopback_example.py \
   --state-dir /tmp/cops-service-validation-lab
 ```
+
+Each journey uses fixed fixture attempt identifiers, so a retained state directory
+cannot be reused. The command exclusively creates the final directory before
+starting a fixture, rejects symbolic-link ancestors, and pins the directory identity
+for later ledger opens. The identity checks reject persistent replacement before and
+after each ledger open. Python's SQLite interface still opens the database by pathname,
+so the checks do not eliminate a same-account pathname ABA during that internal open.
+Run the lab where no untrusted process under the same account can rename or replace
+the state path or SQLite entry, or alter the database contents, during the journey.
+A cleanup failure exits unsuccessfully instead of reporting a completed journey.
 
 Run the focused executable acceptance suite with:
 
