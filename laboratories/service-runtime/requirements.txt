@@ -7,3 +7,8 @@ cffi==2.1.1 \
     --hash=sha256:58acb8ab8e295e6c5ea12f888cbb13cf21511ef2a3303a23f4325c29d17fe5c1
 pycparser==3.11 \
     --hash=sha256:51d5a8ba2be0bbe440b99d2112604c95bbbc3c2748a64260186c541e1729cd80
+python-evtx==0.8.1 \
+    --hash=sha256:46336b854dbe0a1e75873ae30db5f583c9d2262ff1d21bdb6b1e624ecfa18ddb
+# Reproducibly packaged from the reviewed PyPI source without running setup.py.
+hexdump==3.3 \
+    --hash=sha256:4954b6c87251be23f0ddfda7d2713f0428d9a1c4c771202957580fa7450b7980

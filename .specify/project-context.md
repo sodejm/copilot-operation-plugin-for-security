@@ -169,4 +169,4 @@ The operator core remains standard-library based. Binary Sysmon EVTX import uses
 the fixed `sysmon-evtx/v1` adapter with `python-evtx==0.8.1` and `hexdump==3.3`
 in a resource-limited Linux subprocess. It validates a read-only snapshot before
 normalizing supported records; native acquisition is a separate capability.
-See [the import specification](../../specs/evtx-import.spec.md).
+See [the import specification](../specs/evtx-import.spec.md).
