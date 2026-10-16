@@ -192,3 +192,8 @@ exports with explicit completeness and observation windows. Offline correlation
 returns targets only for exact identity joins. Isolated acceptance must revoke
 the selected synthetic grant while preserving an unrelated grant; production
 Entra and session/hunt operations remain unverified.
+
+Exposure playback requires complete, in-window DNS, connection and authentication
+evidence for each exact endpoint. Its isolated lab observes a fixed non-forwarding
+DNS answer plus actual vulnerable/corrected HTTP responses. Incomplete coverage
+and DNS failures cannot clear an audit; production discovery remains unverified.
