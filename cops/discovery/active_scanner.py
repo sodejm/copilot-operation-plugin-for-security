@@ -33,8 +33,8 @@ from .active_models import (
     ScanDelta,
     ServiceReachability,
     TargetShiftQuarantine,
-    canonical_target_identity,
     active_assessment_digest,
+    canonical_target_identity,
 )
 from .fingerprinter import infer_service_fingerprint
 from .models import EvidenceProvenance
