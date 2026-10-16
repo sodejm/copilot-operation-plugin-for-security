@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 import tempfile
 from datetime import datetime
@@ -288,7 +289,21 @@ def _integrated_case(workflow_id: str, state_dir: Path, *, require_isolation: bo
     if workflow_id == "leaked-credential-blast-radius":
         _expect(failures, [assessment.get(key) for key in ("before_revocation", "revocation", "after_revocation")] == [200, 200, 401], "credential revocation did not change real authentication")
         _expect(failures, assessment.get("bundle", {}).get("signature_verified") is True, "evidence bundle signature was not verified")
-        _expect(failures, assessment.get("synthetic_exposure", {}).get("value_redacted") is True, "credential evidence is not redacted")
+        exposure = assessment.get("synthetic_exposure", {})
+        for key in (
+            "value_redacted", "same_credential_observed", "historical_exposure_observed",
+            "repository_unchanged_by_scan", "disposable_repository_removed",
+        ):
+            _expect(failures, exposure.get(key) is True, f"credential history proof is missing: {key}")
+        content = exposure.get("artifact", {}).get("content", {})
+        _expect(failures, content.get("coverage", {}).get("complete_within_configured_bounds") is True, "credential history enumeration was incomplete")
+        prerequisites = content.get("adapter_prerequisites", {}).get("satisfied", [])
+        _expect(failures, any(
+            item.get("id") == "registered-adapter:git-object-enumerator@1"
+            and item.get("version", "").startswith("git version 2.")
+            and re.fullmatch(r"[0-9a-f]{64}", item.get("sha256", ""))
+            for item in prerequisites
+        ), "credential history scanner lacks its pinned Git prerequisite")
     elif workflow_id == "cve-reachability-triage":
         _expect(failures, assessment.get("vulnerable", {}).get("injection_rows") == 2, "vulnerable SQL query did not expose the seeded objects")
         _expect(failures, assessment.get("corrected", {}).get("injection_rows") == 0 and assessment.get("remediation_verified") is True, "corrected query did not preserve the boundary")

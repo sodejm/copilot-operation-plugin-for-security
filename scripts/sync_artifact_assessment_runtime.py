@@ -15,6 +15,8 @@ PACKAGES = (
     "vulnerability-management/tls-crypto-workbench",
 )
 MODULES = (
+    "cops/adapters/registry.py",
+    "cops/adapters/definitions/git.json",
     "cops/contracts/models.py",
     "cops/contracts/lifecycle.py",
     "cops/contracts/validation.py",
@@ -32,7 +34,7 @@ def main() -> int:
             target = destination / module
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(ROOT / module, target)
-        for name in ("cops", "cops/contracts", "cops/evidence", "cops/reporting"):
+        for name in ("cops", "cops/adapters", "cops/contracts", "cops/evidence", "cops/reporting"):
             (destination / name / "__init__.py").write_text('"""Portable assessment runtime."""\n')
         shutil.copytree(
             ROOT / "cops/assessments",

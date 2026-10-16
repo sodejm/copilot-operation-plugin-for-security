@@ -57,7 +57,7 @@ The default request bounds are 64 artifacts, 1 MiB per artifact, and 4 MiB total
 | `malware_static` | `binary`, `powershell_encoded` | Bounded static indicators and base64 decoding up to 256 KiB; decoded bytes are never executed |
 | `cloud_configuration` | `terraform_plan`, `kubernetes_rendered`, `helm_rendered_json`, `aws_export`, `azure_export`, `gcp_export` | Typed workload, IAM/RBAC, storage ACL, and inbound source-range observations; unsupported resources remain partial |
 | `supply_chain` | `package_lock`, `requirements_lock`, `cyclonedx`, `spdx`, `container_sbom`, `github_actions`, `advisory_fixture` | Registry and integrity metadata, exact Python hashes, versioned SBOM components, action pins, token write permissions, privileged pull-request head checkout, and ecosystem-specific pinned advisories |
-| `credential_history` | `git_history` | Synthetic exposure records correlated by opaque fingerprint, redaction, rotation, and opaque author ID |
+| `credential_history` | `git_history` | Bounded Git scan or supplied synthetic exposure records correlated by opaque fingerprint, redaction, rotation, and opaque author ID |
 | `network_segmentation` | `segmentation_model` | Bounded graph reachability across allow rules, expected path assertions, and structured DNS evidence |
 | `transport_identity` | `tls_config`, `jwt`, `jwks` | Certificate time, chain-name continuity, SAN and mTLS settings, JWT structure and claims, and JWKS key/algorithm metadata |
 
@@ -79,6 +79,15 @@ Includes, substitutions, YAML aliases/tags, dynamic action references, and other
 unsupported constructs remain evidence gaps. No parser executes includes,
 resolves variables, downloads dependencies, or runs workflow steps. A clean
 subset result cannot establish safety of the complete build.
+
+## Bounded Git history scanner
+
+The separate [Git history scanner](../plugins/identity-access/secrets-remediation-workbench/docs/GIT_HISTORY_SCANNER.md)
+enumerates an explicitly scoped ordinary checkout through a registered, executable
+hash-pinned Git adapter. It detects historical synthetic credentials without
+returning values, changing repository bytes, or fetching objects. A complete
+bounded scan without matches is distinct from an empty or truncated scan.
+Containment remains unknown until separate revocation evidence is collected.
 
 ## Disposable acquisition adapter
 

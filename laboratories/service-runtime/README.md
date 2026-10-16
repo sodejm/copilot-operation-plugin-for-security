@@ -4,18 +4,22 @@ This image contains the Python runtime and pinned cryptography dependencies for
 the [strict laboratory gate](../../docs/SERVICE_LABORATORY.md). Source code and
 fixture evidence are mounted separately as a verified read-only snapshot.
 
-Use an official CPython 3.14 slim image already reviewed and present locally.
-Record its immutable image ID. For Linux amd64, download the wheels into a
-disposable build directory with the repository environment:
+Use the official full CPython 3.14.6 image pinned below, which includes Git
+2.47.3 for the disposable credential-history exercise. The build records the
+Git executable hash in a root-owned manifest before dropping privileges. The
+scanner stages and verifies that pinned executable before enumerating blobs.
+For Linux amd64, download the wheels into a disposable build directory:
 
 ```console
 build_dir=$(mktemp -d)
-cp laboratories/service-runtime/Dockerfile laboratories/service-runtime/requirements.txt "$build_dir/"
+cp laboratories/service-runtime/Dockerfile laboratories/service-runtime/requirements.txt laboratories/service-runtime/pin_runtime.py "$build_dir/"
 python -m pip download --index-url https://pypi.org/simple --only-binary=:all: \
   --require-hashes --platform manylinux_2_28_x86_64 --platform manylinux2014_x86_64 \
   --python-version 314 --implementation cp --abi cp314 \
   --dest "$build_dir/wheels" -r laboratories/service-runtime/requirements.txt
-docker build --network none --pull=false --build-arg BASE_IMAGE=sha256:<reviewed-base-id> \
+docker pull python:3.14.6@sha256:51570a50616289f78f340811c34ca4384985f9e891819cbe7620f738d6ca8525
+docker build --network none --pull=false \
+  --build-arg BASE_IMAGE=python:3.14.6@sha256:51570a50616289f78f340811c34ca4384985f9e891819cbe7620f738d6ca8525 \
   --iidfile "$build_dir/image.id" "$build_dir"
 make check-laboratory LABORATORY_ARGS="--runtime docker --image $(cat "$build_dir/image.id")"
 ```

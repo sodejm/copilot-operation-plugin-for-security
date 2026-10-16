@@ -177,6 +177,14 @@ custody metadata does not independently authenticate an evidence source. Synthet
 fixtures demonstrate supported behavior without establishing complete vulnerability
 coverage or production integration support.
 
+Git history scanning accepts only explicitly scoped ordinary repositories and
+uses an executable pinned by SHA-256 through the registered Git adapter. It copies
+and verifies that executable before invocation, disables repository hooks, external
+configuration, replacement objects and lazy fetches, and enforces output and time
+budgets. Only synthetic credential patterns are currently registered; values are
+replaced with domain-separated fingerprints. A clean bounded scan does not prove
+the absence of other credential types or validate provider revocation.
+
 The required laboratory gate demands observed activity, correlated telemetry,
 verified isolation, and restoration. Loopback services and marker files cannot
 establish network isolation. Unsupported isolation platforms remain incomplete
@@ -185,7 +193,10 @@ provisioned immutable image and the local daemon. It mounts only a digest-bound
 allowlisted source snapshot, with no host credentials, and checks container
 configuration before execution plus kernel interfaces, routes, and bounded
 IPv4/IPv6 egress rejection inside the container. This adapter does not establish
-the production approval authority's distinct-UID boundary. See [service laboratories](SERVICE_LABORATORY.md),
+the production approval authority's distinct-UID boundary. Its size-limited tmpfs
+permits execution so the verified Git copy can run, with `nosuid`, `nodev`, dropped
+capabilities, and no new privileges still enforced. The tmpfs is discarded when
+the owned container is removed. See [service laboratories](SERVICE_LABORATORY.md),
 [workflow contracts](WORKFLOWS.md), and [artifact assessments](ARTIFACT_ASSESSMENTS.md).
 
 ## Detailed model and review obligations

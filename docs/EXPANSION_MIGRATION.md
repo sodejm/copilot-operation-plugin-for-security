@@ -46,6 +46,10 @@ Five additional service chains now execute disposable HTTP operations with typed
 stage inputs and exact, single-use ActionPlan approvals. Their synthetic consent,
 advisory, event-rule, and numeric-address models retain explicit production limits;
 Kubernetes enforcement still requires a registered isolated cluster adapter.
+The credential chain now scans actual disposable Git history before revoking the
+same synthetic credential. Standalone Git scanning requires `--git-sha256` from a
+reviewed local executable; the isolated runtime records that prerequisite during
+its image build. Runtime images without the root-owned pin fail this case.
 
 Purple-team consumers should adopt the versioned handoff contract, correlation
 IDs, time window, source reference, telemetry, detection result, and evidence

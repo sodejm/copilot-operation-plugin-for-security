@@ -11,12 +11,15 @@ import shutil
 import stat
 import subprocess
 import sys
+import tempfile
 import threading
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Iterator, Sequence
 
+from cops.adapters.registry import AdapterError, ToolAdapter, ToolAdapterRegistry
 
 SCHEMA_VERSION = "cops.git-history-scan/v1"
 _OID = re.compile(rb"[0-9a-f]{40}(?:[0-9a-f]{24})?")
@@ -28,6 +31,7 @@ _SYNTHETIC_PATTERNS = (
 _MAX_CONFIG_BYTES = 1024 * 1024
 _MAX_GIT_METADATA_ENTRIES = 250_000
 _MAX_TREE_OUTPUT_BYTES = 16 * 1024 * 1024
+_MAX_GIT_EXECUTABLE_BYTES = 256 * 1024 * 1024
 
 
 class GitHistoryScanError(ValueError):
@@ -91,9 +95,11 @@ def _safe_environment() -> dict[str, str]:
 
 def _run_git(
     git: str,
+    adapter: ToolAdapter,
     root: Path,
     git_dir: Path,
-    arguments: Sequence[str],
+    action: str,
+    arguments: dict[str, Any],
     *,
     output_limit: int,
     deadline: float,
@@ -101,7 +107,11 @@ def _run_git(
     remaining = deadline - time.monotonic()
     if remaining <= 0:
         raise GitHistoryScanError("scan_timeout")
-    command = [git, f"--git-dir={git_dir}", f"--work-tree={root}", *arguments]
+    try:
+        tokens = adapter.assemble_command(action, arguments)
+    except AdapterError as error:
+        raise GitHistoryScanError("git_adapter_rejected_arguments") from error
+    command = [git, f"--git-dir={git_dir}", f"--work-tree={root}", *tokens[1:]]
     try:
         process = subprocess.Popen(
             command,
@@ -148,7 +158,7 @@ def _run_git(
     return _GitResult(bytes(output[:output_limit]), returncode, overflow)
 
 
-def _validate_git_metadata_tree(git_dir: Path) -> None:
+def _validate_git_metadata_tree(git_dir: Path, *, deadline: float) -> None:
     """Reject metadata paths that Git could follow outside the validated directory."""
 
     pending = [git_dir]
@@ -158,6 +168,8 @@ def _validate_git_metadata_tree(git_dir: Path) -> None:
         try:
             with os.scandir(directory) as entries:
                 for entry in entries:
+                    if time.monotonic() >= deadline:
+                        raise GitHistoryScanError("scan_timeout")
                     entries_examined += 1
                     if entries_examined > _MAX_GIT_METADATA_ENTRIES:
                         raise GitHistoryScanError("git_metadata_entry_limit")
@@ -177,7 +189,7 @@ def _validate_git_metadata_tree(git_dir: Path) -> None:
             raise GitHistoryScanError("git_metadata_unreadable") from error
 
 
-def _validate_repository_root(root: Path) -> tuple[Path, Path]:
+def _validate_repository_root(root: Path, *, deadline: float) -> tuple[Path, Path]:
     if not root.is_absolute():
         raise GitHistoryScanError("root_must_be_absolute")
     absolute = Path(os.path.abspath(root))
@@ -191,7 +203,7 @@ def _validate_repository_root(root: Path) -> tuple[Path, Path]:
     git_dir = absolute / ".git"
     if git_dir.is_symlink() or not git_dir.is_dir():
         raise GitHistoryScanError("unsupported_git_directory")
-    _validate_git_metadata_tree(git_dir)
+    _validate_git_metadata_tree(git_dir, deadline=deadline)
     if os.path.lexists(git_dir / "commondir"):
         raise GitHistoryScanError("linked_git_directory_unsupported")
     for relative in ("objects/info/alternates", "objects/info/http-alternates"):
@@ -240,15 +252,67 @@ def _fingerprint(value: bytes) -> str:
     return hashlib.sha256(b"cops.synthetic-credential/v1\0" + value).hexdigest()
 
 
-def scan_git_history(root: str | os.PathLike[str], *, limits: ScanLimits | None = None) -> dict[str, Any]:
-    """Inspect bounded reachable Git blobs without emitting matched values."""
+@contextmanager
+def pinned_git_executable(expected_sha256: str | None, *, deadline: float) -> Iterator[str]:
+    """Stage only a caller-pinned executable, preventing PATH replacement races.
+
+    The pin must come from the operator's reviewed runtime, never the repository
+    being scanned. Temporary copies need a runtime whose Git is relocatable.
+    """
+    if not isinstance(expected_sha256, str) or not re.fullmatch(r"[0-9a-f]{64}", expected_sha256):
+        raise GitHistoryScanError("git_sha256_pin_required")
+    candidate = shutil.which("git")
+    if not candidate:
+        raise GitHistoryScanError("git_unavailable")
+    try:
+        source = Path(candidate).resolve(strict=True)
+        descriptor = os.open(source, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+        with os.fdopen(descriptor, "rb") as stream, tempfile.TemporaryDirectory(prefix="cops-pinned-git-") as temporary:
+            metadata = os.fstat(stream.fileno())
+            if not stat.S_ISREG(metadata.st_mode) or not 0 < metadata.st_size <= _MAX_GIT_EXECUTABLE_BYTES:
+                raise GitHistoryScanError("unsupported_git_executable")
+            staged = Path(temporary) / ("git.exe" if os.name == "nt" else "git")
+            fingerprint = hashlib.sha256()
+            total = 0
+            with staged.open("xb") as destination:
+                while chunk := stream.read(65536):
+                    if time.monotonic() >= deadline:
+                        raise GitHistoryScanError("scan_timeout")
+                    total += len(chunk)
+                    if total > _MAX_GIT_EXECUTABLE_BYTES:
+                        raise GitHistoryScanError("unsupported_git_executable")
+                    fingerprint.update(chunk)
+                    destination.write(chunk)
+            if fingerprint.hexdigest() != expected_sha256:
+                raise GitHistoryScanError("git_sha256_mismatch")
+            staged.chmod(0o500)
+            yield str(staged)
+    except OSError as error:
+        raise GitHistoryScanError("git_prerequisite_unavailable") from error
+
+
+def scan_git_history(root: str | os.PathLike[str], *, limits: ScanLimits | None = None,
+                     expected_git_sha256: str | None = None) -> dict[str, Any]:
+    """Inspect bounded reachable Git blobs using a reviewed executable pin."""
 
     limits = (limits or ScanLimits()).validated()
-    root_path, git_dir = _validate_repository_root(Path(root))
-    git = shutil.which("git")
-    if not git:
-        raise GitHistoryScanError("git_unavailable")
     deadline = time.monotonic() + limits.timeout_seconds
+    root_path, git_dir = _validate_repository_root(Path(root), deadline=deadline)
+    with pinned_git_executable(expected_git_sha256, deadline=deadline) as git:
+        try:
+            adapter = ToolAdapterRegistry(executable_sha256_pins={"git": expected_git_sha256}).get_adapter("git")
+        except (AdapterError, ValueError, TypeError) as error:
+            raise GitHistoryScanError("git_adapter_unavailable") from error
+        return _scan_git_history(root_path, git_dir, git, adapter, limits, deadline, expected_git_sha256)
+
+
+def _scan_git_history(root_path: Path, git_dir: Path, git: str, adapter: ToolAdapter, limits: ScanLimits,
+                      deadline: float, git_sha256: str) -> dict[str, Any]:
+    version = _run_git(git, adapter, root_path, git_dir, "version", {}, output_limit=256, deadline=deadline)
+    version_contract = adapter.executable_verification
+    if (version.returncode or version.overflow or version_contract is None
+            or not re.fullmatch(version_contract.version_pattern, version.stdout.decode("ascii", errors="replace").strip())):
+        raise GitHistoryScanError("git_version_unavailable")
     limitations = [
         "Only commits reachable from local refs and detached HEAD are inspected.",
         "Synthetic pattern inspection cannot prove provider-side revocation, rotation, or absence from unreachable Git objects.",
@@ -258,9 +322,11 @@ def scan_git_history(root: str | os.PathLike[str], *, limits: ScanLimits | None 
 
     head_result = _run_git(
         git,
+        adapter,
         root_path,
         git_dir,
-        ["rev-parse", "--verify", "HEAD^{commit}"],
+        "head",
+        {},
         output_limit=128,
         deadline=deadline,
     )
@@ -270,13 +336,15 @@ def scan_git_history(root: str | os.PathLike[str], *, limits: ScanLimits | None 
         if _OID.fullmatch(candidate):
             head = candidate.decode("ascii")
 
-    revision_arguments = ["rev-list", f"--max-count={limits.max_commits + 1}", "--all"]
+    revision_arguments: dict[str, Any] = {"max_count": limits.max_commits + 1}
     if head:
-        revision_arguments.append("HEAD")
+        revision_arguments["head"] = "HEAD"
     revision_result = _run_git(
         git,
+        adapter,
         root_path,
         git_dir,
+        "revisions",
         revision_arguments,
         output_limit=min((limits.max_commits + 1) * 66, 1024 * 1024),
         deadline=deadline,
@@ -306,9 +374,11 @@ def scan_git_history(root: str | os.PathLike[str], *, limits: ScanLimits | None 
         tree_limit = min(_MAX_TREE_OUTPUT_BYTES, max(4096, (limits.max_files + 1) * 512))
         tree_result = _run_git(
             git,
+            adapter,
             root_path,
             git_dir,
-            ["ls-tree", "-rz", "--full-tree", commit],
+            "tree",
+            {"commit": commit},
             output_limit=tree_limit,
             deadline=deadline,
         )
@@ -339,6 +409,7 @@ def scan_git_history(root: str | os.PathLike[str], *, limits: ScanLimits | None 
                 truncated.add("symlink_entries")
                 continue
             if object_type != b"blob" or mode not in (b"100644", b"100755"):
+                truncated.add("unsupported_tree_entries")
                 continue
             output_path, redacted_path = _safe_path(raw_path)
             if output_path is None:
@@ -354,9 +425,11 @@ def scan_git_history(root: str | os.PathLike[str], *, limits: ScanLimits | None 
             blob_limit = min(limits.max_blob_bytes, remaining_bytes)
             blob_result = _run_git(
                 git,
+                adapter,
                 root_path,
                 git_dir,
-                ["cat-file", "blob", object_id.decode("ascii")],
+                "blob",
+                {"object_id": object_id.decode("ascii")},
                 output_limit=blob_limit,
                 deadline=deadline,
             )
@@ -447,6 +520,8 @@ def scan_git_history(root: str | os.PathLike[str], *, limits: ScanLimits | None 
                         "id": "registered-adapter:git-object-enumerator@1",
                         "implementation": SCHEMA_VERSION,
                         "tool": "git",
+                        "sha256": git_sha256,
+                        "version": version.stdout.decode("ascii").strip(),
                     }
                 ],
                 "required": ["registered-adapter:provider-revocation-check@1"],
@@ -461,6 +536,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", required=True, help="absolute path to an ordinary Git work tree")
+    parser.add_argument("--git-sha256", required=True, help="reviewed runtime Git executable SHA-256")
     parser.add_argument("--max-commits", type=int, default=ScanLimits.max_commits)
     parser.add_argument("--max-files", type=int, default=ScanLimits.max_files)
     parser.add_argument("--max-blob-bytes", type=int, default=ScanLimits.max_blob_bytes)
@@ -471,6 +547,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         result = scan_git_history(
             args.root,
+            expected_git_sha256=args.git_sha256,
             limits=ScanLimits(
                 max_commits=args.max_commits,
                 max_files=args.max_files,

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
@@ -17,6 +18,7 @@ from cops.assessments.git_history import GitHistoryScanError, ScanLimits, scan_g
 SYNTHETIC_SECRET = "COPS_TEST_TOKEN_0123456789abcdef"
 AS_OF = "2026-10-15T12:00:00Z"
 GIT = shutil.which("git")
+GIT_SHA256 = hashlib.sha256(Path(GIT).resolve().read_bytes()).hexdigest() if GIT else None
 
 
 pytestmark = pytest.mark.skipif(GIT is None, reason="git is required for history scanner tests")
@@ -53,7 +55,7 @@ def _git(repository: Path, *arguments: str) -> str:
 def _repository(tmp_path: Path) -> Path:
     repository = tmp_path / "repository"
     repository.mkdir()
-    _git(repository, "init", "--quiet")
+    _git(repository, "init", "--quiet", "--template=")
     return repository
 
 
@@ -72,13 +74,53 @@ def _assert_secret_absent(value: Any) -> None:
     assert "0123456789abcdef" not in serialized
 
 
+def _snapshot(repository: Path) -> dict[str, tuple[int, str]]:
+    return {
+        item.relative_to(repository).as_posix(): (
+            item.stat().st_mode, hashlib.sha256(item.read_bytes()).hexdigest(),
+        )
+        for item in repository.rglob("*") if item.is_file()
+    }
+
+
+@pytest.mark.parametrize("pin", [None, "", "not-a-digest", "A" * 64])
+def test_unpinned_executable_is_rejected(tmp_path: Path, pin: str | None) -> None:
+    repository = _repository(tmp_path)
+    with pytest.raises(GitHistoryScanError, match="git_sha256_pin_required"):
+        scan_git_history(repository, expected_git_sha256=pin)
+
+
+def test_changed_executable_is_rejected_before_scanning(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    with pytest.raises(GitHistoryScanError, match="git_sha256_mismatch"):
+        scan_git_history(repository, expected_git_sha256="0" * 64)
+
+
+def test_scan_preserves_repository_metadata_and_worktree(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    _commit(repository, "fixture.txt", SYNTHETIC_SECRET + "\n", "fixture")
+    (repository / "untracked.txt").write_text("operator working copy\n")
+    before = _snapshot(repository)
+    scan_git_history(repository, expected_git_sha256=GIT_SHA256)
+    assert _snapshot(repository) == before
+
+
+def test_clean_nonempty_history_has_bounded_clearance(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    _commit(repository, "fixture.txt", "no synthetic credentials\n", "fixture")
+    artifact = scan_git_history(repository, expected_git_sha256=GIT_SHA256)
+    assert artifact["content"]["assessment_status"] == "no_synthetic_match_observed"
+    assessment = assess("credential_history", [artifact], as_of=AS_OF)
+    assert not assessment["finding_codes"]
+
+
 def test_vulnerable_history_emits_only_redacted_provenance_and_assesses_exposure(
     tmp_path: Path,
 ) -> None:
     repository = _repository(tmp_path)
     commit = _commit(repository, "config/settings.txt", f"token={SYNTHETIC_SECRET}\n", "fixture")
 
-    artifact = scan_git_history(repository)
+    artifact = scan_git_history(repository, expected_git_sha256=GIT_SHA256)
 
     assert artifact["schema_version"] == "cops.git-history-scan/v1"
     assert artifact["kind"] == "git_history"
@@ -105,7 +147,7 @@ def test_corrected_head_still_reports_reachable_historical_exposure(tmp_path: Pa
     exposed_commit = _commit(repository, "settings.txt", f"token={SYNTHETIC_SECRET}\n", "add fixture")
     corrected_commit = _commit(repository, "settings.txt", "token sourced from environment\n", "correct fixture")
 
-    artifact = scan_git_history(repository)
+    artifact = scan_git_history(repository, expected_git_sha256=GIT_SHA256)
 
     occurrences = artifact["content"]["occurrences"]
     assert {item["commit"] for item in occurrences} == {exposed_commit}
@@ -118,13 +160,15 @@ def test_corrected_head_still_reports_reachable_historical_exposure(tmp_path: Pa
 
 
 def test_empty_repository_is_insufficient_evidence(tmp_path: Path) -> None:
-    artifact = scan_git_history(_repository(tmp_path))
+    artifact = scan_git_history(_repository(tmp_path), expected_git_sha256=GIT_SHA256)
 
     assert artifact["content"]["assessment_status"] == "insufficient_evidence"
     assert artifact["content"]["coverage"]["commits_examined"] == 0
     assert artifact["content"]["coverage"]["complete_within_configured_bounds"] is False
     assert artifact["content"]["occurrences"] == []
     assert any("No reachable commits" in item for item in artifact["content"]["limitations"])
+    assessment = assess("credential_history", [artifact], as_of=AS_OF)
+    assert "credential_history_coverage_insufficient_evidence" in assessment["finding_codes"].values()
 
 
 def test_commit_and_blob_bounds_are_reported_without_false_clearance(tmp_path: Path) -> None:
@@ -132,13 +176,15 @@ def test_commit_and_blob_bounds_are_reported_without_false_clearance(tmp_path: P
     _commit(repository, "old.txt", f"token={SYNTHETIC_SECRET}\n", "old")
     _commit(repository, "old.txt", "credential removed\n", "current")
 
-    commit_limited = scan_git_history(repository, limits=ScanLimits(max_commits=1))
+    commit_limited = scan_git_history(repository, expected_git_sha256=GIT_SHA256, limits=ScanLimits(max_commits=1))
     assert commit_limited["content"]["assessment_status"] == "insufficient_evidence"
     assert commit_limited["content"]["coverage"]["commits_examined"] == 1
     assert commit_limited["content"]["occurrences"] == []
     assert any("commits" in item for item in commit_limited["content"]["limitations"])
+    assessment = assess("credential_history", [commit_limited], as_of=AS_OF)
+    assert "credential_history_coverage_insufficient_evidence" in assessment["finding_codes"].values()
 
-    blob_limited = scan_git_history(repository, limits=ScanLimits(max_blob_bytes=8))
+    blob_limited = scan_git_history(repository, expected_git_sha256=GIT_SHA256, limits=ScanLimits(max_blob_bytes=8))
     assert blob_limited["content"]["assessment_status"] == "insufficient_evidence"
     assert blob_limited["content"]["occurrences"] == []
     assert any("blob_bytes" in item for item in blob_limited["content"]["limitations"])
@@ -150,7 +196,7 @@ def test_secret_bearing_path_is_fingerprinted_instead_of_emitted(tmp_path: Path)
     secret_path = f"fixtures/{SYNTHETIC_SECRET}.txt"
     _commit(repository, secret_path, SYNTHETIC_SECRET + "\n", "fixture")
 
-    artifact = scan_git_history(repository)
+    artifact = scan_git_history(repository, expected_git_sha256=GIT_SHA256)
 
     occurrence = artifact["content"]["occurrences"][0]
     assert occurrence["path"].startswith("redacted-path/sha256-")
@@ -162,7 +208,7 @@ def test_control_character_path_is_skipped_without_false_clearance(tmp_path: Pat
     repository = _repository(tmp_path)
     _commit(repository, "unsafe\nname.txt", SYNTHETIC_SECRET + "\n", "fixture")
 
-    artifact = scan_git_history(repository)
+    artifact = scan_git_history(repository, expected_git_sha256=GIT_SHA256)
 
     assert artifact["content"]["occurrences"] == []
     assert artifact["content"]["assessment_status"] == "insufficient_evidence"
@@ -180,7 +226,7 @@ def test_git_symlink_entry_is_not_followed_and_makes_coverage_insufficient(tmp_p
     _git(repository, "add", "--", "linked.txt")
     _git(repository, "commit", "--quiet", "-m", "symlink fixture")
 
-    artifact = scan_git_history(repository)
+    artifact = scan_git_history(repository, expected_git_sha256=GIT_SHA256)
 
     assert artifact["content"]["occurrences"] == []
     assert artifact["content"]["assessment_status"] == "insufficient_evidence"
@@ -188,6 +234,7 @@ def test_git_symlink_entry_is_not_followed_and_makes_coverage_insufficient(tmp_p
     _assert_secret_absent(artifact)
 
 
+@pytest.mark.skipif(os.name == "nt", reason="symlink fixture requires POSIX semantics")
 def test_symlinked_root_and_git_metadata_are_rejected(tmp_path: Path) -> None:
     repository = _repository(tmp_path)
     root_link = tmp_path / "repository-link"
@@ -203,7 +250,7 @@ def test_symlinked_root_and_git_metadata_are_rejected(tmp_path: Path) -> None:
     head.unlink()
     head.symlink_to(target.name)
     with pytest.raises(GitHistoryScanError, match="git_metadata_symlink"):
-        scan_git_history(repository)
+        scan_git_history(repository, expected_git_sha256=GIT_SHA256)
 
 
 @pytest.mark.skipif(os.name == "nt", reason="symlink fixture requires POSIX semantics")
@@ -218,7 +265,7 @@ def test_nested_git_metadata_symlink_is_rejected_before_git_reads_it(tmp_path: P
     ref.symlink_to(outside_ref)
 
     with pytest.raises(GitHistoryScanError, match="git_metadata_symlink"):
-        scan_git_history(repository)
+        scan_git_history(repository, expected_git_sha256=GIT_SHA256)
 
 
 def test_package_entrypoint_scans_explicit_root_without_secret_output(tmp_path: Path) -> None:
@@ -230,7 +277,7 @@ def test_package_entrypoint_scans_explicit_root_without_secret_output(tmp_path: 
     )
 
     completed = subprocess.run(
-        [sys.executable, str(script), "--root", str(repository)],
+        [sys.executable, str(script), "--root", str(repository), "--git-sha256", GIT_SHA256],
         cwd=Path(__file__).parents[1],
         check=False,
         capture_output=True,
