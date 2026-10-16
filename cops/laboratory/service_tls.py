@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import ipaddress
 import ssl
 import tempfile
@@ -23,6 +24,9 @@ class TLSAcceptanceResult:
     missing_client_rejected: bool
     untrusted_client_rejected: bool
     untrusted_server_rejected: bool
+    unauthorized_client_status: int
+    offline_verification: dict[str, str]
+    service_stopped: bool
     server_address: str = "127.0.0.1"
     protocol: str = "TLS"
 
@@ -32,6 +36,9 @@ class TLSAcceptanceResult:
             "missing_client_rejected": self.missing_client_rejected,
             "untrusted_client_rejected": self.untrusted_client_rejected,
             "untrusted_server_rejected": self.untrusted_server_rejected,
+            "unauthorized_client_status": self.unauthorized_client_status,
+            "offline_verification": self.offline_verification,
+            "service_stopped": self.service_stopped,
             "server_address": self.server_address,
             "protocol": self.protocol,
         }
@@ -42,7 +49,9 @@ class _HealthHandler(BaseHTTPRequestHandler):
         if self.path != "/health":
             self.send_error(404)
             return
-        self.send_response(204)
+        peer = self.connection.getpeercert(binary_form=True)
+        allowed = getattr(self.server, "authorized_client_sha256", frozenset())
+        self.send_response(204 if peer and hashlib.sha256(peer).hexdigest() in allowed else 403)
         self.end_headers()
 
     def log_message(self, _format: str, *_args: object) -> None:
@@ -159,6 +168,11 @@ def _certificate_material(directory: Path) -> dict[str, Path]:
                 x509.SubjectAlternativeName([x509.IPAddress(ipaddress.ip_address("127.0.0.1"))]),
                 critical=False,
             )
+        else:
+            builder = builder.add_extension(
+                x509.SubjectAlternativeName([x509.DNSName(f"{name}.example.invalid")]),
+                critical=False,
+            )
         cert = builder.sign(issuer_key, hashes.SHA256())
         return write_key(name, private_key), write_cert(name, cert)
 
@@ -166,6 +180,7 @@ def _certificate_material(directory: Path) -> dict[str, Path]:
     untrusted_key, untrusted_ca, untrusted_ca_path = ca("untrusted-ca")
     server_key, server_cert = leaf("server", trusted_key, trusted_ca, ExtendedKeyUsageOID.SERVER_AUTH)
     client_key, client_cert = leaf("client", trusted_key, trusted_ca, ExtendedKeyUsageOID.CLIENT_AUTH)
+    unauthorized_key, unauthorized_cert = leaf("unauthorized-client", trusted_key, trusted_ca, ExtendedKeyUsageOID.CLIENT_AUTH)
     bad_key, bad_cert = leaf("untrusted-client", untrusted_key, untrusted_ca, ExtendedKeyUsageOID.CLIENT_AUTH)
     return {
         "ca": trusted_ca_path,
@@ -174,13 +189,20 @@ def _certificate_material(directory: Path) -> dict[str, Path]:
         "server_cert": server_cert,
         "client_key": client_key,
         "client_cert": client_cert,
+        "unauthorized_key": unauthorized_key,
+        "unauthorized_cert": unauthorized_cert,
         "bad_key": bad_key,
         "bad_cert": bad_cert,
     }
 
 
 def _request(url: str, context: ssl.SSLContext) -> int:
-    with urllib.request.urlopen(url, context=context, timeout=3) as response:  # noqa: S310 - fixed loopback URL
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), urllib.request.HTTPSHandler(context=context))
+    try:
+        response = opener.open(url, timeout=3)
+    except urllib.error.HTTPError as exc:
+        response = exc
+    with response:
         return response.status
 
 
@@ -193,11 +215,25 @@ def _was_rejected(url: str, context: ssl.SSLContext) -> bool:
 
 
 def run_ephemeral_mtls_acceptance() -> TLSAcceptanceResult:
-    """Make real valid, missing-client, and untrusted-client TLS connections."""
+    """Compare local certificate verification with real TLS and client authorization."""
+    from cops.assessments.crypto_inputs import verify_artifact
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes
 
     with tempfile.TemporaryDirectory(prefix="cops-service-tls-") as temporary:
         material = _certificate_material(Path(temporary))
+        allowed = x509.load_pem_x509_certificate(material["client_cert"].read_bytes()).fingerprint(hashes.SHA256()).hex()
+        evidence = {"purpose": "server", "leaf_pem": material["server_cert"].read_text(),
+                    "trust_anchors_pem": [material["ca"].read_text()], "hostname": "127.0.0.1"}
+        client = {**evidence, "purpose": "client", "leaf_pem": material["client_cert"].read_text(), "authorized_client_sha256": [allowed]}
+        cases = {
+            "server": evidence, "wrong_hostname": {**evidence, "hostname": "other.example.invalid"},
+            "untrusted_server": {**evidence, "trust_anchors_pem": [material["untrusted_ca"].read_text()]},
+            "authorized_client": client, "unauthorized_client": {**client, "leaf_pem": material["unauthorized_cert"].read_text()},
+        }
+        offline = {name: verify_artifact("certificate_chain", content, as_of=datetime.now(UTC)).status for name, content in cases.items()}
         server = ThreadingHTTPServer(("127.0.0.1", 0), _HealthHandler)
+        server.authorized_client_sha256 = frozenset({allowed})
         server_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         server_context.minimum_version = ssl.TLSVersion.TLSv1_2
         server_context.load_cert_chain(str(material["server_cert"]), str(material["server_key"]))
@@ -218,13 +254,20 @@ def run_ephemeral_mtls_acceptance() -> TLSAcceptanceResult:
             untrusted.load_cert_chain(str(material["bad_cert"]), str(material["bad_key"]))
             wrong_server = ssl.create_default_context(cafile=str(material["untrusted_ca"]))
             wrong_server.load_cert_chain(str(material["client_cert"]), str(material["client_key"]))
-            return TLSAcceptanceResult(
-                valid_client_status=_request(url, valid),
-                missing_client_rejected=_was_rejected(url, missing),
-                untrusted_client_rejected=_was_rejected(url, untrusted),
-                untrusted_server_rejected=_was_rejected(url, wrong_server),
-            )
+            unauthorized = ssl.create_default_context(cafile=str(material["ca"]))
+            unauthorized.load_cert_chain(str(material["unauthorized_cert"]), str(material["unauthorized_key"]))
+            valid_status = _request(url, valid)
+            missing_rejected = _was_rejected(url, missing)
+            untrusted_rejected = _was_rejected(url, untrusted)
+            server_rejected = _was_rejected(url, wrong_server)
+            unauthorized_status = _request(url, unauthorized)
         finally:
             server.shutdown()
             server.server_close()
             thread.join(timeout=3)
+        return TLSAcceptanceResult(
+            valid_client_status=valid_status, missing_client_rejected=missing_rejected,
+            untrusted_client_rejected=untrusted_rejected, untrusted_server_rejected=server_rejected,
+            unauthorized_client_status=unauthorized_status, offline_verification=offline,
+            service_stopped=not thread.is_alive() and server.socket.fileno() == -1,
+        )

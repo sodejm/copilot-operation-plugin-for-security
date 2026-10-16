@@ -297,3 +297,9 @@ Typed network changes require `tests/test_network_policy_inputs.py` and the
 package correction demo, including vulnerable, corrected and incomplete inputs.
 Synchronize all artifact runtimes after shared parser edits. Keep policy
 predictions distinct from measured enforcement when recording laboratory readiness.
+
+For typed TLS/JWT evidence, install the declared `crypto` extra and run
+`python -m pytest -q tests/test_crypto_inputs.py tests/test_jwt_verification.py`.
+Use ephemeral keys and public certificate fixtures; never commit private key
+material or usable credentials. Run `tests/test_service_laboratory.py` and the
+strict laboratory gate to compare offline outcomes with actual requests.

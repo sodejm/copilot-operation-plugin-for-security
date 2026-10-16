@@ -674,7 +674,9 @@ def _b64url_json(value: str) -> dict[str, Any] | None:
     return result if isinstance(result, dict) else None
 
 
-def _transport(items: list[_Artifact], as_of: datetime) -> tuple[list[_Issue], list[str], list[str], set[str]]:
+def _transport(items: list[_Artifact], as_of: datetime, *, verification_results: list[dict[str, Any]] | None = None) -> tuple[list[_Issue], list[str], list[str], set[str]]:
+    from cops.assessments.crypto_inputs import KINDS, verify_artifact
+
     issues: list[_Issue] = []
     analyzed: set[str] = set()
     limitations: list[str] = []
@@ -686,7 +688,17 @@ def _transport(items: list[_Artifact], as_of: datetime) -> tuple[list[_Issue], l
                 if isinstance(key, dict) and isinstance(key.get("kid"), str):
                     jwks[key["kid"]] = key
     for artifact in items:
-        if artifact.kind == "tls_config" and isinstance(artifact.content, dict):
+        if artifact.kind in KINDS:
+            result = verify_artifact(artifact.kind, artifact.content, as_of=as_of)
+            if verification_results is not None:
+                verification_results.append({"artifact_id": artifact.artifact_id, "evidence_ref": artifact.evidence_ref, **result.to_dict()})
+            if result.status == "unknown":
+                issues.append(_unresolved(artifact, result.code))
+            else:
+                analyzed.add(artifact.artifact_id)
+                if result.status == "rejected":
+                    issues.append(_issue(artifact, result.code, "Local cryptographic verification rejected supplied evidence", "informational", "The bounded verifier rejected the certificate or token under the supplied trust and authorization policy.", "Review the expected identity, trust anchors, validity, algorithm, signature and authorization policy; then repeat verification.", classification="observation", verification="verified", confidence="high", uncertainty="This proves local rejection only; remote service acceptance and deployment security remain unverified."))
+        elif artifact.kind == "tls_config" and isinstance(artifact.content, dict):
             chain = artifact.content.get("chain")
             hostname = artifact.content.get("hostname")
             if not isinstance(chain, list) or not chain or not isinstance(hostname, str):
@@ -731,8 +743,8 @@ def _transport(items: list[_Artifact], as_of: datetime) -> tuple[list[_Issue], l
                 issues.append(_issue(artifact, "jwks_algorithm_mismatch", "JWT algorithm conflicts with matching JWKS metadata", "high", "The token header algorithm does not match the same-key JWKS metadata.", "Reject the token and align the issuer key and algorithm policy."))
         elif artifact.kind != "jwks":
             limitations.append(f"Unsupported transport-identity artifact kind: {artifact.kind}.")
-    limitations.append("Offline metadata parsing does not verify signatures, trust anchors, revocation, TLS negotiation, or token acceptance.")
-    return issues, limitations, ["registered-adapter:cryptographic-chain-validator@1", "registered-adapter:revocation-check@1"], analyzed
+    limitations.append("Typed certificate_chain and jwt_verification artifacts verify supplied signatures and local trust only. Legacy metadata artifacts do not verify signatures. Revocation, remote TLS negotiation and service token acceptance require separate evidence.")
+    return issues, limitations, ["registered-adapter:cryptographic-verification/v1 (cryptography==50.0.2)", "revocation evidence and live service validation"], analyzed
 
 
 _ANALYZERS: dict[str, Callable[[list[_Artifact], datetime], tuple[list[_Issue], list[str], list[str], set[str]]]] = {
@@ -774,7 +786,11 @@ def assess(
         max_artifact_bytes=max_artifact_bytes,
         max_total_bytes=max_total_bytes,
     )
-    issues, specific_limits, prerequisites, analyzed = _ANALYZERS[capability](prepared, assessed_at)
+    verification_results: list[dict[str, Any]] = []
+    if capability == "transport_identity":
+        issues, specific_limits, prerequisites, analyzed = _transport(prepared, assessed_at, verification_results=verification_results)
+    else:
+        issues, specific_limits, prerequisites, analyzed = _ANALYZERS[capability](prepared, assessed_at)
     if not prepared or not analyzed:
         readiness = "insufficient_evidence"
     elif specific_limits:
@@ -802,6 +818,7 @@ def assess(
         "assessment_mode": "offline",
         "generated_at": as_of,
         "readiness": readiness,
+        **({"verification_results": verification_results} if capability == "transport_identity" else {}),
         "findings": findings,
         "finding_codes": {finding["finding_id"]: issue.code for finding, issue in zip(findings, issues, strict=True)},
         "evidence": evidence,

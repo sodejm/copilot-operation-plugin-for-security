@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add pinned offline certificate-chain and RS256 verification with explicit local
+  trust, bounded inputs, content-free outcomes and unknown prerequisite handling.
+  Exercise mTLS client authorization and compare offline verification with actual
+  ephemeral TLS/JWT service acceptance; production trust and revocation remain separate.
+
 - Add bounded typed firewall and Kubernetes NetworkPolicy predictions, explicit
   flow observations and TTL-bound DNS evidence with correction playback. Unknown,
   stale or contradictory inputs cannot establish effective segmentation.

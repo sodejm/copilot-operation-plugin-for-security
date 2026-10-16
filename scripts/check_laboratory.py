@@ -189,6 +189,9 @@ def _service_case(
             "missing_client_rejected": True,
             "untrusted_client_rejected": True,
             "untrusted_server_rejected": True,
+            "unauthorized_client_status": 403,
+            "offline_verification": {"server": "accepted", "wrong_hostname": "rejected", "untrusted_server": "rejected", "authorized_client": "accepted", "unauthorized_client": "rejected"},
+            "service_stopped": True,
             "server_address": "127.0.0.1",
             "protocol": "TLS",
         },
@@ -205,6 +208,7 @@ def _service_case(
     _expect(failures, jwt.get("actual_requests") == 9 and len(statuses) == 9, "JWT authentication cases were not exercised")
     _expect(failures, statuses.get("valid") == 204 and all(value == 401 for key, value in statuses.items() if key != "valid"), "JWT verifier accepted an invalid token or rejected the valid token")
     _expect(failures, jwt.get("service_stopped") is True, "JWT HTTP service did not stop")
+    _expect(failures, jwt.get("offline_verification") == {name: "accepted" if name == "valid" else "rejected" for name in statuses}, "offline JWT verification differs from service outcomes")
     boundaries = activity.get("boundaries", {})
     _expect(failures, boundaries.get("benign_query_preserved") is True, "parameterized query changed the permitted result")
     _expect(failures, boundaries.get("injection_exposed_other_object") is expected_reached, "SQL injection correction outcome differs")
