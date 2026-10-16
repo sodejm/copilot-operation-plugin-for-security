@@ -12,10 +12,11 @@ import os
 import re
 import stat
 from contextlib import ExitStack
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Any
 
 from cops.evidence.canonical import EvidenceError, timestamp
+from cops.evidence.files import file_identity, open_parent, open_root, relative_parts
 
 ADAPTER_ID = "disposable-file-acquisition@1"
 ADAPTERS = {ADAPTER_ID: {"platform": "posix", "prerequisite": "python-stdlib", "version": 1, "scope": "disposable-laboratory-regular-file"}}
@@ -27,12 +28,10 @@ class AcquisitionError(ValueError):
 
 
 def _parts(value: str) -> tuple[str, ...]:
-    if not isinstance(value, str) or not value or "\\" in value or "\x00" in value:
-        raise AcquisitionError("invalid_relative_path")
-    path = PurePosixPath(value)
-    if path.is_absolute() or any(part in {"", ".", ".."} for part in value.split("/")):
-        raise AcquisitionError("invalid_relative_path")
-    return path.parts
+    try:
+        return relative_parts(value)
+    except ValueError as exc:
+        raise AcquisitionError("invalid_relative_path") from exc
 
 
 def acquire_disposable_file(
@@ -62,27 +61,13 @@ def acquire_disposable_file(
     if source_parts == output_parts:
         raise AcquisitionError("source_and_output_must_differ")
     root = Path(lab_root).absolute()
-    directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
     created = False
     output_parent = -1
     try:
         with ExitStack() as stack:
-            # Open the absolute root component by component, including ancestors.
-            root_fd = os.open(root.anchor, directory_flags)
-            stack.callback(os.close, root_fd)
-            for component in root.parts[1:]:
-                root_fd = os.open(component, directory_flags, dir_fd=root_fd)
-                stack.callback(os.close, root_fd)
-
-            def parent(parts: tuple[str, ...]) -> int:
-                descriptor = root_fd
-                for component in parts[:-1]:
-                    descriptor = os.open(component, directory_flags, dir_fd=descriptor)
-                    stack.callback(os.close, descriptor)
-                return descriptor
-
-            source_parent = parent(source_parts)
-            output_parent = parent(output_parts)
+            root_fd = open_root(root, stack)
+            source_parent = open_parent(root_fd, source_parts, stack)
+            output_parent = open_parent(root_fd, output_parts, stack)
             source_fd = os.open(source_parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=source_parent)
             stack.callback(os.close, source_fd)
             before = os.fstat(source_fd)
@@ -100,8 +85,9 @@ def acquire_disposable_file(
                     raise AcquisitionError("source_size_limit")
             raw = b"".join(chunks)
             after = os.fstat(source_fd)
-            identity = lambda value: (value.st_dev, value.st_ino, value.st_size, value.st_mtime_ns, value.st_ctime_ns)
-            if identity(before) != identity(after) or hashlib.sha256(raw).hexdigest() != expected_sha256:
+            if (file_identity(before) != file_identity(after) or
+                    file_identity(before) != file_identity(os.stat(source_parts[-1], dir_fd=source_parent, follow_symlinks=False)) or
+                    hashlib.sha256(raw).hexdigest() != expected_sha256):
                 raise AcquisitionError("source_changed_or_hash_mismatch")
             output_fd = os.open(output_parts[-1], os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=output_parent)
             created = True
@@ -110,13 +96,16 @@ def acquire_disposable_file(
                     stream.write(raw)
                     stream.flush()
                     os.fsync(stream.fileno())
-                if identity(before) != identity(os.fstat(source_fd)):
+                if (file_identity(before) != file_identity(os.fstat(source_fd)) or
+                        file_identity(before) != file_identity(os.stat(source_parts[-1], dir_fd=source_parent, follow_symlinks=False))):
                     raise AcquisitionError("source_changed_during_collection")
             except BaseException:
                 os.unlink(output_parts[-1], dir_fd=output_parent)
                 created = False
                 raise
-    except OSError as exc:
+    except (OSError, ValueError) as exc:
+        if isinstance(exc, AcquisitionError):
+            raise
         # The partial file is removed inside the still-open directory context.
         raise AcquisitionError("source_or_destination_unavailable") from exc
     artifact = {

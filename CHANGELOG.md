@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add POSIX raw disk/memory integrity import with bounded streaming, digest-bound
+  custody assertions, explicit permission references, and no-follow file access.
+  Laboratory acceptance imports actual acquired copies and rejects tampering;
+  filesystem/memory analysis and native acquisition remain unsupported.
+
 - Add a registered Linux EVTX importer with pinned parser prerequisites, source
   checksums, resource limits, redacted Sysmon records, and binary correction fixtures.
   Native Windows acquisition remains unvalidated.

@@ -94,3 +94,12 @@ Complete this record only after focused checks, `make check`, `make check-docs`,
 and `make check-laboratory` pass on the recorded implementation revision. Attach
 explicit blockers for required native/platform, provider, acquisition, and
 capability-specific laboratory checks; do not turn skipped checks into success.
+
+## Raw forensic import correction scope
+
+The raw import gate now consumes actual disposable acquisition output for both
+disk and memory kinds. It requires digest and byte-count binding, denied-permission
+and missing-custody rejection, tamper rejection, and successful restored-copy
+verification. Native acquisition and filesystem/memory analysis remain incomplete.
+The final integrated acceptance record must identify the tested revision and
+commands; this scope entry alone is not execution evidence.
