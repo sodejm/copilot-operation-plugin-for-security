@@ -7,6 +7,7 @@ import io
 import json
 from contextlib import redirect_stdout
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
 
@@ -484,9 +485,8 @@ def test_goal_cli_reports_precise_next_action_for_ambiguity(engagement: dict[str
     )
 
 
-def test_goal_cli_reports_unreadable_engagement_as_structured_failure(tmp_path) -> None:
-    engagement_path = tmp_path / "engagement.json"
-    engagement_path.write_bytes(b"\xff")
+def test_goal_cli_redacts_missing_engagement_path_from_structured_failure(tmp_path) -> None:
+    engagement_path = tmp_path / "confidential-customer" / "acme.json"
     output = io.StringIO()
     with redirect_stdout(output):
         exit_code = main(
@@ -501,7 +501,77 @@ def test_goal_cli_reports_unreadable_engagement_as_structured_failure(tmp_path) 
         )
     result = json.loads(output.getvalue())
     assert exit_code == 2
-    assert result["error"]["code"] == "engagement_unreadable"
+    assert result["error"] == {
+        "code": "engagement_not_found",
+        "message": "Engagement file was not found.",
+    }
+    assert str(engagement_path) not in output.getvalue()
+    assert result["coverage"]["status"] == "not_assessed"
+
+
+def test_goal_cli_redacts_os_error_from_unreadable_structured_failure(tmp_path, monkeypatch) -> None:
+    engagement_path = tmp_path / "confidential-customer" / "acme.json"
+    engagement_path.parent.mkdir()
+    engagement_path.write_text("{}", encoding="utf-8")
+    os_error_detail = f"permission denied while opening {engagement_path}"
+
+    def deny_open(*_args, **_kwargs):
+        raise PermissionError(os_error_detail)
+
+    monkeypatch.setattr(Path, "open", deny_open)
+    output = io.StringIO()
+    with redirect_stdout(output):
+        exit_code = main(
+            [
+                "engagement",
+                "goal",
+                "Assess the selected endpoint.",
+                "--engagement",
+                str(engagement_path),
+                "--json",
+            ]
+        )
+    result = json.loads(output.getvalue())
+    assert exit_code == 2
+    assert result["error"] == {
+        "code": "engagement_unreadable",
+        "message": "Engagement file could not be read as UTF-8 text.",
+    }
+    assert os_error_detail not in output.getvalue()
+    assert str(engagement_path) not in output.getvalue()
+    assert result["coverage"]["status"] == "not_assessed"
+
+
+def test_goal_cli_redacts_json_decoder_detail_from_structured_failure(tmp_path, monkeypatch) -> None:
+    engagement_path = tmp_path / "confidential-customer" / "acme.json"
+    engagement_path.parent.mkdir()
+    engagement_path.write_text("{}", encoding="utf-8")
+    parser_detail = "confidential parser detail"
+
+    def fail_decode(*_args, **_kwargs):
+        raise json.JSONDecodeError(parser_detail, '{"schema_version":', 18)
+
+    monkeypatch.setattr("cops.engagement.cli.decode_json", fail_decode)
+    output = io.StringIO()
+    with redirect_stdout(output):
+        exit_code = main(
+            [
+                "engagement",
+                "goal",
+                "Assess the selected endpoint.",
+                "--engagement",
+                str(engagement_path),
+                "--json",
+            ]
+        )
+    result = json.loads(output.getvalue())
+    assert exit_code == 2
+    assert result["error"] == {
+        "code": "invalid_engagement_json",
+        "message": "Engagement JSON could not be decoded.",
+    }
+    assert parser_detail not in output.getvalue()
+    assert str(engagement_path) not in output.getvalue()
     assert result["coverage"]["status"] == "not_assessed"
 
 
