@@ -162,6 +162,10 @@ class _Handler(socketserver.BaseRequestHandler):
         request = b""
         response = b""
         banner = b""
+        sent_response = b""
+        sent_banner = b""
+        write_failure: str | None = None
+        exchange_complete = False
         with server.audit_lock:  # type: ignore[attr-defined]
             server.connection_count += 1  # type: ignore[attr-defined]
         try:
@@ -181,26 +185,39 @@ class _Handler(socketserver.BaseRequestHandler):
                 pending = server.pending_audits.pop(audit_reference)  # type: ignore[attr-defined]
             if server.case.service in {"ssh", "smtp"}:  # type: ignore[attr-defined]
                 banner = server.banner  # type: ignore[attr-defined]
-                self.request.sendall(banner)
+                try:
+                    self.request.sendall(banner)
+                except OSError as exc:
+                    write_failure = type(exc).__name__
+                    raise
+                sent_banner = banner
             response = _fixture_response(server.case, request)  # type: ignore[attr-defined]
             if response:
-                self.request.sendall(response)
+                try:
+                    self.request.sendall(response)
+                except OSError as exc:
+                    write_failure = type(exc).__name__
+                    raise
+                sent_response = response
+            exchange_complete = True
         finally:
             with server.audit_lock:  # type: ignore[attr-defined]
+                if write_failure is not None:
+                    server.worker_failures.append(write_failure)  # type: ignore[attr-defined]
                 if pending is not None and request:
                     server.requests.append(request)  # type: ignore[attr-defined]
-                if banner:
-                    server.responses.append(banner)  # type: ignore[attr-defined]
-                if response:
-                    server.responses.append(response)  # type: ignore[attr-defined]
-                if pending is not None:
+                if sent_banner:
+                    server.responses.append(sent_banner)  # type: ignore[attr-defined]
+                if sent_response:
+                    server.responses.append(sent_response)  # type: ignore[attr-defined]
+                if pending is not None and exchange_complete:
                     server.closing_audits[self.request] = (  # type: ignore[attr-defined]
                         audit_reference,
                         {
                             **pending,
-                            "banner": banner,
+                            "banner": sent_banner,
                             "request": request,
-                            "response": response,
+                            "response": sent_response,
                         },
                     )
 

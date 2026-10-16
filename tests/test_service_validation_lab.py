@@ -197,6 +197,54 @@ def test_fixture_audit_frame_accepts_fragmented_header_and_request():
     assert not thread.is_alive()
 
 
+def test_fixture_partial_response_write_is_not_published_as_complete():
+    class RecordingServer:
+        def __init__(self) -> None:
+            self.case = _Case("partial-write", "redis", b"", "redis-lab-5.0", candidate=True)
+            self.banner = b""
+            self.connection_count = 0
+            self.requests: list[bytes] = []
+            self.responses: list[bytes] = []
+            self.audit_lock = threading.Lock()
+            self.pending_audits: dict[str, dict[str, object]] = {
+                "partial-write-reference": {"dispatch_correlation_id": "partial-write"}
+            }
+            self.audit: dict[str, dict[str, object]] = {}
+            self.closing_audits: dict[object, tuple[str, dict[str, object]]] = {}
+            self.worker_failures: list[str] = []
+
+    class PartialWriteConnection:
+        def __init__(self, wire: bytes) -> None:
+            self._wire = wire
+            self.sent = bytearray()
+
+        def settimeout(self, _timeout: float) -> None:
+            pass
+
+        def recv(self, size: int) -> bytes:
+            chunk = self._wire[:size]
+            self._wire = self._wire[size:]
+            return chunk
+
+        def sendall(self, data: bytes) -> None:
+            self.sent.extend(data[:-2])
+            raise OSError("injected partial response write")
+
+    server = RecordingServer()
+    audit_reference = "partial-write-reference"
+    connection = PartialWriteConnection(f"COPS-AUDIT {audit_reference} partial-write 6\nPING\r\n".encode())
+    with pytest.raises(OSError, match="injected partial response write"):
+        lab._Handler(connection, ("127.0.0.1", 0), server)
+
+    assert bytes(connection.sent) == b"+PONG"
+    with server.audit_lock:
+        assert server.requests == [b"PING\r\n"]
+        assert server.responses == []
+        assert server.worker_failures == ["OSError"]
+        assert server.closing_audits == {}
+        assert audit_reference not in server.audit
+
+
 def test_fixture_audit_attests_closure_only_after_transport_is_closed(monkeypatch):
     fixture = _start_fixture(_Case("closure-test", "redis", b"", "redis-lab-5.0", candidate=True))
     entered_shutdown = threading.Event()

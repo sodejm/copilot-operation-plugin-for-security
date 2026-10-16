@@ -1154,6 +1154,134 @@ def test_independently_verified_low_impact_effect_marks_dispatch_uncertain(tmp_p
     assert ledger.get_attempt("unexpected-low-impact-effect").state == "uncertain"
 
 
+def test_independently_verified_low_impact_authorized_use_marks_dispatch_uncertain(
+    tmp_path,
+):
+    with loopback_service(b"SSH-2.0-Lab_9.0\r\n") as server:
+        plan = plan_for(server.server_address[1], service="ssh", skill_id="network-remote-and-file-services")
+        ledger = budget_ledger(tmp_path)
+        delegate = LoopbackEvidenceVerifier(server)
+
+        def verifier(*args):
+            return replace(
+                delegate(*args),
+                authorized_use_evidence=("fixture audit independently recorded approved use",),
+                authorized_use_verified=True,
+                cleanup_evidence=(),
+                cleanup_verified=False,
+            )
+
+        result = execute_service_validation_action(
+            plan,
+            ValidationSelection(plan.plan_id, "low_impact_validation"),
+            ledger=ledger,
+            request=attempt("unexpected-low-impact-authorized-use"),
+            authorization_gate=ExactApprovalGate(),
+            provider=LoopbackProvider(server),
+            evidence_verifier=verifier,
+        )
+
+    assert result.status == "dispatch_uncertain"
+    assert result.reason == "the low-impact action produced an independently verified effect"
+    assert result.authorized_use_evidence == ("fixture audit independently recorded approved use",)
+    assert ledger.get_attempt("unexpected-low-impact-authorized-use").state == "uncertain"
+
+
+def test_cleanup_verified_without_evidence_is_rejected(tmp_path):
+    with loopback_service(b"SSH-2.0-Lab_9.0\r\n") as server:
+        plan = plan_for(server.server_address[1], service="ssh", skill_id="network-remote-and-file-services")
+        ledger = budget_ledger(tmp_path)
+        delegate = LoopbackEvidenceVerifier(server)
+
+        def verifier(*args):
+            return replace(
+                delegate(*args),
+                cleanup_evidence=(),
+                cleanup_verified=True,
+            )
+
+        result = execute_service_validation_action(
+            plan,
+            ValidationSelection(plan.plan_id, "low_impact_validation"),
+            ledger=ledger,
+            request=attempt("cleanup-without-evidence"),
+            authorization_gate=ExactApprovalGate(),
+            provider=LoopbackProvider(server),
+            evidence_verifier=verifier,
+        )
+
+    assert result.status == "dispatch_uncertain"
+    assert result.reason == ("passive evidence could not be bound to the dispatched action: malformed evidence fields")
+    assert ledger.get_attempt("cleanup-without-evidence").state == "uncertain"
+
+
+def test_unverified_cleanup_receipt_is_retained_without_claiming_coverage(tmp_path):
+    with loopback_service(b"SSH-2.0-Lab_9.0\r\n") as server:
+        plan = plan_for(server.server_address[1], service="ssh", skill_id="network-remote-and-file-services")
+        ledger = budget_ledger(tmp_path)
+        delegate = LoopbackEvidenceVerifier(server)
+
+        def verifier(*args):
+            return replace(
+                delegate(*args),
+                cleanup_evidence=("fixture cleanup attempt was observed but not verified",),
+                cleanup_verified=False,
+            )
+
+        result = execute_service_validation_action(
+            plan,
+            ValidationSelection(plan.plan_id, "low_impact_validation"),
+            ledger=ledger,
+            request=attempt("unverified-cleanup-receipt"),
+            authorization_gate=ExactApprovalGate(),
+            provider=LoopbackProvider(server),
+            evidence_verifier=verifier,
+        )
+
+    assert result.status == "completed"
+    assert result.coverage["cleanup"] == "untested"
+    assert result.cleanup_evidence == ("fixture cleanup attempt was observed but not verified",)
+
+
+@pytest.mark.parametrize(
+    ("authorized_use_verified", "authorized_use_evidence"),
+    (
+        (True, ()),
+        (False, ("unverified authorized-use claim",)),
+    ),
+    ids=("true-flag-without-evidence", "evidence-with-false-flag"),
+)
+def test_contradictory_authorized_use_verification_is_rejected(
+    tmp_path, authorized_use_verified, authorized_use_evidence
+):
+    with loopback_service(b"SSH-2.0-Lab_9.0\r\n") as server:
+        plan = plan_for(server.server_address[1], service="ssh", skill_id="network-remote-and-file-services")
+        ledger = budget_ledger(tmp_path)
+        delegate = LoopbackEvidenceVerifier(server)
+
+        def verifier(*args):
+            return replace(
+                delegate(*args),
+                authorized_use_evidence=authorized_use_evidence,
+                authorized_use_verified=authorized_use_verified,
+            )
+
+        attempt_id = f"contradictory-authorized-use-{authorized_use_verified}"
+        result = execute_service_validation_action(
+            plan,
+            ValidationSelection(plan.plan_id, "low_impact_validation"),
+            ledger=ledger,
+            request=attempt(attempt_id),
+            authorization_gate=ExactApprovalGate(),
+            provider=LoopbackProvider(server),
+            evidence_verifier=verifier,
+        )
+
+    assert result.status == "dispatch_uncertain"
+    assert result.reason == "passive evidence could not be bound to the dispatched action: malformed evidence fields"
+    assert ledger.get_attempt(attempt_id).state == "uncertain"
+
+
 @pytest.mark.parametrize(
     ("finding_effect_verified", "finding_effect", "effect_evidence"),
     (
