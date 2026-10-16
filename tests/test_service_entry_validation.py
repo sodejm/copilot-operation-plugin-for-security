@@ -243,9 +243,7 @@ class ServiceEntryValidationTests(unittest.TestCase):
         session.assessments.append(other)
         other_endpoint = ApprovedEndpoint("other.example", "192.0.2.11", 2222, "tcp", "internal")
 
-        results = prepare_session_service_handoffs(
-            session, approved_endpoints={self.endpoint, other_endpoint}
-        )
+        results = prepare_session_service_handoffs(session, approved_endpoints={self.endpoint, other_endpoint})
 
         self.assertEqual([result.status for result in results], ["candidate", "blocked_scope"])
         self.assertIsNone(results[1].plan)
