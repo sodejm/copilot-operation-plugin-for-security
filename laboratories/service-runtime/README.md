@@ -8,6 +8,10 @@ Use the official full CPython 3.14.6 image pinned below, which includes Git
 2.47.3 for the disposable credential-history exercise. The build records the
 Git executable hash in a root-owned manifest before dropping privileges. The
 scanner stages and verifies that pinned executable before enumerating blobs.
+The same base supplies pip 26.1.2 for the registered synthetic-wheel acceptance
+adapter. The strict gate rejects a missing or different installer version. Its
+offline installations use only generated, hash-pinned fixture wheels and never
+fetch a dependency or run a source build.
 For Linux amd64, download the wheels into a disposable build directory:
 
 ```console

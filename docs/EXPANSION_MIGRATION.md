@@ -165,3 +165,13 @@ Loose host lists or anonymous status arrays no longer establish coverage. Supply
 authorized status 200 and an observed anonymous status for every endpoint. The
 new `limited` fixture demonstrates insufficient coverage; a clean result remains
 restricted to the supplied endpoints and window.
+
+## Installed dependency evidence
+
+Service reports retain `cops.service-laboratory-report/v1` and add
+`service_activity.supply_chain`, including installer availability, component and
+wheel digests, runtime observations, tamper rejection and cleanup results.
+Consumers must retain explicit unsupported results. The strict laboratory gate
+now requires the registered pip version (26.1.2 on Linux) and actual vulnerable
+and corrected installed-wheel behavior; older service reports cannot establish
+this coverage. Portable checks may report unavailable platform prerequisites.
