@@ -84,7 +84,7 @@ class TestNetworkActiveDiscoverySkill(unittest.TestCase):
         ssh_ass = ass_by_port[22]
         self.assertEqual(ssh_ass.inferred_fingerprint.service_name, "ssh")
         self.assertEqual(ssh_ass.inferred_fingerprint.product, "OpenSSH")
-        self.assertEqual(ssh_ass.inferred_fingerprint.confidence, "high")
+        self.assertEqual(ssh_ass.inferred_fingerprint.confidence, "medium")
 
         http_ass = ass_by_port[80]
         self.assertEqual(http_ass.inferred_fingerprint.service_name, "http")

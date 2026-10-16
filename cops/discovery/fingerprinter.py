@@ -25,37 +25,46 @@ def infer_service_fingerprint(
     headers = observed_config.http_headers or {}
     tls = observed_config.tls
 
+    if (
+        protocol == "udp"
+        and observed_config.protocol_metadata.get("probe_payload") == "dns_root_ns_query"
+        and observed_config.protocol_metadata.get("dns_response_validated") is True
+    ):
+        return InferredFingerprint(
+            service_name="dns",
+            product=None,
+            version=None,
+            confidence=ConfidenceLevel.MEDIUM.value,
+            uncertainty_reasons=[
+                "Matching DNS response does not authenticate the server or establish a product or version"
+            ],
+            evidence_sources=["matched_dns_query_response"],
+        )
+
     # 1. SSH Analysis
-    if raw_banner.startswith("SSH-"):
+    if protocol == "tcp" and raw_banner.startswith("SSH-"):
         evidence_sources.append("ssh_protocol_banner")
         match = re.match(r"^SSH-([0-9.]+)-([^\s_]+)(?:_([^\s]+))?(?:\s+(.*))?", raw_banner.strip())
         if match:
-            proto_ver, prod, ver, comment = match.groups()
-            os_inferred = None
-            if comment:
-                if "ubuntu" in comment.lower():
-                    os_inferred = "Ubuntu Linux"
-                elif "debian" in comment.lower():
-                    os_inferred = "Debian Linux"
-                elif "freebsd" in comment.lower():
-                    os_inferred = "FreeBSD"
+            _, prod, ver, _ = match.groups()
+            uncertainty_reasons.append("SSH banner is self-reported and does not verify product, version, or host OS")
 
             return InferredFingerprint(
                 service_name="ssh",
                 product=prod or "OpenSSH",
                 version=ver,
-                os_inferred=os_inferred,
-                confidence=ConfidenceLevel.HIGH.value,
+                os_inferred=None,
+                confidence=ConfidenceLevel.MEDIUM.value,
                 uncertainty_reasons=uncertainty_reasons,
                 evidence_sources=evidence_sources,
             )
 
     # 2. HTTP / HTTPS Analysis
     server_header = headers.get("server") or headers.get("Server")
-    is_http_response = observed_config.http_status is not None or server_header is not None or tls is not None
+    is_http_response = protocol == "tcp" and (observed_config.http_status is not None or bool(headers))
 
-    if is_http_response or port in (80, 443, 8080, 8443):
-        service_name = "https" if (tls is not None or port in (443, 8443)) else "http"
+    if is_http_response:
+        service_name = "https" if tls is not None else "http"
         evidence_sources.append("http_service_probe")
         product = None
         version = None
@@ -63,11 +72,7 @@ def infer_service_fingerprint(
         confidence = ConfidenceLevel.MEDIUM.value
 
         # Check for CDN / Edge Proxy fronting
-        has_cloudflare = any(
-            "cloudflare" in (server_header or "").lower()
-            or "cf-ray" in k.lower()
-            for k in headers
-        )
+        has_cloudflare = any("cloudflare" in (server_header or "").lower() or "cf-ray" in k.lower() for k in headers)
         has_cloudfront = any(
             "cloudfront" in (server_header or "").lower()
             or "x-amz-cf-id" in k.lower()
@@ -100,16 +105,11 @@ def infer_service_fingerprint(
                 m = re.search(r"Apache/([0-9.]+)", server_header, re.IGNORECASE)
                 if m:
                     version = m.group(1)
-                if "ubuntu" in server_header.lower():
-                    os_inferred = "Ubuntu Linux"
-                elif "debian" in server_header.lower():
-                    os_inferred = "Debian Linux"
             elif "microsoft-iis" in server_header.lower():
                 product = "Microsoft IIS"
                 m = re.search(r"Microsoft-IIS/([0-9.]+)", server_header, re.IGNORECASE)
                 if m:
                     version = m.group(1)
-                os_inferred = "Windows Server"
             else:
                 product = server_header.split()[0]
                 confidence = ConfidenceLevel.LOW.value
@@ -122,7 +122,9 @@ def infer_service_fingerprint(
                     # Check certificate expiry if ISO or standard format
                     exp_dt = datetime.fromisoformat(tls.valid_until.replace("Z", "+00:00"))
                     if exp_dt < datetime.now(UTC):
-                        uncertainty_reasons.append("TLS certificate is expired; target service configuration may be unmaintained")
+                        uncertainty_reasons.append(
+                            "TLS certificate is expired; target service configuration may be unmaintained"
+                        )
                         confidence = ConfidenceLevel.UNCERTAIN.value
                 except (TypeError, ValueError):
                     uncertainty_reasons.append("TLS certificate expiry date could not be parsed")
@@ -150,7 +152,7 @@ def infer_service_fingerprint(
                     confidence = ConfidenceLevel.LOW.value
 
         if not product and not uncertainty_reasons:
-            uncertainty_reasons.append("HTTP port open but no descriptive product banner or Server header returned")
+            uncertainty_reasons.append("HTTP response had no descriptive product banner or Server header")
             confidence = ConfidenceLevel.PROVISIONAL.value
 
         return InferredFingerprint(
@@ -163,30 +165,57 @@ def infer_service_fingerprint(
             evidence_sources=evidence_sources,
         )
 
-    # 3. SMTP Analysis
-    if raw_banner.startswith("220") and ("smtp" in raw_banner.lower() or port in (25, 465, 587)):
+    # A TLS handshake establishes encryption, but cannot identify the application protocol.
+    if protocol == "tcp" and tls is not None:
+        uncertainty_reasons.append("TLS handshake did not identify the application protocol")
+        if tls.valid_until:
+            try:
+                exp_dt = datetime.fromisoformat(tls.valid_until.replace("Z", "+00:00"))
+                if exp_dt < datetime.now(UTC):
+                    uncertainty_reasons.append(
+                        "TLS certificate is expired; target service configuration may be unmaintained"
+                    )
+            except (TypeError, ValueError):
+                uncertainty_reasons.append("TLS certificate expiry date could not be parsed")
+        return InferredFingerprint(
+            service_name="tls",
+            product=None,
+            version=None,
+            confidence=ConfidenceLevel.UNCERTAIN.value,
+            uncertainty_reasons=uncertainty_reasons,
+            evidence_sources=["tls_handshake"],
+        )
+
+    # 3. SMTP Analysis. A generic 220 greeting is shared by multiple protocols.
+    if (
+        protocol == "tcp"
+        and raw_banner.startswith("220")
+        and re.search(r"\b(?:esmtp|smtp|postfix|exim)\b", raw_banner, re.IGNORECASE)
+    ):
         evidence_sources.append("smtp_banner")
         product = "SMTP Server"
         version = None
-        os_inferred = None
         if "postfix" in raw_banner.lower():
             product = "Postfix"
-            if "ubuntu" in raw_banner.lower():
-                os_inferred = "Ubuntu Linux"
         elif "exim" in raw_banner.lower():
             product = "Exim"
+        uncertainty_reasons.append("SMTP greeting is self-reported and does not verify product or host OS")
         return InferredFingerprint(
             service_name="smtp",
             product=product,
             version=version,
-            os_inferred=os_inferred,
-            confidence=ConfidenceLevel.HIGH.value,
+            os_inferred=None,
+            confidence=ConfidenceLevel.MEDIUM.value,
             uncertainty_reasons=uncertainty_reasons,
             evidence_sources=evidence_sources,
         )
 
     # 4. FTP Analysis
-    if raw_banner.startswith("220") and ("ftp" in raw_banner.lower() or port == 21):
+    if (
+        protocol == "tcp"
+        and raw_banner.startswith("220")
+        and re.search(r"\b(?:ftp|vsftpd|proftpd|pure-ftpd)\b", raw_banner, re.IGNORECASE)
+    ):
         evidence_sources.append("ftp_banner")
         product = "FTP Server"
         m = re.search(r"(vsftpd|proftpd|pure-ftpd)(?:\s+([0-9.]+))?", raw_banner, re.IGNORECASE)
@@ -195,37 +224,31 @@ def infer_service_fingerprint(
             version = m.group(2)
         else:
             version = None
+        uncertainty_reasons.append("FTP greeting is self-reported and does not verify product or host OS")
         return InferredFingerprint(
             service_name="ftp",
             product=product,
             version=version,
-            confidence=ConfidenceLevel.HIGH.value,
+            confidence=ConfidenceLevel.MEDIUM.value,
             uncertainty_reasons=uncertainty_reasons,
             evidence_sources=evidence_sources,
         )
 
-    # 5. Fallback for unclassified open port
-    default_names = {
-        21: "ftp",
-        22: "ssh",
-        25: "smtp",
-        53: "dns",
-        80: "http",
-        443: "https",
-        3306: "mysql",
-        3389: "rdp",
-        5432: "postgresql",
-        6379: "redis",
-        8080: "http-alt",
-        8443: "https-alt",
-    }
-    svc = default_names.get(port, f"unknown-{port}")
-    uncertainty_reasons.append("Port accepted TCP connection but emitted no descriptive protocol banner")
+    # A port number or generic greeting cannot establish which service answered.
+    uncertainty_reasons.append(
+        "TCP response did not identify an application protocol"
+        if protocol == "tcp" and raw_banner
+        else (
+            "Port accepted TCP connection but emitted no descriptive protocol banner"
+            if protocol == "tcp"
+            else "UDP datagram response did not identify an application protocol"
+        )
+    )
     return InferredFingerprint(
-        service_name=svc,
+        service_name=f"unknown-{port}",
         product=None,
         version=None,
         confidence=ConfidenceLevel.UNCERTAIN.value,
         uncertainty_reasons=uncertainty_reasons,
-        evidence_sources=["port_association"],
+        evidence_sources=["tcp_banner" if raw_banner and protocol == "tcp" else "port_association"],
     )

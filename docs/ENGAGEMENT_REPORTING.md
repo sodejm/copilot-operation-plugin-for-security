@@ -167,3 +167,71 @@ but does not contradict a covering zero-result search for that window.
 The source notice names a separate trust boundary: record hashes establish
 internal integrity, while provider-wide completeness and source authenticity
 need independent verification before a measured result is used operationally.
+
+## Retest findings and review closure
+
+`python3 -m cops engagement retest` compares a saved baseline assessment with a
+later assessment for the same engagement. It is an offline import: it does not
+run a target assessment, approve a changed plan, or close a finding. The
+[input contract](../catalog/schemas/retest-input.schema.json),
+[report contract](../catalog/schemas/retest-report.schema.json), and
+[workflow skill](../.agents/skills/engagement-retest-and-closure/SKILL.md)
+describe the required records and review steps. Start with the
+[accepted input fixture](../cops/contracts/fixtures/valid_retest_input.json):
+
+```bash
+private_dir="$(mktemp -d)"
+chmod 700 "$private_dir"
+cp cops/contracts/fixtures/valid_retest_input.json "$private_dir/retest.local.json"
+python3 -m cops engagement retest \
+  --input "$private_dir/retest.local.json" \
+  --json-output "$private_dir/retest-report.local.json" \
+  --markdown-output "$private_dir/retest-report.local.md"
+python3 -m cops contract validate --type retest_report \
+  --source-input "$private_dir/retest.local.json" \
+  "$private_dir/retest-report.local.json"
+```
+
+The command reads at most 4 MiB and creates distinct, new output files with
+owner-only permissions (`0600` on POSIX). It does not print the report body.
+Keep the source and reports in a private directory and review identifiers and
+free text before sharing.
+
+Each result corresponds to one baseline finding and exact asset. `candidate_fixed` needs
+an explicit `absent` check linked to assessed laboratory or live retest coverage
+for the same scenario and exact asset. The linked record IDs must be absent
+from the entire baseline report, with no matching finding
+in the later report. `candidate_still_vulnerable` needs an explicit `present` check and a
+matching assessed, corroborated finding. Missing checks, inaccessible or blocked
+targets, changed asset identities, reused evidence, and contradictory findings
+remain open as `not_assessed`, `inaccessible`, `blocked`, `identity_changed`, or
+`evidence_gap`. Broad network coverage alone cannot establish absence for one
+host.
+Record-ID novelty does not prove the observation occurred after the baseline;
+the saved coverage rows have no observation timestamp. Verify observation time
+against the underlying evidence before closing a finding.
+
+The report lists closure gates and next actions. Offline results remain candidates
+and closure stays `blocked`, even when the supplied records pass consistency
+checks. Recomputing with `--source-input` detects a saved report that differs
+from its supplied input; it does not authenticate either source. Before closure,
+independently authenticate
+both source reports and the target observation, bind each supplied plan ID to
+its actual plan and authorization, verify the owner acknowledgment and cleanup
+in the target environment, and document residual risk and unresolved artifacts.
+The input requires `residual_risks` (an empty array when none are recorded).
+The private JSON and Markdown reports retain the owner reference and
+acknowledgment, plan IDs, cleanup receipt statuses and unresolved effects, and
+residual risks for review. Recorded residual risks require owner review until
+an operator accepts or remediates them and updates the source record. These
+fields can identify sensitive targets or artifacts; review them before sharing.
+A receipt hash detects changes to selected receipt fields, and the importer
+checks that its status agrees with the effect lists. The hash does not cover
+status or timestamps and does not prove who issued the receipt or that cleanup
+happened. The assessment report does
+not contain a plan ID, so this importer cannot independently prove that the
+supplied plan IDs belong to those reports. Every live retest requires verification
+that its actual run used bound authority and that cleanup evidence belongs to that
+run, even when the baseline and retest plan IDs match. A changed live plan needs
+fresh authorization before execution unless a valid bound approval already
+covers its exact actions and budget; this offline review cannot grant it.

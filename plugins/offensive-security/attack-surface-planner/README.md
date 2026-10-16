@@ -103,17 +103,20 @@ python3 -m cops discovery inspect reconciled.json
 
 ## Bounded Active Discovery & Service Identification
 
-The package extends reconnaissance foundations with bounded, rate-limited active port and TLS service assessment (`cops discovery active` or `cops active-discovery`):
+The package extends reconnaissance foundations with bounded, rate-limited TCP and UDP port assessment and TLS observation (`cops discovery active` or `cops active-discovery`):
 
 1. **Approved Assessment Configuration**:
    - Explicit scan vantage (`external`, `internal`, `egress_point`, `cloud_tenant`).
+   - Separate TCP (`--ports`) and UDP (`--udp-ports`) selections. If only UDP ports are specified, no TCP ports are added; when neither is specified, TCP defaults to 80, 443, and 22. `--udp-dns-probe-ports` opts selected UDP ports into one DNS query per port and must be a subset of `--udp-ports`. A full range needs its corresponding `--allow-full-tcp` or `--allow-full-udp` flag and a sufficient shared `--max-probes` budget.
    - Rate limiting (`--rate-limit <pps>`) with probe pacing to prevent perimeter disruption.
    - Resource and execution budgets (`--timeout <sec>`, `--max-total-seconds <sec>`).
 2. **Resumable Execution**:
    - Saves checkpoint after every probe or upon budget exhaustion.
    - Resuming skips completed probes without repeating network side effects or exceeding approved targets.
+   - Stores the checkpoint and controller lock in a private directory that other processes cannot mutate for the full live run. Lock identity is revalidated after acquisition, but advisory locking cannot prevent later pathname replacement by a process with the same filesystem authority.
 3. **Grounded Service Identification with Visible Uncertainty**:
    - Distinguishes verbatim observed configurations (raw banners, HTTP status/headers, TLS ciphers/certs) from inferred fingerprints (product, version, OS).
+   - A TCP port number alone does not establish a service. TLS without an HTTP response identifies only TLS. By default, UDP sends one empty datagram per selected port: a reply establishes a responding port, while silence remains `unknown`. Opted-in UDP ports receive one nonrecursive DNS root NS query; only a matching DNS response identifies DNS, with no product or version claim. Other UDP replies remain unidentified, including replies on conventional DNS ports.
    - Calibrates confidence (`high`, `medium`, `low`, `uncertain`, `provisional`) and flags reverse proxies, CDNs, and certificate mismatches.
 4. **Scope Quarantine & DNS Rebind Defense**:
    - Enforces scope CIDR and domain checks before each probe; halts probes and flags `dns_rebind_detected` if target resolution shifts.
@@ -122,12 +125,12 @@ The package extends reconnaissance foundations with bounded, rate-limited active
 
 The repository's `docs/ACTIVE_DISCOVERY_NETWORK_ACCEPTANCE.md` describes a
 disposable-network acceptance harness for real loopback socket behavior,
-including rate limits, no-route errors, DNS shifts, checkpoint resume, and a
-closed-port retest.
+including rate limits, no-route errors, DNS shifts, checkpoint resume, a
+closed-port retest, UDP reply and silence behavior, and DNS response validation.
 
 ```bash
 # Plan active assessment
-python3 -m cops discovery active plan --targets "198.51.100.10,app.corp.internal" --ports 80,443,22 --output session.json
+python3 -m cops discovery active plan --targets "198.51.100.10,app.corp.internal" --ports 80,443,22 --udp-ports 53 --udp-dns-probe-ports 53 --output session.json
 
 # Execute bounded scan
 python3 -m cops discovery active scan session.json --scope scope.json --checkpoint checkpoint.json

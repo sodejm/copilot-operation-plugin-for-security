@@ -16,6 +16,7 @@ from .active_models import (
     ScanVantage,
     ServiceReachability,
     TargetShiftQuarantine,
+    expand_target_specs,
 )
 from .active_scanner import (
     ActiveScanError,
@@ -197,6 +198,7 @@ __all__ = [
     "build_discovery_parser",
     "command_discovery",
     "compare_active_scans",
+    "expand_target_specs",
     "import_masscan_json",
     "import_nmap_xml",
     "infer_service_fingerprint",

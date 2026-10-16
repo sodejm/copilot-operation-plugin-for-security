@@ -1047,6 +1047,7 @@ class _BrokerSupervisor:
         self._deadline = deadline
         self._stop = threading.Event()
         self._lock = threading.Lock()
+        self._process_lock = threading.Lock()
         self._finalized = False
         self._error: EgressMediationError | None = None
         self._thread = threading.Thread(target=self._monitor, daemon=True, name="cops-egress-supervisor")
@@ -1054,11 +1055,13 @@ class _BrokerSupervisor:
 
     def close(self) -> None:
         self._stop.set()
-        self._process.join(timeout=0.25)
-        self._finish(terminate=self._process.is_alive(), send_timeout_error=False)
         self._thread.join(timeout=2)
         if self._thread.is_alive():
             raise EgressMediationError("egress broker supervisor did not terminate after adapter exit")
+        with self._process_lock:
+            self._process.join(timeout=0.25)
+            process_is_alive = self._process.is_alive()
+        self._finish(terminate=process_is_alive, send_timeout_error=False)
         if self._error is not None:
             raise self._error
 
@@ -1068,8 +1071,10 @@ class _BrokerSupervisor:
             if remaining <= 0:
                 self._finish(terminate=True, send_timeout_error=True)
                 return
-            self._process.join(timeout=min(0.02, remaining))
-            if not self._process.is_alive():
+            with self._process_lock:
+                self._process.join(timeout=min(0.02, remaining))
+                process_is_alive = self._process.is_alive()
+            if not process_is_alive:
                 self._finish(terminate=False, send_timeout_error=False)
                 return
 
@@ -1077,11 +1082,12 @@ class _BrokerSupervisor:
         with self._lock:
             if self._finalized:
                 return
-            if terminate and self._process.is_alive():
-                self._process.kill()
-            self._process.join(timeout=2)
-            if self._process.is_alive():
-                self._error = EgressMediationError("egress broker process could not be reaped")
+            with self._process_lock:
+                if terminate and self._process.is_alive():
+                    self._process.kill()
+                self._process.join(timeout=2)
+                if self._process.is_alive():
+                    self._error = EgressMediationError("egress broker process could not be reaped")
             if send_timeout_error:
                 with suppress(BrokenPipeError, ConnectionError, OSError, TimeoutError):
                     self._server_socket.settimeout(0.1)
