@@ -423,14 +423,8 @@ def _verification_shape_is_valid(verification: ValidationEvidenceVerification) -
         and _string_tuple(verification.authorized_use_evidence)
         and type(verification.authorized_use_verified) is bool
         and (
-            (
-                verification.authorized_use_verified
-                and bool(verification.authorized_use_evidence)
-            )
-            or (
-                not verification.authorized_use_verified
-                and verification.authorized_use_evidence == ()
-            )
+            (verification.authorized_use_verified and bool(verification.authorized_use_evidence))
+            or (not verification.authorized_use_verified and verification.authorized_use_evidence == ())
         )
         and _string_tuple(verification.cleanup_evidence)
         and type(verification.cleanup_verified) is bool
