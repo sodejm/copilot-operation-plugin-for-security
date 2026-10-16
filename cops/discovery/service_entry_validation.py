@@ -22,7 +22,9 @@ _LABEL = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 _VANTAGES = frozenset({"external", "internal", "egress_point", "cloud_tenant"})
 _TRANSPORTS = frozenset({"tcp", "udp"})
 _SPECIALIST_ID = "cops-pentest-specialist"
-_SESSION_STATUSES = frozenset({"in_progress", "partial", "completed", "budget_exhausted", "interrupted"})
+# Recorded probes from terminal cancelled sessions remain eligible for handoff;
+# sessions requiring reconciliation stay quarantined until their state is resolved.
+_SESSION_STATUSES = frozenset({"in_progress", "partial", "completed", "cancelled", "budget_exhausted", "interrupted"})
 _PLAN_VERSION = "cops.service-validation-plan/v2"
 
 

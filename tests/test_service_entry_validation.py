@@ -248,6 +248,24 @@ class ServiceEntryValidationTests(unittest.TestCase):
         self.assertEqual([result.status for result in results], ["candidate", "blocked_scope"])
         self.assertIsNone(results[1].plan)
 
+    def test_cancelled_session_routes_its_completed_recorded_probe(self) -> None:
+        session = scan_session(assessment())
+        session.status = "cancelled"
+
+        result = prepare_session_service_handoffs(session, approved_endpoints={self.endpoint})[0]
+
+        self.assertEqual(result.status, "candidate")
+        self.assertIsNotNone(result.plan)
+
+    def test_session_requiring_reconciliation_cannot_create_plan(self) -> None:
+        session = scan_session(assessment())
+        session.status = "requires_reconciliation"
+
+        result = prepare_session_service_handoffs(session, approved_endpoints={self.endpoint})[0]
+
+        self.assertEqual(result.status, "invalid_session")
+        self.assertIsNone(result.plan)
+
     def test_ipv6_quarantine_alias_cannot_create_plan(self) -> None:
         endpoint = ApprovedEndpoint("2001:db8::1", "2001:db8::1", 2222, "tcp", "internal")
         session = scan_session(assessment(target_host="2001:0db8:0:0:0:0:0:1", resolved_ip="2001:db8::1"))
