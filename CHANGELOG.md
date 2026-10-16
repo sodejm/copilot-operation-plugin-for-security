@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Require offline SARIF conformance in the portable gate using the unmodified,
+  hash-pinned official schema and OASIS notices. Verify vulnerable, corrected and
+  inconclusive exports and reject malformed reports without optional test skips.
+
 - Bind exposure audits to exact endpoints, collection windows, DNS addresses and
   authentication evidence. Add actual isolated DNS playback, vulnerable/corrected
   HTTP checks and insufficient-evidence cases; DNS failures verify cleanup.
