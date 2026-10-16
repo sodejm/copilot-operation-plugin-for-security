@@ -41,13 +41,13 @@
     },
     {
       "path": "entra-grants.jsonl",
-      "sha256": "39c05f2d7f9d3d7ddfd55a40851ff23bd20f6eea84c4f8a77572112a5943f448",
+      "sha256": "7f5b7dfbd24994cd1bb4065ae06cd81de864c150ebe067ec6f5c90da7e7cc49f",
       "format": "Microsoft Graph oauth2PermissionGrant-shaped JSONL",
       "synthetic": true
     },
     {
       "path": "entra-signins.jsonl",
-      "sha256": "a5bc0d4f8d7f7f9c87d3249deeebfe33cb3b73072ee755740fe7b0d620794356",
+      "sha256": "83117f6f9ccae1a1b60f7cdd9a3a78e5bfca5b7d4e9e30cf07b1247ef48ef50f",
       "format": "Microsoft Graph signIn-shaped JSONL",
       "synthetic": true
     },
@@ -125,6 +125,15 @@
         "corrected": "corrected_dependency",
         "missing_evidence": "not_established"
       }
+    },
+    {
+      "expected_outcomes": [
+        "tenant-bound service principal to application mapping; grants and sign-ins are separate exports"
+      ],
+      "path": "consent-context.json",
+      "sha256": "c4d06dcb2f5e02b85e4bc4f2ce5488b7e688e6d0bd8074c1c37c9e8c940f57c0",
+      "format": "COPS consent evidence context v1",
+      "synthetic": true
     }
   ],
   "reset": {

@@ -88,6 +88,14 @@ def test_integrated_workflow_uses_services_and_action_bound_approvals(
         assert assessment["grant_access_after"] == 401
         assert assessment["remediation_verified"] is True
         assert assessment["production_entra_validation"] == "unverified"
+        assert assessment["benign_access_before"] == assessment["benign_access_after"] == 200
+        proposal = assessment["proposal"]
+        assert proposal["eligible"] is True
+        assert proposal["targets"][0]["grant_id"] == "grant-attack-001"
+        assert proposal["targets"][0]["client_id"] != proposal["targets"][0]["app_id"]
+        assert len(proposal["evidence_refs"]) == 3
+        revoked = [event for event in report["events"] if event["event"] == "grant_revoked"]
+        assert [event["identity"] for event in revoked] == proposal["targets"]
     elif workflow_id == "detection-rule-ci-validation":
         assert assessment["attack_and_benign_executed"] is True
         assert assessment["event_counts"]["class:attack"] == 3
@@ -165,14 +173,15 @@ def test_integrated_strict_isolation_blocks_before_state(
     assert not state_dir.exists()
 
 
+@pytest.mark.parametrize("workflow_id", ["leaked-credential-blast-radius", "illicit-consent-remediation"])
 def test_integrated_credential_never_enters_artifacts(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, workflow_id: str,
 ) -> None:
     sentinel = "synthetic-integrated-credential-must-not-persist"
     monkeypatch.setattr(integrated_lab.secrets, "token_urlsafe", lambda _size: sentinel)
     state_dir = tmp_path / "secret-check"
     report = integrated_lab.run_integrated_service_laboratory(
-        state_dir, workflow_id="leaked-credential-blast-radius",
+        state_dir, workflow_id=workflow_id,
         git_sha256=GIT_SHA256,
     )
 
@@ -180,6 +189,35 @@ def test_integrated_credential_never_enters_artifacts(
     for path in state_dir.rglob("*"):
         if path.is_file():
             assert sentinel.encode() not in path.read_bytes(), path
+
+
+@pytest.mark.parametrize("fault", ["incomplete", "cross_tenant", "wrong_grant", "corrected"])
+def test_consent_rejects_incomplete_or_unbound_grants_without_affecting_benign_access(
+    tmp_path: Path, fault: str,
+) -> None:
+    evidence = integrated_lab.load_consent_fixture()
+    if fault == "incomplete":
+        evidence["coverage"]["signins_complete"] = False
+    elif fault == "cross_tenant":
+        evidence["signins"][0]["tenant_id"] = "unrelated-tenant"
+    elif fault == "wrong_grant":
+        evidence["grants"][0]["id"] = "unrelated-grant"
+    else:
+        evidence["grants"][0]["high_privilege"] = False
+    report = integrated_lab.run_integrated_service_laboratory(
+        tmp_path / fault, workflow_id="illicit-consent-remediation", consent_evidence=evidence,
+    )
+    assessment = report["outputs"]["assessment"]
+    assert assessment["grant_access_before"] == assessment["grant_access_after"] == 200
+    assert assessment["benign_access_before"] == assessment["benign_access_after"] == 200
+    assert assessment["revocation"] == (409 if fault == "wrong_grant" else None)
+    assert assessment["remediation_verified"] is False
+    assert not any(event["event"] == "grant_revoked" for event in report["events"])
+    if fault in {"incomplete", "cross_tenant"}:
+        assert assessment["assessment"]["status"] == "insufficient_evidence"
+    elif fault == "corrected":
+        assert assessment["assessment"]["status"] == "no_suspicious_consent_observed"
+    assert report["restoration"] == {"baseline_restored": True, "services_stopped": True}
 
 
 def test_integrated_credential_requires_reviewed_git_before_state(

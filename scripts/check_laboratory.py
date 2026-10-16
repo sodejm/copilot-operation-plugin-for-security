@@ -360,6 +360,11 @@ def _integrated_case(workflow_id: str, state_dir: Path, *, require_isolation: bo
         _expect(failures, assessment.get("without_runtime_evidence") == {"reachability": "unknown", "non_exploitable": False}, "missing runtime evidence became non-exploitability")
     elif workflow_id == "illicit-consent-remediation":
         _expect(failures, [assessment.get(key) for key in ("grant_access_before", "revocation", "grant_access_after")] == [200, 200, 401], "grant revocation did not change real authentication")
+        _expect(failures, assessment.get("benign_access_before") == assessment.get("benign_access_after") == 200, "grant revocation disrupted unrelated access")
+        _expect(failures, assessment.get("remediation_verified") is True, "grant remediation was not verified")
+        targets = assessment.get("proposal", {}).get("targets", [])
+        revoked = [event.get("identity") for event in report["events"] if event.get("event") == "grant_revoked"]
+        _expect(failures, len(targets) == 1 and revoked == targets and targets[0].get("grant_id") == "grant-attack-001", "revocation was not bound to the imported grant")
     elif workflow_id == "detection-rule-ci-validation":
         _expect(failures, assessment.get("event_counts", {}).get("class:attack") == 3 and assessment.get("event_counts", {}).get("class:benign") == 3, "detection measurements lack attack or benign execution")
         _expect(failures, len(assessment.get("alerts", [])) == 2, "detection measurements differ from actual alerts")

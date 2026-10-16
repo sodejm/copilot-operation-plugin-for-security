@@ -13,7 +13,7 @@ target, action, arguments, limits, and expected evidence.
 | `leaked-credential-blast-radius` | Git history findings → identity and SOC evidence → exposure assessment → rotation/revocation checklist → evidence bundle | `vulnerable`, `corrected` |
 | `cve-reachability-triage` | advisory and dependency evidence → call graph/runtime reachability → compensating controls → prioritized remediation | `vulnerable`, `corrected`, `limited` |
 | `kubernetes-compromise-containment` | evidence snapshot → RBAC/service account review → proposed containment → modeled lab expectations → required authorized lab validation | `vulnerable`, `corrected` |
-| `illicit-consent-remediation` | Entra grants and sign-ins → suspicious-consent assessment → remediation proposal → modeled identity/hunt validation expectations | `vulnerable`, `corrected` |
+| `illicit-consent-remediation` | Entra grants, service principals and sign-ins → tenant-bound assessment → exact-grant proposal → modeled validation expectations | `vulnerable`, `corrected`, `limited` |
 | `detection-rule-ci-validation` | telemetry replay → Sigma/KQL execution → attack and benign counts → evidence-backed detection report | `verified`, `detection_gap` |
 | `pre-release-exposure-audit` | scoped DNS/service inventory → port and route checks → authentication checks → remediation report | `vulnerable`, `corrected` |
 
@@ -119,7 +119,13 @@ Fixture reports state their evidence limits directly:
   checks. It reports `activity_performed: false`, never claims connectivity or
   cleanup verification, and returns `insufficient_lab_validation` when changes
   require an authorized laboratory run.
-- Illicit-consent playback models the expected identity and hunt package checks.
+- Illicit-consent playback requires complete tenant-bound exports, unique IDs,
+  in-window timestamps and evidence references. Grant `client_id` joins a service
+  principal object ID; its `app_id` joins sign-ins. Principal-specific grants
+  require the same user. Missing or conflicting evidence returns
+  `insufficient_evidence` with no target. Risk labels and completeness are supplied
+  assertions, and corrected flags support only `no_suspicious_consent_observed`.
+  Playback models the expected identity and hunt package checks.
   It never reports either package as exercised and returns
   `insufficient_lab_validation` when a remediation proposal requires laboratory
   validation.
@@ -160,7 +166,10 @@ The credential chain creates a disposable Git repository, commits and then delet
 a synthetic credential, and scans reachable history through the pinned Git
 adapter. It verifies unchanged repository bytes and identifies the same credential
 used by the service. The credential and consent chains prove authenticated access,
-revocation, and subsequent HTTP 401. The credential chain signs its redacted evidence bundle with
+revocation, and subsequent HTTP 401. Consent uses the exact tenant/grant/client/app
+tuple derived from imported evidence; unrelated grant access remains HTTP 200.
+Missing evidence makes no change and a mismatched grant is rejected. Session
+revocation and follow-up hunting remain proposals. The credential chain signs its redacted evidence bundle with
 an ephemeral Ed25519 key and verifies the signature. Detection CI measures actual
 captured attack and benign events. It evaluates all four purple-team states using
 explicitly labeled complete, withheld-log, withheld-alert, and unavailable-alert
@@ -188,6 +197,8 @@ laboratory cases do not establish the production worker's distinct-user boundary
 Run the focused validation with the repository environment:
 
 ```console
-python -m pytest -q tests/test_integrated_workflows.py tests/test_cve_evidence_binding.py
+python -m pytest -q tests/test_integrated_workflows.py tests/test_cve_evidence_binding.py tests/test_consent_evidence.py
 python -m pytest -q tests/test_integrated_service_laboratory.py
 ```
+
+The identity distinction follows the Microsoft Graph [oauth2PermissionGrant](https://learn.microsoft.com/en-us/graph/api/resources/oauth2permissiongrant?view=graph-rest-1.0) and [signIn](https://learn.microsoft.com/en-us/graph/api/resources/signin?view=graph-rest-1.0) contracts.

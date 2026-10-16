@@ -172,3 +172,11 @@ Keep exact component and malformed inventory regressions, missing invocation
 evidence, unbound controls, and vulnerable/corrected real HTTP cases. A source
 change requires reviewing and repinning the synthetic advisory fixtures. Then
 run the portable, documentation and strict laboratory gates.
+
+### Consent correction evidence
+
+Run `python -m pytest tests/test_consent_evidence.py tests/test_integrated_workflows.py tests/test_integrated_service_laboratory.py`.
+Retain missing, stale, conflicting and cross-tenant cases, principal-specific
+correlation, corrected risk assertions, and mismatched grant rejection. Actual
+HTTP acceptance must show target access changing from 200 to 401 while unrelated
+access stays 200. Run portable, documentation and strict laboratory gates.

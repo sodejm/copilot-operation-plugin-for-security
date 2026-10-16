@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Bind consent remediation to complete tenant-scoped exports and exact grant,
+  client and application identities. Verify actual synthetic grant revocation
+  without interrupting unrelated access; incomplete evidence remains unresolved.
+
 - Bind CVE workflow evidence to exact component versions and source digests,
   record actual laboratory invocations, reject unrelated or malformed evidence,
   and add a distinct corrected-component profile.

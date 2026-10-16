@@ -5,10 +5,18 @@
     "max_stages": 4,
     "max_total_attempts": 4
   },
-  "description": "Correlate Entra grants and sign-ins, assess illicit consent, propose remediation, and validate identity and hunt actions in a fixture laboratory.",
+  "description": "Correlate tenant-bound grant, service principal and sign-in evidence, then propose exact remediation targets with explicit laboratory validation limits.",
   "engagement_id": "eng-integrated-offline-fixtures",
   "inputs": {
+    "coverage": {
+      "required": true,
+      "type": "object"
+    },
     "grants": {
+      "required": true,
+      "type": "array"
+    },
+    "service_principals": {
       "required": true,
       "type": "array"
     },
@@ -51,8 +59,16 @@
       },
       "depends_on": [],
       "inputs": {
+        "coverage": {
+          "source": "workflow.input.coverage",
+          "type": "object"
+        },
         "grants": {
           "source": "workflow.input.grants",
+          "type": "array"
+        },
+        "service_principals": {
+          "source": "workflow.input.service_principals",
           "type": "array"
         },
         "signins": {
@@ -150,8 +166,8 @@
       "action": {
         "action": "consent.validate_in_lab",
         "expected_evidence": [
-          "identity package result",
-          "hunt package result"
+          "modeled remediation expectations",
+          "explicit execution limitations"
         ],
         "limits": {
           "egress_allowed": false,

@@ -144,3 +144,13 @@ lists with timestamped, referenced invocation records bound to those components.
 Unbound controls cannot lower priority. The added corrected profile reports
 `known_corrected_component`; absent or malformed evidence stays insufficient.
 No profile establishes general non-exploitability.
+
+## Consent export binding
+
+Consent workflow inputs now require `service_principals` and `coverage` alongside
+`grants` and `signins`. Supply explicit collection completeness, tenant, observation
+window, record timestamps and evidence references. Grant `client_id` is a service
+principal object ID; sign-in `app_id` is the application ID reached through that
+principal. Principal-specific grants also require a matching user. Older loose
+risk arrays cannot establish a target. The added `limited` profile remains
+insufficient; corrected assertions produce only a bounded negative observation.
