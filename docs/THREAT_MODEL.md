@@ -654,3 +654,17 @@ Malformed isolation evidence and incomplete composite case sets fail closed.
 The privileged node shares the Docker kernel; use a dedicated disposable VM.
 Compromised publisher images, a hostile daemon, other CNIs and production clusters
 remain outside the tested boundary. Independent human security review is pending.
+
+## Integrated CVE evidence binding
+
+Untrusted inventory, runtime and control records could falsely claim a corrected
+or unreachable dependency and suppress remediation. The shared matcher requires
+a complete well-formed inventory, exact advisory component identity, timestamped
+execution references and positive invocation counts. Controls additionally bind
+the advisory ID. The laboratory emits these records at actual query execution.
+`tests/test_cve_evidence_binding.py` and the integrated service suite reject
+unrelated identities, malformed entries, missing observations and unbound
+controls while verifying vulnerable/corrected HTTP outcomes. Offline source
+authenticity and semantic truth remain operator responsibilities; no negative
+observation establishes non-exploitability. Production advisory and version-range
+resolution remain outside this synthetic contract.

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Bind CVE workflow evidence to exact component versions and source digests,
+  record actual laboratory invocations, reject unrelated or malformed evidence,
+  and add a distinct corrected-component profile.
+
 - Add pinned, air-gapped Kubernetes containment acceptance with real pod traffic,
   metadata audit logs, plan-bound approvals, and restoration after success,
   failure and cancellation. Require its evidence alongside all twelve service

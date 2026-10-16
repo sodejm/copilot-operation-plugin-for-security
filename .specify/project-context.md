@@ -181,3 +181,8 @@ disposable privileged K3s node, separate from the unprivileged service container
 Both adapters require observed isolation, activity, telemetry and restoration.
 The composite gate requires twelve service cases plus real Kubernetes enforcement;
 see `docs/KUBERNETES_LABORATORY.md` for pinned prerequisites and host limitations.
+
+Integrated CVE playback shares exact component/advisory binding with the service
+laboratory. Real query invocation records distinguish affected and fixed source
+identities; missing or unrelated evidence remains insufficient. This is a pinned
+synthetic advisory case, with no general non-exploitability or provider claim.

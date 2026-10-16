@@ -251,3 +251,12 @@ metadata-only API audit records and nonce-correlated HTTP logs establish observe
 activity; missing evidence fails acceptance. Cleanup verifies namespace, node,
 volume and temporary-tag removal. This trust boundary does not protect the host
 from a compromised privileged image or certify the production worker boundary.
+
+## CVE evidence trust
+
+The synthetic advisory workflow binds runtime calls and controls to exact
+component identities. Unrelated modules, malformed inventories and unbound
+controls cannot establish reachability or lower remediation priority. Offline
+records remain supplied assertions; the isolated laboratory generates actual
+invocation records. Neither path authenticates an external advisory publisher or
+establishes non-exploitability outside the supplied component and observation.

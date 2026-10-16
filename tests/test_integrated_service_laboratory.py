@@ -75,6 +75,13 @@ def test_integrated_workflow_uses_services_and_action_bound_approvals(
         assert assessment["remediation_verified"] is True
         assert assessment["without_runtime_evidence"] == {"reachability": "unknown", "non_exploitable": False}
         assert assessment["advisory"]["production_advisory_support"] is False
+        for profile, status in (("vulnerable", "reachable"), ("corrected", "corrected_dependency")):
+            assert assessment[profile + "_assessment"]["status"] == status
+            component = assessment[profile]["dependency_inventory"]["packages"][0]
+            records = assessment[profile]["runtime_evidence"]["modules"]
+            assert len(records) == 2
+            assert all(item["component"] == component and item["calls"] == 1 for item in records)
+            assert len({item["evidence_ref"] for item in records}) == 2
     elif workflow_id == "illicit-consent-remediation":
         assert assessment["grant_access_before"] == 200
         assert assessment["revocation"] == 200
@@ -110,6 +117,38 @@ def test_integrated_workflow_uses_services_and_action_bound_approvals(
         assert assessment["anonymous_status"] == 401
         assert assessment["authentication_verified"] is True
         assert assessment["coverage"] == "explicit loopback destinations only"
+
+
+@pytest.mark.parametrize("fault", ["missing", "unrelated", "loaded_only"])
+def test_actual_cve_requests_cannot_mask_unbound_runtime_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str,
+) -> None:
+    original = integrated_lab.run_boundary_acceptance
+
+    def observe(profile: str) -> dict:
+        result = original(profile)
+        records = result["runtime_evidence"]["modules"]
+        if fault == "missing":
+            records.clear()
+        elif fault == "unrelated":
+            for record in records:
+                record["component"] = {**record["component"], "source_sha256": "0" * 64}
+        else:
+            for record in records:
+                record.pop("calls")
+                record["loaded"] = True
+        return result
+
+    monkeypatch.setattr(integrated_lab, "run_boundary_acceptance", observe)
+    report = integrated_lab.run_integrated_service_laboratory(
+        tmp_path / fault, workflow_id="cve-reachability-triage", run_id="binding-" + fault,
+    )
+    assessment = report["outputs"]["assessment"]
+    assert assessment["vulnerable"]["injection_rows"] == 2
+    assert assessment["corrected"]["injection_rows"] == 0
+    assert assessment["reachability"] == "indeterminate"
+    assert assessment["remediation_verified"] is False
+    assert report["restoration"] == {"baseline_restored": True, "services_stopped": True}
 
 
 def test_integrated_strict_isolation_blocks_before_state(
