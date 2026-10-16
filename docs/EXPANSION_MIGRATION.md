@@ -86,3 +86,13 @@ remains portable. A blocked isolation prerequisite or unavailable required
 platform leaves the corresponding capability incomplete. Preserve native
 filesystem and worker CI. Record revision, input digests, commands, outcomes,
 and limitations using the [acceptance report](EXPANSION_ACCEPTANCE.md).
+
+## EVTX imports
+
+Existing normalized JSON playback formats remain valid. Binary EVTX now has a
+separate `cops telemetry import-evtx` command and `cops.evtx-import/v1` result.
+Install the exact optional `evtx` prerequisites on Linux or use the hash-locked
+[laboratory runtime](../laboratories/service-runtime/README.md). Other platforms
+return `unsupported_parser_platform`. Supply a trusted expected SHA-256; an import
+cannot authenticate its operator-supplied digest. Partial imports are indeterminate
+for detection coverage. This does not promote native Windows acquisition readiness.

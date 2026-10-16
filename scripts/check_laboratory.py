@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -24,6 +25,7 @@ from cops.laboratory.workflow_lab import (
     IsolationRequiredError,
     run_workflow_service_laboratory,
 )
+from cops.adapters.evtx import EvtxImportError, import_evtx
 
 SCHEMA_VERSION = "cops.laboratory-acceptance-gate/v1"
 
@@ -103,6 +105,42 @@ def _offline_case(laboratory: ServiceLaboratory) -> dict[str, Any]:
             "alerts": len(report.alert_events),
         },
     }
+
+
+def _evtx_case() -> dict[str, Any]:
+    """Require the real pinned parser; missing prerequisites fail this gate."""
+    fixture_root = ROOT / "cops/laboratory/service_fixtures"
+    failures: list[str] = []
+    metrics = {}
+    for profile in ("vulnerable", "corrected", "insufficient"):
+        path = fixture_root / f"sysmon-{profile}.evtx"
+        before = path.read_bytes()
+        source_hash = hashlib.sha256(before).hexdigest()
+        report = import_evtx(path, expected_sha256=source_hash)
+        expected_indicators = 1 if profile == "vulnerable" else 0
+        expected_status = "partial" if profile == "insufficient" else "imported"
+        expected_records = 1 if profile == "insufficient" else 2
+        _expect(failures, report["status"] == expected_status, f"{profile}: incorrect coverage status")
+        _expect(failures, report["records_total"] == expected_records, f"{profile}: records missing")
+        _expect(failures, report["indicator_counts"] == {"powershell_network": expected_indicators, "encoded_command": expected_indicators}, f"{profile}: correction indicators differ")
+        _expect(failures, path.read_bytes() == before, f"{profile}: original source changed")
+        _expect(failures, all(event["evidence_ref"].startswith(f"evtx:sha256:{source_hash}:record:") for event in report["events"]), f"{profile}: evidence identity absent")
+        _expect(failures, all(value not in json.dumps(report) for value in ("SYNTHETIC_SECRET", "CommandLine", "lab-user")), f"{profile}: source content leaked")
+        if profile == "insufficient":
+            _expect(failures, report["coverage_status"] == "indeterminate" and report["records_incomplete"] == 1 and not report["events"], "insufficient evidence was promoted")
+        metrics[profile] = {key: report[key] for key in ("source_sha256", "records_total", "records_normalized", "status", "indicator_counts")}
+        with tempfile.TemporaryDirectory(prefix="cops-evtx-integrity-") as directory:
+            changed = Path(directory) / "changed.evtx"
+            altered = bytearray(before)
+            altered[5000] ^= 1
+            changed.write_bytes(altered)
+            try:
+                import_evtx(changed, expected_sha256=source_hash)
+            except EvtxImportError as exc:
+                _expect(failures, str(exc) == "source_hash_mismatch", f"{profile}: changed source failed for unexpected reason")
+            else:
+                failures.append(f"{profile}: changed source accepted")
+    return {"failures": failures, "metrics": metrics}
 
 
 def _service_case(
@@ -349,6 +387,7 @@ def run_acceptance_gate(state_root: Path) -> tuple[int, dict[str, Any]]:
     cases: list[dict[str, Any]] = []
     laboratory = ServiceLaboratory()
     cases.append(_run_case("offline-playback", lambda: _offline_case(laboratory)))
+    cases.append(_run_case("binary-evtx", _evtx_case))
     for profile in ("vulnerable", "corrected"):
         cases.append(
             _run_case(

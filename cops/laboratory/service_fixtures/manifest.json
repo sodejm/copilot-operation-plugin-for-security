@@ -63,55 +63,123 @@
       "format": "normalized Sysmon-shaped JSONL",
       "synthetic": true,
       "is_evtx": false
+    },
+    {
+      "path": "sysmon-vulnerable.evtx",
+      "sha256": "4dbd6c4f96c5adae0e2c1df9847ab03a76131ecc60136c227d35f0fde8c1c245",
+      "format": "EVTX 3.1 binary, synthetic inline BinXML",
+      "synthetic": true,
+      "is_evtx": true,
+      "generator": "python scripts/build_evtx_fixtures.py",
+      "expected_outcomes": {
+        "status": "imported",
+        "records_total": 2,
+        "records_normalized": 2,
+        "indicator_counts": {
+          "powershell_network": 1,
+          "encoded_command": 1
+        }
+      }
+    },
+    {
+      "path": "sysmon-corrected.evtx",
+      "sha256": "74e3ba983be16a897f515c12744f9f155876ed06f4eeb52fa790507cf339b8d2",
+      "format": "EVTX 3.1 binary, synthetic inline BinXML",
+      "synthetic": true,
+      "is_evtx": true,
+      "generator": "python scripts/build_evtx_fixtures.py",
+      "expected_outcomes": {
+        "status": "imported",
+        "records_total": 2,
+        "records_normalized": 2,
+        "indicator_counts": {
+          "powershell_network": 0,
+          "encoded_command": 0
+        }
+      }
+    },
+    {
+      "path": "sysmon-insufficient.evtx",
+      "sha256": "5023fa444889f6a5d54c524f6507dfffe3677f076fb0640132c69ec6f8bd5ff9",
+      "format": "EVTX 3.1 binary, synthetic inline BinXML",
+      "synthetic": true,
+      "is_evtx": true,
+      "generator": "python scripts/build_evtx_fixtures.py",
+      "expected_outcomes": {
+        "status": "partial",
+        "records_total": 1,
+        "records_normalized": 0,
+        "indicator_counts": {
+          "powershell_network": 0,
+          "encoded_command": 0
+        }
+      }
     }
   ],
   "reset": {
     "service_state": "Restore the in-memory baseline on normal exit, failure, and cancellation.",
     "certificates": "Delete the temporary certificate directory after every TLS acceptance run.",
-    "persistent_data": "No database, credential, certificate, or listening service survives the runner process."
+    "persistent_data": "No database, credential, certificate, or listening service survives the runner process.",
+    "evtx": "Read-only import leaves originals unchanged; each private parser snapshot is removed on success, error, and timeout."
   },
   "heavyweight_adapters": [
     {
       "name": "Docker Engine",
       "pinned_prerequisite": "preinstalled immutable image sha256 digest; Python >=3.11 and cryptography==50.0.2 inside the image",
       "bundled": false,
-      "platforms": ["linux", "macOS-hosted-Linux-VM"],
+      "platforms": [
+        "linux",
+        "macOS-hosted-Linux-VM"
+      ],
       "status": "explicit Docker gate adapter; requires reachable daemon, pre-start container inspection, kernel boundary probes, actual service activity, and verified cleanup"
     },
     {
       "name": "kubectl",
       "pinned_prerequisite": "1.31.3",
       "bundled": false,
-      "platforms": ["linux", "macOS", "windows"],
+      "platforms": [
+        "linux",
+        "macOS",
+        "windows"
+      ],
       "status": "fixture playback does not invoke a cluster"
     },
     {
       "name": "Zeek",
       "pinned_prerequisite": "7.0.4",
       "bundled": false,
-      "platforms": ["linux", "macOS"],
+      "platforms": [
+        "linux",
+        "macOS"
+      ],
       "status": "registered for future isolated packet fixtures"
     },
     {
       "name": "Suricata",
       "pinned_prerequisite": "7.0.7",
       "bundled": false,
-      "platforms": ["linux"],
+      "platforms": [
+        "linux"
+      ],
       "status": "registered for future isolated packet fixtures"
     },
     {
       "name": "Sysmon",
       "pinned_prerequisite": "15.15",
       "bundled": false,
-      "platforms": ["windows"],
-      "status": "authentic EVTX acquisition blocked; bundled fixture is explicitly normalized JSON"
+      "platforms": [
+        "windows"
+      ],
+      "status": "Native Windows acquisition remains unvalidated; generated binary EVTX fixtures establish bounded import only."
     },
     {
       "name": "python-evtx",
       "pinned_prerequisite": "0.8.1",
       "bundled": false,
-      "platforms": ["linux", "macOS", "windows"],
-      "status": "adapter unsupported until an authentic harmless EVTX fixture is acquired"
+      "platforms": [
+        "linux"
+      ],
+      "status": "sysmon-evtx/v1 bounded import with hexdump==3.3; Linux resource limits required; other platforms explicitly unsupported"
     }
   ]
 }

@@ -126,3 +126,13 @@ Use the [plugin-run-cost contributor skill](.agents/skills/plugin-run-cost/SKILL
 for local execution accounting and input-based forecasts. It reuses session audit
 request normalization. Keep private ledgers outside Git, and keep development costs
 separate from plugin executions. Synthetic examples are not production benchmarks.
+
+### EVTX correction evidence
+
+Run `python -m pytest tests/test_evtx_import.py tests/test_check_laboratory.py`
+after importer changes. `python scripts/build_evtx_fixtures.py` regenerates the
+three synthetic binary counterparts; update their manifest checksums only after
+reviewing the intended fixture change. Portable tests cover framing and worker
+boundaries. The required Linux laboratory gate parses every counterpart with the
+pinned parser and cannot skip a missing prerequisite. See
+[the runtime recipe](laboratories/service-runtime/README.md).

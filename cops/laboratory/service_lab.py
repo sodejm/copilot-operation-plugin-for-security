@@ -377,7 +377,8 @@ def verify_fixture_manifest(directory: Path = FIXTURE_DIRECTORY) -> str:
     fixtures = manifest.get("fixtures")
     if not isinstance(fixtures, list) or not 1 <= len(fixtures) <= 64:
         raise ValueError("laboratory fixture manifest has an invalid file count")
-    expected = {"vulnerable.json", "corrected.json", "entra-grants.jsonl", "entra-signins.jsonl", "kubernetes-audit.jsonl", "sysmon-normalized.jsonl"}
+    expected = {"vulnerable.json", "corrected.json", "entra-grants.jsonl", "entra-signins.jsonl", "kubernetes-audit.jsonl", "sysmon-normalized.jsonl",
+                "sysmon-vulnerable.evtx", "sysmon-corrected.evtx", "sysmon-insufficient.evtx"}
     observed_paths: set[str] = set()
     total = 0
     for item in fixtures:

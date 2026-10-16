@@ -162,3 +162,11 @@ reviewed evidence record under a repository-defined contract.
 See [Getting Started](../docs/GETTING_STARTED.md),
 [architecture](../ARCHITECTURE.md), [repository layout](../docs/REPOSITORY_LAYOUT.md),
 and [adding a plugin](../docs/ADDING_A_PLUGIN.md).
+
+## Optional artifact parsers
+
+The operator core remains standard-library based. Binary Sysmon EVTX import uses
+the fixed `sysmon-evtx/v1` adapter with `python-evtx==0.8.1` and `hexdump==3.3`
+in a resource-limited Linux subprocess. It validates a read-only snapshot before
+normalizing supported records; native acquisition is a separate capability.
+See [the import specification](../../specs/evtx-import.spec.md).

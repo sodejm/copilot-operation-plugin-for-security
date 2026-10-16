@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add a registered Linux EVTX importer with pinned parser prerequisites, source
+  checksums, resource limits, redacted Sysmon records, and binary correction fixtures.
+  Native Windows acquisition remains unvalidated.
+
 - Add centralized Specialist Cybersecurity Agent Profiles directory (`agents/`) with 27
   callable agent profiles across offensive security, defensive operations, incident
   response, digital forensics, identity governance, and compliance.

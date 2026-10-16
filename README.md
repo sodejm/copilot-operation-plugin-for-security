@@ -246,3 +246,12 @@ Contributors can use [plugin-run-cost](.agents/skills/plugin-run-cost/SKILL.md) 
 ## Local pre-push validation
 
 See [installation, prerequisites, security boundaries and recovery](docs/LOCAL_PUSH_GATE.md). CI remains required.
+
+### Offline EVTX import
+
+`cops telemetry import-evtx --input evidence.evtx --sha256 EXPECTED_SHA256`
+imports clean, non-wrapped EVTX exports through a pinned Linux parser. It supports
+Sysmon event IDs 1, 3, and 10 with content-free indicators and record evidence
+references. Missing or unsupported records remain partial. See the
+[import contract](specs/evtx-import.spec.md) and
+[laboratory setup](docs/SERVICE_LABORATORY.md#fixtures-and-provenance).
