@@ -83,7 +83,7 @@
       "profiles": [
         {
           "expected_outcome": "verified_detection",
-          "input_digest": "6e00ea273c6da50a69b1cc173a25f3d7b19fa30ced7683c19e739df054f9b261",
+          "input_digest": "b1e6b8b911f5a3e27fe3799bdc1c2a9bad544b8f92cbb9791e74b02d96a234d6",
           "path": "fixtures/detection-rule-ci-validation.verified.json",
           "profile_id": "verified"
         },

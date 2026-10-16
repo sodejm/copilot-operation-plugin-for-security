@@ -74,7 +74,7 @@ report = run_offline_playback(
             "timestamp": "2026-01-01T00:05:00Z",
         }],
         "alerts": [{
-            "alert": True, "correlation_id": "corr-001",
+            "alert": True, "correlation_id": "corr-001", "event": "credential_revoked",
             "timestamp": "2026-01-01T00:06:00Z",
         }],
         "attack_fixture": [{
