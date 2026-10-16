@@ -270,3 +270,10 @@ NetworkPolicy to disposable pods, correlates HTTP and API audit telemetry, and
 verifies restored connectivity after success, failure and cancellation. Its
 pinned, privileged node requires a dedicated Linux lab host. The required
 laboratory gate includes this case; offline policy assessment alone cannot pass it.
+
+### CVE evidence binding
+
+[CVE workflow playback](docs/INTEGRATED_WORKFLOWS.md) binds the pinned synthetic
+advisory to exact component versions and source digests. Its laboratory records
+actual vulnerable and corrected query calls. Missing or unrelated evidence remains
+insufficient; these fixtures do not establish production CVE coverage.

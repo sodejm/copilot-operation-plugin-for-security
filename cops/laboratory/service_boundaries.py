@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import inspect
 import json
 import sqlite3
@@ -9,6 +10,8 @@ import tempfile
 import textwrap
 import threading
 import urllib.parse
+import uuid
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -28,10 +31,22 @@ def _corrected_query(connection: sqlite3.Connection, value: str) -> list[tuple[s
     return connection.execute("SELECT id, owner FROM objects WHERE id = ?", (value,)).fetchall()
 
 
+def query_component(profile: str) -> dict[str, str]:
+    if profile not in {"vulnerable", "corrected"}:
+        raise ValueError("unsupported boundary profile")
+    query = _vulnerable_query if profile == "vulnerable" else _corrected_query
+    return {"name": "cops-synthetic-query", "ecosystem": "python-source",
+            "version": "1.0.0" if profile == "vulnerable" else "1.0.1",
+            "source_sha256": hashlib.sha256(textwrap.dedent(inspect.getsource(query)).encode()).hexdigest()}
+
+
 def run_boundary_acceptance(profile: str) -> dict[str, Any]:
     """Observe injection and direct/indirect scope checks over loopback TCP."""
     if profile not in {"vulnerable", "corrected"}:
         raise ValueError("unsupported boundary profile")
+    runtime_calls: list[dict[str, Any]] = []
+    execution_id = "boundary-" + uuid.uuid4().hex
+    component = query_component(profile)
     calls: list[str] = []
     observations: list[dict[str, Any]] = []
     query = _vulnerable_query if profile == "vulnerable" else _corrected_query
@@ -56,6 +71,10 @@ def run_boundary_acceptance(profile: str) -> dict[str, Any]:
                     connection.execute("CREATE TABLE objects(id TEXT, owner TEXT)")
                     connection.executemany("INSERT INTO objects VALUES (?, ?)", [("owner-object", "owner"), ("other-object", "other")])
                     rows = query(connection, parameters.get("id", [""])[0])
+                    runtime_calls.append({"component": component, "calls": 1,
+                                          "execution_id": execution_id,
+                                          "observed_at": datetime.now(timezone.utc).isoformat(),
+                                          "evidence_ref": execution_id + "/query-" + str(len(runtime_calls))})
                 result: Any = {"objects": [row[0] for row in rows]}
             elif parsed.path == "/tool":
                 tool = parameters.get("tool", [""])[0]
@@ -104,6 +123,8 @@ def run_boundary_acceptance(profile: str) -> dict[str, Any]:
     gateway_report = assess("foundry_security", observations, as_of="2026-10-15T12:00:00Z")
     return {
         "schema_version": "cops.boundary-laboratory-acceptance/v1", "profile": profile,
+        "dependency_inventory": {"complete": True, "packages": [component]},
+        "runtime_evidence": {"modules": runtime_calls},
         "benign_query_preserved": benign == ["owner-object"], "injection_rows": len(injection),
         "injection_exposed_other_object": "other-object" in injection,
         "application_codes": sorted(set(source_report["finding_codes"].values())), "allowed_tool_status": allowed,

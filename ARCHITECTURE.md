@@ -205,3 +205,11 @@ connectivity, correlated HTTP and API audit records, and restoration determine
 acceptance. The composite gate requires all thirteen named cases. This fixture
 does not add a production cluster connector or privilege-isolation claim. See
 [the runbook](docs/KUBERNETES_LABORATORY.md).
+
+## CVE component evidence
+
+The integrated workflow shares `cops.workflows.cve_evidence` across offline
+playback and actual service observations. Exact component identities connect the
+pinned advisory, complete inventory, invocation records and compensating controls.
+The source laboratory records calls at the query boundary; missing provenance
+cannot establish reachability. See [integrated workflows](docs/INTEGRATED_WORKFLOWS.md).

@@ -114,6 +114,17 @@
           "encoded_command": 0
         }
       }
+    },
+    {
+      "path": "cve-advisory.json",
+      "sha256": "9d6bd29dbee6f1fe0509c28af65d2f31960cc39277896259cc713da17aebdd9f",
+      "format": "COPS synthetic advisory v1",
+      "synthetic": true,
+      "expected_outcomes": {
+        "vulnerable": "reachable",
+        "corrected": "corrected_dependency",
+        "missing_evidence": "not_established"
+      }
     }
   ],
   "reset": {
