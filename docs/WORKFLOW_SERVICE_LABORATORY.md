@@ -30,7 +30,7 @@ The report records each real TCP request and response status, stage results, aut
 
 Loopback binding limits reachability but does not establish process, container, or network-namespace isolation. `--require-isolation` fails with exit code 2 before creating the state directory unless `probe_isolated_runtime()` can verify an isolation boundary. A normal macOS run therefore reports the limitation and must not be represented as isolated execution.
 
-Fixture provenance, SHA-256 checksums, expected outcomes, and pinned optional-tool prerequisites are maintained in `cops/laboratory/service_fixtures/manifest.json` and verified before a report is returned. The normalized Entra sign-in/grant, Kubernetes audit, and Sysmon JSON fixtures are offline playback inputs. They are not authentic EVTX. Authentic Sysmon EVTX acquisition is unsupported until a harmless licensed sample and a pinned EVTX parser are registered; the laboratory does not relabel JSON as EVTX.
+Fixture provenance, SHA-256 checksums, expected outcomes, and pinned optional-tool prerequisites are maintained in `cops/laboratory/service_fixtures/manifest.json` and verified before a report is returned. The normalized Entra sign-in/grant, Kubernetes audit, and Sysmon JSON fixtures are offline playback inputs. Separate synthetic binary EVTX fixtures exercise the registered pinned parser. Native Windows/Sysmon acquisition remains unvalidated; the laboratory does not relabel JSON as EVTX.
 
 Run the required laboratory gate from the root `Makefile`:
 

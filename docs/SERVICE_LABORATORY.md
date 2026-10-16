@@ -69,7 +69,7 @@ No persistent state is required. Stop an interrupted runner to close its listene
 
 ## Required repository gate
 
-`scripts/check_laboratory.py` is the strict acceptance entry point. Its twelve cases
+`scripts/check_laboratory.py` is the strict acceptance entry point. Its twelve service-container cases
 run fixture playback; binary EVTX correction and integrity checks; vulnerable and corrected process acceptance; authorized IOC
 workflow success, injected failure, and cancellation; and five integrated service
 chains. The process cases assert actual TCP request results, mTLS acceptance and
@@ -78,6 +78,13 @@ services, and restored baselines. The integrated cases verify typed stage output
 exact plan and service-URL binding, and single-use authorization consumption. See
 [integrated workflows](INTEGRATED_WORKFLOWS.md#active-service-chains) for their
 synthetic-service limits and remaining production validation.
+
+A thirteenth case runs the separate, registered
+[Kubernetes containment laboratory](KUBERNETES_LABORATORY.md). Provision its three
+architecture-specific image pins before running the Docker gate. It verifies real
+NetworkPolicy enforcement, HTTP and audit evidence, restoration after success,
+failure and cancellation, and owned-resource removal. All thirteen cases are
+required; process-only acceptance cannot satisfy the Kubernetes isolation gate.
 
 The gate prints one compact JSON object. `status` is `passed`, `blocked`, or `failed`; `blockers` contains the exact isolation blocker; `failures` contains behavioral mismatches; and each item in `cases` contains bounded metrics for service, API, gateway, acquisition, TLS, and JWT checks. Exit status 0 requires verified network isolation and every functional assertion. Exit status 2 means the functional evidence passed but the isolation prerequisite is blocked. Exit status 1 means functional evidence or strict preflight failed.
 

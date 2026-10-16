@@ -155,3 +155,12 @@ corrected history, insufficient bounds, benign lookalikes, redaction and unchang
 source bytes. Retain existing synthetic fingerprints so the actual laboratory
 revocation exercise correlates the same credential. Synchronize portable runtimes
 and run the repository, documentation and laboratory gates.
+
+### Kubernetes correction evidence
+
+Run `python -m pytest tests/test_kubernetes_laboratory.py tests/test_check_laboratory.py`
+after changes to the cluster adapter or composite gate. Keep malformed isolation,
+missing telemetry, namespace replacement and incomplete case-list regressions.
+Then run all three repository gates with the preprovisioned image pins in
+[the Kubernetes runbook](docs/KUBERNETES_LABORATORY.md). Actual pod connectivity,
+audit records and cleanup are required; mocked policy results are insufficient.

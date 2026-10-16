@@ -175,3 +175,9 @@ Raw disk/memory imports use the registered POSIX `raw-forensic-image/v1`
 adapter, strict versioned metadata, bounded streaming and shared no-follow file
 helpers. Integrity, asserted provenance and unperformed analysis remain separate.
 See `specs/forensic-import.spec.md` and the forensic service-laboratory case.
+
+Kubernetes containment acceptance uses `isolated-k3s-containment/v1` on a
+disposable privileged K3s node, separate from the unprivileged service container.
+Both adapters require observed isolation, activity, telemetry and restoration.
+The composite gate requires twelve service cases plus real Kubernetes enforcement;
+see `docs/KUBERNETES_LABORATORY.md` for pinned prerequisites and host limitations.

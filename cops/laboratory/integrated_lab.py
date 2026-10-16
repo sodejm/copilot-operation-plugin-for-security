@@ -409,7 +409,7 @@ class _IntegratedApprovalControl(_LaboratoryApprovalControl):
 
     def consume_authorization(self, authorization_id: str, action_plan: Any, worker_identity: str) -> Any:
         self.assert_ready(worker_identity)
-        stages = WORKFLOW_STAGES[self.executor.workflow_id]
+        stages = tuple(stage["stage_id"] for stage in self.definition.stages)
         if len(self.executor.executed) >= len(stages):
             raise WorkflowRuntimeError("replayed_authorization")
         stage = stages[len(self.executor.executed)]
