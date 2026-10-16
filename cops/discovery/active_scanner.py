@@ -11,6 +11,7 @@ import os
 import select
 import socket
 import ssl
+import stat
 import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterator
@@ -43,12 +44,96 @@ class ActiveScanError(Exception):
     """Base error for active discovery operations."""
 
 
+def _live_checkpoint_lock_open_flags(flags: int) -> int:
+    return flags | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+
+
+def _validate_live_checkpoint_lock_descriptor(descriptor: int) -> os.stat_result:
+    metadata = os.fstat(descriptor)
+    if not stat.S_ISREG(metadata.st_mode) or ActiveScanSession._is_reparse_point(metadata):
+        raise ValueError("Live checkpoint lock must be a regular file")
+    if hasattr(os, "getuid") and metadata.st_uid != os.getuid():
+        raise ValueError("Live checkpoint lock must be owned by the current user")
+    if hasattr(os, "getuid") and stat.S_IMODE(metadata.st_mode) & 0o077:
+        raise ValueError("Live checkpoint lock permissions must be private")
+    if metadata.st_nlink != 1:
+        raise ValueError("Live checkpoint lock must not have hard links")
+    return metadata
+
+
+def _validate_portable_live_checkpoint_lock_path(lock_path: Path) -> os.stat_result:
+    metadata = os.lstat(lock_path)
+    if stat.S_ISLNK(metadata.st_mode) or ActiveScanSession._is_reparse_point(metadata):
+        raise ValueError("Live checkpoint lock is unavailable or unsafe")
+    if not stat.S_ISREG(metadata.st_mode):
+        raise ValueError("Live checkpoint lock must be a regular file")
+    return metadata
+
+
+def _open_live_checkpoint_lock(path: Path) -> int:
+    """Open a private lock file without following aliases or modifying victims."""
+    lock_path = path.with_name(f"{path.name}.lock")
+    try:
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as error:
+        raise ActiveScanError("Live checkpoint lock is unavailable or unsafe") from error
+
+    descriptor: int | None = None
+    flags = _live_checkpoint_lock_open_flags(os.O_RDWR)
+    if ActiveScanSession._supports_checkpoint_directory_fd():
+        directory: int | None = None
+        try:
+            directory = ActiveScanSession._open_checkpoint_directory(path)
+            try:
+                descriptor = os.open(lock_path.name, flags | os.O_CREAT | os.O_EXCL, 0o600, dir_fd=directory)
+            except FileExistsError:
+                descriptor = os.open(lock_path.name, flags, dir_fd=directory)
+            opened = _validate_live_checkpoint_lock_descriptor(descriptor)
+            current = os.stat(lock_path.name, dir_fd=directory, follow_symlinks=False)
+            if (
+                stat.S_ISLNK(current.st_mode)
+                or ActiveScanSession._is_reparse_point(current)
+                or not stat.S_ISREG(current.st_mode)
+                or not ActiveScanSession._same_file_identity(opened, current)
+            ):
+                raise ValueError("Live checkpoint lock changed during access")
+            return descriptor
+        except (OSError, ValueError) as error:
+            if descriptor is not None:
+                os.close(descriptor)
+            raise ActiveScanError("Live checkpoint lock is unavailable or unsafe") from error
+        finally:
+            if directory is not None:
+                os.close(directory)
+
+    try:
+        parent = ActiveScanSession._validate_portable_checkpoint_parent(path)
+        before: os.stat_result | None = None
+        try:
+            descriptor = os.open(lock_path, flags | os.O_CREAT | os.O_EXCL, 0o600)
+        except FileExistsError:
+            before = _validate_portable_live_checkpoint_lock_path(lock_path)
+            descriptor = os.open(lock_path, flags)
+        opened = _validate_live_checkpoint_lock_descriptor(descriptor)
+        current = _validate_portable_live_checkpoint_lock_path(lock_path)
+        current_parent = ActiveScanSession._validate_portable_checkpoint_parent(path)
+        if not (
+            (before is None or ActiveScanSession._same_file_identity(before, opened))
+            and ActiveScanSession._same_file_identity(opened, current)
+            and ActiveScanSession._same_file_identity(parent, current_parent)
+        ):
+            raise ValueError("Live checkpoint lock changed during access")
+        return descriptor
+    except (OSError, ValueError) as error:
+        if descriptor is not None:
+            os.close(descriptor)
+        raise ActiveScanError("Live checkpoint lock is unavailable or unsafe") from error
+
+
 @contextmanager
 def _live_checkpoint_lock(path: Path) -> Iterator[None]:
     """Hold one cross-process controller lock for the whole live scan."""
-    lock_path = path.with_name(f"{path.name}.lock")
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+    descriptor = _open_live_checkpoint_lock(path)
     acquired = False
     try:
         try:

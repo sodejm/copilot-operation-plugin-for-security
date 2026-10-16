@@ -777,6 +777,42 @@ class TestLiveScanSafety(unittest.TestCase):
                 scanner.run()
         self.assertEqual(dispatcher.probes, [])
 
+    def test_portable_controller_lock_rejects_symlink_without_modifying_victim(self):
+        victim = self.checkpoint.with_name("lock-victim")
+        victim.write_bytes(b"")
+        victim.chmod(0o600)
+        lock_path = self.checkpoint.with_name(f"{self.checkpoint.name}.lock")
+        try:
+            lock_path.symlink_to(victim)
+        except (NotImplementedError, OSError) as error:
+            self.skipTest(f"symlink or reparse-point creation unavailable: {error}")
+
+        with patch.object(ActiveScanSession, "_supports_checkpoint_directory_fd", return_value=False):
+            with self.assertRaisesRegex(ActiveScanError, "unsafe"):
+                with _live_checkpoint_lock(self.checkpoint):
+                    self.fail("unsafe lock path was acquired")
+
+        self.assertEqual(victim.read_bytes(), b"")
+        self.assertTrue(lock_path.is_symlink())
+
+    def test_portable_controller_lock_rejects_hard_link_without_modifying_victim(self):
+        victim = self.checkpoint.with_name("lock-victim")
+        victim.write_bytes(b"")
+        victim.chmod(0o600)
+        lock_path = self.checkpoint.with_name(f"{self.checkpoint.name}.lock")
+        try:
+            os.link(victim, lock_path)
+        except (NotImplementedError, OSError) as error:
+            self.skipTest(f"hard-link creation unavailable: {error}")
+
+        with patch.object(ActiveScanSession, "_supports_checkpoint_directory_fd", return_value=False):
+            with self.assertRaisesRegex(ActiveScanError, "unsafe"):
+                with _live_checkpoint_lock(self.checkpoint):
+                    self.fail("unsafe lock path was acquired")
+
+        self.assertEqual(victim.read_bytes(), b"")
+        self.assertTrue(lock_path.exists())
+
     def test_fractional_checkpoint_accounting_fails_closed(self):
         self.scanner(self.session()).run()
         for field, value in (("total_probes_dispatched", 1.9), ("elapsed_seconds", "0.1")):
