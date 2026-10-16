@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -11,7 +12,10 @@ from pytest_bdd import given, scenarios, then, when
 
 PACKAGE = Path(__file__).resolve().parents[2] / "plugins/offensive-security/foundry-agent-harness"
 sys.path.insert(0, str(PACKAGE))
+from foundryharness import auth_approval, auth_bootstrap, auth_laboratory  # noqa: E402
 from foundryharness.laboratory import LabError, load_lab_cases, run_lab_case  # noqa: E402
+
+from tests.test_auth_assessment_approval import authorized_batch  # noqa: E402
 
 scenarios("../../specs/features/agent_mcp_laboratories.feature")
 
@@ -177,3 +181,92 @@ def rejected_boundary(context):
     assert result["executed_effects"] == []
     assert result["state_before"] == result["state_after"]
     assert result["cleanup_verified"]
+
+
+@given("a signed batch of the bundled MCP authorization cases")
+def signed_auth_batch(context, tmp_path: Path):
+    if os.name == "nt":
+        pytest.skip("Signed MCP authorization fixture requires POSIX private-permission checks")
+    cases = auth_laboratory.load_auth_cases(PACKAGE / "auth_cases")
+    context["auth_cases"], context["auth_context"] = authorized_batch(tmp_path, cases)
+
+
+@when("the authorization assessment runs without additional approval")
+def run_auth_batch(context):
+    context["auth_report"] = auth_approval.run_auth_cases(context["auth_cases"], **context["auth_context"])
+
+
+@then("the batch consumes one receipt and records target decisions separately from effects")
+def signed_batch_evidence(context):
+    report = context["auth_report"]
+    assert report["assessment_authorization"]["consumed_once_for_batch"] is True
+    assert report["all_expectations_met"] is True
+    assert report["security_pass"] is True
+    assert report["pending_case_ids"] == []
+    assert all("observations" in result and "observed_effects" in result for result in report["results"])
+
+
+@then("the target blocks cross-tenant, revoked, and replayed grants")
+def target_authority_checks(context):
+    results = {result["case_id"]: result for result in context["auth_report"]["results"]}
+    for case_id in ("cross-tenant", "revoked-grant", "one-time-replay"):
+        assert results[case_id]["expectation_met"] is True
+        assert any(observation["target"]["decision"] == "denied" for observation in results[case_id]["observations"])
+
+
+@then("both fixed processes and private evidence are cleaned up")
+def auth_cleanup(context):
+    assert all(
+        result["cleanup"]["process_exit_observed"] is True and result["cleanup"]["private_directory_removed"] is True
+        for result in context["auth_report"]["results"]
+    )
+
+
+@given("an MCP authorization batch without its signed receipt")
+def unsigned_auth_batch(context, tmp_path: Path):
+    context["auth_cases"], context["auth_context"] = authorized_batch(tmp_path)
+    context["auth_context"]["authorization"] = None
+
+
+@when("the authorization assessment is requested")
+def request_unsigned_auth(context, monkeypatch: pytest.MonkeyPatch):
+    context["fixture_launches"] = 0
+
+    def forbidden(*_args, **_kwargs):
+        context["fixture_launches"] += 1
+        pytest.fail("unsigned batch started a fixture")
+
+    monkeypatch.setattr(auth_approval, "_JsonLineProcess", forbidden)
+    monkeypatch.setattr(auth_bootstrap, "_load_executor", forbidden)
+    with pytest.raises((TypeError, ValueError, RuntimeError)):
+        auth_approval.run_auth_cases(context["auth_cases"], **context["auth_context"])
+    context["unsigned_rejected"] = True
+
+
+@then("it rejects the request before starting either fixture")
+def unsigned_rejected(context):
+    assert context["unsigned_rejected"] is True
+    assert context["fixture_launches"] == 0
+
+
+@given("a signed case whose target omits identity telemetry")
+def missing_identity_case(context, tmp_path: Path):
+    if os.name == "nt":
+        pytest.skip("Signed MCP authorization fixture requires POSIX private-permission checks")
+    data = json.loads((PACKAGE / "auth_cases/wrong-audience.json").read_text(encoding="utf-8"))
+    data["attempts"][0]["fault_mode"] = "missing_identity_telemetry"
+    data["expected_outcome"] = "inconclusive"
+    cases = [auth_laboratory.AuthCase.from_dict(data)]
+    context["auth_cases"], context["auth_context"] = authorized_batch(tmp_path, cases)
+
+
+@then("missing identity is inconclusive with independently observed zero effects")
+def missing_identity_evidence(context):
+    result = context["auth_report"]["results"][0]
+    assert result["outcome"] == "inconclusive"
+    assert result["evidence_complete"] is False
+    assert result["security_pass"] is False
+    assert context["auth_report"]["security_pass"] is False
+    assert result["observed_effects"] == []
+    assert result["observations"][0]["target"]["decision"] == "denied"
+    assert "server_identity" not in result["observations"][0]["target"]

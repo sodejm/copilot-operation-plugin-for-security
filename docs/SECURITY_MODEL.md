@@ -104,7 +104,7 @@ flowchart TD
     runs, and independent review. Offline checks alone cannot establish host or
     live-service support. Keep raw run evidence private and publish sanitized
     qualification records.
-  - The Linux host assessment importer labels canary outcomes as source-reported, retains explicit prerequisite and coverage state, and cannot certify a live privilege crossing or cleanup from a local export.
+  - The Linux and Windows host assessment importer labels canary outcomes as source-reported and retains explicit prerequisite and coverage state. The native Windows bridge separately binds an assessment-owned lifecycle cleanup receipt to the exact export, but neither path certifies a privilege crossing.
 
 ### Threat 6: Unauthorized High-Consequence or Offensive Actions
 - **The Risk**: An autonomous agent or automated script executes unauthorized vulnerability scanning, adversary emulation, or disruptive containment actions without explicit human approval.

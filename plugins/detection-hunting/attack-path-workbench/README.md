@@ -9,23 +9,34 @@ The illustrative contract is not a Wiz mapping. Wiz query rendering remains bloc
 Run from the repository root with Python 3.11 or later:
 
 ```bash
-python3 plugins/detection-hunting/attack-path-workbench/scripts/run_demo.py
+python3 -m cops demo attack-path-workbench
 ```
 
-Retain the reports and rejection evidence in a new directory:
+The public command creates an owner-only temporary workspace, verifies the
+playback, and removes the workspace. Use the package runner directly when you
+need to retain the reports and rejection evidence. Both direct commands require
+their final output directory not to exist. Create a private scratch parent so
+each invocation gets a new destination:
 
 ```bash
+scratch="$(mktemp -d "${TMPDIR:-/tmp}/cops-attack-path.XXXXXX")"
+chmod 700 "$scratch"
 python3 plugins/detection-hunting/attack-path-workbench/scripts/run_demo.py \
-  --workspace /tmp/attack-path-playback-review
+  --workspace "$scratch/playback"
 ```
 
 The CLI used by the playback is also available directly:
 
 ```bash
+scratch="$(mktemp -d "${TMPDIR:-/tmp}/cops-attack-path.XXXXXX")"
+chmod 700 "$scratch"
 python3 plugins/detection-hunting/attack-path-workbench/scripts/attackpath.py \
   analyze plugins/detection-hunting/attack-path-workbench/fixtures/illustrative/input.json \
-  --output-dir /tmp/attack-path-report
+  --output-dir "$scratch/report"
 ```
+
+Each example prints or retains its artifacts below the unique scratch parent.
+Remove that parent after review.
 
 See [the playbook](docs/PLAYBOOK.md) before applying the workflow to other authorized evidence and [the verification guide](docs/VERIFICATION.md) for package checks.
 

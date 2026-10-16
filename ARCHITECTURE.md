@@ -104,7 +104,7 @@ See the **[Shared Evidence SDK Guide](docs/EVIDENCE_SDK.md)** for detailed imple
 
 ## Specialist Agent Profiles & Dynamic Routing (`cops.routing`, `agents/`)
 
-COPS centralizes **18 specialist cybersecurity agent profiles** in `agents/` and provides a deterministic, zero-token routing engine:
+COPS centralizes **21 specialist cybersecurity agent profiles** in `agents/` and provides a deterministic, zero-token routing engine:
 - **Centralized Profiles Inventory**: `agents/registry.json` and `agents/profiles/*.agent.md` govern callable personas across offensive security, defensive detection, incident response, digital forensics, cloud identity, and compliance.
 - **Dynamic Selection Engine (`cops.routing`)**: Fast local Python classifier that maps natural language requests and artifact types to the most qualified specialist profile and recommended skills without model hallucinations.
 - **Model Advisor (`cops.routing.model_advisor`)**: Opt-in offline task classification and model/effort ranking against a bounded, fresh operator-supplied catalog. Exact availability, access, capabilities, tier, and supported efforts determine eligibility. Output is advisory and cannot change host settings or authorize execution. The workbench plugin ships the skill and guide; commands require the separate COPS checkout runtime. See [model routing](docs/model-effort-routing.md).
@@ -115,6 +115,31 @@ COPS centralizes **18 specialist cybersecurity agent profiles** in `agents/` and
 - **Interactive Authorization Gate (`cops.authorization`)**: High-consequence profiles enforce mandatory operator authorization, supporting interactive terminal approval and pre-signed cryptographic receipts while failing closed in non-interactive environments.
 
 ---
+
+## Delegation authorization laboratory
+
+The Foundry Agent Harness `auth-plan` command compiles a versioned Action Plan
+binding the selected synthetic cases, fixture identities, source digests, and
+aggregate limits. `auth-lab` verifies and atomically consumes one signed COPS
+assessment receipt, then launches fixed stdio peer and target processes from a
+private snapshot of the approved source bytes. The target independently checks
+its synthetic grant; a COPS receipt cannot grant target-service authority.
+
+Correlated requests, decisions, and a directly observed disclosure and write
+ledger establish the local result. The observer child retains an ephemeral
+Ed25519 private key while the runner verifies challenge-bound readiness,
+session, sequence, and effects with the public key only. This provides
+process-level key separation inside the same runner-controlled host and source
+snapshot, not independently administered external attestation.
+`evidence_complete`, `expectation_met`, and
+`security_pass` distinguish complete observations from an expected inconclusive
+test. Admission, response and ledger byte limits, cancellation, and observed
+cleanup bound the batch. A later exception preserves completed results and usage,
+reports uncertain effects, and stops admission. Snapshot failures and ordered
+recovery actions remain visible together. The report goes to stdout; accounting
+covers received fixture responses and new ledger bytes. This fixture provides
+neither provider evidence nor durable crash recovery. See the [laboratory specification](specs/agent-mcp-laboratories.spec.md)
+and [operator playbook](plugins/offensive-security/foundry-agent-harness/docs/PLAYBOOK.md).
 
 ## Contributor & Quality Assurance Spine
 

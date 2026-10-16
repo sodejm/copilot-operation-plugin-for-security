@@ -1,0 +1,225 @@
+{
+  "bridge": {
+    "canary_assertions": true,
+    "capabilities": [
+      "service_permissions",
+      "scheduled_task_permissions",
+      "token_privileges",
+      "registry_controls",
+      "filesystem_controls",
+      "local_credential_references",
+      "versioned_escalation_families"
+    ],
+    "mode": "offline_windows_export",
+    "platform": "windows"
+  },
+  "coverage": {
+    "filesystem_controls": "assessed",
+    "local_credential_references": "assessed",
+    "registry_controls": "assessed",
+    "scheduled_task_permissions": "assessed",
+    "service_permissions": "assessed",
+    "token_privileges": "assessed",
+    "versioned_escalation_families": "assessed"
+  },
+  "host": {
+    "architecture": "x64",
+    "os_build": "10.0.19045",
+    "protections": {
+      "applocker": "unknown",
+      "credential_guard": "unknown",
+      "uac": "enabled",
+      "vbs": "unknown",
+      "wdac": "unknown"
+    },
+    "token": {
+      "elevated": true,
+      "integrity": "high",
+      "privileges": [
+        "SeChangeNotifyPrivilege"
+      ],
+      "privileges_complete": true
+    }
+  },
+  "observations": [
+    {
+      "canary": {
+        "after_access": "granted",
+        "assessment_owned": true,
+        "before_access": "denied",
+        "case": "positive",
+        "cleanup_verified": true,
+        "disposable_host": true,
+        "evidence_ids": [
+          "win_before_01",
+          "win_after_01",
+          "win_cleanup_01"
+        ],
+        "resource_id": "synthetic_canary_01"
+      },
+      "configuration": "interesting",
+      "evidence_ids": [
+        "win_evidence_01"
+      ],
+      "id": "windows_obs_01",
+      "requirements": {
+        "architecture": "x64",
+        "build_max": "10.0.19045",
+        "build_min": "10.0.19041",
+        "protections": {
+          "uac": "enabled"
+        },
+        "token": {
+          "elevated": true,
+          "min_integrity": "medium",
+          "privileges": [
+            "SeChangeNotifyPrivilege"
+          ]
+        }
+      },
+      "surface": "service_permissions"
+    },
+    {
+      "configuration": "interesting",
+      "evidence_ids": [
+        "win_evidence_02"
+      ],
+      "id": "windows_obs_02",
+      "requirements": {
+        "architecture": "x64",
+        "build_max": "10.0.19045",
+        "build_min": "10.0.19041",
+        "protections": {
+          "uac": "enabled"
+        },
+        "token": {
+          "elevated": true,
+          "min_integrity": "medium",
+          "privileges": [
+            "SeChangeNotifyPrivilege"
+          ]
+        }
+      },
+      "surface": "scheduled_task_permissions"
+    },
+    {
+      "configuration": "interesting",
+      "evidence_ids": [
+        "win_evidence_03"
+      ],
+      "id": "windows_obs_03",
+      "requirements": {
+        "architecture": "x64",
+        "build_max": "10.0.19045",
+        "build_min": "10.0.19041",
+        "protections": {
+          "uac": "enabled"
+        },
+        "token": {
+          "elevated": true,
+          "min_integrity": "medium",
+          "privileges": [
+            "SeChangeNotifyPrivilege"
+          ]
+        }
+      },
+      "surface": "token_privileges"
+    },
+    {
+      "configuration": "interesting",
+      "evidence_ids": [
+        "win_evidence_04"
+      ],
+      "id": "windows_obs_04",
+      "requirements": {
+        "architecture": "x64",
+        "build_max": "10.0.19045",
+        "build_min": "10.0.19041",
+        "protections": {
+          "uac": "enabled"
+        },
+        "token": {
+          "elevated": true,
+          "min_integrity": "medium",
+          "privileges": [
+            "SeChangeNotifyPrivilege"
+          ]
+        }
+      },
+      "surface": "registry_controls"
+    },
+    {
+      "configuration": "interesting",
+      "evidence_ids": [
+        "win_evidence_05"
+      ],
+      "id": "windows_obs_05",
+      "requirements": {
+        "architecture": "x64",
+        "build_max": "10.0.19045",
+        "build_min": "10.0.19041",
+        "protections": {
+          "uac": "enabled"
+        },
+        "token": {
+          "elevated": true,
+          "min_integrity": "medium",
+          "privileges": [
+            "SeChangeNotifyPrivilege"
+          ]
+        }
+      },
+      "surface": "filesystem_controls"
+    },
+    {
+      "configuration": "interesting",
+      "evidence_ids": [
+        "win_evidence_06"
+      ],
+      "id": "windows_obs_06",
+      "requirements": {
+        "architecture": "x64",
+        "build_max": "10.0.19045",
+        "build_min": "10.0.19041",
+        "protections": {
+          "uac": "enabled"
+        },
+        "token": {
+          "elevated": true,
+          "min_integrity": "medium",
+          "privileges": [
+            "SeChangeNotifyPrivilege"
+          ]
+        }
+      },
+      "surface": "local_credential_references"
+    },
+    {
+      "configuration": "ordinary",
+      "evidence_ids": [
+        "win_evidence_07"
+      ],
+      "family_id": "synthetic_family_01",
+      "id": "windows_obs_07",
+      "requirements": {
+        "architecture": "x64",
+        "build_max": "10.0.19045",
+        "build_min": "10.0.19041",
+        "protections": {
+          "uac": "enabled"
+        },
+        "token": {
+          "elevated": true,
+          "min_integrity": "medium",
+          "privileges": [
+            "SeChangeNotifyPrivilege"
+          ]
+        }
+      },
+      "surface": "versioned_escalation_families"
+    }
+  ],
+  "schema_version": "windows-1.0",
+  "source_id": "synthetic_windows_vulnerable",
+  "source_kind": "synthetic_lab"
+}

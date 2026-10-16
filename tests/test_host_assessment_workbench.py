@@ -133,6 +133,53 @@ def test_oversized_and_nonfinite_json_fail_closed() -> None:
         load_report_bytes(b'{"value": NaN}')
 
 
+def test_oversized_integer_fails_closed_in_api_and_cli(tmp_path: Path) -> None:
+    malformed = b'{"value":' + b"9" * 5000 + b"}"
+    with pytest.raises(ContractError, match="malformed.*JSON"):
+        load_report_bytes(malformed)
+    export = tmp_path / "integer.json"
+    export.write_bytes(malformed)
+    result = subprocess.run(
+        [sys.executable, str(PACKAGE / "scripts" / "assess.py"), str(export)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert "Traceback" not in result.stderr
+
+
+@pytest.mark.parametrize(
+    ("control", "invalid_state"),
+    [
+        ("selinux", "enabled"),
+        ("apparmor", "enabled"),
+        ("no_new_privs", "enforcing"),
+        ("seccomp", "permissive"),
+        ("user_namespaces", "enforcing"),
+    ],
+)
+@pytest.mark.parametrize("field", ["host", "requirements"])
+def test_protection_state_must_match_control(control: str, invalid_state: str, field: str) -> None:
+    payload = fixture("positive")
+    if field == "host":
+        payload["host"]["protections"][control] = invalid_state
+    else:
+        payload["observations"][0]["requirements"]["protections"][control] = invalid_state
+    with pytest.raises(ContractError, match=f"{field}.*{control}.*unsupported state"):
+        assess_document(payload)
+
+
+def test_apparmor_complain_mode_is_applicable() -> None:
+    payload = fixture("positive")
+    payload["host"]["protections"]["apparmor"] = "complain"
+    payload["observations"][0]["requirements"]["protections"]["apparmor"] = "complain"
+    result = assess_document(payload)["observations"][0]
+    assert result["decision"] == "selected"
+    assert result["classification"] == "reported_canary_crossing"
+
+
 def test_deeply_nested_json_fails_closed_in_api_and_cli(tmp_path: Path) -> None:
     nested = b"[" * 1100 + b"0" + b"]" * 1100
     with pytest.raises(ContractError, match="nesting exceeds parser limit"):

@@ -15,9 +15,12 @@ import subprocess
 import sys
 import tempfile
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+from .bounded_json import JSONInputError, decode_json
 
 PROTOCOL_VERSION = "2025-11-25"
 AGENT_ORIGIN = "deterministic-local-fixture"
@@ -169,11 +172,33 @@ def load_lab_cases(path: Path) -> list[LabCase]:
 
 
 class _JsonLineProcess:
-    def __init__(self, script: str, workdir: str, extra_args: tuple[str, ...] = ()) -> None:
-        command = [sys.executable, "-I", "-u", str(PACKAGE_ROOT / script), *extra_args]
+    def __init__(
+        self,
+        script: str,
+        workdir: str,
+        extra_args: tuple[str, ...] = (),
+        response_timeout_seconds: float = 5.0,
+        *,
+        admission_check: Callable[[], None] | None = None,
+        response_timeout_provider: Callable[[], float] | None = None,
+        account_response: Callable[[bytes], None] | None = None,
+        response_bytes_remaining: Callable[[], int] | None = None,
+        source_root: Path | None = None,
+        on_spawn: Callable[[Any], None] | None = None,
+    ) -> None:
+        if not 0 < response_timeout_seconds <= 30:
+            raise LabError("Fixture response timeout must be between zero and 30 seconds")
+        command = [sys.executable, "-I", "-B", "-u", str((source_root or PACKAGE_ROOT) / script), *extra_args]
         env = {"PATH": os.defpath, "PYTHONIOENCODING": "utf-8"}
         if os.name == "nt" and "SystemRoot" in os.environ:
             env["SystemRoot"] = os.environ["SystemRoot"]
+        self.admission_check = admission_check
+        self.response_timeout_provider = response_timeout_provider
+        self.account_response = account_response
+        self.response_bytes_remaining = response_bytes_remaining
+        self.response_timeout_seconds = response_timeout_seconds
+        if self.admission_check is not None:
+            self.admission_check()
         self.process = subprocess.Popen(
             command,
             cwd=workdir,
@@ -183,10 +208,25 @@ class _JsonLineProcess:
             bufsize=0,
             env=env,
         )
+        if on_spawn is not None:
+            on_spawn(self)
 
-    def exchange(self, payload: dict[str, Any], *, response: bool = True) -> dict[str, Any] | None:
+    def exchange(
+        self,
+        payload: dict[str, Any],
+        *,
+        response: bool = True,
+        on_dispatch_attempt: Callable[[], None] | None = None,
+    ) -> dict[str, Any] | None:
+        if self.admission_check is not None:
+            self.admission_check()
         if self.process.stdin is None or self.process.stdout is None:
             raise LabError("Fixture pipes unavailable")
+        read_limit = 65537
+        if response and self.response_bytes_remaining is not None:
+            read_limit = min(read_limit, self.response_bytes_remaining())
+        if on_dispatch_attempt is not None:
+            on_dispatch_attempt()
         try:
             self.process.stdin.write((json.dumps(payload, separators=(",", ":")) + "\n").encode("utf-8"))
             self.process.stdin.flush()
@@ -199,30 +239,39 @@ class _JsonLineProcess:
 
         def read_line() -> None:
             try:
-                received.put(stdout.readline(65537))
+                received.put(stdout.readline(read_limit))
             except OSError as exc:
                 received.put(exc)
 
         threading.Thread(target=read_line, daemon=True).start()
         try:
-            line = received.get(timeout=5)
+            timeout = self.response_timeout_seconds
+            if self.response_timeout_provider is not None:
+                timeout = min(timeout, self.response_timeout_provider())
+            line = received.get(timeout=timeout)
         except queue.Empty as exc:
+            if self.admission_check is not None:
+                self.admission_check()
             raise LabError("Fixture response timed out") from exc
         if isinstance(line, OSError):
             raise LabError("Fixture response read failed") from line
+        if self.account_response is not None:
+            self.account_response(line)
         if not line:
             raise LabError("Fixture exited without response")
+        if not line.endswith(b"\n") and len(line) == read_limit and self.response_bytes_remaining is not None:
+            self.response_bytes_remaining()
         if len(line) > 65536 or not line.endswith(b"\n"):
             raise LabError("Fixture response exceeded limit or lacked line terminator")
         try:
-            value = json.loads(line)
-        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            value = decode_json(line, max_bytes=65536)
+        except JSONInputError as exc:
             raise LabError("Fixture returned invalid JSON") from exc
         if not isinstance(value, dict):
             raise LabError("Fixture returned a non-object response")
         return value
 
-    def close(self) -> None:
+    def close(self) -> bool:
         if self.process.poll() is None:
             self.process.terminate()
             try:
@@ -234,17 +283,97 @@ class _JsonLineProcess:
             self.process.stdin.close()
         if self.process.stdout:
             self.process.stdout.close()
+        return self.process.poll() is not None
+
+
+def _validate_json_schema_value(value: Any, schema: dict[str, Any], path: str = "arguments") -> None:
+    """Validate the small JSON Schema subset used by fixed local MCP fixtures."""
+    expected_type = schema.get("type")
+    if expected_type == "object":
+        if not isinstance(value, dict):
+            raise LabError(f"{path} must be an object")
+        properties = schema.get("properties", {})
+        required = schema.get("required", [])
+        if not isinstance(properties, dict) or not isinstance(required, list):
+            raise LabError("MCP fixture advertised a malformed input schema")
+        missing = set(required) - set(value)
+        if missing:
+            raise LabError(f"{path} is missing required fields")
+        if schema.get("additionalProperties") is False and set(value) - set(properties):
+            raise LabError(f"{path} contains fields outside the advertised input schema")
+        for key, item in value.items():
+            child = properties.get(key)
+            if isinstance(child, dict):
+                _validate_json_schema_value(item, child, f"{path}.{key}")
+    elif expected_type == "array":
+        if not isinstance(value, list):
+            raise LabError(f"{path} must be an array")
+        if len(value) < schema.get("minItems", 0) or len(value) > schema.get("maxItems", len(value)):
+            raise LabError(f"{path} has an invalid item count")
+        if schema.get("uniqueItems") and len({json.dumps(item, sort_keys=True) for item in value}) != len(value):
+            raise LabError(f"{path} must contain unique items")
+        item_schema = schema.get("items")
+        if isinstance(item_schema, dict):
+            for index, item in enumerate(value):
+                _validate_json_schema_value(item, item_schema, f"{path}[{index}]")
+    elif expected_type == "string":
+        if not isinstance(value, str):
+            raise LabError(f"{path} must be a string")
+        if "minLength" in schema and len(value) < schema["minLength"]:
+            raise LabError(f"{path} is too short")
+        if "maxLength" in schema and len(value) > schema["maxLength"]:
+            raise LabError(f"{path} is too long")
+        if "pattern" in schema and re.fullmatch(schema["pattern"], value) is None:
+            raise LabError(f"{path} does not match the advertised pattern")
+    elif expected_type == "integer":
+        if type(value) is not int:
+            raise LabError(f"{path} must be an integer")
+        if value < schema.get("minimum", value) or value > schema.get("maximum", value):
+            raise LabError(f"{path} is outside the advertised range")
+    elif expected_type == "boolean" and type(value) is not bool:
+        raise LabError(f"{path} must be a boolean")
+    elif expected_type not in (None, "object", "array", "string", "integer", "boolean"):
+        raise LabError("MCP fixture advertised an unsupported input schema type")
+    if "const" in schema and value != schema["const"]:
+        raise LabError(f"{path} differs from the advertised constant")
+    if "enum" in schema and value not in schema["enum"]:
+        raise LabError(f"{path} is outside the advertised enum")
 
 
 class _McpClient:
-    def __init__(self, process: _JsonLineProcess) -> None:
+    def __init__(
+        self,
+        process: _JsonLineProcess,
+        *,
+        expected_tools: frozenset[str] = FIXTURE_TOOLS,
+        expected_server_info: dict[str, str] | None = None,
+        expected_capabilities: dict[str, Any] | None = None,
+        expected_input_schemas: dict[str, dict[str, Any]] | None = None,
+        expected_tool_descriptors: dict[str, dict[str, Any]] | None = None,
+    ) -> None:
         self.process = process
         self.next_id = 1
+        self.expected_tools = expected_tools
+        self.expected_server_info = (
+            expected_server_info if expected_server_info is not None else {"name": "cops-local-fixture", "version": "1"}
+        )
+        self.expected_capabilities = expected_capabilities
+        self.expected_input_schemas = expected_input_schemas
+        self.expected_tool_descriptors = expected_tool_descriptors
 
-    def request(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
+    def request(
+        self,
+        method: str,
+        params: dict[str, Any],
+        *,
+        on_dispatch_attempt: Callable[[], None] | None = None,
+    ) -> dict[str, Any]:
         request_id = self.next_id
         self.next_id += 1
-        response = self.process.exchange({"jsonrpc": "2.0", "id": request_id, "method": method, "params": params})
+        response = self.process.exchange(
+            {"jsonrpc": "2.0", "id": request_id, "method": method, "params": params},
+            on_dispatch_attempt=on_dispatch_attempt,
+        )
         if response is None or response.get("jsonrpc") != "2.0" or response.get("id") != request_id:
             raise LabError("MCP response ID or envelope mismatch")
         if "error" in response:
@@ -268,21 +397,47 @@ class _McpClient:
             result.get("protocolVersion") != PROTOCOL_VERSION
             or not isinstance(capabilities, dict)
             or not isinstance(capabilities.get("tools"), dict)
+            or (self.expected_capabilities is not None and capabilities != self.expected_capabilities)
+            or result.get("serverInfo") != self.expected_server_info
         ):
-            raise LabError("MCP fixture protocol or capability mismatch")
+            raise LabError("MCP fixture identity, protocol, or capability mismatch")
         self.process.exchange({"jsonrpc": "2.0", "method": "notifications/initialized"}, response=False)
         listed = self.request("tools/list", {})
+        if "nextCursor" in listed:
+            raise LabError("MCP fixture tool inventory pagination is unsupported")
         tools = listed.get("tools")
         if not isinstance(tools, list) or not all(
             isinstance(tool, dict) and isinstance(tool.get("name"), str) for tool in tools
         ):
             raise LabError("MCP fixture tool inventory malformed")
         names = [tool["name"] for tool in tools]
-        if len(names) != len(FIXTURE_TOOLS) or set(names) != FIXTURE_TOOLS:
+        if len(names) != len(self.expected_tools) or set(names) != self.expected_tools:
             raise LabError("MCP fixture tool inventory mismatch")
+        if self.expected_input_schemas is not None:
+            advertised = {tool["name"]: tool.get("inputSchema") for tool in tools}
+            if advertised != self.expected_input_schemas:
+                raise LabError("MCP fixture input schemas do not match the fixed client contract")
+        if self.expected_tool_descriptors is not None:
+            advertised_descriptors = {tool["name"]: tool for tool in tools}
+            if advertised_descriptors != self.expected_tool_descriptors:
+                raise LabError("MCP fixture tool descriptors do not match the fixed client contract")
 
-    def call(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
-        result = self.request("tools/call", {"name": name, "arguments": arguments})
+    def call(
+        self,
+        name: str,
+        arguments: dict[str, Any],
+        *,
+        on_dispatch_attempt: Callable[[], None] | None = None,
+    ) -> dict[str, Any]:
+        if self.expected_input_schemas is not None:
+            if name not in self.expected_input_schemas:
+                raise LabError("MCP call uses a tool outside the fixed client contract")
+            _validate_json_schema_value(arguments, self.expected_input_schemas[name])
+        result = self.request(
+            "tools/call",
+            {"name": name, "arguments": arguments},
+            on_dispatch_attempt=on_dispatch_attempt,
+        )
         content_items = result.get("content")
         if (
             not isinstance(result.get("isError"), bool)
@@ -295,8 +450,8 @@ class _McpClient:
         if not isinstance(content, dict) or content.get("type") != "text" or not isinstance(content.get("text"), str):
             raise LabError("MCP fixture returned unsupported content")
         try:
-            value = json.loads(content["text"])
-        except (KeyError, TypeError, json.JSONDecodeError) as exc:
+            value = decode_json(content["text"].encode("utf-8"), max_bytes=65536)
+        except (KeyError, TypeError, UnicodeError, JSONInputError) as exc:
             raise LabError("MCP fixture returned invalid tool content") from exc
         if not isinstance(value, dict):
             raise LabError("MCP fixture tool content must be an object")

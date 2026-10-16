@@ -9,26 +9,45 @@ Use the results to decide what an analyst should validate next. A graph path or 
 Run from the repository root with Python 3.11 or later. The package has no network prerequisite.
 
 ```bash
-python3 plugins/identity-access/entra-identity-workbench/scripts/run_demo.py
+python3 -m cops demo entra-identity-workbench
 ```
 
-The manifest `demo.command` runs the same playback through `$PYTHON`. To retain its artifacts for inspection, provide a new directory:
+The public command creates an owner-only temporary workspace and removes it
+after the playback. Use the package runner directly with a new directory when
+you need to retain artifacts for inspection:
 
 ```bash
-python3 plugins/identity-access/entra-identity-workbench/scripts/run_demo.py \
-  --workspace /tmp/entra-playback
+PYTHON="${PYTHON:-python3.11}"
+scratch="$(mktemp -d "${TMPDIR:-/tmp}/cops-entra-playback.XXXXXX")"
+chmod 700 "$scratch"
+"$PYTHON" plugins/identity-access/entra-identity-workbench/scripts/run_demo.py \
+  --workspace "$scratch/playback"
+cat "$scratch/playback/playback-summary.json"
 ```
 
-The playback refuses an existing workspace so that a prior report cannot be mistaken for current output.
+The playback refuses an existing workspace so that a prior report cannot be
+mistaken for current output. The command retains artifacts under
+`$scratch/playback`; after review, remove the private scratch directory with
+`rm -rf "$scratch"` in the same shell.
 
 For a separate export, create a manifest conforming to `schemas/manifest.schema.json`, include the declared SHA-256 for every source file, and use the package modules as shown in `scripts/run_demo.py`. See [the playbook](docs/PLAYBOOK.md) for the operational sequence and [the verification guide](docs/VERIFICATION.md) for package checks.
+
+## Preparing a private export
+
+An authorized collector must obtain the tenant data separately. Grant that collector only the read permissions needed for the selected sources and tenant; this offline package requests no Microsoft Graph permissions and cannot confirm the collector's effective rights or whether pagination completed. Record the collector's permitted tenant, source set, collection time, and any gaps outside the report. A missing source or an incomplete collection must not be represented as full coverage.
+
+Exports can contain names, user principal names, application identifiers, and relationship details. Remove secrets and unnecessary personal data before ingestion, and replace identifiers consistently across source files so graph joins still work. The workbench does not automatically redact input or output. Recompute each manifest SHA-256 after sanitizing, keep the source bundle and generated graph and reports in access-controlled storage, and apply the engagement's retention and deletion rules. Do not commit real tenant exports or reports.
+
+Set each source's `exported_at` to its actual collection time; if omitted, the manifest-level `exported_at` is used. Timestamps may have up to six fractional-second digits; greater precision cannot be assessed reliably and is marked invalid. The assessment uses a 24-hour window measured from its UTC `assessed_at`. Only an available, fully collected source with a valid timestamp inside that window is `fresh`. Missing, partial, future-dated, invalid-time, and older sources are `unknown` with a reason in `source_coverage`. Their nodes and edges are not current evidence for a hypothesis. A hash match proves file integrity relative to the manifest, not collection completeness or freshness.
+
+Graph and report export and v2 artifact validation reject an `assessed_at` more than five minutes ahead of the validating host's UTC clock. Keep that clock accurate. Historical artifacts retain their original assessment time; `fresh` describes evidence at that time, not at the time the artifact is read. These checks cannot establish whether the collector supplied truthful timestamps.
 
 ## Design and data flow
 
 1. **Intake:** `ingest_tenant_export` validates the manifest, confines source paths to the manifest directory, verifies hashes, and parses the declared sources.
 2. **Graph construction:** `build_identity_graph` normalizes identities and relationships and records source coverage and freshness.
 3. **Assessment:** `analyze_identity_graph` derives bounded exposure hypotheses from observed graph structure.
-4. **Reporting:** JSON and Markdown renderers produce a machine-readable report and a review copy. JSON Schema validation is applied before the playback succeeds.
+4. **Reporting:** JSON and Markdown renderers produce a machine-readable report and a review copy. Freshness and provenance cross-field checks run before playback succeeds.
 
 No stage enriches missing evidence with a live lookup. Missing, stale, or incomplete sources remain coverage limits in the output.
 
@@ -37,10 +56,12 @@ No stage enriches missing evidence with a live lookup. Missing, stale, or incomp
 | Contract or artifact | Purpose | Key fields | Producer and consumer | Definition and validation |
 | --- | --- | --- | --- | --- |
 | Export manifest | Binds one tenant export to named, hashed source files | `schema_version`, `tenant_id`, `exported_at`, `sources` | Export preparer → ingestion | `schemas/manifest.schema.json`; structural checks plus file SHA-256 verification |
-| Identity graph | Normalized evidence for structural traversal | `tenant_id`, `assessed_at`, `source_coverage`, `nodes`, `edges` | Graph builder → analyzer and reviewer | `schemas/graph.schema.json`; `validate_graph_artifact` |
-| Exposure report | Prioritized review hypotheses with evidence and caveats | `summary`, `source_coverage`, `hypotheses` | Analyzer → JSON/Markdown renderer and analyst | `schemas/report.schema.json`; `validate_report_artifact` |
+| Identity graph | Normalized evidence for structural traversal | `tenant_id`, `assessed_at`, `source_coverage`, `nodes`, `edges` | Graph builder → analyzer and reviewer | `schemas/graph.v2.schema.json`; `validate_graph_artifact` |
+| Exposure report | Prioritized review hypotheses with evidence and caveats | `summary`, `source_coverage`, `hypotheses` | Analyzer → JSON/Markdown renderer and analyst | `schemas/report.v2.schema.json`; `validate_report_artifact` |
 | `report.md` | Human review view of the JSON report | Summary, coverage, hypotheses | Renderer → analyst | Derived from the validated in-memory graph and hypotheses |
 | `playback-summary.json` | Retained playback acceptance result | counts, rerun result, expected-failure result | Demo → package validator or reviewer | Written only after semantic assertions pass |
+
+The original `graph.schema.json` and `report.schema.json` retain the v1 contract for historical artifacts. Current exports use v2 and require assessment time and complete source coverage; consumers should select the schema from `schema_version`.
 
 ## Reading the output
 

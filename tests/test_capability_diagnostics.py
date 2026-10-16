@@ -96,14 +96,14 @@ def test_run_diagnostics_report():
     assert isinstance(report, DiagnosticReport)
     assert report.system.is_supported is True
     assert report.capability_truth_passed is True
-    assert report.capability_count == 75
+    assert report.capability_count == 76
     assert len(report.packages) >= 17
     assert report.all_ready is True
 
     # Test serialization
     as_dict = report.to_dict()
     assert as_dict["capability_truth_passed"] is True
-    assert as_dict["capability_count"] == 75
+    assert as_dict["capability_count"] == 76
     assert "system" in as_dict
     assert "tools" in as_dict
     assert "packages" in as_dict
@@ -143,7 +143,7 @@ def test_command_diagnostics_cli(capsys):
     assert "Tool Prerequisites Matrix" in captured
     assert "Plugin Package Workflows" in captured
     assert "Capability Reconciliation" in captured
-    assert "Total Audited Capabilities: 75" in captured
+    assert "Total Audited Capabilities: 76" in captured
 
     # JSON execution
     code_json = command_diagnostics(root=ROOT, as_json=True)
@@ -151,7 +151,7 @@ def test_command_diagnostics_cli(capsys):
     captured_json = capsys.readouterr().out
     data = json.loads(captured_json)
     assert data["capability_truth_passed"] is True
-    assert data["capability_count"] == 75
+    assert data["capability_count"] == 76
 
     # Scoped package execution
     code_pkg = command_diagnostics(root=ROOT, package="offensive-engagement-workbench")

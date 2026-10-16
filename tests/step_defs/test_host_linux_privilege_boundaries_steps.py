@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from pytest_bdd import given, scenarios, then, when
+from pytest_bdd import given, parsers, scenarios, then, when
 
 ROOT = Path(__file__).resolve().parents[2]
 PACKAGE = ROOT / "plugins" / "offensive-security" / "host-assessment-workbench"
@@ -47,6 +47,24 @@ def unmatched(context):
 def no_cleanup(context):
     context["payload"] = fixture("positive")
     context["payload"]["observations"][0]["canary"]["cleanup_verified"] = False
+
+
+@given("a positive synthetic Linux host fixture with AppArmor complain mode")
+def apparmor_complain(context):
+    context["payload"] = fixture("positive")
+    context["payload"]["host"]["protections"]["apparmor"] = "complain"
+    context["payload"]["observations"][0]["requirements"]["protections"]["apparmor"] = "complain"
+
+
+@given(parsers.parse("a positive synthetic Linux host fixture with {control} set to {state} in {field} protections"))
+def unsupported_protection(context, control: str, state: str, field: str):
+    context["payload"] = fixture("positive")
+    protections = (
+        context["payload"]["host"]["protections"]
+        if field == "host"
+        else context["payload"]["observations"][0]["requirements"]["protections"]
+    )
+    protections[control] = state
 
 
 @when("the host privilege-boundary importer assesses it")
@@ -100,6 +118,19 @@ def no_success(context):
     result = context["report"]["observations"][0]
     assert result["decision"] == "inapplicable"
     assert result["classification"] == "not_evaluated"
+
+
+@then("the observation is selected as a reported canary crossing")
+def selected_crossing(context):
+    result = context["report"]["observations"][0]
+    assert result["decision"] == "selected"
+    assert result["classification"] == "reported_canary_crossing"
+
+
+@then(parsers.parse("the importer rejects the unsupported {field} {control} state"))
+def rejects_unsupported_protection(context, field: str, control: str):
+    with pytest.raises(ContractError, match=f"{field}.*{control}.*unsupported state"):
+        assess_document(context["payload"])
 
 
 @then("the importer rejects the incomplete canary report")

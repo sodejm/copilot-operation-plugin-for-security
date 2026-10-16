@@ -18,6 +18,7 @@ REPO_ROOT = PLUGIN_ROOT.parent.parent
 if str(PLUGIN_ROOT) not in sys.path:
     sys.path.insert(0, str(PLUGIN_ROOT))
 
+import entrawb.reporting as reporting
 from entrawb.analysis import (
     analyze_identity_graph,
 )
@@ -127,6 +128,67 @@ def test_fresh_and_stale_snapshot_policy(contoso_manifest_path: Path):
     assert "Evidence coverage is unknown" in render_markdown_report(stale_graph, [])
 
 
+def test_fractional_assessment_time_keeps_fresh_source_valid(contoso_manifest_path: Path):
+    """Export validation uses the same timestamp precision as freshness classification."""
+    manifest, sources = ingest_tenant_export(contoso_manifest_path)
+    for entry in manifest["sources"]:
+        if entry["source_id"] == "users":
+            entry["exported_at"] = "2026-09-30T18:00:00.250Z"
+    graph = build_identity_graph(
+        manifest,
+        sources,
+        as_of=datetime(2026, 9, 30, 18, 0, 0, 500000, tzinfo=UTC),
+    )
+    assert graph.source_coverage["users"]["status"] == "fresh"
+    assert graph.assessed_at == "2026-09-30T18:00:00.500000Z"
+    assert graph.to_dict()["assessed_at"] == graph.assessed_at
+    assert render_json_report(graph, analyze_identity_graph(graph))["assessed_at"] == graph.assessed_at
+
+
+@pytest.mark.parametrize(
+    "exported_at",
+    ["0001-01-01T00:00:00+14:00", "2026-09-30T18:00:00.1234569Z"],
+)
+def test_unrepresentable_source_time_fails_closed(contoso_manifest_path: Path, exported_at: str):
+    manifest, sources = ingest_tenant_export(contoso_manifest_path)
+    for entry in manifest["sources"]:
+        if entry["source_id"] == "users":
+            entry["exported_at"] = exported_at
+    graph = build_identity_graph(manifest, sources, as_of=FIXTURE_AS_OF)
+    assert graph.source_coverage["users"]["status"] == "unknown"
+    assert graph.source_coverage["users"]["reason"] == "invalid_timestamp"
+
+    fresh_manifest, fresh_sources = ingest_tenant_export(contoso_manifest_path)
+    fresh_graph = build_identity_graph(fresh_manifest, fresh_sources, as_of=FIXTURE_AS_OF)
+    for name, document, validate in (
+        ("graph", fresh_graph.to_dict(), validate_graph_artifact),
+        ("report", render_json_report(fresh_graph, analyze_identity_graph(fresh_graph)), validate_report_artifact),
+    ):
+        altered = deepcopy(document)
+        altered["source_coverage"]["users"]["exported_at"] = exported_at
+        schema = json.loads((PLUGIN_ROOT / "schemas" / f"{name}.v2.schema.json").read_text())
+        if "." in exported_at:
+            assert not Draft202012Validator(schema, format_checker=FormatChecker()).is_valid(altered)
+        with pytest.raises(EntraError, match="invalid assessment or source timestamp|valid source timestamps"):
+            validate(altered)
+
+
+def test_report_analysis_time_preserves_assessment_order(contoso_manifest_path: Path, monkeypatch):
+    manifest, sources = ingest_tenant_export(contoso_manifest_path)
+    graph = build_identity_graph(manifest, sources, as_of=FIXTURE_AS_OF.replace(microsecond=250000))
+
+    class FrozenDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            assert tz is UTC
+            return FIXTURE_AS_OF.replace(microsecond=500000)
+
+    monkeypatch.setattr(reporting, "datetime", FrozenDatetime)
+    report = render_json_report(graph, [])
+    assert report["analyzed_at"] == "2026-09-30T18:00:00.500000Z"
+    assert report["analyzed_at"] > report["assessed_at"]
+
+
 def test_markdown_rejects_hypotheses_from_stale_snapshot(contoso_manifest_path: Path):
     """Prior hypotheses cannot be rendered as current after their exports age out."""
     manifest, sources = ingest_tenant_export(contoso_manifest_path)
@@ -196,7 +258,7 @@ def test_non_string_source_timestamp_stays_unknown_and_report_valid(contoso_mani
     assert graph.source_coverage["oauth_grants"]["reason"] == "invalid_timestamp"
     report = render_json_report(graph, analyze_identity_graph(graph))
     for name, document in (("graph", graph.to_dict()), ("report", report)):
-        schema = json.loads((PLUGIN_ROOT / "schemas" / f"{name}.schema.json").read_text())
+        schema = json.loads((PLUGIN_ROOT / "schemas" / f"{name}.v2.schema.json").read_text())
         Draft202012Validator(schema, format_checker=FormatChecker()).validate(document)
 
 
@@ -379,7 +441,7 @@ def test_output_schemas_require_freshness_evidence(contoso_manifest_path: Path):
     validate_graph_artifact(graph_doc)
     validate_report_artifact(report_doc)
     for name, document in (("graph", graph_doc), ("report", report_doc)):
-        schema = json.loads((PLUGIN_ROOT / "schemas" / f"{name}.schema.json").read_text())
+        schema = json.loads((PLUGIN_ROOT / "schemas" / f"{name}.v2.schema.json").read_text())
         validator = Draft202012Validator(schema, format_checker=FormatChecker())
         validator.validate(document)
         for field in ("assessed_at", "max_age_hours", "source_coverage"):
@@ -414,7 +476,7 @@ def test_output_schemas_reject_conflicting_freshness_states(contoso_manifest_pat
         ("graph", graph.to_dict()),
         ("report", render_json_report(graph, analyze_identity_graph(graph))),
     ):
-        schema = json.loads((PLUGIN_ROOT / "schemas" / f"{name}.schema.json").read_text())
+        schema = json.loads((PLUGIN_ROOT / "schemas" / f"{name}.v2.schema.json").read_text())
         validator = Draft202012Validator(schema, format_checker=FormatChecker())
         for field, value in (
             ("reason", "stale"),
@@ -444,7 +506,7 @@ def test_output_schemas_reject_untraceable_provenance(contoso_manifest_path: Pat
         ("graph", graph.to_dict()),
         ("report", render_json_report(graph, analyze_identity_graph(graph))),
     ):
-        schema = json.loads((PLUGIN_ROOT / "schemas" / f"{name}.schema.json").read_text())
+        schema = json.loads((PLUGIN_ROOT / "schemas" / f"{name}.v2.schema.json").read_text())
         validator = Draft202012Validator(schema, format_checker=FormatChecker())
         assert validator.is_valid(document)
         extra_coverage = deepcopy(document)
@@ -489,7 +551,7 @@ def test_cross_object_validation_rejects_fresh_claims_from_unknown_sources(
     )
     bad_graph = deepcopy(graph_doc)
     bad_graph["source_coverage"][node["evidence_source"]].update(status="unknown", reason="stale")
-    graph_schema = json.loads((PLUGIN_ROOT / "schemas" / "graph.schema.json").read_text())
+    graph_schema = json.loads((PLUGIN_ROOT / "schemas" / "graph.v2.schema.json").read_text())
     assert Draft202012Validator(graph_schema, format_checker=FormatChecker()).is_valid(bad_graph)
     with pytest.raises(EntraError, match="non-fresh source"):
         validate_graph_artifact(bad_graph)
@@ -497,10 +559,57 @@ def test_cross_object_validation_rejects_fresh_claims_from_unknown_sources(
     bad_report = deepcopy(report_doc)
     source_id = bad_report["hypotheses"][0]["evidence_sources"][0]
     bad_report["source_coverage"][source_id].update(status="unknown", reason="stale")
-    report_schema = json.loads((PLUGIN_ROOT / "schemas" / "report.schema.json").read_text())
+    report_schema = json.loads((PLUGIN_ROOT / "schemas" / "report.v2.schema.json").read_text())
     assert Draft202012Validator(report_schema, format_checker=FormatChecker()).is_valid(bad_report)
     with pytest.raises(EntraError, match="non-fresh source"):
         validate_report_artifact(bad_report)
+
+
+@pytest.mark.parametrize("exported_at", ["2000-01-01T00:00:00Z", "2026-10-01T00:00:00Z"])
+def test_artifact_validation_rechecks_fresh_source_window(contoso_manifest_path: Path, exported_at: str):
+    manifest, sources = ingest_tenant_export(contoso_manifest_path)
+    graph = build_identity_graph(manifest, sources, as_of=FIXTURE_AS_OF)
+    for name, document, validate in (
+        ("graph", graph.to_dict(), validate_graph_artifact),
+        ("report", render_json_report(graph, analyze_identity_graph(graph)), validate_report_artifact),
+    ):
+        altered = deepcopy(document)
+        altered["source_coverage"]["users"]["exported_at"] = exported_at
+        schema = json.loads((PLUGIN_ROOT / "schemas" / f"{name}.v2.schema.json").read_text())
+        assert Draft202012Validator(schema, format_checker=FormatChecker()).is_valid(altered)
+        with pytest.raises(EntraError, match="outside the assessment window"):
+            validate(altered)
+
+
+def test_future_assessment_cannot_make_future_sources_fresh(contoso_manifest_path: Path):
+    """Relative source age must not make an untrusted future artifact current."""
+    manifest, sources = ingest_tenant_export(contoso_manifest_path)
+    graph = build_identity_graph(manifest, sources, as_of=FIXTURE_AS_OF)
+    future = "2099-01-01T12:00:00Z"
+
+    for name, document, validate in (
+        ("graph", graph.to_dict(), validate_graph_artifact),
+        ("report", render_json_report(graph, analyze_identity_graph(graph)), validate_report_artifact),
+    ):
+        altered = deepcopy(document)
+        altered["assessed_at"] = future
+        for item in altered["source_coverage"].values():
+            if item["status"] == "fresh":
+                item["exported_at"] = future
+        schema = json.loads((PLUGIN_ROOT / "schemas" / f"{name}.v2.schema.json").read_text())
+        assert Draft202012Validator(schema, format_checker=FormatChecker()).is_valid(altered)
+        with pytest.raises(EntraError, match="assessment time is in the future"):
+            validate(altered)
+
+    future_coverage = deepcopy(graph.source_coverage)
+    for item in future_coverage.values():
+        if item["status"] == "fresh":
+            item["exported_at"] = future
+    future_graph = replace(graph, assessed_at=future, source_coverage=future_coverage)
+    with pytest.raises(EntraError, match="assessment time is in the future"):
+        future_graph.to_dict()
+    with pytest.raises(EntraError, match="assessment time is in the future"):
+        render_json_report(future_graph, [])
 
 
 def test_markdown_report_escapes_export_derived_text(contoso_manifest_path: Path):
@@ -526,6 +635,51 @@ def test_markdown_report_escapes_export_derived_text(contoso_manifest_path: Path
     assert "name&#124;column" in report
 
 
+def test_v1_schemas_remain_compatible_with_existing_artifacts(contoso_manifest_path: Path):
+    """Keep accepting the provenance-bearing v1 artifacts emitted before v2."""
+    manifest, sources = ingest_tenant_export(contoso_manifest_path)
+    graph = build_identity_graph(manifest, sources, as_of=FIXTURE_AS_OF)
+    legacy_graph = graph.to_dict()
+    legacy_graph["schema_version"] = "entra.identity-graph/v1"
+    legacy_report = render_json_report(graph, analyze_identity_graph(graph))
+    legacy_report["schema_version"] = "entra.identity-report/v1"
+    for name, document in (("graph", legacy_graph), ("report", legacy_report)):
+        v1 = json.loads((PLUGIN_ROOT / "schemas" / f"{name}.schema.json").read_text())
+        v2 = json.loads((PLUGIN_ROOT / "schemas" / f"{name}.v2.schema.json").read_text())
+        Draft202012Validator(v1, format_checker=FormatChecker()).validate(document)
+        assert not Draft202012Validator(v2, format_checker=FormatChecker()).is_valid(document)
+
+
+def test_manual_graph_without_freshness_metadata_cannot_be_exported():
+    """A caller cannot bypass the normal builder and emit an unbounded claim."""
+    graph = IdentityGraph(tenant_id="tenant-1", nodes={}, edges=[])
+    with pytest.raises(EntraError, match="assessment time"):
+        graph.to_dict()
+    with pytest.raises(EntraError, match="assessment time"):
+        render_json_report(graph, [])
+    with pytest.raises(EntraError, match="assessment time"):
+        render_markdown_report(graph, [])
+    graph = replace(graph, assessed_at="2026-09-30T18:00:00Z")
+    with pytest.raises(EntraError, match="every Entra source"):
+        graph.to_dict()
+    with pytest.raises(EntraError, match="every Entra source"):
+        render_json_report(graph, [])
+    with pytest.raises(EntraError, match="every Entra source"):
+        render_markdown_report(graph, [])
+
+
+def test_forged_fresh_source_outside_assessment_window_cannot_be_exported(contoso_manifest_path: Path):
+    manifest, sources = ingest_tenant_export(contoso_manifest_path)
+    graph = build_identity_graph(manifest, sources, as_of=FIXTURE_AS_OF)
+    coverage = deepcopy(graph.source_coverage)
+    coverage["users"].update(status="fresh", reason=None, exported_at="2026-09-28T18:00:00Z")
+    graph = replace(graph, source_coverage=coverage)
+    with pytest.raises(EntraError, match="outside the assessment window"):
+        graph.to_dict()
+    with pytest.raises(EntraError, match="outside the assessment window"):
+        render_json_report(graph, [])
+
+
 def test_cli_execution_and_reports(contoso_manifest_path: Path, tmp_path: Path):
     """Test CLI commands for analyze and graph export."""
     from entrawb.cli import main
@@ -545,7 +699,7 @@ def test_cli_execution_and_reports(contoso_manifest_path: Path, tmp_path: Path):
     assert exit_code == 0
     assert json_output.exists()
     data = json.loads(json_output.read_text(encoding="utf-8"))
-    assert data["schema_version"] == "entra.identity-report/v1"
+    assert data["schema_version"] == "entra.identity-report/v2"
     assert data["hypotheses"] == []
     assert data["source_coverage"]["users"]["reason"] == "stale"
 
@@ -555,6 +709,6 @@ def test_cli_execution_and_reports(contoso_manifest_path: Path, tmp_path: Path):
     assert exit_code == 0
     assert graph_output.exists()
     graph_data = json.loads(graph_output.read_text(encoding="utf-8"))
-    assert graph_data["schema_version"] == "entra.identity-graph/v1"
+    assert graph_data["schema_version"] == "entra.identity-graph/v2"
     assert len(graph_data["nodes"]) >= 10
     assert graph_data["source_coverage"]["users"]["reason"] == "stale"

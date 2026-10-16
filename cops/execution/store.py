@@ -645,6 +645,7 @@ class ApprovalStore:
         expected_authorization: ExecutionAuthorization,
         worker_identity: str,
         current_time_iso: str | None = None,
+        minimum_remaining_seconds: float = 0,
     ) -> ExecutionAuthorization:
         """Atomically claim and consume an approved authorization envelope within a write lock.
 
@@ -652,14 +653,22 @@ class ApprovalStore:
         The write lock binds consumption to that complete receipt and prevents replay.
         """
         import json
+        import math
 
-        now_str = current_time_iso or utc_now()
-        now_dt = timestamp(now_str)
+        if (
+            type(minimum_remaining_seconds) not in (int, float)
+            or not math.isfinite(minimum_remaining_seconds)
+            or minimum_remaining_seconds < 0
+        ):
+            raise ApprovalStoreConflictError("minimum remaining authorization window must be finite and nonnegative")
 
         with self._get_connection() as conn:
             conn.execute("BEGIN IMMEDIATE")
             committed = False
             try:
+                # Observe time after acquiring the lock, including time spent waiting.
+                now_str = current_time_iso or utc_now()
+                now_dt = timestamp(now_str)
                 cur = conn.execute(
                     """
                     SELECT authorization_id, action_plan_id, plan_digest, engagement_id,
@@ -725,6 +734,9 @@ class ApprovalStore:
                     raise ApprovalStoreConflictError(
                         f"authorization '{authorization_id}' expired at {row['authorized_until_utc']}"
                     )
+
+                if (expiry_dt - now_dt).total_seconds() < minimum_remaining_seconds:
+                    raise ApprovalStoreConflictError("authorization has insufficient time for startup and cleanup")
 
                 # Atomically mark consumed
                 conn.execute(

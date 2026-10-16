@@ -161,6 +161,11 @@ EXPECTED_PLAYBACK_FIELDS: dict[str, dict[tuple[str, ...], object]] = {
         ("status",): "passed",
         ("target",): "10.100.0.10",
     },
+    "exploit-validation-workbench": {
+        ("status",): "offline_contract_validated",
+        ("execution_authorized",): False,
+        ("mismatch_refused",): True,
+    },
 }
 
 
@@ -346,6 +351,8 @@ def run_exported_demos(context, tmp_path):
         export_portable_package(ROOT / record.path, destination)
         assert not (destination / "tests").exists()
         assert not (destination / "package.json").exists()
+        if record.id == "exploit-validation-workbench":
+            assert (destination / "reproduction" / "preflight.py").is_file()
         command, timeout = validate_declared_command(record.package["demo"], record, runtime)
         context["exported_results"][record.id] = [
             subprocess.run(

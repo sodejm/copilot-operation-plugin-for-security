@@ -140,6 +140,9 @@ class IdentityGraph:
         return ("unknown", unique_reasons) if unique_reasons else ("fresh", [])
 
     def to_dict(self) -> dict[str, Any]:
+        from .validation import validate_export_metadata, validate_graph_artifact
+
+        validate_export_metadata(self)
         nodes = []
         for node in sorted(self.nodes.values(), key=lambda n: n.node_id):
             status, reasons = self.node_evidence(node)
@@ -149,7 +152,7 @@ class IdentityGraph:
             status, reasons = self.edge_evidence(edge)
             edges.append({**edge.to_dict(), "evidence_status": status, "evidence_reasons": reasons})
         document = {
-            "schema_version": "entra.identity-graph/v1",
+            "schema_version": "entra.identity-graph/v2",
             "tenant_id": self.tenant_id,
             "assessed_at": self.assessed_at,
             "max_age_hours": self.max_age_hours,
@@ -157,7 +160,5 @@ class IdentityGraph:
             "nodes": nodes,
             "edges": edges,
         }
-        from .validation import validate_graph_artifact
-
         validate_graph_artifact(document)
         return document

@@ -60,6 +60,16 @@ jobs:
         run: python -m pytest plugins/offensive-security/foundry-agent-harness/tests/test_laboratory.py tests/step_defs/test_agent_mcp_laboratories.py -q
       - name: Exercise reachability report acceptance
         run: python -m pytest tests/step_defs/test_cve_reachability.py -q
+      - name: Exercise native Windows host assessment bridge
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $script = Join-Path $env:GITHUB_WORKSPACE "plugins/offensive-security/host-assessment-workbench/scripts/exercise-windows-bridge.ps1"
+          $runRoot = Join-Path $env:RUNNER_TEMP "cops-host-assessment-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+          & $script -RunRoot $runRoot
+      - name: Exercise Windows host assessment contract regressions
+        if: runner.os == 'Windows'
+        run: python -m pytest tests/test_host_windows_assessment.py tests/step_defs/test_host_windows_privilege_boundaries_steps.py -q
       - name: Exercise bounded repository scanning
         run: python -m pytest tests/test_repository_context_reader.py tests/step_defs/test_repository_scanning.py -q
       - name: Exercise every offline demo

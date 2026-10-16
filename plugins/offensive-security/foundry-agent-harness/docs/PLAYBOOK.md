@@ -10,6 +10,79 @@ The `evaluate` command runs the older deterministic scenario simulator against a
 
 The AI provider assessment command imports fixed response envelopes shaped like OpenAI Responses, Azure OpenAI Responses, AWS Bedrock Converse, and GCP Vertex `generateContent`. Use it to inspect exact plan binding, strict post-gate envelope validation, common outcome normalization, and budget-ledger behavior. It has no provider client, credential lookup, network operation, or live mode.
 
+The `auth-plan` command creates an immutable assessment plan for a fixed peer and MCP stdio target fixture. The `auth-lab` command verifies and atomically consumes one signed COPS authorization before importing the bound controller or starting the observer, target, and peer processes. The target separately checks synthetic grant authentication, delegated or autonomous actor binding, audience, tenant, resource, operation, scope, tool permission, and delegation depth. The runner reads a separate canary disclosure and write ledger. A COPS execution receipt cannot supply target-service authority.
+
+## Run and inspect delegation authorization
+
+For a clean-checkout operator demonstration of the complete local contract, run from the repository
+root:
+
+```bash
+.venv/bin/python plugins/offensive-security/foundry-agent-harness/scripts/run_auth_demo.py \
+  --output /tmp/cops-agent-mcp-auth-report.json
+```
+
+A successful command reports `status: passed`, `case_count: 22`, the absolute report path, and its
+SHA-256. It invokes the public `auth-plan` and `auth-lab` CLI paths and records their zero exit codes.
+It has already checked the signed single-use batch approval, the complete allow/deny matrix, target
+decisions and reasons, all eight separate-process canary effects, redaction, process cleanup,
+approved-source cleanup, and removal of the ephemeral approval directory. It then invokes the same
+`auth-lab` command with the same approval and requires exit code 2 with the stable
+`already_consumed_or_revoked` denial. Retain the JSON report and printed digest together when
+attaching local evidence.
+
+The provider-neutral observer generates and retains an ephemeral Ed25519 private key inside its
+child process. The runner receives only its challenge-bound readiness record and public verification
+key, then verifies the observer session, monotonic record sequence, and every signed effect. The
+runner cannot mint an accepted record with that public material. Because the runner still controls
+the trusted child source, launch, and private work directory on the same host, this establishes
+local process-level key separation rather than independently administered external authority. It
+does not establish live-provider authorization or OS-enforced network isolation. The command
+creates synthetic ephemeral authority for the local fixture only; it does not grant or substitute
+for production authorization.
+
+```bash
+python3 plugins/offensive-security/foundry-agent-harness/foundryharness/cli.py auth-plan \
+  --plan-id plan-mcp-auth --engagement-id eng-mcp-auth \
+  --created-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  --output /tmp/cops-agent-mcp-auth-plan.json
+```
+
+Review the exact plan, including selected cases, fixture source hashes, tool inventory, synthetic identities, and aggregate limits. Use `cops.execution.authorization.request_interactive_plan_authorization` with the engagement, signer, and bound worker identity, then `ApprovalStore.store_authorization` to persist the receipt. Provision the verifier trust store and signing material as described in [Authenticated execution](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/docs/AUTHENTICATED_EXECUTION.md). These existing Python interfaces supply issuance; the plugin has no separate approval-issuance CLI. The trust store and approval database must be private, owned regular files. No real target credential is needed for this synthetic fixture.
+
+```bash
+python3 plugins/offensive-security/foundry-agent-harness/foundryharness/cli.py auth-lab \
+  --plan /tmp/cops-agent-mcp-auth-plan.json \
+  --authorization /tmp/cops-agent-mcp-auth-authorization.json \
+  --engagement /tmp/cops-agent-mcp-auth-engagement.json \
+  --trust-store /tmp/cops-agent-mcp-auth-trust.json \
+  --worker-identity fixture-worker --approval-store /tmp/cops-agent-mcp-auth-approvals.sqlite3 \
+  --json
+```
+
+Use the same `--cases` selection for planning and execution: one versioned case or a case directory. Case files allow only fixed synthetic aliases, grants, tools, and logical times. Changed cases or fixture sources invalidate the approved manifest. The report is an aggregate `cops.agent-mcp-auth-run/v1` object. `schemas/auth-case.schema.json` and `schemas/auth-report.schema.json` constrain the fixture, while `schemas/auth-adapter.schema.json` and `schemas/auth-evidence.schema.json` define fixture records; `schemas/auth-normalized-observation.schema.json` defines the provider-neutral mapping and its effect provenance. Example reports are in `examples/auth-*.json`.
+
+| Integration | Protocol and transport | Pinned identity and permissions | Support |
+| --- | --- | --- | --- |
+| Bundled fixture | MCP `2025-11-25`, local stdio | `cops-auth-fixture` v1; exact `canary/read` and `canary/write` tool inventory | Synthetic case decisions and canary effects only |
+| HTTP or OAuth MCP provider | Unspecified | No provider, client, scopes, or tool list pinned | Unsupported; no live authorization conclusion |
+
+Read each result in this order:
+
+1. Confirm the approved manifest's `adapter` name, version, protocol, and transport, then the result's `environment_verified`. A failed handshake or changed tool inventory is inconclusive.
+2. Read the run's `assessment_authorization` separately: signed verification, one-time consumption, plan identity and digest, engagement, and worker. Compare the manifest's approved case attempts with each observation's `peer.forwarded_request`. This authorizes the assessment attempt only; it does not grant the target action.
+3. Read each observation's `peer`, `target`, `normalized_observations`, and observer-ledger effects. The forwarded request records the principal, agent, downstream service, audience, tenant, resource, operation, scopes, tool, and synthetic grant alias. Correlate plan digest, test identity, case, principal, tool, and attempt, request, and canary IDs across all three sources. A request missing tenant context must be denied with `missing_tenant` and zero effects. Missing target identity telemetry is inconclusive. Hostile peer mutations must not silently become the approved request.
+4. Confirm permitted read disclosures and writes in `observed_effects` from the local observer ledger, which the runner reads separately from tool replies. Require `record_authentication: ed25519_observer_process`, `signing_authority: observer_process_private_key`, one observer key and session per case, a fresh challenge-bound readiness record, and monotonic record sequences. Missing, forged, or stale readiness and effect records must fail closed. The child retains the private key and the runner receives only the public key, but both remain inside one runner-controlled same-host fixture rather than independently administered external authority. Denials must have neither a disclosure nor a write effect; a permitted call without its positive witness is inconclusive. `cleanup` separately records termination of all three processes and removal of temporary storage. Check `outcome`, `evidence_complete`, and `security_pass` as well as `expectation_met`: an intentionally inconclusive test can meet its declared expectation without establishing an authorization boundary. Only a complete passing result sets `security_pass`; the CLI exits nonzero if any result is inconclusive, unsupported, incomplete, cancelled, or failed.
+5. Treat `inconclusive` as missing evidence, even if a partial target response was received. For revocation, check the successful write before `revoked_at_tick`, the denial at that tick, and zero effects after it. `revocation_window` declares the bounded logical tick window and observed denial lag; it does not measure provider propagation.
+
+The examples show an authorized delegated write, a wrong-audience denial, and missing target identity telemetry. They establish fixture behavior only. The complete default pack passes all 22 cases, including successful writes in both tenants, cross-tenant denials in both directions, and zero observed effects for all four hostile peer probes. An intentionally inconclusive case can match its declared expectation while returning `security_pass: false` and a nonzero CLI exit. A reusable bearer grant is not assumed to be one-time; `one-time-replay` is a separate synthetic grant policy tested across attempts within the same target process.
+
+One approval covers the selected batch without per-case prompts. The installed COPS data-only planner validates all case fields without importing any execution file. The trusted bootstrap rebuilds the entire manifest against the seven captured source files, verifies and consumes the receipt, then imports a fresh controller and starts processes from the private snapshot. The CLI, bootstrap, COPS data-only planner, verifier and store, Python, and operating system remain trusted installation components. Preloaded controllers and later checkout changes cannot replace approved execution bytes. `source_snapshot` records verification and removal separately from per-case cleanup; its `failures` array retains every snapshot failure. `recovery_actions` lists outstanding actions in order and `next_action` identifies the first. Startup registers each process before SIGINT or SIGTERM can interrupt it; cleanup observes process exit and directory removal. SIGKILL or host loss cannot run cleanup, so reconcile any unresolved effects before further approval. At least nine seconds must remain before atomic receipt consumption, including eight seconds reserved for cleanup. A shared ledger counts received response bytes and new observer-ledger bytes across cases; response and ledger reads are limited before they occur. Admission stops at receipt expiry, the aggregate duration deadline, or the observed-output limit. `max_observed_fixture_bytes` bounds admission and received evidence, not the exact serialized report size or subprocess memory. Reports go to stdout, with no `auth-lab` output-file option. Controller initialization exceptions, including `SystemExit`, return redacted failed evidence and nonzero status with the receipt still consumed. Snapshot removal is independently checked; failed cleanup remains visible alongside initialization failure. Follow every ordered `recovery_actions` entry before approving another run. Cancellation and stopped admission return partial results, `pending_case_ids`, and a precise `next_action`. The consumed receipt cannot be retried: approve a new plan for pending cases after resolving any reported cleanup failure. This workflow has no durable crash-resume checkpoint and is not the full plain-language coordinator tracked in #283. The approval store requires POSIX ownership and permission checks; this increment claims no Windows runtime acceptance or OS-enforced denied egress.
+
+Package validation and the normal COPS package check read bounded data without importing assessment modules or starting fixtures. They structurally check every schema node, including unused definitions, reject unsupported constraints, and bound local reference traversal. Their success establishes package consistency only. When a later case fails unexpectedly, completed results and their budget accounting remain in the partial report. `execution_failure` identifies the failed case, gives a fixed redacted reason, and marks its effects uncertain; subsequent cases are not admitted. Follow `reconcile_uncertain_execution_effects_before_new_approval` to resolve those effects before approving pending cases. The consumed receipt cannot authorize an automatic retry.
+
+An external adapter needs a separately reviewed, versioned contract. It must verify COPS signed execution authorization and bind the approved plan to the exact test identity, tenant, resource, action, audience, and requested scope before attempting a call. It must pin the MCP protocol, provider and server identity, tool inventory, and effective permissions, then record redacted authentication and authorization decisions separately from an independent effect observer. That observer must be administered outside the caller's control and provision its identity and verification key through an out-of-band trust path; a key supplied by the runner does not establish independent authority. Missing identity telemetry, unsupported provider behavior, setup failure, observer failure, timeout, or failed cleanup must yield inconclusive or unsupported evidence. It must measure revocation against a declared bounded window rather than infer propagation from the local logical-time fixture. No external adapter is implemented by this package.
+
 ## Run and inspect the laboratory
 
 ```bash

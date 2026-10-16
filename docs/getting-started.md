@@ -36,7 +36,7 @@ cd copilot-operation-plugin-for-security
 # 2. Check local environment health and catalog synchronization
 python3 -m cops doctor
 
-# 3. List all 17 plugins and their validation status
+# 3. List all 18 plugins and their validation status
 python3 -m cops list
 
 # 4. Inspect details and operational playbooks for a specific plugin
@@ -64,7 +64,7 @@ python3 -m cops doctor
 
 ### What `cops doctor` checks:
 1. **Python Interpreter**: Confirms that your active Python interpreter is version 3.11 or newer.
-2. **Catalog Integrity**: Verifies that all 17 package manifests match their catalog declarations.
+2. **Catalog Integrity**: Verifies that all 18 package manifests match their catalog declarations.
 3. **Marketplace Synchronization**: Ensures that generated host indexes (`.github/plugin/marketplace.json`, `.claude-plugin/marketplace.json`, `.agents/plugins/marketplace.json`) are in sync with `catalog/plugins.json`.
 
 The default check does not run plugins or audit their network behavior. With `--contributor`, it also checks for the `pytest` and `pytest_bdd` modules and the `git` executable, and reports whether the optional `make` and `gh` executables are present. Use `make check-prerequisites` to check Python and the test dependencies in `requirements.txt`, including their minimum versions.
@@ -75,7 +75,7 @@ If any check reports an issue, the output provides clear, actionable instruction
 
 ## Step 2: Exploring the Plugin Catalog (`cops list` & `cops info`)
 
-COPS packages 17 dedicated security plugins across defensive and offensive domains. To view the full catalog:
+COPS packages 18 dedicated security plugins across defensive and offensive domains. To view the full catalog:
 
 ```bash
 python3 -m cops list
@@ -95,6 +95,7 @@ kubernetes-assessment-workbench offensive-security        experimental  validate
 entra-identity-workbench        identity-access           beta          validated  unverified  unverified    
 ad-assessment-workbench         identity-access           experimental  validated  unverified  unverified
 exposure-triage-workbench       vulnerability-management  beta          validated  unverified  unverified    
+exploit-validation-workbench    vulnerability-management  experimental  validated  unverified  unverified
 foundry-agent-harness           offensive-security        beta          validated  unverified  unverified    
 detection-quality-workbench     detection-hunting         beta          validated  unverified  unverified    
 patch-security-review           vulnerability-management  beta          validated  unverified  unverified    
@@ -186,7 +187,7 @@ To run a plugin's defined offline checks locally:
 # Check a single package
 python3 -m cops check sentinel-hunt-workbench
 
-# Check all 17 packages
+# Check all 18 packages
 python3 -m cops check
 ```
 

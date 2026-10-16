@@ -146,6 +146,20 @@
       ]
     },
     {
+      "id": "exploit-validation-workbench",
+      "name": "COPS Exploit Validation Workbench",
+      "version": "0.1.0",
+      "primary_category": "vulnerability-management",
+      "path": "plugins/vulnerability-management/exploit-validation-workbench",
+      "tags": [
+        "cve",
+        "laboratory",
+        "reproduction",
+        "versioned",
+        "vulnerability-management"
+      ]
+    },
+    {
       "id": "foundry-agent-harness",
       "name": "COPS Microsoft Foundry Adversarial Agent Review Harness",
       "version": "0.1.0",
@@ -245,7 +259,8 @@
         "linux",
         "offline-import",
         "offensive-security",
-        "privilege-boundaries"
+        "privilege-boundaries",
+        "windows"
       ]
     },
     {

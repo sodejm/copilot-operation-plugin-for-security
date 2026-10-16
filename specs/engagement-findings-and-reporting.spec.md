@@ -14,20 +14,46 @@ authorization grant, or report publication occurs in this workflow.
 1. Validate every embedded contract and evidence envelope, reject duplicate
    identifiers and conflicting joins, and keep all reported targets within the
    Engagement's included scope and outside its exclusions. A RunResult has one
-   provenance mode; planning coverage cannot reference a RunResult.
+   provenance mode; planning coverage cannot reference a RunResult. An ActionPlan
+   has a RunResult or a planning coverage row for its full, canonically equivalent
+   target; a single-host row cannot represent a network-wide plan.
+   Normalize single-address CIDRs
+   to their host identity when detecting duplicate targets. A non-import
+   RunResult cannot be reused across different scenarios in a saved report.
 2. Provide a coverage row for each RunResult and distinguish planned, imported,
    laboratory and live provenance. Missing access, evidence or result is
    `not_assessed`; partial or imported evidence cannot become a complete live
-   validation claim.
+   validation claim. Live evidence has an observation time inside the RunResult
+   window; scanner-only assertions cannot establish assessed coverage. A
+   non-scanner Finding can corroborate a scanner-associated row only when it is
+   itself assessed, names that RunResult and scenario, covers each asset asserted
+   by the scanner within the row, and shares validated evidence with the row.
+   If corroboration fails, the row is partial and findings that depend on its
+   assessed status cannot remain assessed.
 3. Distinguish configuration observations, scanner assertions, observed behavior
    and reproduced attack paths. A reproduced path needs scoped, repeatable
-   laboratory or live evidence and declared Finding dependencies.
+   laboratory or live evidence and unique, acyclic Finding dependencies.
 4. Include scope, coverage, affected assets, reproducibility, evidence strength,
    dependencies, remediation, uncertainty and limitations in both output forms.
    Contradictory findings stay unresolved; references with missing validated
-   evidence cannot be assessed.
+   evidence cannot be assessed. Every assessed affected asset has linked evidence.
+   Validate a saved output report's semantic joins and claims as well as its schema.
+   A saved Finding's status, verification, and evidence-strength labels must agree:
+   assessed/recorded, partial/limited, not_assessed/limited or missing, and
+   contradicted verification with unresolved/contradicted or missing.
+   `recorded`, `limited`, and `contradicted` strength require linked evidence.
+   Saved scanner-associated coverage cannot become assessed without assessed
+   non-scanner corroboration. Resultless coverage cannot carry evidence records.
+   A partial Finding requires matching partial or assessed coverage; linked
+   evidence on exclusively not_assessed coverage does not establish partiality.
+   Each Finding retains an explicit limitation for affected assets lacking
+   assessed coverage with linked evidence. A scanner assertion with partial
+   coverage is the exception: partial records collection without independent
+   corroboration, rather than absent collection for the named asset. The saved
+   report retains the notice that record hashes do not prove source authenticity
+   or authorization.
 5. Omit source payloads, credential references, source locators and artifact
-   paths. Escape caller-supplied Markdown text. Create new owner-only files and
+   paths. Escape caller-supplied Markdown text and control characters. Create new owner-only files and
    never overwrite an existing output.
 
 ## Trust limits

@@ -12,18 +12,23 @@ The journey uses synthetic data for `tenant-a` and `workspace-a` from `2026-01-0
 
 ## Run the journey
 
-From the repository root, create a new private output path and run:
+This walkthrough requires Python 3.11 or later. From the repository root, select a
+compatible interpreter, create a private scratch directory, and run:
 
 ```bash
+PYTHON="${PYTHON:-python3.11}"
+"$PYTHON" --version
 PACKAGE=plugins/detection-hunting/soc-investigation-workbench
-OUT="${TMPDIR:-/tmp}/cops-soc-playback-$(date +%s)"
-python3 "$PACKAGE/scripts/run_demo.py" --out-dir "$OUT"
+SCRATCH="$(mktemp -d "${TMPDIR:-/tmp}/cops-soc.XXXXXX")"
+chmod 700 "$SCRATCH"
+OUT="$SCRATCH/playback"
+"$PYTHON" "$PACKAGE/scripts/run_demo.py" --out-dir "$OUT"
 ```
 
 The command exits with a nonzero status when an intermediate or final assertion fails. On success, inspect the top-level result:
 
 ```bash
-python3 -m json.tool "$OUT/playback-summary.json"
+"$PYTHON" -m json.tool "$OUT/playback-summary.json"
 ```
 
 The summary identifies the evaluator as offline and reference-invariant, records that live service validation was not performed, and reports all three cases as passed.
@@ -34,8 +39,8 @@ The complete playback creates synthetic observations that you can reuse to walk 
 
 ```bash
 CLI="$PACKAGE/scripts/investigate.py"
-MANUAL="${TMPDIR:-/tmp}/cops-soc-manual-$(date +%s)"
-EVALUATION="${TMPDIR:-/tmp}/cops-sentinel-evaluation-$(date +%s)"
+MANUAL="$SCRATCH/manual"
+EVALUATION="$SCRATCH/sentinel-evaluation"
 umask 077
 mkdir "$MANUAL"
 ```
@@ -43,7 +48,7 @@ mkdir "$MANUAL"
 Create an unassessed case from the synthetic Entra export, validate it, and inspect the eligible inquiries:
 
 ```bash
-python3 "$CLI" intake \
+"$PYTHON" "$CLI" intake \
   --case-id case-malicious-access-manual \
   --tenant tenant-a \
   --workspace workspace-a \
@@ -51,31 +56,31 @@ python3 "$CLI" intake \
   --end 2026-01-02T00:00:00Z \
   --sources "entra:$PACKAGE/examples/intake/entra-signins.json" \
   --out "$MANUAL/01-intake.json"
-python3 "$CLI" validate "$MANUAL/01-intake.json"
-python3 "$CLI" next "$MANUAL/01-intake.json"
+"$PYTHON" "$CLI" validate "$MANUAL/01-intake.json"
+"$PYTHON" "$CLI" next "$MANUAL/01-intake.json"
 ```
 
 Generate the H01 sign-in handoff. Its entity aliases must identify an account and an IP address:
 
 ```bash
-python3 "$CLI" handoff "$MANUAL/01-intake.json" --step signin-triage \
+"$PYTHON" "$CLI" handoff "$MANUAL/01-intake.json" --step signin-triage \
   > "$MANUAL/handoff-H01.json"
-python3 -m json.tool "$MANUAL/handoff-H01.json"
+"$PYTHON" -m json.tool "$MANUAL/handoff-H01.json"
 ```
 
 Run the vendored offline evaluator and inspect its malicious H01 result:
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 python3 "$PACKAGE/vendor/sentinel-hunt-workbench/scripts/run_demo.py" \
+PYTHONDONTWRITEBYTECODE=1 "$PYTHON" "$PACKAGE/vendor/sentinel-hunt-workbench/scripts/run_demo.py" \
   --out-dir "$EVALUATION"
-python3 -c 'import json,sys; x=json.load(open(sys.argv[1])); print(json.dumps(x["hunts"]["H01"]["malicious"], indent=2))' \
+"$PYTHON" -c 'import json,sys; x=json.load(open(sys.argv[1])); print(json.dumps(x["hunts"]["H01"]["malicious"], indent=2))' \
   "$EVALUATION/evaluation-summary.json"
 ```
 
 The evaluator checks the fixture contract and reference invariants. It does not execute Kusto Query Language (KQL) or contact Microsoft Sentinel. Import the corresponding synthetic observation produced by the complete playback:
 
 ```bash
-python3 "$CLI" import \
+"$PYTHON" "$CLI" import \
   "$MANUAL/01-intake.json" \
   "$OUT/malicious/02-h01-observation.json" \
   --out "$MANUAL/02-after-H01.json"
@@ -84,12 +89,12 @@ python3 "$CLI" import \
 Generate the independent H10 consent handoff, inspect the evaluator result, and import the synthetic observation. The handoff must identify the account and application even though H01 is already complete:
 
 ```bash
-python3 "$CLI" handoff "$MANUAL/02-after-H01.json" --step token-audit \
+"$PYTHON" "$CLI" handoff "$MANUAL/02-after-H01.json" --step token-audit \
   > "$MANUAL/handoff-H10.json"
-python3 -m json.tool "$MANUAL/handoff-H10.json"
-python3 -c 'import json,sys; x=json.load(open(sys.argv[1])); print(json.dumps(x["hunts"]["H10"]["malicious"], indent=2))' \
+"$PYTHON" -m json.tool "$MANUAL/handoff-H10.json"
+"$PYTHON" -c 'import json,sys; x=json.load(open(sys.argv[1])); print(json.dumps(x["hunts"]["H10"]["malicious"], indent=2))' \
   "$EVALUATION/evaluation-summary.json"
-python3 "$CLI" import \
+"$PYTHON" "$CLI" import \
   "$MANUAL/02-after-H01.json" \
   "$OUT/malicious/03-h10-observation.json" \
   --out "$MANUAL/03-after-H10.json"
@@ -98,23 +103,23 @@ python3 "$CLI" import \
 Create the analyst report and export the complete handoff timeline:
 
 ```bash
-python3 "$CLI" report "$MANUAL/03-after-H10.json" \
+"$PYTHON" "$CLI" report "$MANUAL/03-after-H10.json" \
   > "$MANUAL/final-report.json"
-python3 "$CLI" export-handoff "$MANUAL/03-after-H10.json" \
+"$PYTHON" "$CLI" export-handoff "$MANUAL/03-after-H10.json" \
   --out-dir "$MANUAL/handoff-export"
-python3 -m json.tool "$MANUAL/final-report.json"
+"$PYTHON" -m json.tool "$MANUAL/final-report.json"
 cat "$MANUAL/handoff-export/handoff.md"
 ```
 
 The insufficient-evidence playback also produces a justified revised plan. Apply it to the immutable snapshot after the failed H01 observation, then validate and resume:
 
 ```bash
-python3 "$CLI" revise \
+"$PYTHON" "$CLI" revise \
   "$OUT/insufficient_evidence/02-case-after-h01.json" \
   "$OUT/insufficient_evidence/03-revised-steps.json" \
   --out "$MANUAL/insufficient-revised.json"
-python3 "$CLI" validate "$MANUAL/insufficient-revised.json"
-python3 "$CLI" next "$MANUAL/insufficient-revised.json"
+"$PYTHON" "$CLI" validate "$MANUAL/insufficient-revised.json"
+"$PYTHON" "$CLI" next "$MANUAL/insufficient-revised.json"
 ```
 
 The final command must return H10 as the remaining independent inquiry. The failed H01 collection remains a coverage gap and does not count as evidence for the benign hypothesis.
@@ -147,11 +152,11 @@ An empty result, collection error, schema mismatch, or unavailable source does n
 Use these commands after the playback succeeds:
 
 ```bash
-python3 -m json.tool "$OUT/malicious/handoff-H01.json"
-python3 -m json.tool "$OUT/malicious/handoff-H10.json"
-python3 -m json.tool "$OUT/malicious/03-case-after-h10.json"
-python3 -m json.tool "$OUT/malicious/final-report.json"
-python3 -m json.tool "$OUT/insufficient_evidence/final-report.json"
+"$PYTHON" -m json.tool "$OUT/malicious/handoff-H01.json"
+"$PYTHON" -m json.tool "$OUT/malicious/handoff-H10.json"
+"$PYTHON" -m json.tool "$OUT/malicious/03-case-after-h10.json"
+"$PYTHON" -m json.tool "$OUT/malicious/final-report.json"
+"$PYTHON" -m json.tool "$OUT/insufficient_evidence/final-report.json"
 cat "$OUT/malicious/handoff-export/handoff.md"
 ```
 

@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from .models import EntraError, IdentityGraph, ReviewHypothesis
-from .validation import validate_report_artifact
+from .validation import validate_export_metadata, validate_report_artifact
 
 
 def build_report_summary(graph: IdentityGraph, hypotheses: list[ReviewHypothesis]) -> dict[str, int]:
@@ -26,9 +26,10 @@ def build_report_summary(graph: IdentityGraph, hypotheses: list[ReviewHypothesis
 
 
 def render_json_report(graph: IdentityGraph, hypotheses: list[ReviewHypothesis]) -> dict[str, Any]:
-    """Construct typed dictionary matching report.schema.json."""
+    """Construct typed dictionary matching report.v2.schema.json."""
+    validate_export_metadata(graph)
     summary = build_report_summary(graph, hypotheses)
-    now_iso = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    now_iso = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     report_hypotheses = []
     edges_by_id = {edge.edge_id: edge for edge in graph.edges}
     for hypothesis in hypotheses:
@@ -62,7 +63,7 @@ def render_json_report(graph: IdentityGraph, hypotheses: list[ReviewHypothesis])
             }
         )
     document = {
-        "schema_version": "entra.identity-report/v1",
+        "schema_version": "entra.identity-report/v2",
         "tenant_id": graph.tenant_id,
         "analyzed_at": now_iso,
         "assessed_at": graph.assessed_at,

@@ -132,7 +132,7 @@ Before compiling an Action Plan, measure the scenario operation tool through an 
 
 ```bash
 python3 -m cops engagement plan \
-  --engagement engagement.json \
+  --engagement plugins/offensive-security/offensive-engagement-workbench/fixtures/synthetic/engagement.json \
   --scenario COPS-E03.01-S01 \
   --target 10.100.0.10 \
   --tool-version python3=3.11.9 \

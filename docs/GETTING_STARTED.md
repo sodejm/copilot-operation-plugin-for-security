@@ -26,7 +26,7 @@ If any check reports an issue, the output will give you clear, actionable instru
 
 ## 2. Choose the Right Tool for the Job
 
-COPS packages seventeen dedicated security plugins across defensive and offensive domains. To see the full catalog and current validation status, run:
+COPS packages eighteen dedicated security plugins across defensive and offensive domains. To see the full catalog and current validation status, run:
 
 ```bash
 python3 -m cops list
@@ -71,7 +71,7 @@ python3 -m cops info host-assessment-workbench
 | **Review supplied telemetry records for missing evidence** | `telemetry-proof-pack` | Uses a run manifest and JSON exports to correlate synthetic marker records across five stages; does not inspect live pipelines. |
 | **Rehearse incident containment with cryptographic execution receipts** | `incident-response-sandbox` | Approval-gated containment planning, blast-radius calculation, and receipts. |
 | **Plan and validate an authorized offensive engagement** | `offensive-engagement-workbench` | Offline engagement scope, scenario, and execution-authorization contracts. |
-| **Classify a local Linux host assessment export** | `host-assessment-workbench` | Eight-surface coverage and source-reported canary results from a versioned local export. |
+| **Classify a local Linux or Windows host assessment export** | `host-assessment-workbench` | Eight Linux or seven Windows surfaces and source-reported canary results from a versioned local export. |
 
 ---
 
@@ -117,7 +117,7 @@ python3 -m cops validate sentinel-hunt-workbench
 python3 -m cops check sentinel-hunt-workbench
 ```
 
-To run offline checks across all seventeen plugins in sequence:
+To run offline checks across all eighteen plugins in sequence:
 
 ```bash
 python3 -m cops check

@@ -39,11 +39,62 @@ python "$P/scripts/run_provider_assessment.py" > "$COPS_FOUNDRY_RUN/providers.js
 
 Inventory the scenario, laboratory case, and provider fixture files before loading them. Compare loaded IDs/counts, expected denials, observed mock effects, normalized provider states, budget results, and cleanup receipts with the files. Repeat with bounded synthetic copies whose required refusal and allowed effect an independent reviewer has specified.
 
+## Delegation authorization batch (#236)
+
+The legacy `evaluate` and `lab` commands above do not exercise the signed,
+two-tenant delegation workflow. Follow the [delegation authorization playbook](PLAYBOOK.md#run-and-inspect-delegation-authorization)
+to build and inspect one immutable plan, issue one signed COPS assessment
+authorization, and run the selected batch unattended with `auth-lab`. The
+approval authorizes the assessment run only; the target fixture independently
+requires its synthetic grant. No per-case approval is expected. This fixed local
+fixture is not the full plain-language coordinator or durable crash-resume path
+tracked by issue #283.
+
+Before the run, compare the plan's selected case IDs, tool inventory, fixture
+hashes, identities, and aggregate limits with the checked-in cases. Keep the
+plan, signed receipt, trust store, approval database, and report in private
+storage. After the run, reconcile every planned case and attempt against the
+report; require both positive delegated controls, cross-tenant denials in both
+directions, and zero observer-ledger effects for each hostile peer probe.
+The runner reads the ledger separately from tool replies. The target signals the
+observer, and the observer signs its own record with an ephemeral Ed25519 private
+key retained inside the observer process. The runner verifies a fresh
+challenge-bound readiness record, observer session, monotonic sequence, and
+effect signature using only the public key. Inspect `assessment_authorization`,
+`observations` (peer and target), `normalized_observations`, `observed_effects`, `cleanup`,
+`evidence_complete`, `security_pass`,
+`pending_case_ids`, `recovery_actions`, and `next_action`. Missing identity or
+effect telemetry, unavailable observation, unsupported behavior, failed setup,
+or failed cleanup is inconclusive even when the declared expectation matches.
+Follow all recovery actions before authorizing a new run; a consumed receipt is
+not retryable, and an uncertain external effect must be reconciled first.
+
+Exercise `lost_response_after_effect` with an allowed write followed by another
+case. Confirm the local observer ledger retains the write, the batch stops, the
+interrupted and unstarted cases remain pending, and the consumed receipt cannot
+be replayed. Reconcile the uncertain effect before approving a new plan.
+
+Record the exact command, revision, Python and OS versions, plan and case
+digests, case-by-case outcomes, observer-ledger effect observations, and cleanup
+result in the private run record. The fixture covers the legacy MCP
+`initialize` handshake and exact capability/tool descriptors over local
+synthetic stdio only. It rejects a paginated tool inventory rather than
+assuming the first page is complete. The pinned server name and version are
+advertised metadata, not cryptographic peer authentication. Do not infer remote
+HTTP, OAuth, hosted-provider, cross-provider interoperability, current
+per-request metadata, Windows runtime, or OS-enforced network-isolation
+support from this exercise. The same-host runner controls the trusted observer
+source, launch, and work directory, so process-local key possession is not proof
+of an independently administered external authority. External acceptance needs
+an observer identity and verification key provisioned outside the caller's
+control.
+
 ## Acceptance criteria
 
 - Every intended scenario is loaded; warnings/skipped malformed files are coverage gaps even when the command exits zero.
 - Expected unauthorized calls are denied by the independent gate, and allowed mock effects match the scenario contract.
 - All required laboratory expectations and cleanup receipts pass, with failures represented explicitly. Local subprocess fixtures cannot certify host/network isolation.
+- The #236 authorization batch reconciles every planned case and attempt, its two-tenant controls, all four hostile peer probes, normalized observation provenance, observer-ledger effects, and cleanup. It passes only when each result has complete evidence and `security_pass` is true; otherwise report the exact inconclusive or failed cases.
 - The provider report contains all 14 bundled cases under deterministic SHA-256 references from `report_case_id`, with no source case IDs. The four provider-family success cases settle as `completed`; exact endpoint, tenant/account, model, tool, canary, and request mismatches are denied before response processing; the AWS tool case remains a `tool_proposal`; the partial case records `no_effect`, `unknown` usage, and `usage_unknown`; and the final budget case is denied before response processing.
 - Authorized and budget-admitted responses must pass their strict provider-specific envelope schema before normalization. Malformed, unknown-field, cross-provider, unsupported-status, inconsistent AWS tool-use, unrequested tool proposals, invalid usage counts, and output token counts above the approved request cap fail the assessment. Denied and budget-refused cases remain `not_processed` regardless of their response content.
 - Provider `all_expectations_met` and temporary-ledger `cleanup_verified` are true, and `budget.over_budget` is false. A deliberately over-budget completed report exits nonzero while retaining the budget and cleanup evidence. The report contains only the schema fields documented in `specs/ai-provider-assessment.spec.md`; it contains no response text, prompt, source case ID, endpoint URL, account identifier, canary value, or credential.

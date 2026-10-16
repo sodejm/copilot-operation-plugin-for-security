@@ -12,6 +12,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location(
@@ -19,6 +20,11 @@ SPEC = importlib.util.spec_from_file_location(
 )
 GATE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(GATE)
+CHECKS_SPEC = importlib.util.spec_from_file_location(
+    "local_push_checks", ROOT / "tools/push_gate/checks.py"
+)
+CHECKS = importlib.util.module_from_spec(CHECKS_SPEC)
+CHECKS_SPEC.loader.exec_module(CHECKS)
 
 
 class PolicyTests(unittest.TestCase):
@@ -78,6 +84,25 @@ class PolicyTests(unittest.TestCase):
         finally:
             del os.environ["TRIVY_SKIP_FILES"]
             del os.environ["SEMGREP_RULES"]
+
+    def test_cops_coverage_excludes_removed_authorization_source_copies(self):
+        commands = []
+        with (
+            mock.patch.object(sys, "argv", ["checks.py", "cops", "base", "head"]),
+            mock.patch.object(
+                CHECKS, "run", side_effect=lambda *args: commands.append(args)
+            ),
+            mock.patch.object(CHECKS.glob, "glob", return_value=[]),
+            mock.patch.object(CHECKS.subprocess, "check_output", return_value=""),
+            mock.patch.dict(os.environ, {"PATH": os.environ.get("PATH", "")}),
+        ):
+            CHECKS.main()
+        coverage_runs = [
+            command for command in commands if command[1:4] == ("-m", "coverage", "run")
+        ]
+        self.assertEqual(len(coverage_runs), 1)
+        self.assertIn("--omit=*/cops-auth-source-*/*", coverage_runs[0])
+        self.assertIn((coverage_runs[0][0], "-m", "coverage", "report"), commands)
 
 
 class RemoteTests(unittest.TestCase):
