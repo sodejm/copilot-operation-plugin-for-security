@@ -262,3 +262,11 @@ references. Missing or unsupported records remain partial. See the
 disk and memory copies against their supplied digest and ordered custody records.
 It leaves originals unchanged and reports integrity separately from analysis.
 See [formats, manifest fields, and limits](docs/ARTIFACT_ASSESSMENTS.md#raw-disk-and-memory-import).
+
+### Kubernetes containment playback
+
+The [isolated Kubernetes laboratory](docs/KUBERNETES_LABORATORY.md) applies a
+NetworkPolicy to disposable pods, correlates HTTP and API audit telemetry, and
+verifies restored connectivity after success, failure and cancellation. Its
+pinned, privileged node requires a dedicated Linux lab host. The required
+laboratory gate includes this case; offline policy assessment alone cannot pass it.

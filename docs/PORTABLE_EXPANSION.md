@@ -42,3 +42,11 @@ The EVTX adapter is a repository CLI capability. Portable plugin exports do not
 silently bundle its parser. The strict laboratory source snapshot includes the
 synthetic `.evtx` correction fixtures; its separately provisioned runtime pins
 both parser dependencies. Missing prerequisites fail the binary acceptance case.
+
+## Kubernetes acceptance prerequisites
+
+Portable exports contain offline Kubernetes assessment and walkthrough assets.
+They do not bundle K3s or start a privileged node. The repository's required
+laboratory gate separately uses the registered, digest-pinned images for Linux
+amd64 or arm64. Provision them explicitly on a dedicated lab host using
+[the runbook](KUBERNETES_LABORATORY.md); missing images cannot become a skipped pass.

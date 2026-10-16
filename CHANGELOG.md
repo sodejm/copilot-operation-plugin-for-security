@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add pinned, air-gapped Kubernetes containment acceptance with real pod traffic,
+  metadata audit logs, plan-bound approvals, and restoration after success,
+  failure and cancellation. Require its evidence alongside all twelve service
+  cases in the strict laboratory gate.
+
 - Extend pinned Git-history scanning to bounded potential GitHub PAT, AWS identifier,
   Bearer and PEM private-key patterns with redacted provenance, correction cases,
   and explicit validity and coverage limits. Preserve synthetic revocation correlation.

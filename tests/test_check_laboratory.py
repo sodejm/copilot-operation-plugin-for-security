@@ -137,6 +137,7 @@ def test_container_child_requires_kernel_evidence_before_creating_state(monkeypa
     ["--runtime", "process", "--image", "sha256:" + "a" * 64],
     ["--runtime", "docker", "--image", "sha256:" + "a" * 64, "--container-child"],
     ["--timeout", "601"],
+    ["--kubernetes-timeout", "179"],
 ])
 def test_invalid_cli_options_fail_before_state_creation(monkeypatch, tmp_path, arguments) -> None:
     state = tmp_path / "must-not-exist"
@@ -158,3 +159,61 @@ def test_docker_cli_forwards_immutable_image_and_deadline(monkeypatch, capsys) -
     assert check_laboratory.main() == 2
     assert calls == [(check_laboratory.ROOT, image, 60)]
     assert json.loads(capsys.readouterr().out)["status"] == "blocked"
+
+
+def _component_reports():
+    service = {"status": "passed", "failures": [], "blockers": [], "cases": [
+        {"name": name, "passed": True} for name in ACCEPTANCE_CASE_IDS]}
+    kubernetes = {"status": "passed", "isolation": {"verified": True}, "cleanup": {"verified": True},
+                  "cases": [{"mode": mode, "workflow_status": status, "passed": True, "namespace_removed": True}
+                            for mode, status in (("success", "success"), ("failure", "partial_failure"), ("cancellation", "cancelled"))]}
+    return service, kubernetes
+
+
+def test_complete_gate_requires_both_boundaries_and_every_case():
+    service, kubernetes = _component_reports()
+    code, result = check_laboratory.complete_gate(service, kubernetes)
+    assert code == 0
+    assert result["summary"] == {"cases_passed": 13, "cases_total": 13, "functional_evidence_only": False}
+
+
+@pytest.mark.parametrize("mutation", ["isolation", "cleanup", "missing_case", "duplicate_case", "wrong_status", "namespace"])
+def test_incomplete_kubernetes_evidence_cannot_pass(mutation):
+    service, kubernetes = _component_reports()
+    if mutation in ("isolation", "cleanup"):
+        kubernetes[mutation]["verified"] = False
+    elif mutation == "missing_case":
+        kubernetes["cases"].pop()
+    elif mutation == "duplicate_case":
+        kubernetes["cases"][2] = kubernetes["cases"][0]
+    elif mutation == "wrong_status":
+        kubernetes["cases"][1]["workflow_status"] = "success"
+    else:
+        kubernetes["cases"][0]["namespace_removed"] = False
+    code, result = check_laboratory.complete_gate(service, kubernetes)
+    assert code == 1 and result["status"] == "failed"
+    assert result["failures"] == ["Kubernetes lifecycle evidence is incomplete"]
+
+
+def test_missing_kubernetes_prerequisite_leaves_complete_gate_blocked():
+    service, _ = _component_reports()
+    code, result = check_laboratory.complete_gate(service, {"status": "blocked", "blockers": ["pinned image absent"]})
+    assert code == 2 and result["summary"]["cases_total"] == 13
+    assert result["summary"]["cases_passed"] == 12
+    assert result["blockers"] == ["pinned image absent"]
+
+
+@pytest.mark.parametrize("mutation", ["duplicate", "failed", "blocker", "missing"])
+def test_service_evidence_cannot_claim_pass_with_incomplete_cases(mutation):
+    service, kubernetes = _component_reports()
+    if mutation == "duplicate":
+        service["cases"].append(service["cases"][0])
+    elif mutation == "failed":
+        service["cases"][0]["passed"] = False
+    elif mutation == "blocker":
+        service["blockers"].append("unavailable prerequisite")
+    else:
+        service["cases"].pop()
+    code, result = check_laboratory.complete_gate(service, kubernetes)
+    assert code == 1 and result["status"] == "failed"
+    assert "Service laboratory evidence is incomplete" in result["failures"]

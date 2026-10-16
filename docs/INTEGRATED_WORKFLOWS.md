@@ -166,11 +166,14 @@ and corrected servers and preserves missing reachability as unknown. Every chain
 collects correlated telemetry and verifies baseline restoration and stopped services.
 
 These cases have explicit coverage limits. Git scanning recognizes the documented
-synthetic patterns only and requires a reviewed executable pin; CVE triage uses a pinned synthetic injection advisory rather than a
+bounded credential patterns and requires a reviewed executable pin; CVE triage uses a pinned synthetic injection advisory rather than a
 dependency build; consent uses an application-grant emulator rather than Entra;
 active detection uses registered laboratory event rules rather than a production
 Sigma/KQL engine; the exposure inventory uses numeric loopback addresses rather
-than DNS discovery. Kubernetes policy enforcement remains unvalidated. An ephemeral
+than DNS discovery. The separate [Kubernetes laboratory](KUBERNETES_LABORATORY.md)
+executes the sixth workflow against pinned, isolated K3s pods, verifies actual
+NetworkPolicy enforcement and audit evidence, and restores all three lifecycle
+cases. Production cluster enforcement remains unvalidated. An ephemeral
 signing key proves bundle integrity, not external source authenticity. These
 laboratory cases do not establish the production worker's distinct-user boundary.
 

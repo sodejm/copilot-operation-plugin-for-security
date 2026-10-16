@@ -240,3 +240,16 @@ mounted, copied into reports, or interpreted as instructions. A hostile same-use
 process or storage backend is outside this boundary; use trusted storage and an
 isolated runtime. Permission references and digest-bound custody are assertions,
 not cryptographic execution grants or independently authenticated provenance.
+
+## Kubernetes acceptance host
+
+The fixed K3s acceptance node needs privilege to enforce pod networking. It shares
+the Docker host kernel and must run in a dedicated disposable Linux VM. Digest
+pins, network mode `none`, no host paths or published ports, bounded resources,
+owned volumes and exact startup configuration constrain the fixture. Node routes
+and actual IPv4/IPv6 pod egress failures must corroborate host inspection.
+Namespace identity and prior evidence bind single-use approvals. Content-bounded,
+metadata-only API audit records and nonce-correlated HTTP logs establish observed
+activity; missing evidence fails acceptance. Cleanup verifies namespace, node,
+volume and temporary-tag removal. This trust boundary does not protect the host
+from a compromised privileged image or certify the production worker boundary.
