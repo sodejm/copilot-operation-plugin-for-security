@@ -135,7 +135,7 @@ attack_fixture=(), benign_fixture=())`. The result classifications are:
 | --- | --- |
 | `instrumentation_gap` | Logs are unavailable, or no expected correlated telemetry was captured in the time window. |
 | `detection_gap` | Expected correlated telemetry exists, but no actual correlated alert was observed. |
-| `verified_detection` | Actual expected telemetry and an event with `alert: true` share a requested correlation ID and fall in the time window. |
+| `verified_detection` | Actual telemetry and an event with `alert: true` each satisfy every expected telemetry predicate, share a requested correlation ID, and fall in the time window. |
 | `indeterminate` | Source evidence or alert evidence is missing. |
 
 A detection gap includes Sigma and KQL proposals. The evaluator executes each
@@ -170,6 +170,14 @@ The service laboratory can feed this evaluator from
 functional behavior and reports isolation as unverified unless the kernel
 boundary checks succeed. Preserve the report from `to_dict()`
 (`cops.service-laboratory-report/v1`) as an evidence reference.
+
+The integrated detection laboratory evaluates four labeled evidence views from
+the same captured service activity: complete logs and alerts, withheld logs,
+withheld alerts, and unavailable alert evidence. The report binds the original
+event and alert digests and the handoff digest, records each resulting state,
+and executes the generated Sigma and KQL subsets against the captured attack
+and benign events. An unrelated alert cannot verify detection merely by sharing
+a correlation ID and timestamp.
 
 The required `make check-laboratory` gate also checks restoration and actual
 activity. Its Docker runtime inspects the container before starting it and

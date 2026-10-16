@@ -27,6 +27,9 @@
   destination approval binding, one-use authorization, signed redacted credential
   evidence, actual service activity, and verified restoration. Preserve synthetic
   emulator and production-integration limits in every report.
+- Require every expected telemetry predicate on purple-team alerts. Verify all
+  four outcomes using labeled views of captured service activity and execute the
+  generated Sigma/KQL subsets against attack and benign events.
 - Add `make check-laboratory` as a separate required readiness gate. Functional
   loopback tests alone leave laboratory readiness incomplete. The Docker path uses
   a preinstalled immutable image, inspected isolation, real service activity,

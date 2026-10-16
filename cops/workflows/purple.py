@@ -141,10 +141,8 @@ def evaluate_purple_team_handoff(
         }
     matching_alerts = [
         event
-        for event in alerts
-        if isinstance(event, dict)
-        and event.get("alert") is True
-        and _has_correlation(event, document["correlation_ids"])
+        for event in _matching_events(rule, alerts)
+        if event.get("alert") is True
         and _in_window(event, document["time_window"])
     ]
     if not matching_alerts:

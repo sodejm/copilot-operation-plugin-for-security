@@ -170,7 +170,10 @@ Typed workflows compile each executable step into the existing ActionPlan. A new
 target or changed action requires a newly validated plan and authorization. Resume
 checks bind persisted outputs by digest; retries do not repeat uncertain writes.
 Purple-team results preserve instrumentation gaps, detection gaps, verified
-detections, and indeterminate evidence. Report exports retain those distinctions
+detections, and indeterminate evidence. Verification requires both telemetry and
+alerts to satisfy every expected predicate, correlation ID, and time window;
+an unrelated alert with a matching correlation ID cannot establish detection.
+Report exports retain those distinctions
 and do not turn inconclusive results into verified findings or passing tests.
 
 Artifact assessors accept bounded documented formats. Heavy acquisition and

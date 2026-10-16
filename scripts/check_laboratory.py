@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from cops.laboratory.service_lab import ServiceLaboratory, probe_isolated_runtime
+from cops.evidence.canonical import digest
 from cops.laboratory.container_runtime import run_container_acceptance
 from cops.laboratory.acceptance_cases import ACCEPTANCE_CASE_IDS, INTEGRATED_WORKFLOW_IDS
 from cops.laboratory.integrated_lab import WORKFLOW_STAGES, run_integrated_service_laboratory
@@ -313,6 +314,25 @@ def _integrated_case(workflow_id: str, state_dir: Path, *, require_isolation: bo
     elif workflow_id == "detection-rule-ci-validation":
         _expect(failures, assessment.get("event_counts", {}).get("class:attack") == 3 and assessment.get("event_counts", {}).get("class:benign") == 3, "detection measurements lack attack or benign execution")
         _expect(failures, len(assessment.get("alerts", [])) == 2, "detection measurements differ from actual alerts")
+        purple = assessment.get("purple_team", {})
+        _expect(failures, purple.get("source") == "captured-service-activity", "purple outcomes lack a captured service source")
+        _expect(failures, purple.get("source_digests") == {"telemetry": digest(report["events"]), "alerts": digest(report["alerts"])}, "purple source digests differ from captured service activity")
+        _expect(failures, purple.get("handoff_digest") == digest(purple.get("handoff")), "purple handoff digest differs")
+        expected_states = {
+            "captured": "verified_detection", "logs_withheld": "instrumentation_gap",
+            "alerts_withheld": "detection_gap", "alert_evidence_unavailable": "indeterminate",
+        }
+        views = purple.get("views", {})
+        _expect(failures, {name: view.get("result", {}).get("status") for name, view in views.items()} == expected_states, "purple evidence views do not produce all four outcomes")
+        for name, view in views.items():
+            result = view.get("result", {})
+            _expect(failures, "captured service" in view.get("evidence_view", ""), f"purple view {name} does not label its evidence")
+            _expect(failures, result.get("fixture_counts") == {"attack_matches": 1, "benign_matches": 0}, f"purple view {name} lacks attack and benign measurements")
+            execution = result.get("rule_execution", {})
+            _expect(failures, execution.get("counts_agree") is True, f"purple view {name} rule proposals disagree")
+            for engine in ("sigma", "kql"):
+                measured = execution.get(engine, {})
+                _expect(failures, measured.get("status") == "executed" and measured.get("attack_matches") == 1 and measured.get("benign_matches") == 0, f"purple view {name} {engine} proposal was not executed against captured events")
     else:
         _expect(failures, assessment.get("authorized_status") == 200 and assessment.get("anonymous_status") == 401, "exposure audit did not verify authenticated and anonymous access")
     return {"failures": failures, "metrics": {
