@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+import hashlib
 import json
+import shutil
 import sys
 
 import pytest
@@ -28,9 +30,19 @@ def _install_probe(monkeypatch: pytest.MonkeyPatch, probe: IsolationProbe) -> No
     monkeypatch.setattr(integrated_lab, "probe_isolated_runtime", lambda: probe)
 
 
+@pytest.fixture
+def reviewed_test_git(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Supply the test operator's Git pin without creating a runtime prerequisite."""
+    executable = shutil.which("git")
+    assert executable is not None, "portable laboratory tests require Git"
+    pin = hashlib.sha256(Path(executable).resolve().read_bytes()).hexdigest()
+    monkeypatch.setattr(integrated_lab, "_runtime_git_pin", lambda: pin)
+
+
 def test_gate_runs_all_functional_evidence_then_blocks_without_isolation(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
+    reviewed_test_git: None,
 ) -> None:
     _install_probe(monkeypatch, _probe(verified=False))
 
@@ -68,6 +80,7 @@ def test_gate_runs_all_functional_evidence_then_blocks_without_isolation(
 def test_gate_can_pass_only_when_probe_and_runtime_reports_verify_isolation(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
+    reviewed_test_git: None,
 ) -> None:
     _install_probe(monkeypatch, _probe(verified=True))
 
