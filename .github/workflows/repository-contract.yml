@@ -24,10 +24,10 @@ jobs:
       - name: Obtain the pinned runtime prerequisites
         run: |
           mkdir -p "$RUNNER_TEMP/cops-runtime/wheels"
-          cp laboratories/service-runtime/Dockerfile laboratories/service-runtime/requirements.txt "$RUNNER_TEMP/cops-runtime/"
+          cp laboratories/service-runtime/Dockerfile laboratories/service-runtime/requirements.txt laboratories/service-runtime/pin_runtime.py "$RUNNER_TEMP/cops-runtime/"
           python -m pip download --index-url https://pypi.org/simple --only-binary=:all: --require-hashes --platform manylinux_2_28_x86_64 --platform manylinux2014_x86_64 --python-version 314 --implementation cp --abi cp314 --dest "$RUNNER_TEMP/cops-runtime/wheels" -r laboratories/service-runtime/requirements.txt
-          docker pull python:3.14.6-slim
-          docker image inspect python:3.14.6-slim --format '{{.Id}}' > "$RUNNER_TEMP/cops-runtime/base.id"
+          docker pull python:3.14.6@sha256:51570a50616289f78f340811c34ca4384985f9e891819cbe7620f738d6ca8525
+          docker image inspect python:3.14.6@sha256:51570a50616289f78f340811c34ca4384985f9e891819cbe7620f738d6ca8525 --format '{{.Id}}' > "$RUNNER_TEMP/cops-runtime/base.id"
       - name: Build without network access and run the strict gate
         run: |
           docker build --network none --pull=false --build-arg "BASE_IMAGE=$(cat "$RUNNER_TEMP/cops-runtime/base.id")" --iidfile "$RUNNER_TEMP/cops-runtime/image.id" "$RUNNER_TEMP/cops-runtime"

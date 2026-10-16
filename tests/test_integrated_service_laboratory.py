@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import shutil
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -17,12 +19,17 @@ from cops.workflows.runtime import WorkflowRuntimeError, compile_action_plan
 from tests.auth_testkit import make_test_authorization_context
 
 
+GIT = shutil.which("git")
+GIT_SHA256 = hashlib.sha256(Path(GIT).resolve().read_bytes()).hexdigest() if GIT else None
+
+
 @pytest.mark.parametrize("workflow_id", tuple(integrated_lab.WORKFLOW_STAGES))
 def test_integrated_workflow_uses_services_and_action_bound_approvals(
     tmp_path: Path, workflow_id: str,
 ) -> None:
     report = integrated_lab.run_integrated_service_laboratory(
         tmp_path / workflow_id, workflow_id=workflow_id, run_id="test-" + workflow_id,
+        git_sha256=GIT_SHA256,
     )
 
     assert report["status"] == "success"
@@ -45,6 +52,13 @@ def test_integrated_workflow_uses_services_and_action_bound_approvals(
         assert assessment["after_revocation"] == 401
         assert assessment["corrected"] is True
         assert assessment["synthetic_exposure"]["value_redacted"] is True
+        scan = assessment["synthetic_exposure"]
+        assert scan["same_credential_observed"] is True
+        assert scan["historical_exposure_observed"] is True
+        assert scan["repository_unchanged_by_scan"] is True
+        assert scan["disposable_repository_removed"] is True
+        assert scan["artifact"]["content"]["coverage"]["complete_within_configured_bounds"] is True
+        assert scan["artifact"]["content"]["adapter_prerequisites"]["satisfied"][0]["sha256"] == GIT_SHA256
         bundle = assessment["bundle"]
         public_key = Ed25519PublicKey.from_public_bytes(bytes.fromhex(bundle["public_key"]))
         public_key.verify(bytes.fromhex(bundle["signature"]), canonical(bundle["payload"]))
@@ -103,12 +117,28 @@ def test_integrated_credential_never_enters_artifacts(
     state_dir = tmp_path / "secret-check"
     report = integrated_lab.run_integrated_service_laboratory(
         state_dir, workflow_id="leaked-credential-blast-radius",
+        git_sha256=GIT_SHA256,
     )
 
     assert sentinel not in json.dumps(report)
     for path in state_dir.rglob("*"):
         if path.is_file():
             assert sentinel.encode() not in path.read_bytes(), path
+
+
+def test_integrated_credential_requires_reviewed_git_before_state(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    def unavailable_pin() -> str:
+        raise integrated_lab.GitHistoryScanError("reviewed_runtime_git_pin_required")
+
+    monkeypatch.setattr(integrated_lab, "_runtime_git_pin", unavailable_pin)
+    state_dir = tmp_path / "missing-runtime-pin"
+    with pytest.raises(integrated_lab.GitHistoryScanError, match="reviewed_runtime_git_pin_required"):
+        integrated_lab.run_integrated_service_laboratory(
+            state_dir, workflow_id="leaked-credential-blast-radius",
+        )
+    assert not state_dir.exists()
 
 
 def test_unknown_integrated_workflow_does_not_create_state(tmp_path: Path) -> None:

@@ -149,16 +149,19 @@ prior outputs, workers, or authorization IDs fail before consumption. Persisted
 results retain plan and output digests. The service-issued credential remains in
 memory and is excluded from results and state.
 
-The credential and consent chains prove authenticated access, revocation, and
-subsequent HTTP 401. The credential chain signs its redacted evidence bundle with
+The credential chain creates a disposable Git repository, commits and then deletes
+a synthetic credential, and scans reachable history through the pinned Git
+adapter. It verifies unchanged repository bytes and identifies the same credential
+used by the service. The credential and consent chains prove authenticated access,
+revocation, and subsequent HTTP 401. The credential chain signs its redacted evidence bundle with
 an ephemeral Ed25519 key and verifies the signature. Detection CI measures actual
 captured attack and benign events. Exposure checks make authenticated and anonymous
 requests to the scoped graph. CVE triage sends the injection fixture to vulnerable
 and corrected servers and preserves missing reachability as unknown. Every chain
 collects correlated telemetry and verifies baseline restoration and stopped services.
 
-These cases have explicit coverage limits. The credential case does not scan Git
-history; CVE triage uses a pinned synthetic injection advisory rather than a
+These cases have explicit coverage limits. Git scanning recognizes the documented
+synthetic patterns only and requires a reviewed executable pin; CVE triage uses a pinned synthetic injection advisory rather than a
 dependency build; consent uses an application-grant emulator rather than Entra;
 active detection uses registered laboratory event rules rather than a production
 Sigma/KQL engine; the exposure inventory uses numeric loopback addresses rather

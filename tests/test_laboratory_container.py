@@ -25,6 +25,8 @@ def source_tree(root):
         "cops/__init__.py": b"",
         "cops/laboratory/example.py": b"VALUE = 1\n",
         "cops/laboratory/service_fixtures/example.json": b"{}",
+        "cops/adapters/definitions/git.json": b"{}",
+        "cops/adapters/definitions/unregistered.json": b"{}",
         "scripts/check_laboratory.py": b"pass\n",
         "catalog/schemas/action-plan.schema.json": b"{}",
         "catalog/schemas/unregistered.schema.json": b"{}",
@@ -47,7 +49,7 @@ def configuration(source, nonce=NONCE, digest=DIGEST):
             "CapDrop": ["ALL"], "SecurityOpt": ["no-new-privileges:true"],
             "IpcMode": "private", "PidsLimit": 128, "Memory": 512 * 1024 * 1024,
             "NanoCpus": 1_000_000_000,
-            "Tmpfs": {"/tmp": "rw,nosuid,nodev,size=128m,mode=1777"},
+            "Tmpfs": {"/tmp": "rw,exec,nosuid,nodev,size=128m,mode=1777"},
         },
         "Config": {
             "Labels": {runtime._OWNER_LABEL: nonce}, "User": "65532:65532",
@@ -71,6 +73,7 @@ def test_snapshot_is_allowlisted_hashed_and_world_readable(tmp_path):
     copied = {path.relative_to(target).as_posix() for path in target.rglob("*") if path.is_file()}
     assert copied == {"source-manifest.json", "cops/__init__.py", "cops/laboratory/example.py",
                       "cops/laboratory/service_fixtures/example.json", "scripts/check_laboratory.py",
+                      "cops/adapters/definitions/git.json",
                       "catalog/schemas/action-plan.schema.json"}
     assert all(path.stat().st_mode & 0o777 == (0o755 if path.is_dir() else 0o644)
                for path in (target, *target.rglob("*")))
