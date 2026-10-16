@@ -12,10 +12,12 @@ import sqlite3
 import ssl
 import subprocess
 import sys
+import threading
 import time
 from collections.abc import Mapping
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from multiprocessing.process import BaseProcess
 
 import pytest
 from cryptography.hazmat.primitives import serialization
@@ -1458,6 +1460,47 @@ def test_broker_client_disconnect_kills_and_reaps_blocked_mediation() -> None:
     assert time.monotonic() - started < 2
     assert not process.is_alive()
     assert process.exitcode is not None
+
+
+def test_broker_serializes_process_reaping_between_close_and_monitor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_join = BaseProcess.join
+    monitor_join_started = threading.Event()
+    release_monitor_join = threading.Event()
+    access_lock = threading.Lock()
+    active_join_calls = 0
+    maximum_concurrent_join_calls = 0
+
+    def tracked_join(process: BaseProcess, timeout: float | None = None) -> None:
+        nonlocal active_join_calls, maximum_concurrent_join_calls
+        with access_lock:
+            active_join_calls += 1
+            maximum_concurrent_join_calls = max(maximum_concurrent_join_calls, active_join_calls)
+        try:
+            if threading.current_thread().name == "cops-egress-supervisor" and not monitor_join_started.is_set():
+                monitor_join_started.set()
+                release_monitor_join.wait(timeout=1)
+            original_join(process, timeout)
+        finally:
+            with access_lock:
+                active_join_calls -= 1
+
+    monkeypatch.setattr(BaseProcess, "join", tracked_join)
+    broker = ExecutionEgressBroker(_hanging_mediator("response"), protocol_timeout_seconds=10)
+    releaser = threading.Timer(0.05, release_monitor_join.set)
+
+    try:
+        with broker.open_channel() as channel:
+            process = channel._supervisor._process
+            assert monitor_join_started.wait(timeout=1)
+            releaser.start()
+    finally:
+        release_monitor_join.set()
+        releaser.join(timeout=1)
+
+    assert maximum_concurrent_join_calls == 1
+    assert process.exitcode == 0
 
 
 def test_broker_bounds_total_requests_and_total_request_bytes_per_operation() -> None:
