@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from .network_boundary import inspect_acceptance_boundary
+from .exposure_dns import ExposureDNS, HOST as EXPOSURE_HOST
 from .service_authentication import run_api_acceptance, run_jwt_acceptance
 from .service_boundaries import run_acquisition_acceptance, run_boundary_acceptance
 from .service_tls import TLSAcceptanceResult, run_ephemeral_mtls_acceptance
@@ -190,6 +191,9 @@ class _Graph:
         self.resource = _Service(self._resource_handler())
         self.hunt = _Service(self._hunt_handler())
         self.services = (self.sink, self.identity, self.resource, self.hunt)
+        if configuration.get("exposure_dns") is True:
+            self.dns = ExposureDNS(telemetry)
+            self.services += (self.dns,)
         self.final_reset_verified = False
 
     def _sink_handler(self) -> type[BaseHTTPRequestHandler]:
@@ -263,6 +267,19 @@ class _Graph:
                     return bool(token and state.tokens.get(token) and (grant is None or grant["active"]))
 
             def do_GET(self) -> None:  # noqa: N802
+                if self.path == "/exposure-admin":
+                    if self.headers.get("Host") != f"{EXPOSURE_HOST}:{self.server.server_port}":
+                        self.send_error(404)
+                        return
+                    authorized = self._authorized()
+                    with lock:
+                        profile = state.profile
+                    status = 200 if authorized or profile == "vulnerable" else 401
+                    telemetry.record("exposure_authentication", risk="benign" if authorized else "attack",
+                                     host=EXPOSURE_HOST, route=self.path, profile=profile,
+                                     authorized=authorized, status=status)
+                    _reply(self, status, {"authenticated": authorized})
+                    return
                 if self.path != "/protected":
                     self.send_error(404)
                     return
@@ -349,8 +366,11 @@ def _request_json(
     method: str = "GET",
     payload: dict[str, Any] | None = None,
     token: str | None = None,
+    host: str | None = None,
 ) -> tuple[int, dict[str, Any]]:
     headers = {"Content-Type": "application/json"}
+    if host is not None:
+        headers["Host"] = host
     if token is not None:
         headers["Authorization"] = f"Bearer {token}"
     data = json.dumps(payload).encode() if payload is not None else None
@@ -377,7 +397,11 @@ def _execute_detection_rules(
     }
     for event in events:
         counts[f"class:{event.get('risk', 'unknown')}"] += 1
-        if rule := rule_by_event.get(str(event.get("event"))):
+        rule = rule_by_event.get(str(event.get("event")))
+        if (event.get("event") == "exposure_authentication"
+                and event.get("authorized") is False and event.get("status") == 200):
+            rule = "anonymous-exposure-access"
+        if rule:
             if event.get("event") != "ioc_hunt" or event.get("hit") is True:
                 counts[f"rule:{rule}"] += 1
                 alerts.append(

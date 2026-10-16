@@ -34,6 +34,7 @@ from cops.execution.authorization import (
     create_execution_authorization,
 )
 from cops.execution.store import ApprovalStore
+from cops.laboratory.exposure_dns import ADDRESS as EXPOSURE_ADDRESS, HOST as EXPOSURE_HOST, resolve_exposure
 from cops.laboratory.service_boundaries import run_boundary_acceptance
 from cops.laboratory.service_lab import (
     FIXTURE_DIRECTORY,
@@ -55,6 +56,7 @@ from cops.laboratory.workflow_lab import (
 )
 from cops.workflows.consent_evidence import assess_consent
 from cops.workflows.contracts import WorkflowDefinition
+from cops.workflows.exposure_evidence import assess_exposure
 from cops.workflows.purple import emit_purple_team_handoff, evaluate_purple_team_handoff
 from cops.workflows.runtime import (
     StageExecutionResult,
@@ -249,9 +251,9 @@ class _IntegratedExecutor:
 
     def request(self, service: str, path: str, *, method: str = "GET",
                 payload: dict[str, Any] | None = None, authenticated: bool = False,
-                benign: bool = False) -> tuple[int, dict[str, Any]]:
+                benign: bool = False, host: str | None = None) -> tuple[int, dict[str, Any]]:
         destination = self.configuration["destinations"][service] + path
-        status, body = _request_json(destination, method=method, payload=payload,
+        status, body = _request_json(destination, method=method, payload=payload, host=host,
                                      token=(self.benign_token if benign else self.token) if authenticated else None)
         # Neither response bodies nor credential-bearing request bodies enter reports.
         self.requests.append({"destination": destination, "method": method, "status": status})
@@ -272,7 +274,9 @@ class _IntegratedExecutor:
         self.observations = copy.deepcopy(operation["arguments"].get("prior", {}))
         self.executed.append(name)
         handler = getattr(self, "_" + self.workflow_id.replace("-", "_"))
-        handler(name)
+        failure_reason = handler(name)
+        if failure_reason:
+            return StageExecutionResult("failed", reason=failure_reason)
         return StageExecutionResult(
             "success", outputs={"observations": copy.deepcopy(self.observations)},
             evidence_refs=("laboratory:" + idempotency_key,),
@@ -400,22 +404,68 @@ class _IntegratedExecutor:
             self.observations["attack_and_benign_executed"] = True
             self.observations["purple_team"] = _purple_evidence_views(self.telemetry, list(alerts))
 
-    def _pre_release_exposure_audit(self, name: str) -> None:
+    def _pre_release_exposure_audit(self, name: str) -> str | None:
+        configuration = self.configuration["exposure"]
+        endpoint = configuration["endpoint"]
+        host = f"{endpoint['host']}:{endpoint['port']}"
+
+        def source(kind: str) -> dict[str, str]:
+            return {"observed_at": _utc(datetime.now(timezone.utc)),
+                    "evidence_ref": f"laboratory:{self.telemetry.correlation_id}:{kind}"}
+
         if name == "inventory":
-            self.observations["inventory"] = copy.deepcopy(self.configuration["destinations"])
-            self.observations["dns_validation"] = "not_applicable_numeric_loopback_only"
+            try:
+                address = resolve_exposure(configuration["dns_destination"]["port"])
+            except (ValueError, OSError):
+                return "exposure_dns_validation_failed"
+            if address != EXPOSURE_ADDRESS:
+                return "exposure_dns_address_changed"
+            self.observations["dns_validation"] = "verified_fixed_loopback_a_record"
+            self.observations["evidence"] = {
+                "scope": {"endpoints": [endpoint], "window": configuration["window"]},
+                "dns_service_inventory": {"complete": True, "records": [{
+                    **source("dns"), "host": endpoint["host"], "addresses": [address],
+                }]},
+            }
         elif name == "connect":
-            status, _ = self.request("resource", "/protected", authenticated=True)
-            self.observations["authorized_status"] = status
+            status, _ = self.request("resource", endpoint["route"], authenticated=True, host=host)
+            self.observations["evidence"]["port_route_evidence"] = {"complete": True, "checks": [{
+                **endpoint, **source("connect"), "address": EXPOSURE_ADDRESS, "connected": status == 200,
+            }]}
         elif name == "authentication":
-            status, _ = self.request("resource", "/protected")
-            self.observations["anonymous_status"] = status
+            profiles = {}
+            try:
+                for profile in configuration["profiles"]:
+                    with self.graph._lock:
+                        self.graph.state.profile = profile
+                    authorized = self.request("resource", endpoint["route"], authenticated=True, host=host)[0]
+                    anonymous = self.request("resource", endpoint["route"], host=host)[0]
+                    evidence = copy.deepcopy(self.observations["evidence"])
+                    evidence["auth_evidence"] = {"complete": True, "checks": [{
+                        **endpoint, **source(profile), "address": EXPOSURE_ADDRESS,
+                        "authorized_status": authorized, "anonymous_status": anonymous,
+                    }]}
+                    profiles[profile] = assess_exposure(evidence)
+            finally:
+                with self.graph._lock:
+                    self.graph.state.profile = self.graph.baseline.profile
+            # A deliberately withheld view tests uncertainty using captured requests.
+            evidence["dns_service_inventory"]["records"] = []
+            profiles["limited"] = assess_exposure(evidence)
+            profiles["limited"]["evidence_view"] = "DNS records withheld from captured service activity"
+            self.observations["correction_profiles"] = profiles
+            self.observations["authorized_status"] = authorized
+            self.observations["anonymous_status"] = anonymous
         elif name == "report":
+            profiles = self.observations["correction_profiles"]
             self.observations["authentication_verified"] = (
                 self.observations["authorized_status"] == 200
                 and self.observations["anonymous_status"] == 401
+                and profiles["vulnerable"]["outcome"] == "action_required"
+                and profiles["corrected"]["outcome"] == "no_exposure_observed"
+                and profiles["limited"]["outcome"] == "insufficient_evidence"
             )
-            self.observations["coverage"] = "explicit loopback destinations only"
+            self.observations["coverage"] = "explicit loopback hostname endpoint only"
 
 
 class _IntegratedApprovalControl(_LaboratoryApprovalControl):
@@ -506,6 +556,8 @@ def run_integrated_service_laboratory(
     store = ApprovalStore(path / "approvals.sqlite3")
     authorization_ids: dict[str, str] = {}
     fixture = json.loads((FIXTURE_DIRECTORY / "corrected.json").read_text())
+    if workflow_id == "pre-release-exposure-audit":
+        fixture["exposure_dns"] = True
     benign_token = None
     if workflow_id == "illicit-consent-remediation":
         canonical_consent = load_consent_fixture()
@@ -522,6 +574,13 @@ def run_integrated_service_laboratory(
         }
         if workflow_id == "leaked-credential-blast-radius":
             configuration["git_sha256"] = git_sha256
+        if workflow_id == "pre-release-exposure-audit":
+            configuration["exposure"] = {
+                "endpoint": {"scheme": "http", "host": EXPOSURE_HOST,
+                             "port": graph.resource.server.server_port, "route": "/exposure-admin"},
+                "dns_destination": {"address": EXPOSURE_ADDRESS, "port": graph.dns.port, "transport": "udp"},
+                "window": {"start": start, "end": end}, "profiles": ["vulnerable", "corrected"],
+            }
         if workflow_id == "illicit-consent-remediation":
             configuration["consent_evidence"] = copy.deepcopy(canonical_consent if consent_evidence is None else consent_evidence)
             setup_status, _ = _request_json(graph.identity.url + "/issue-grant", method="POST",
@@ -548,7 +607,8 @@ def run_integrated_service_laboratory(
         with graph._lock:
             graph.state.restore(graph.baseline)
         restored = graph.state.snapshot() == graph.baseline.snapshot()
-        consumed = sum(store.get_authorization(value).status == "consumed" for value in authorization_ids.values())
+        consumed = sum(store.get_authorization(authorization_ids[stage]).status == "consumed"
+                       for stage in approval.plan_digests)
     persisted_events = [json.loads(line) for line in telemetry_path.read_text().splitlines()]
     counts, alerts = _execute_detection_rules(persisted_events)
     report = {
@@ -570,6 +630,8 @@ def run_integrated_service_laboratory(
         },
         "limitations": ["synthetic service laboratory; production integrations require live validation"],
     }
+    if "exposure" in configuration:
+        report["authorization"]["bound_exposure_scope"] = configuration["exposure"]
     # A credential value must never enter persisted workflow state or the report.
     if any(secret in json.dumps(report) or any(secret in item.read_text() for item in (path / "workflow-state").rglob("*.json"))
            for secret in (token, benign_token) if secret):

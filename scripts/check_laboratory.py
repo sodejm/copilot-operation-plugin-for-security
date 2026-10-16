@@ -389,6 +389,24 @@ def _integrated_case(workflow_id: str, state_dir: Path, *, require_isolation: bo
                 _expect(failures, measured.get("status") == "executed" and measured.get("attack_matches") == 1 and measured.get("benign_matches") == 0, f"purple view {name} {engine} proposal was not executed against captured events")
     else:
         _expect(failures, assessment.get("authorized_status") == 200 and assessment.get("anonymous_status") == 401, "exposure audit did not verify authenticated and anonymous access")
+        _expect(failures, assessment.get("authentication_verified") is True, "exposure correction was not verified")
+        _expect(failures, assessment.get("dns_validation") == "verified_fixed_loopback_a_record", "exposure audit lacks actual DNS resolution")
+        profiles = assessment.get("correction_profiles", {})
+        _expect(failures, {name: item.get("outcome") for name, item in profiles.items()} == {
+            "vulnerable": "action_required", "corrected": "no_exposure_observed", "limited": "insufficient_evidence",
+        }, "exposure audit lacks vulnerable, corrected, and insufficient evidence outcomes")
+        dns = [event for event in report["events"] if event["event"] == "exposure_dns_answered"]
+        _expect(failures, len(dns) == 1 and dns[0].get("address") == "127.0.0.1", "exposure DNS telemetry is missing or changed")
+        anonymous = [event for event in report["events"] if event["event"] == "exposure_authentication" and not event["authorized"]]
+        _expect(failures, [(event["profile"], event["status"]) for event in anonymous] == [
+            ("vulnerable", 200), ("corrected", 401),
+        ], "exposure authentication telemetry does not prove correction")
+        expected_alerts = [{
+            "alert": True, "rule_id": "anonymous-exposure-access", "event": "exposure_authentication",
+            "correlation_id": event["correlation_id"], "timestamp": event["timestamp"],
+        } for event in anonymous if event["status"] == 200]
+        _expect(failures, len(expected_alerts) == 1 and report["alerts"] == expected_alerts,
+                "exposure detection did not isolate anonymous access to the vulnerable endpoint")
     return {"failures": failures, "metrics": {
         "workflow_id": workflow_id, "status": report["status"], "stages": len(stages),
         "authorizations_consumed": authorization["consumed"], "tcp_requests": len(report["requests"]),

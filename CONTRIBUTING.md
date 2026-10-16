@@ -180,3 +180,12 @@ Retain missing, stale, conflicting and cross-tenant cases, principal-specific
 correlation, corrected risk assertions, and mismatched grant rejection. Actual
 HTTP acceptance must show target access changing from 200 to 401 while unrelated
 access stays 200. Run portable, documentation and strict laboratory gates.
+
+### Exposure correction evidence
+
+Run `python -m pytest tests/test_exposure_evidence.py tests/test_exposure_dns.py tests/test_integrated_workflows.py tests/test_integrated_service_laboratory.py`.
+Retain wrong endpoint/address, stale, duplicate, incomplete and redirect cases.
+DNS tests must reject malformed responses, timeouts and address changes while
+proving early-failure cleanup. Actual laboratory evidence must show a DNS exchange
+and anonymous HTTP 200 → 401 with authorized access preserved. Run `make check`,
+`make check-docs` and `make check-laboratory` before claiming acceptance.

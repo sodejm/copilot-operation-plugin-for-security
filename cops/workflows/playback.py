@@ -21,6 +21,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cops.evidence.canonical import canonical, digest
 
 from .contracts import WorkflowDefinition, value_matches_type
+from .exposure_evidence import assess_exposure, scoped_records
 from .purple import PurpleTeamHandoffContract, emit_purple_team_handoff, evaluate_purple_team_handoff
 from .runtime import (
     WorkflowRuntimeError,
@@ -621,34 +622,35 @@ def _detection_report(values: dict[str, Any]) -> dict[str, Any]:
 
 
 def _exposure_inventory(values: dict[str, Any]) -> dict[str, Any]:
-    scope = set(values["scope"].get("hosts", []))
-    records = [item for item in values["dns_service_inventory"].get("records", []) if item.get("host") in scope]
-    return {"scoped_inventory": {"hosts": sorted(scope), "records": records}}
+    records = scoped_records(values["scope"], values["dns_service_inventory"], dns=True)
+    return {"scoped_inventory": {
+        "hosts": sorted({item["host"] for item in records}), "records": records,
+        "evidence": {"scope": values["scope"], "dns_service_inventory": values["dns_service_inventory"]},
+    }}
 
 
 def _exposure_routes(values: dict[str, Any]) -> dict[str, Any]:
-    hosts = set(values["scoped_inventory"]["hosts"])
-    checks = [item for item in values["port_route_evidence"].get("checks", []) if item.get("host") in hosts]
-    return {"route_assessment": {"checks": checks, "public_routes": [item for item in checks if item.get("public") is True]}}
+    evidence = {**values["scoped_inventory"]["evidence"], "port_route_evidence": values["port_route_evidence"]}
+    return {"route_assessment": {
+        "checks": scoped_records(evidence["scope"], values["port_route_evidence"]), "evidence": evidence,
+    }}
 
 
 def _exposure_auth(values: dict[str, Any]) -> dict[str, Any]:
-    public = {item.get("route") for item in values["route_assessment"]["public_routes"]}
-    checks = [item for item in values["auth_evidence"].get("checks", []) if item.get("route") in public]
-    exposures = [item for item in checks if item.get("authentication_required") is False]
-    return {"auth_assessment": {"checked": checks, "unauthenticated_exposures": exposures}}
+    return {"auth_assessment": assess_exposure({
+        **values["route_assessment"]["evidence"], "auth_evidence": values["auth_evidence"],
+    })}
 
 
 def _exposure_report(values: dict[str, Any]) -> dict[str, Any]:
-    exposures = values["auth_assessment"]["unauthenticated_exposures"]
-    outcome = "action_required" if exposures else "no_exposure_observed"
+    assessment = values["auth_assessment"]
+    exposures = assessment["exposures"]
     return {
         "remediation_report": {
-            "outcome": outcome,
-            "exposures": exposures,
+            **assessment,
             "recommendations": ["require authentication", "restrict route", "retest"] if exposures else [],
         },
-        "outcome": outcome,
+        "outcome": assessment["outcome"],
     }
 
 

@@ -22,7 +22,7 @@ Provide two deterministic acceptance paths for COPS service scenarios: offline f
 14. Container cleanup checks ownership before removal and verifies that the container is absent. Cleanup failure fails the gate, including after a deadline or failed dispatch.
 15. Laboratory acceptance does not certify the distinct-user production worker boundary or replace the signed `LaboratoryHarness` authorization and observation contracts.
 16. Five integrated service chains bind each stage's typed configuration and prior observations to a freshly compiled ActionPlan. The approval adapter rejects changed actions, destinations, inputs, workers, authorization IDs, and replay before dispatch.
-17. Integrated reports preserve actual request statuses, consumed approvals, plan digests, persisted telemetry, baseline restoration, and stopped listeners. Synthetic consent, advisory, event-rule, and numeric-address fixtures do not establish production Entra, dependency, Sigma/KQL, or DNS support.
+17. Integrated reports preserve actual request statuses, consumed approvals, plan digests, persisted telemetry, baseline restoration, and stopped listeners. Synthetic consent, advisory, event-rule, and fixed-name DNS fixtures do not establish production Entra, dependency, Sigma/KQL, or DNS support.
 18. Credential evidence bundles use an ephemeral Ed25519 signature and verify it before reporting integrity. Reports state that the key is unanchored and do not claim source authenticity; plaintext credentials remain absent from reports and persisted workflow state.
 19. The detection chain evaluates complete evidence and explicitly labeled withheld-log, withheld-alert, and unavailable-alert views of actual captured service activity. Source and handoff digests bind these views. Generated Sigma and KQL subsets execute against captured attack and benign events; all four result states and measured counts are required by the laboratory gate.
 20. Kubernetes acceptance uses only registered, preinstalled publisher image digests in a fixed privileged node on a disposable Docker host. It never consumes ambient kubeconfig, publishes ports, or mounts host paths. This node shares the host kernel and is not a production worker sandbox.
@@ -35,3 +35,10 @@ Provide two deterministic acceptance paths for COPS service scenarios: offline f
     Missing or conflicting evidence yields no target. The emulator revokes only an
     exact tenant/grant/client/app tuple; acceptance proves target 200 → 401 and
     unrelated grant 200 → 200. Session revocation and hunt steps remain proposals.
+
+25. Exposure acceptance requires a real fixed-name DNS exchange and exact endpoint,
+    address, timestamp and evidence-reference correlation. Anonymous access changes
+    from 200 to 401 while authorized access stays 200; a withheld DNS view remains
+    insufficient. Malformed DNS, timeout and address changes fail the inventory
+    stage, prevent later authentication requests and still restore baseline state.
+    The resolver never forwards requests or accepts external discovery targets.

@@ -270,3 +270,14 @@ Laboratory approvals bind the exact target tuple and prior evidence. The emulato
 rejects a different grant, and acceptance verifies unrelated access remains valid.
 This is synthetic grant revocation evidence; production Entra, session revocation
 and follow-up hunting require separate validation.
+
+## Exposure evidence trust
+
+Imported observations and completeness remain producer assertions. Exact endpoint
+identity, canonical addresses, unique records and collection windows prevent
+unrelated or stale evidence from clearing an audit. The isolated DNS responder
+serves only one fixed A record and never forwards requests. The client validates
+the complete response and transaction ID; timeout, malformed data or changed
+address stops later actions. Existing plans bind the resolver and endpoint, and
+all HTTP traffic stays on loopback. This does not validate public DNS or production
+authentication policy.

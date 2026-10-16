@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Bind exposure audits to exact endpoints, collection windows, DNS addresses and
+  authentication evidence. Add actual isolated DNS playback, vulnerable/corrected
+  HTTP checks and insufficient-evidence cases; DNS failures verify cleanup.
+
 - Bind consent remediation to complete tenant-scoped exports and exact grant,
   client and application identities. Verify actual synthetic grant revocation
   without interrupting unrelated access; incomplete evidence remains unresolved.

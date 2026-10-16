@@ -680,3 +680,15 @@ the target tuple and independently preserves a benign grant. Tests cover
 cross-tenant, stale, conflicting, incomplete, duplicate and malformed records,
 wrong-target HTTP rejection and unchanged source evidence. Producer assertions
 and production Graph semantics remain outside this synthetic service boundary.
+
+## Exposure correlation abuse cases
+
+Untrusted imports could substitute a clean route, stale authentication result or
+different DNS address for an exposed endpoint. The shared assessor requires exact
+endpoint joins, explicit completeness, unique records and in-window references;
+redirects, denied authorized access and partial collections remain insufficient.
+The fixed DNS lab rejects altered wire responses and has no forwarding path.
+Tests cover wrong host/port/scheme/path/address, stale and duplicate evidence,
+DNS corruption, timeout and address change. Early failures must stop the workflow
+before authentication and restore services. Actual corrected and vulnerable HTTP
+requests establish only the fixed laboratory policy, not production coverage.
