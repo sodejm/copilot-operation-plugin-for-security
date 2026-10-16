@@ -22,6 +22,7 @@ from typing import Any
 from cops.evidence.canonical import utc_now
 
 from .active_models import (
+    MAX_ACTIVE_PLANNED_PROBES,
     ActiveScanSession,
     ActiveServiceAssessment,
     ObservedConfiguration,
@@ -277,6 +278,21 @@ class OfflineSyntheticDispatcher(ProbeDispatcher):
         h = hashlib.sha256(target_host.encode("utf-8")).hexdigest()
         return f"198.51.100.{int(h[:2], 16) % 250 + 1}"
 
+    @staticmethod
+    def _port_fixture(target_info: dict[str, Any], port: int, protocol: str) -> dict[str, Any] | None:
+        ports = target_info.get("ports", {})
+        if not isinstance(ports, dict):
+            return None
+        protocol_ports = ports.get(protocol)
+        if isinstance(protocol_ports, dict):
+            fixture = protocol_ports.get(port, protocol_ports.get(str(port)))
+            return fixture if isinstance(fixture, dict) else None
+        # Numeric-only fixtures predate UDP support and remain TCP-only.
+        if protocol == Protocol.TCP.value:
+            fixture = ports.get(port, ports.get(str(port)))
+            return fixture if isinstance(fixture, dict) else None
+        return None
+
     def dispatch_probe(
         self,
         target_host: str,
@@ -304,7 +320,7 @@ class OfflineSyntheticDispatcher(ProbeDispatcher):
 
         # Lookup configured mock behavior for (target_host or resolved_ip, port)
         target_info = self.targets.get(target_host) or self.targets.get(resolved_ip) or {}
-        port_info = target_info.get("ports", {}).get(port, {})
+        port_info = self._port_fixture(target_info, port, protocol)
 
         # Check for simulated unreachable host
         if target_info.get("unreachable") or target_info.get("status") == "unreachable":
@@ -323,8 +339,30 @@ class OfflineSyntheticDispatcher(ProbeDispatcher):
                 error_message="Host network path unreachable",
             )
 
-        # Check for simulated timeout / filtered port
-        if port_info.get("state") == "filtered" or port_info.get("timeout"):
+        # UDP silence without a configured observation is ambiguous. Do not
+        # turn a missing fixture into synthetic evidence that the port is open.
+        if protocol == Protocol.UDP.value and port_info is None:
+            return ActiveServiceAssessment(
+                probe_id=probe_id,
+                target_host=target_host,
+                resolved_ip=resolved_ip,
+                port=port,
+                protocol=protocol,
+                vantage=vantage,
+                port_state=PortState.UNKNOWN.value,
+                reachability=ServiceReachability.UNKNOWN.value,
+                observed_config=ObservedConfiguration(),
+                latency_ms=None,
+                timestamp_utc=timestamp,
+                error_message="No UDP fixture observation was configured",
+            )
+
+        # Preserve the historical TCP fixture default for compatibility.
+        port_info = port_info or {}
+
+        # Keep explicit filtering separate from a UDP timeout, which cannot
+        # distinguish an open service from a filtered path.
+        if port_info.get("state") == "filtered":
             return ActiveServiceAssessment(
                 probe_id=probe_id,
                 target_host=target_host,
@@ -337,7 +375,28 @@ class OfflineSyntheticDispatcher(ProbeDispatcher):
                 observed_config=ObservedConfiguration(),
                 latency_ms=timeout * 1000.0,
                 timestamp_utc=timestamp,
-                error_message=f"Probe timed out after {timeout} seconds",
+                error_message="Probe was explicitly filtered by the fixture",
+            )
+
+        if port_info.get("timeout"):
+            udp_timeout = protocol == Protocol.UDP.value
+            return ActiveServiceAssessment(
+                probe_id=probe_id,
+                target_host=target_host,
+                resolved_ip=resolved_ip,
+                port=port,
+                protocol=protocol,
+                vantage=vantage,
+                port_state=PortState.UNKNOWN.value if udp_timeout else PortState.FILTERED.value,
+                reachability=(ServiceReachability.UNKNOWN.value if udp_timeout else ServiceReachability.FILTERED.value),
+                observed_config=ObservedConfiguration(),
+                latency_ms=timeout * 1000.0,
+                timestamp_utc=timestamp,
+                error_message=(
+                    f"UDP probe timed out after {timeout} seconds; open or filtered cannot be distinguished"
+                    if udp_timeout
+                    else f"Probe timed out after {timeout} seconds"
+                ),
             )
 
         # Check for closed port
@@ -637,7 +696,7 @@ class StandardSocketDispatcher(ProbeDispatcher):
                 observed_config=ObservedConfiguration(),
                 latency_ms=(time.monotonic() - start_time) * 1000.0,
                 timestamp_utc=timestamp,
-                error_message=f"No UDP response to {probe_name}; open or filtered cannot be distinguished",
+                error_message=f"UDP {probe_name} timed out; open or filtered cannot be distinguished",
             )
         except OSError as err:
             refused = err.errno == errno.ECONNREFUSED
@@ -718,6 +777,13 @@ class ActiveScanner:
             len(set(ports)) != len(ports) for ports in (self.session.approved_ports, self.session.approved_udp_ports)
         ):
             raise ActiveScanError("Duplicate targets or ports would repeat probe side effects")
+        planned_count = len(self.session.approved_targets) * (
+            len(self.session.approved_ports) + len(self.session.approved_udp_ports)
+        )
+        if planned_count > MAX_ACTIVE_PLANNED_PROBES:
+            raise ActiveScanError(
+                f"Active scan plan exceeds the probe ledger materialization cap of {MAX_ACTIVE_PLANNED_PROBES}"
+            )
         dns_ports = self.session.udp_dns_probe_ports
         if (
             any(not isinstance(port, int) or isinstance(port, bool) or not 1 <= port <= 65535 for port in dns_ports)
@@ -840,11 +906,11 @@ class ActiveScanner:
             and expected != "dns_root_ns_query"
         ):
             raise ActiveScanError("Probe result claims unapproved DNS response evidence")
-        if assessment.port_state == PortState.OPEN.value and expected == "dns_root_ns_query":
-            if metadata.get("probe_payload") != expected or not isinstance(
-                metadata.get("dns_response_validated"), bool
-            ):
-                raise ActiveScanError("Open DNS probe result lacks payload provenance")
+        if assessment.port_state == PortState.OPEN.value:
+            if metadata.get("probe_payload") != expected:
+                raise ActiveScanError("Open UDP probe result lacks payload provenance")
+            if expected == "dns_root_ns_query" and not isinstance(metadata.get("dns_response_validated"), bool):
+                raise ActiveScanError("Open DNS probe result lacks response validation provenance")
 
     def _validate_live_ledger(self) -> None:
         """Reject a contradictory checkpoint before any resumed network activity."""

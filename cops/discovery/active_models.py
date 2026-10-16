@@ -19,6 +19,9 @@ from .models import EvidenceProvenance
 # A complete TCP sweep can exceed the evidence module's smaller default limit.
 # Keep checkpoint reads and writes bounded to the same explicit ceiling.
 MAX_ACTIVE_CHECKPOINT_BYTES = 256 * 1024 * 1024
+# Bound the materialized Cartesian probe ledger before checkpoint serialization.
+# One target can still request the complete TCP and UDP port spaces.
+MAX_ACTIVE_PLANNED_PROBES = 2 * 65535
 ACTIVE_CHECKPOINT_JOURNAL_VERSION = 1
 
 
@@ -374,15 +377,16 @@ class ActiveScanSession:
         }
         attempted = self.completed_probe_keys | self.pending_probe_keys
         quarantined_hosts = {canonical_target_identity(item.target_host) for item in self.quarantined_targets}
-        quarantined = {
-            key
-            for key in planned - attempted
-            if any(
-                key.startswith(f"{self.vantage}:{protocol}:{host}:")
-                for host in quarantined_hosts
-                for protocol in (Protocol.TCP.value, Protocol.UDP.value)
+        quarantined_candidates = {
+            self.make_probe_key(self.vantage, protocol, host, port)
+            for host in quarantined_hosts
+            for protocol, ports in (
+                (Protocol.TCP.value, self.approved_ports),
+                (Protocol.UDP.value, self.approved_udp_ports),
             )
+            for port in ports
         }
+        quarantined = (planned - attempted) & quarantined_candidates
         port_states: dict[str, int] = {}
         timed_out = 0
         for assessment in self.assessments:

@@ -13,6 +13,7 @@ from typing import Any
 from cops.evidence.canonical import EvidenceError, decode_json
 
 from .active_models import (
+    MAX_ACTIVE_PLANNED_PROBES,
     ActiveScanSession,
     ScanBudget,
     expand_target_specs,
@@ -727,10 +728,13 @@ def command_active_discovery(args: argparse.Namespace, root: Path | None = None)
         max_concurrency = getattr(args, "max_concurrency", 1)
         if isinstance(max_concurrency, bool) or not isinstance(max_concurrency, int) or max_concurrency != 1:
             raise ValueError("--max-concurrency must be 1")
-        if (len(ports) == 65535 or len(udp_ports) == 65535) and max_probes < len(targets) * (
-            len(ports) + len(udp_ports)
-        ):
-            raise ValueError("Full port selection requires --max-probes to cover every selected target and port")
+        planned_count = len(targets) * (len(ports) + len(udp_ports))
+        if planned_count > MAX_ACTIVE_PLANNED_PROBES:
+            raise ValueError(
+                f"Selected plan exceeds the probe ledger materialization cap of {MAX_ACTIVE_PLANNED_PROBES}"
+            )
+        if planned_count > max_probes:
+            raise ValueError("Selected target and port plan requires --max-probes to cover every selected probe")
         if not math.isfinite(args.timeout) or args.timeout <= 0:
             raise ValueError("--timeout must be positive and finite")
         if not math.isfinite(args.rate_limit) or args.rate_limit < 0:
