@@ -188,7 +188,7 @@ def command_engagement_goal(args: argparse.Namespace) -> int:
     if not eng_path.is_file():
         failure = _goal_failure_document(
             code="engagement_not_found",
-            message=f"Engagement file not found: {eng_path}",
+            message="Engagement file was not found.",
             next_action="Supply an existing cops.engagement/v1 JSON file with --engagement.",
         )
         if args.json:
@@ -212,10 +212,10 @@ def command_engagement_goal(args: argparse.Namespace) -> int:
             goal=args.goal,
             engagement=raw_engagement,
         )
-    except (OSError, UnicodeError) as err:
+    except (OSError, UnicodeError):
         failure = _goal_failure_document(
             code="engagement_unreadable",
-            message=f"Engagement file could not be read as UTF-8 text: {err}",
+            message="Engagement file could not be read as UTF-8 text.",
             next_action="Supply a readable UTF-8 engagement JSON file and retry.",
         )
         if args.json:
@@ -223,10 +223,10 @@ def command_engagement_goal(args: argparse.Namespace) -> int:
         else:
             print(f"error: {failure['error']['message']}", file=sys.stderr)
         return 2
-    except json.JSONDecodeError as err:
+    except json.JSONDecodeError:
         failure = _goal_failure_document(
             code="invalid_engagement_json",
-            message=f"Engagement JSON decode failed: {err}",
+            message="Engagement JSON could not be decoded.",
             next_action="Correct the engagement JSON and retry.",
         )
         if args.json:
