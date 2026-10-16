@@ -9,5 +9,9 @@ SARIF output targets the OASIS SARIF 2.1.0 schema published at
 <https://docs.oasis-open.org/sarif/sarif/v2.1.0/os/schemas/sarif-schema-2.1.0.json>.
 The schema retrieved on 2026-10-15 has SHA-256
 `ad6db49878699b091f3eeb765b6e29e92a34bad4da88664d000c923b549c3a25`.
-It is not copied into the package; tests can validate against an independently
-retrieved copy through `COPS_SARIF_SCHEMA_PATH`.
+The unmodified schema is bundled as `sarif-schema-2.1.0.json`, with the
+[OASIS notices](../../../licenses/OASIS-SARIF-2.1.0-NOTICE.txt). Git preserves its
+original bytes. Report tests verify this digest, require only local schema
+references, and validate exports with the declared development `jsonschema`
+dependency. Missing or changed schema bytes fail the portable gate; validation
+never retrieves remote references. No schema-path environment variable is needed.

@@ -74,6 +74,11 @@ a dependency is missing or cannot be imported, or an installed version is
 incompatible. Verification is offline, never runs pip, and never installs or
 upgrades packages. Installation is a separate command under your control.
 
+Report conformance is mandatory in `make check`. The official SARIF 2.1.0 schema
+is bundled unchanged and verified by SHA-256; the declared `jsonschema` dependency
+validates exports offline. No external schema path is needed. See the
+[report export guide](docs/REPORT_EXPORTS.md) for the focused check.
+
 `requirements.txt` is the canonical declaration for local setup and all CI test
 jobs. Each non-comment line contains a distribution name with an optional numeric
 `>=` minimum version. The verifier checks stable numeric releases, including post

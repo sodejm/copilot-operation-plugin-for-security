@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import subprocess
 import xml.etree.ElementTree as ET
 from copy import deepcopy
 from pathlib import Path
 
+import jsonschema
 import pytest
+from referencing import Registry
+from referencing.exceptions import NoSuchResource
 
 from cops.reporting.assessment import build_assessment_report
 from cops.reports import (
@@ -27,6 +29,35 @@ ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "cops" / "contracts" / "fixtures"
 EXPORT_FIXTURES = ROOT / "tests" / "fixtures" / "report_exports"
 TOKEN = "ghp_" + "A" * 36
+SARIF_SCHEMA = ROOT / "cops" / "reports" / "schemas" / "sarif-schema-2.1.0.json"
+
+
+def _refuse_remote_reference(uri: str):
+    raise NoSuchResource(ref=uri)
+
+
+@pytest.fixture(scope="module")
+def sarif_validator() -> jsonschema.Draft7Validator:
+    schema_bytes = SARIF_SCHEMA.read_bytes()
+    assert hashlib.sha256(schema_bytes).hexdigest() == (
+        "ad6db49878699b091f3eeb765b6e29e92a34bad4da88664d000c923b549c3a25"
+    )
+    schema = json.loads(schema_bytes)
+    pending = [schema]
+    while pending:
+        node = pending.pop()
+        if isinstance(node, dict):
+            if "$ref" in node:
+                assert node["$ref"].startswith("#/"), "SARIF schema must be self-contained"
+            pending.extend(node.values())
+        elif isinstance(node, list):
+            pending.extend(node)
+    jsonschema.Draft7Validator.check_schema(schema)
+    return jsonschema.Draft7Validator(
+        schema,
+        registry=Registry(retrieve=_refuse_remote_reference),
+        format_checker=jsonschema.Draft7Validator.FORMAT_CHECKER,
+    )
 
 
 def _bundle(verification: str = "verified") -> dict:
@@ -239,32 +270,22 @@ def test_dispatcher_serializes_formats_and_rejects_irrelevant_anchor_options() -
     [
         pytest.param("verified", "warning", "verified", id="vulnerable"),
         pytest.param("unverified", "note", "inconclusive", id="inconclusive"),
+        pytest.param("contradicted", "note", "contradicted", id="contradicted"),
     ],
 )
-def test_sarif_matches_official_schema_and_github_subset_when_provided(
+def test_sarif_matches_official_schema_and_github_subset(
+    sarif_validator: jsonschema.Draft7Validator,
     verification: str,
     expected_level: str,
     expected_conclusion: str,
 ) -> None:
-    jsonschema = pytest.importorskip("jsonschema")
-    configured = os.environ.get("COPS_SARIF_SCHEMA_PATH")
-    if configured is None:
-        pytest.skip("set COPS_SARIF_SCHEMA_PATH to the official SARIF 2.1.0 schema")
-    schema_bytes = Path(configured).read_bytes()
-
-    assert hashlib.sha256(schema_bytes).hexdigest() == (
-        "ad6db49878699b091f3eeb765b6e29e92a34bad4da88664d000c923b549c3a25"
-    )
-    schema = json.loads(schema_bytes)
-    validator_class = jsonschema.validators.validator_for(schema)
-    validator_class.check_schema(schema)
     sarif = export_sarif(
         _report(verification),
         repository_root=ROOT,
         revision=_revision(),
         source_anchors=_anchors(),
     )
-    validator_class(schema).validate(sarif)
+    sarif_validator.validate(sarif)
     validate_github_sarif_subset(sarif)
 
     run = sarif["runs"][0]
@@ -281,7 +302,49 @@ def test_sarif_matches_official_schema_and_github_subset_when_provided(
     assert location["region"] == {"startLine": 1, "endLine": 1}
 
 
+def test_sarif_corrected_report_has_no_results(sarif_validator: jsonschema.Draft7Validator) -> None:
+    bundle = _bundle()
+    bundle["findings"] = []
+    bundle["finding_contexts"] = []
+    sarif = export_sarif(build_assessment_report(bundle))
+    sarif_validator.validate(sarif)
+    validate_github_sarif_subset(sarif)
+    assert sarif["runs"][0]["results"] == []
+    assert sarif["runs"][0]["tool"]["driver"]["rules"] == []
+
+
+@pytest.mark.parametrize("malformation", ["version", "message", "level", "line", "extra-field"])
+def test_official_schema_rejects_malformed_exports(
+    sarif_validator: jsonschema.Draft7Validator, malformation: str
+) -> None:
+    sarif = export_sarif(
+        _report(), repository_root=ROOT, revision=_revision(), source_anchors=_anchors()
+    )
+    result = sarif["runs"][0]["results"][0]
+    if malformation == "version":
+        sarif["version"] = "2.0.0"
+    elif malformation == "message":
+        del result["message"]
+    elif malformation == "level":
+        result["level"] = "critical"
+    elif malformation == "line":
+        result["locations"][0]["physicalLocation"]["region"]["startLine"] = 0
+    else:
+        result["copsConclusion"] = "verified"
+    with pytest.raises(jsonschema.ValidationError):
+        sarif_validator.validate(sarif)
+
+
+def test_github_subset_rejects_schema_valid_mismatched_rule(
+    sarif_validator: jsonschema.Draft7Validator,
+) -> None:
+    sarif = deepcopy(export_sarif(_report()))
+    sarif["runs"][0]["results"][0]["ruleId"] = "unregistered-rule"
+    sarif_validator.validate(sarif)
+    with pytest.raises(ExportError, match="does not match its rule"):
+        validate_github_sarif_subset(sarif)
+
+
 def test_export_option_schemas_are_valid_draft_2020_12() -> None:
-    jsonschema = pytest.importorskip("jsonschema")
     for path in sorted((ROOT / "cops" / "reports" / "schemas").glob("*.schema.json")):
         jsonschema.Draft202012Validator.check_schema(json.loads(path.read_text(encoding="utf-8")))

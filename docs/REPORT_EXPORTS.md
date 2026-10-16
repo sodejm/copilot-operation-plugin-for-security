@@ -78,14 +78,18 @@ assessment evidence, or proposed remediation is trustworthy. Review the local
 artifact before using it in a hosted workflow.
 
 The option contracts are documented under
-[`cops/reports/schemas`](../cops/reports/schemas/README.md). To validate SARIF
-against an independently retrieved official schema during development:
+[`cops/reports/schemas`](../cops/reports/schemas/README.md). The portable
+`make check` gate validates exports against the bundled, unmodified official
+schema and GitHub subset. To run the focused check:
 
 ```bash
-COPS_SARIF_SCHEMA_PATH=/path/to/sarif-schema-2.1.0.json \
-  python -m pytest -q tests/test_report_exports.py
+python -m pytest -q tests/test_report_exports.py
 ```
 
-The test pins the expected schema SHA-256 recorded with the option schemas. This
-keeps the normal test run offline while detecting a substituted schema in an
-explicit conformance run.
+The tests pin the schema SHA-256, reject remote references, and use the declared
+development `jsonschema` dependency. Missing prerequisites or modified schema
+bytes fail rather than skip validation. Vulnerable, corrected and inconclusive
+exports must conform; malformed versions, missing messages, invalid levels and
+line numbers, and unregistered rule references must fail their respective checks.
+No environment override or download is required. Runtime exporters retain their
+standard-library implementation and supported-subset checks.
