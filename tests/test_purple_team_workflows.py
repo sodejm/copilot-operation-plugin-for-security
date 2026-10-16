@@ -81,6 +81,28 @@ def test_alert_must_be_actual_correlated_and_within_window() -> None:
     assert result["rule_proposal"]["kql"]
 
 
+@pytest.mark.parametrize("observed", [{"action": "allowed"}, {}, {"action": "blocked-other"}])
+def test_unrelated_alert_with_same_correlation_cannot_verify_detection(observed) -> None:
+    result = evaluate_purple_team_handoff(handoff(), [event()], [alert(event=observed)])
+
+    assert result["status"] == "detection_gap"
+    assert result["matched_telemetry"] == 1
+    assert result["matched_alerts"] == 0
+
+
+def test_alert_must_match_every_expected_telemetry_field() -> None:
+    document = handoff().to_dict()
+    document["expected_telemetry"].append({"field": "event.category", "value": "authentication"})
+    contract = PurpleTeamHandoffContract.from_dict(document)
+    captured = event()
+    captured["event"]["category"] = "authentication"
+    unrelated = alert(event={"action": "blocked", "category": "network"})
+    matched = alert(event={"action": "blocked", "category": "authentication"})
+
+    assert evaluate_purple_team_handoff(contract, [captured], [unrelated])["status"] == "detection_gap"
+    assert evaluate_purple_team_handoff(contract, [captured], [matched])["status"] == "verified_detection"
+
+
 def test_generated_rule_executes_against_attack_and_benign_fixtures() -> None:
     attack_fixture = [event(), event(correlation_id="other"), event(action="allowed")]
     benign_fixture = [event(), event(action="allowed")]

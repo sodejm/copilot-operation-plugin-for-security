@@ -52,6 +52,7 @@ from cops.laboratory.workflow_lab import (
     _utc,
 )
 from cops.workflows.contracts import WorkflowDefinition
+from cops.workflows.purple import emit_purple_team_handoff, evaluate_purple_team_handoff
 from cops.workflows.runtime import (
     StageExecutionResult,
     WorkflowRunner,
@@ -77,6 +78,40 @@ WORKFLOW_STAGES = {
         "inventory", "connect", "authentication", "report",
     ),
 }
+
+
+def _purple_evidence_views(telemetry: _Telemetry, alerts: list[dict[str, Any]]) -> dict[str, Any]:
+    """Evaluate explicitly labeled evidence views of captured service activity."""
+    events = copy.deepcopy(telemetry.events)
+    captured_alerts = copy.deepcopy(alerts)
+    times = [datetime.fromisoformat(event["timestamp"].replace("Z", "+00:00")) for event in events]
+    evidence = {"telemetry": digest(events), "alerts": digest(captured_alerts)}
+    handoff = emit_purple_team_handoff(
+        {"kind": "simulation", "ref": "laboratory:" + telemetry.correlation_id},
+        [{"field": "event", "value": "authenticated_access_rejected"}],
+        [telemetry.correlation_id],
+        {"start": _utc(min(times) - timedelta(seconds=1)), "end": _utc(max(times) + timedelta(seconds=1))},
+        ["sha256:" + evidence["telemetry"], "sha256:" + evidence["alerts"]],
+    )
+    attack = [event for event in events if event.get("risk") == "attack"]
+    benign = [event for event in events if event.get("risk") == "benign"]
+    views = (
+        ("captured", "captured service telemetry and alerts", events, captured_alerts),
+        ("logs_withheld", "captured service logs intentionally withheld", None, captured_alerts),
+        ("alerts_withheld", "captured service alerts intentionally withheld", events, []),
+        ("alert_evidence_unavailable", "captured service alert evidence marked unavailable", events, None),
+    )
+    return {
+        "source": "captured-service-activity",
+        "source_digests": evidence,
+        "handoff": handoff.to_dict(), "handoff_digest": handoff.handoff_digest,
+        "views": {
+            name: {"evidence_view": label, "result": evaluate_purple_team_handoff(
+                handoff, logs, matches, attack_fixture=attack, benign_fixture=benign,
+            )}
+            for name, label, logs, matches in views
+        },
+    }
 
 
 def _runtime_git_pin() -> str:
@@ -332,6 +367,7 @@ class _IntegratedExecutor:
             self.observations["event_counts"] = counts
             self.observations["alerts"] = list(alerts)
             self.observations["attack_and_benign_executed"] = True
+            self.observations["purple_team"] = _purple_evidence_views(self.telemetry, list(alerts))
 
     def _pre_release_exposure_audit(self, name: str) -> None:
         if name == "inventory":

@@ -55,7 +55,10 @@ Purple-team consumers should adopt the versioned handoff contract, correlation
 IDs, time window, source reference, telemetry, detection result, and evidence
 references. Preserve its four outcomes: `instrumentation_gap`, `detection_gap`,
 `verified_detection`, and `indeterminate`. Missing evidence cannot become a
-verified finding or a passing test.
+verified finding or a passing test. Both logs and alerts must satisfy every
+expected telemetry predicate as well as correlation and time bounds. Clients
+that previously relied on an unrelated alert sharing those bounds must supply
+the expected alert evidence or retain a detection gap.
 
 ## Packages and portable exports
 
