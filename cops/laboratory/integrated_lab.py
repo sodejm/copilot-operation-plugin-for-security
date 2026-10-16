@@ -7,8 +7,14 @@ network isolation before calling this module. Tokens stay in executor memory.
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
+import os
 import secrets
+import stat
+import subprocess
+import tempfile
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -16,6 +22,9 @@ from typing import Any
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
+from cops.assessments.git_history import (
+    GitHistoryScanError, _safe_environment, pinned_git_executable, scan_git_history,
+)
 from cops.contracts.models import Engagement
 from cops.evidence.canonical import canonical, digest
 from cops.execution.authorization import (
@@ -68,6 +77,81 @@ WORKFLOW_STAGES = {
         "inventory", "connect", "authentication", "report",
     ),
 }
+
+
+def _runtime_git_pin() -> str:
+    """Read the reviewed image's root-owned prerequisite, never scanned input."""
+    path = Path("/opt/cops-runtime/git-prerequisite.json")
+    try:
+        descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+        with os.fdopen(descriptor, "rb") as stream:
+            metadata = os.fstat(stream.fileno())
+            if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0
+                    or metadata.st_mode & 0o022 or metadata.st_size > 4096):
+                raise ValueError("untrusted_git_prerequisite")
+            value = json.loads(stream.read(4097))
+        if (value.get("schema_version") != "cops.runtime-prerequisite/v1"
+                or value.get("tool") != "git" or not isinstance(value.get("sha256"), str)
+                or len(value["sha256"]) != 64
+                or any(item not in "0123456789abcdef" for item in value["sha256"])):
+            raise ValueError("invalid_git_prerequisite")
+        return value["sha256"]
+    except (OSError, ValueError, AttributeError) as error:
+        raise GitHistoryScanError("reviewed_runtime_git_pin_required") from error
+
+
+def _scan_disposable_credential(token: str, git_sha256: str) -> dict[str, Any]:
+    """Commit the issued token, remove it at HEAD, and inspect real Git objects."""
+    deadline = time.monotonic() + 30
+    with tempfile.TemporaryDirectory(prefix="cops-credential-history-") as temporary:
+        repository = Path(temporary).resolve()
+        environment = _safe_environment()
+        environment.update({
+            "GIT_AUTHOR_NAME": "COPS Laboratory", "GIT_COMMITTER_NAME": "COPS Laboratory",
+            "GIT_AUTHOR_EMAIL": "fixture@example.invalid", "GIT_COMMITTER_EMAIL": "fixture@example.invalid",
+            "GIT_AUTHOR_DATE": "2026-10-15T12:00:00+00:00", "GIT_COMMITTER_DATE": "2026-10-15T12:00:00+00:00",
+        })
+        with pinned_git_executable(git_sha256, deadline=deadline) as git:
+            def command(*arguments: str) -> None:
+                try:
+                    subprocess.run(
+                        [git, "-c", "core.hooksPath=" + os.devnull, "-c", "commit.gpgSign=false",
+                         "-c", "gc.auto=0", "-c", "maintenance.auto=false", *arguments],
+                        cwd=repository, env=environment, stdin=subprocess.DEVNULL,
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                        shell=False, check=True, timeout=max(0.01, deadline - time.monotonic()),
+                    )
+                except (OSError, subprocess.SubprocessError) as error:
+                    raise GitHistoryScanError("disposable_git_fixture_failed") from error
+            command("init", "--quiet", "--template=")
+            target = repository / "synthetic-credential.txt"
+            target.write_text(token + "\n", encoding="utf-8")
+            command("add", "--", target.name)
+            command("commit", "--quiet", "-m", "synthetic exposure")
+            target.write_text("credential obtained from identity service\n", encoding="utf-8")
+            command("add", "--", target.name)
+            command("commit", "--quiet", "-m", "remove exposed credential from HEAD")
+
+        def snapshot() -> dict[str, tuple[int, str]]:
+            return {item.relative_to(repository).as_posix(): (
+                item.stat().st_mode, hashlib.sha256(item.read_bytes()).hexdigest(),
+            ) for item in repository.rglob("*") if item.is_file()}
+
+        before = snapshot()
+        artifact = scan_git_history(repository, expected_git_sha256=git_sha256)
+        unchanged = snapshot() == before
+        fingerprint = hashlib.sha256(b"cops.synthetic-credential/v1\0" + token.encode()).hexdigest()
+        occurrences = artifact["content"]["occurrences"]
+        matched = bool(occurrences) and all(item["fingerprint"] == fingerprint for item in occurrences)
+        historical = matched and all(
+            item["commit"] != artifact["content"]["source"]["head_commit"] for item in occurrences
+        )
+    return {
+        "source": "disposable-git-history-and-service-issued-credential",
+        "fingerprint": fingerprint, "value_redacted": True, "artifact": artifact,
+        "same_credential_observed": matched, "historical_exposure_observed": historical,
+        "repository_unchanged_by_scan": unchanged, "disposable_repository_removed": not repository.exists(),
+    }
 
 
 def laboratory_workflow(workflow_id: str) -> WorkflowDefinition:
@@ -161,11 +245,9 @@ class _IntegratedExecutor:
 
     def _leaked_credential_blast_radius(self, name: str) -> None:
         if name == "scan":
-            self.observations["synthetic_exposure"] = {
-                "source": "disposable-service-issued-credential",
-                "fingerprint": digest(self.token), "value_redacted": True,
-                "git_history_scanning": "not_exercised_by_this_service_case",
-            }
+            self.observations["synthetic_exposure"] = _scan_disposable_credential(
+                self.token, self.configuration["git_sha256"],
+            )
         elif name == "correlate":
             status, _ = self.request("resource", "/protected", authenticated=True)
             self.observations["before_revocation"] = status
@@ -316,19 +398,21 @@ class _IntegratedApprovalControl(_LaboratoryApprovalControl):
 
 def run_integrated_service_laboratory(
     state_dir: str | Path, *, workflow_id: str, require_isolation: bool = False,
-    run_id: str | None = None,
+    run_id: str | None = None, git_sha256: str | None = None,
 ) -> dict[str, Any]:
     """Exercise one catalog workflow with one-use, action-bound approvals."""
     probe = probe_isolated_runtime()
     if require_isolation and not probe.verified:
         raise IsolationRequiredError(probe)
     definition = laboratory_workflow(workflow_id)
+    if workflow_id == "leaked-credential-blast-radius":
+        git_sha256 = git_sha256 or _runtime_git_pin()
     path = Path(state_dir)
     path.mkdir(parents=True, mode=0o700, exist_ok=False)
     telemetry_path = path / "telemetry.jsonl"
     actual_run_id = run_id or "integrated-" + secrets.token_hex(8)
     telemetry = _Telemetry(telemetry_path, correlation_id=actual_run_id)
-    token = secrets.token_urlsafe(32)
+    token = "COPS_TEST_TOKEN_" + secrets.token_urlsafe(32)
     current = datetime.now(timezone.utc).replace(microsecond=0)
     now = _utc(current)
     start = _utc(current - timedelta(minutes=5))
@@ -359,6 +443,8 @@ def run_integrated_service_laboratory(
             "destinations": {name: getattr(graph, name).url for name in ("identity", "resource", "hunt", "sink")},
             "workflow_id": workflow_id,
         }
+        if workflow_id == "leaked-credential-blast-radius":
+            configuration["git_sha256"] = git_sha256
         setup_status, _ = _request_json(graph.identity.url + "/issue", method="POST", payload={"token": token})
         executor = _IntegratedExecutor(graph, workflow_id, configuration, telemetry, token)
         for name in WORKFLOW_STAGES[workflow_id]:

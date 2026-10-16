@@ -22,6 +22,7 @@ def allowed_source(relative: str) -> bool:
         return False
     return (
         relative == "scripts/check_laboratory.py"
+        or relative == "cops/adapters/definitions/git.json"
         or relative in CONTRACT_SCHEMAS
         or (path.parts[:1] == ("cops",) and path.suffix == ".py" and "__pycache__" not in path.parts)
         or (path.parts[:3] == ("cops", "laboratory", "service_fixtures")

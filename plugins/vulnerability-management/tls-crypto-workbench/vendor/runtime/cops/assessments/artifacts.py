@@ -566,9 +566,22 @@ def _credential_history(items: list[_Artifact], _as_of: datetime) -> tuple[list[
             issues.append(_unresolved(artifact, "credential_history"))
             continue
         analyzed.add(artifact.artifact_id)
+        coverage = artifact.content.get("coverage")
+        scanner_output = "scanner_version" in artifact.content
+        if (len(records) > 5000 or (scanner_output and (
+            not isinstance(coverage, dict)
+            or coverage.get("complete_within_configured_bounds") is not True
+            or type(coverage.get("commits_examined")) is not int
+            or coverage.get("commits_examined", 0) < 1
+            or artifact.content.get("assessment_status") == "insufficient_evidence"
+        )) or (not records and not (scanner_output and isinstance(coverage, dict)
+            and coverage.get("complete_within_configured_bounds") is True
+            and artifact.content.get("assessment_status") == "no_synthetic_match_observed"))):
+            issues.append(_unresolved(artifact, "credential_history_coverage"))
         by_fingerprint: dict[str, list[dict[str, Any]]] = defaultdict(list)
         for record in records[:5000]:
             if not isinstance(record, dict):
+                issues.append(_unresolved(artifact, "credential_occurrence"))
                 continue
             if any(record.get(key) not in (None, "", False) for key in _SECRET_KEYS):
                 raise ArtifactAssessmentError("credential_value_forbidden")

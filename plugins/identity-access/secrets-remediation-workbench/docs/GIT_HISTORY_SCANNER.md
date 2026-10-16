@@ -5,8 +5,13 @@ The root must be an absolute, canonical path to an ordinary checkout with a `.gi
 directory. The scanner never searches parent directories, terminal history, sibling
 repositories, or unrelated paths.
 
-The scanner invokes the `git` executable with explicit argument arrays and a
-restricted environment. It does not use a shell, execute repository scripts, or
+The scanner uses the registered `git-object-enumerator@1` adapter and requires an
+operator-reviewed SHA-256 of the installed Git executable. It copies that
+executable into a private directory, verifies the pin, and checks its version
+before enumerating objects. Only relocatable Git 2.x builds are supported. A
+missing or changed prerequisite fails closed; input artifacts cannot supply it.
+Commands use typed argument arrays and a restricted environment. They do not use
+a shell, execute repository scripts, or
 access the network; lazy fetching of partial-clone objects is disabled. It rejects linked worktrees, configuration includes, alternate
 object stores, symlinked roots, every symlink in Git metadata, and non-file metadata
 entries. Git metadata validation stops at 250,000 entries. Symlink entries in commit
@@ -18,6 +23,7 @@ Use the default hard bounds or lower them for a smaller inspection:
 ```console
 python3 scripts/scan_git_history.py \
   --root /absolute/path/to/synthetic-repository \
+  --git-sha256 <reviewed-lowercase-sha256> \
   --max-commits 100 \
   --max-files 5000 \
   --max-blob-bytes 1048576 \
@@ -40,3 +46,10 @@ provider-side rotation or revocation; that needs
 reach a bound without finding a match return insufficient evidence. A complete
 bounded scan with no recognized synthetic match is an observation about that bounded
 local scope, not proof that credentials are absent elsewhere.
+
+The isolated service gate commits a synthetic credential, deletes it in a second
+commit, and scans the historical blob. It proves the repository is unchanged and
+uses that same credential for authenticated access, revocation, and an HTTP 401
+after revocation. The runtime supplies a root-owned prerequisite pin recorded
+during its reviewed image build. These results cover the synthetic pattern and
+disposable service, not arbitrary provider credentials or production revocation.
