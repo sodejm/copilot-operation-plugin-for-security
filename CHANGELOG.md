@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add bounded typed firewall and Kubernetes NetworkPolicy predictions, explicit
+  flow observations and TTL-bound DNS evidence with correction playback. Unknown,
+  stale or contradictory inputs cannot establish effective segmentation.
+
 - Add POSIX raw disk/memory integrity import with bounded streaming, digest-bound
   custody assertions, explicit permission references, and no-follow file access.
   Laboratory acceptance imports actual acquired copies and rejects tampering;

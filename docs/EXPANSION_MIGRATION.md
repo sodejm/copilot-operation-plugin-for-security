@@ -105,3 +105,12 @@ path below an explicit root. It returns integrity evidence without promoting
 analysis readiness. POSIX no-follow APIs are required, all ancestor symlinks are
 rejected, and the default image limit is 128 MiB. E01/AFF4, device capture, native
 collection, and filesystem/memory interpretation remain separate adapter work.
+
+
+## Typed network inputs
+
+The legacy `segmentation_model` remains an allow-graph format. Use new versioned
+`firewall_policy`, `kubernetes_network_policy`, `flow_evidence` and `dns_evidence`
+artifacts for ordered rules and timestamped observations. They require explicit
+completeness and expected paths/address sets. A malformed legacy action now yields
+unknown coverage. Neither format establishes actual firewall or CNI enforcement.
