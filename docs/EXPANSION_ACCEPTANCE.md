@@ -1,118 +1,170 @@
 # Expansion acceptance record
 
-This record distinguishes implementation, offline correction evidence, and
-active laboratory evidence. No production/provider integration is promoted by
-this expansion. A required check that is blocked or unavailable leaves that
+The implemented offline and isolated-laboratory scopes passed the checks below.
+Native worker/filesystem checks and production integrations have separate gaps;
+they are not promoted by these results. An unavailable required check leaves its
 capability incomplete.
 
-## Revision and reproducibility
+## Tested revision and runtime
 
-The integration branch is based on
-`6c2a1b5f9659429dfd0c260c3929ff0f251e3e7`. Acceptance is in progress against the
-integration changes; that base commit alone does not identify the changed
-implementation. Final handoff must record a clean implementation revision,
-fixture digests, runtime image digest, and exact check results. Evidence from an
-earlier source snapshot must be rerun after behavioral changes.
+- Implementation revision: `e4c552d600910ae277d7efa0a638308595b1d0a2`.
+- Integration base: `6c2a1b5f9659429dfd0c260c3929ff0f2511e3e7`.
+- Acceptance date: 2026-10-16. The final acceptance change updates documentation
+  only; it does not change the tested executable source or fixtures.
+- Strict service image:
+  `sha256:1091037480cdd8172ab3c942fbf88da9150ea07934b362d190867b9344e7204e`.
+- Service source snapshot:
+  `20eb221cf1920ff93efbcd3d8db7cc3228e5f88eb448c7fb442098f882eed230`.
+  Recomputing the snapshot at the clean implementation revision matched the run.
+- Portable host: macOS arm64, Python 3.14.8. Strict runtime: Linux arm64,
+  Python 3.14.6, Git 2.47.3, pip 26.1.2, cryptography 50.0.2,
+  python-evtx 0.8.1 and hexdump 3.3.
 
-An earlier strict laboratory run passed all eleven cases using immutable image
-`sha256:cf7d32ac327f8eb584f8d917f43c48ff5bf460019af889da93b33583bde62fd9`
-and source snapshot
-`4e60b8c5d7a44299c33031e798034ef613484acb4b5ff0bb46dbea2c8df97195`.
-It exercised offline playback, vulnerable and corrected services, workflow
-success, partial failure, cancellation, and five integrated service chains.
-These digests identify that run, not subsequent changes. The focused laboratory
-test selection passed 70 tests on the same implementation.
+Changes are committed on dedicated, dependency-ordered local branches. The
+original API checkout retains its branch and unfinished edits. No push, hosted
+pull request, merge, release or production deployment is recorded here.
 
-## Check ledger
+## Commands and check ledger
 
-| Check | Observed result | Remaining requirement |
+Run these from the contributor environment described in
+[CONTRIBUTING.md](../CONTRIBUTING.md). The Docker context used for this acceptance
+was Colima; `TMPDIR` pointed to a disposable directory shared with its VM. Image
+prerequisites must be provisioned before the strict gate, as described in the
+[runtime instructions](../laboratories/service-runtime/README.md) and
+[Kubernetes runbook](KUBERNETES_LABORATORY.md).
+
+```sh
+.venv/bin/python -m pytest tests/test_supply_chain_laboratory.py tests/step_defs/test_supply_chain_laboratory_steps.py tests/test_service_laboratory.py --no-header -x -q
+PATH="$PWD/.venv/bin:$PATH" PYTEST_ADDOPTS='-ra' make check PYTHON=.venv/bin/python
+make check-docs PYTHON=.venv/bin/python
+DOCKER_CONTEXT=colima make check-laboratory PYTHON=.venv/bin/python LABORATORY_ARGS='--runtime docker --image sha256:1091037480cdd8172ab3c942fbf88da9150ea07934b362d190867b9344e7204e --kubernetes-timeout 480'
+```
+
+| Check | Observed result | Scope or limitation |
 | --- | --- | --- |
-| Package and portable checks | `make check` passed; 25 package gates passed | Repeat after behavioral changes |
-| Root test suite | Passed as part of `make check`; platform-specific skips remain | Record final totals and platform limits |
-| Documentation | `make check-docs` passed for 56 pages | Repeat after documentation changes |
-| Strict isolated laboratory | Eleven cases passed on the snapshot above | Repeat after service coverage changes |
-| Hosted and native CI | Not run by this local record | Obtain distinct platform and worker evidence |
-| Production integrations | Not run | Separately authorized live validation |
+| Latest focused correction tests | 31 passed | Offline wheel installation, vulnerable/corrected runtime, tampering, missing evidence and cleanup; includes service regression tests |
+| `make check` | Passed, including all 25 package gates | Root suite: 3,026 passed, 24 skipped; platform skips are listed below |
+| `make check-docs` | Passed, 57 pages | Documentation contract and local links |
+| Strict `make check-laboratory` | 13/13 cases passed; no failures or blockers | Twelve service-container cases plus three Kubernetes lifecycle runs in one composite case |
+| Held-out routing | 270/270 clear requests correct; 10/10 for each of 27 specialists | 100/100 ambiguous or negative requests clarified; published examples remain separate |
+| Hosted/native CI | Not run for these local branches | Retained Linux worker and Windows filesystem jobs remain required |
+| Production/provider integrations | Not run | Separate live validation required before support claims |
 
-The strict gate proved a Docker `none` network, loopback-only interfaces and
-routes, definitive IPv4/IPv6 egress rejection, actual TCP activity, captured
-telemetry, baseline restoration, stopped listeners, and owned-container removal.
-It did not certify a production worker running under a distinct OS identity.
+An initial final portable run failed because the execution sandbox denied local
+TCP, UDP and Unix socket creation. The command was rerun unchanged with local
+socket permissions; no test was disabled or implementation changed for the retry.
 
-## Capability evidence
+The portable suite also covers threshold boundaries and conflicting artifacts,
+classifier redaction/timeouts/unavailability, preview side-effect exclusion,
+workflow type/graph validation, plan-bound approvals, scope and budget rejection,
+tampered outputs, restart/cancellation/retries, duplicate-write prevention and
+cleanup. Report checks validate the bundled official SARIF 2.1.0 schema and
+GitHub subset, JUnit escaping and inconclusive statuses, revision-bound Markdown
+anchors, redaction, portable assets, host manifests and generated marketplaces.
 
-All offline families use vulnerable, corrected, benign, and insufficient-evidence
-cases in `tests/fixtures/artifact_assessment_cases_v1.json`, with API cases in the
-API package. Each result preserves source identity and provenance. The table
-records active coverage separately so fixture results cannot silently promote
-readiness.
+## Fixture identities
 
-| Capability | Implemented correction path | Active evidence and outstanding work |
+The service manifest pins the Entra, Kubernetes, Sysmon, advisory and service
+profiles, with provenance, expected outcomes and reset instructions. The binary
+EVTX counterparts additionally have the following digests.
+
+| Fixture | SHA-256 |
+| --- | --- |
+| `cops/laboratory/service_fixtures/manifest.json` | `d9d67d59a1a23bd65bfecf8d63f9296aab70fbda7ac85edc3ce8fbbe80fa733a` |
+| Vulnerable Sysmon EVTX | `4dbd6c4f96c5adae0e2c1df9847ab03a76131ecc60136c227d35f0fde8c1c245` |
+| Corrected Sysmon EVTX | `74e3ba983be16a897f515c12744f9f155876ed06f4eeb52fa790507cf339b8d2` |
+| Insufficient Sysmon EVTX | `5023fa444889f6a5d54c524f6507dfffe3677f076fb0640132c69ec6f8bd5ff9` |
+| `tests/fixtures/artifact_assessment_cases_v1.json` | `d54de2657404483aa15350390a8a25ee38f46d46263c91590a42479471a88284` |
+| `tests/fixtures/routing-held-out-v1.json` | `2a235734f9eb8bd0fcb4d07a83e4a901fd9a335004629d0b9f67c07ee76271c0` |
+
+The three pinned Kubernetes prerequisites were:
+
+```text
+rancher/k3s@sha256:c20f2c044a28cf217440464a810fb81715a48192716a5bc99eaf2c3113a9cfb4
+rancher/mirrored-pause@sha256:a433214620b407678934ebd69690a9ed6066247231eacfba181fab20dbc3dbf1
+python:3.14.6-slim@sha256:34bf30c914ac17d2a0f7ecf94866e54380669d618ae4673672445516603ad8d7
+```
+
+## Isolated execution evidence
+
+The gate inspected Docker `none` networking, loopback-only interfaces/routes,
+read-only service-container configuration and definitive IPv4/IPv6 egress
+rejection. It observed actual activity, captured telemetry, verified restored
+state and stopped listeners, and removed owned containers. The K3s node runs
+privileged inside the disposable VM and shares its kernel; this is not evidence
+of a production worker under a distinct OS identity.
+
+| Strict case | Observed correction or lifecycle evidence |
+| --- | --- |
+| `offline-playback` | Four fixtures, eight telemetry records and four alerts |
+| `binary-evtx` | Vulnerable: two normalized records and both expected indicators; corrected: two records and neither indicator; insufficient: zero normalized records and `partial` status |
+| `service-vulnerable` | Ten API checks expose authorization/rate-limit failures; injection exposes another object; zero scope denials among seven gateway requests; lateral path returns 200 |
+| `service-corrected` | Ten API checks pass; injection cannot expose the other object; four scope denials; forbidden lateral path returns 403 |
+| `workflow-success` | Three consumed authorizations, five TCP requests, six telemetry records, four alerts; restored and stopped |
+| `workflow-failure` | Two authorizations, three requests, three telemetry records, one alert; partial failure with restoration and stopped services |
+| `workflow-cancellation` | One authorization, two requests, two telemetry records, no alert; cancelled with restoration and stopped services |
+| `integrated-leaked-credential-blast-radius` | Six authorized stages, actual Git-history scan, three HTTP requests, four telemetry records, two alerts; revoked credential and verified signed bundle |
+| `integrated-cve-reachability-triage` | Four authorized stages; actual component invocation and one bound telemetry record; no TCP request or alert claimed |
+| `integrated-illicit-consent-remediation` | Five authorized stages and five requests; seven telemetry records and one alert; exact synthetic grant revoked while unrelated access remains available |
+| `integrated-detection-rule-ci-validation` | Four authorized stages and five requests; six telemetry records and two alerts with attack/benign measurements |
+| `integrated-pre-release-exposure-audit` | Four authorized stages, real scoped DNS and five HTTP requests; seven telemetry records and one alert |
+| `integrated-kubernetes-compromise-containment` | Success, failure and cancellation after real policy application; required traffic preserved, forbidden traffic blocked, correlated audit/HTTP evidence and baseline restored |
+
+Both service profiles also verified two actual raw acquisition imports,
+permission/custody/tampering rejection, original preservation, post-revocation
+HTTP 401, and nine JWT requests with eight rejection cases. Each installed a
+hash-pinned synthetic wheel offline, made two runtime requests, rejected a
+tampered wheel and verified cleanup. Advisory evidence changed from `matched`
+to `clear` with the corrected installed component. An empty inventory remained
+unknown. Both profiles restored their baseline.
+
+All six integrated workflows have offline and isolated execution paths. Their
+stages use typed prior outputs and exact, single-use ActionPlan approvals. The
+IOC → hunt → containment example additionally exercises success, failure and
+cancellation. CVE evidence binds a pinned synthetic advisory to component version,
+source digest and observed invocation; absent reachability evidence never proves
+non-exploitability. Consent uses an Entra-shaped application emulator. Exposure
+uses actual DNS inside the isolated scope. These do not validate provider APIs.
+
+## Readiness by capability
+
+Offline families have vulnerable, corrected, benign and insufficient-evidence
+cases in the assessment fixture; the API package has its own role/rate-limit
+cases. Source identity, provenance and verification status survive reporting.
+“Validated” below applies only to the stated scope. Packages remain experimental.
+
+| Capability | Validated scope | Incomplete or unsupported scope |
 | --- | --- | --- |
-| Application security | Python AST, JavaScript/TypeScript, diff and scanner evidence | Real SQLite-backed HTTP mini-app demonstrates vulnerable and corrected injection; broader language/runtime coverage remains partial |
-| AI adversary testing | Direct/indirect injection and bounded tool-access observations | Seven real tool-gateway requests per profile demonstrate four scope denials after correction; provider resistance unvalidated |
-| Compliance posture | Versioned SOC 2/CIS/NIST subset and stale/missing evidence handling | Evidence assessment only; no operating-effectiveness claim |
-| Forensic collection | Hash, source identity, timestamps, custody and permissions | Disposable acquisition verifies hashes, identity, permissions and original preservation; native disk/memory tools require registered adapters |
-| Malware triage | Bounded static binary and PowerShell decoding | Harmless synthetic byte analysis; submitted content never executed |
-| Purple-team validation | Shared handoff and four result states; bounded Sigma/KQL execution | Actual service telemetry and alert counts; broader query engines require adapters |
-| Adversary emulation | Allowlisted lateral laboratory paths | Permitted/denied paths, telemetry, failure/cancellation and restoration exercised |
-| Cloud infrastructure | Terraform plan, rendered Kubernetes and provider configuration imports | Seeded configuration corrections; actual K3s NetworkPolicy enforcement now has a registered laboratory path; provider enforcement remains unvalidated |
-| Supply chain and CI/CD | Lockfiles, SBOMs, Actions and pinned advisories | Seeded dependency/workflow corrections; actual build/runtime coverage pending |
-| Secrets remediation | Redacted bounded Git history, identity correlation, exposure guidance | Actual ephemeral credential revocation returns 401 and a signed bundle verifies; service chain enumerates a real synthetic Git history; provider rotation remains unvalidated |
-| REST/GraphQL security | Inventory/replay, owner/other/anonymous and rate-limit cases | Ten real HTTP checks per profile verify authorization and rate-limit corrections inside the strict isolated gate |
-| Network segmentation | Policy, flow, DNS and expected/observed paths | Actual allowed/denied lateral path; K3s NetworkPolicy enforcement has a required laboratory path; native firewalls remain unvalidated |
-| TLS, mTLS and JWT | Imported policy checks and ephemeral mTLS acceptance | Certificate trust/client failures and nine JWT requests with eight rejection cases exercised using ephemeral credentials; production services unvalidated |
+| Application security | Python AST, JavaScript/TypeScript, diff/scanner evidence; actual SQLite-backed HTTP injection and authorization corrections | Other languages/runtimes and production applications |
+| AI adversary testing | Direct/indirect injection fixtures and seven actual tool-gateway requests per profile; corrected tool/scope boundaries | Provider-specific model resistance requires live evidence |
+| Compliance posture | Versioned SOC 2/CIS/NIST subsets; missing or stale evidence cannot pass | Full-framework coverage and operating effectiveness |
+| Forensic collection | Raw disk/memory copies with source/hash/time/custody/permission binding; disposable acquisition and unchanged originals | Native acquisition, E01/AFF4 and filesystem/memory interpretation require separate adapters |
+| Malware triage | Bounded static binary inspection and safe PowerShell decoding of harmless synthetic samples | Unsupported binary formats or deep analysis; submitted content is never executed |
+| Purple-team validation | All four outcomes, correlated captured telemetry/alerts, and generated Sigma/KQL subset execution against attack/benign events | Broader query engines and production SIEM ingestion |
+| Adversary emulation | Allowlisted real lateral paths and cleanup after success, failure and cancellation | Other techniques, targets and production engagement |
+| Cloud infrastructure | Typed Terraform, Kubernetes and AWS/Azure/GCP exports; actual K3s NetworkPolicy application and restoration | Provider enforcement and incomplete configuration exports |
+| Supply chain and CI/CD | Lockfiles, SBOMs, Actions and pinned advisories; actual offline wheel installation, runtime correction and hash rejection | Arbitrary package builds, registry behavior and hosted CI integration |
+| Secrets remediation | Redacted bounded Git history, identity/exposure assessment and actual ephemeral revocation returning 401; caller-signed evidence bundle | Provider validity/rotation and external signing-key trust |
+| REST/GraphQL security | Existing inventory/replay formats preserved; ten actual HTTP checks per profile across owner, other-user, anonymous and rate-limit cases | Production targets and unsupported API semantics |
+| Network segmentation | Typed firewall/NetworkPolicy/flow/DNS evidence; real allowed/denied service and pod connectivity | Native firewall enforcement and unobserved networks |
+| TLS, mTLS and JWT | Typed chain/RS256 verification, ephemeral certificate/client acceptance and nine actual JWT requests | Production trust, revocation services and unsupported algorithms |
 
-## Integrated workflows
+## Platform gaps and completion rule
 
-All six catalog definitions validate and execute offline. Leaked-credential
-bundles support caller-owned Ed25519 signing and explicitly report unanchored key
-trust. Missing reachability evidence cannot establish non-exploitability. The
-IOC → hunt → containment laboratory performs real HTTP operations through the
-existing ActionPlan authorization boundary and verifies resume/failure/cancel
-cleanup. Five additional typed service chains bind resolved inputs and exact
-loopback destinations to one-use ActionPlan approvals. They exercise credential
-and consent revocation (200 before, 401 afterward), injection correction,
-attack/benign telemetry measurement, and authentication checks. Their limits are
-explicit: consent uses an application emulator, CVE reachability uses a pinned
-synthetic advisory, detection uses registered lab-event rules, exposure uses
-numeric loopback endpoints. The leaked-credential chain scans real synthetic Git
-history. Kubernetes uses the isolated K3s adapter with real required/forbidden
-pod connectivity, correlated audit and HTTP telemetry, and success/failure/cancel
-restoration. Production Entra, Kubernetes,
-SIEM, DNS, and provider integrations remain unvalidated.
+The macOS portable run skipped 24 platform-dependent tests. Linux-specific
+production approval sockets, `/proc` descriptor protections and bubblewrap worker
+isolation require the retained native Linux jobs. Windows device/junction handling
+and PowerShell assessment require the retained Windows jobs. Linux-only EVTX
+parsing was exercised by the strict Linux gate; that does not validate native
+Windows acquisition. No skipped check is counted as a pass.
 
-## Evidence limits and completion rule
+The existing CI matrix retains Linux bubblewrap, Windows filesystem/PowerShell,
+multi-version portable and isolated laboratory jobs. Hosted runs for these local
+branches were not performed. Production/provider, native acquisition and the
+unavailable platform checks above remain incomplete. Exported reports are review
+artifacts; hosted posting and production integration remain separate transitions.
 
-Synthetic Entra, Kubernetes audit, normalized Sysmon JSONL and binary EVTX datasets
-have provenance, checksums, expected outcomes, and reset instructions. The pinned
-EVTX adapter imports vulnerable, corrected and insufficient binary counterparts
-in the strict gate. Native Windows acquisition remains unvalidated. Report exporters preserve
-inconclusive statuses, redaction, and revision-bound anchors. Offline report
-validation does not establish hosted posting or ingestion.
-
-Complete this record only after focused checks, `make check`, `make check-docs`,
-and `make check-laboratory` pass on the recorded implementation revision. Attach
-explicit blockers for required native/platform, provider, acquisition, and
-capability-specific laboratory checks; do not turn skipped checks into success.
-
-## Raw forensic import correction scope
-
-The raw import gate now consumes actual disposable acquisition output for both
-disk and memory kinds. It requires digest and byte-count binding, denied-permission
-and missing-custody rejection, tamper rejection, and successful restored-copy
-verification. Native acquisition and filesystem/memory analysis remain incomplete.
-The final integrated acceptance record must identify the tested revision and
-commands; this scope entry alone is not execution evidence.
-
-## Kubernetes containment correction scope
-
-The strict composite gate now requires thirteen named cases: twelve in the
-unprivileged service container and one isolated Kubernetes case. The latter must
-exercise success, failure after policy application, and cancellation after
-application. Required traffic stays available, forbidden traffic is blocked, and
-cleanup restores both. Node inspection, definitive pod egress failures, correlated
-HTTP logs and successful NetworkPolicy create/delete audit records are mandatory.
-Missing images or incomplete cleanup fail the gate. See the
-[Kubernetes runbook](KUBERNETES_LABORATORY.md) for the privileged host boundary.
-The final check ledger must bind this scope to a clean tested revision.
+After a behavioral change, rerun the relevant corrections and all required gates
+against its new revision and source snapshot. Documentation-only changes require
+the documentation gate. Retain limitations and inconclusive states when reusing
+this evidence; do not infer broader readiness from a passing synthetic fixture.

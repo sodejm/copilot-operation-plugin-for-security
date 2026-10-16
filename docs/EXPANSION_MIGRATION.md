@@ -42,9 +42,10 @@ The six integrated examples have offline playback profiles. Some profiles model
 the evidence required for a later active operation. A modeled result cannot
 establish that containment, consent revocation, cluster enforcement, or cleanup
 occurred. See [integrated workflows](INTEGRATED_WORKFLOWS.md) for each boundary.
-Five additional service chains now execute disposable HTTP operations with typed
-stage inputs and exact, single-use ActionPlan approvals. Their synthetic consent,
-advisory, event-rule, and numeric-address models retain explicit production limits;
+Five additional service chains now execute disposable HTTP operations or observed
+component invocations with typed stage inputs and exact, single-use ActionPlan
+approvals. Their synthetic consent, advisory and event-rule models, and scoped DNS
+and endpoint observations, retain explicit production limits;
 Kubernetes enforcement now has a separate registered, pinned K3s fixture. The
 strict Docker gate requires its image prerequisites and real containment,
 restoration and cleanup evidence. See [the Kubernetes runbook](KUBERNETES_LABORATORY.md)
