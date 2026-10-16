@@ -258,16 +258,16 @@ def command_engagement_goal(args: argparse.Namespace) -> int:
             print(f"error: goal selection failed: {err}", file=sys.stderr)
             print(f"next action: {err.next_action}", file=sys.stderr)
         return 1
-    except (EngagementIntakeError, ContractError) as err:
+    except (EngagementIntakeError, ContractError):
         failure = _goal_failure_document(
             code="invalid_engagement",
-            message=str(err),
+            message="Engagement contract is invalid.",
             next_action="Correct the engagement contract and retry goal selection.",
         )
         if args.json:
             print(json.dumps(failure, indent=2, sort_keys=True))
         else:
-            print(f"error: goal selection failed: {err}", file=sys.stderr)
+            print(f"error: goal selection failed: {failure['error']['message']}", file=sys.stderr)
         return 1
 
     if args.json:

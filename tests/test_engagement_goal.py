@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 import io
 import json
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -600,6 +600,36 @@ def test_goal_cli_reports_invalid_contract_schema_as_structured_failure(
     assert result["error"]["code"] == "invalid_engagement"
     assert result["coverage"]["status"] == "not_assessed"
     assert "engagement_binding" not in result
+
+
+@pytest.mark.parametrize("json_output", [False, True])
+@pytest.mark.parametrize(
+    ("field", "invalid_value"),
+    [
+        ("credential_references", ["ghp_SYNTHETIC_SENTINEL"]),
+        ("name", {"private_value": "SYNTHETIC_SENTINEL"}),
+    ],
+)
+def test_goal_cli_redacts_invalid_engagement_values(
+    engagement: dict[str, object], tmp_path, field: str, invalid_value: object, json_output: bool
+) -> None:
+    changed = copy.deepcopy(engagement)
+    changed[field] = invalid_value
+    engagement_path = tmp_path / "engagement.json"
+    engagement_path.write_text(json.dumps(changed), encoding="utf-8")
+    stdout = io.StringIO()
+    stderr = io.StringIO()
+    argv = ["engagement", "goal", "Assess the selected endpoint.", "--engagement", str(engagement_path)]
+    if json_output:
+        argv.append("--json")
+    with redirect_stdout(stdout), redirect_stderr(stderr):
+        exit_code = main(argv)
+    rendered = stdout.getvalue() + stderr.getvalue()
+    assert exit_code == 1
+    assert "SYNTHETIC_SENTINEL" not in rendered
+    assert "Engagement contract is invalid." in rendered
+    if json_output:
+        assert json.loads(stdout.getvalue())["error"]["code"] == "invalid_engagement"
 
 
 @pytest.mark.parametrize(
