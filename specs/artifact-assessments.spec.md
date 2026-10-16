@@ -33,7 +33,13 @@ The returned mapping has schema `cops.artifact-assessment/v1`, uses repository-v
 - Supply-chain analysis processes npm and Python locks, CycloneDX/SPDX/container SBOMs, GitHub Actions references, and caller-supplied pinned advisory fixtures. npm root/workspace/link records are not registry packages. Registry identity is an exact HTTPS hostname check. Python continuation lines are joined before exact-version/hash validation. Advisory matching retains the package ecosystem and normalizes Python names. Workflow write permissions and privileged untrusted-head checkout are reported. Unsupported includes, substitutions, aliases, dynamic action references, and malformed components remain unresolved; no dependency or workflow is executed.
 - Credential history correlates exposure state, redaction, rotation, and author identity by opaque fingerprint without retaining a credential value.
 - Registered Git collection requires a caller-supplied executable SHA-256 pin, verifies a private copy before invocation, bounds history, files, bytes and elapsed time, and refuses symlinks, linked metadata and object alternates. Hooks, replacement objects, interactive prompts and lazy fetch are disabled. Findings distinguish a historical match from provider-side revocation; the isolated laboratory separately verifies revocation against an ephemeral service and checks repository immutability.
-- Network segmentation computes expected reachability from structured allow rules and validates structured DNS evidence.
+- Network segmentation retains the legacy allow graph and adds versioned firewall,
+  rendered Kubernetes NetworkPolicy, flow and DNS envelopes. Firewall rules use
+  ordered first-match semantics. Kubernetes policies are additive within each
+  direction; both selected ingress and egress policy must permit a path. Namespace
+  and Pod inventories must be declared complete. Missing observations, stale DNS,
+  unsupported policy features and exceeded bounds remain unresolved. Absence of a
+  flow cannot prove denial; static predictions cannot prove CNI enforcement.
 - Transport identity inspects TLS metadata, mTLS settings, JWT claims and algorithms, and JWKS metadata while explicitly reserving signature, trust-anchor, revocation, and handshake checks for registered adapters or laboratories.
 
 ## Regression evidence

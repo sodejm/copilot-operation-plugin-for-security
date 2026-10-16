@@ -291,3 +291,9 @@ For air-gapped or restricted network development environments:
    ```
 
 Workflow maintenance keeps checkout actions aligned with the current hosted runner runtime. The dependency pull requests update the remaining Python, CodeQL, and Pages actions; shell values used by issue summaries are quoted before passing them to the GitHub CLI.
+
+
+Typed network changes require `tests/test_network_policy_inputs.py` and the
+package correction demo, including vulnerable, corrected and incomplete inputs.
+Synchronize all artifact runtimes after shared parser edits. Keep policy
+predictions distinct from measured enforcement when recording laboratory readiness.

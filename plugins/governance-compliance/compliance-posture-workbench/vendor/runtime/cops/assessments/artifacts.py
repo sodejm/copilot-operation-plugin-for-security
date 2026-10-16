@@ -23,6 +23,7 @@ from typing import Any, Callable
 from cops.contracts.models import Finding
 from cops.evidence.canonical import EvidenceError, canonical, timestamp
 from cops.assessments.cloud_inputs import cloud_input
+from cops.assessments.network_inputs import KINDS as NETWORK_KINDS, inspect_network
 from cops.assessments.supply_inputs import github_actions, npm_lock, package_name, requirements_lock
 
 
@@ -603,11 +604,22 @@ def _credential_history(items: list[_Artifact], _as_of: datetime) -> tuple[list[
     return issues, limitations, ["registered-adapter:git-object-enumerator@1", "registered-adapter:provider-revocation-check@1"], analyzed
 
 
-def _network(items: list[_Artifact], _as_of: datetime) -> tuple[list[_Issue], list[str], list[str], set[str]]:
+def _network(items: list[_Artifact], as_of: datetime) -> tuple[list[_Issue], list[str], list[str], set[str]]:
     issues: list[_Issue] = []
     analyzed: set[str] = set()
     limitations: list[str] = []
     for artifact in items:
+        if artifact.kind in NETWORK_KINDS:
+            analyzed.add(artifact.artifact_id)
+            result = inspect_network(artifact.kind, _structured(artifact), as_of)
+            for code in sorted(result.codes):
+                issues.append(_issue(artifact, code,
+                    "Imported network evidence conflicts with expectation", "high" if code == "segmentation_mismatch" else "medium",
+                    "A bounded policy prediction or supplied observation disagrees with an expected path or address set.",
+                    "Correct the scoped policy or DNS configuration and collect fresh connectivity evidence."))
+            if result.incomplete:
+                issues.append(_unresolved(artifact, "network_policy_evidence"))
+            continue
         if artifact.kind == "pcap":
             limitations.append("Packet capture parsing requires a pinned registered adapter; structured flows are supported.")
             continue
@@ -615,13 +627,17 @@ def _network(items: list[_Artifact], _as_of: datetime) -> tuple[list[_Issue], li
             limitations.append(f"Unsupported segmentation artifact kind: {artifact.kind}.")
             continue
         rules, expectations = artifact.content.get("rules"), artifact.content.get("expected_reachability")
-        if not isinstance(rules, list) or not isinstance(expectations, list):
+        if (not isinstance(rules, list) or len(rules) > 5000
+                or not isinstance(expectations, list) or not 0 < len(expectations) <= 256
+                or any(not isinstance(r, dict) or r.get("action", "allow") not in ("allow", "deny")
+                       or not isinstance(r.get("from"), str) or not r["from"]
+                       or not isinstance(r.get("to"), str) or not r["to"] for r in rules)):
             issues.append(_unresolved(artifact, "segmentation_model"))
             continue
         analyzed.add(artifact.artifact_id)
         graph: dict[str, set[str]] = defaultdict(set)
-        for rule in rules[:5000]:
-            if isinstance(rule, dict) and rule.get("action", "allow") == "allow" and isinstance(rule.get("from"), str) and isinstance(rule.get("to"), str):
+        for rule in rules:
+            if rule.get("action", "allow") == "allow":
                 graph[rule["from"]].add(rule["to"])
         def reachable(start: str, end: str) -> bool:
             pending, seen = deque([start]), {start}
@@ -634,7 +650,7 @@ def _network(items: list[_Artifact], _as_of: datetime) -> tuple[list[_Issue], li
                         seen.add(neighbor)
                         pending.append(neighbor)
             return False
-        for expectation in expectations[:5000]:
+        for expectation in expectations:
             if not isinstance(expectation, dict) or not isinstance(expectation.get("from"), str) or not isinstance(expectation.get("to"), str) or type(expectation.get("allowed")) is not bool:
                 issues.append(_unresolved(artifact, "reachability_expectation"))
                 continue
@@ -645,6 +661,7 @@ def _network(items: list[_Artifact], _as_of: datetime) -> tuple[list[_Issue], li
         if dns is not None and (not isinstance(dns, dict) or any(not isinstance(value, (str, list)) for value in dns.values())):
             issues.append(_unresolved(artifact, "dns_mapping"))
     limitations.append("Static policy and flow evidence cannot prove runtime enforcement or unobserved paths.")
+    limitations.append("Kubernetes predictions cover complete Pod/Namespace inventories and TCP/UDP NetworkPolicy rules; CNI, NAT, Services, host networking, SCTP and administrative policies require separate evidence. Supplied flows expire after 15 minutes and DNS records at their TTL.")
     return issues, limitations, ["registered-adapter:pcap-flow-extractor@1", "registered-adapter:live-segmentation-probe@1"], analyzed
 
 

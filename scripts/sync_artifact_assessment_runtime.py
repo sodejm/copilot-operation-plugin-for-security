@@ -21,6 +21,7 @@ MODULES = (
     "cops/contracts/lifecycle.py",
     "cops/contracts/validation.py",
     "cops/evidence/canonical.py",
+    "cops/evidence/files.py",
     "cops/evidence/validation.py",
     "cops/reporting/assessment.py",
 )

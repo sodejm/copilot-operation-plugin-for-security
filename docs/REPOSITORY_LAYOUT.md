@@ -68,3 +68,8 @@ The `.agents/skills/plugin-run-cost/` contributor skill provides local retrospec
 run accounting, input profiles, explicit forecasts and business comparisons. Its
 synthetic fixtures are public; execution ledgers and customer source exports must
 remain private outside the checkout. See the [skill](../.agents/skills/plugin-run-cost/SKILL.md).
+
+
+`cops/assessments/network_inputs.py` interprets bounded typed firewall, Pod policy,
+flow and DNS inputs for the shared artifact engine. It performs no discovery or
+connectivity operations; execution adapters own active checks and authorization.

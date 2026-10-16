@@ -616,3 +616,14 @@ imports actual acquired files and rejects tampered copies. Caller-supplied
 digests and authority references remain unauthenticated; compromised same-user
 processes, malicious storage, native capture, and image-content analysis need
 separate controls. These tests do not close independent human review.
+
+
+### Typed network prediction boundary
+
+Untrusted firewall and Kubernetes exports can omit a permissive rule, include
+unsupported policy semantics, or exhaust selector work. Typed inputs require a
+complete inventory assertion, bounded lists and a comparison budget. Unsupported
+semantics fail closed to unknown. This assertion is not independently authenticated.
+Flow denial requires explicit, fresh evidence; absence and contradictory records
+remain unknown. DNS comparisons use exact address sets within TTL. Offline parsing
+never resolves names, contacts targets, installs policy or consumes authorizations.

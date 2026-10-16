@@ -58,7 +58,7 @@ The default request bounds are 64 artifacts, 1 MiB per artifact, and 4 MiB total
 | `cloud_configuration` | `terraform_plan`, `kubernetes_rendered`, `helm_rendered_json`, `aws_export`, `azure_export`, `gcp_export` | Typed workload, IAM/RBAC, storage ACL, and inbound source-range observations; unsupported resources remain partial |
 | `supply_chain` | `package_lock`, `requirements_lock`, `cyclonedx`, `spdx`, `container_sbom`, `github_actions`, `advisory_fixture` | Registry and integrity metadata, exact Python hashes, versioned SBOM components, action pins, token write permissions, privileged pull-request head checkout, and ecosystem-specific pinned advisories |
 | `credential_history` | `git_history` | Bounded Git scan or supplied synthetic exposure records correlated by opaque fingerprint, redaction, rotation, and opaque author ID |
-| `network_segmentation` | `segmentation_model` | Bounded graph reachability across allow rules, expected path assertions, and structured DNS evidence |
+| `network_segmentation` | `segmentation_model`, `firewall_policy`, `kubernetes_network_policy`, `flow_evidence`, `dns_evidence` | Legacy allow graph, ordered IP firewall rules, additive Pod NetworkPolicy predictions, explicit flow observations, and TTL-bound DNS address sets |
 | `transport_identity` | `tls_config`, `jwt`, `jwks` | Certificate time, chain-name continuity, SAN and mTLS settings, JWT structure and claims, and JWKS key/algorithm metadata |
 
 Malformed supported artifacts yield unresolved findings or insufficient-evidence readiness. Unknown or heavyweight formats produce explicit limitations and versioned adapter prerequisites. For example, raw Helm templates require a pinned renderer, PCAP requires a registered flow extractor, forensic filesystem or memory parsing requires an image parser, and cryptographic trust or revocation requires a chain-validation adapter.
@@ -168,3 +168,30 @@ Treat all input as untrusted. The module parses data in-process with hard bounds
 The pinned regression corpus is `tests/fixtures/artifact_assessment_cases_v1.json`. It includes a vulnerable, corrected, insufficient-evidence, and negative benign case for every capability.
 
 Cloud analysis accepts Terraform plan JSON version 1.x, using effective `after` values and excluding deleted resources. It checks registered AWS IAM policies, security groups and S3 ACLs; rendered Kubernetes workloads, RBAC and NetworkPolicy; AWS security-group/IAM/ACL exports; Azure NSG and storage-account exports; and GCP firewall/IAM exports. Unknown Terraform values, unsupported resource types, malformed fields and empty unrecognized documents produce an insufficient-evidence finding. Deny statements and outbound rules do not become ingress findings. These observations do not resolve policy conditions, effective permissions, rule precedence, or live reachability. Raw Helm and other formats require registered adapters.
+
+## Typed network evidence
+
+The [typed example](../plugins/vulnerability-management/network-segmentation-workbench/examples/typed-input.json)
+contains four independent artifact kinds. Each requires its matching
+`cops.<kind-with-hyphens>/v1` schema version and `complete: true`:
+
+- `firewall_policy`: ordered first-match CIDR rules, TCP/UDP/ANY, numeric port
+  sets (empty means all), explicit default action and expected IP paths.
+- `kubernetes_network_policy`: complete Namespace, Pod and NetworkPolicy JSON
+  inventory plus expected Pod-to-Pod TCP/UDP paths. Predictions implement
+  additive ingress/egress rules, label selectors and expressions, namespace/pod
+  selector intersection, CIDR exclusions, named destination ports and port ranges.
+- `flow_evidence`: expected IP paths and explicit allow/deny observations with
+  opaque evidence references and timestamps no older than 15 minutes. Missing
+  traffic cannot establish denial; contradictory observations remain unknown.
+- `dns_evidence`: expected exact A/AAAA address sets and unique observed records
+  with timestamps and TTLs. Expired, missing or future observations remain unknown.
+
+Expected path lists have at most 256 entries. Firewall rules and observations
+have at most 1,024 entries. Kubernetes inventories have at most 128 resources of
+each supported kind; a 200,000 peer/port comparison budget bounds predictions.
+Unsupported selectors, protocols, host networking, service/NAT paths or incomplete
+inventories yield insufficient evidence. Pod IPs are required for CIDR peers.
+These are supplied snapshots, not authenticated captures or CNI enforcement.
+The semantics follow the [Kubernetes NetworkPolicy documentation](https://kubernetes.io/docs/concepts/services-networking/network-policies/).
+Actual firewall/CNI enforcement needs independent isolated connectivity evidence.
