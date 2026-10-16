@@ -3,6 +3,12 @@ Feature: Bounded service entry-point validation
   I want discovered endpoints classified before any follow-on action
   So that a port observation cannot silently become a service claim or an authorization to probe
 
+  # In this executable laboratory, "independent evidence" means a fixture-owned
+  # passive audit record rather than provider-authored output. The fixture and
+  # verifier share one process, administrative authority, and parser; this is not
+  # independently administered attestation or external target evidence. Cleanup
+  # means fixture transport closure, not rollback or effect reversal.
+
   Scenario: An observed protocol on a nonstandard port is routed without changing the endpoint
     Given an approved endpoint with an SSH protocol banner on TCP port 2222
     When COPS prepares a service-validation handoff
@@ -56,6 +62,8 @@ Feature: Bounded service entry-point validation
     Then the result records a candidate and an auditable validation plan
     And it records neither a verified finding nor successful authorized use
 
+  # Approval is consumed once when dispatch is durably recorded, and the passive
+  # audit binds the exact dispatch correlation, one-use reference, and time.
   Scenario: A low-impact specialist probe records a benign service assessment
     Given an authorized exact plan for a disposable loopback SSH service on a nonstandard port
     And a bounded specialist provider is registered
@@ -64,6 +72,8 @@ Feature: Bounded service entry-point validation
     And independent protocol evidence records exposure, authentication, configuration, version, and trust
     And the result is benign without a verified finding or successful authorized use
 
+  # Controlled proof atomically consumes the exact durable prerequisite from the
+  # completed candidate attempt together with a fresh approval.
   Scenario: Controlled proof confirms a versioned configuration flaw and cleanup
     Given low-impact validation found a Redis candidate with a versioned issue 143 reproduction
     When the operator separately selects controlled proof with a fresh attempt budget and approval receipt
@@ -79,6 +89,8 @@ Feature: Bounded service entry-point validation
     Then the result records the authentication boundary and remediation state
     And it does not claim a finding or successful authorized use
 
+  # Ambiguity after durable dispatch remains uncertain and is never auto-retried;
+  # insufficient evidence applies only when no uncertain effect remains.
   Scenario: Missing independent evidence fails closed
     Given a specialist provider returns no independently collected protocol evidence
     When the operator selects low-impact validation

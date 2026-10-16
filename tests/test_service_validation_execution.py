@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import secrets
 import socket
 import socketserver
 import threading
 import time
 from contextlib import contextmanager
-from dataclasses import replace
+from dataclasses import asdict, replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -23,27 +24,48 @@ from cops.discovery import (
     VersionedReproduction,
     execute_service_validation_action,
     load_trusted_issue_143_reproduction,
+    service_validation_plan_digest,
 )
+from cops.discovery.service_validation_lab import _read_wire_request
 
 
 class _LoopbackHandler(socketserver.BaseRequestHandler):
     def handle(self) -> None:
         server = self.server
-        server.connection_count += 1  # type: ignore[attr-defined]
+        with server.audit_lock:  # type: ignore[attr-defined]
+            server.connection_count += 1  # type: ignore[attr-defined]
+        audit_reference = ""
+        pending: dict[str, object] | None = None
+        request = b""
+        response = b""
         try:
             self.request.sendall(server.banner)  # type: ignore[attr-defined]
-            self.request.settimeout(0.25)
-            try:
-                request = self.request.recv(64)
-            except TimeoutError:
+            self.request.settimeout(0.5)
+            audit_reference, correlation_id, request = _read_wire_request(self.request)
+            with server.audit_lock:  # type: ignore[attr-defined]
+                pending = server.pending_audits.pop(audit_reference, None)  # type: ignore[attr-defined]
+            expected_correlation = str((pending or {}).get("dispatch_correlation_id", ""))
+            if not expected_correlation or not secrets.compare_digest(correlation_id, expected_correlation):
+                pending = None
                 request = b""
             if request:
                 server.requests.append(request)  # type: ignore[attr-defined]
             if request == b"PING\r\n" and server.proof_response:  # type: ignore[attr-defined]
-                self.request.sendall(server.proof_response)  # type: ignore[attr-defined]
-                server.responses.append(server.proof_response)  # type: ignore[attr-defined]
+                response = server.proof_response  # type: ignore[attr-defined]
+                self.request.sendall(response)
+                server.responses.append(response)  # type: ignore[attr-defined]
         finally:
-            server.closed_connections += 1  # type: ignore[attr-defined]
+            with server.audit_lock:  # type: ignore[attr-defined]
+                server.closed_connections += 1  # type: ignore[attr-defined]
+                if pending is not None:
+                    server.audit[audit_reference] = {  # type: ignore[attr-defined]
+                        **pending,
+                        "banner": server.banner,  # type: ignore[attr-defined]
+                        "request": request,
+                        "response": response,
+                        "closed": True,
+                        "recorded_at": datetime.now(UTC).isoformat(),
+                    }
 
 
 class _LoopbackServer(socketserver.ThreadingTCPServer):
@@ -58,6 +80,21 @@ class _LoopbackServer(socketserver.ThreadingTCPServer):
         self.closed_connections = 0
         self.requests: list[bytes] = []
         self.responses: list[bytes] = []
+        self.audit_lock = threading.Lock()
+        self.pending_audits: dict[str, dict[str, object]] = {}
+        self.audit: dict[str, dict[str, object]] = {}
+
+    def issue_audit_reference(self, metadata: dict[str, object]) -> str:
+        with self.audit_lock:
+            while True:
+                audit_reference = secrets.token_urlsafe(32)
+                if audit_reference not in self.pending_audits and audit_reference not in self.audit:
+                    self.pending_audits[audit_reference] = dict(metadata)
+                    return audit_reference
+
+    def discard_pending_audit(self, audit_reference: str) -> None:
+        with self.audit_lock:
+            self.pending_audits.pop(audit_reference, None)
 
 
 @contextmanager
@@ -74,8 +111,8 @@ def loopback_service(banner: bytes, proof_response: bytes = b""):
 
 
 def plan_for(port: int, *, service: str = "redis", skill_id: str = "network-data-services") -> ServiceValidationPlan:
-    return ServiceValidationPlan(
-        plan_id=f"plan-loopback-{service}-{port}",
+    plan = ServiceValidationPlan(
+        plan_id="",
         endpoint=ApprovedEndpoint("127.0.0.1", "127.0.0.1", port, "tcp", "internal"),
         service=service,
         specialist="cops-pentest-specialist",
@@ -91,15 +128,18 @@ def plan_for(port: int, *, service: str = "redis", skill_id: str = "network-data
         rollback="close the connection and stop the disposable fixture",
         stop_conditions=("endpoint identity changes", "budget or approval is absent"),
     )
+    return replace(plan, plan_id=service_validation_plan_digest(plan))
 
 
 def reproduction_for(endpoint: ApprovedEndpoint, *, affected_version: str = "redis-lab-5.0") -> VersionedReproduction:
     return replace(load_trusted_issue_143_reproduction(endpoint).reproduction, affected_version=affected_version)
 
 
-def budget_ledger(tmp_path) -> AssessmentBudgetLedger:
+def budget_ledger(
+    tmp_path, *, engagement_id: str = "issue-285-loopback", db_name: str = "service-validation.sqlite3"
+) -> AssessmentBudgetLedger:
     policy = BudgetPolicy(
-        engagement_id="issue-285-loopback",
+        engagement_id=engagement_id,
         limits=BudgetLimits(
             max_attempts=10,
             max_estimated_tokens=1000,
@@ -115,7 +155,7 @@ def budget_ledger(tmp_path) -> AssessmentBudgetLedger:
         price_version="1",
         price_effective_date="2026-10-14",
     )
-    return AssessmentBudgetLedger(tmp_path / "private" / "service-validation.sqlite3", policy)
+    return AssessmentBudgetLedger(tmp_path / "private" / db_name, policy)
 
 
 def attempt(attempt_id: str) -> AttemptRequest:
@@ -123,9 +163,22 @@ def attempt(attempt_id: str) -> AttemptRequest:
 
 
 class ExactApprovalGate:
-    def __init__(self, *, approved: bool = True, wrong_action: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        approved: bool = True,
+        wrong_action: bool = False,
+        engagement_id: str = "issue-285-loopback",
+        authority_id: str = "test-operator",
+        expired: bool = False,
+        receipt_id: str | None = None,
+    ) -> None:
         self.approved = approved
         self.wrong_action = wrong_action
+        self.engagement_id = engagement_id
+        self.authority_id = authority_id
+        self.expired = expired
+        self.receipt_id = receipt_id
         self.calls: list[tuple[str, str, str]] = []
 
     def __call__(
@@ -133,14 +186,38 @@ class ExactApprovalGate:
     ) -> AuthorizationReceipt:
         self.calls.append((plan.plan_id, selection.action, attempt_id))
         action = "controlled_proof" if self.wrong_action else selection.action
+        now = datetime.now(UTC)
+        issued_at = now - timedelta(minutes=10) if self.expired else now - timedelta(seconds=1)
+        expires_at = now - timedelta(minutes=5) if self.expired else now + timedelta(minutes=5)
         return AuthorizationReceipt(
-            receipt_id=f"approval-{attempt_id}",
+            receipt_id=self.receipt_id or f"approval-{attempt_id}",
             plan_id=plan.plan_id,
             endpoint=plan.endpoint,
             action=action,
             attempt_id=attempt_id,
+            engagement_id=self.engagement_id,
+            authority_id=self.authority_id,
+            issued_at=issued_at.isoformat(),
+            expires_at=expires_at.isoformat(),
             approved=self.approved,
         )
+
+
+class SharedOneUseApprovalAuthority(ExactApprovalGate):
+    """Test authority enforcing receipt uniqueness beyond one ledger database."""
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self._issued_receipt_ids: set[str] = set()
+
+    def __call__(
+        self, plan: ServiceValidationPlan, selection: ValidationSelection, attempt_id: str
+    ) -> AuthorizationReceipt:
+        receipt = super().__call__(plan, selection, attempt_id)
+        if receipt.receipt_id in self._issued_receipt_ids:
+            raise RuntimeError("approval receipt was already issued by this authority")
+        self._issued_receipt_ids.add(receipt.receipt_id)
+        return receipt
 
 
 class LoopbackProvider:
@@ -148,24 +225,57 @@ class LoopbackProvider:
 
     def __init__(
         self,
+        server: _LoopbackServer,
         *,
         force_candidate: bool = False,
         wrong_reproduction_endpoint: bool = False,
         wrong_reproduction_version: bool = False,
     ) -> None:
+        self.server = server
         self.force_candidate = force_candidate
         self.wrong_reproduction_endpoint = wrong_reproduction_endpoint
         self.wrong_reproduction_version = wrong_reproduction_version
         self.calls: list[tuple[ApprovedEndpoint, str]] = []
 
-    def __call__(self, plan: ServiceValidationPlan, action: str) -> ValidationProbeOutput:
+    def __call__(self, plan: ServiceValidationPlan, action: str, context) -> ValidationProbeOutput:
         self.calls.append((plan.endpoint, action))
-        with socket.create_connection((plan.endpoint.resolved_ip, plan.endpoint.port), timeout=2) as connection:
-            banner = connection.recv(512).decode("utf-8", errors="replace").strip()
-            proof = ""
-            if action == "controlled_proof":
-                connection.sendall(b"PING\r\n")
-                proof = connection.recv(64).decode("utf-8", errors="replace").strip()
+        request = b"PING\r\n" if action == "controlled_proof" else b""
+        protocol = "Redis controlled proof" if action == "controlled_proof" else "passive banner"
+        audit_reference = self.server.issue_audit_reference(
+            {
+                "plan_id": plan.plan_id,
+                "attempt_id": context.attempt_id,
+                "approval_receipt_id": context.approval_receipt_id,
+                "action": action,
+                "endpoint": asdict(plan.endpoint),
+                "dispatch_correlation_id": context.correlation_id,
+                "service": plan.service,
+                "protocol": protocol,
+                "expected_request": request,
+            }
+        )
+        try:
+            with socket.create_connection((plan.endpoint.resolved_ip, plan.endpoint.port), timeout=2) as connection:
+                banner = connection.recv(512).decode("utf-8", errors="replace").strip()
+                frame = (
+                    b"COPS-AUDIT "
+                    + audit_reference.encode("ascii")
+                    + b" "
+                    + context.correlation_id.encode("ascii")
+                    + b" "
+                    + str(len(request)).encode("ascii")
+                    + b"\n"
+                    + request
+                )
+                connection.sendall(frame)
+                connection.shutdown(socket.SHUT_WR)
+                proof_chunks: list[bytes] = []
+                while chunk := connection.recv(64):
+                    proof_chunks.append(chunk)
+                proof = b"".join(proof_chunks).decode("utf-8", errors="replace").strip()
+        except Exception:
+            self.server.discard_pending_audit(audit_reference)
+            raise
 
         affected = banner.startswith("-ERR Redis 5.0")
         candidate = affected or self.force_candidate
@@ -200,11 +310,12 @@ class LoopbackProvider:
             tokens=3,
             cost_microunits=30,
             retained_output_bytes=128,
+            audit_reference=audit_reference,
         )
 
 
 class LoopbackEvidenceVerifier:
-    """Independently probes identity and verifies fixture-side effect receipts."""
+    """Correlates fixture-side passive audit records with provider output."""
 
     def __init__(
         self,
@@ -218,6 +329,8 @@ class LoopbackEvidenceVerifier:
         wrong_evidence_digest: bool = False,
         stale_verified_at: bool = False,
         malformed_verified_at: bool = False,
+        stale_audit_recorded_at: bool = False,
+        malformed_audit_recorded_at: bool = False,
         wrong_reproduction_digest: bool = False,
     ) -> None:
         self.server = server
@@ -229,18 +342,43 @@ class LoopbackEvidenceVerifier:
         self.wrong_evidence_digest = wrong_evidence_digest
         self.stale_verified_at = stale_verified_at
         self.malformed_verified_at = malformed_verified_at
+        self.stale_audit_recorded_at = stale_audit_recorded_at
+        self.malformed_audit_recorded_at = malformed_audit_recorded_at
         self.wrong_reproduction_digest = wrong_reproduction_digest
         self.calls = 0
 
-    def __call__(self, plan, selection, approval, output) -> ValidationEvidenceVerification:
-        del output
+    def __call__(self, plan, selection, approval, output, context) -> ValidationEvidenceVerification:
         self.calls += 1
-        with socket.create_connection((plan.endpoint.resolved_ip, plan.endpoint.port), timeout=2) as connection:
-            banner = connection.recv(512).decode("utf-8", errors="replace").strip()
-
         deadline = time.monotonic() + 0.5
-        while self.server.closed_connections < self.server.connection_count and time.monotonic() < deadline:
+        audit = None
+        while time.monotonic() < deadline:
+            with self.server.audit_lock:
+                audit = self.server.audit.pop(output.audit_reference, None)
+            if audit is not None:
+                break
             time.sleep(0.005)
+        if audit is None:
+            raise RuntimeError("fixture passive audit record was unavailable")
+
+        expected_request = b"PING\r\n" if selection.action == "controlled_proof" else b""
+        expected_protocol = "Redis controlled proof" if selection.action == "controlled_proof" else "passive banner"
+        expected_metadata = {
+            "plan_id": plan.plan_id,
+            "attempt_id": approval.attempt_id,
+            "approval_receipt_id": approval.receipt_id,
+            "action": selection.action,
+            "endpoint": asdict(plan.endpoint),
+            "dispatch_correlation_id": context.correlation_id,
+            "service": plan.service,
+            "protocol": expected_protocol,
+            "expected_request": expected_request,
+        }
+        if any(audit.get(key) != value for key, value in expected_metadata.items()):
+            raise RuntimeError("fixture passive audit record did not match the exact dispatch")
+        if audit.get("request") != expected_request or audit.get("closed") is not True:
+            raise RuntimeError("fixture passive audit request or close evidence did not match")
+
+        banner = bytes(audit["banner"]).decode("utf-8", errors="replace").strip()
 
         if self.incomplete:
             return ValidationEvidenceVerification(
@@ -254,13 +392,16 @@ class LoopbackEvidenceVerifier:
                 protocol_evidence=(),
                 dimensions={},
                 verified_at=datetime.now(UTC).isoformat(),
+                audit_recorded_at=str(audit["recorded_at"]),
+                audit_reference=output.audit_reference,
+                dispatch_correlation_id=context.correlation_id,
             )
 
         protected = "authentication required" in banner
         affected = banner.startswith("-ERR Redis 5.0 no password configured")
         version = "redis-lab-7.2-protected" if protected else ("redis-lab-5.0" if affected else "ssh-lab-9.0")
-        proof_seen = b"PING\r\n" in self.server.requests and b"+PONG\r\n" in self.server.responses
-        cleanup_seen = self.server.closed_connections == self.server.connection_count
+        proof_seen = audit["request"] == b"PING\r\n" and audit["response"] == b"+PONG\r\n"
+        cleanup_seen = audit["closed"] is True
         return ValidationEvidenceVerification(
             approval_receipt_id="wrong-receipt" if self.wrong_receipt else approval.receipt_id,
             plan_id="wrong-plan" if self.wrong_plan else plan.plan_id,
@@ -269,7 +410,7 @@ class LoopbackEvidenceVerifier:
             endpoint=plan.endpoint,
             action=selection.action,
             observed_version=version,
-            protocol_evidence=(f"independent socket response: {banner}",),
+            protocol_evidence=(f"passive fixture audit response: {banner}",),
             dimensions={
                 "exposure": "exact approved loopback endpoint responded",
                 "authentication": "required" if protected else "not required by the observed response",
@@ -283,6 +424,15 @@ class LoopbackEvidenceVerifier:
                 else (
                     datetime.now(UTC) - timedelta(hours=1) if self.stale_verified_at else datetime.now(UTC)
                 ).isoformat()
+            ),
+            audit_recorded_at=(
+                "not-a-time"
+                if self.malformed_audit_recorded_at
+                else (
+                    (datetime.now(UTC) - timedelta(hours=1)).isoformat()
+                    if self.stale_audit_recorded_at
+                    else str(audit["recorded_at"])
+                )
             ),
             reproduction_sha256=(
                 "b" * 64
@@ -299,6 +449,8 @@ class LoopbackEvidenceVerifier:
             authorized_use_verified=proof_seen and self.authorized_use,
             cleanup_evidence=("fixture audit recorded all opened connections closed",) if cleanup_seen else (),
             cleanup_verified=cleanup_seen,
+            audit_reference=output.audit_reference,
+            dispatch_correlation_id=context.correlation_id,
         )
 
 
@@ -314,7 +466,7 @@ def test_real_loopback_boundary_records_benign_and_protected_nonfindings(tmp_pat
         service = "ssh" if banner.startswith(b"SSH") else "redis"
         skill = "network-remote-and-file-services" if service == "ssh" else "network-data-services"
         plan = plan_for(server.server_address[1], service=service, skill_id=skill)
-        provider = LoopbackProvider()
+        provider = LoopbackProvider(server)
         verifier = LoopbackEvidenceVerifier(server)
         result = execute_service_validation_action(
             plan,
@@ -330,15 +482,15 @@ def test_real_loopback_boundary_records_benign_and_protected_nonfindings(tmp_pat
     assert result.observed_exposure
     assert result.dimensions["authentication"] == expected_auth
     assert not result.candidate and not result.verified_finding and not result.successful_authorized_use
-    assert result.protocol_evidence[0].startswith("independent socket response:")
+    assert result.protocol_evidence[0].startswith("passive fixture audit response:")
     assert provider.calls == [(plan.endpoint, "low_impact_validation")]
     assert verifier.calls == 1
-    assert server.connection_count == 2
+    assert server.connection_count == 1
 
 
 def _run_candidate(plan, server, tmp_path, ledger=None):
     active_ledger = ledger or budget_ledger(tmp_path)
-    provider = LoopbackProvider()
+    provider = LoopbackProvider(server)
     result = execute_service_validation_action(
         plan,
         ValidationSelection(plan.plan_id, "low_impact_validation"),
@@ -363,7 +515,7 @@ def test_verified_finding_does_not_imply_successful_authorized_use(tmp_path):
             authorization_gate=ExactApprovalGate(),
             provider=provider,
             evidence_verifier=LoopbackEvidenceVerifier(server),
-            prior_result=low_impact,
+            prerequisite_receipt=low_impact.prerequisite_receipt,
         )
 
     assert low_impact.status == "completed" and low_impact.candidate
@@ -398,7 +550,7 @@ def test_successful_authorized_use_requires_distinct_effect_evidence(tmp_path):
             authorization_gate=ExactApprovalGate(),
             provider=provider,
             evidence_verifier=LoopbackEvidenceVerifier(server, authorized_use=True),
-            prior_result=low_impact,
+            prerequisite_receipt=low_impact.prerequisite_receipt,
         )
 
     assert proof.verified_finding and proof.successful_authorized_use
@@ -406,7 +558,7 @@ def test_successful_authorized_use_requires_distinct_effect_evidence(tmp_path):
     assert proof.authorized_use_evidence != proof.effect_evidence
 
 
-def test_fabricated_provider_claims_cannot_override_independent_protocol_evidence(tmp_path):
+def test_fabricated_provider_claims_cannot_override_fixture_audit_evidence(tmp_path):
     with loopback_service(b"-ERR Redis 7.2 authentication required; remediated\r\n") as server:
         plan = plan_for(server.server_address[1])
         result = execute_service_validation_action(
@@ -415,7 +567,7 @@ def test_fabricated_provider_claims_cannot_override_independent_protocol_evidenc
             ledger=budget_ledger(tmp_path),
             request=attempt("fabricated-provider"),
             authorization_gate=ExactApprovalGate(),
-            provider=LoopbackProvider(force_candidate=True),
+            provider=LoopbackProvider(server, force_candidate=True),
             evidence_verifier=LoopbackEvidenceVerifier(server),
         )
 
@@ -434,7 +586,7 @@ def test_issue_143_reproduction_must_bind_exact_endpoint(tmp_path):
             ledger=budget_ledger(tmp_path),
             request=attempt("wrong-reproduction-endpoint"),
             authorization_gate=ExactApprovalGate(),
-            provider=LoopbackProvider(wrong_reproduction_endpoint=True),
+            provider=LoopbackProvider(server, wrong_reproduction_endpoint=True),
             evidence_verifier=LoopbackEvidenceVerifier(server),
         )
 
@@ -451,7 +603,7 @@ def test_issue_143_reproduction_must_bind_exact_observed_version(tmp_path):
             ledger=budget_ledger(tmp_path),
             request=attempt("wrong-reproduction-version"),
             authorization_gate=ExactApprovalGate(),
-            provider=LoopbackProvider(wrong_reproduction_version=True),
+            provider=LoopbackProvider(server, wrong_reproduction_version=True),
             evidence_verifier=LoopbackEvidenceVerifier(server),
         )
 
@@ -459,7 +611,7 @@ def test_issue_143_reproduction_must_bind_exact_observed_version(tmp_path):
     assert not result.candidate and result.reproduction_reference is None
 
 
-def test_controlled_proof_requires_exact_independently_observed_effect(tmp_path):
+def test_controlled_proof_requires_exact_passively_observed_effect(tmp_path):
     with loopback_service(b"-ERR Redis 5.0 no password configured\r\n", b"+NOPE\r\n") as server:
         plan = plan_for(server.server_address[1])
         low_impact, provider, ledger = _run_candidate(plan, server, tmp_path)
@@ -471,7 +623,7 @@ def test_controlled_proof_requires_exact_independently_observed_effect(tmp_path)
             authorization_gate=ExactApprovalGate(),
             provider=provider,
             evidence_verifier=LoopbackEvidenceVerifier(server, authorized_use=True),
-            prior_result=low_impact,
+            prerequisite_receipt=low_impact.prerequisite_receipt,
         )
 
     assert low_impact.candidate
@@ -480,7 +632,7 @@ def test_controlled_proof_requires_exact_independently_observed_effect(tmp_path)
     assert proof.effect_evidence == () and proof.authorized_use_evidence == ()
 
 
-def test_missing_independent_protocol_evidence_is_insufficient_even_with_provider_claims(tmp_path):
+def test_missing_fixture_audit_evidence_is_insufficient_even_with_provider_claims(tmp_path):
     with loopback_service(b"SSH-2.0-Lab_9.0\r\n") as server:
         plan = plan_for(server.server_address[1], service="ssh", skill_id="network-remote-and-file-services")
         result = execute_service_validation_action(
@@ -489,7 +641,7 @@ def test_missing_independent_protocol_evidence_is_insufficient_even_with_provide
             ledger=budget_ledger(tmp_path),
             request=attempt("incomplete"),
             authorization_gate=ExactApprovalGate(),
-            provider=LoopbackProvider(),
+            provider=LoopbackProvider(server),
             evidence_verifier=LoopbackEvidenceVerifier(server, incomplete=True),
         )
 
@@ -507,23 +659,41 @@ def test_missing_independent_protocol_evidence_is_insufficient_even_with_provide
         "wrong_evidence_digest",
         "stale_verified_at",
         "malformed_verified_at",
+        "stale_audit_recorded_at",
+        "malformed_audit_recorded_at",
     ),
 )
-def test_mismatched_independent_verification_binding_is_insufficient(tmp_path, mismatch):
+def test_mismatched_passive_verification_binding_is_dispatch_uncertain(tmp_path, mismatch):
     with loopback_service(b"SSH-2.0-Lab_9.0\r\n") as server:
         plan = plan_for(server.server_address[1], service="ssh", skill_id="network-remote-and-file-services")
+        ledger = budget_ledger(tmp_path)
+        provider = LoopbackProvider(server)
         result = execute_service_validation_action(
             plan,
             ValidationSelection(plan.plan_id, "low_impact_validation"),
-            ledger=budget_ledger(tmp_path),
+            ledger=ledger,
             request=attempt(f"wrong-verification-{mismatch}"),
             authorization_gate=ExactApprovalGate(),
-            provider=LoopbackProvider(),
+            provider=provider,
             evidence_verifier=LoopbackEvidenceVerifier(server, **{mismatch: True}),
         )
+        replay_gate = ExactApprovalGate()
+        replay = execute_service_validation_action(
+            plan,
+            ValidationSelection(plan.plan_id, "low_impact_validation"),
+            ledger=ledger,
+            request=attempt(f"wrong-verification-{mismatch}"),
+            authorization_gate=replay_gate,
+            provider=provider,
+            evidence_verifier=LoopbackEvidenceVerifier(server),
+        )
 
-    assert result.status == "insufficient_evidence" and result.protocol_evidence == ()
+    assert result.status == "dispatch_uncertain" and result.protocol_evidence == ()
     assert not result.observed_exposure
+    assert ledger.get_attempt(f"wrong-verification-{mismatch}").state == "uncertain"
+    assert ledger.snapshot().active_concurrency == 1
+    assert replay.status == "budget_denied"
+    assert replay_gate.calls == [] and len(provider.calls) == 1
 
 
 def test_issue_143_reproduction_requires_trusted_digest(tmp_path):
@@ -535,7 +705,7 @@ def test_issue_143_reproduction_requires_trusted_digest(tmp_path):
             ledger=budget_ledger(tmp_path),
             request=attempt("wrong-reproduction-digest"),
             authorization_gate=ExactApprovalGate(),
-            provider=LoopbackProvider(),
+            provider=LoopbackProvider(server),
             evidence_verifier=LoopbackEvidenceVerifier(server, wrong_reproduction_digest=True),
         )
 
@@ -568,7 +738,7 @@ def test_wrong_approval_and_reused_attempt_fail_before_provider_dispatch(tmp_pat
     with loopback_service(b"SSH-2.0-Lab_9.0\r\n") as server:
         plan = plan_for(server.server_address[1], service="ssh", skill_id="network-remote-and-file-services")
         ledger = budget_ledger(tmp_path)
-        provider = LoopbackProvider()
+        provider = LoopbackProvider(server)
         verifier = LoopbackEvidenceVerifier(server)
         denied = execute_service_validation_action(
             plan,
@@ -604,14 +774,46 @@ def test_wrong_approval_and_reused_attempt_fail_before_provider_dispatch(tmp_pat
     assert completed.action == "low_impact_validation"
     assert completed.approval_receipt_id == "approval-one-use-attempt"
     assert len(provider.calls) == 1 and verifier.calls == 1
-    assert replay_gate.calls == [] and server.connection_count == 2
+    assert replay_gate.calls == [] and server.connection_count == 1
+
+
+def test_authority_rejects_receipt_replay_across_fresh_ledgers(tmp_path):
+    with loopback_service(b"SSH-2.0-Lab_9.0\r\n") as server:
+        plan = plan_for(server.server_address[1], service="ssh", skill_id="network-remote-and-file-services")
+        authority = SharedOneUseApprovalAuthority(receipt_id="shared-approval")
+        provider = LoopbackProvider(server)
+        verifier = LoopbackEvidenceVerifier(server)
+        first = execute_service_validation_action(
+            plan,
+            ValidationSelection(plan.plan_id, "low_impact_validation"),
+            ledger=budget_ledger(tmp_path, db_name="first.sqlite3"),
+            request=attempt("same-attempt"),
+            authorization_gate=authority,
+            provider=provider,
+            evidence_verifier=verifier,
+        )
+        second_ledger = budget_ledger(tmp_path, db_name="second.sqlite3")
+        replay = execute_service_validation_action(
+            plan,
+            ValidationSelection(plan.plan_id, "low_impact_validation"),
+            ledger=second_ledger,
+            request=attempt("same-attempt"),
+            authorization_gate=authority,
+            provider=provider,
+            evidence_verifier=verifier,
+        )
+
+    assert first.status == "completed"
+    assert replay.status == "authorization_error"
+    assert second_ledger.get_attempt("same-attempt").state == "released"
+    assert len(provider.calls) == 1 and server.connection_count == 1
 
 
 def test_authorization_exception_releases_undispatched_reservation(tmp_path):
     with loopback_service(b"SSH-2.0-Lab_9.0\r\n") as server:
         plan = plan_for(server.server_address[1], service="ssh", skill_id="network-remote-and-file-services")
         ledger = budget_ledger(tmp_path)
-        provider = LoopbackProvider()
+        provider = LoopbackProvider(server)
         verifier = LoopbackEvidenceVerifier(server)
 
         def failing_authorization_gate(_plan, _selection, _attempt_id):
@@ -639,10 +841,10 @@ def test_dispatch_intent_failure_releases_undispatched_reservation(tmp_path, mon
     with loopback_service(b"SSH-2.0-Lab_9.0\r\n") as server:
         plan = plan_for(server.server_address[1], service="ssh", skill_id="network-remote-and-file-services")
         ledger = budget_ledger(tmp_path)
-        provider = LoopbackProvider()
+        provider = LoopbackProvider(server)
         verifier = LoopbackEvidenceVerifier(server)
 
-        def failing_mark_dispatched(_attempt_id):
+        def failing_mark_dispatched(_attempt_id, **_kwargs):
             raise RuntimeError("dispatch ledger unavailable")
 
         monkeypatch.setattr(ledger, "mark_dispatched", failing_mark_dispatched)
@@ -670,7 +872,7 @@ def test_provider_exception_after_dispatch_marks_usage_uncertain(tmp_path):
         ledger = budget_ledger(tmp_path)
         verifier = LoopbackEvidenceVerifier(server)
 
-        def failing_provider(_plan, _action):
+        def failing_provider(_plan, _action, _context):
             raise RuntimeError("provider connection outcome unknown")
 
         result = execute_service_validation_action(

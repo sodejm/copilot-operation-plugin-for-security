@@ -161,6 +161,8 @@ from .service_entry_validation import (
     ServiceEntryHandoff,
     ServiceValidationPlan,
     prepare_session_service_handoffs,
+    service_validation_plan_digest,
+    service_validation_plan_is_intact,
 )
 from .service_validation_execution import (
     AttackMapping,
@@ -169,6 +171,7 @@ from .service_validation_execution import (
     ValidationActionResult,
     ValidationEvidenceVerification,
     ValidationFinding,
+    ValidationPrerequisiteReceipt,
     ValidationProbeOutput,
     ValidationSelection,
     VersionedReproduction,
@@ -225,6 +228,7 @@ __all__ = [
     "ValidationEvidenceVerification",
     "ValidationFinding",
     "ValidationProbeOutput",
+    "ValidationPrerequisiteReceipt",
     "ValidationSelection",
     "VersionedReproduction",
     "StandardSocketDispatcher",
@@ -308,6 +312,8 @@ __all__ = [
     "assess_developer_services",
     "prepare_developer_handoff",
     "prepare_session_service_handoffs",
+    "service_validation_plan_digest",
+    "service_validation_plan_is_intact",
     "DEFAULT_LEGACY_PORTS",
     "LegacyAuthPrerequisite",
     "LegacyCategory",

@@ -9,7 +9,8 @@ from __future__ import annotations
 import ipaddress
 import re
 from collections.abc import Collection, Mapping
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
+from hmac import compare_digest
 
 from cops.evidence.canonical import EvidenceError, digest, timestamp
 from cops.routing.catalog import SpecialistCatalogError, get_specialist
@@ -22,6 +23,7 @@ _VANTAGES = frozenset({"external", "internal", "egress_point", "cloud_tenant"})
 _TRANSPORTS = frozenset({"tcp", "udp"})
 _SPECIALIST_ID = "cops-pentest-specialist"
 _SESSION_STATUSES = frozenset({"in_progress", "completed", "budget_exhausted", "interrupted"})
+_PLAN_VERSION = "cops.service-validation-plan/v2"
 
 
 def _canonical_host(host: str) -> str:
@@ -84,6 +86,25 @@ class ServiceValidationPlan:
 
     def to_dict(self) -> dict[str, object]:
         return asdict(self)
+
+
+def service_validation_plan_digest(plan: ServiceValidationPlan) -> str:
+    """Bind every executable plan field to its stable identifier."""
+    if not isinstance(plan, ServiceValidationPlan):
+        raise ValueError("service validation plan is malformed")
+    payload = asdict(plan)
+    payload.pop("plan_id")
+    payload["prerequisites"] = list(plan.prerequisites)
+    payload["stop_conditions"] = list(plan.stop_conditions)
+    return digest({"version": _PLAN_VERSION, "plan": payload})
+
+
+def service_validation_plan_is_intact(plan: ServiceValidationPlan) -> bool:
+    """Return whether a plan still matches the complete approved proposal."""
+    try:
+        return compare_digest(plan.plan_id, service_validation_plan_digest(plan))
+    except (AttributeError, TypeError, ValueError):
+        return False
 
 
 @dataclass(frozen=True)
@@ -381,21 +402,8 @@ def _prepare_service_entry_handoff(
             "Record the unsupported route and request an authorized routing implementation",
             skill_id=skill_id,
         )
-    identity = {
-        "version": 1,
-        "session_id": session.session_id,
-        "scope_reference": session.scope_reference,
-        "probe_key": probe_key,
-        "endpoint": asdict(endpoint),
-        "probe_id": probe_id,
-        "service": service,
-        "skill_id": skill_id,
-        "specialist": _SPECIALIST_ID,
-        "evidence_sha256": evidence_sha256,
-    }
-    plan_id = digest(identity)
     plan = ServiceValidationPlan(
-        plan_id=plan_id,
+        plan_id="",
         endpoint=endpoint,
         service=service,
         specialist=_SPECIALIST_ID,
@@ -419,6 +427,7 @@ def _prepare_service_entry_handoff(
             "Unexpected state change, sensitive data, or unsafe service response",
         ),
     )
+    plan = replace(plan, plan_id=service_validation_plan_digest(plan))
     return ServiceEntryHandoff(
         "candidate",
         endpoint,

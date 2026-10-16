@@ -83,7 +83,7 @@ def service_ctx(tmp_path):
         "ledger": None,
         "gate": None,
         "result": None,
-        "prior_result": None,
+        "prerequisite_receipt": None,
     }
     try:
         yield ctx
@@ -104,11 +104,19 @@ def _configure_execution(service_ctx, server, *, service="redis", skill_id="netw
     service_ctx["plan"] = plan_for(server.server_address[1], service=service, skill_id=skill_id)
     service_ctx["ledger"] = budget_ledger(service_ctx["tmp_path"])
     service_ctx["gate"] = ExactApprovalGate()
-    service_ctx["provider"] = LoopbackProvider()
+    service_ctx["provider"] = LoopbackProvider(server)
     service_ctx["verifier"] = LoopbackEvidenceVerifier(server)
 
 
-def _execute(service_ctx, action, attempt_id, *, prior_result=None, provider_marker=True, verifier_marker=True):
+def _execute(
+    service_ctx,
+    action,
+    attempt_id,
+    *,
+    prerequisite_receipt=None,
+    provider_marker=True,
+    verifier_marker=True,
+):
     provider = service_ctx["provider"] if provider_marker else None
     verifier = service_ctx["verifier"] if verifier_marker else None
     service_ctx["result"] = execute_service_validation_action(
@@ -119,7 +127,7 @@ def _execute(service_ctx, action, attempt_id, *, prior_result=None, provider_mar
         authorization_gate=service_ctx["gate"],
         provider=provider,
         evidence_verifier=verifier,
-        prior_result=prior_result,
+        prerequisite_receipt=prerequisite_receipt,
     )
 
 
@@ -176,9 +184,10 @@ def given_versioned_redis_candidate(service_ctx):
     )
     _configure_execution(service_ctx, server)
     _execute(service_ctx, "low_impact_validation", "bdd-candidate")
-    service_ctx["prior_result"] = service_ctx["result"]
-    assert service_ctx["prior_result"].candidate
-    assert service_ctx["prior_result"].reproduction_reference == "#143"
+    service_ctx["prerequisite_receipt"] = service_ctx["result"].prerequisite_receipt
+    assert service_ctx["result"].candidate
+    assert service_ctx["result"].reproduction_reference == "#143"
+    assert service_ctx["prerequisite_receipt"] is not None
 
 
 @when("the operator separately selects controlled proof with a fresh attempt budget and approval receipt")
@@ -187,7 +196,7 @@ def when_controlled_proof_selected(service_ctx):
         service_ctx,
         "controlled_proof",
         "bdd-proof",
-        prior_result=service_ctx["prior_result"],
+        prerequisite_receipt=service_ctx["prerequisite_receipt"],
     )
 
 

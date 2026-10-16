@@ -7,6 +7,7 @@ select an action, or convert a port observation into a finding.
 from __future__ import annotations
 
 import json
+import secrets
 from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
@@ -14,7 +15,12 @@ from hashlib import sha256
 
 from cops.assessment_budget import AssessmentBudgetLedger, AttemptRequest, BudgetDenied, Receipt
 
-from .service_entry_validation import ApprovedEndpoint, ServiceValidationPlan
+from .service_entry_validation import (
+    ApprovedEndpoint,
+    ServiceValidationPlan,
+    service_validation_plan_digest,
+    service_validation_plan_is_intact,
+)
 
 _ACTIONS = frozenset({"low_impact_validation", "controlled_proof"})
 _DIMENSIONS = ("exposure", "authentication", "configuration", "version", "trust")
@@ -38,6 +44,10 @@ class AuthorizationReceipt:
     action: str
     attempt_id: str
     approved: bool
+    engagement_id: str
+    authority_id: str
+    issued_at: str
+    expires_at: str
 
 
 @dataclass(frozen=True)
@@ -108,7 +118,7 @@ def load_trusted_issue_143_reproduction(endpoint: ApprovedEndpoint) -> TrustedVa
     finding = ValidationFinding(
         finding_id="COPS-LAB-143",
         observation="The affected disposable Redis fixture accepted an unauthenticated command.",
-        evidence="The provider retained a candidate record for independent verification.",
+        evidence="The fixture retained a candidate audit record for correlated passive verification.",
         impact="An unauthenticated peer could invoke commands exposed by the fixture.",
         remediation="Require authentication and upgrade to the protected fixture.",
         detection="Alert on unauthenticated Redis commands and unexpected client addresses.",
@@ -134,11 +144,12 @@ class ValidationProbeOutput:
     tokens: int = 0
     cost_microunits: int = 0
     retained_output_bytes: int = 0
+    audit_reference: str = ""
 
 
 @dataclass(frozen=True)
 class ValidationEvidenceVerification:
-    """Evidence independently verified outside the specialist provider."""
+    """Evidence correlated from fixture-owned audit data outside provider output."""
 
     approval_receipt_id: str
     plan_id: str
@@ -150,6 +161,8 @@ class ValidationEvidenceVerification:
     protocol_evidence: tuple[str, ...]
     dimensions: Mapping[str, str]
     verified_at: str
+    audit_recorded_at: str
+    dispatch_correlation_id: str
     reproduction_sha256: str = ""
     candidate_verified: bool = False
     finding_effect: str = ""
@@ -159,6 +172,7 @@ class ValidationEvidenceVerification:
     authorized_use_verified: bool = False
     cleanup_evidence: tuple[str, ...] = ()
     cleanup_verified: bool = False
+    audit_reference: str = ""
 
 
 @dataclass(frozen=True)
@@ -194,12 +208,48 @@ class ValidationActionResult:
     remediation: str | None = None
     attack_mappings: tuple[AttackMapping, ...] = ()
     coverage: Mapping[str, str] | None = None
+    prerequisite_receipt: ValidationPrerequisiteReceipt | None = None
 
 
-Provider = Callable[[ServiceValidationPlan, str], ValidationProbeOutput]
+@dataclass(frozen=True)
+class ValidationPrerequisiteReceipt:
+    """Durable, single-use provenance for a controlled proof prerequisite."""
+
+    receipt_id: str
+    plan_id: str
+    endpoint: ApprovedEndpoint
+    source_attempt_id: str
+    source_approval_receipt_id: str
+    source_action: str
+    evidence_sha256: str
+    reproduction_sha256: str
+    observed_version: str
+    state: str = "candidate_verified"
+
+
+@dataclass(frozen=True)
+class ValidationDispatchContext:
+    """Executor-owned identity carried through provider and passive audit evidence."""
+
+    plan_id: str
+    attempt_id: str
+    approval_receipt_id: str
+    action: str
+    correlation_id: str
+
+
+Provider = Callable[[ServiceValidationPlan, str, ValidationDispatchContext], ValidationProbeOutput]
+# Ledger receipt uniqueness is local to one SQLite database. Authorization gates
+# must reject receipt reuse across every ledger database for an engagement.
 AuthorizationGate = Callable[[ServiceValidationPlan, ValidationSelection, str], AuthorizationReceipt]
 EvidenceVerifier = Callable[
-    [ServiceValidationPlan, ValidationSelection, AuthorizationReceipt, ValidationProbeOutput],
+    [
+        ServiceValidationPlan,
+        ValidationSelection,
+        AuthorizationReceipt,
+        ValidationProbeOutput,
+        ValidationDispatchContext,
+    ],
     ValidationEvidenceVerification,
 ]
 
@@ -215,6 +265,8 @@ def _result(status: str, reason: str, plan: ServiceValidationPlan, attempt_id: s
 
 
 def _evidence_complete(verification: ValidationEvidenceVerification) -> bool:
+    if not _verification_shape_is_valid(verification):
+        return False
     return (
         bool(verification.protocol_evidence)
         and bool(verification.observed_version.strip())
@@ -236,6 +288,146 @@ def _verified_during(value: str, started: datetime, finished: datetime) -> bool:
     return started <= observed <= finished
 
 
+def _aware_timestamp(value: object) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return None
+    return parsed.astimezone(UTC)
+
+
+def _usage_is_bounded(output: ValidationProbeOutput) -> bool:
+    return all(
+        type(value) is int and 0 <= value <= 2**63 - 1
+        for value in (output.tokens, output.cost_microunits, output.retained_output_bytes)
+    )
+
+
+def _string_tuple(value: object) -> bool:
+    return isinstance(value, tuple) and all(isinstance(item, str) and bool(item.strip()) for item in value)
+
+
+def _string_mapping(value: object) -> bool:
+    return isinstance(value, Mapping) and all(
+        isinstance(key, str) and isinstance(item, str) for key, item in value.items()
+    )
+
+
+def _probe_output_shape_is_valid(output: ValidationProbeOutput) -> bool:
+    reproduction = output.reproduction
+    finding = output.finding
+    return bool(
+        _string_tuple(output.protocol_evidence)
+        and _string_mapping(output.dimensions)
+        and type(output.candidate) is bool
+        and _string_tuple(output.effect_evidence)
+        and type(output.proof_succeeded) is bool
+        and _string_tuple(output.cleanup_evidence)
+        and isinstance(output.audit_reference, str)
+        and (
+            reproduction is None
+            or (
+                isinstance(reproduction, VersionedReproduction)
+                and isinstance(reproduction.reference, str)
+                and isinstance(reproduction.endpoint, ApprovedEndpoint)
+                and isinstance(reproduction.affected_version, str)
+                and isinstance(reproduction.remediated_version, str)
+                and _string_tuple(reproduction.steps)
+                and isinstance(reproduction.expected_proof, str)
+                and isinstance(reproduction.remediation, str)
+            )
+        )
+        and (
+            finding is None
+            or (
+                isinstance(finding, ValidationFinding)
+                and all(
+                    isinstance(value, str)
+                    for value in (
+                        finding.finding_id,
+                        finding.observation,
+                        finding.evidence,
+                        finding.impact,
+                        finding.remediation,
+                        finding.detection,
+                    )
+                )
+            )
+        )
+        and _usage_is_bounded(output)
+    )
+
+
+def _verification_shape_is_valid(verification: ValidationEvidenceVerification) -> bool:
+    return bool(
+        isinstance(verification.approval_receipt_id, str)
+        and isinstance(verification.plan_id, str)
+        and isinstance(verification.attempt_id, str)
+        and isinstance(verification.evidence_sha256, str)
+        and isinstance(verification.endpoint, ApprovedEndpoint)
+        and isinstance(verification.action, str)
+        and isinstance(verification.observed_version, str)
+        and _string_tuple(verification.protocol_evidence)
+        and _string_mapping(verification.dimensions)
+        and isinstance(verification.verified_at, str)
+        and isinstance(verification.audit_recorded_at, str)
+        and isinstance(verification.dispatch_correlation_id, str)
+        and isinstance(verification.reproduction_sha256, str)
+        and type(verification.candidate_verified) is bool
+        and isinstance(verification.finding_effect, str)
+        and _string_tuple(verification.effect_evidence)
+        and type(verification.finding_effect_verified) is bool
+        and _string_tuple(verification.authorized_use_evidence)
+        and type(verification.authorized_use_verified) is bool
+        and _string_tuple(verification.cleanup_evidence)
+        and type(verification.cleanup_verified) is bool
+        and isinstance(verification.audit_reference, str)
+    )
+
+
+def _prerequisite_payload(receipt: ValidationPrerequisiteReceipt) -> dict[str, object]:
+    return asdict(receipt)
+
+
+def _new_prerequisite_receipt(
+    plan: ServiceValidationPlan,
+    request: AttemptRequest,
+    approval: AuthorizationReceipt,
+    trusted: TrustedValidationReproduction,
+    observed_version: str,
+) -> ValidationPrerequisiteReceipt:
+    payload: dict[str, object] = {
+        "plan_id": plan.plan_id,
+        "endpoint": asdict(plan.endpoint),
+        "source_attempt_id": request.attempt_id,
+        "source_approval_receipt_id": approval.receipt_id,
+        "source_action": "low_impact_validation",
+        "evidence_sha256": plan.evidence_sha256,
+        "reproduction_sha256": trusted.sha256,
+        "observed_version": observed_version,
+        "state": "candidate_verified",
+    }
+    receipt_id = (
+        "validation-prereq:"
+        + sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+    )
+    return ValidationPrerequisiteReceipt(
+        receipt_id=receipt_id,
+        plan_id=plan.plan_id,
+        endpoint=plan.endpoint,
+        source_attempt_id=request.attempt_id,
+        source_approval_receipt_id=approval.receipt_id,
+        source_action="low_impact_validation",
+        evidence_sha256=plan.evidence_sha256,
+        reproduction_sha256=trusted.sha256,
+        observed_version=observed_version,
+    )
+
+
 def execute_service_validation_action(
     plan: ServiceValidationPlan,
     selection: ValidationSelection,
@@ -245,29 +437,30 @@ def execute_service_validation_action(
     authorization_gate: AuthorizationGate,
     provider: Provider | None,
     evidence_verifier: EvidenceVerifier | None,
-    prior_result: ValidationActionResult | None = None,
+    prerequisite_receipt: ValidationPrerequisiteReceipt | None = None,
 ) -> ValidationActionResult:
     """Run one exact action; every retry needs a new ledger and approval identity."""
-    if selection.plan_id != plan.plan_id:
+    if selection.plan_id != plan.plan_id or not service_validation_plan_is_intact(plan):
         return _result("blocked_selection", "selection does not bind the exact plan", plan, request.attempt_id)
     if provider is None or evidence_verifier is None:
         return _result(
             "provider_unavailable",
-            "no native provider and independent evidence verifier are registered",
+            "no native provider and passive evidence verifier are registered",
             plan,
             request.attempt_id,
         )
     trusted = load_trusted_issue_143_reproduction(plan.endpoint)
+    issue_143_route = plan.service == "redis" and plan.skill_id == "network-data-services"
     if selection.action == "controlled_proof" and (
-        prior_result is None
-        or not prior_result.candidate
-        or prior_result.plan_id != plan.plan_id
-        or prior_result.endpoint != plan.endpoint
-        or not prior_result.observed_version
-        or prior_result.reproduction_reference != "#143"
-        or prior_result.reproduction_sha256 != trusted.sha256
-        or prior_result.coverage is None
-        or prior_result.coverage.get("reproduction") != "versioned-#143"
+        not issue_143_route
+        or prerequisite_receipt is None
+        or prerequisite_receipt.plan_id != plan.plan_id
+        or prerequisite_receipt.endpoint != plan.endpoint
+        or prerequisite_receipt.source_action != "low_impact_validation"
+        or prerequisite_receipt.evidence_sha256 != plan.evidence_sha256
+        or prerequisite_receipt.reproduction_sha256 != trusted.sha256
+        or prerequisite_receipt.observed_version != trusted.reproduction.affected_version
+        or prerequisite_receipt.state != "candidate_verified"
     ):
         return _result(
             "blocked_prerequisite", "controlled proof requires a versioned #143 candidate", plan, request.attempt_id
@@ -291,13 +484,31 @@ def execute_service_validation_action(
             request.attempt_id,
         )
 
-    exact_approval = (
-        approval.approved
+    approval_now = datetime.now(UTC)
+    approval_issued_at = _aware_timestamp(approval.issued_at) if isinstance(approval, AuthorizationReceipt) else None
+    approval_expires_at = _aware_timestamp(approval.expires_at) if isinstance(approval, AuthorizationReceipt) else None
+    exact_approval = bool(
+        isinstance(approval, AuthorizationReceipt)
+        and type(approval.approved) is bool
+        and approval.approved
+        and isinstance(approval.receipt_id, str)
         and bool(approval.receipt_id.strip())
+        and isinstance(approval.plan_id, str)
         and approval.plan_id == plan.plan_id
+        and isinstance(approval.endpoint, ApprovedEndpoint)
         and approval.endpoint == plan.endpoint
+        and isinstance(approval.action, str)
         and approval.action == selection.action
+        and isinstance(approval.attempt_id, str)
         and approval.attempt_id == request.attempt_id
+        and isinstance(approval.engagement_id, str)
+        and approval.engagement_id == ledger.policy.engagement_id
+        and isinstance(approval.authority_id, str)
+        and bool(approval.authority_id.strip())
+        and approval_issued_at is not None
+        and approval_expires_at is not None
+        and approval_issued_at < approval_expires_at
+        and approval_issued_at <= approval_now <= approval_expires_at
     )
     if not exact_approval:
         ledger.release_undispatched(request.attempt_id)
@@ -305,19 +516,78 @@ def execute_service_validation_action(
             "authorization_denied", "approval does not bind the exact action and endpoint", plan, request.attempt_id
         )
 
+    dispatch_context = ValidationDispatchContext(
+        plan_id=plan.plan_id,
+        attempt_id=request.attempt_id,
+        approval_receipt_id=approval.receipt_id,
+        action=selection.action,
+        correlation_id=secrets.token_hex(32),
+    )
+    dispatch_intent = {
+        "schema_version": "cops.service-validation-dispatch/v1",
+        "engagement_id": ledger.policy.engagement_id,
+        "plan_id": plan.plan_id,
+        "plan_digest": service_validation_plan_digest(plan),
+        "endpoint": asdict(plan.endpoint),
+        "action": selection.action,
+        "attempt_id": request.attempt_id,
+        "approval_receipt_id": approval.receipt_id,
+        "approval_authority_id": approval.authority_id,
+        "approval_issued_at": approval.issued_at,
+        "approval_expires_at": approval.expires_at,
+        "dispatch_correlation_id": dispatch_context.correlation_id,
+    }
+
     try:
-        ledger.mark_dispatched(request.attempt_id)
+        if selection.action == "controlled_proof" and prerequisite_receipt is not None:
+            ledger.mark_dispatched(
+                request.attempt_id,
+                approval_receipt_id=approval.receipt_id,
+                dispatch_intent=dispatch_intent,
+                prerequisite_receipt_id=prerequisite_receipt.receipt_id,
+                expected_prerequisite=_prerequisite_payload(prerequisite_receipt),
+            )
+        else:
+            ledger.mark_dispatched(
+                request.attempt_id,
+                approval_receipt_id=approval.receipt_id,
+                dispatch_intent=dispatch_intent,
+            )
     except Exception as exc:
-        ledger.release_undispatched(request.attempt_id)
+        try:
+            attempt_state = ledger.get_attempt(request.attempt_id).state
+        except Exception:
+            attempt_state = "unknown"
+        if attempt_state == "reserved":
+            try:
+                ledger.release_undispatched(request.attempt_id)
+            except (BudgetDenied, ValueError):
+                pass
+        else:
+            try:
+                ledger.mark_uncertain(request.attempt_id)
+            except (BudgetDenied, ValueError):
+                pass
         return _result(
-            "dispatch_error",
-            f"attempt was not dispatched: {type(exc).__name__}",
+            (
+                "blocked_prerequisite"
+                if attempt_state == "reserved" and selection.action == "controlled_proof"
+                else "dispatch_error"
+                if attempt_state == "reserved"
+                else "dispatch_uncertain"
+            ),
+            (
+                f"attempt was not dispatched: {type(exc).__name__}"
+                if attempt_state == "reserved"
+                else f"dispatch state could not be confirmed: {type(exc).__name__}"
+            ),
             plan,
             request.attempt_id,
         )
 
+    dispatch_started_at = datetime.now(UTC)
     try:
-        output = provider(plan, selection.action)
+        output = provider(plan, selection.action, dispatch_context)
     except Exception as exc:
         try:
             ledger.mark_uncertain(request.attempt_id)
@@ -326,27 +596,40 @@ def execute_service_validation_action(
         return _result(
             "dispatch_uncertain", f"provider did not return a receipt: {type(exc).__name__}", plan, request.attempt_id
         )
+    dispatch_finished_at = datetime.now(UTC)
+
+    if not isinstance(output, ValidationProbeOutput) or not _probe_output_shape_is_valid(output):
+        try:
+            ledger.mark_uncertain(request.attempt_id)
+        except (BudgetDenied, ValueError):
+            pass
+        return _result(
+            "dispatch_uncertain",
+            "provider returned malformed or unbounded usage evidence",
+            plan,
+            request.attempt_id,
+        )
 
     verification_started_at = datetime.now(UTC)
     try:
-        verification = evidence_verifier(plan, selection, approval, output)
+        candidate_verification = evidence_verifier(plan, selection, approval, output, dispatch_context)
     except Exception as exc:
         verification = None
         verification_error = type(exc).__name__
     else:
-        verification_error = ""
+        if isinstance(candidate_verification, ValidationEvidenceVerification) and _verification_shape_is_valid(
+            candidate_verification
+        ):
+            verification = candidate_verification
+            verification_error = ""
+        elif isinstance(candidate_verification, ValidationEvidenceVerification):
+            verification = None
+            verification_error = "malformed evidence fields"
+        else:
+            verification = None
+            verification_error = f"invalid return type: {type(candidate_verification).__name__}"
     verification_finished_at = datetime.now(UTC)
 
-    ledger.reconcile(
-        Receipt(
-            receipt_id=f"service-validation:{request.attempt_id}",
-            attempt_id=request.attempt_id,
-            outcome="completed",
-            tokens=output.tokens,
-            cost_microunits=output.cost_microunits,
-            retained_output_bytes=output.retained_output_bytes,
-        )
-    )
     exact_verification = bool(
         verification is not None
         and verification.approval_receipt_id == approval.receipt_id
@@ -355,8 +638,24 @@ def execute_service_validation_action(
         and verification.evidence_sha256 == plan.evidence_sha256
         and verification.endpoint == plan.endpoint
         and verification.action == selection.action
+        and verification.dispatch_correlation_id == dispatch_context.correlation_id
+        and bool(output.audit_reference)
+        and verification.audit_reference == output.audit_reference
+        and _verified_during(verification.audit_recorded_at, dispatch_started_at, dispatch_finished_at)
         and _verified_during(verification.verified_at, verification_started_at, verification_finished_at)
     )
+    if verification is None or not exact_verification:
+        try:
+            ledger.mark_uncertain(request.attempt_id)
+        except (BudgetDenied, ValueError):
+            pass
+        detail = f": {verification_error}" if verification_error else ""
+        return _result(
+            "dispatch_uncertain",
+            f"passive evidence could not be bound to the dispatched action{detail}",
+            plan,
+            request.attempt_id,
+        )
     complete = exact_verification and verification is not None and _evidence_complete(verification)
     candidate_claimed = bool(
         output.candidate
@@ -365,7 +664,8 @@ def execute_service_validation_action(
         or (verification is not None and verification.candidate_verified)
     )
     candidate = (
-        complete
+        issue_143_route
+        and complete
         and output.candidate
         and verification is not None
         and verification.candidate_verified
@@ -378,10 +678,9 @@ def execute_service_validation_action(
     reproduction = trusted.reproduction if candidate else None
     finding = trusted.finding if candidate else None
     prior_binding = bool(
-        prior_result is not None
-        and prior_result.reproduction_sha256 == trusted.sha256
-        and prior_result.observed_version == trusted.reproduction.affected_version
-        and prior_result.reproduction_expected_proof == trusted.reproduction.expected_proof
+        prerequisite_receipt is not None
+        and prerequisite_receipt.reproduction_sha256 == trusted.sha256
+        and prerequisite_receipt.observed_version == trusted.reproduction.affected_version
     )
     proof_complete = bool(
         verification is not None
@@ -401,11 +700,76 @@ def execute_service_validation_action(
         and verification.authorized_use_evidence
         and verification.cleanup_verified
     )
+    effect_observed_without_cleanup = bool(
+        selection.action == "controlled_proof"
+        and exact_verification
+        and verification is not None
+        and verification.finding_effect_verified
+        and verification.effect_evidence
+        and (not verification.cleanup_verified or not verification.cleanup_evidence)
+    )
+    if effect_observed_without_cleanup:
+        try:
+            ledger.mark_uncertain(request.attempt_id)
+        except (BudgetDenied, ValueError):
+            pass
+        return ValidationActionResult(
+            status="dispatch_uncertain",
+            reason="the controlled effect was observed but cleanup was not positively verified",
+            plan_id=plan.plan_id,
+            attempt_id=request.attempt_id,
+            action=selection.action,
+            approval_receipt_id=approval.receipt_id,
+            endpoint=plan.endpoint,
+            observed_version=verification.observed_version,
+            protocol_evidence=verification.protocol_evidence,
+            effect_evidence=verification.effect_evidence,
+            cleanup_evidence=verification.cleanup_evidence,
+            dimensions=dict(verification.dimensions),
+        )
     status = (
         "completed"
         if complete and ((selection.action == "low_impact_validation" and not invalid_candidate_claim) or verified)
         else "insufficient_evidence"
     )
+    new_prerequisite = (
+        _new_prerequisite_receipt(
+            plan,
+            request,
+            approval,
+            trusted,
+            verification.observed_version,
+        )
+        if status == "completed"
+        and selection.action == "low_impact_validation"
+        and candidate
+        and verification is not None
+        else None
+    )
+    try:
+        ledger.reconcile(
+            Receipt(
+                receipt_id=f"service-validation:{request.attempt_id}",
+                attempt_id=request.attempt_id,
+                outcome="completed" if status == "completed" else "failed",
+                tokens=output.tokens,
+                cost_microunits=output.cost_microunits,
+                retained_output_bytes=output.retained_output_bytes,
+            ),
+            validation_prerequisite_id=new_prerequisite.receipt_id if new_prerequisite else None,
+            validation_prerequisite=_prerequisite_payload(new_prerequisite) if new_prerequisite else None,
+        )
+    except Exception as exc:
+        try:
+            ledger.mark_uncertain(request.attempt_id)
+        except (BudgetDenied, ValueError):
+            pass
+        return _result(
+            "dispatch_uncertain",
+            f"usage could not be settled: {type(exc).__name__}",
+            plan,
+            request.attempt_id,
+        )
     verified_dimensions = verification.dimensions if exact_verification and verification is not None else {}
     coverage = {
         dimension: ("tested" if verified_dimensions.get(dimension) else "untested") for dimension in _DIMENSIONS
@@ -431,9 +795,9 @@ def execute_service_validation_action(
     return ValidationActionResult(
         status=status,
         reason=(
-            "independent evidence satisfied the selected gate"
+            "correlated passive evidence satisfied the selected gate"
             if status == "completed"
-            else f"required independent evidence is incomplete{': ' + verification_error if verification_error else ''}"
+            else f"required correlated passive evidence is incomplete{': ' + verification_error if verification_error else ''}"
         ),
         plan_id=plan.plan_id,
         attempt_id=request.attempt_id,
@@ -459,4 +823,5 @@ def execute_service_validation_action(
         remediation=finding.remediation if candidate and finding is not None else None,
         attack_mappings=mappings,
         coverage=coverage,
+        prerequisite_receipt=new_prerequisite,
     )

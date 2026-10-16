@@ -12,7 +12,7 @@ import re
 import sqlite3
 import stat
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from datetime import date
@@ -201,6 +201,22 @@ CREATE INDEX IF NOT EXISTS attempts_parent ON attempts(parent_id);
 CREATE TABLE IF NOT EXISTS receipts (
     receipt_id TEXT PRIMARY KEY,
     attempt_id TEXT NOT NULL REFERENCES attempts(attempt_id),
+    payload_json TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS validation_prerequisites (
+    receipt_id TEXT PRIMARY KEY,
+    source_attempt_id TEXT NOT NULL REFERENCES attempts(attempt_id),
+    payload_json TEXT NOT NULL,
+    consumed_by_attempt_id TEXT REFERENCES attempts(attempt_id)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS validation_prerequisites_source_attempt
+ON validation_prerequisites(source_attempt_id);
+CREATE TABLE IF NOT EXISTS dispatch_approval_receipts (
+    receipt_id TEXT PRIMARY KEY,
+    attempt_id TEXT NOT NULL UNIQUE REFERENCES attempts(attempt_id)
+);
+CREATE TABLE IF NOT EXISTS validation_dispatch_intents (
+    attempt_id TEXT PRIMARY KEY REFERENCES attempts(attempt_id),
     payload_json TEXT NOT NULL
 );
 """
@@ -465,8 +481,52 @@ class AssessmentBudgetLedger:
                 raise BudgetDenied("attempt not found")
             return self._attempt(row)
 
-    def mark_dispatched(self, attempt_id: str) -> Attempt:
+    def get_dispatch_intent(self, attempt_id: str) -> dict[str, object]:
         _identifier(attempt_id, "attempt_id")
+        with self._transaction() as (db, _, _now):
+            row = db.execute(
+                "SELECT payload_json FROM validation_dispatch_intents WHERE attempt_id = ?",
+                (attempt_id,),
+            ).fetchone()
+            if row is None:
+                raise BudgetDenied("dispatch intent not found")
+            try:
+                payload = json.loads(row["payload_json"])
+            except (TypeError, ValueError) as exc:
+                raise BudgetStoreError("dispatch intent is malformed") from exc
+            if not isinstance(payload, dict):
+                raise BudgetStoreError("dispatch intent is malformed")
+            return payload
+
+    def mark_dispatched(
+        self,
+        attempt_id: str,
+        *,
+        approval_receipt_id: str | None = None,
+        dispatch_intent: Mapping[str, object] | None = None,
+        prerequisite_receipt_id: str | None = None,
+        expected_prerequisite: Mapping[str, object] | None = None,
+    ) -> Attempt:
+        _identifier(attempt_id, "attempt_id")
+        if approval_receipt_id is not None:
+            _identifier(approval_receipt_id, "approval_receipt_id")
+        if (approval_receipt_id is None) != (dispatch_intent is None):
+            raise ValueError("approval receipt and dispatch intent must be supplied together")
+        if dispatch_intent is not None:
+            if not isinstance(dispatch_intent, Mapping):
+                raise ValueError("dispatch intent must be a mapping")
+            dispatch_payload = _canonical(dict(dispatch_intent))
+        else:
+            dispatch_payload = None
+        if (prerequisite_receipt_id is None) != (expected_prerequisite is None):
+            raise ValueError("prerequisite receipt and payload must be supplied together")
+        if prerequisite_receipt_id is not None:
+            _identifier(prerequisite_receipt_id, "prerequisite_receipt_id")
+            if not isinstance(expected_prerequisite, Mapping):
+                raise ValueError("expected prerequisite must be a mapping")
+            expected_payload = _canonical(dict(expected_prerequisite))
+        else:
+            expected_payload = None
         with self._transaction() as (db, engagement, now):
             row = db.execute("SELECT * FROM attempts WHERE attempt_id = ?", (attempt_id,)).fetchone()
             if row is None:
@@ -486,6 +546,38 @@ class AssessmentBudgetLedger:
                     db.execute("SELECT * FROM attempts WHERE attempt_id = ?", (current["parent_id"],)).fetchone()
                     if current["parent_id"] is not None
                     else None
+                )
+            if prerequisite_receipt_id is not None:
+                prerequisite = db.execute(
+                    "SELECT * FROM validation_prerequisites WHERE receipt_id = ?",
+                    (prerequisite_receipt_id,),
+                ).fetchone()
+                if prerequisite is None or prerequisite["payload_json"] != expected_payload:
+                    raise BudgetDenied("validation prerequisite is missing or does not match")
+                if prerequisite["consumed_by_attempt_id"] is not None:
+                    raise BudgetDenied("validation prerequisite was already consumed")
+                consumed = db.execute(
+                    """UPDATE validation_prerequisites SET consumed_by_attempt_id = ?
+                       WHERE receipt_id = ? AND consumed_by_attempt_id IS NULL""",
+                    (attempt_id, prerequisite_receipt_id),
+                )
+                if consumed.rowcount != 1:
+                    raise BudgetDenied("validation prerequisite could not be consumed")
+            if approval_receipt_id is not None:
+                reused = db.execute(
+                    "SELECT attempt_id FROM dispatch_approval_receipts WHERE receipt_id = ?",
+                    (approval_receipt_id,),
+                ).fetchone()
+                if reused is not None:
+                    raise BudgetDenied("approval receipt was already consumed")
+                db.execute(
+                    "INSERT INTO dispatch_approval_receipts(receipt_id,attempt_id) VALUES(?,?)",
+                    (approval_receipt_id, attempt_id),
+                )
+            if dispatch_payload is not None:
+                db.execute(
+                    "INSERT INTO validation_dispatch_intents(attempt_id,payload_json) VALUES(?,?)",
+                    (attempt_id, dispatch_payload),
                 )
             db.execute("UPDATE attempts SET state = 'dispatched' WHERE attempt_id = ?", (attempt_id,))
             return Attempt(attempt_id, row["parent_id"], "dispatched", row["depth"])
@@ -509,9 +601,26 @@ class AssessmentBudgetLedger:
             db.execute("UPDATE attempts SET state = 'released' WHERE attempt_id = ?", (attempt_id,))
             return Attempt(attempt_id, row["parent_id"], "released", row["depth"])
 
-    def reconcile(self, receipt: Receipt) -> Attempt:
+    def reconcile(
+        self,
+        receipt: Receipt,
+        *,
+        validation_prerequisite_id: str | None = None,
+        validation_prerequisite: Mapping[str, object] | None = None,
+    ) -> Attempt:
         if not isinstance(receipt, Receipt):
             raise ValueError("receipt must be a Receipt")
+        if (validation_prerequisite_id is None) != (validation_prerequisite is None):
+            raise ValueError("validation prerequisite id and payload must be supplied together")
+        if validation_prerequisite_id is not None:
+            _identifier(validation_prerequisite_id, "validation_prerequisite_id")
+            if not isinstance(validation_prerequisite, Mapping):
+                raise ValueError("validation prerequisite must be a mapping")
+            prerequisite_payload = _canonical(dict(validation_prerequisite))
+            if receipt.outcome != "completed":
+                raise ValueError("only a completed attempt can establish a validation prerequisite")
+        else:
+            prerequisite_payload = None
         with self._transaction() as (db, _, _now):
             payload = _canonical(asdict(receipt))
             duplicate = db.execute("SELECT * FROM receipts WHERE receipt_id = ?", (receipt.receipt_id,)).fetchone()
@@ -521,6 +630,16 @@ class AssessmentBudgetLedger:
             if row is None:
                 raise BudgetDenied("attempt not found")
             if duplicate is not None:
+                if validation_prerequisite_id is not None:
+                    existing = db.execute(
+                        "SELECT * FROM validation_prerequisites WHERE receipt_id = ?",
+                        (validation_prerequisite_id,),
+                    ).fetchone()
+                    if existing is None or (
+                        existing["source_attempt_id"] != receipt.attempt_id
+                        or existing["payload_json"] != prerequisite_payload
+                    ):
+                        raise BudgetDenied("duplicate receipt cannot establish a validation prerequisite")
                 return self._attempt(row)
             if row["state"] not in {"dispatched", "uncertain", "usage_unknown"}:
                 raise BudgetDenied("conflicting terminal receipt")
@@ -541,6 +660,29 @@ class AssessmentBudgetLedger:
                 and receipt.retained_output_bytes > row["reserved_output_bytes"]
             ):
                 raise BudgetDenied("retained output exceeds reservation")
+            if validation_prerequisite_id is not None:
+                existing = db.execute(
+                    "SELECT * FROM validation_prerequisites WHERE receipt_id = ?",
+                    (validation_prerequisite_id,),
+                ).fetchone()
+                if existing is not None and (
+                    existing["source_attempt_id"] != receipt.attempt_id
+                    or existing["payload_json"] != prerequisite_payload
+                ):
+                    raise BudgetDenied("conflicting validation prerequisite")
+                if existing is None:
+                    by_source = db.execute(
+                        "SELECT receipt_id FROM validation_prerequisites WHERE source_attempt_id = ?",
+                        (receipt.attempt_id,),
+                    ).fetchone()
+                    if by_source is not None:
+                        raise BudgetDenied("attempt already established a validation prerequisite")
+                    db.execute(
+                        """INSERT INTO validation_prerequisites(
+                               receipt_id,source_attempt_id,payload_json,consumed_by_attempt_id
+                           ) VALUES(?,?,?,NULL)""",
+                        (validation_prerequisite_id, receipt.attempt_id, prerequisite_payload),
+                    )
             known = all(
                 value is not None for value in (receipt.tokens, receipt.cost_microunits, receipt.retained_output_bytes)
             )
