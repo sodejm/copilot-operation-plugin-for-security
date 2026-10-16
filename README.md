@@ -231,3 +231,10 @@ Sysmon event IDs 1, 3, and 10 with content-free indicators and record evidence
 references. Missing or unsupported records remain partial. See the
 [import contract](specs/evtx-import.spec.md) and
 [laboratory setup](docs/SERVICE_LABORATORY.md#fixtures-and-provenance).
+
+### Raw forensic image integrity
+
+`cops forensic import --root evidence --manifest import.json` verifies bounded raw
+disk and memory copies against their supplied digest and ordered custody records.
+It leaves originals unchanged and reports integrity separately from analysis.
+See [formats, manifest fields, and limits](docs/ARTIFACT_ASSESSMENTS.md#raw-disk-and-memory-import).

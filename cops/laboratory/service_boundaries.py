@@ -13,6 +13,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
+from cops.adapters.forensic import ForensicImportError, import_forensic_image
 from cops.assessments.acquisition import ADAPTER_ID, AcquisitionError, acquire_disposable_file
 from cops.assessments.artifacts import assess
 from .service_authentication import _request
@@ -123,6 +124,21 @@ def run_acquisition_acceptance() -> dict[str, Any]:
         arguments = dict(adapter_id=ADAPTER_ID, lab_root=root, source_relative="source.bin", expected_sha256=hashlib.sha256(original).hexdigest(), source_ref="lab-disk-1", actor_ref="collector-1", collected_at="2026-10-15T10:00:00Z", collection_authorized=True, disposable_lab=True)
         artifact, receipt = acquire_disposable_file(**arguments, output_relative="acquired.bin")
         valid = assess("forensic_evidence", [artifact], as_of="2026-10-15T12:00:00Z")
+        manifest = {
+            "schema_version": "cops.forensic-import-input/v1", "artifact_id": "acquired-image",
+            "source_relative": "acquired.bin", "kind": "disk_image", "format": "raw",
+            "sha256": receipt["sha256"], "source_ref": receipt["source_ref"],
+            "authorization_ref": "disposable-lab-collection", "collection_authorized": True,
+            "collected_at": receipt["collected_at"], "as_of": "2026-10-15T12:00:00Z",
+            "custody": [{**event, "sha256": receipt["sha256"]} for event in artifact["custody"]],
+        }
+        imports = [import_forensic_image(root, {**manifest, "kind": kind}) for kind in ("disk_image", "memory_image")]
+        import_rejections = []
+        for name, patch in (("permission", {"collection_authorized": False}), ("custody", {"custody": []})):
+            try:
+                import_forensic_image(root, {**manifest, **patch})
+            except ForensicImportError:
+                import_rejections.append(name)
         permission_rejected = modified_rejected = False
         try:
             acquire_disposable_file(**{**arguments, "collection_authorized": False}, output_relative="denied.bin")
@@ -134,8 +150,19 @@ def run_acquisition_acceptance() -> dict[str, Any]:
             acquire_disposable_file(**arguments, output_relative="tampered.bin")
         except AcquisitionError:
             modified_rejected = True
+        # Tamper with the copy, verify rejection, then restore and import the
+        # corrected counterpart. The original source is never an import output.
+        (root / "acquired.bin").write_bytes(b"modified copy")
+        try:
+            import_forensic_image(root, manifest)
+        except ForensicImportError:
+            import_rejections.append("tampering")
+        (root / "acquired.bin").write_bytes(original)
+        corrected = import_forensic_image(root, manifest)
         result = {"adapter_id": ADAPTER_ID, "original_unchanged": unchanged, "permission_rejected": permission_rejected,
                   "modified_source_rejected": modified_rejected, "no_partial_outputs": not (root / "denied.bin").exists() and not (root / "tampered.bin").exists(),
-                  "finding_codes": sorted(set(valid["finding_codes"].values())), "receipt": receipt}
+                  "finding_codes": sorted(set(valid["finding_codes"].values())), "receipt": receipt,
+                  "imports": imports, "import_rejections": import_rejections,
+                  "corrected_import_verified": corrected["integrity"] == "verified" and corrected["source"]["sha256"] == receipt["sha256"]}
     result["disposable_root_removed"] = not root.exists()
     return result

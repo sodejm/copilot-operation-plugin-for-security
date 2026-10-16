@@ -224,3 +224,15 @@ users and paths. Unsupported records are counted as partial evidence. These limi
 do not provide network isolation or protect against a compromised same-user process.
 Use the isolated runtime for untrusted data and review prerequisites independently.
 A matching supplied hash demonstrates integrity, not independent source authenticity.
+
+## Raw forensic imports
+
+The importer treats bytes, paths and custody metadata as untrusted. POSIX
+no-follow directory descriptors constrain every path component; nonblocking
+regular-file checks reject pipes and devices before reads. Fixed byte/record
+bounds and chunked hashing limit memory use. File identity and digest checks
+reject observed modification or replacement. No image content is executed,
+mounted, copied into reports, or interpreted as instructions. A hostile same-user
+process or storage backend is outside this boundary; use trusted storage and an
+isolated runtime. Permission references and digest-bound custody are assertions,
+not cryptographic execution grants or independently authenticated provenance.

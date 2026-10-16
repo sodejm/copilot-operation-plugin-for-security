@@ -602,3 +602,17 @@ checkpoint commits and exact-revision approval, and
 [Review coverage](security/REVIEW_COVERAGE.md) for the outstanding retroactive
 inventory. Human reviewer/date/accepted revision: **pending**. No residual risk is
 accepted by this initial document.
+
+## Raw forensic import abuse cases
+
+For `raw-forensic-image/v1`, an attacker may substitute a file, redirect an
+ancestor through a symlink, submit a FIFO/device, exhaust memory, forge custody,
+or induce private content in an error. Descriptor-relative no-follow opens,
+regular-file checks, bounded streaming, stable source identity and supplied
+SHA-256 checks, strict opaque metadata, and content-free errors address these
+cases within the local process boundary. Correction tests replace and modify
+sources during reads and reject malformed or unbound custody. The laboratory
+imports actual acquired files and rejects tampered copies. Caller-supplied
+digests and authority references remain unauthenticated; compromised same-user
+processes, malicious storage, native capture, and image-content analysis need
+separate controls. These tests do not close independent human review.

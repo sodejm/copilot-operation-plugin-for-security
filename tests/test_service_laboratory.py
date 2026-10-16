@@ -106,6 +106,10 @@ def test_process_acceptance_proves_actual_activity_and_reset(
     acquisition = activity["acquisition"]
     assert all(acquisition[field] for field in ("original_unchanged", "permission_rejected", "modified_source_rejected", "no_partial_outputs", "disposable_root_removed"))
     assert acquisition["finding_codes"] == []
+    assert acquisition["import_rejections"] == ["permission", "custody", "tampering"]
+    assert acquisition["corrected_import_verified"] is True
+    assert {item["kind"] for item in acquisition["imports"]} == {"disk_image", "memory_image"}
+    assert all(item["source"]["sha256"] == acquisition["receipt"]["sha256"] for item in acquisition["imports"])
     assert report.restoration == {
         "success": True,
         "failure": True,

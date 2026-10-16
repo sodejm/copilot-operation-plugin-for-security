@@ -96,3 +96,12 @@ Install the exact optional `evtx` prerequisites on Linux or use the hash-locked
 return `unsupported_parser_platform`. Supply a trusted expected SHA-256; an import
 cannot authenticate its operator-supplied digest. Partial imports are indeterminate
 for detection coverage. This does not promote native Windows acquisition readiness.
+
+## Raw forensic copies
+
+Existing in-memory artifact envelopes remain supported. The new `cops forensic
+import` command accepts a separate versioned manifest and a relative raw-file
+path below an explicit root. It returns integrity evidence without promoting
+analysis readiness. POSIX no-follow APIs are required, all ancestor symlinks are
+rejected, and the default image limit is 128 MiB. E01/AFF4, device capture, native
+collection, and filesystem/memory interpretation remain separate adapter work.

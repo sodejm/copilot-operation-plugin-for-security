@@ -106,3 +106,12 @@ access disabled and accepts only a caller-selected immutable base image. The
 strict gate; a local run does not establish that hosted CI passed.
 
 The adapter verifies removal of its owned container after success, failure, cancellation, or deadline expiry. This acceptance adapter does not certify the production worker's distinct-user boundary. Production operations still require the existing signed `LaboratoryHarness` observations and execution authorization. An available Docker CLI or daemon, a loopback listener, and marker files alone cannot establish laboratory readiness.
+
+## Forensic copy correction cases
+
+The acquisition case imports the real acquired regular file as `disk_image` and
+`memory_image`, binds import digests and byte counts to its collection receipt,
+and verifies unchanged original bytes. It rejects denied permission, absent
+custody, and a deliberately modified copy. Restoring the copy must restore
+integrity verification. Temporary files are removed on exit. These checks cover
+raw-file integrity only; they do not establish native disk or memory collection.
