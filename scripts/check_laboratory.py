@@ -19,8 +19,9 @@ sys.path.insert(0, str(ROOT))
 from cops.laboratory.service_lab import ServiceLaboratory, probe_isolated_runtime
 from cops.evidence.canonical import digest
 from cops.laboratory.container_runtime import run_container_acceptance
-from cops.laboratory.acceptance_cases import ACCEPTANCE_CASE_IDS, INTEGRATED_WORKFLOW_IDS
+from cops.laboratory.acceptance_cases import ACCEPTANCE_CASE_IDS, COMPLETE_CASE_IDS, INTEGRATED_WORKFLOW_IDS, KUBERNETES_CASE_ID
 from cops.laboratory.integrated_lab import WORKFLOW_STAGES, run_integrated_service_laboratory
+from cops.laboratory.kubernetes_lab import run_kubernetes_laboratory
 from cops.laboratory.workflow_lab import (
     IsolationRequiredError,
     run_workflow_service_laboratory,
@@ -463,12 +464,47 @@ def run_acceptance_gate(state_root: Path) -> tuple[int, dict[str, Any]]:
     }
 
 
+def complete_gate(summary: dict[str, Any], kubernetes: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+    """Require both independent isolation boundaries for overall acceptance."""
+    lifecycle = kubernetes.get("cases", [])
+    expected_states = {"success": "success", "failure": "partial_failure", "cancellation": "cancelled"}
+    verified = (
+        kubernetes.get("status") == "passed"
+        and kubernetes.get("isolation", {}).get("verified") is True
+        and kubernetes.get("cleanup", {}).get("verified") is True
+        and not kubernetes.get("failures") and not kubernetes.get("blockers")
+        and len(lifecycle) == 3
+        and {case.get("mode"): case.get("workflow_status") for case in lifecycle} == expected_states
+        and all(case.get("passed") is True and case.get("namespace_removed") is True for case in lifecycle)
+    )
+    failures = list(summary.get("failures", [])) + list(kubernetes.get("failures", []))
+    blockers = list(summary.get("blockers", [])) + list(kubernetes.get("blockers", []))
+    if not verified and not kubernetes.get("failures") and not kubernetes.get("blockers"):
+        failures.append("Kubernetes lifecycle evidence is incomplete")
+    cases = [*summary.get("cases", []), {"name": KUBERNETES_CASE_ID, "passed": verified,
+             "failures": kubernetes.get("failures", []), "metrics": {"lifecycle_cases": len(lifecycle)}}]
+    service_verified = (summary.get("status") == "passed" and not summary.get("failures")
+                        and not summary.get("blockers") and len(cases) == len(COMPLETE_CASE_IDS)
+                        and {case["name"] for case in cases} == set(COMPLETE_CASE_IDS)
+                        and all(case.get("passed") is True for case in cases[:-1]))
+    if summary.get("status") == "passed" and not service_verified:
+        failures.append("Service laboratory evidence is incomplete")
+    complete = service_verified and verified
+    status = "passed" if complete else ("failed" if failures else "blocked")
+    summary.update({"status": status, "cases": cases, "failures": failures, "blockers": blockers,
+                    "kubernetes": kubernetes,
+                    "summary": {"cases_passed": sum(case["passed"] for case in cases),
+                                "cases_total": len(COMPLETE_CASE_IDS), "functional_evidence_only": not complete}})
+    return (0 if status == "passed" else 1 if status == "failed" else 2), summary
+
+
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--state-dir", type=Path, help="retain disposable acceptance state at this path")
     parser.add_argument("--runtime", choices=("process", "docker"), default="process")
     parser.add_argument("--image", help="already installed immutable Docker image ID (sha256:<64 hex>)")
     parser.add_argument("--timeout", type=int, default=240, help="container deadline in seconds (30-600)")
+    parser.add_argument("--kubernetes-timeout", type=int, default=480, help="Kubernetes deadline in seconds (180-600), plus bounded cleanup")
     parser.add_argument("--container-child", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
     if args.runtime == "docker" and (args.state_dir is not None or args.container_child):
@@ -479,6 +515,8 @@ def _parse_args() -> argparse.Namespace:
         parser.error("--image requires --runtime docker")
     if not 30 <= args.timeout <= 600:
         parser.error("--timeout must be between 30 and 600 seconds")
+    if not 180 <= args.kubernetes_timeout <= 600:
+        parser.error("--kubernetes-timeout must be between 180 and 600 seconds")
     return args
 
 
@@ -489,6 +527,9 @@ def main() -> int:
             exit_code, summary = run_container_acceptance(ROOT, image=args.image, timeout=args.timeout)
         except ValueError:
             exit_code, summary = 2, {"schema_version": SCHEMA_VERSION, "status": "blocked", "blockers": ["Docker acceptance requires a valid installed immutable image ID"]}
+        kubernetes = run_kubernetes_laboratory(timeout=args.kubernetes_timeout) if exit_code == 0 else {
+            "status": "blocked", "blockers": ["Kubernetes acceptance requires the service runtime prerequisite to pass"]}
+        exit_code, summary = complete_gate(summary, kubernetes)
         print(json.dumps(summary, sort_keys=True, separators=(",", ":")))
         return exit_code
     if args.container_child:
@@ -502,6 +543,9 @@ def main() -> int:
     else:
         with tempfile.TemporaryDirectory(prefix="cops-laboratory-gate-") as temporary:
             exit_code, summary = run_acceptance_gate(Path(temporary))
+    if not args.container_child:
+        exit_code, summary = complete_gate(summary, {"status": "blocked", "blockers": [
+            "complete laboratory acceptance requires --runtime docker and the pinned Kubernetes images"]})
     print(json.dumps(summary, sort_keys=True, separators=(",", ":")))
     return exit_code
 

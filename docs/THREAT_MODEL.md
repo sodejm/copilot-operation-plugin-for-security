@@ -720,3 +720,17 @@ Caller-supplied trust and clocks are not authenticated, and local acceptance doe
 not establish revocation status or deployed behavior. No token-controlled URL,
 issuer discovery, AIA or revocation endpoint is fetched. Correction tests and
 real ephemeral TLS/JWT services cover rejection and corrected acceptance.
+
+### Kubernetes containment acceptance
+
+A substituted image, ambient cluster context, namespace replacement, unrelated
+telemetry or cleanup failure could produce misleading containment evidence.
+The fixed adapter permits only pinned publisher images, never reads kubeconfig,
+validates the node configuration, binds namespace UID and resolved scope to
+single-use ActionPlans, and checks nonce-correlated HTTP plus successful policy
+create/delete audit records. Bounded exports omit identities and request bodies.
+All three lifecycle cases must restore connectivity and remove owned resources.
+Malformed isolation evidence and incomplete composite case sets fail closed.
+The privileged node shares the Docker kernel; use a dedicated disposable VM.
+Compromised publisher images, a hostile daemon, other CNIs and production clusters
+remain outside the tested boundary. Independent human security review is pending.

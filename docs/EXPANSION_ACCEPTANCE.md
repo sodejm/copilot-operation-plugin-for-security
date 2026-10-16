@@ -14,7 +14,7 @@ implementation. Final handoff must record a clean implementation revision,
 fixture digests, runtime image digest, and exact check results. Evidence from an
 earlier source snapshot must be rerun after behavioral changes.
 
-The latest strict laboratory run passed all eleven cases using immutable image
+An earlier strict laboratory run passed all eleven cases using immutable image
 `sha256:cf7d32ac327f8eb584f8d917f43c48ff5bf460019af889da93b33583bde62fd9`
 and source snapshot
 `4e60b8c5d7a44299c33031e798034ef613484acb4b5ff0bb46dbea2c8df97195`.
@@ -56,11 +56,11 @@ readiness.
 | Malware triage | Bounded static binary and PowerShell decoding | Harmless synthetic byte analysis; submitted content never executed |
 | Purple-team validation | Shared handoff and four result states; bounded Sigma/KQL execution | Actual service telemetry and alert counts; broader query engines require adapters |
 | Adversary emulation | Allowlisted lateral laboratory paths | Permitted/denied paths, telemetry, failure/cancellation and restoration exercised |
-| Cloud infrastructure | Terraform plan, rendered Kubernetes and provider configuration imports | Seeded configuration corrections; actual cluster/provider enforcement pending |
+| Cloud infrastructure | Terraform plan, rendered Kubernetes and provider configuration imports | Seeded configuration corrections; actual K3s NetworkPolicy enforcement now has a registered laboratory path; provider enforcement remains unvalidated |
 | Supply chain and CI/CD | Lockfiles, SBOMs, Actions and pinned advisories | Seeded dependency/workflow corrections; actual build/runtime coverage pending |
-| Secrets remediation | Redacted bounded Git history, identity correlation, exposure guidance | Actual ephemeral credential revocation returns 401 and a signed bundle verifies; service chain does not exercise Git enumeration or provider rotation |
+| Secrets remediation | Redacted bounded Git history, identity correlation, exposure guidance | Actual ephemeral credential revocation returns 401 and a signed bundle verifies; service chain enumerates a real synthetic Git history; provider rotation remains unvalidated |
 | REST/GraphQL security | Inventory/replay, owner/other/anonymous and rate-limit cases | Ten real HTTP checks per profile verify authorization and rate-limit corrections inside the strict isolated gate |
-| Network segmentation | Policy, flow, DNS and expected/observed paths | Actual allowed/denied lateral path; native firewall and Kubernetes enforcement pending |
+| Network segmentation | Policy, flow, DNS and expected/observed paths | Actual allowed/denied lateral path; K3s NetworkPolicy enforcement has a required laboratory path; native firewalls remain unvalidated |
 | TLS, mTLS and JWT | Imported policy checks and ephemeral mTLS acceptance | Certificate trust/client failures and nine JWT requests with eight rejection cases exercised using ephemeral credentials; production services unvalidated |
 
 ## Integrated workflows
@@ -76,17 +76,18 @@ and consent revocation (200 before, 401 afterward), injection correction,
 attack/benign telemetry measurement, and authentication checks. Their limits are
 explicit: consent uses an application emulator, CVE reachability uses a pinned
 synthetic advisory, detection uses registered lab-event rules, exposure uses
-numeric loopback endpoints, and the leaked-credential chain receives a synthetic
-fingerprint rather than enumerating Git. Kubernetes policy application remains
-modeled and requires an isolated cluster adapter. Production Entra, Kubernetes,
+numeric loopback endpoints. The leaked-credential chain scans real synthetic Git
+history. Kubernetes uses the isolated K3s adapter with real required/forbidden
+pod connectivity, correlated audit and HTTP telemetry, and success/failure/cancel
+restoration. Production Entra, Kubernetes,
 SIEM, DNS, and provider integrations remain unvalidated.
 
 ## Evidence limits and completion rule
 
-Synthetic Entra, Kubernetes audit, and normalized Sysmon JSONL datasets have
-provenance, checksums, expected outcomes, and reset instructions. Normalized
-Sysmon JSON is not raw EVTX; native EVTX acquisition remains unsupported until
-the registered adapter is available and exercised. Report exporters preserve
+Synthetic Entra, Kubernetes audit, normalized Sysmon JSONL and binary EVTX datasets
+have provenance, checksums, expected outcomes, and reset instructions. The pinned
+EVTX adapter imports vulnerable, corrected and insufficient binary counterparts
+in the strict gate. Native Windows acquisition remains unvalidated. Report exporters preserve
 inconclusive statuses, redaction, and revision-bound anchors. Offline report
 validation does not establish hosted posting or ingestion.
 
@@ -103,3 +104,15 @@ and missing-custody rejection, tamper rejection, and successful restored-copy
 verification. Native acquisition and filesystem/memory analysis remain incomplete.
 The final integrated acceptance record must identify the tested revision and
 commands; this scope entry alone is not execution evidence.
+
+## Kubernetes containment correction scope
+
+The strict composite gate now requires thirteen named cases: twelve in the
+unprivileged service container and one isolated Kubernetes case. The latter must
+exercise success, failure after policy application, and cancellation after
+application. Required traffic stays available, forbidden traffic is blocked, and
+cleanup restores both. Node inspection, definitive pod egress failures, correlated
+HTTP logs and successful NetworkPolicy create/delete audit records are mandatory.
+Missing images or incomplete cleanup fail the gate. See the
+[Kubernetes runbook](KUBERNETES_LABORATORY.md) for the privileged host boundary.
+The final check ledger must bind this scope to a clean tested revision.

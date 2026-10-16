@@ -45,7 +45,10 @@ occurred. See [integrated workflows](INTEGRATED_WORKFLOWS.md) for each boundary.
 Five additional service chains now execute disposable HTTP operations with typed
 stage inputs and exact, single-use ActionPlan approvals. Their synthetic consent,
 advisory, event-rule, and numeric-address models retain explicit production limits;
-Kubernetes enforcement still requires a registered isolated cluster adapter.
+Kubernetes enforcement now has a separate registered, pinned K3s fixture. The
+strict Docker gate requires its image prerequisites and real containment,
+restoration and cleanup evidence. See [the Kubernetes runbook](KUBERNETES_LABORATORY.md)
+before provisioning the privileged disposable node.
 The credential chain now scans actual disposable Git history before revoking the
 same synthetic credential. Standalone Git scanning requires `--git-sha256` from a
 reviewed local executable; the isolated runtime records that prerequisite during

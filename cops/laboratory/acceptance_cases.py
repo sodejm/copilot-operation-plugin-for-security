@@ -13,3 +13,7 @@ ACCEPTANCE_CASE_IDS = (
     "workflow-success", "workflow-failure", "workflow-cancellation",
     *("integrated-" + workflow_id for workflow_id in INTEGRATED_WORKFLOW_IDS),
 )
+
+# The privileged fixture node runs separately from the restricted service child.
+KUBERNETES_CASE_ID = "integrated-kubernetes-compromise-containment"
+COMPLETE_CASE_IDS = (*ACCEPTANCE_CASE_IDS, KUBERNETES_CASE_ID)

@@ -193,3 +193,15 @@ image reads reject symlink ancestors, special files, identity replacement, and
 budget overruns. Metadata is validated separately from bytes; output distinguishes
 verified integrity from unperformed analysis and caller-asserted authority.
 See [the contract](specs/forensic-import.spec.md).
+
+## Kubernetes laboratory boundary
+
+`isolated-k3s-containment/v1` is a fixed acceptance adapter beside the unprivileged
+service-container adapter. Its privileged, network-disconnected K3s node imports
+only pinned images and owns its namespaces and volumes. Typed stages use the
+existing workflow runner, ActionPlan validator and single-use approval store;
+namespace UID, pod IP, policy and prior observations bind each plan. Observed
+connectivity, correlated HTTP and API audit records, and restoration determine
+acceptance. The composite gate requires all thirteen named cases. This fixture
+does not add a production cluster connector or privilege-isolation claim. See
+[the runbook](docs/KUBERNETES_LABORATORY.md).
