@@ -15,7 +15,7 @@ Provide two deterministic acceptance paths for COPS service scenarios: offline f
 7. IOC ingestion, hunting, and containment use the actual hunt and identity services.
 8. Normal completion, injected failure, and cancellation restore the service baseline. Final graph shutdown verifies the clean baseline again.
 9. The fixture manifest records provenance, SHA256 checksums, expected outcomes, reset instructions, and pinned prerequisites for unbundled heavyweight adapters.
-10. The Sysmon fixture is labeled normalized synthetic JSON. Authentic EVTX acquisition remains unsupported until a harmless authentic artifact is supplied.
+10. Sysmon JSON and binary EVTX fixtures are independently labeled synthetic. The registered, pinned Linux EVTX adapter must parse vulnerable, corrected, and incomplete binary fixtures, reject modified evidence, and preserve originals. Native Windows acquisition remains unvalidated.
 11. Offline playback performs no network activity. Default process acceptance proves local TCP activity and reports network isolation unverified.
 12. Isolated Docker acceptance uses an already installed immutable image. Independent host inspection verifies the container configuration before dispatch; Linux interface, route, and actual IPv4/IPv6 egress checks verify the running boundary. Missing evidence or an inconclusive egress timeout blocks completion.
 13. The container receives only a bounded allowlisted source snapshot. Both host and child bind the exact snapshot digest and a fresh nonce; missing, modified, extra, symbolic-link, and traversal paths fail verification.

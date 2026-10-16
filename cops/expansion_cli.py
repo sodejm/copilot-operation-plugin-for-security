@@ -35,6 +35,15 @@ def register_expansion_commands(commands: Any) -> None:
     assess = commands.add_parser("assess", help="assess bounded offline artifacts")
     add_assessment_arguments(assess)
 
+    telemetry = commands.add_parser("telemetry", help="import bounded telemetry artifacts")
+    telemetry_commands = telemetry.add_subparsers(dest="telemetry_command", required=True)
+    evtx = telemetry_commands.add_parser("import-evtx", help="import a hash-bound clean Sysmon EVTX export")
+    evtx.add_argument("--input", type=Path, required=True)
+    evtx.add_argument("--sha256", required=True, help="expected source SHA-256 from the evidence manifest")
+    evtx.add_argument("--max-bytes", type=int, default=8 * 1024 * 1024)
+    evtx.add_argument("--max-records", type=int, default=4096)
+    evtx.add_argument("--deadline", type=float, default=10.0)
+
     report = commands.add_parser("report", help="export evidence-aware developer reports")
     report_commands = report.add_subparsers(dest="report_command", required=True)
     export = report_commands.add_parser("export")
@@ -93,6 +102,13 @@ def _workflow_preview(definition: Any) -> dict[str, Any]:
 
 def dispatch_expansion_command(args: argparse.Namespace, root: Path) -> int:
     try:
+        if args.command == "telemetry":
+            from .adapters.evtx import import_evtx
+
+            print(json.dumps(import_evtx(args.input, expected_sha256=args.sha256,
+                                        max_bytes=args.max_bytes, max_records=args.max_records,
+                                        deadline=args.deadline), indent=2, sort_keys=True))
+            return 0
         if args.command == "web-api":
             from .web_api.cli import command_web_api
 

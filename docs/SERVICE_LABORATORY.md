@@ -51,14 +51,26 @@ The process runner writes every service event to a JSONL telemetry file while th
 
 `cops/laboratory/service_fixtures/manifest.json` is the fixture registry. It contains SHA256 checksums, provenance, expected vulnerable/corrected outcomes, reset instructions, and pinned prerequisites for Docker Engine, kubectl, Zeek, Suricata, Sysmon, and python-evtx. Those heavyweight tools are not bundled. Their platform and runtime limits are explicit in the registry.
 
-The bundled Sysmon data is normalized synthetic JSON and is not EVTX. Authentic harmless EVTX acquisition and parsing are currently unsupported; the manifest registers the blocked adapter rather than representing JSON as EVTX.
+The registry includes normalized synthetic JSON and three separate binary EVTX
+fixtures. `scripts/build_evtx_fixtures.py` generates vulnerable, corrected, and
+insufficient-evidence EVTX 3.1 containers; the manifest pins their bytes and expected
+record/indicator counts. They are synthetic containers, not native Windows captures.
+The registered `sysmon-evtx/v1` importer requires `python-evtx==0.8.1` and
+`hexdump==3.3` on Linux. It checks the supplied SHA-256, framing and CRCs, parses a
+private read-only snapshot with resource limits, and omits raw commands, users, and
+paths. Native Windows/Sysmon acquisition remains unvalidated.
+
+Run `cops telemetry import-evtx --input FILE --sha256 EXPECTED_SHA256` for an
+import. Input, record and deadline budgets can be lowered with `--max-bytes`,
+`--max-records` and `--deadline`. A partial result is indeterminate for detection
+coverage. See [the import contract](../specs/evtx-import.spec.md).
 
 No persistent state is required. Stop an interrupted runner to close its listeners. Temporary mTLS keys and certificates are removed automatically. A caller-provided telemetry directory can be deleted after evidence has been retained under the engagement's evidence policy.
 
 ## Required repository gate
 
-`scripts/check_laboratory.py` is the strict acceptance entry point. Its eleven cases
-run fixture playback; vulnerable and corrected process acceptance; authorized IOC
+`scripts/check_laboratory.py` is the strict acceptance entry point. Its twelve cases
+run fixture playback; binary EVTX correction and integrity checks; vulnerable and corrected process acceptance; authorized IOC
 workflow success, injected failure, and cancellation; and five integrated service
 chains. The process cases assert actual TCP request results, mTLS acceptance and
 rejection, telemetry persistence, detection counts, post-revocation denial, stopped
@@ -76,9 +88,9 @@ python scripts/check_laboratory.py
 python scripts/check_laboratory.py --state-dir "$TMPDIR/cops-laboratory-evidence"
 ```
 
-On a host without a verified container or network namespace boundary, the gate still exercises the local services so failures remain observable, then exits 2. It marks those results as `functional_evidence_only: true`. Its strict preflight also calls the workflow runner with `require_isolation=True` and verifies rejection happens before a state directory is created.
+On a host without a verified container or network namespace boundary, the gate still exercises the local services so failures remain observable, then exits 2 only if all functional prerequisites and checks pass. A missing Linux EVTX parser fails its required case with exit 1. It marks nonisolated results as `functional_evidence_only: true`. Its strict preflight also calls the workflow runner with `require_isolation=True` and verifies rejection happens before a state directory is created.
 
-The root `Makefile` exposes the strict gate. The default process runtime records functional evidence and exits 2 because it cannot verify network isolation. For isolated acceptance, provision an image locally containing Python 3.11 or later and `cryptography==50.0.2`, then supply its immutable image ID:
+The root `Makefile` exposes the strict gate. The default process runtime records functional evidence and cannot verify network isolation. For isolated acceptance, provision an image locally containing Python 3.11 or later, `cryptography==50.0.2`, `python-evtx==0.8.1`, and `hexdump==3.3`, then supply its immutable image ID:
 
 ```console
 make check-laboratory

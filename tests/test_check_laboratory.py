@@ -28,6 +28,8 @@ def _install_probe(monkeypatch: pytest.MonkeyPatch, probe: IsolationProbe) -> No
     monkeypatch.setattr(service_lab, "probe_isolated_runtime", lambda: probe)
     monkeypatch.setattr(workflow_lab, "probe_isolated_runtime", lambda: probe)
     monkeypatch.setattr(integrated_lab, "probe_isolated_runtime", lambda: probe)
+    # These tests exercise gate aggregation; real parser acceptance runs in Linux.
+    monkeypatch.setattr(check_laboratory, "_evtx_case", lambda: {"failures": [], "metrics": {"unit_stub": True}})
 
 
 @pytest.fixture
@@ -48,7 +50,7 @@ def test_gate_runs_all_functional_evidence_then_blocks_without_isolation(
 
     exit_code, summary = check_laboratory.run_acceptance_gate(tmp_path)
 
-    assert exit_code == 2
+    assert exit_code == 2, summary["failures"]
     assert summary["status"] == "blocked"
     assert summary["blockers"] == ["verified network isolation is unavailable"]
     assert summary["failures"] == []
@@ -86,7 +88,7 @@ def test_gate_can_pass_only_when_probe_and_runtime_reports_verify_isolation(
 
     exit_code, summary = check_laboratory.run_acceptance_gate(tmp_path)
 
-    assert exit_code == 0
+    assert exit_code == 0, summary["failures"]
     assert summary["status"] == "passed"
     assert summary["blockers"] == []
     assert summary["failures"] == []
@@ -110,6 +112,15 @@ def test_gate_can_pass_only_when_probe_and_runtime_reports_verify_isolation(
 )
 def test_gate_requires_timezone_aware_rfc3339_timestamps(value: object, valid: bool) -> None:
     assert check_laboratory._valid_timestamp(value) is valid
+
+
+def test_required_evtx_case_cannot_skip_missing_parser(monkeypatch) -> None:
+    def unavailable(*args, **kwargs):
+        raise check_laboratory.EvtxImportError("parser_unavailable")
+    monkeypatch.setattr(check_laboratory, "import_evtx", unavailable)
+    result = check_laboratory._run_case("binary-evtx", check_laboratory._evtx_case)
+    assert result["passed"] is False
+    assert result["failures"] == ["execution raised EvtxImportError"]
 
 
 def test_container_child_requires_kernel_evidence_before_creating_state(monkeypatch, tmp_path, capsys) -> None:
