@@ -1,4 +1,4 @@
-"""Synchronize the reviewed stdlib assessment runtime into portable packages."""
+"""Synchronize the reviewed assessment runtime and optional adapter registrations."""
 from __future__ import annotations
 import hashlib
 import json
@@ -15,6 +15,7 @@ PACKAGES = (
     "vulnerability-management/tls-crypto-workbench",
 )
 MODULES = (
+    "cops/adapters/artifacts.py",
     "cops/adapters/registry.py",
     "cops/adapters/definitions/git.json",
     "cops/contracts/models.py",

@@ -18,6 +18,11 @@ class ArtifactAdapter:
 
 
 ARTIFACT_ADAPTERS = MappingProxyType({
+    "cryptographic-verification/v1": ArtifactAdapter(
+        adapter_id="cryptographic-verification/v1", formats=("certificate_chain", "jwt_verification"),
+        platforms=("linux", "darwin", "win32"), prerequisites=("cryptography==50.0.2",),
+        max_bytes=256 * 1024, max_records=16, deadline_seconds=0,
+    ),
     "raw-forensic-image/v1": ArtifactAdapter(
         adapter_id="raw-forensic-image/v1", formats=("raw disk image", "raw memory image"),
         platforms=("posix",), prerequisites=("python-stdlib",),

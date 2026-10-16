@@ -7,10 +7,12 @@ import json
 import threading
 import urllib.error
 import urllib.request
+from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
 from cops.assessments.jwt import JWTValidationError, verify_jwt
+from cops.assessments.crypto_inputs import verify_artifact
 from cops.web_api.assessment import AuthorizationCase, assess_object_authorization, assess_rate_limit
 from cops.web_api.laboratory import WebApiAssessmentLaboratory
 from cops.web_api.models import ReplayResponse
@@ -100,6 +102,10 @@ def run_jwt_acceptance() -> dict[str, Any]:
         "algorithm_confusion": signed(header_changes={"alg": "HS256"}), "tampered": tampered,
     }
     observed: dict[str, int] = {}
+    offline = {
+        name: verify_artifact("jwt_verification", {"token": token, "jwks": jwks, "issuer": "cops-lab", "audience": "resource"}, as_of=datetime.fromtimestamp(now, UTC)).status
+        for name, token in tokens.items()
+    }
 
     class Handler(BaseHTTPRequestHandler):
         def setup(self) -> None:
@@ -135,4 +141,5 @@ def run_jwt_acceptance() -> dict[str, Any]:
         "schema_version": "cops.jwt-laboratory-acceptance/v1", "algorithm": "RS256",
         "statuses": observed, "actual_requests": len(observed), "service_stopped": not thread.is_alive(),
         "ephemeral_keys": True, "external_key_discovery": False,
+        "offline_verification": offline,
     }

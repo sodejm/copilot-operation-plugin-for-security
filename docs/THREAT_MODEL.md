@@ -627,3 +627,16 @@ semantics fail closed to unknown. This assertion is not independently authentica
 Flow denial requires explicit, fresh evidence; absence and contradictory records
 remain unknown. DNS comparisons use exact address sets within TTL. Offline parsing
 never resolves names, contacts targets, installs policy or consumes authorizations.
+
+### Local cryptographic trust boundary
+
+Certificate and JWT artifacts can substitute trust anchors, duplicate key IDs,
+include private keys, expand parsing work, or manipulate time and client identity.
+The registered verifier bounds bytes, chains and key sets; rejects ambiguous keys
+and unsupported algorithms; requires explicit trust and assessment time; and uses
+a pinned cryptographic library. Client certificates also require an explicit
+fingerprint allowlist. Results expose fingerprints and fixed codes only.
+Caller-supplied trust and clocks are not authenticated, and local acceptance does
+not establish revocation status or deployed behavior. No token-controlled URL,
+issuer discovery, AIA or revocation endpoint is fetched. Correction tests and
+real ephemeral TLS/JWT services cover rejection and corrected acceptance.

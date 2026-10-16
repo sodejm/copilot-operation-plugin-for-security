@@ -114,3 +114,12 @@ The legacy `segmentation_model` remains an allow-graph format. Use new versioned
 artifacts for ordered rules and timestamped observations. They require explicit
 completeness and expected paths/address sets. A malformed legacy action now yields
 unknown coverage. Neither format establishes actual firewall or CNI enforcement.
+
+## Cryptographic verification
+
+Legacy `tls_config`, `jwt` and `jwks` metadata artifacts remain compatible.
+New `certificate_chain` and `jwt_verification` artifacts use the optional pinned
+`crypto` extra and explicit local trust. Reports add `verification_results` with
+accepted, rejected or unknown outcomes. A rejection is a local observation,
+not a remote vulnerability. Missing dependencies or trust remain unknown.
+See the [typed contract](../plugins/vulnerability-management/tls-crypto-workbench/docs/CRYPTO_INPUTS.md).

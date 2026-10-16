@@ -99,3 +99,9 @@ For network evidence, retain the inventory completeness assertion, observation
 window and TTL alongside its digest. Recollect expired flow/DNS evidence before
 reassessment. A parsed policy or reachable HTTP service cannot establish that a
 kernel firewall or Kubernetes CNI enforced the intended packet boundary.
+
+For cryptographic verification, retain the exact optional `cryptography` version
+in `pyproject.toml`, the adapter registry and the laboratory lockfile. Revalidate
+chain policy and token corrections after upgrades, synchronize the portable
+runtimes, and repeat `make check-laboratory` with the rebuilt pinned image.
+Do not infer remote acceptance from local verification results.

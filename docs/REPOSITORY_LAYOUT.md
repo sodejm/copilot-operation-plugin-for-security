@@ -73,3 +73,7 @@ remain private outside the checkout. See the [skill](../.agents/skills/plugin-ru
 `cops/assessments/network_inputs.py` interprets bounded typed firewall, Pod policy,
 flow and DNS inputs for the shared artifact engine. It performs no discovery or
 connectivity operations; execution adapters own active checks and authorization.
+
+`cops/assessments/crypto_inputs.py` owns the registered optional certificate and
+JWT verifier. It uses explicit local trust inputs; the TLS and authentication
+laboratories compare those results with actual service responses.

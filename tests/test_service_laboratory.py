@@ -80,6 +80,9 @@ def test_process_acceptance_proves_actual_activity_and_reset(
         "missing_client_rejected": True,
         "untrusted_client_rejected": True,
         "untrusted_server_rejected": True,
+        "unauthorized_client_status": 403,
+        "offline_verification": {"server": "accepted", "wrong_hostname": "rejected", "untrusted_server": "rejected", "authorized_client": "accepted", "unauthorized_client": "rejected"},
+        "service_stopped": True,
         "server_address": "127.0.0.1",
         "protocol": "TLS",
     }
@@ -93,6 +96,7 @@ def test_process_acceptance_proves_actual_activity_and_reset(
     assert activity["jwt"]["statuses"]["valid"] == 204
     assert all(status == 401 for name, status in activity["jwt"]["statuses"].items() if name != "valid")
     assert activity["jwt"]["service_stopped"] is True
+    assert activity["jwt"]["offline_verification"] == {name: "accepted" if name == "valid" else "rejected" for name in activity["jwt"]["statuses"]}
     boundaries = activity["boundaries"]
     assert boundaries["benign_query_preserved"] is True
     assert boundaries["injection_exposed_other_object"] is reached

@@ -59,9 +59,24 @@ The default request bounds are 64 artifacts, 1 MiB per artifact, and 4 MiB total
 | `supply_chain` | `package_lock`, `requirements_lock`, `cyclonedx`, `spdx`, `container_sbom`, `github_actions`, `advisory_fixture` | Registry and integrity metadata, exact Python hashes, versioned SBOM components, action pins, token write permissions, privileged pull-request head checkout, and ecosystem-specific pinned advisories |
 | `credential_history` | `git_history` | Bounded Git scan or supplied synthetic exposure records correlated by opaque fingerprint, redaction, rotation, and opaque author ID |
 | `network_segmentation` | `segmentation_model`, `firewall_policy`, `kubernetes_network_policy`, `flow_evidence`, `dns_evidence` | Legacy allow graph, ordered IP firewall rules, additive Pod NetworkPolicy predictions, explicit flow observations, and TTL-bound DNS address sets |
-| `transport_identity` | `tls_config`, `jwt`, `jwks` | Certificate time, chain-name continuity, SAN and mTLS settings, JWT structure and claims, and JWKS key/algorithm metadata |
+| `transport_identity` | `tls_config`, `jwt`, `jwks`, `certificate_chain`, `jwt_verification` | Metadata checks; optional pinned adapter verifies certificate chains, authorized client fingerprints and RS256 signatures against explicit local trust |
 
-Malformed supported artifacts yield unresolved findings or insufficient-evidence readiness. Unknown or heavyweight formats produce explicit limitations and versioned adapter prerequisites. For example, raw Helm templates require a pinned renderer, PCAP requires a registered flow extractor, forensic filesystem or memory parsing requires an image parser, and cryptographic trust or revocation requires a chain-validation adapter.
+Malformed supported artifacts yield unresolved findings or insufficient-evidence readiness. Unknown or heavyweight formats produce explicit limitations and versioned adapter prerequisites. For example, raw Helm templates require a pinned renderer, PCAP requires a registered flow extractor, forensic filesystem or memory parsing requires an image parser, and revocation requires separately collected evidence.
+
+### Local certificate and JWT verification
+
+Install the optional repository extra with `python3 -m pip install '.[crypto]'`
+in the configured environment. Exported packages require `cryptography==50.0.2`.
+The registered `cryptographic-verification/v1` adapter is limited to 256 KiB per
+artifact and performs no key, intermediate, issuer or revocation discovery.
+See the [typed input contract](../plugins/vulnerability-management/tls-crypto-workbench/docs/CRYPTO_INPUTS.md).
+
+Typed verification emits content-free `verification_results` with `accepted`,
+`rejected` or `unknown` status, a bounded reason code and public-key/certificate
+fingerprints. Rejection is a verified observation about this local verifier, not
+a verified remote vulnerability. Missing trust, unsupported inputs or a missing
+pinned dependency remain unknown. Legacy metadata kinds retain their existing
+behavior. Neither path establishes production service acceptance or revocation.
 
 Supply-chain parsing supports npm lockfile `packages` records, infers package
 names from nested and scoped `node_modules` paths, and excludes root/workspace
