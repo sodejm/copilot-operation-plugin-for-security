@@ -146,3 +146,12 @@ streaming, and unchanged originals. Then run `make check`, `make check-docs`, an
 `make check-laboratory` with the pinned isolated runtime. The gate imports the
 actual acquired copy and checks rejection and restoration; fabricated receipt
 records cannot replace this playback.
+
+### Credential pattern correction evidence
+
+Use only synthetic values when extending Git-history patterns. Run
+`python -m pytest tests/test_git_history_scanner.py` for historical exposure,
+corrected history, insufficient bounds, benign lookalikes, redaction and unchanged
+source bytes. Retain existing synthetic fingerprints so the actual laboratory
+revocation exercise correlates the same credential. Synchronize portable runtimes
+and run the repository, documentation and laboratory gates.

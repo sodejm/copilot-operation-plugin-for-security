@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Extend pinned Git-history scanning to bounded potential GitHub PAT, AWS identifier,
+  Bearer and PEM private-key patterns with redacted provenance, correction cases,
+  and explicit validity and coverage limits. Preserve synthetic revocation correlation.
+
 - Add pinned offline certificate-chain and RS256 verification with explicit local
   trust, bounded inputs, content-free outcomes and unknown prerequisite handling.
   Exercise mTLS client authorization and compare offline verification with actual

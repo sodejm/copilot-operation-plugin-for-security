@@ -109,9 +109,85 @@ def test_clean_nonempty_history_has_bounded_clearance(tmp_path: Path) -> None:
     repository = _repository(tmp_path)
     _commit(repository, "fixture.txt", "no synthetic credentials\n", "fixture")
     artifact = scan_git_history(repository, expected_git_sha256=GIT_SHA256)
-    assert artifact["content"]["assessment_status"] == "no_synthetic_match_observed"
+    assert artifact["content"]["assessment_status"] == "no_supported_match_observed"
     assessment = assess("credential_history", [artifact], as_of=AS_OF)
     assert not assessment["finding_codes"]
+
+
+@pytest.mark.parametrize(("pattern_id", "value", "wrapper"), [
+    ("github-classic-pat-v1", "ghp_" + "X" * 36, "token={}"),
+    ("aws-access-key-id-v1", "AKIA" + "Z" * 16, "access_key_id={}"),
+    ("bearer-credential-v1", "fixture." + "x" * 32, "Authorization: Bearer {}"),
+    ("pem-private-key-v1", "-----BEGIN PRIVATE KEY-----\n" + "QUJD" * 16
+     + "\n-----END PRIVATE KEY-----", "{}"),
+])
+def test_potential_credentials_are_redacted_with_historical_provenance(
+    tmp_path: Path, pattern_id: str, value: str, wrapper: str,
+) -> None:
+    repository = _repository(tmp_path)
+    exposed = _commit(repository, "config.txt", wrapper.format(value), "exposure fixture")
+    _commit(repository, "config.txt", "use a credential reference", "remove from HEAD")
+    before = _snapshot(repository)
+    artifact = scan_git_history(repository, expected_git_sha256=GIT_SHA256)
+    assert _snapshot(repository) == before
+    occurrences = artifact["content"]["occurrences"]
+    assert len(occurrences) == 1
+    assert occurrences[0]["commit"] == exposed
+    assert occurrences[0]["source"]["pattern_id"] == pattern_id
+    assert occurrences[0]["fingerprint"] == hashlib.sha256(
+        b"cops.credential/v1\0" + value.encode()
+    ).hexdigest()
+    assessment = assess("credential_history", [artifact], as_of=AS_OF)
+    assert "credential_not_contained" in assessment["finding_codes"].values()
+    for output in (artifact, assessment):
+        serialized = json.dumps(output)
+        assert value not in serialized
+        assert "QUJD" * 16 not in serialized
+    truncated = scan_git_history(repository, expected_git_sha256=GIT_SHA256,
+                                 limits=ScanLimits(max_commits=1))
+    assert truncated["content"]["assessment_status"] == "insufficient_evidence"
+    assert truncated["content"]["occurrences"] == []
+    corrected_root = tmp_path / "corrected"
+    corrected_root.mkdir()
+    corrected = _repository(corrected_root)
+    _commit(corrected, "config.txt", "use a credential reference", "corrected fixture")
+    clean = scan_git_history(corrected, expected_git_sha256=GIT_SHA256)
+    assert clean["content"]["assessment_status"] == "no_supported_match_observed"
+    assert not assess("credential_history", [clean], as_of=AS_OF)["finding_codes"]
+
+
+@pytest.mark.parametrize("content", [
+    "ghp_" + "X" * 35, "ghp_" + "X" * 37,
+    "prefixghp_" + "X" * 36, "AKIA" + "Z" * 17,
+    "Authorization: Bearer short", "Authorization: Bearer " + "x" * 2049,
+    "-----BEGIN PUBLIC KEY-----\n" + "QUJD" * 16 + "\n-----END PUBLIC KEY-----",
+    "-----BEGIN PRIVATE KEY-----\n" + "QUJD" * 16 + "\n-----END RSA PRIVATE KEY-----",
+])
+def test_benign_and_unsupported_shapes_do_not_match(tmp_path: Path, content: str) -> None:
+    repository = _repository(tmp_path)
+    _commit(repository, "fixture.txt", content, "shape fixture")
+    artifact = scan_git_history(repository, expected_git_sha256=GIT_SHA256)
+    assert artifact["content"]["occurrences"] == []
+    assert artifact["content"]["assessment_status"] == "no_supported_match_observed"
+
+
+@pytest.mark.parametrize("value", ["ghp_" + "X" * 36, "AKIA" + "Z" * 16,
+                                     "Bearer " + "X" * 24])
+def test_potential_credential_in_path_is_redacted(tmp_path: Path, value: str) -> None:
+    repository = _repository(tmp_path)
+    _commit(repository, value + ".txt", "Authorization: Bearer " + "Y" * 24, "path fixture")
+    artifact = scan_git_history(repository, expected_git_sha256=GIT_SHA256)
+    assert artifact["content"]["occurrences"][0]["path"].startswith("redacted-path/sha256-")
+    assert value not in json.dumps(artifact)
+
+
+def test_synthetic_fingerprint_stays_compatible_with_revocation_lab(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    _commit(repository, "fixture.txt", SYNTHETIC_SECRET, "fixture")
+    artifact = scan_git_history(repository, expected_git_sha256=GIT_SHA256)
+    assert artifact["content"]["occurrences"][0]["fingerprint"] == hashlib.sha256(
+        b"cops.synthetic-credential/v1\0" + SYNTHETIC_SECRET.encode()
+    ).hexdigest()
 
 
 def test_vulnerable_history_emits_only_redacted_provenance_and_assesses_exposure(

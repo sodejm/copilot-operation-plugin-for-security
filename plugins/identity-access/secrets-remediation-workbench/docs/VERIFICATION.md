@@ -25,7 +25,8 @@ Then run `python3 scripts/report.py` with the explicit identifiers shown in the
 [walkthrough](offline-assessment.md) and validate its JSON output.
 
 For the history path, create an isolated repository containing only synthetic test
-data and run `python3 scripts/scan_git_history.py --root /absolute/path/to/repository`.
+data and run `python3 scripts/scan_git_history.py --root /absolute/path/to/repository
+--git-sha256 <reviewed-lowercase-sha256>`.
 Confirm that the output contains fingerprints, paths, commit IDs and source
 provenance without any matched credential value. Pass that object to
 `scripts/assess.py` as an artifact to retain unknown rotation and revocation status.
