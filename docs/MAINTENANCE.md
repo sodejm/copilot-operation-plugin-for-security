@@ -93,3 +93,9 @@ For PARK upgrades, compare upstream with the revision in
 [the adoption record](decisions/0001-park-adoption.md), apply a reviewed diff, and
 preserve COPS-specific packages, checks, specifications, and licensing. Do not run
 a project generator over this configured repository.
+
+
+For network evidence, retain the inventory completeness assertion, observation
+window and TTL alongside its digest. Recollect expired flow/DNS evidence before
+reassessment. A parsed policy or reachable HTTP service cannot establish that a
+kernel firewall or Kubernetes CNI enforced the intended packet boundary.
