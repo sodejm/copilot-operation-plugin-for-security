@@ -24,6 +24,8 @@ from .service_entry_validation import (
 
 _ACTIONS = frozenset({"low_impact_validation", "controlled_proof"})
 _DIMENSIONS = ("exposure", "authentication", "configuration", "version", "trust")
+_MAX_RETAINED_ITEMS = 32
+_MAX_RETAINED_TEXT_BYTES = 4096
 
 
 @dataclass(frozen=True)
@@ -277,17 +279,6 @@ def _evidence_complete(verification: ValidationEvidenceVerification) -> bool:
     )
 
 
-def _verified_during(value: str, started: datetime, finished: datetime) -> bool:
-    try:
-        observed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except (AttributeError, TypeError, ValueError):
-        return False
-    if observed.tzinfo is None:
-        return False
-    observed = observed.astimezone(UTC)
-    return started <= observed <= finished
-
-
 def _aware_timestamp(value: object) -> datetime | None:
     if not isinstance(value, str):
         return None
@@ -300,6 +291,23 @@ def _aware_timestamp(value: object) -> datetime | None:
     return parsed.astimezone(UTC)
 
 
+def _verification_timestamps_are_ordered(
+    audit_recorded_at: str,
+    verified_at: str,
+    dispatch_started_at: datetime,
+    verification_started_at: datetime,
+    verification_finished_at: datetime,
+) -> bool:
+    audit_recorded = _aware_timestamp(audit_recorded_at)
+    verified = _aware_timestamp(verified_at)
+    return bool(
+        audit_recorded is not None
+        and verified is not None
+        and dispatch_started_at <= audit_recorded <= verified
+        and verification_started_at <= verified <= verification_finished_at
+    )
+
+
 def _usage_is_bounded(output: ValidationProbeOutput) -> bool:
     return all(
         type(value) is int and 0 <= value <= 2**63 - 1
@@ -307,14 +315,33 @@ def _usage_is_bounded(output: ValidationProbeOutput) -> bool:
     )
 
 
+def _bounded_string(value: object, *, nonempty: bool = False) -> bool:
+    if not isinstance(value, str) or (nonempty and not value.strip()):
+        return False
+    try:
+        return len(value.encode("utf-8")) <= _MAX_RETAINED_TEXT_BYTES
+    except UnicodeEncodeError:
+        return False
+
+
 def _string_tuple(value: object) -> bool:
-    return isinstance(value, tuple) and all(isinstance(item, str) and bool(item.strip()) for item in value)
+    return bool(
+        isinstance(value, tuple)
+        and len(value) <= _MAX_RETAINED_ITEMS
+        and all(_bounded_string(item, nonempty=True) for item in value)
+    )
 
 
 def _string_mapping(value: object) -> bool:
-    return isinstance(value, Mapping) and all(
-        isinstance(key, str) and isinstance(item, str) for key, item in value.items()
+    return bool(
+        isinstance(value, Mapping)
+        and len(value) <= _MAX_RETAINED_ITEMS
+        and all(_bounded_string(key) and _bounded_string(item) for key, item in value.items())
     )
+
+
+def _canonical_retained_output_bytes(result: ValidationActionResult) -> int:
+    return len(json.dumps(asdict(result), sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8"))
 
 
 def _probe_output_shape_is_valid(output: ValidationProbeOutput) -> bool:
@@ -327,18 +354,18 @@ def _probe_output_shape_is_valid(output: ValidationProbeOutput) -> bool:
         and _string_tuple(output.effect_evidence)
         and type(output.proof_succeeded) is bool
         and _string_tuple(output.cleanup_evidence)
-        and isinstance(output.audit_reference, str)
+        and _bounded_string(output.audit_reference)
         and (
             reproduction is None
             or (
                 isinstance(reproduction, VersionedReproduction)
-                and isinstance(reproduction.reference, str)
+                and _bounded_string(reproduction.reference)
                 and isinstance(reproduction.endpoint, ApprovedEndpoint)
-                and isinstance(reproduction.affected_version, str)
-                and isinstance(reproduction.remediated_version, str)
+                and _bounded_string(reproduction.affected_version)
+                and _bounded_string(reproduction.remediated_version)
                 and _string_tuple(reproduction.steps)
-                and isinstance(reproduction.expected_proof, str)
-                and isinstance(reproduction.remediation, str)
+                and _bounded_string(reproduction.expected_proof)
+                and _bounded_string(reproduction.remediation)
             )
         )
         and (
@@ -346,7 +373,7 @@ def _probe_output_shape_is_valid(output: ValidationProbeOutput) -> bool:
             or (
                 isinstance(finding, ValidationFinding)
                 and all(
-                    isinstance(value, str)
+                    _bounded_string(value)
                     for value in (
                         finding.finding_id,
                         finding.observation,
@@ -364,28 +391,40 @@ def _probe_output_shape_is_valid(output: ValidationProbeOutput) -> bool:
 
 def _verification_shape_is_valid(verification: ValidationEvidenceVerification) -> bool:
     return bool(
-        isinstance(verification.approval_receipt_id, str)
-        and isinstance(verification.plan_id, str)
-        and isinstance(verification.attempt_id, str)
-        and isinstance(verification.evidence_sha256, str)
+        _bounded_string(verification.approval_receipt_id)
+        and _bounded_string(verification.plan_id)
+        and _bounded_string(verification.attempt_id)
+        and _bounded_string(verification.evidence_sha256)
         and isinstance(verification.endpoint, ApprovedEndpoint)
-        and isinstance(verification.action, str)
-        and isinstance(verification.observed_version, str)
+        and _bounded_string(verification.action)
+        and _bounded_string(verification.observed_version)
         and _string_tuple(verification.protocol_evidence)
         and _string_mapping(verification.dimensions)
-        and isinstance(verification.verified_at, str)
-        and isinstance(verification.audit_recorded_at, str)
-        and isinstance(verification.dispatch_correlation_id, str)
-        and isinstance(verification.reproduction_sha256, str)
+        and _bounded_string(verification.verified_at)
+        and _bounded_string(verification.audit_recorded_at)
+        and _bounded_string(verification.dispatch_correlation_id)
+        and _bounded_string(verification.reproduction_sha256)
         and type(verification.candidate_verified) is bool
-        and isinstance(verification.finding_effect, str)
+        and _bounded_string(verification.finding_effect)
         and _string_tuple(verification.effect_evidence)
         and type(verification.finding_effect_verified) is bool
+        and (
+            (
+                verification.finding_effect_verified
+                and bool(verification.finding_effect.strip())
+                and bool(verification.effect_evidence)
+            )
+            or (
+                not verification.finding_effect_verified
+                and verification.finding_effect == ""
+                and verification.effect_evidence == ()
+            )
+        )
         and _string_tuple(verification.authorized_use_evidence)
         and type(verification.authorized_use_verified) is bool
         and _string_tuple(verification.cleanup_evidence)
         and type(verification.cleanup_verified) is bool
-        and isinstance(verification.audit_reference, str)
+        and _bounded_string(verification.audit_reference)
     )
 
 
@@ -483,7 +522,12 @@ def execute_service_validation_action(
             plan,
             request.attempt_id,
         )
-
+    except BaseException:
+        try:
+            ledger.release_undispatched(request.attempt_id)
+        except (BudgetDenied, ValueError):
+            pass
+        raise
     approval_now = datetime.now(UTC)
     approval_issued_at = _aware_timestamp(approval.issued_at) if isinstance(approval, AuthorizationReceipt) else None
     approval_expires_at = _aware_timestamp(approval.expires_at) if isinstance(approval, AuthorizationReceipt) else None
@@ -491,8 +535,7 @@ def execute_service_validation_action(
         isinstance(approval, AuthorizationReceipt)
         and type(approval.approved) is bool
         and approval.approved
-        and isinstance(approval.receipt_id, str)
-        and bool(approval.receipt_id.strip())
+        and _bounded_string(approval.receipt_id, nonempty=True)
         and isinstance(approval.plan_id, str)
         and approval.plan_id == plan.plan_id
         and isinstance(approval.endpoint, ApprovedEndpoint)
@@ -503,8 +546,7 @@ def execute_service_validation_action(
         and approval.attempt_id == request.attempt_id
         and isinstance(approval.engagement_id, str)
         and approval.engagement_id == ledger.policy.engagement_id
-        and isinstance(approval.authority_id, str)
-        and bool(approval.authority_id.strip())
+        and _bounded_string(approval.authority_id, nonempty=True)
         and approval_issued_at is not None
         and approval_expires_at is not None
         and approval_issued_at < approval_expires_at
@@ -584,6 +626,22 @@ def execute_service_validation_action(
             plan,
             request.attempt_id,
         )
+    except BaseException:
+        try:
+            attempt_state = ledger.get_attempt(request.attempt_id).state
+        except Exception:
+            attempt_state = "unknown"
+        if attempt_state == "reserved":
+            try:
+                ledger.release_undispatched(request.attempt_id)
+            except (BudgetDenied, ValueError):
+                pass
+        else:
+            try:
+                ledger.mark_uncertain(request.attempt_id)
+            except (BudgetDenied, ValueError):
+                pass
+        raise
 
     dispatch_started_at = datetime.now(UTC)
     try:
@@ -596,8 +654,12 @@ def execute_service_validation_action(
         return _result(
             "dispatch_uncertain", f"provider did not return a receipt: {type(exc).__name__}", plan, request.attempt_id
         )
-    dispatch_finished_at = datetime.now(UTC)
-
+    except BaseException:
+        try:
+            ledger.mark_uncertain(request.attempt_id)
+        except (BudgetDenied, ValueError):
+            pass
+        raise
     if not isinstance(output, ValidationProbeOutput) or not _probe_output_shape_is_valid(output):
         try:
             ledger.mark_uncertain(request.attempt_id)
@@ -616,6 +678,12 @@ def execute_service_validation_action(
     except Exception as exc:
         verification = None
         verification_error = type(exc).__name__
+    except BaseException:
+        try:
+            ledger.mark_uncertain(request.attempt_id)
+        except (BudgetDenied, ValueError):
+            pass
+        raise
     else:
         if isinstance(candidate_verification, ValidationEvidenceVerification) and _verification_shape_is_valid(
             candidate_verification
@@ -641,8 +709,13 @@ def execute_service_validation_action(
         and verification.dispatch_correlation_id == dispatch_context.correlation_id
         and bool(output.audit_reference)
         and verification.audit_reference == output.audit_reference
-        and _verified_during(verification.audit_recorded_at, dispatch_started_at, dispatch_finished_at)
-        and _verified_during(verification.verified_at, verification_started_at, verification_finished_at)
+        and _verification_timestamps_are_ordered(
+            verification.audit_recorded_at,
+            verification.verified_at,
+            dispatch_started_at,
+            verification_started_at,
+            verification_finished_at,
+        )
     )
     if verification is None or not exact_verification:
         try:
@@ -708,6 +781,31 @@ def execute_service_validation_action(
         and verification.effect_evidence
         and (not verification.cleanup_verified or not verification.cleanup_evidence)
     )
+    unexpected_low_impact_effect = bool(
+        selection.action == "low_impact_validation"
+        and verification is not None
+        and verification.finding_effect_verified
+        and verification.effect_evidence
+    )
+    if unexpected_low_impact_effect:
+        try:
+            ledger.mark_uncertain(request.attempt_id)
+        except (BudgetDenied, ValueError):
+            pass
+        return ValidationActionResult(
+            status="dispatch_uncertain",
+            reason="the low-impact action produced an independently verified effect",
+            plan_id=plan.plan_id,
+            attempt_id=request.attempt_id,
+            action=selection.action,
+            approval_receipt_id=approval.receipt_id,
+            endpoint=plan.endpoint,
+            observed_version=verification.observed_version,
+            protocol_evidence=verification.protocol_evidence,
+            effect_evidence=verification.effect_evidence,
+            cleanup_evidence=verification.cleanup_evidence,
+            dimensions=dict(verification.dimensions),
+        )
     if effect_observed_without_cleanup:
         try:
             ledger.mark_uncertain(request.attempt_id)
@@ -746,41 +844,6 @@ def execute_service_validation_action(
         and verification is not None
         else None
     )
-    receipt = Receipt(
-        receipt_id=f"service-validation:{request.attempt_id}",
-        attempt_id=request.attempt_id,
-        outcome="completed" if status == "completed" else "failed",
-        tokens=output.tokens,
-        cost_microunits=output.cost_microunits,
-        retained_output_bytes=output.retained_output_bytes,
-    )
-    prerequisite_payload = _prerequisite_payload(new_prerequisite) if new_prerequisite else None
-    try:
-        ledger.reconcile(
-            receipt,
-            validation_prerequisite_id=new_prerequisite.receipt_id if new_prerequisite else None,
-            validation_prerequisite=prerequisite_payload,
-        )
-    except Exception as exc:
-        try:
-            recovered = ledger.reconciliation_is_durable(
-                receipt,
-                validation_prerequisite_id=new_prerequisite.receipt_id if new_prerequisite else None,
-                validation_prerequisite=prerequisite_payload,
-            )
-        except Exception:
-            recovered = False
-        if not recovered:
-            try:
-                ledger.mark_uncertain(request.attempt_id)
-            except (BudgetDenied, ValueError):
-                pass
-            return _result(
-                "dispatch_uncertain",
-                f"usage could not be settled: {type(exc).__name__}",
-                plan,
-                request.attempt_id,
-            )
     verified_dimensions = verification.dimensions if exact_verification and verification is not None else {}
     coverage = {
         dimension: ("tested" if verified_dimensions.get(dimension) else "untested") for dimension in _DIMENSIONS
@@ -803,7 +866,7 @@ def execute_service_validation_action(
                 "Candidate until separate controlled proof records effect and cleanup.",
             ),
         )
-    return ValidationActionResult(
+    result = ValidationActionResult(
         status=status,
         reason=(
             "correlated passive evidence satisfied the selected gate"
@@ -836,3 +899,66 @@ def execute_service_validation_action(
         coverage=coverage,
         prerequisite_receipt=new_prerequisite,
     )
+    retained_output_bytes = _canonical_retained_output_bytes(result)
+    if retained_output_bytes > output.retained_output_bytes or retained_output_bytes > request.reserved_output_bytes:
+        try:
+            ledger.mark_uncertain(request.attempt_id)
+        except (BudgetDenied, ValueError):
+            pass
+        return _result(
+            "dispatch_uncertain",
+            "retained result exceeded its declared or reserved output bound",
+            plan,
+            request.attempt_id,
+        )
+    receipt = Receipt(
+        receipt_id=f"service-validation:{sha256(request.attempt_id.encode('utf-8')).hexdigest()}",
+        attempt_id=request.attempt_id,
+        outcome="completed" if status == "completed" else "failed",
+        tokens=output.tokens,
+        cost_microunits=output.cost_microunits,
+        retained_output_bytes=retained_output_bytes,
+    )
+    prerequisite_payload = _prerequisite_payload(new_prerequisite) if new_prerequisite else None
+    try:
+        ledger.reconcile(
+            receipt,
+            validation_prerequisite_id=new_prerequisite.receipt_id if new_prerequisite else None,
+            validation_prerequisite=prerequisite_payload,
+        )
+    except Exception as exc:
+        try:
+            recovered = ledger.reconciliation_is_durable(
+                receipt,
+                validation_prerequisite_id=new_prerequisite.receipt_id if new_prerequisite else None,
+                validation_prerequisite=prerequisite_payload,
+            )
+        except Exception:
+            recovered = False
+        if not recovered:
+            try:
+                ledger.mark_uncertain(request.attempt_id)
+            except (BudgetDenied, ValueError):
+                pass
+            return _result(
+                "dispatch_uncertain",
+                f"usage could not be settled: {type(exc).__name__}",
+                plan,
+                request.attempt_id,
+            )
+    except BaseException:
+        try:
+            recovered = ledger.reconciliation_is_durable(
+                receipt,
+                validation_prerequisite_id=new_prerequisite.receipt_id if new_prerequisite else None,
+                validation_prerequisite=prerequisite_payload,
+            )
+        except Exception:
+            recovered = False
+        if not recovered:
+            try:
+                ledger.mark_uncertain(request.attempt_id)
+            except (BudgetDenied, ValueError):
+                pass
+        raise
+    return result

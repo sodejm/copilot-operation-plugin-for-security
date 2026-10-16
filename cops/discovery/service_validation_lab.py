@@ -12,6 +12,7 @@ import secrets
 import socket
 import socketserver
 import struct
+import sys
 import threading
 import time
 from dataclasses import asdict, dataclass, replace
@@ -165,30 +166,28 @@ class _Handler(socketserver.BaseRequestHandler):
             server.connection_count += 1  # type: ignore[attr-defined]
         try:
             self.request.settimeout(0.5)
-            service = server.case.service  # type: ignore[attr-defined]
-            if service in {"ssh", "smtp"}:
-                banner = server.banner  # type: ignore[attr-defined]
-                self.request.sendall(banner)
             try:
                 audit_reference, correlation_id, request = _read_wire_request(self.request)
-            except TimeoutError:
-                correlation_id = ""
-                request = b""
-            if audit_reference:
-                with server.audit_lock:  # type: ignore[attr-defined]
-                    candidate = server.pending_audits.pop(audit_reference, None)  # type: ignore[attr-defined]
-                if candidate is not None and secrets.compare_digest(
-                    str(candidate["dispatch_correlation_id"]), correlation_id
+            except (TimeoutError, ValueError, UnicodeError, OSError):
+                return
+            if not audit_reference:
+                return
+            with server.audit_lock:  # type: ignore[attr-defined]
+                candidate = server.pending_audits.get(audit_reference)  # type: ignore[attr-defined]
+                if candidate is None or not secrets.compare_digest(
+                    str(candidate.get("dispatch_correlation_id", "")), correlation_id
                 ):
-                    pending = candidate
-                else:
-                    request = b""
+                    return
+                pending = server.pending_audits.pop(audit_reference)  # type: ignore[attr-defined]
+            if server.case.service in {"ssh", "smtp"}:  # type: ignore[attr-defined]
+                banner = server.banner  # type: ignore[attr-defined]
+                self.request.sendall(banner)
             response = _fixture_response(server.case, request)  # type: ignore[attr-defined]
             if response:
                 self.request.sendall(response)
         finally:
             with server.audit_lock:  # type: ignore[attr-defined]
-                if request:
+                if pending is not None and request:
                     server.requests.append(request)  # type: ignore[attr-defined]
                 if banner:
                     server.responses.append(banner)  # type: ignore[attr-defined]
@@ -428,42 +427,37 @@ def _probe(
     service: str,
     *,
     controlled_proof: bool = False,
-    audit_reference: str = "",
-    dispatch_correlation_id: str = "",
+    audit_reference: str,
+    dispatch_correlation_id: str,
 ) -> tuple[str, str]:
+    if not audit_reference or not dispatch_correlation_id:
+        raise ValueError("fixture probe requires a one-use audit reference and correlation")
     request = _request_for(service, controlled_proof=controlled_proof)
-    wire_request = request
-    if audit_reference:
-        wire_request = (
-            _AUDIT_PREFIX
-            + audit_reference.encode("ascii")
-            + b" "
-            + dispatch_correlation_id.encode("ascii")
-            + b" "
-            + str(len(request)).encode("ascii")
-            + b"\n"
-            + request
-        )
+    wire_request = (
+        _AUDIT_PREFIX
+        + audit_reference.encode("ascii")
+        + b" "
+        + dispatch_correlation_id.encode("ascii")
+        + b" "
+        + str(len(request)).encode("ascii")
+        + b"\n"
+        + request
+    )
     with socket.create_connection((endpoint.resolved_ip, endpoint.port), timeout=2) as connection:
         connection.settimeout(1)
         if service == "ssh":
-            raw = connection.recv(1024)
             connection.sendall(wire_request)
             connection.shutdown(socket.SHUT_WR)
-            _recv_all(connection)
+            raw = _recv_all(connection)
             if not raw.startswith(b"SSH-2.0-"):
                 raise RuntimeError("invalid SSH identification string")
             return raw.decode("ascii", errors="replace").strip(), _protocol_for(service, controlled_proof=False)
         if service == "smtp":
-            banner = connection.recv(1024)
             connection.sendall(wire_request)
-            response = _recv_all(connection)
-            if not banner.startswith(b"220 ") or not response.startswith(b"250-"):
+            raw = _recv_all(connection)
+            if not raw.startswith(b"220 ") or b"\r\n250-" not in raw:
                 raise RuntimeError("invalid SMTP greeting or EHLO response")
-            return (
-                (banner + response).decode("ascii", errors="replace").strip(),
-                _protocol_for(service, controlled_proof=False),
-            )
+            return raw.decode("ascii", errors="replace").strip(), _protocol_for(service, controlled_proof=False)
         if service == "http":
             connection.sendall(wire_request)
             raw = _recv_all(connection)
@@ -555,7 +549,7 @@ class _Provider:
             finding=trusted.finding if self.case.candidate else None,
             tokens=5,
             cost_microunits=50,
-            retained_output_bytes=256,
+            retained_output_bytes=5_000,
         )
 
 
@@ -698,7 +692,7 @@ def _ledger(state_directory: Path, *, directory_fd: int) -> AssessmentBudgetLedg
             max_estimated_cost_microunits=20_000,
             max_elapsed_ms=120_000,
             max_concurrency=2,
-            max_retained_output_bytes=20_000,
+            max_retained_output_bytes=60_000,
             max_depth=1,
             max_children_per_parent=12,
         ),
@@ -715,7 +709,7 @@ def _ledger(state_directory: Path, *, directory_fd: int) -> AssessmentBudgetLedg
 
 
 def _request(attempt_id: str) -> AttemptRequest:
-    return AttemptRequest(attempt_id, None, 10, 100, 512)
+    return AttemptRequest(attempt_id, None, 10, 100, 5_000)
 
 
 def run_loopback_service_validation_journey(state_directory: Path | str) -> dict[str, Any]:
@@ -738,7 +732,21 @@ def run_loopback_service_validation_journey(state_directory: Path | str) -> dict
             endpoint = fixture.endpoint
             endpoints.add(endpoint)
             fixture_by_port[endpoint.port] = fixture
-            banner, discovery_protocol = _probe(endpoint, fixture.case.service)
+            discovery_correlation = f"lab-discovery-{fixture.case.case_id}"
+            discovery_audit = fixture.server.issue_audit_reference(
+                {"dispatch_correlation_id": discovery_correlation, "purpose": "discovery"}
+            )
+            try:
+                banner, discovery_protocol = _probe(
+                    endpoint,
+                    fixture.case.service,
+                    audit_reference=discovery_audit,
+                    dispatch_correlation_id=discovery_correlation,
+                )
+                fixture.server.read_completed_audit(discovery_audit)
+            except Exception:
+                fixture.server.discard_pending_audit(discovery_audit)
+                raise
             discovery_protocol_by_port[endpoint.port] = discovery_protocol
             probe_id = f"probe-{fixture.case.case_id}"
             assessment = ActiveServiceAssessment(
@@ -864,16 +872,23 @@ def run_loopback_service_validation_journey(state_directory: Path | str) -> dict
             ],
         }
     finally:
+        primary_failure = sys.exc_info()[1]
         cleanup_failures: list[str] = []
         for fixture in fixtures:
             try:
                 fixture.stop()
             except Exception:
                 cleanup_failures.append(fixture.case.case_id)
-        os.close(state_fd)
-
-    if cleanup_failures:
-        raise RuntimeError(f"fixture cleanup failed: {', '.join(cleanup_failures)}")
+        try:
+            os.close(state_fd)
+        except OSError:
+            cleanup_failures.append("state directory descriptor")
+        if cleanup_failures:
+            detail = f"fixture cleanup failed: {', '.join(cleanup_failures)}"
+            if primary_failure is not None:
+                primary_failure.add_note(detail)
+            else:
+                raise RuntimeError(detail)
 
     if report is None:
         raise RuntimeError("loopback journey did not produce a report")

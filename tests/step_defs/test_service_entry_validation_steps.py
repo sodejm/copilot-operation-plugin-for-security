@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -400,11 +401,16 @@ def then_public_journey_is_complete(service_ctx):
 def then_public_journey_retains_provenance(service_ctx):
     report = service_ctx["journey_report"]
     assert len(report["approvals"]) == 9
+    retained_results = [entry["validation"] for entry in report["services"]] + [report["controlled_proof"]]
+    measured_output = sum(
+        len(json.dumps(result, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8"))
+        for result in retained_results
+    )
     assert report["budget"] == {
         "charged_attempts": 9,
         "charged_tokens": 45,
         "charged_cost_microunits": 450,
-        "charged_output_bytes": 2304,
+        "charged_output_bytes": measured_output,
         "active_concurrency": 0,
         "over_budget": False,
     }

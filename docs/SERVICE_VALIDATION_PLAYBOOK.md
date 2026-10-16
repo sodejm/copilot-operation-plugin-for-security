@@ -33,6 +33,9 @@ exercise the public selection, authorization, dispatcher, verifier, budget,
 reporting, and cleanup boundaries without claiming production coverage for an
 external target. The provider opens one loopback connection, and the verifier
 reads the fixture-owned passive audit after the server closes that connection.
+Even discovery requests and server greetings require a fixture-issued one-use
+audit reference before the fixture responds; an unaudited connection receives no
+service response.
 The verifier disregards provider-authored output. Here, "independent
 evidence" means independent of provider-authored output only. The fixture and
 verifier share one Python process, administrative authority, and parser, so this
@@ -74,6 +77,9 @@ effect evidence; verified finding evidence alone never sets it.
 
 Every action uses its own attempt identifier, budget reservation, and approval
 receipt. A terminal or reused attempt fails before approval and provider dispatch.
+The provider's retained-output byte count is an upper bound, not the charged
+usage: the dispatcher charges the canonical serialized size of the retained
+result and marks an over-bound result uncertain.
 Authorization and dispatch-intent failures release an undispatched reservation.
 Once dispatch is durably recorded, provider, verifier, or settlement ambiguity
 becomes an uncertain attempt and is not retried automatically. Incomplete

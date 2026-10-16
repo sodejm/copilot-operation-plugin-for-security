@@ -15,7 +15,7 @@ import time
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 from urllib.parse import quote
 
@@ -35,6 +35,7 @@ _LIMIT_FIELDS = (
     "max_depth",
     "max_children_per_parent",
 )
+_MAX_DISPATCH_INTENT_BYTES = 64 * 1024
 
 
 class BudgetDenied(ValueError):
@@ -57,6 +58,21 @@ def _integer(value: int, field: str, *, positive: bool = False) -> None:
 
 def _canonical(value: object) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+
+
+def _timestamp_ms(value: object, field: str) -> int:
+    if not isinstance(value, str):
+        raise ValueError(f"invalid {field}")
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(f"invalid {field}") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError(f"invalid {field}")
+    milliseconds = int(parsed.astimezone(UTC).timestamp() * 1000)
+    if milliseconds < 0 or milliseconds > 2**63 - 1:
+        raise ValueError(f"invalid {field}")
+    return milliseconds
 
 
 @dataclass(frozen=True)
@@ -618,8 +634,17 @@ class AssessmentBudgetLedger:
         if dispatch_intent is not None:
             if not isinstance(dispatch_intent, Mapping):
                 raise ValueError("dispatch intent must be a mapping")
-            dispatch_payload = _canonical(dict(dispatch_intent))
+            dispatch_data = dict(dispatch_intent)
+            approval_issued_at_ms = _timestamp_ms(dispatch_data.get("approval_issued_at"), "approval_issued_at")
+            approval_expires_at_ms = _timestamp_ms(dispatch_data.get("approval_expires_at"), "approval_expires_at")
+            if approval_issued_at_ms >= approval_expires_at_ms:
+                raise ValueError("invalid dispatch approval window")
+            dispatch_payload = _canonical(dispatch_data)
+            if len(dispatch_payload.encode("utf-8")) > _MAX_DISPATCH_INTENT_BYTES:
+                raise ValueError("dispatch intent exceeds size limit")
         else:
+            approval_issued_at_ms = None
+            approval_expires_at_ms = None
             dispatch_payload = None
         if (prerequisite_receipt_id is None) != (expected_prerequisite is None):
             raise ValueError("prerequisite receipt and payload must be supplied together")
@@ -650,6 +675,12 @@ class AssessmentBudgetLedger:
                     if current["parent_id"] is not None
                     else None
                 )
+            if (
+                approval_issued_at_ms is not None
+                and approval_expires_at_ms is not None
+                and not approval_issued_at_ms <= now < approval_expires_at_ms
+            ):
+                raise BudgetDenied("dispatch approval is not currently valid")
             if prerequisite_receipt_id is not None:
                 prerequisite = db.execute(
                     "SELECT * FROM validation_prerequisites WHERE receipt_id = ?",

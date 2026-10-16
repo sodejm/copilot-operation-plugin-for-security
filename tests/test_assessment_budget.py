@@ -216,6 +216,24 @@ def test_subtree_deadline_checked_at_dispatch(tmp_path):
     assert store.get_attempt("attempt-a").state == "reserved"
 
 
+def test_oversized_dispatch_intent_rejected_before_persisting(tmp_path):
+    store = ledger(tmp_path, Clock())
+    store.reserve(request("attempt-a"))
+    with pytest.raises(ValueError, match="size limit"):
+        store.mark_dispatched(
+            "attempt-a",
+            approval_receipt_id="approval-a",
+            dispatch_intent={
+                "approval_issued_at": "2026-10-16T12:00:00+00:00",
+                "approval_expires_at": "2026-10-16T12:05:00+00:00",
+                "authority_id": "x" * 65_536,
+            },
+        )
+    assert store.get_attempt("attempt-a").state == "reserved"
+    with pytest.raises(BudgetDenied, match="dispatch intent not found"):
+        store.get_dispatch_intent("attempt-a")
+
+
 def test_overage_blocks_admission_and_retained_output_cannot_exceed_reservation(tmp_path):
     store = ledger(tmp_path, Clock(), policy(max_concurrency=3))
     store.reserve(request("attempt-a"))
