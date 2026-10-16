@@ -151,24 +151,38 @@ def test_fixture_audit_attests_closure_only_after_transport_is_closed(monkeypatc
 
     monkeypatch.setattr(socketserver.TCPServer, "shutdown_request", delayed_shutdown_request)
     audit_reference = fixture.server.issue_audit_reference({"dispatch_correlation_id": "closure-test"})
+    audit_result: list[dict[str, object]] = []
+    audit_errors: list[Exception] = []
+    audit_finished = threading.Event()
+
+    def read_completed_audit() -> None:
+        try:
+            audit_result.append(lab._Verifier(fixture)._read_audit(audit_reference))
+        except Exception as exc:
+            audit_errors.append(exc)
+        finally:
+            audit_finished.set()
+
     try:
         with socket.create_connection(("127.0.0.1", fixture.endpoint.port), timeout=2) as connection:
             connection.sendall(f"COPS-AUDIT {audit_reference} closure-test 6\nPING\r\n".encode())
             assert connection.recv(128) == b"+PONG\r\n"
             assert entered_shutdown.wait(timeout=2)
+            reader = threading.Thread(target=read_completed_audit)
+            reader.start()
+            assert not audit_finished.wait(timeout=0.6)
             with fixture.server.audit_lock:
                 assert audit_reference not in fixture.server.audit
                 assert fixture.server.closed_connections == 0
             allow_shutdown.set()
-            for _ in range(100):
-                with fixture.server.audit_lock:
-                    audit = fixture.server.audit.get(audit_reference)
-                    closed_connections = fixture.server.closed_connections
-                if audit is not None:
-                    break
-                time.sleep(0.01)
-            assert audit is not None and audit["closed"] is True
-            assert closed_connections == 1
+            assert audit_finished.wait(timeout=2)
+            reader.join(timeout=1)
+            assert not reader.is_alive()
+            assert audit_errors == []
+            assert len(audit_result) == 1
+            assert audit_result[0]["closed"] is True
+            with fixture.server.audit_lock:
+                assert fixture.server.closed_connections == 1
     finally:
         allow_shutdown.set()
         fixture.stop()

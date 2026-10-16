@@ -49,7 +49,9 @@ record that binds the approval receipt, plan, attempt, endpoint, selected action
 evidence digest, random dispatch correlation identifier, opaque one-use audit
 reference, and observation time within the dispatch interval. The provider returns
 only the opaque audit reference; provider-authored evidence claims do not satisfy
-this gate. Verification must occur within the verifier interval. The result records
+this gate. The verifier waits for the exact issued audit reference up to the bounded
+transaction deadline; a missing closure audit still produces `dispatch_uncertain`.
+The result records
 protocol evidence plus all five assessment dimensions: exposure, authentication,
 configuration, version, and trust. Complete evidence may establish an observed
 exposure or a versioned candidate; it cannot establish a verified finding or
