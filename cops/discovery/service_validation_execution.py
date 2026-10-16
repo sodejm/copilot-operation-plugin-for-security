@@ -422,8 +422,19 @@ def _verification_shape_is_valid(verification: ValidationEvidenceVerification) -
         )
         and _string_tuple(verification.authorized_use_evidence)
         and type(verification.authorized_use_verified) is bool
+        and (
+            (
+                verification.authorized_use_verified
+                and bool(verification.authorized_use_evidence)
+            )
+            or (
+                not verification.authorized_use_verified
+                and verification.authorized_use_evidence == ()
+            )
+        )
         and _string_tuple(verification.cleanup_evidence)
         and type(verification.cleanup_verified) is bool
+        and (not verification.cleanup_verified or bool(verification.cleanup_evidence))
         and _bounded_string(verification.audit_reference)
     )
 
@@ -773,19 +784,23 @@ def execute_service_validation_action(
         and verification.authorized_use_evidence
         and verification.cleanup_verified
     )
-    effect_observed_without_cleanup = bool(
+    controlled_action_observed_without_cleanup = bool(
         selection.action == "controlled_proof"
         and exact_verification
         and verification is not None
-        and verification.finding_effect_verified
-        and verification.effect_evidence
+        and (
+            (verification.finding_effect_verified and verification.effect_evidence)
+            or (verification.authorized_use_verified and verification.authorized_use_evidence)
+        )
         and (not verification.cleanup_verified or not verification.cleanup_evidence)
     )
     unexpected_low_impact_effect = bool(
         selection.action == "low_impact_validation"
         and verification is not None
-        and verification.finding_effect_verified
-        and verification.effect_evidence
+        and (
+            (verification.finding_effect_verified and verification.effect_evidence)
+            or (verification.authorized_use_verified and verification.authorized_use_evidence)
+        )
     )
     if unexpected_low_impact_effect:
         try:
@@ -803,17 +818,18 @@ def execute_service_validation_action(
             observed_version=verification.observed_version,
             protocol_evidence=verification.protocol_evidence,
             effect_evidence=verification.effect_evidence,
+            authorized_use_evidence=verification.authorized_use_evidence,
             cleanup_evidence=verification.cleanup_evidence,
             dimensions=dict(verification.dimensions),
         )
-    if effect_observed_without_cleanup:
+    if controlled_action_observed_without_cleanup:
         try:
             ledger.mark_uncertain(request.attempt_id)
         except (BudgetDenied, ValueError):
             pass
         return ValidationActionResult(
             status="dispatch_uncertain",
-            reason="the controlled effect was observed but cleanup was not positively verified",
+            reason="the controlled action was observed but cleanup was not positively verified",
             plan_id=plan.plan_id,
             attempt_id=request.attempt_id,
             action=selection.action,
@@ -822,6 +838,7 @@ def execute_service_validation_action(
             observed_version=verification.observed_version,
             protocol_evidence=verification.protocol_evidence,
             effect_evidence=verification.effect_evidence,
+            authorized_use_evidence=verification.authorized_use_evidence,
             cleanup_evidence=verification.cleanup_evidence,
             dimensions=dict(verification.dimensions),
         )
@@ -852,7 +869,12 @@ def execute_service_validation_action(
     coverage["effect"] = "tested" if proof_complete else "untested"
     coverage["authorized_use"] = "tested" if successful_use else "untested"
     coverage["cleanup"] = (
-        "tested" if exact_verification and verification is not None and verification.cleanup_verified else "untested"
+        "tested"
+        if exact_verification
+        and verification is not None
+        and verification.cleanup_verified
+        and verification.cleanup_evidence
+        else "untested"
     )
     coverage["reproduction"] = "versioned-#143" if candidate else "unverified"
     for field in ("observation", "evidence", "impact", "remediation", "detection"):
