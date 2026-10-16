@@ -1054,11 +1054,11 @@ class _BrokerSupervisor:
 
     def close(self) -> None:
         self._stop.set()
-        self._process.join(timeout=0.25)
-        self._finish(terminate=self._process.is_alive(), send_timeout_error=False)
         self._thread.join(timeout=2)
         if self._thread.is_alive():
             raise EgressMediationError("egress broker supervisor did not terminate after adapter exit")
+        self._process.join(timeout=0.25)
+        self._finish(terminate=self._process.is_alive(), send_timeout_error=False)
         if self._error is not None:
             raise self._error
 
