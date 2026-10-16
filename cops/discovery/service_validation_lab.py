@@ -43,6 +43,7 @@ _DIMENSIONS = ("exposure", "authentication", "configuration", "version", "trust"
 _AUDIT_PREFIX = b"COPS-AUDIT "
 _MAX_AUDIT_HEADER_BYTES = 1024
 _MAX_AUDIT_REQUEST_BYTES = 8192
+_AUDIT_COMPLETION_TIMEOUT_SECONDS = 2.0
 
 
 def _read_audit_frame(connection: socket.socket, initial: bytes = _AUDIT_PREFIX) -> tuple[str, str, bytes]:
@@ -218,6 +219,7 @@ class _Server(socketserver.ThreadingTCPServer):
         self.requests: list[bytes] = []
         self.responses: list[bytes] = []
         self.audit_lock = threading.Lock()
+        self.audit_condition = threading.Condition(self.audit_lock)
         self.pending_audits: dict[str, dict[str, object]] = {}
         self.audit: dict[str, dict[str, object]] = {}
         self.closing_audits: dict[socket.socket, tuple[str, dict[str, object]]] = {}
@@ -258,12 +260,32 @@ class _Server(socketserver.ThreadingTCPServer):
         super().shutdown_request(request)
         if request.fileno() != -1:
             raise RuntimeError("fixture transport remained open")
-        with self.audit_lock:
+        with self.audit_condition:
             pending = self.closing_audits.pop(request, None)
             if pending is not None:
                 audit_reference, record = pending
                 self.audit[audit_reference] = {**record, "recorded_at": utc_now(), "closed": True}
             self.closed_connections += 1
+            self.audit_condition.notify_all()
+
+    def read_completed_audit(
+        self,
+        audit_reference: str,
+        *,
+        timeout: float = _AUDIT_COMPLETION_TIMEOUT_SECONDS,
+    ) -> dict[str, object]:
+        deadline = time.monotonic() + timeout
+        with self.audit_condition:
+            while True:
+                record = self.audit.get(audit_reference)
+                if record is not None and record.get("closed") is True:
+                    self.audit.pop(audit_reference, None)
+                    return dict(record)
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                self.audit_condition.wait(timeout=remaining)
+        raise RuntimeError("provider transaction audit record was unavailable")
 
     def issue_audit_reference(self, metadata: dict[str, object]) -> str:
         with self.audit_lock:
@@ -543,15 +565,7 @@ class _Verifier:
         self.case = fixture.case
 
     def _read_audit(self, audit_reference: str) -> dict[str, object]:
-        deadline = time.monotonic() + 0.5
-        while time.monotonic() < deadline:
-            with self.fixture.server.audit_lock:
-                record = self.fixture.server.audit.get(audit_reference)
-                if record is not None and record.get("closed") is True:
-                    self.fixture.server.audit.pop(audit_reference, None)
-                    return dict(record)
-            time.sleep(0.005)
-        raise RuntimeError("provider transaction audit record was unavailable")
+        return self.fixture.server.read_completed_audit(audit_reference)
 
     def __call__(
         self,
