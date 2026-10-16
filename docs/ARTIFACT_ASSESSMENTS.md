@@ -99,9 +99,10 @@ subset result cannot establish safety of the complete build.
 
 The separate [Git history scanner](../plugins/identity-access/secrets-remediation-workbench/docs/GIT_HISTORY_SCANNER.md)
 enumerates an explicitly scoped ordinary checkout through a registered, executable
-hash-pinned Git adapter. It detects historical synthetic credentials without
+hash-pinned Git adapter. It detects bounded historical credential patterns without
 returning values, changing repository bytes, or fetching objects. A complete
 bounded scan without matches is distinct from an empty or truncated scan.
+Matches are potential exposures; they do not establish credential validity.
 Containment remains unknown until separate revocation evidence is collected.
 
 ## Disposable acquisition adapter

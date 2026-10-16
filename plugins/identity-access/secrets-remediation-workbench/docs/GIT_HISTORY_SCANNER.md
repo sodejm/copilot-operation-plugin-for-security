@@ -32,20 +32,32 @@ python3 scripts/scan_git_history.py \
   --timeout-seconds 30
 ```
 
-The scanner recognizes only synthetic fixture values beginning with
-`COPS_TEST_TOKEN_` or `COPS_SYNTHETIC_SECRET_`, followed by 16 to 128 safe test
-characters. Output uses schema `cops.git-history-scan/v1`. Each observation contains
+The scanner recognizes these bounded potential credential shapes:
+
+| Pattern | Accepted shape |
+| --- | --- |
+| COPS test tokens | `COPS_TEST_TOKEN_` or `COPS_SYNTHETIC_SECRET_` with 16–128 safe test characters |
+| GitHub classic PAT | `ghp_` with exactly 36 alphanumeric characters |
+| AWS access-key identifier | `AKIA` with exactly 16 uppercase alphanumeric characters |
+| Bearer credential | `Bearer` followed by 16–2048 token characters |
+| PEM private key | Matching private-key labels and at most 128 base64 lines of 128 characters |
+
+These are potential exposures requiring review. A pattern match does not prove
+validity, and an AWS identifier alone cannot authenticate. Unsupported encodings,
+provider token formats and malformed or oversized shapes remain outside coverage.
+Output uses schema `cops.git-history-scan/v1`. Each observation contains
 an opaque SHA-256 fingerprint, a safe path, a commit object ID, and Git blob source
-provenance. A matched value is never returned. A path containing a matched synthetic
-value is replaced by a path fingerprint.
+provenance and a versioned pattern ID. A matched value is never returned. A path
+containing a recognized credential shape is replaced by a path fingerprint.
 
 Deleting a value from the current tree does not clear an older reachable commit.
 The scanner reports that exposure and leaves containment unknown. It cannot establish
 provider-side rotation or revocation; that needs
 `registered-adapter:provider-revocation-check@1`. Empty repositories and scans that
 reach a bound without finding a match return insufficient evidence. A complete
-bounded scan with no recognized synthetic match is an observation about that bounded
-local scope, not proof that credentials are absent elsewhere.
+bounded scan returns `no_supported_match_observed` when it finds none of the
+supported patterns. This describes only that bounded local scope and does not
+prove the absence of other credentials.
 
 The isolated service gate commits a synthetic credential, deletes it in a second
 commit, and scans the historical blob. It proves the repository is unchanged and

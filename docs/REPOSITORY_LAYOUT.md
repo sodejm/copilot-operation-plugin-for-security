@@ -77,3 +77,8 @@ connectivity operations; execution adapters own active checks and authorization.
 `cops/assessments/crypto_inputs.py` owns the registered optional certificate and
 JWT verifier. It uses explicit local trust inputs; the TLS and authentication
 laboratories compare those results with actual service responses.
+
+`cops/assessments/git_history.py` owns bounded credential pattern extraction and
+opaque fingerprints behind the pinned Git adapter. The shared artifact engine
+consumes its content-free observations; provider validation remains an execution
+adapter responsibility.

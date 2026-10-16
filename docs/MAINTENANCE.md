@@ -105,3 +105,8 @@ in `pyproject.toml`, the adapter registry and the laboratory lockfile. Revalidat
 chain policy and token corrections after upgrades, synchronize the portable
 runtimes, and repeat `make check-laboratory` with the rebuilt pinned image.
 Do not infer remote acceptance from local verification results.
+
+Credential pattern updates must preserve pattern IDs and fingerprint domains or
+document their migration. Review false positives and unsupported formats, and
+never treat a pattern match as provider authentication evidence. The pinned Git
+scanner and ephemeral revocation service have separate acceptance evidence.

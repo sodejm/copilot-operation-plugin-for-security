@@ -123,3 +123,12 @@ New `certificate_chain` and `jwt_verification` artifacts use the optional pinned
 accepted, rejected or unknown outcomes. A rejection is a local observation,
 not a remote vulnerability. Missing dependencies or trust remain unknown.
 See the [typed contract](../plugins/vulnerability-management/tls-crypto-workbench/docs/CRYPTO_INPUTS.md).
+
+## Credential pattern coverage
+
+The Git scanner keeps schema `cops.git-history-scan/v1` and adds registered potential
+credential patterns. Complete empty-match scans now use `no_supported_match_observed`;
+the assessor still reads legacy `no_synthetic_match_observed` results. Synthetic
+fingerprints retain their original domain for laboratory correlation; other values
+use `cops.credential/v1`. Consumers must retain pattern IDs and coverage limitations.
+Pattern matches cannot establish provider validity or revocation.
