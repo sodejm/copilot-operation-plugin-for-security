@@ -1,6 +1,6 @@
 # Disposable service laboratory
 
-The COPS service laboratory has two complementary acceptance paths. Offline playback evaluates deterministic synthetic Entra grant, Entra sign-in, Kubernetes audit, and normalized Sysmon-shaped JSON events. Process acceptance starts four disposable loopback HTTP services and performs actual requests through identity, protected-resource, IOC hunt/containment, and lateral-target paths. Additional disposable servers exercise REST/GraphQL object authorization, rate limits, a SQLite-backed injection fixture, and a proposed-tool-call gateway. Ephemeral TLS and JWT credentials test actual trust and signature decisions.
+The COPS service laboratory has two complementary acceptance paths. Offline playback evaluates deterministic synthetic Entra grant, Entra sign-in, Kubernetes audit, and normalized Sysmon-shaped JSON events. Process acceptance starts four disposable loopback HTTP services and performs actual requests through identity, protected-resource, IOC hunt/containment, and lateral-target paths. Additional disposable servers exercise REST/GraphQL object authorization, rate limits, a SQLite-backed injection fixture, an installed synthetic dependency, and a proposed-tool-call gateway. Ephemeral TLS and JWT credentials test actual trust and signature decisions.
 
 Neither path creates an authorization mechanism. Authorized active operations continue to use the existing `ActionPlan`, approval, worker scope, and signed `LaboratoryHarness` observation gates. The disposable services use reserved example addresses and synthetic identities and never contact an external target.
 
@@ -31,6 +31,7 @@ The callable API is `ServiceLaboratory.run_offline_playback()` or `ServiceLabora
 | Trusted client mTLS | 204 | 204 |
 | Missing or untrusted client certificate | TLS rejected | TLS rejected |
 | SQL injection | Other synthetic object exposed | No object returned |
+| Installed synthetic dependency injection | Other synthetic object exposed | No object returned |
 | Permitted tool and resource | 200 | 200 |
 | Direct/indirect unauthorized tool or resource | Allowed, boundary finding | 403, no tool call |
 | Other-user or anonymous API object request | Object exposed | 403 or 401 |
@@ -86,7 +87,7 @@ NetworkPolicy enforcement, HTTP and audit evidence, restoration after success,
 failure and cancellation, and owned-resource removal. All thirteen cases are
 required; process-only acceptance cannot satisfy the Kubernetes isolation gate.
 
-The gate prints one compact JSON object. `status` is `passed`, `blocked`, or `failed`; `blockers` contains the exact isolation blocker; `failures` contains behavioral mismatches; and each item in `cases` contains bounded metrics for service, API, gateway, acquisition, TLS, and JWT checks. Exit status 0 requires verified network isolation and every functional assertion. Exit status 2 means the functional evidence passed but the isolation prerequisite is blocked. Exit status 1 means functional evidence or strict preflight failed.
+The gate prints one compact JSON object. `status` is `passed`, `blocked`, or `failed`; `blockers` contains the exact isolation blocker; `failures` contains behavioral mismatches; and each item in `cases` contains bounded metrics for service, API, gateway, acquisition, supply-chain, TLS, and JWT checks. Exit status 0 requires verified network isolation and every functional assertion. Exit status 2 means the functional evidence passed but the isolation prerequisite is blocked. Exit status 1 means functional evidence or strict preflight failed.
 
 Run it directly, optionally retaining disposable evidence below a caller-selected directory:
 
@@ -95,9 +96,9 @@ python scripts/check_laboratory.py
 python scripts/check_laboratory.py --state-dir "$TMPDIR/cops-laboratory-evidence"
 ```
 
-On a host without a verified container or network namespace boundary, the gate still exercises the local services so failures remain observable, then exits 2 only if all functional prerequisites and checks pass. A missing Linux EVTX parser fails its required case with exit 1. It marks nonisolated results as `functional_evidence_only: true`. Its strict preflight also calls the workflow runner with `require_isolation=True` and verifies rejection happens before a state directory is created.
+On a host without a verified container or network namespace boundary, the gate still exercises the local services so failures remain observable, then exits 2 only if all functional prerequisites and checks pass. A missing Linux EVTX parser or registered synthetic-wheel installer fails its required case with exit 1. It marks nonisolated results as `functional_evidence_only: true`. Its strict preflight also calls the workflow runner with `require_isolation=True` and verifies rejection happens before a state directory is created.
 
-The root `Makefile` exposes the strict gate. The default process runtime records functional evidence and cannot verify network isolation. For isolated acceptance, provision an image locally containing Python 3.11 or later, `cryptography==50.0.2`, `python-evtx==0.8.1`, and `hexdump==3.3`, then supply its immutable image ID:
+The root `Makefile` exposes the strict gate. The default process runtime records functional evidence and cannot verify network isolation. For isolated acceptance, provision an image locally containing Python 3.11 or later, `cryptography==50.0.2`, `python-evtx==0.8.1`, `hexdump==3.3`, and `pip==26.1.2`, then supply its immutable image ID:
 
 ```console
 make check-laboratory
@@ -122,3 +123,26 @@ and verifies unchanged original bytes. It rejects denied permission, absent
 custody, and a deliberately modified copy. Restoring the copy must restore
 integrity verification. Temporary files are removed on exit. These checks cover
 raw-file integrity only; they do not establish native disk or memory collection.
+
+## Supply-chain installation correction cases
+
+`synthetic-wheel-installation@1` creates deterministic versions 1.0.0 and 1.0.1 of
+the reviewed synthetic query dependency. It installs each wheel offline into a
+temporary directory, requires its SHA-256 and verifies the installed source.
+Actual HTTP requests preserve owner access while demonstrating vulnerable SQL
+injection and its correction. The same component version enters the pinned
+advisory assessment; an empty inventory remains unknown.
+
+A second installation deliberately changes the wheel bytes and must fail hash
+verification without installing the module. The adapter removes its temporary
+directory and reaps its process group after success, failure or cancellation.
+Worker deadlines and output limits are separately tested with actual subprocesses.
+Each result records the component and wheel digests; rebuilding the reviewed
+source reproduces those bytes. Reset consists of removing the disposable root,
+which the adapter verifies on completion.
+
+The registered prerequisites are pip 26.1.2 on Linux and 26.2.1 on macOS. Other
+versions or platforms produce an explicit unsupported result in portable runs
+and fail the strict laboratory gate. These cases cover only the registered
+synthetic wheels. They do not validate arbitrary packages, source builds, registry
+resolution or production CI execution.

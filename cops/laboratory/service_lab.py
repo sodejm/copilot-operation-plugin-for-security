@@ -29,6 +29,7 @@ from .network_boundary import inspect_acceptance_boundary
 from .exposure_dns import ExposureDNS, HOST as EXPOSURE_HOST
 from .service_authentication import run_api_acceptance, run_jwt_acceptance
 from .service_boundaries import run_acquisition_acceptance, run_boundary_acceptance
+from .service_supply_chain import run_supply_chain_acceptance
 from .service_tls import TLSAcceptanceResult, run_ephemeral_mtls_acceptance
 from .source_snapshot import bounded_read
 
@@ -650,6 +651,7 @@ class ServiceLaboratory:
             jwt_result = run_jwt_acceptance()
             boundary_result = run_boundary_acceptance(profile)
             acquisition_result = run_acquisition_acceptance()
+            supply_chain_result = run_supply_chain_acceptance(profile)
             graph_mutated_before_final_reset = graph.state.snapshot() != graph.baseline.snapshot()
             detection_counts, alert_events = _execute_detection_rules(telemetry.events)
         restoration["final_graph_reset"] = graph.final_reset_verified
@@ -678,6 +680,7 @@ class ServiceLaboratory:
                 "jwt": jwt_result,
                 "boundaries": boundary_result,
                 "acquisition": acquisition_result,
+                "supply_chain": supply_chain_result,
             },
             detection_counts=detection_counts,
             tls=tls_result.to_dict(),

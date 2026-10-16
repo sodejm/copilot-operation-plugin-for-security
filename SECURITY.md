@@ -19,5 +19,11 @@ identifiers and continuation tokens; callers own storage ACLs, credential-provid
 trust, live authorization and retention. See the
 [SDK security and storage boundaries](docs/EVIDENCE_SDK.md).
 
+The supply-chain acceptance adapter installs only reviewed synthetic wheels with
+a registered installer and hash-locked local inputs. It accepts no external
+package, build script or registry destination. Time, output and process cleanup
+limits supplement the strict laboratory's container isolation. See the
+[supply-chain abuse cases](docs/THREAT_MODEL.md#synthetic-package-installation-abuse-cases).
+
 See the [repository security model](docs/SECURITY_MODEL.md) and
 [plugin privacy guidance](plugins/logging-telemetry/security-logging-advisor/docs/SECURITY_PRIVACY.md).

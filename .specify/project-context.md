@@ -197,3 +197,9 @@ Exposure playback requires complete, in-window DNS, connection and authenticatio
 evidence for each exact endpoint. Its isolated lab observes a fixed non-forwarding
 DNS answer plus actual vulnerable/corrected HTTP responses. Incomplete coverage
 and DNS failures cannot clear an audit; production discovery remains unverified.
+
+Supply-chain laboratory acceptance uses a registered offline installer for two
+reviewed synthetic wheels. Actual installed-code HTTP behavior, source hashes,
+tamper rejection and cleanup augment the artifact assessor. The strict gate
+requires its pinned installer; arbitrary packages and registry execution remain
+unsupported. See `docs/SERVICE_LABORATORY.md` for prerequisites and evidence limits.

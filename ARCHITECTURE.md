@@ -240,3 +240,15 @@ and inconclusive exports against the bundled official SARIF 2.1.0 schema. Its
 original bytes are hash-pinned, all references must be local, and retrieval is
 disabled. Development validation does not add a parser dependency to the runtime
 exporter or authenticate source evidence. See [report exports](docs/REPORT_EXPORTS.md).
+
+## Synthetic dependency installation
+
+The registered `synthetic-wheel-installation@1` laboratory adapter builds two
+deterministic pure-Python wheels from reviewed query fixtures. A pinned pip
+installs only the generated local wheel with hashes required, indexes and
+dependencies disabled, and source builds forbidden. The adapter verifies the
+installed module digest before a fixed subprocess serves actual SQLite-backed
+HTTP requests. Nonce-bound observations, advisory results, tamper rejection and
+cleanup enter `service_activity.supply_chain`. Process execution has finite time
+and output limits; the enclosing container supplies verified network isolation.
+See [the laboratory contract](specs/service-laboratory.spec.md).

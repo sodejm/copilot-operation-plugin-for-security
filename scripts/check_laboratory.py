@@ -228,6 +228,17 @@ def _service_case(
     _expect(failures, len(imports) == 2 and {item.get("kind") for item in imports} == {"disk_image", "memory_image"}, "raw disk and memory imports were not exercised")
     _expect(failures, all(item.get("integrity") == "verified" and item.get("analysis") == "not_performed" and item.get("source", {}).get("sha256") == acquisition.get("receipt", {}).get("sha256") and item.get("source", {}).get("bytes") == acquisition.get("receipt", {}).get("bytes") for item in imports), "raw imports are not bound to acquired bytes")
     _expect(failures, acquisition.get("import_rejections") == ["permission", "custody", "tampering"] and acquisition.get("corrected_import_verified") is True, "raw import correction or rejection cases are incomplete")
+    supply_chain = activity.get("supply_chain", {})
+    _expect(failures, supply_chain.get("status") == "complete" and supply_chain.get("prerequisite", {}).get("available") is True, "pinned supply-chain installer is unavailable or acceptance is incomplete")
+    _expect(failures, supply_chain.get("install_exit_code") == 0 and supply_chain.get("installed_source_verified") is True, "synthetic dependency was not installed from the reviewed source")
+    supply_runtime = supply_chain.get("runtime", {})
+    _expect(failures, supply_runtime.get("actual_requests") == 2 and supply_runtime.get("service_stopped") is True, "installed dependency service activity or cleanup is incomplete")
+    _expect(failures, supply_runtime.get("benign_objects") == ["owner-object"], "installed dependency changed the permitted query")
+    _expect(failures, supply_runtime.get("injection_objects") == (["owner-object", "other-object"] if expected_reached else []), "installed dependency injection correction differs")
+    _expect(failures, supply_chain.get("advisory_assessment") == ("matched" if expected_reached else "clear"), "pinned dependency advisory disagrees with runtime correction")
+    _expect(failures, supply_chain.get("insufficient_evidence_status") == "unknown", "missing dependency evidence did not remain unknown")
+    for field in ("hash_mismatch_rejected", "tampered_install_absent", "disposable_root_removed"):
+        _expect(failures, supply_chain.get(field) is True, f"supply-chain {field} is incomplete")
     _expect(failures, all(report.restoration.values()), "success/failure/cancellation/final graph restoration is incomplete")
     _expect(
         failures,
@@ -257,6 +268,10 @@ def _service_case(
             "acquisition_verified": acquisition.get("original_unchanged") is True and not acquisition.get("finding_codes"),
             "raw_image_imports": len(imports),
             "raw_image_rejections": acquisition.get("import_rejections"),
+            "supply_chain_requests": supply_runtime.get("actual_requests"),
+            "supply_chain_advisory": supply_chain.get("advisory_assessment"),
+            "supply_chain_hash_rejection": supply_chain.get("hash_mismatch_rejected"),
+            "supply_chain_cleanup": supply_chain.get("disposable_root_removed"),
         },
     }
 
