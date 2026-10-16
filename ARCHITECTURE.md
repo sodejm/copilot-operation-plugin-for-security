@@ -230,3 +230,12 @@ references and explicit completeness constrain negative results. The service lab
 uses the same assessor after a fixed, non-forwarding loopback DNS exchange and
 actual HTTP requests. Endpoint, resolver port, profiles and prior observations
 bind existing ActionPlans; validation failure stops later stages and runs cleanup.
+
+## Report export conformance
+
+Runtime exporters validate assessment semantics and GitHub's SARIF subset before
+rendering. The portable test gate additionally validates vulnerable, corrected
+and inconclusive exports against the bundled official SARIF 2.1.0 schema. Its
+original bytes are hash-pinned, all references must be local, and retrieval is
+disabled. Development validation does not add a parser dependency to the runtime
+exporter or authenticate source evidence. See [report exports](docs/REPORT_EXPORTS.md).

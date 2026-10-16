@@ -79,8 +79,9 @@ unsupported formats return limitations rather than successful assessments.
 ## Reports and readiness
 
 `python -m cops report export --format sarif|junit|pr-markdown` exports review
-artifacts. SARIF validation requires the official SARIF 2.1.0 schema and the
-GitHub-supported subset checks. Markdown suggestions require a verified source
+artifacts. The portable gate now requires offline conformance to the bundled,
+hash-pinned official SARIF 2.1.0 schema and the GitHub-supported subset checks;
+`COPS_SARIF_SCHEMA_PATH` is no longer used. Markdown suggestions require a verified source
 revision and valid file/line anchors. Export does not post to a hosted service.
 
 Run `make check` and `make check-docs` in the declared contributor environment.

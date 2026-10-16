@@ -173,6 +173,9 @@ alerts to satisfy every expected predicate, correlation ID, and time window;
 an unrelated alert with a matching correlation ID cannot establish detection.
 Report exports retain those distinctions
 and do not turn inconclusive results into verified findings or passing tests.
+The portable gate validates SARIF against an unmodified, hash-pinned official
+schema with only local references and disabled retrieval. Schema conformance
+checks report structure, not source authenticity or authorization.
 
 Artifact assessors accept bounded documented formats. Heavy acquisition and
 platform parsers require registered adapters with pinned prerequisites. Imported

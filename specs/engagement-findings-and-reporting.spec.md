@@ -63,7 +63,11 @@ authorization grant, or report publication occurs in this workflow.
    redact credential patterns and create local artifacts without posting or
    uploading them.
 7. SARIF conforms to the official OASIS 2.1.0 schema and the fields documented
-   by GitHub's supported subset. Optional source locations and every Markdown
+   by GitHub's supported subset. The portable gate must validate vulnerable,
+   corrected and inconclusive exports offline against the bundled, hash-pinned
+   official schema; missing schema bytes or validation dependencies fail the gate
+   rather than skip it. Remote schema retrieval is forbidden. Optional source
+   locations and every Markdown
    suggestion resolve against a full immutable Git commit, a repository-relative
    UTF-8 path and an existing line range. The export records a digest of the
    committed lines and rejects unknown Findings, duplicate locations, traversal,
