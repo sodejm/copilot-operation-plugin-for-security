@@ -212,3 +212,12 @@ playback and actual service observations. Exact component identities connect the
 pinned advisory, complete inventory, invocation records and compensating controls.
 The source laboratory records calls at the query boundary; missing provenance
 cannot establish reachability. See [integrated workflows](docs/INTEGRATED_WORKFLOWS.md).
+
+## Consent identity binding
+
+`cops.workflows.consent_evidence` supplies the same bounded assessment to offline
+and active workflows. Complete, in-window exports bind tenant and grant identity
+through service-principal object IDs to sign-in application IDs. The resulting
+target and evidence references enter the existing ActionPlan configuration and
+prior-output digests. The synthetic identity service validates the exact tuple
+before changing grant state; token-to-grant bindings separate unrelated access.

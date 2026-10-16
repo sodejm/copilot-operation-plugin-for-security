@@ -668,3 +668,15 @@ controls while verifying vulnerable/corrected HTTP outcomes. Offline source
 authenticity and semantic truth remain operator responsibilities; no negative
 observation establishes non-exploitability. Production advisory and version-range
 resolution remain outside this synthetic contract.
+
+## Consent correlation abuse cases
+
+Untrusted export flags could nominate an unrelated grant or falsely clear a
+partial tenant export. Exact tenant, grant, client object and application IDs
+prevent cross-identity joins; unique records and complete, timestamped collections
+prevent missing evidence from clearing an assessment. Existing plan digests bind
+configuration and prior output before authorization. The disposable service checks
+the target tuple and independently preserves a benign grant. Tests cover
+cross-tenant, stale, conflicting, incomplete, duplicate and malformed records,
+wrong-target HTTP rejection and unchanged source evidence. Producer assertions
+and production Graph semantics remain outside this synthetic service boundary.

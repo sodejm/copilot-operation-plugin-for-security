@@ -260,3 +260,13 @@ controls cannot establish reachability or lower remediation priority. Offline
 records remain supplied assertions; the isolated laboratory generates actual
 invocation records. Neither path authenticates an external advisory publisher or
 establishes non-exploitability outside the supplied component and observation.
+
+## Consent evidence trust
+
+Complete export and risk flags remain producer assertions. Tenant, unique IDs,
+observation window and explicit service-principal/application joins constrain
+correlation; missing or conflicting records produce no actionable target.
+Laboratory approvals bind the exact target tuple and prior evidence. The emulator
+rejects a different grant, and acceptance verifies unrelated access remains valid.
+This is synthetic grant revocation evidence; production Entra, session revocation
+and follow-up hunting require separate validation.

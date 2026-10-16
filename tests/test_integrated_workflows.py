@@ -36,6 +36,7 @@ EXPECTED_PROFILES = {
     ("kubernetes-compromise-containment", "corrected"): "no_containment_required",
     ("illicit-consent-remediation", "vulnerable"): "insufficient_lab_validation",
     ("illicit-consent-remediation", "corrected"): "no_suspicious_consent_observed",
+    ("illicit-consent-remediation", "limited"): "insufficient_evidence",
     ("detection-rule-ci-validation", "verified"): "verified_detection",
     ("detection-rule-ci-validation", "detection_gap"): "detection_gap",
     ("pre-release-exposure-audit", "vulnerable"): "action_required",

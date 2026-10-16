@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import copy
 import hashlib
 import json
 import os
@@ -87,10 +88,12 @@ class _State:
     tokens: dict[str, bool] = field(default_factory=dict)
     iocs: list[str] = field(default_factory=list)
     contained: list[str] = field(default_factory=list)
+    grants: dict[str, dict[str, Any]] = field(default_factory=dict)
+    grant_tokens: dict[str, str] = field(default_factory=dict)
 
     def snapshot(self) -> str:
         payload = json.dumps(
-            {"profile": self.profile, "tokens": self.tokens, "iocs": self.iocs, "contained": self.contained},
+            asdict(self),
             sort_keys=True,
             separators=(",", ":"),
         )
@@ -101,9 +104,11 @@ class _State:
         self.tokens = dict(other.tokens)
         self.iocs = list(other.iocs)
         self.contained = list(other.contained)
+        self.grants = copy.deepcopy(other.grants)
+        self.grant_tokens = dict(other.grant_tokens)
 
     def copy(self) -> _State:
-        return _State(self.profile, dict(self.tokens), list(self.iocs), list(self.contained))
+        return copy.deepcopy(self)
 
 
 class _Telemetry:
@@ -175,6 +180,8 @@ class _Graph:
     def __init__(self, configuration: dict[str, Any], telemetry: _Telemetry) -> None:
         self.configuration = configuration
         self.state = _State(str(configuration["profile"]))
+        self.state.grants = {item["grant_id"]: {**item, "active": True}
+                             for item in configuration.get("synthetic_grants", [])}
         self.baseline = self.state.copy()
         self.telemetry = telemetry
         self._lock = threading.Lock()
@@ -207,6 +214,24 @@ class _Graph:
             def do_POST(self) -> None:  # noqa: N802
                 data = _json_body(self)
                 token = str(data.get("token", ""))
+                if self.path in {"/issue-grant", "/revoke-grant"}:
+                    identity = data.get("identity")
+                    with lock:
+                        grant_id = identity.get("grant_id") if isinstance(identity, dict) else None
+                        grant = state.grants.get(grant_id) if isinstance(grant_id, str) else None
+                        expected = {key: value for key, value in grant.items() if key != "active"} if grant else None
+                        if not grant or identity != expected or (self.path == "/issue-grant" and not token):
+                            _reply(self, 409, {"error": "grant identity mismatch"})
+                            return
+                        if self.path == "/issue-grant":
+                            state.tokens[token] = True
+                            state.grant_tokens[token] = grant_id
+                        else:
+                            grant["active"] = False
+                    telemetry.record("grant_issued" if self.path == "/issue-grant" else "grant_revoked",
+                                     risk="benign" if self.path == "/issue-grant" else "attack", identity=identity)
+                    _reply(self, 201 if self.path == "/issue-grant" else 200, {"identity": identity})
+                    return
                 if self.path == "/issue" and token:
                     with lock:
                         state.tokens[token] = True
@@ -234,7 +259,8 @@ class _Graph:
                 auth = self.headers.get("Authorization", "")
                 token = auth.removeprefix("Bearer ")
                 with lock:
-                    return bool(token and state.tokens.get(token))
+                    grant = state.grants.get(state.grant_tokens.get(token, ""))
+                    return bool(token and state.tokens.get(token) and (grant is None or grant["active"]))
 
             def do_GET(self) -> None:  # noqa: N802
                 if self.path != "/protected":
@@ -378,7 +404,8 @@ def verify_fixture_manifest(directory: Path = FIXTURE_DIRECTORY) -> str:
     if not isinstance(fixtures, list) or not 1 <= len(fixtures) <= 64:
         raise ValueError("laboratory fixture manifest has an invalid file count")
     expected = {"vulnerable.json", "corrected.json", "entra-grants.jsonl", "entra-signins.jsonl", "kubernetes-audit.jsonl", "sysmon-normalized.jsonl",
-                "sysmon-vulnerable.evtx", "sysmon-corrected.evtx", "sysmon-insufficient.evtx", "cve-advisory.json"}
+                "sysmon-vulnerable.evtx", "sysmon-corrected.evtx", "sysmon-insufficient.evtx", "cve-advisory.json",
+                "consent-context.json"}
     observed_paths: set[str] = set()
     total = 0
     for item in fixtures:
@@ -400,6 +427,14 @@ def verify_fixture_manifest(directory: Path = FIXTURE_DIRECTORY) -> str:
     if observed_paths != expected:
         raise ValueError("laboratory fixture manifest is incomplete")
     return hashlib.sha256(raw).hexdigest()
+
+
+def load_consent_fixture(directory: Path = FIXTURE_DIRECTORY) -> dict[str, Any]:
+    verify_fixture_manifest(directory)
+    context = json.loads(bounded_read(directory / "consent-context.json", 1024 * 1024))
+    for kind in ("grants", "signins"):
+        context[kind] = [json.loads(line) for line in bounded_read(directory / f"entra-{kind}.jsonl", 1024 * 1024).splitlines()]
+    return context
 
 
 def probe_isolated_runtime() -> IsolationProbe:
@@ -459,6 +494,8 @@ class ServiceLaboratory:
         alerts: list[dict[str, Any]] = []
         counts: Counter[str] = Counter()
         dangerous_clients: set[str] = set()
+        context = load_consent_fixture(self.fixture_directory)
+        principals = {item["id"]: item for item in context["service_principals"]}
         for name in ("entra-grants.jsonl", "entra-signins.jsonl", "kubernetes-audit.jsonl", "sysmon-normalized.jsonl"):
             for line in (self.fixture_directory / name).read_text(encoding="utf-8").splitlines():
                 event = json.loads(line)
@@ -473,9 +510,12 @@ class ServiceLaboratory:
                                and event.get("consent_type") == "AllPrincipals"
                                and event.get("permission") == "Mail.ReadWrite")
                     if matched and isinstance(event.get("client_id"), str):
-                        dangerous_clients.add(event["client_id"])
+                        principal = principals.get(event["client_id"])
+                        if principal and principal["tenant_id"] == event.get("tenant_id"):
+                            dangerous_clients.add(principal["app_id"])
                 elif name == "entra-signins.jsonl":
                     matched = (event.get("activity") == "signin" and event.get("status") == "success"
+                               and event.get("tenant_id") == context["coverage"]["tenant_id"]
                                and event.get("app_id") in dangerous_clients)
                 elif name == "kubernetes-audit.jsonl":
                     matched = (event.get("stage") == "ResponseComplete" and event.get("verb") in {"get", "list"}

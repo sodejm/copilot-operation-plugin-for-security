@@ -29,3 +29,9 @@ Provide two deterministic acceptance paths for COPS service scenarios: offline f
 21. Kubernetes stages bind namespace UID, pod IP, pinned images, policy digest and prior output to existing ActionPlan approvals. Actual required and forbidden pod requests establish baseline, containment and restoration. Correlated HTTP logs and successful policy create/delete audit records are mandatory.
 22. Kubernetes success, injected failure and cancellation restore connectivity and remove their namespaces. Final cleanup removes the owned node, volumes and nonce-scoped tags. Missing cleanup or inconclusive IPv4/IPv6 egress evidence fails acceptance.
 23. The strict composite gate requires the exact twelve service cases plus the Kubernetes case. Missing, duplicate, failed or blocked cases cannot produce completion.
+
+24. Consent correlation requires complete, unique, in-window tenant-bound records
+    joining grant client object IDs through service principals to sign-in app IDs.
+    Missing or conflicting evidence yields no target. The emulator revokes only an
+    exact tenant/grant/client/app tuple; acceptance proves target 200 → 401 and
+    unrelated grant 200 → 200. Session revocation and hunt steps remain proposals.

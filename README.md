@@ -253,3 +253,10 @@ laboratory gate includes this case; offline policy assessment alone cannot pass 
 advisory to exact component versions and source digests. Its laboratory records
 actual vulnerable and corrected query calls. Missing or unrelated evidence remains
 insufficient; these fixtures do not establish production CVE coverage.
+
+### Consent remediation evidence
+
+[Consent workflow playback](docs/INTEGRATED_WORKFLOWS.md) joins tenant-bound
+grants through service-principal IDs to application IDs in sign-ins. Missing,
+stale or conflicting evidence cannot produce a revocation target. The isolated
+lab revokes the exact synthetic grant and verifies that unrelated access survives.
