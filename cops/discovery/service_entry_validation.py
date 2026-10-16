@@ -276,9 +276,7 @@ def _prepare_service_entry_handoff(
         )
     if (
         endpoint.host not in session_targets
-        or endpoint.port not in (
-            session.approved_udp_ports if endpoint.transport == "udp" else session.approved_ports
-        )
+        or endpoint.port not in (session.approved_udp_ports if endpoint.transport == "udp" else session.approved_ports)
         or endpoint.vantage != session.vantage
         or probe_key not in session.completed_probe_keys
         or probe_key in session.pending_probe_keys
