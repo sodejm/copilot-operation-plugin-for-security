@@ -15,9 +15,30 @@ from cops.contracts.validation import validate_contract
 from cops.evidence.canonical import digest
 from cops.reporting.assessment import ReportError, build_assessment_report
 from cops.reporting.cli import command_engagement_retest
-from cops.reporting.retest import build_retest_report, render_retest_markdown, verify_retest_report_derivation
+from cops.reporting.retest import (
+    build_retest_report,
+    render_retest_markdown,
+    validate_retest_input_semantics,
+    verify_retest_report_derivation,
+)
 
 FIXTURE = Path(__file__).resolve().parents[1] / "cops" / "contracts" / "fixtures" / "valid_assessment_input.json"
+
+
+def _refresh_receipt_digest(receipt: dict) -> None:
+    receipt["evidence_hash"] = digest(
+        {
+            key: receipt[key]
+            for key in (
+                "receipt_id",
+                "plan_id",
+                "engagement_id",
+                "worker_identity",
+                "cleaned_effects",
+                "unresolved_effects",
+            )
+        }
+    )
 
 
 def _receipt(plan_id: str, suffix: str, *, status: str = "not_required") -> dict:
@@ -37,19 +58,7 @@ def _receipt(plan_id: str, suffix: str, *, status: str = "not_required") -> dict
         if status == "failed"
         else [],
     }
-    receipt["evidence_hash"] = digest(
-        {
-            key: receipt[key]
-            for key in (
-                "receipt_id",
-                "plan_id",
-                "engagement_id",
-                "worker_identity",
-                "cleaned_effects",
-                "unresolved_effects",
-            )
-        }
-    )
+    _refresh_receipt_digest(receipt)
     return receipt
 
 
@@ -240,6 +249,52 @@ def test_tampered_receipt_and_cross_engagement_are_rejected():
         validate_contract(bundle, "retest_input")
 
 
+def test_v2_cleanup_quarantine_target_is_preserved_in_valid_report():
+    bundle = _input()
+    receipt = bundle["cleanup_receipts"][0]
+    receipt["schema_version"] = "cops.cleanup-receipt/v2"
+    receipt["status"] = "failed"
+    receipt["unresolved_effects"] = [
+        {
+            "effect_id": "artifact-1",
+            "resource_type": "file",
+            "target": "lab-host",
+            "quarantine_target": "quarantine://artifact-1",
+            "reason": "cleanup pending",
+        }
+    ]
+    _refresh_receipt_digest(receipt)
+
+    report = build_retest_report(bundle)
+
+    validate_contract(report, "retest_report")
+    assert (
+        report["review_context"]["cleanup_receipts"][0]["unresolved_effects"][0]["quarantine_target"]
+        == "quarantine://artifact-1"
+    )
+
+
+def test_normalized_duplicate_baseline_assets_are_rejected():
+    bundle = _input()
+    bundle["baseline_report"]["findings"][0]["affected_assets"].append("10.0.0.5/32")
+
+    with pytest.raises(ContractError, match="duplicate normalized baseline finding asset"):
+        validate_contract(bundle, "retest_input")
+
+
+def test_expanded_retest_results_are_bounded(monkeypatch):
+    bundle = _input()
+    assets = [f"10.{index // 65536}.{index // 256 % 256}.{index % 256}" for index in range(5001)]
+    bundle["baseline_report"]["findings"][0]["affected_assets"] = assets
+    second_finding = deepcopy(bundle["baseline_report"]["findings"][0])
+    second_finding["finding_id"] = "find-result-limit-0002"
+    bundle["baseline_report"]["findings"].append(second_finding)
+    monkeypatch.setattr("cops.reporting.retest.validate_contract", lambda *_args, **_kwargs: None)
+
+    with pytest.raises(ReportError, match="result limit"):
+        validate_retest_input_semantics(bundle)
+
+
 def test_cli_writes_private_new_files_without_overwrite(tmp_path: Path):
     source = tmp_path / "input.json"
     source.write_text(json.dumps(_input()), encoding="utf-8")
@@ -276,3 +331,17 @@ def test_saved_report_derivation_catches_tampering(tmp_path: Path, capsys):
     report_path.write_text(json.dumps(report), encoding="utf-8")
     assert command_contract_validate(report_path, "retest_report", source_path) == 1
     assert "differs from supplied input" in capsys.readouterr().err
+
+
+def test_cli_validates_retest_report_over_default_contract_limit(tmp_path: Path, capsys):
+    bundle = _input()
+    bundle["residual_risks"] = [f"{index:04d} " + "x" * 1490 for index in range(800)]
+    report = build_retest_report(bundle)
+    encoded = json.dumps(report).encode()
+    assert 1024 * 1024 < len(encoded) < 4 * 1024 * 1024
+    source_path, report_path = tmp_path / "input.json", tmp_path / "report.json"
+    source_path.write_text(json.dumps(bundle), encoding="utf-8")
+    report_path.write_bytes(encoded)
+
+    assert command_contract_validate(report_path, "retest_report", source_path) == 0
+    assert "supplied-source derivation valid" in capsys.readouterr().out

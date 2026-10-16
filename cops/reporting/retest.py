@@ -10,6 +10,7 @@ from cops.evidence.canonical import EvidenceError, digest, timestamp
 from .assessment import ReportError, _parse_target, _safe
 
 _MAX_BYTES = 4 * 1024 * 1024
+_MAX_RESULTS = 10000
 _NOTICE = (
     "All conclusions are candidates based on supplied records. Independently verify source authenticity, "
     "observation time, ownership, cleanup, and execution authority before closure."
@@ -90,6 +91,17 @@ def validate_retest_input_semantics(bundle: dict[str, Any]) -> None:
         if _time(receipt["completed_at"]) > _time(bundle["generated_at"]):
             raise ReportError("cleanup receipt is later than retest input")
     baseline_findings = {finding["finding_id"]: finding for finding in baseline["findings"]}
+    result_count = 0
+    for finding in baseline["findings"]:
+        assets: set[str] = set()
+        for asset in finding["affected_assets"]:
+            normalized = str(_parse_target(asset))
+            if normalized in assets:
+                raise ReportError("duplicate normalized baseline finding asset")
+            assets.add(normalized)
+        result_count += len(assets)
+        if result_count > _MAX_RESULTS:
+            raise ReportError("retest input exceeds result limit")
     seen: set[tuple[str, str]] = set()
     for check in bundle["checks"]:
         finding = baseline_findings.get(check["finding_id"])

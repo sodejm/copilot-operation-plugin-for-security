@@ -265,7 +265,13 @@ def command_contract_validate(
 
     try:
         data = json.loads(file_path.read_text(encoding="utf-8"))
-        validate_contract(data, contract_type)
+        is_retest_report = contract_type == "retest_report" or (
+            contract_type is None
+            and isinstance(data, dict)
+            and data.get("schema_version") == "cops.retest-report/v1"
+        )
+        max_bytes = 4 * 1024 * 1024 if source_input is not None or is_retest_report else 1024 * 1024
+        validate_contract(data, contract_type, max_bytes=max_bytes)
         if source_input is not None:
             if data.get("schema_version") != "cops.retest-report/v1":
                 raise ReportError("--source-input requires a retest report")
