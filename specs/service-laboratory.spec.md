@@ -10,7 +10,7 @@ Provide two deterministic acceptance paths for COPS service scenarios: offline f
 2. The vulnerable profile reaches the lateral target and the corrected profile blocks that path. Both outcomes come from checksum-verified configuration fixtures.
 3. Issued credentials authenticate before revocation and receive HTTP 401 after containment revokes them.
 4. Valid client mTLS succeeds; missing and untrusted client certificates fail a real TLS handshake. All keys and certificates are deleted with the temporary directory.
-5. Telemetry and alert events contain a correlation ID and RFC3339 timestamp so the workflow purple-team handoff evaluator can consume them directly.
+5. Telemetry and alert events contain a correlation ID and RFC3339 timestamp so the workflow purple-team handoff evaluator can consume them directly. Both must satisfy every expected telemetry predicate before detection can be verified; an unrelated correlated alert does not qualify.
 6. Detection counts include attack and benign classes during offline playback and rule matches during process acceptance.
 7. IOC ingestion, hunting, and containment use the actual hunt and identity services.
 8. Normal completion, injected failure, and cancellation restore the service baseline. Final graph shutdown verifies the clean baseline again.
@@ -24,3 +24,4 @@ Provide two deterministic acceptance paths for COPS service scenarios: offline f
 16. Five integrated service chains bind each stage's typed configuration and prior observations to a freshly compiled ActionPlan. The approval adapter rejects changed actions, destinations, inputs, workers, authorization IDs, and replay before dispatch.
 17. Integrated reports preserve actual request statuses, consumed approvals, plan digests, persisted telemetry, baseline restoration, and stopped listeners. Synthetic consent, advisory, event-rule, and numeric-address fixtures do not establish production Entra, dependency, Sigma/KQL, or DNS support.
 18. Credential evidence bundles use an ephemeral Ed25519 signature and verify it before reporting integrity. Reports state that the key is unanchored and do not claim source authenticity; plaintext credentials remain absent from reports and persisted workflow state.
+19. The detection chain evaluates complete evidence and explicitly labeled withheld-log, withheld-alert, and unavailable-alert views of actual captured service activity. Source and handoff digests bind these views. Generated Sigma and KQL subsets execute against captured attack and benign events; all four result states and measured counts are required by the laboratory gate.

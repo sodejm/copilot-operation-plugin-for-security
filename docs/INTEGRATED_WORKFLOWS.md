@@ -118,7 +118,8 @@ Fixture reports state their evidence limits directly:
   `insufficient_lab_validation` when a remediation proposal requires laboratory
   validation.
 - Detection validation reports `verified_detection` only when actual telemetry
-  and an alert share the expected correlation and time window. Missing logs are
+  and an alert each satisfy every expected telemetry predicate and share the
+  expected correlation and time window. Missing logs are
   an `instrumentation_gap`; captured telemetry without the expected alert is a
   `detection_gap` with Sigma and KQL proposals. Missing evidence is
   `indeterminate`.
@@ -155,7 +156,11 @@ adapter. It verifies unchanged repository bytes and identifies the same credenti
 used by the service. The credential and consent chains prove authenticated access,
 revocation, and subsequent HTTP 401. The credential chain signs its redacted evidence bundle with
 an ephemeral Ed25519 key and verifies the signature. Detection CI measures actual
-captured attack and benign events. Exposure checks make authenticated and anonymous
+captured attack and benign events. It evaluates all four purple-team states using
+explicitly labeled complete, withheld-log, withheld-alert, and unavailable-alert
+views of that captured evidence. Both generated rule subsets match one attack
+event and zero benign events; the source and handoff digests bind those results.
+Exposure checks make authenticated and anonymous
 requests to the scoped graph. CVE triage sends the injection fixture to vulnerable
 and corrected servers and preserves missing reachability as unknown. Every chain
 collects correlated telemetry and verifies baseline restoration and stopped services.

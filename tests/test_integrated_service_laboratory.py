@@ -88,6 +88,23 @@ def test_integrated_workflow_uses_services_and_action_bound_approvals(
         assert assessment["event_counts"]["rule:ioc-hunt-hit"] == 1
         assert len(assessment["alerts"]) == 2
         assert assessment["sigma_kql_engine_validation"] == "unverified"
+        purple = assessment["purple_team"]
+        assert purple["source"] == "captured-service-activity"
+        assert purple["source_digests"] == {"telemetry": digest(report["events"]), "alerts": digest(report["alerts"])}
+        assert purple["handoff_digest"] == digest(purple["handoff"])
+        assert {name: view["result"]["status"] for name, view in purple["views"].items()} == {
+            "captured": "verified_detection", "logs_withheld": "instrumentation_gap",
+            "alerts_withheld": "detection_gap", "alert_evidence_unavailable": "indeterminate",
+        }
+        for name, view in purple["views"].items():
+            assert "captured service" in view["evidence_view"]
+            assert view["result"]["fixture_counts"] == {"attack_matches": 1, "benign_matches": 0}
+            assert view["result"]["rule_execution"]["counts_agree"] is True
+            for engine in ("sigma", "kql"):
+                execution = view["result"]["rule_execution"][engine]
+                assert execution["status"] == "executed"
+                assert execution["attack_matches"] == 1 and execution["benign_matches"] == 0
+            assert view["result"]["matched_alerts"] == (1 if name == "captured" else 0)
     else:
         assert assessment["authorized_status"] == 200
         assert assessment["anonymous_status"] == 401
