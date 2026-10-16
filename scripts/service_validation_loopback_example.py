@@ -23,18 +23,23 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--state-dir",
         type=Path,
-        help="Private directory for the durable acceptance budget ledger (temporary by default).",
+        help="Fresh, not-yet-existing directory for the durable acceptance budget ledger (temporary by default).",
     )
     return parser
 
 
 def main() -> int:
-    args = _parser().parse_args()
-    if args.state_dir is not None:
-        report = run_loopback_service_validation_journey(args.state_dir)
-    else:
-        with tempfile.TemporaryDirectory(prefix="cops-service-validation-") as directory:
-            report = run_loopback_service_validation_journey(Path(directory))
+    parser = _parser()
+    args = parser.parse_args()
+    try:
+        if args.state_dir is not None:
+            report = run_loopback_service_validation_journey(args.state_dir)
+        else:
+            with tempfile.TemporaryDirectory(prefix="cops-service-validation-") as directory:
+                temporary_parent = Path(directory).resolve(strict=True)
+                report = run_loopback_service_validation_journey(temporary_parent / "state")
+    except ValueError as exc:
+        parser.error(str(exc))
     json.dump(report, sys.stdout, indent=2, sort_keys=True)
     sys.stdout.write("\n")
     return 0

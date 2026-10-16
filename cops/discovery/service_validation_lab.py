@@ -7,6 +7,7 @@ or external services.
 
 from __future__ import annotations
 
+import os
 import secrets
 import socket
 import socketserver
@@ -21,6 +22,7 @@ from typing import Any
 
 from cops.assessment_budget import AssessmentBudgetLedger, AttemptRequest, BudgetLimits, BudgetPolicy
 from cops.evidence.canonical import utc_now
+from cops.execution.filesystem import SecureDirectoryError, create_directory_exclusive_no_symlinks
 
 from .active_models import ActiveScanSession, ActiveServiceAssessment, ObservedConfiguration, active_assessment_digest
 from .models import EvidenceProvenance
@@ -192,15 +194,15 @@ class _Handler(socketserver.BaseRequestHandler):
                 if response:
                     server.responses.append(response)  # type: ignore[attr-defined]
                 if pending is not None:
-                    server.audit[audit_reference] = {  # type: ignore[attr-defined]
-                        **pending,
-                        "banner": banner,
-                        "request": request,
-                        "response": response,
-                        "recorded_at": utc_now(),
-                        "closed": True,
-                    }
-                server.closed_connections += 1  # type: ignore[attr-defined]
+                    server.closing_audits[self.request] = (  # type: ignore[attr-defined]
+                        audit_reference,
+                        {
+                            **pending,
+                            "banner": banner,
+                            "request": request,
+                            "response": response,
+                        },
+                    )
 
 
 class _Server(socketserver.ThreadingTCPServer):
@@ -218,6 +220,50 @@ class _Server(socketserver.ThreadingTCPServer):
         self.audit_lock = threading.Lock()
         self.pending_audits: dict[str, dict[str, object]] = {}
         self.audit: dict[str, dict[str, object]] = {}
+        self.closing_audits: dict[socket.socket, tuple[str, dict[str, object]]] = {}
+        self.active_requests: dict[threading.Thread, socket.socket] = {}
+        self.worker_failures: list[str] = []
+
+    def process_request(self, request: socket.socket, client_address: tuple[str, int]) -> None:
+        # Register before starting the daemon worker so shutdown cannot miss a
+        # newly accepted request that has not entered its handler yet.
+        worker = threading.Thread(target=self.process_request_thread, args=(request, client_address), daemon=True)
+        with self.audit_lock:
+            self.active_requests[worker] = request
+        try:
+            worker.start()
+        except Exception:
+            with self.audit_lock:
+                self.active_requests.pop(worker, None)
+            self.shutdown_request(request)
+            raise
+
+    def process_request_thread(self, request: socket.socket, client_address: tuple[str, int]) -> None:
+        try:
+            super().process_request_thread(request, client_address)
+        except Exception as exc:
+            with self.audit_lock:
+                self.worker_failures.append(type(exc).__name__)
+            try:
+                request.close()
+            except OSError:
+                pass
+        finally:
+            with self.audit_lock:
+                self.active_requests.pop(threading.current_thread(), None)
+
+    def shutdown_request(self, request: socket.socket) -> None:
+        # ThreadingMixIn invokes this after the handler returns. An audit may
+        # attest closure only after the transport has actually been closed.
+        super().shutdown_request(request)
+        if request.fileno() != -1:
+            raise RuntimeError("fixture transport remained open")
+        with self.audit_lock:
+            pending = self.closing_audits.pop(request, None)
+            if pending is not None:
+                audit_reference, record = pending
+                self.audit[audit_reference] = {**record, "recorded_at": utc_now(), "closed": True}
+            self.closed_connections += 1
 
     def issue_audit_reference(self, metadata: dict[str, object]) -> str:
         with self.audit_lock:
@@ -243,9 +289,31 @@ class _RunningFixture:
         return ApprovedEndpoint("127.0.0.1", "127.0.0.1", self.server.server_address[1], "tcp", "internal")
 
     def stop(self) -> None:
-        self.server.shutdown()
-        self.server.server_close()
+        failure: Exception | None = None
+        try:
+            self.server.shutdown()
+        except Exception as exc:
+            failure = exc
+        with self.server.audit_lock:
+            active = tuple(self.server.active_requests.items())
+        for _, request in active:
+            try:
+                request.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+        try:
+            self.server.server_close()
+        except Exception as exc:
+            failure = failure or exc
         self.thread.join(timeout=2)
+        deadline = time.monotonic() + 2
+        for worker, _ in active:
+            worker.join(timeout=max(0, deadline - time.monotonic()))
+        with self.server.audit_lock:
+            workers_remaining = bool(self.server.active_requests)
+            workers_failed = bool(self.server.worker_failures)
+        if self.thread.is_alive() or workers_remaining or workers_failed or failure is not None:
+            raise RuntimeError(f"fixture {self.case.case_id} did not stop cleanly") from failure
 
 
 def _start_fixture(case: _Case) -> _RunningFixture:
@@ -607,9 +675,7 @@ class _ApprovalGate:
         return receipt
 
 
-def _ledger(state_directory: Path) -> AssessmentBudgetLedger:
-    state_directory.mkdir(parents=True, exist_ok=True, mode=0o700)
-    state_directory.chmod(0o700)
+def _ledger(state_directory: Path, *, directory_fd: int) -> AssessmentBudgetLedger:
     policy = BudgetPolicy(
         engagement_id="issue-285-seven-family-lab",
         limits=BudgetLimits(
@@ -627,7 +693,11 @@ def _ledger(state_directory: Path) -> AssessmentBudgetLedger:
         price_version="1",
         price_effective_date="2026-10-14",
     )
-    return AssessmentBudgetLedger(state_directory / "service-validation.sqlite3", policy)
+    return AssessmentBudgetLedger(
+        state_directory / "service-validation.sqlite3",
+        policy,
+        directory_fd=directory_fd,
+    )
 
 
 def _request(attempt_id: str) -> AttemptRequest:
@@ -636,6 +706,11 @@ def _request(attempt_id: str) -> AttemptRequest:
 
 def run_loopback_service_validation_journey(state_directory: Path | str) -> dict[str, Any]:
     """Run discovery, routing, evidence-gated validation, proof, and reporting locally."""
+    state_path = Path(os.path.abspath(os.fspath(Path(state_directory).expanduser())))
+    try:
+        state_fd = create_directory_exclusive_no_symlinks(state_path, mode=0o700)
+    except SecureDirectoryError as exc:
+        raise ValueError("state directory must be a fresh path beneath real directories") from exc
     fixtures: list[_RunningFixture] = []
     report: dict[str, Any] | None = None
     try:
@@ -704,7 +779,7 @@ def run_loopback_service_validation_journey(state_directory: Path | str) -> dict
         if len(plans) != len(fixtures):
             raise RuntimeError(f"routing did not produce one exact plan per endpoint: {[h.status for h in handoffs]}")
 
-        ledger = _ledger(Path(state_directory))
+        ledger = _ledger(state_path, directory_fd=state_fd)
         gate = _ApprovalGate()
         results: list[dict[str, Any]] = []
         candidate_result: ValidationActionResult | None = None
@@ -775,8 +850,16 @@ def run_loopback_service_validation_journey(state_directory: Path | str) -> dict
             ],
         }
     finally:
+        cleanup_failures: list[str] = []
         for fixture in fixtures:
-            fixture.stop()
+            try:
+                fixture.stop()
+            except Exception:
+                cleanup_failures.append(fixture.case.case_id)
+        os.close(state_fd)
+
+    if cleanup_failures:
+        raise RuntimeError(f"fixture cleanup failed: {', '.join(cleanup_failures)}")
 
     if report is None:
         raise RuntimeError("loopback journey did not produce a report")
@@ -796,4 +879,6 @@ def run_loopback_service_validation_journey(state_directory: Path | str) -> dict
         }
         for fixture in fixtures
     ]
+    if any(not item["stopped"] or not item["all_connections_closed"] for item in report["cleanup"]):
+        raise RuntimeError("fixture cleanup could not confirm all connections closed")
     return report

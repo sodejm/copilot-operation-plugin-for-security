@@ -746,30 +746,41 @@ def execute_service_validation_action(
         and verification is not None
         else None
     )
+    receipt = Receipt(
+        receipt_id=f"service-validation:{request.attempt_id}",
+        attempt_id=request.attempt_id,
+        outcome="completed" if status == "completed" else "failed",
+        tokens=output.tokens,
+        cost_microunits=output.cost_microunits,
+        retained_output_bytes=output.retained_output_bytes,
+    )
+    prerequisite_payload = _prerequisite_payload(new_prerequisite) if new_prerequisite else None
     try:
         ledger.reconcile(
-            Receipt(
-                receipt_id=f"service-validation:{request.attempt_id}",
-                attempt_id=request.attempt_id,
-                outcome="completed" if status == "completed" else "failed",
-                tokens=output.tokens,
-                cost_microunits=output.cost_microunits,
-                retained_output_bytes=output.retained_output_bytes,
-            ),
+            receipt,
             validation_prerequisite_id=new_prerequisite.receipt_id if new_prerequisite else None,
-            validation_prerequisite=_prerequisite_payload(new_prerequisite) if new_prerequisite else None,
+            validation_prerequisite=prerequisite_payload,
         )
     except Exception as exc:
         try:
-            ledger.mark_uncertain(request.attempt_id)
-        except (BudgetDenied, ValueError):
-            pass
-        return _result(
-            "dispatch_uncertain",
-            f"usage could not be settled: {type(exc).__name__}",
-            plan,
-            request.attempt_id,
-        )
+            recovered = ledger.reconciliation_is_durable(
+                receipt,
+                validation_prerequisite_id=new_prerequisite.receipt_id if new_prerequisite else None,
+                validation_prerequisite=prerequisite_payload,
+            )
+        except Exception:
+            recovered = False
+        if not recovered:
+            try:
+                ledger.mark_uncertain(request.attempt_id)
+            except (BudgetDenied, ValueError):
+                pass
+            return _result(
+                "dispatch_uncertain",
+                f"usage could not be settled: {type(exc).__name__}",
+                plan,
+                request.attempt_id,
+            )
     verified_dimensions = verification.dimensions if exact_verification and verification is not None else {}
     coverage = {
         dimension: ("tested" if verified_dimensions.get(dimension) else "untested") for dimension in _DIMENSIONS
