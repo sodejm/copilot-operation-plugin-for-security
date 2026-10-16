@@ -41,6 +41,7 @@ EXPECTED_PROFILES = {
     ("detection-rule-ci-validation", "detection_gap"): "detection_gap",
     ("pre-release-exposure-audit", "vulnerable"): "action_required",
     ("pre-release-exposure-audit", "corrected"): "no_exposure_observed",
+    ("pre-release-exposure-audit", "limited"): "insufficient_evidence",
 }
 
 EXPECTED_SCENARIOS = {

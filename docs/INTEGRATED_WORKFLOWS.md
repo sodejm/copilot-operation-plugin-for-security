@@ -15,7 +15,7 @@ target, action, arguments, limits, and expected evidence.
 | `kubernetes-compromise-containment` | evidence snapshot → RBAC/service account review → proposed containment → modeled lab expectations → required authorized lab validation | `vulnerable`, `corrected` |
 | `illicit-consent-remediation` | Entra grants, service principals and sign-ins → tenant-bound assessment → exact-grant proposal → modeled validation expectations | `vulnerable`, `corrected`, `limited` |
 | `detection-rule-ci-validation` | telemetry replay → Sigma/KQL execution → attack and benign counts → evidence-backed detection report | `verified`, `detection_gap` |
-| `pre-release-exposure-audit` | scoped DNS/service inventory → port and route checks → authentication checks → remediation report | `vulnerable`, `corrected` |
+| `pre-release-exposure-audit` | scoped DNS/service inventory → port and route checks → authentication checks → remediation report | `vulnerable`, `corrected`, `limited` |
 
 ## Catalog and playback API
 
@@ -135,9 +135,13 @@ Fixture reports state their evidence limits directly:
   an `instrumentation_gap`; captured telemetry without the expected alert is a
   `detection_gap` with Sigma and KQL proposals. Missing evidence is
   `indeterminate`.
-- Exposure inventory and route checks discard hosts outside the declared scope.
-  A clean fixture result supports only `no_exposure_observed` for the supplied
-  evidence.
+- Exposure evidence binds each scoped scheme, host, port and route to one DNS,
+  connection and authentication observation. Each section must assert completeness;
+  observations need references, timestamps inside the collection window and matching
+  addresses. Missing, stale, duplicate or mismatched evidence remains insufficient.
+  Authorized status 200 and anonymous status 401/403 support only
+  `no_exposure_observed` for those endpoints. Anonymous status 200 requires action;
+  redirects and failed authorized requests cannot establish coverage.
 
 The laboratory report integration maps the `telemetry_events` and
 `alert_events` arrays returned by `ServiceLaboratoryReport.to_dict()` to the
@@ -175,8 +179,11 @@ captured attack and benign events. It evaluates all four purple-team states usin
 explicitly labeled complete, withheld-log, withheld-alert, and unavailable-alert
 views of that captured evidence. Both generated rule subsets match one attack
 event and zero benign events; the source and handoff digests bind those results.
-Exposure checks make authenticated and anonymous
-requests to the scoped graph. CVE triage sends the injection fixture to vulnerable
+Exposure checks query a fixed loopback DNS responder, then make authenticated and
+anonymous requests to the exact scoped host and route. Vulnerable and corrected
+profiles must return anonymous statuses 200 and 401; a withheld DNS view remains
+insufficient. Malformed DNS, timeout or address changes stop dispatch and verify
+cleanup. CVE triage sends the injection fixture to vulnerable
 and corrected servers, records actual query calls with exact source identity,
 and preserves missing or unrelated reachability as unknown. Every chain
 collects correlated telemetry and verifies baseline restoration and stopped services.
@@ -186,8 +193,8 @@ bounded credential patterns and requires a reviewed executable pin; CVE triage
 uses exact source identities and a pinned synthetic injection advisory, with no
 version-range resolver or production advisory coverage; consent uses an application-grant emulator rather than Entra;
 active detection uses registered laboratory event rules rather than a production
-Sigma/KQL engine; the exposure inventory uses numeric loopback addresses rather
-than DNS discovery. The separate [Kubernetes laboratory](KUBERNETES_LABORATORY.md)
+Sigma/KQL engine; exposure DNS serves one fixed A record without forwarding or
+external discovery. The separate [Kubernetes laboratory](KUBERNETES_LABORATORY.md)
 executes the sixth workflow against pinned, isolated K3s pods, verifies actual
 NetworkPolicy enforcement and audit evidence, and restores all three lifecycle
 cases. Production cluster enforcement remains unvalidated. An ephemeral
@@ -197,7 +204,7 @@ laboratory cases do not establish the production worker's distinct-user boundary
 Run the focused validation with the repository environment:
 
 ```console
-python -m pytest -q tests/test_integrated_workflows.py tests/test_cve_evidence_binding.py tests/test_consent_evidence.py
+python -m pytest -q tests/test_integrated_workflows.py tests/test_cve_evidence_binding.py tests/test_consent_evidence.py tests/test_exposure_evidence.py tests/test_exposure_dns.py
 python -m pytest -q tests/test_integrated_service_laboratory.py
 ```
 

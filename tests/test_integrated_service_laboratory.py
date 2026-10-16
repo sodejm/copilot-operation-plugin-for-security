@@ -124,7 +124,52 @@ def test_integrated_workflow_uses_services_and_action_bound_approvals(
         assert assessment["authorized_status"] == 200
         assert assessment["anonymous_status"] == 401
         assert assessment["authentication_verified"] is True
-        assert assessment["coverage"] == "explicit loopback destinations only"
+        assert assessment["coverage"] == "explicit loopback hostname endpoint only"
+        assert assessment["dns_validation"] == "verified_fixed_loopback_a_record"
+        profiles = assessment["correction_profiles"]
+        assert {name: item["outcome"] for name, item in profiles.items()} == {
+            "vulnerable": "action_required", "corrected": "no_exposure_observed",
+            "limited": "insufficient_evidence",
+        }
+        bound = report["authorization"]["bound_exposure_scope"]
+        assert bound["endpoint"]["host"] == "preview.example.test"
+        assert bound["dns_destination"]["address"] == "127.0.0.1"
+        assert bound["dns_destination"]["transport"] == "udp"
+        assert bound["profiles"] == ["vulnerable", "corrected"]
+        dns = [event for event in report["events"] if event["event"] == "exposure_dns_answered"]
+        assert len(dns) == 1
+        assert dns[0]["host"] == bound["endpoint"]["host"]
+        anonymous = [event for event in report["events"]
+                     if event["event"] == "exposure_authentication" and not event["authorized"]]
+        assert [(event["profile"], event["status"]) for event in anonymous] == [
+            ("vulnerable", 200), ("corrected", 401),
+        ]
+        assert report["alerts"] == [{
+            "alert": True, "rule_id": "anonymous-exposure-access", "event": "exposure_authentication",
+            "correlation_id": anonymous[0]["correlation_id"], "timestamp": anonymous[0]["timestamp"],
+        }]
+
+
+@pytest.mark.parametrize("fault", ["malformed", "timeout", "address_changed"])
+def test_exposure_dns_failure_stops_before_http_checks_and_restores_services(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str,
+) -> None:
+    def invalid_response(_port: int) -> str:
+        if fault == "timeout":
+            raise TimeoutError("synthetic DNS timeout")
+        if fault == "address_changed":
+            return "192.0.2.99"
+        raise ValueError("unexpected laboratory DNS response")
+
+    monkeypatch.setattr(integrated_lab, "resolve_exposure", invalid_response)
+    report = integrated_lab.run_integrated_service_laboratory(
+        tmp_path / "invalid-dns", workflow_id="pre-release-exposure-audit",
+    )
+    assert report["status"] == "partial_failure"
+    assert report["stages"] == ["inventory"]
+    assert report["authorization"]["consumed"] == 1
+    assert report["restoration"] == {"baseline_restored": True, "services_stopped": True}
+    assert not any(event["event"] == "exposure_authentication" for event in report["events"])
 
 
 @pytest.mark.parametrize("fault", ["missing", "unrelated", "loaded_only"])

@@ -222,3 +222,12 @@ through service-principal object IDs to sign-in application IDs. The resulting
 target and evidence references enter the existing ActionPlan configuration and
 prior-output digests. The synthetic identity service validates the exact tuple
 before changing grant state; token-to-grant bindings separate unrelated access.
+
+## Exposure endpoint binding
+
+`cops.workflows.exposure_evidence` correlates exact scheme, host, port and route
+identities across DNS, connection and authentication observations. Timestamped
+references and explicit completeness constrain negative results. The service lab
+uses the same assessor after a fixed, non-forwarding loopback DNS exchange and
+actual HTTP requests. Endpoint, resolver port, profiles and prior observations
+bind existing ActionPlans; validation failure stops later stages and runs cleanup.

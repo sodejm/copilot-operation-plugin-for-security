@@ -284,3 +284,11 @@ insufficient; these fixtures do not establish production CVE coverage.
 grants through service-principal IDs to application IDs in sign-ins. Missing,
 stale or conflicting evidence cannot produce a revocation target. The isolated
 lab revokes the exact synthetic grant and verifies that unrelated access survives.
+
+### Exposure audit evidence
+
+[Exposure workflow playback](docs/INTEGRATED_WORKFLOWS.md) requires complete DNS,
+connection and authentication evidence for each scoped endpoint and collection
+window. Its isolated lab observes a fixed DNS answer and vulnerable/corrected HTTP
+responses. Missing or mismatched observations remain insufficient; external DNS
+discovery and production exposure validation require separate evidence.

@@ -114,15 +114,21 @@
       "profiles": [
         {
           "expected_outcome": "action_required",
-          "input_digest": "5863e0628b996ad717d3ab43926dceff307635e47ce340be533acd30663701d5",
+          "input_digest": "7ea9fa40666908145f235654a509c3aab09a453e3e80c973c41cb7a365724f7c",
           "path": "fixtures/pre-release-exposure-audit.vulnerable.json",
           "profile_id": "vulnerable"
         },
         {
           "expected_outcome": "no_exposure_observed",
-          "input_digest": "df6c748b3b460b374604b6312ec3c5e1ec381a889c490f35669cda7148952de9",
+          "input_digest": "81076d330f2e8a0459d4a43742bdb4db68f300c6b1941e5d3cbbe7ec325ebcde",
           "path": "fixtures/pre-release-exposure-audit.corrected.json",
           "profile_id": "corrected"
+        },
+        {
+          "expected_outcome": "insufficient_evidence",
+          "input_digest": "0bb52704296b11a8780836465579af32a969d9c5909eacad51f0dd3b2e7d2344",
+          "path": "fixtures/pre-release-exposure-audit.limited.json",
+          "profile_id": "limited"
         }
       ],
       "workflow_id": "pre-release-exposure-audit"

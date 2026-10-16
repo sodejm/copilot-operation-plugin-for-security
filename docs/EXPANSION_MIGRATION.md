@@ -154,3 +154,13 @@ principal object ID; sign-in `app_id` is the application ID reached through that
 principal. Principal-specific grants also require a matching user. Older loose
 risk arrays cannot establish a target. The added `limited` profile remains
 insufficient; corrected assertions produce only a bounded negative observation.
+
+## Exposure observation binding
+
+Exposure workflow scope now lists exact `scheme`, `host`, `port` and `route`
+endpoints plus a timezone-aware `window`. DNS, connection and authentication
+sections require `complete: true`, timestamped references and matching addresses.
+Loose host lists or anonymous status arrays no longer establish coverage. Supply
+authorized status 200 and an observed anonymous status for every endpoint. The
+new `limited` fixture demonstrates insufficient coverage; a clean result remains
+restricted to the supplied endpoints and window.
