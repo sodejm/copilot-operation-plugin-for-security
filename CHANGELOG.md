@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Record revision-bound expansion acceptance, including 13 passing isolated
+  laboratory cases, held-out routing results, fixture digests and capability
+  limits. Keep unavailable native-platform and production validation incomplete.
+
 - Install hash-pinned synthetic dependency wheels offline, verify installed source,
   and exercise vulnerable/corrected behavior through actual HTTP requests. Require
   tampered-wheel rejection, insufficient-evidence handling and cleanup in the
