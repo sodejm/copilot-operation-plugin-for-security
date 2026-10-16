@@ -72,3 +72,23 @@ def test_acquisition_rejects_fifo_without_blocking(acquisition: dict) -> None:
     os.mkfifo(root / "source.fifo")
     with pytest.raises(AcquisitionError, match="source_type"):
         acquire_disposable_file(**{**acquisition, "source_relative": "source.fifo"})
+
+
+def test_acquisition_rejects_replaced_source(acquisition: dict, monkeypatch: pytest.MonkeyPatch) -> None:
+    root = acquisition['lab_root']
+    read = os.read
+    changed = False
+
+    def replace_after_read(fd: int, count: int) -> bytes:
+        nonlocal changed
+        raw = read(fd, count)
+        if raw and not changed:
+            changed = True
+            (root / 'replacement').write_bytes(raw)
+            (root / 'replacement').replace(root / 'source.bin')
+        return raw
+
+    monkeypatch.setattr(os, 'read', replace_after_read)
+    with pytest.raises(AcquisitionError, match='source_changed'):
+        acquire_disposable_file(**acquisition)
+    assert not (root / 'acquired.bin').exists()

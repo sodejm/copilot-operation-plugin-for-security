@@ -44,6 +44,13 @@ def register_expansion_commands(commands: Any) -> None:
     evtx.add_argument("--max-records", type=int, default=4096)
     evtx.add_argument("--deadline", type=float, default=10.0)
 
+    forensic = commands.add_parser("forensic", help="verify raw disk and memory evidence integrity")
+    forensic_commands = forensic.add_subparsers(dest="forensic_command", required=True)
+    forensic_import = forensic_commands.add_parser("import", help="read-only import of a pinned raw image")
+    forensic_import.add_argument("--root", type=Path, required=True)
+    forensic_import.add_argument("--manifest", type=Path, required=True)
+    forensic_import.add_argument("--max-bytes", type=int, default=128 * 1024 * 1024)
+
     report = commands.add_parser("report", help="export evidence-aware developer reports")
     report_commands = report.add_subparsers(dest="report_command", required=True)
     export = report_commands.add_parser("export")
@@ -102,6 +109,12 @@ def _workflow_preview(definition: Any) -> dict[str, Any]:
 
 def dispatch_expansion_command(args: argparse.Namespace, root: Path) -> int:
     try:
+        if args.command == "forensic":
+            from .adapters.forensic import import_forensic_image, load_forensic_manifest
+
+            manifest = load_forensic_manifest(args.manifest)
+            print(json.dumps(import_forensic_image(args.root, manifest, max_bytes=args.max_bytes), indent=2, sort_keys=True))
+            return 0
         if args.command == "telemetry":
             from .adapters.evtx import import_evtx
 

@@ -219,6 +219,10 @@ def _service_case(
     for field in ("original_unchanged", "permission_rejected", "modified_source_rejected", "no_partial_outputs", "disposable_root_removed"):
         _expect(failures, acquisition.get(field) is True, f"forensic acquisition {field} is incomplete")
     _expect(failures, acquisition.get("finding_codes") == [], "acquired evidence failed provenance assessment")
+    imports = acquisition.get("imports", [])
+    _expect(failures, len(imports) == 2 and {item.get("kind") for item in imports} == {"disk_image", "memory_image"}, "raw disk and memory imports were not exercised")
+    _expect(failures, all(item.get("integrity") == "verified" and item.get("analysis") == "not_performed" and item.get("source", {}).get("sha256") == acquisition.get("receipt", {}).get("sha256") and item.get("source", {}).get("bytes") == acquisition.get("receipt", {}).get("bytes") for item in imports), "raw imports are not bound to acquired bytes")
+    _expect(failures, acquisition.get("import_rejections") == ["permission", "custody", "tampering"] and acquisition.get("corrected_import_verified") is True, "raw import correction or rejection cases are incomplete")
     _expect(failures, all(report.restoration.values()), "success/failure/cancellation/final graph restoration is incomplete")
     _expect(
         failures,
@@ -246,6 +250,8 @@ def _service_case(
             "tool_scope_denials": boundaries.get("denied_attack_calls"),
             "injection_exposed_other_object": boundaries.get("injection_exposed_other_object"),
             "acquisition_verified": acquisition.get("original_unchanged") is True and not acquisition.get("finding_codes"),
+            "raw_image_imports": len(imports),
+            "raw_image_rejections": acquisition.get("import_rejections"),
         },
     }
 

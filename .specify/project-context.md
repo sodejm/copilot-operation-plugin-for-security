@@ -170,3 +170,8 @@ the fixed `sysmon-evtx/v1` adapter with `python-evtx==0.8.1` and `hexdump==3.3`
 in a resource-limited Linux subprocess. It validates a read-only snapshot before
 normalizing supported records; native acquisition is a separate capability.
 See [the import specification](../specs/evtx-import.spec.md).
+
+Raw disk/memory imports use the registered POSIX `raw-forensic-image/v1`
+adapter, strict versioned metadata, bounded streaming and shared no-follow file
+helpers. Integrity, asserted provenance and unperformed analysis remain separate.
+See `specs/forensic-import.spec.md` and the forensic service-laboratory case.

@@ -976,7 +976,7 @@ def main(argv: list[str] | None = None, *, root: Path = ROOT) -> int:
             if not getattr(args, flag):
                 parser.error(f"worker execute requires --{flag.replace('_', '-')} unless --explain is selected")
     try:
-        if args.command in {"explain", "assess", "report", "workflow", "web-api", "telemetry"}:
+        if args.command in {"explain", "assess", "report", "workflow", "web-api", "telemetry", "forensic"}:
             from .expansion_cli import dispatch_expansion_command
 
             return dispatch_expansion_command(args, root)

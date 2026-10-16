@@ -136,3 +136,13 @@ reviewing the intended fixture change. Portable tests cover framing and worker
 boundaries. The required Linux laboratory gate parses every counterpart with the
 pinned parser and cannot skip a missing prerequisite. See
 [the runtime recipe](laboratories/service-runtime/README.md).
+
+### Forensic import correction evidence
+
+Run `python -m pytest tests/test_forensic_import.py tests/test_acquisition.py`
+for raw import and acquisition changes. Include source replacement during reads,
+symlink ancestors, special files, malformed custody, missing permission, bounded
+streaming, and unchanged originals. Then run `make check`, `make check-docs`, and
+`make check-laboratory` with the pinned isolated runtime. The gate imports the
+actual acquired copy and checks rejection and restoration; fabricated receipt
+records cannot replace this playback.

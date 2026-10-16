@@ -102,9 +102,56 @@ and emits an artifact and content-free custody receipt. Rejected or interrupted
 copies remove their partial output; originals remain unchanged.
 
 The laboratory gate exercises a real copy, denied collection, and a changed
-source. This adapter acquires synthetic lab files only. Native disk, memory,
+source. It imports that copy as both raw image kinds, rejects missing permission,
+missing custody and modified bytes, then verifies a restored copy. This adapter acquires synthetic lab files only. Native disk, memory,
 filesystem, and raw EVTX acquisition still require separately registered and
 validated tools; a copied regular file does not establish those capabilities.
+
+## Raw disk and memory import
+
+`cops forensic import --root evidence --manifest import.json` streams a raw
+regular file through the registered `raw-forensic-image/v1` adapter on POSIX.
+The manifest uses `cops.forensic-import-input/v1`:
+
+```json
+{
+  "schema_version": "cops.forensic-import-input/v1",
+  "artifact_id": "disk-copy-1",
+  "source_relative": "disk.raw",
+  "kind": "disk_image",
+  "format": "raw",
+  "sha256": "<expected 64 lowercase hexadecimal characters>",
+  "source_ref": "lab-source-1",
+  "authorization_ref": "collection-grant-1",
+  "collection_authorized": true,
+  "collected_at": "2026-10-15T12:00:00Z",
+  "as_of": "2026-10-15T12:01:00Z",
+  "custody": [{
+    "actor_ref": "collector-1", "action": "acquire",
+    "at": "2026-10-15T12:00:00Z",
+    "sha256": "<same expected SHA-256>"
+  }]
+}
+```
+
+Use `memory_image` for a raw memory copy. Each later custody event must be
+`transfer` or `verify`, retain the same digest, and have an ordered timestamp no
+later than `as_of`. IDs are opaque; do not put names, credentials, or source paths
+in them. The manifest rejects unknown fields, duplicate JSON keys, and more than
+128 custody records. It is limited to 64 KiB. Images are nonempty and at most
+128 MiB; `--max-bytes` can lower the bound. Reads use 64 KiB chunks.
+
+Every source and manifest ancestor rejects symlinks. The importer verifies the
+held file identity, final directory entry, byte count, and expected digest. It
+opens files read-only, does not create copies, and emits no image bytes or paths.
+The result explicitly separates `integrity: verified` from
+`analysis: not_performed`. Identity, collection permission, and custody are
+caller assertions; a matching hash does not authenticate them or grant execution
+authority. Use a separately trusted digest and retain original acquisition records.
+
+E01, AFF4, compressed images, device capture, filesystem analysis, and memory
+analysis require separately registered adapters. Unsupported platforms or formats
+fail explicitly. See [the contract](../specs/forensic-import.spec.md).
 
 ## Reading readiness
 

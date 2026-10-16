@@ -183,3 +183,13 @@ The repository does not wire this route into a production worker or provision
 a gateway, provider credentials, or a paid canary. The remaining operational
 gate is recorded in [the execution audit](docs/EXECUTION_GATE_AUDIT.md) and
 [gateway operator guidance](docs/PROVIDER_GATEWAY.md).
+
+## Raw forensic file boundary
+
+The registered `raw-forensic-image/v1` adapter streams supplied disk/memory copies
+into `cops.forensic-import/v1` integrity results. Shared descriptor-relative helpers
+in `cops/evidence/files.py` also protect disposable acquisition. Manifest and
+image reads reject symlink ancestors, special files, identity replacement, and
+budget overruns. Metadata is validated separately from bytes; output distinguishes
+verified integrity from unperformed analysis and caller-asserted authority.
+See [the contract](specs/forensic-import.spec.md).
