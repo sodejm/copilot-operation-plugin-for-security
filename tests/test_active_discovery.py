@@ -766,6 +766,33 @@ class TestLiveScanSafety(unittest.TestCase):
         self.assertEqual(dispatcher.resolutions, 0)
         self.assertEqual(dispatcher.probes, [])
 
+    @unittest.skipIf(os.name == "nt", "POSIX replacement semantics")
+    def test_controller_lock_rejects_path_replaced_during_acquisition(self):
+        import fcntl
+
+        lock_path = self.checkpoint.with_name(f"{self.checkpoint.name}.lock")
+        displaced_lock = lock_path.with_name(f"{lock_path.name}.displaced")
+        real_flock = fcntl.flock
+        replaced = False
+
+        def replace_path_before_lock(descriptor, operation):
+            nonlocal replaced
+            if operation == (fcntl.LOCK_EX | fcntl.LOCK_NB) and not replaced:
+                os.replace(lock_path, displaced_lock)
+                lock_path.touch(mode=0o600)
+                replaced = True
+            return real_flock(descriptor, operation)
+
+        with (
+            patch.object(ActiveScanSession, "_supports_checkpoint_directory_fd", return_value=False),
+            patch.object(fcntl, "flock", side_effect=replace_path_before_lock),
+        ):
+            with self.assertRaisesRegex(ActiveScanError, "unsafe"):
+                with _live_checkpoint_lock(self.checkpoint):
+                    self.fail("replaced lock path was admitted")
+
+        self.assertTrue(replaced)
+
     def test_checkpoint_alias_uses_same_controller_lock(self):
         alias = self.checkpoint.with_name("checkpoint-alias.json")
         alias.symlink_to(self.checkpoint)
