@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Install hash-pinned synthetic dependency wheels offline, verify installed source,
+  and exercise vulnerable/corrected behavior through actual HTTP requests. Require
+  tampered-wheel rejection, insufficient-evidence handling and cleanup in the
+  isolated laboratory gate; keep installer and platform limitations explicit.
+
 - Require offline SARIF conformance in the portable gate using the unmodified,
   hash-pinned official schema and OASIS notices. Verify vulnerable, corrected and
   inconclusive exports and reject malformed reports without optional test skips.

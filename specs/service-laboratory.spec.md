@@ -42,3 +42,11 @@ Provide two deterministic acceptance paths for COPS service scenarios: offline f
     insufficient. Malformed DNS, timeout and address changes fail the inventory
     stage, prevent later authentication requests and still restore baseline state.
     The resolver never forwards requests or accepts external discovery targets.
+
+26. Supply-chain acceptance builds only the registered synthetic pure-Python
+    wheels, installs them with a pinned offline hash-enforcing installer, and
+    observes the installed module over loopback HTTP. The vulnerable version
+    exposes the seeded injection; its corrected counterpart preserves the owner
+    query and rejects injection. Modified wheels must fail installation, missing
+    dependency evidence remains unknown, and temporary installations and services
+    are removed after success, failure, timeout, or cancellation.

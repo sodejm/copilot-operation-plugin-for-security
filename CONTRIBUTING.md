@@ -194,3 +194,13 @@ DNS tests must reject malformed responses, timeouts and address changes while
 proving early-failure cleanup. Actual laboratory evidence must show a DNS exchange
 and anonymous HTTP 200 → 401 with authorized access preserved. Run `make check`,
 `make check-docs` and `make check-laboratory` before claiming acceptance.
+
+### Supply-chain installation correction evidence
+
+Run `python -m pytest tests/test_supply_chain_laboratory.py tests/step_defs/test_supply_chain_laboratory_steps.py tests/test_service_laboratory.py`.
+Retain deterministic wheel hashes, installed-source verification, real vulnerable
+and corrected HTTP responses, hash-rejection and insufficient-evidence cases.
+Timeout, output-limit and cancellation tests must reap actual workers and remove
+partial installations. Run `make check`, `make check-docs` and the strict isolated
+`make check-laboratory` gate with the registered installer version before claiming
+laboratory acceptance.

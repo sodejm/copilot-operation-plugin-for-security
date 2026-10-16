@@ -692,3 +692,18 @@ Tests cover wrong host/port/scheme/path/address, stale and duplicate evidence,
 DNS corruption, timeout and address change. Early failures must stop the workflow
 before authentication and restore services. Actual corrected and vulnerable HTTP
 requests establish only the fixed laboratory policy, not production coverage.
+
+## Synthetic package installation abuse cases
+
+Package installation could execute untrusted build code, resolve external
+dependencies or retain a worker after cancellation. The adapter accepts only two
+registered profiles, generates reviewed pure-Python wheel contents, and uses a
+pinned pip with no index, no dependencies, binary-only input and required hashes.
+Installed source must match the generated module digest before execution. A
+deliberately altered wheel must fail installation. Each fixed worker has bounded
+output and a deadline; cleanup kills and reaps its process group and removes the
+temporary root. Tests also reject unsupported prerequisites and mismatched runtime
+nonces. The strict container gate supplies network isolation; installer flags and
+version checks alone cannot establish it. Arbitrary package execution, hostile
+interpreters/installers and production registries remain outside this adapter.
+Independent human security review is pending.

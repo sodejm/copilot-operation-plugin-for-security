@@ -114,6 +114,19 @@ def test_process_acceptance_proves_actual_activity_and_reset(
     assert acquisition["corrected_import_verified"] is True
     assert {item["kind"] for item in acquisition["imports"]} == {"disk_image", "memory_image"}
     assert all(item["source"]["sha256"] == acquisition["receipt"]["sha256"] for item in acquisition["imports"])
+    supply_chain = activity["supply_chain"]
+    if supply_chain["prerequisite"]["available"]:
+        assert supply_chain["status"] == "complete"
+        assert supply_chain["installed_source_verified"] is True
+        assert supply_chain["runtime"]["actual_requests"] == 2
+        assert supply_chain["runtime"]["benign_objects"] == ["owner-object"]
+        assert supply_chain["runtime"]["injection_objects"] == (["owner-object", "other-object"] if reached else [])
+        assert supply_chain["runtime"]["service_stopped"] is True
+        assert supply_chain["advisory_assessment"] == ("matched" if reached else "clear")
+        assert supply_chain["insufficient_evidence_status"] == "unknown"
+        assert all(supply_chain[field] for field in ("hash_mismatch_rejected", "tampered_install_absent", "disposable_root_removed"))
+    else:
+        assert supply_chain["status"] == "unsupported"
     assert report.restoration == {
         "success": True,
         "failure": True,

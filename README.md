@@ -268,3 +268,11 @@ connection and authentication evidence for each scoped endpoint and collection
 window. Its isolated lab observes a fixed DNS answer and vulnerable/corrected HTTP
 responses. Missing or mismatched observations remain insufficient; external DNS
 discovery and production exposure validation require separate evidence.
+
+### Supply-chain installation evidence
+
+The [supply-chain laboratory](docs/SERVICE_LABORATORY.md#supply-chain-installation-correction-cases)
+installs hash-pinned synthetic wheels offline and exercises their vulnerable and
+corrected behavior through real HTTP requests. Tampered wheels must fail
+installation; missing dependency evidence stays unknown. Arbitrary package builds
+and production registries require separate adapters and validation.
