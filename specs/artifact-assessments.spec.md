@@ -17,7 +17,7 @@ The returned mapping has schema `cops.artifact-assessment/v1`, uses repository-v
 2. Count, per-artifact byte, total-byte, decoded-PowerShell, record, and traversal bounds constrain processing.
 3. Evidence contains the original canonical input digest and byte count. Forensic byte input is neither decoded nor modified.
 4. Findings quote no source, prompt, scanner message, credential occurrence, token, or decoded payload content.
-5. Explicit credential-value fields are rejected recursively with a stable content-free error. Credential-history assessment accepts opaque fingerprints only. The separate registered Git scanner recognizes bounded synthetic credential patterns, emits opaque fingerprints and never includes matched bytes in output.
+5. Explicit credential-value fields are rejected recursively with a stable content-free error. Credential-history assessment accepts opaque fingerprints only. The separate registered Git scanner recognizes bounded COPS, classic GitHub PAT, AWS access-key identifier, Bearer and PEM private-key shapes, emits opaque fingerprints and never includes matched bytes in output. Matches establish potential exposure, not credential validity.
 6. Unsupported heavyweight or live formats return a limitation and a pinned registered-adapter prerequisite. They do not produce a passing readiness claim.
 7. Missing or malformed required security evidence remains unknown through an unresolved finding or `insufficient_evidence` readiness.
 8. An offline clean result cannot establish provider-side revocation, current advisory state, runtime segmentation, remote service trust, production configuration, or deployment readiness. Typed cryptographic verification establishes only the supplied local trust policy at the assessment timestamp.

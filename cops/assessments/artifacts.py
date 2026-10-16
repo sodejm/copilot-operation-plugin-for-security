@@ -577,7 +577,8 @@ def _credential_history(items: list[_Artifact], _as_of: datetime) -> tuple[list[
             or artifact.content.get("assessment_status") == "insufficient_evidence"
         )) or (not records and not (scanner_output and isinstance(coverage, dict)
             and coverage.get("complete_within_configured_bounds") is True
-            and artifact.content.get("assessment_status") == "no_synthetic_match_observed"))):
+            and artifact.content.get("assessment_status") in (
+                "no_synthetic_match_observed", "no_supported_match_observed")))):
             issues.append(_unresolved(artifact, "credential_history_coverage"))
         by_fingerprint: dict[str, list[dict[str, Any]]] = defaultdict(list)
         for record in records[:5000]:
@@ -596,7 +597,7 @@ def _credential_history(items: list[_Artifact], _as_of: datetime) -> tuple[list[
             redacted = all(record.get("redacted") is True for record in records_for_secret)
             rotated = any(record.get("rotated") is True for record in records_for_secret)
             if exposed and (not redacted or not rotated):
-                issues.append(_issue(artifact, "credential_not_contained", "Synthetic credential history is not fully contained", "high", "A fingerprint-correlated credential exposure is not both redacted and recorded as rotated.", "Revoke or rotate the credential, remove reachable values, and preserve only opaque fingerprint evidence."))
+                issues.append(_issue(artifact, "credential_not_contained", "Potential credential exposure requires containment evidence", "high", "A fingerprint-correlated potential credential exposure lacks redaction or recorded rotation. Pattern matching does not establish credential validity.", "Review the exposure, revoke or rotate valid credentials, remove reachable values, and preserve only opaque fingerprint evidence."))
             identities = {record.get("author_id") for record in records_for_secret if isinstance(record.get("author_id"), str)}
             if exposed and not identities:
                 issues.append(_unresolved(artifact, "exposure_identity_correlation"))

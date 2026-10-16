@@ -186,8 +186,10 @@ Git history scanning accepts only explicitly scoped ordinary repositories and
 uses an executable pinned by SHA-256 through the registered Git adapter. It copies
 and verifies that executable before invocation, disables repository hooks, external
 configuration, replacement objects and lazy fetches, and enforces output and time
-budgets. Only synthetic credential patterns are currently registered; values are
-replaced with domain-separated fingerprints. A clean bounded scan does not prove
+budgets. Registered patterns cover COPS test tokens, classic GitHub PAT shapes,
+AWS access-key identifiers, Bearer values and bounded PEM private-key blocks.
+Values are replaced with domain-separated fingerprints; paths containing these
+shapes are replaced by path digests. Matching does not establish validity. A clean bounded scan does not prove
 the absence of other credential types or validate provider revocation.
 
 The required laboratory gate demands observed activity, correlated telemetry,

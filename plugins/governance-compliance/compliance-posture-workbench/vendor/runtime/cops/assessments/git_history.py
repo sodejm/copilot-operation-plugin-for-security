@@ -1,4 +1,4 @@
-"""Bounded, read-only inspection of reachable Git history for synthetic secrets."""
+"""Bounded, read-only inspection of reachable Git history for potential credentials."""
 
 from __future__ import annotations
 
@@ -25,8 +25,19 @@ SCHEMA_VERSION = "cops.git-history-scan/v1"
 _OID = re.compile(rb"[0-9a-f]{40}(?:[0-9a-f]{24})?")
 _TREE_HEADER = re.compile(rb"(\d{6}) (blob|tree|commit) ([0-9a-f]{40}(?:[0-9a-f]{24})?)")
 _SYNTHETIC_PATTERNS = (
-    ("cops-test-token-v1", re.compile(rb"COPS_TEST_TOKEN_[A-Za-z0-9_-]{16,128}")),
-    ("cops-synthetic-secret-v1", re.compile(rb"COPS_SYNTHETIC_SECRET_[A-Za-z0-9_-]{16,128}")),
+    ("cops-test-token-v1", re.compile(rb"(?<![A-Za-z0-9_-])(?P<secret>COPS_TEST_TOKEN_[A-Za-z0-9_-]{16,128})(?![A-Za-z0-9_-])")),
+    ("cops-synthetic-secret-v1", re.compile(rb"(?<![A-Za-z0-9_-])(?P<secret>COPS_SYNTHETIC_SECRET_[A-Za-z0-9_-]{16,128})(?![A-Za-z0-9_-])")),
+)
+_CREDENTIAL_PATTERNS = _SYNTHETIC_PATTERNS + (
+    ("github-classic-pat-v1", re.compile(rb"(?<![A-Za-z0-9_-])(?P<secret>ghp_[A-Za-z0-9]{36})(?![A-Za-z0-9_-])")),
+    ("aws-access-key-id-v1", re.compile(rb"(?<![A-Za-z0-9_-])(?P<secret>AKIA[A-Z0-9]{16})(?![A-Za-z0-9_-])")),
+    ("bearer-credential-v1", re.compile(
+        rb"(?i:(?<![A-Za-z])Bearer)[ \t]{1,8}(?P<secret>[A-Za-z0-9._~+/=-]{16,2048})(?![A-Za-z0-9._~+/=-])"
+    )),
+    ("pem-private-key-v1", re.compile(
+        rb"(?P<secret>-----BEGIN (?P<label>(?:RSA |EC |OPENSSH |ENCRYPTED )?PRIVATE KEY)-----\r?\n"
+        rb"(?:[A-Za-z0-9+/=]{1,128}\r?\n){1,128}-----END (?P=label)-----)"
+    )),
 )
 _MAX_CONFIG_BYTES = 1024 * 1024
 _MAX_GIT_METADATA_ENTRIES = 250_000
@@ -237,7 +248,7 @@ def _safe_path(path_bytes: bytes) -> tuple[str | None, bool]:
         or any(ord(character) < 32 or ord(character) == 127 for character in path)
     ):
         return None, False
-    if any(pattern.search(path_bytes) for _, pattern in _SYNTHETIC_PATTERNS):
+    if any(pattern.search(path_bytes) for _, pattern in _CREDENTIAL_PATTERNS):
         digest = hashlib.sha256(path_bytes).hexdigest()
         return f"redacted-path/sha256-{digest}", True
     return path, False
@@ -249,7 +260,11 @@ def _repository_fingerprint(head: str | None, commits: list[str]) -> str:
 
 
 def _fingerprint(value: bytes) -> str:
-    return hashlib.sha256(b"cops.synthetic-credential/v1\0" + value).hexdigest()
+    # Preserve existing laboratory correlation while giving other credentials a
+    # stable domain independent of which contextual pattern discovered them.
+    synthetic = any(pattern.fullmatch(value) for _, pattern in _SYNTHETIC_PATTERNS)
+    domain = b"cops.synthetic-credential/v1\0" if synthetic else b"cops.credential/v1\0"
+    return hashlib.sha256(domain + value).hexdigest()
 
 
 @contextmanager
@@ -315,7 +330,8 @@ def _scan_git_history(root_path: Path, git_dir: Path, git: str, adapter: ToolAda
         raise GitHistoryScanError("git_version_unavailable")
     limitations = [
         "Only commits reachable from local refs and detached HEAD are inspected.",
-        "Synthetic pattern inspection cannot prove provider-side revocation, rotation, or absence from unreachable Git objects.",
+        "Pattern matches are potential credentials, not proof of validity; an AWS access-key identifier alone is not an authentication secret.",
+        "Supported patterns cannot prove absence of other, encoded, obfuscated, or unreachable credentials, nor provider-side revocation or rotation.",
         "The repository must remain unchanged for the duration of this read-only scan.",
     ]
     truncated: set[str] = set()
@@ -440,13 +456,13 @@ def _scan_git_history(root_path: Path, git_dir: Path, git: str, adapter: ToolAda
             elif blob_result.returncode != 0:
                 truncated.add("blob_errors")
                 continue
-            for pattern_id, pattern in _SYNTHETIC_PATTERNS:
+            for pattern_id, pattern in _CREDENTIAL_PATTERNS:
                 for secret_match in pattern.finditer(blob_result.stdout):
                     if len(occurrences) >= limits.max_matches:
                         truncated.add("matches")
                         stop = True
                         break
-                    fingerprint = _fingerprint(secret_match.group(0))
+                    fingerprint = _fingerprint(secret_match.group("secret"))
                     key = (fingerprint, output_path, commit, pattern_id)
                     if key in seen:
                         continue
@@ -481,7 +497,7 @@ def _scan_git_history(root_path: Path, git_dir: Path, git: str, adapter: ToolAda
     elif truncated:
         status = "insufficient_evidence"
     else:
-        status = "no_synthetic_match_observed"
+        status = "no_supported_match_observed"
 
     return {
         "schema_version": SCHEMA_VERSION,
