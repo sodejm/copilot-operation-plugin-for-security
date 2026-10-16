@@ -164,3 +164,11 @@ missing telemetry, namespace replacement and incomplete case-list regressions.
 Then run all three repository gates with the preprovisioned image pins in
 [the Kubernetes runbook](docs/KUBERNETES_LABORATORY.md). Actual pod connectivity,
 audit records and cleanup are required; mocked policy results are insufficient.
+
+### CVE correction evidence
+
+Run `python -m pytest tests/test_cve_evidence_binding.py tests/test_integrated_workflows.py tests/test_integrated_service_laboratory.py`.
+Keep exact component and malformed inventory regressions, missing invocation
+evidence, unbound controls, and vulnerable/corrected real HTTP cases. A source
+change requires reviewing and repinning the synthetic advisory fixtures. Then
+run the portable, documentation and strict laboratory gates.

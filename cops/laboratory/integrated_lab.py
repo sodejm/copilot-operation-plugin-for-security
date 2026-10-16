@@ -42,6 +42,7 @@ from cops.laboratory.service_lab import (
     _execute_detection_rules,
     _request_json,
     probe_isolated_runtime,
+    verify_fixture_manifest,
 )
 from cops.laboratory.workflow_lab import (
     IOC,
@@ -311,25 +312,34 @@ class _IntegratedExecutor:
             }
 
     def _cve_reachability_triage(self, name: str) -> None:
+        from cops.workflows.cve_evidence import assess_reachability, match_dependency
+
         if name == "dependencies":
-            self.observations["advisory"] = {
-                "source": "pinned-synthetic-injection-fixture",
-                "production_advisory_support": False,
-            }
-        elif name == "observe":
-            observed = run_boundary_acceptance(profile="vulnerable")
-            self.observations["vulnerable"] = observed
-            self.observations["reachability"] = "observed" if observed["injection_exposed_other_object"] else "indeterminate"
+            verify_fixture_manifest()
+            self.observations["advisory"] = json.loads((FIXTURE_DIRECTORY / "cve-advisory.json").read_text())
+        elif name in {"observe", "remediate"}:
+            profile = "vulnerable" if name == "observe" else "corrected"
+            observed = run_boundary_acceptance(profile=profile)
+            self.observations[profile] = observed
+            matched = match_dependency(self.observations["advisory"], observed["dependency_inventory"])
+            assessment = assess_reachability(matched, {}, observed["runtime_evidence"])
+            self.observations[profile + "_assessment"] = assessment
+            if profile == "vulnerable":
+                self.observations["reachability"] = (
+                    "observed" if assessment["status"] == "reachable" and observed["injection_exposed_other_object"] else "indeterminate"
+                )
+            else:
+                self.observations["remediation_verified"] = (
+                    assessment["status"] == "corrected_dependency" and observed["injection_rows"] == 0
+                    and observed["benign_query_preserved"] and self.observations["reachability"] == "observed"
+                )
         elif name == "controls":
+            match = self.observations["vulnerable_assessment"]["dependency_match"]
+            absent = assess_reachability(match, {}, {})
             self.observations["without_runtime_evidence"] = {
-                "reachability": "unknown", "non_exploitable": False,
+                "reachability": "unknown" if absent["status"] == "not_established" else absent["status"],
+                "non_exploitable": absent["non_exploitability_established"],
             }
-        elif name == "remediate":
-            observed = run_boundary_acceptance(profile="corrected")
-            self.observations["corrected"] = observed
-            self.observations["remediation_verified"] = (
-                observed["injection_rows"] == 0 and observed["benign_query_preserved"]
-            )
 
     def _illicit_consent_remediation(self, name: str) -> None:
         # The disposable identity service represents an application grant. Its

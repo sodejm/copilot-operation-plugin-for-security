@@ -435,34 +435,23 @@ def _credential_bundle(
 
 
 def _cve_ingest(values: dict[str, Any]) -> dict[str, Any]:
-    advisory = values["advisory"]
-    dependencies = values["dependency_inventory"]
-    matches = [item for item in dependencies.get("packages", []) if item.get("name") == advisory.get("package")]
-    return {"dependency_match": {"advisory": advisory, "matches": matches}}
+    from .cve_evidence import match_dependency
+
+    return {"dependency_match": match_dependency(values["advisory"], values["dependency_inventory"])}
 
 
 def _cve_reachability(values: dict[str, Any]) -> dict[str, Any]:
-    callgraph = values["callgraph_evidence"]
-    runtime = values["runtime_evidence"]
-    evidence_present = bool(callgraph) or bool(runtime)
-    reachable = any(item.get("reachable") is True for item in callgraph.get("paths", [])) or any(
-        item.get("loaded") is True for item in runtime.get("modules", [])
-    )
-    status = "reachable" if reachable else ("not_observed" if evidence_present else "not_established")
-    return {
-        "reachability_assessment": {
-            "status": status,
-            "evidence_present": evidence_present,
-            "non_exploitability_established": False,
-            "dependency_match": values["dependency_match"],
-        }
-    }
+    from .cve_evidence import assess_reachability
+
+    return {"reachability_assessment": assess_reachability(
+        values["dependency_match"], values["callgraph_evidence"], values["runtime_evidence"],
+    )}
 
 
 def _cve_controls(values: dict[str, Any]) -> dict[str, Any]:
-    controls = values["compensating_controls"]
-    verified = [item for item in controls.get("controls", []) if item.get("verified") is True]
-    return {"control_assessment": {"verified_controls": verified, "count": len(verified)}}
+    from .cve_evidence import assess_controls
+
+    return {"control_assessment": assess_controls(values["compensating_controls"], values["reachability_assessment"])}
 
 
 def _cve_remediate(values: dict[str, Any]) -> dict[str, Any]:
@@ -471,6 +460,8 @@ def _cve_remediate(values: dict[str, Any]) -> dict[str, Any]:
         outcome, priority = "urgent_remediation", "P0"
     elif reachability["status"] == "not_established":
         outcome, priority = "insufficient_evidence", "P1"
+    elif reachability["status"] == "corrected_dependency":
+        outcome, priority = "known_corrected_component", "P2"
     else:
         outcome, priority = "prioritized_remediation", "P2"
     return {

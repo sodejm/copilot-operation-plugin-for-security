@@ -30,6 +30,7 @@ EXPECTED_PROFILES = {
     ("leaked-credential-blast-radius", "vulnerable"): "action_required",
     ("leaked-credential-blast-radius", "corrected"): "no_active_exposure_observed",
     ("cve-reachability-triage", "vulnerable"): "urgent_remediation",
+    ("cve-reachability-triage", "corrected"): "known_corrected_component",
     ("cve-reachability-triage", "limited"): "insufficient_evidence",
     ("kubernetes-compromise-containment", "vulnerable"): "insufficient_lab_validation",
     ("kubernetes-compromise-containment", "corrected"): "no_containment_required",

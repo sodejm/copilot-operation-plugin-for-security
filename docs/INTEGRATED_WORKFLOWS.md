@@ -11,7 +11,7 @@ target, action, arguments, limits, and expected evidence.
 | Workflow ID | Typed stage chain | Fixture profiles |
 | --- | --- | --- |
 | `leaked-credential-blast-radius` | Git history findings → identity and SOC evidence → exposure assessment → rotation/revocation checklist → evidence bundle | `vulnerable`, `corrected` |
-| `cve-reachability-triage` | advisory and dependency evidence → call graph/runtime reachability → compensating controls → prioritized remediation | `vulnerable`, `limited` |
+| `cve-reachability-triage` | advisory and dependency evidence → call graph/runtime reachability → compensating controls → prioritized remediation | `vulnerable`, `corrected`, `limited` |
 | `kubernetes-compromise-containment` | evidence snapshot → RBAC/service account review → proposed containment → modeled lab expectations → required authorized lab validation | `vulnerable`, `corrected` |
 | `illicit-consent-remediation` | Entra grants and sign-ins → suspicious-consent assessment → remediation proposal → modeled identity/hunt validation expectations | `vulnerable`, `corrected` |
 | `detection-rule-ci-validation` | telemetry replay → Sigma/KQL execution → attack and benign counts → evidence-backed detection report | `verified`, `detection_gap` |
@@ -104,6 +104,12 @@ Fixture reports state their evidence limits directly:
 
 - Missing call graph or runtime evidence produces `insufficient_evidence` and
   never establishes non-exploitability.
+- CVE evidence binds exact component name, ecosystem, version and source digest
+  to the pinned advisory. Inventories must be complete and well formed. Runtime
+  records need positive invocation counts, an execution ID, timestamp and evidence
+  reference; loaded-module names alone are insufficient. Controls require the
+  same component and advisory binding. The corrected profile returns
+  `known_corrected_component`, limited to this advisory.
 - The leaked-credential fixture bundle always carries a SHA-256 payload digest.
   Without a signer it reports `unsigned` and `live_signing_required: true`. With
   a caller-owned Ed25519 signer, it records and verifies the signature while
@@ -162,12 +168,14 @@ views of that captured evidence. Both generated rule subsets match one attack
 event and zero benign events; the source and handoff digests bind those results.
 Exposure checks make authenticated and anonymous
 requests to the scoped graph. CVE triage sends the injection fixture to vulnerable
-and corrected servers and preserves missing reachability as unknown. Every chain
+and corrected servers, records actual query calls with exact source identity,
+and preserves missing or unrelated reachability as unknown. Every chain
 collects correlated telemetry and verifies baseline restoration and stopped services.
 
 These cases have explicit coverage limits. Git scanning recognizes the documented
-bounded credential patterns and requires a reviewed executable pin; CVE triage uses a pinned synthetic injection advisory rather than a
-dependency build; consent uses an application-grant emulator rather than Entra;
+bounded credential patterns and requires a reviewed executable pin; CVE triage
+uses exact source identities and a pinned synthetic injection advisory, with no
+version-range resolver or production advisory coverage; consent uses an application-grant emulator rather than Entra;
 active detection uses registered laboratory event rules rather than a production
 Sigma/KQL engine; the exposure inventory uses numeric loopback addresses rather
 than DNS discovery. The separate [Kubernetes laboratory](KUBERNETES_LABORATORY.md)
@@ -180,6 +188,6 @@ laboratory cases do not establish the production worker's distinct-user boundary
 Run the focused validation with the repository environment:
 
 ```console
-python -m pytest -q tests/test_integrated_workflows.py
+python -m pytest -q tests/test_integrated_workflows.py tests/test_cve_evidence_binding.py
 python -m pytest -q tests/test_integrated_service_laboratory.py
 ```

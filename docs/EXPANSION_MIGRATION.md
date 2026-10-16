@@ -135,3 +135,12 @@ the assessor still reads legacy `no_synthetic_match_observed` results. Synthetic
 fingerprints retain their original domain for laboratory correlation; other values
 use `cops.credential/v1`. Consumers must retain pattern IDs and coverage limitations.
 Pattern matches cannot establish provider validity or revocation.
+
+## CVE component binding
+
+CVE playback now requires complete dependency inventories with exact name,
+ecosystem, version and source digest identities. Replace loose module-name
+lists with timestamped, referenced invocation records bound to those components.
+Unbound controls cannot lower priority. The added corrected profile reports
+`known_corrected_component`; absent or malformed evidence stays insufficient.
+No profile establishes general non-exploitability.
