@@ -191,6 +191,40 @@ def _adapt_finding(
     }
 
 
+def _verification_summaries(item: dict[str, Any], evidence: Mapping[str, str]) -> list[str]:
+    """Keep bounded local verification outcomes in the shared report's limitations."""
+    if "verification_results" not in item:
+        return []
+    values = item["verification_results"]
+    if item["capability"] != "transport_identity" or type(values) is not list or len(values) > 64:
+        raise ValueError("invalid verification results")
+    codes = {
+        "accepted": {"certificate_verified", "jwt_verified"},
+        "rejected": {"certificate_rejected", "client_not_authorized", "jwt_rejected"},
+        "unknown": {"certificate_policy_missing", "client_authorization_missing", "hostname_missing",
+                    "hostname_invalid", "jwt_policy_missing", "jwt_policy_invalid", "unsupported_format",
+                    "assessment_time_missing", "input_limit", "invalid_input", "prerequisite_unavailable",
+                    "invalid_or_unsupported_input"},
+    }
+    seen: set[str] = set()
+    summaries = []
+    for raw in values:
+        value = _object(raw, {"artifact_id", "evidence_ref", "status", "code", "fingerprints", "adapter_id"})
+        artifact_id, status, code = value["artifact_id"], value["status"], value["code"]
+        if (type(artifact_id) is not str or artifact_id not in evidence or artifact_id in seen
+                or type(status) is not str or status not in codes or type(code) is not str or code not in codes[status]
+                or value["adapter_id"] != "cryptographic-verification/v1"
+                or value["evidence_ref"] != f"artifact:{artifact_id}:sha256:{evidence[artifact_id]}"):
+            raise ValueError("invalid verification result")
+        fingerprints = value["fingerprints"]
+        if (type(fingerprints) is not list or len(fingerprints) > 16
+                or any(type(value) is not str or not _SHA256.fullmatch(value) for value in fingerprints)):
+            raise ValueError("invalid verification fingerprints")
+        seen.add(artifact_id)
+        summaries.append(f"Offline verification {artifact_id}: {status} ({code}); evidence sha256:{evidence[artifact_id]}. Remote behavior remains unverified.")
+    return summaries
+
+
 def _build_report(
     assessment: Mapping[str, object],
     *,
@@ -204,7 +238,8 @@ def _build_report(
     if type(assessment) is not dict:
         raise ValueError("invalid assessment")
     canonical(assessment, max_bytes=4 * 1024 * 1024, max_depth=32)
-    item = _object(assessment, _ASSESSMENT_KEYS)
+    extra_keys = {"verification_results"} if "verification_results" in assessment else set()
+    item = _object(assessment, _ASSESSMENT_KEYS | extra_keys)
     if (
         item["schema_version"] != REPORT_SCHEMA
         or item["capability"] not in CAPABILITIES
@@ -224,7 +259,8 @@ def _build_report(
     coverage_status, access = _coverage(item["coverage"], evidence_count=len(evidence), kinds=evidence_kinds)
     limitations = _bounded_strings(item["limitations"])
     prerequisites = _bounded_strings(item["prerequisites"])
-    report_limitations = sorted(set(limitations) | {f"Prerequisite: {value}" for value in prerequisites})
+    verification = _verification_summaries(item, evidence)
+    report_limitations = sorted(set(limitations) | set(verification) | {f"Prerequisite: {value}" for value in prerequisites})
     raw_findings = item["findings"]
     if type(raw_findings) is not list or len(raw_findings) > _MAX_ITEMS:
         raise ValueError("invalid findings")

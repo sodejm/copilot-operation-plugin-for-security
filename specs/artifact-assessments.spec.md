@@ -20,7 +20,7 @@ The returned mapping has schema `cops.artifact-assessment/v1`, uses repository-v
 5. Explicit credential-value fields are rejected recursively with a stable content-free error. Credential-history assessment accepts opaque fingerprints only. The separate registered Git scanner recognizes bounded synthetic credential patterns, emits opaque fingerprints and never includes matched bytes in output.
 6. Unsupported heavyweight or live formats return a limitation and a pinned registered-adapter prerequisite. They do not produce a passing readiness claim.
 7. Missing or malformed required security evidence remains unknown through an unresolved finding or `insufficient_evidence` readiness.
-8. An offline clean result cannot establish provider-side revocation, current advisory state, runtime segmentation, cryptographic trust, production configuration, or deployment readiness.
+8. An offline clean result cannot establish provider-side revocation, current advisory state, runtime segmentation, remote service trust, production configuration, or deployment readiness. Typed cryptographic verification establishes only the supplied local trust policy at the assessment timestamp.
 
 ## Capability assertions
 
@@ -40,7 +40,7 @@ The returned mapping has schema `cops.artifact-assessment/v1`, uses repository-v
   and Pod inventories must be declared complete. Missing observations, stale DNS,
   unsupported policy features and exceeded bounds remain unresolved. Absence of a
   flow cannot prove denial; static predictions cannot prove CNI enforcement.
-- Transport identity inspects TLS metadata, mTLS settings, JWT claims and algorithms, and JWKS metadata while explicitly reserving signature, trust-anchor, revocation, and handshake checks for registered adapters or laboratories.
+- Transport identity preserves metadata inspection and adds `certificate_chain` and `jwt_verification` through `cryptographic-verification/v1`, pinned to cryptography 50.0.2. Explicit local trust, bounded keys/chains, strict identity and time validation, and an explicit client fingerprint allowlist are required. Malformed trust and missing prerequisites yield unknown; actual rejection is a local observation. Revocation and remote acceptance still require separate evidence. Laboratory correction compares these offline results with actual mTLS and JWT service requests using ephemeral credentials.
 
 ## Regression evidence
 
