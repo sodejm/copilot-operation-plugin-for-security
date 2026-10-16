@@ -30,7 +30,11 @@ from cops.discovery import (
     import_nmap_xml,
     infer_service_fingerprint,
 )
-from cops.discovery.active_models import MAX_ACTIVE_PLANNED_PROBES, TargetShiftQuarantine, active_assessment_digest
+from cops.discovery.active_models import (
+    MAX_ACTIVE_PLANNED_PROBES,
+    TargetShiftQuarantine,
+    active_assessment_digest,
+)
 from cops.discovery.active_scanner import (
     ActiveScanError,
     ProbeDispatcher,
