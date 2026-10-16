@@ -30,6 +30,7 @@ from cops.discovery import (
     import_nmap_xml,
     infer_service_fingerprint,
 )
+from cops.discovery.active_models import MAX_ACTIVE_PLANNED_PROBES, TargetShiftQuarantine
 from cops.discovery.active_scanner import (
     ActiveScanError,
     ProbeDispatcher,
@@ -418,6 +419,25 @@ class TestActiveDiscoveryModelsAndFingerprinting(unittest.TestCase):
             any("Port accepted TCP connection but emitted no descriptive" in r for r in fp.uncertainty_reasons)
         )
 
+    def test_coverage_summary_matches_quarantined_hosts_across_many_targets(self):
+        targets = [f"host-{index}.example" for index in range(200)]
+        quarantined = targets[::2]
+        session = ActiveScanSession(
+            session_id="quarantine-coverage",
+            scope_reference="approved-engagement",
+            approved_targets=targets,
+            approved_ports=[443],
+            budget=ScanBudget(max_probes=200),
+            quarantined_targets=[
+                TargetShiftQuarantine(target_host=host, original_ip="192.0.2.1", new_ip="192.0.2.2", reason="shift")
+                for host in quarantined
+            ],
+        )
+        summary = session.coverage_summary()
+        self.assertEqual(summary["planned"], 200)
+        self.assertEqual(summary["skipped"]["quarantined"], 100)
+        self.assertEqual(summary["unassessed"], 100)
+
 
 class TestStandardSocketDispatcherErrors(unittest.TestCase):
     def test_network_route_error_is_unreachable_and_refusal_is_closed(self):
@@ -438,6 +458,43 @@ class TestStandardSocketDispatcherErrors(unittest.TestCase):
                 self.assertEqual(assessment.port_state, expected_state)
                 self.assertEqual(assessment.reachability, expected_reachability)
 
+    def test_udp_timeout_is_unknown_and_counted_as_timed_out(self):
+        class TimeoutSocket:
+            def settimeout(self, _timeout):
+                pass
+
+            def connect(self, _address):
+                pass
+
+            def send(self, payload):
+                return len(payload)
+
+            def recv(self, _size):
+                raise TimeoutError
+
+            def close(self):
+                pass
+
+        with patch("cops.discovery.active_scanner.socket.socket", return_value=TimeoutSocket()):
+            assessment = StandardSocketDispatcher().dispatch_probe(
+                "198.51.100.10", "198.51.100.10", 53, protocol="udp", timeout=0.1
+            )
+        self.assertEqual(assessment.port_state, PortState.UNKNOWN.value)
+        self.assertEqual(assessment.reachability, ServiceReachability.UNKNOWN.value)
+        self.assertIn("timed out", assessment.error_message)
+
+        session = ActiveScanSession(
+            session_id="udp-timeout",
+            scope_reference="approved-engagement",
+            approved_targets=["198.51.100.10"],
+            approved_ports=[],
+            approved_udp_ports=[53],
+            budget=ScanBudget(max_probes=1),
+            assessments=[assessment],
+            completed_probe_keys={ActiveScanSession.make_probe_key("external", "udp", "198.51.100.10", 53)},
+        )
+        self.assertEqual(session.coverage_summary()["timed_out"], 1)
+
 
 class RecordingSocketDispatcher(StandardSocketDispatcher):
     """Exercise live admission and checkpoints without opening network sockets."""
@@ -456,6 +513,9 @@ class RecordingSocketDispatcher(StandardSocketDispatcher):
         self.probes.append((target_host, resolved_ip, port))
         if self.fail:
             raise OSError("uncertain probe outcome")
+        observed_config = ObservedConfiguration()
+        if protocol == "udp":
+            observed_config.protocol_metadata["probe_payload"] = "empty_datagram"
         return ActiveServiceAssessment(
             probe_id=f"recorded-{port}",
             target_host=target_host,
@@ -463,6 +523,7 @@ class RecordingSocketDispatcher(StandardSocketDispatcher):
             port=port,
             protocol=protocol,
             vantage=vantage,
+            observed_config=observed_config,
         )
 
 
@@ -997,6 +1058,88 @@ class TestActiveScannerExecutionAndBudgets(unittest.TestCase):
         self.assertEqual(ports[8080], PortState.CLOSED.value)
         self.assertEqual(ports[9000], PortState.FILTERED.value)
 
+    def test_offline_udp_fixtures_are_protocol_aware_and_evidence_bound(self):
+        fixtures = {
+            "app.corp.internal": {
+                "ports": {
+                    "tcp": {
+                        "53": {"state": "closed"},
+                        "443": {"state": "closed"},
+                    },
+                    "udp": {
+                        "53": {"timeout": True},
+                        "5353": {
+                            "state": "open",
+                            "protocol_metadata": {
+                                "probe_payload": "dns_root_ns_query",
+                                "dns_response_validated": True,
+                            },
+                        },
+                    },
+                }
+            }
+        }
+        session = ActiveScanSession(
+            session_id="protocol-aware-fixtures",
+            scope_reference="ROE-2026-001",
+            approved_targets=["app.corp.internal"],
+            approved_ports=[53, 443],
+            approved_udp_ports=[53, 5353, 9999],
+            udp_dns_probe_ports=[5353],
+            budget=ScanBudget(max_probes=5),
+        )
+        result = ActiveScanner(
+            session=session,
+            dispatcher=OfflineSyntheticDispatcher(targets=fixtures, dns_map=self.dns_map),
+            scope=self.scope,
+        ).run()
+        by_key = {(item.protocol, item.port): item for item in result.assessments}
+        self.assertEqual(by_key[("tcp", 53)].port_state, PortState.CLOSED.value)
+        self.assertEqual(by_key[("tcp", 443)].port_state, PortState.CLOSED.value)
+        self.assertEqual(by_key[("udp", 53)].port_state, PortState.UNKNOWN.value)
+        self.assertIn("timed out", by_key[("udp", 53)].error_message)
+        self.assertEqual(by_key[("udp", 9999)].port_state, PortState.UNKNOWN.value)
+        self.assertIn("No UDP fixture", by_key[("udp", 9999)].error_message)
+        dns_metadata = by_key[("udp", 5353)].observed_config.protocol_metadata
+        self.assertEqual(dns_metadata["probe_payload"], "dns_root_ns_query")
+        self.assertIs(dns_metadata["dns_response_validated"], True)
+        self.assertEqual(result.coverage_summary()["timed_out"], 1)
+
+        invalid = json.loads(json.dumps(fixtures))
+        invalid["app.corp.internal"]["ports"]["udp"]["5353"]["protocol_metadata"].pop("dns_response_validated")
+        invalid_session = ActiveScanSession(
+            session_id="invalid-dns-fixture",
+            scope_reference="ROE-2026-001",
+            approved_targets=["app.corp.internal"],
+            approved_ports=[],
+            approved_udp_ports=[5353],
+            udp_dns_probe_ports=[5353],
+            budget=ScanBudget(max_probes=1),
+        )
+        invalid_result = ActiveScanner(
+            session=invalid_session,
+            dispatcher=OfflineSyntheticDispatcher(targets=invalid, dns_map=self.dns_map),
+            scope=self.scope,
+        ).run()
+        self.assertEqual(invalid_result.status, "requires_reconciliation")
+        self.assertEqual(invalid_result.assessments, [])
+        self.assertEqual(
+            invalid_result.pending_probe_keys,
+            {ActiveScanSession.make_probe_key("external", "udp", "app.corp.internal", 5353)},
+        )
+
+    def test_direct_scanner_rejects_probe_ledger_above_materialization_cap(self):
+        per_target = (MAX_ACTIVE_PLANNED_PROBES // 3) + 1
+        session = ActiveScanSession(
+            session_id="oversized-ledger",
+            scope_reference="ROE-2026-001",
+            approved_targets=["a.example", "b.example", "c.example"],
+            approved_ports=list(range(1, per_target + 1)),
+            budget=ScanBudget(max_probes=MAX_ACTIVE_PLANNED_PROBES + 3),
+        )
+        with self.assertRaisesRegex(ActiveScanError, "probe ledger materialization cap"):
+            ActiveScanner(session=session, dispatcher=OfflineSyntheticDispatcher())._validate_run()
+
     def test_unreachable_host_handling(self):
         session = ActiveScanSession(
             session_id="sess-unreach",
@@ -1481,7 +1624,10 @@ class TestToolOutputImporters(unittest.TestCase):
             {
                 "ip": "198.51.100.20",
                 "timestamp": "1728130010",
-                "ports": [{"port": 22, "proto": "tcp", "status": "open", "reason": "syn-ack", "ttl": 60}],
+                "ports": [
+                    {"port": 22, "proto": "tcp", "status": "open", "reason": "syn-ack", "ttl": 60},
+                    {"port": 53, "proto": "udp", "status": "open", "reason": "udp-response", "ttl": 60},
+                ],
             },
         ]
         file_path = self.root / "masscan.json"
@@ -1489,10 +1635,22 @@ class TestToolOutputImporters(unittest.TestCase):
 
         session = import_masscan_json(file_path, vantage="external", scope_ref="MASS-01")
         self.assertEqual(session.status, "completed")
-        self.assertEqual(len(session.assessments), 3)
+        self.assertEqual(len(session.assessments), 4)
         self.assertEqual(set(session.approved_targets), {"198.51.100.10", "198.51.100.20"})
         self.assertEqual(set(session.approved_ports), {80, 443, 22})
+        self.assertEqual(session.approved_udp_ports, [53])
+        self.assertEqual({assessment.protocol for assessment in session.assessments}, {"tcp", "udp"})
         self.assertEqual(session.assessments[0].provenance.source_type, "masscan_export")
+
+    def test_import_masscan_rejects_unsupported_protocol(self):
+        file_path = self.root / "masscan-unsupported.json"
+        file_path.write_text(
+            json.dumps([{"ip": "198.51.100.10", "ports": [{"port": 53, "proto": "sctp"}]}]),
+            encoding="utf-8",
+        )
+
+        with self.assertRaisesRegex(ValueError, "Unsupported Masscan protocol"):
+            import_masscan_json(file_path)
 
     def test_import_nmap_xml(self):
         nmap_xml = """<?xml version="1.0" encoding="UTF-8"?>
@@ -1514,6 +1672,10 @@ class TestToolOutputImporters(unittest.TestCase):
       <service name="https" product="nginx" version="1.18.0" tunnel="ssl" method="probed"/>
       <script id="ssl-cert" output="Subject: commonName=web.corp.internal"/>
     </port>
+    <port protocol="udp" portid="53">
+      <state state="open" reason="udp-response"/>
+      <service name="domain" method="table"/>
+    </port>
   </ports>
 </host>
 </nmaprun>
@@ -1522,9 +1684,10 @@ class TestToolOutputImporters(unittest.TestCase):
         file_path.write_text(nmap_xml, encoding="utf-8")
 
         session = import_nmap_xml(file_path, vantage="external", scope_ref="NMAP-01")
-        self.assertEqual(len(session.assessments), 2)
+        self.assertEqual(len(session.assessments), 3)
         self.assertEqual(session.approved_targets, ["web.corp.internal"])
         self.assertEqual(session.approved_ports, [80, 443])
+        self.assertEqual(session.approved_udp_ports, [53])
 
         p80 = next(a for a in session.assessments if a.port == 80)
         self.assertEqual(p80.inferred_fingerprint.product, "nginx")
@@ -1533,6 +1696,31 @@ class TestToolOutputImporters(unittest.TestCase):
 
         p443 = next(a for a in session.assessments if a.port == 443)
         self.assertEqual(p443.observed_config.tls.subject_cn, "web.corp.internal")
+
+        p53 = next(a for a in session.assessments if a.port == 53)
+        self.assertEqual(p53.protocol, "udp")
+        self.assertEqual(p53.inferred_fingerprint.service_name, "domain")
+        self.assertIsNone(p53.inferred_fingerprint.product)
+        self.assertEqual(p53.inferred_fingerprint.confidence, ConfidenceLevel.LOW.value)
+
+    def test_import_nmap_rejects_unsupported_protocol(self):
+        file_path = self.root / "nmap-unsupported.xml"
+        file_path.write_text(
+            """<?xml version="1.0"?>
+<nmaprun>
+  <host>
+    <address addr="198.51.100.10" addrtype="ipv4"/>
+    <ports>
+      <port protocol="sctp" portid="3868"><state state="open"/></port>
+    </ports>
+  </host>
+</nmaprun>
+""",
+            encoding="utf-8",
+        )
+
+        with self.assertRaisesRegex(ValueError, "Unsupported Nmap protocol"):
+            import_nmap_xml(file_path)
 
 
 class TestActiveDiscoveryCLI(unittest.TestCase):
@@ -1757,6 +1945,67 @@ class TestActiveDiscoveryCLI(unittest.TestCase):
         args.max_probes = 65534
         with self.assertRaisesRegex(ValueError, "--max-probes"):
             command_active_discovery(args)
+
+    def test_cli_plan_enforces_cartesian_probe_budget_and_materialization_cap(self):
+        parser = argparse.ArgumentParser()
+        build_active_parser(parser)
+        output = self.root / "bounded-plan.json"
+        base_args = [
+            "plan",
+            "--targets",
+            "198.51.100.10,198.51.100.11",
+            "--ports",
+            "80",
+            "--udp-ports",
+            "53",
+            "--output",
+            str(output),
+        ]
+
+        with self.assertRaisesRegex(ValueError, "--max-probes"):
+            command_active_discovery(parser.parse_args([*base_args, "--max-probes", "3"]))
+
+        self.assertEqual(command_active_discovery(parser.parse_args([*base_args, "--max-probes", "4"])), 0)
+        bounded = ActiveScanSession.load_checkpoint(output)
+        self.assertEqual(bounded.budget.max_probes, 4)
+        self.assertEqual(bounded.coverage_summary()["planned"], 4)
+
+        with self.assertRaisesRegex(ValueError, "--max-probes"):
+            command_active_discovery(
+                parser.parse_args(
+                    [
+                        "plan",
+                        "--targets",
+                        "198.51.100.10,198.51.100.11",
+                        "--ports",
+                        "1-100",
+                        "--max-probes",
+                        "199",
+                        "--output",
+                        str(self.root / "over-budget-plan.json"),
+                    ]
+                )
+            )
+
+        with self.assertRaisesRegex(ValueError, "probe ledger materialization cap"):
+            command_active_discovery(
+                parser.parse_args(
+                    [
+                        "plan",
+                        "--targets",
+                        "198.51.100.10,198.51.100.11,198.51.100.12",
+                        "--max-targets",
+                        "3",
+                        "--ports",
+                        "all",
+                        "--allow-full-tcp",
+                        "--max-probes",
+                        str(3 * 65535),
+                        "--output",
+                        str(self.root / "oversized-ledger-plan.json"),
+                    ]
+                )
+            )
 
     def test_cli_plan_scan_resume_diff_pipeline(self):
         plan_out = str(self.root / "plan.json")

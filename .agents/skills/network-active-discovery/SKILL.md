@@ -57,6 +57,11 @@ to at least the selected target count times 65,535. UDP is a separate scope;
 this command does not scan it. `--scope-ref` is a reference, not proof of
 authorization; verify the engagement scope before live execution.
 
+Every plan is limited to 131,070 materialized target/protocol/port probe keys,
+and `--max-probes` must cover the full Cartesian plan. This limits in-memory
+ledger growth; it does not guarantee that a completed checkpoint will fit the
+256 MiB canonical document limit because recorded evidence has variable size.
+
 ### 2. Execute Bounded Scan with Scope Enforcement
 ```bash
 python3 -m cops discovery active scan session_plan.json \
@@ -96,3 +101,12 @@ python3 -m cops discovery active import masscan_output.json --tool masscan --out
 # Nmap XML export
 python3 -m cops discovery active import nmap_output.xml --tool nmap --output nmap_session.json
 ```
+
+Masscan and Nmap imports accept only TCP and UDP observations and keep those
+port ledgers separate. A Nmap service name without product or version remains a
+low-confidence service-name observation rather than an invented product.
+
+Offline synthetic fixtures should key port entries under `ports.tcp` or
+`ports.udp`; legacy numeric port keys apply only to TCP. A missing UDP fixture
+or UDP timeout remains unknown. A positive DNS fixture must bind the selected
+`probe_payload` and explicitly set `dns_response_validated` to `true`.
