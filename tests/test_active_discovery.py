@@ -962,6 +962,24 @@ class TestLiveScanSafety(unittest.TestCase):
         self.assertEqual(len(result.pending_probe_keys), 1)
         self.assertEqual(result.assessments, [])
 
+    def test_oversized_probe_evidence_requires_reconciliation(self):
+        class OversizedEvidence(RecordingSocketDispatcher):
+            def dispatch_probe(self, *args, **kwargs):
+                result = super().dispatch_probe(*args, **kwargs)
+                result.observed_config.raw_banner = "B" * 70_000
+                return result
+
+        result = self.scanner(self.session(), OversizedEvidence()).run()
+        self.assertEqual(result.status, "requires_reconciliation")
+        self.assertEqual(len(result.pending_probe_keys), 1)
+        self.assertEqual(result.completed_probe_keys, set())
+        self.assertEqual(result.assessments, [])
+        self.assertEqual(result.total_probes_dispatched, 1)
+        self.assertEqual(result.total_side_effects, 0)
+        restored = ActiveScanSession.load_checkpoint(self.checkpoint)
+        self.assertEqual(restored.status, "requires_reconciliation")
+        self.assertEqual(restored.pending_probe_keys, result.pending_probe_keys)
+
     def test_new_live_run_cannot_overwrite_existing_checkpoint(self):
         self.checkpoint.write_text("prior checkpoint", encoding="utf-8")
         dispatcher = RecordingSocketDispatcher()

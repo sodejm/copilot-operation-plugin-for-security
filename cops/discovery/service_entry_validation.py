@@ -22,7 +22,7 @@ _LABEL = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 _VANTAGES = frozenset({"external", "internal", "egress_point", "cloud_tenant"})
 _TRANSPORTS = frozenset({"tcp", "udp"})
 _SPECIALIST_ID = "cops-pentest-specialist"
-_SESSION_STATUSES = frozenset({"in_progress", "completed", "budget_exhausted", "interrupted"})
+_SESSION_STATUSES = frozenset({"in_progress", "partial", "completed", "budget_exhausted", "interrupted"})
 _PLAN_VERSION = "cops.service-validation-plan/v2"
 
 
@@ -276,9 +276,12 @@ def _prepare_service_entry_handoff(
         )
     if (
         endpoint.host not in session_targets
-        or endpoint.port not in session.approved_ports
+        or endpoint.port not in (
+            session.approved_udp_ports if endpoint.transport == "udp" else session.approved_ports
+        )
         or endpoint.vantage != session.vantage
         or probe_key not in session.completed_probe_keys
+        or probe_key in session.pending_probe_keys
     ):
         return ServiceEntryHandoff(
             "invalid_session",

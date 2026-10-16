@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import json
 import secrets
 import socket
 import socketserver
 import threading
 import time
+from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import asdict, replace
 from datetime import UTC, datetime, timedelta
@@ -142,7 +144,11 @@ def reproduction_for(endpoint: ApprovedEndpoint, *, affected_version: str = "red
 
 
 def budget_ledger(
-    tmp_path, *, engagement_id: str = "issue-285-loopback", db_name: str = "service-validation.sqlite3"
+    tmp_path,
+    *,
+    engagement_id: str = "issue-285-loopback",
+    db_name: str = "service-validation.sqlite3",
+    clock: Callable[[], int] | None = None,
 ) -> AssessmentBudgetLedger:
     policy = BudgetPolicy(
         engagement_id=engagement_id,
@@ -161,11 +167,11 @@ def budget_ledger(
         price_version="1",
         price_effective_date="2026-10-14",
     )
-    return AssessmentBudgetLedger(tmp_path / "private" / db_name, policy)
+    return AssessmentBudgetLedger(tmp_path / "private" / db_name, policy, clock=clock)
 
 
 def attempt(attempt_id: str) -> AttemptRequest:
-    return AttemptRequest(attempt_id, None, 10, 100, 512)
+    return AttemptRequest(attempt_id, None, 10, 100, 5_000)
 
 
 class ExactApprovalGate:
@@ -315,7 +321,7 @@ class LoopbackProvider:
             finding=load_trusted_issue_143_reproduction(plan.endpoint).finding if candidate else None,
             tokens=3,
             cost_microunits=30,
-            retained_output_bytes=128,
+            retained_output_bytes=5_000,
             audit_reference=audit_reference,
         )
 
@@ -783,6 +789,28 @@ def test_wrong_approval_and_reused_attempt_fail_before_provider_dispatch(tmp_pat
     assert replay_gate.calls == [] and server.connection_count == 1
 
 
+@pytest.mark.parametrize("field", ["receipt_id", "authority_id"])
+def test_oversized_approval_identity_fails_before_provider_dispatch(tmp_path, field):
+    with loopback_service(b"SSH-2.0-Lab_9.0\r\n") as server:
+        plan = plan_for(server.server_address[1], service="ssh", skill_id="network-remote-and-file-services")
+        ledger = budget_ledger(tmp_path)
+        provider = LoopbackProvider(server)
+        gate = ExactApprovalGate(**{field: "x" * 4097})
+        result = execute_service_validation_action(
+            plan,
+            ValidationSelection(plan.plan_id, "low_impact_validation"),
+            ledger=ledger,
+            request=attempt(f"oversized-{field}"),
+            authorization_gate=gate,
+            provider=provider,
+            evidence_verifier=LoopbackEvidenceVerifier(server),
+        )
+
+    assert result.status == "authorization_denied"
+    assert provider.calls == [] and server.connection_count == 0
+    assert ledger.get_attempt(f"oversized-{field}").state == "released"
+
+
 def test_authority_rejects_receipt_replay_across_fresh_ledgers(tmp_path):
     with loopback_service(b"SSH-2.0-Lab_9.0\r\n") as server:
         plan = plan_for(server.server_address[1], service="ssh", skill_id="network-remote-and-file-services")
@@ -843,6 +871,32 @@ def test_authorization_exception_releases_undispatched_reservation(tmp_path):
     assert server.connection_count == 0
 
 
+def test_authorization_interrupt_releases_undispatched_reservation(tmp_path):
+    plan = plan_for(22, service="ssh", skill_id="network-remote-and-file-services")
+    ledger = budget_ledger(tmp_path)
+
+    def interrupted_authorization_gate(_plan, _selection, _attempt_id):
+        raise KeyboardInterrupt
+
+    def unused_execution_boundary(*_args):
+        raise AssertionError("authorization interruption must prevent dispatch")
+
+    with pytest.raises(KeyboardInterrupt):
+        execute_service_validation_action(
+            plan,
+            ValidationSelection(plan.plan_id, "low_impact_validation"),
+            ledger=ledger,
+            request=attempt("authorization-interrupt"),
+            authorization_gate=interrupted_authorization_gate,
+            provider=unused_execution_boundary,
+            evidence_verifier=unused_execution_boundary,
+        )
+
+    snapshot = ledger.snapshot()
+    assert ledger.get_attempt("authorization-interrupt").state == "released"
+    assert snapshot.charged_attempts == 0 and snapshot.active_concurrency == 0
+
+
 def test_dispatch_intent_failure_releases_undispatched_reservation(tmp_path, monkeypatch):
     with loopback_service(b"SSH-2.0-Lab_9.0\r\n") as server:
         plan = plan_for(server.server_address[1], service="ssh", skill_id="network-remote-and-file-services")
@@ -897,6 +951,38 @@ def test_provider_exception_after_dispatch_marks_usage_uncertain(tmp_path):
     assert snapshot.charged_attempts == 1 and snapshot.active_concurrency == 1
     assert verifier.calls == 0
     assert server.connection_count == 0
+
+
+@pytest.mark.parametrize("malformed_source", ("provider", "verifier"))
+def test_invalid_unicode_after_dispatch_marks_usage_uncertain(tmp_path, malformed_source):
+    with loopback_service(b"SSH-2.0-Lab_9.0\r\n") as server:
+        plan = plan_for(server.server_address[1], service="ssh", skill_id="network-remote-and-file-services")
+        ledger = budget_ledger(tmp_path)
+        fixture_provider = LoopbackProvider(server)
+        fixture_verifier = LoopbackEvidenceVerifier(server)
+
+        def provider(*args):
+            output = fixture_provider(*args)
+            return replace(output, protocol_evidence=("\ud800",)) if malformed_source == "provider" else output
+
+        def verifier(*args):
+            evidence = fixture_verifier(*args)
+            return replace(evidence, protocol_evidence=("\ud800",)) if malformed_source == "verifier" else evidence
+
+        result = execute_service_validation_action(
+            plan,
+            ValidationSelection(plan.plan_id, "low_impact_validation"),
+            ledger=ledger,
+            request=attempt(f"invalid-unicode-{malformed_source}"),
+            authorization_gate=ExactApprovalGate(),
+            provider=provider,
+            evidence_verifier=verifier,
+        )
+
+    assert result.status == "dispatch_uncertain"
+    assert ledger.get_attempt(f"invalid-unicode-{malformed_source}").state == "uncertain"
+    assert len(fixture_provider.calls) == 1
+    assert fixture_verifier.calls == (0 if malformed_source == "provider" else 1)
 
 
 def test_postcommit_reconciliation_error_recovers_exact_completed_result(tmp_path, monkeypatch):
@@ -1005,3 +1091,373 @@ def test_precommit_reconciliation_error_marks_result_uncertain(tmp_path, monkeyp
 
     assert result.status == "dispatch_uncertain"
     assert ledger.get_attempt("precommit-reconcile").state == "uncertain"
+
+
+def test_audit_published_during_verification_is_accepted(tmp_path):
+    with loopback_service(b"SSH-2.0-Lab_9.0\r\n") as server:
+        plan = plan_for(server.server_address[1], service="ssh", skill_id="network-remote-and-file-services")
+        ledger = budget_ledger(tmp_path)
+        delegate = LoopbackEvidenceVerifier(server)
+
+        def verifier(*args):
+            verification = delegate(*args)
+            audit_recorded_at = datetime.now(UTC)
+            verified_at = datetime.now(UTC)
+            return replace(
+                verification,
+                audit_recorded_at=audit_recorded_at.isoformat(),
+                verified_at=verified_at.isoformat(),
+            )
+
+        result = execute_service_validation_action(
+            plan,
+            ValidationSelection(plan.plan_id, "low_impact_validation"),
+            ledger=ledger,
+            request=attempt("audit-during-verification"),
+            authorization_gate=ExactApprovalGate(),
+            provider=LoopbackProvider(server),
+            evidence_verifier=verifier,
+        )
+
+    assert result.status == "completed"
+    assert ledger.get_attempt("audit-during-verification").state == "settled"
+
+
+def test_independently_verified_low_impact_effect_marks_dispatch_uncertain(tmp_path):
+    with loopback_service(b"SSH-2.0-Lab_9.0\r\n") as server:
+        plan = plan_for(server.server_address[1], service="ssh", skill_id="network-remote-and-file-services")
+        ledger = budget_ledger(tmp_path)
+        delegate = LoopbackEvidenceVerifier(server)
+
+        def verifier(*args):
+            verification = delegate(*args)
+            return replace(
+                verification,
+                finding_effect="unexpected verified effect",
+                effect_evidence=("fixture audit independently recorded an unexpected effect",),
+                finding_effect_verified=True,
+            )
+
+        result = execute_service_validation_action(
+            plan,
+            ValidationSelection(plan.plan_id, "low_impact_validation"),
+            ledger=ledger,
+            request=attempt("unexpected-low-impact-effect"),
+            authorization_gate=ExactApprovalGate(),
+            provider=LoopbackProvider(server),
+            evidence_verifier=verifier,
+        )
+
+    assert result.status == "dispatch_uncertain"
+    assert result.reason == "the low-impact action produced an independently verified effect"
+    assert result.effect_evidence == ("fixture audit independently recorded an unexpected effect",)
+    assert ledger.get_attempt("unexpected-low-impact-effect").state == "uncertain"
+
+
+@pytest.mark.parametrize(
+    ("finding_effect_verified", "finding_effect", "effect_evidence"),
+    (
+        (False, "unverified effect", ("unverified effect evidence",)),
+        (True, "verified effect", ()),
+    ),
+    ids=("evidence-with-false-flag", "true-flag-without-evidence"),
+)
+def test_contradictory_finding_effect_verification_is_rejected(
+    tmp_path,
+    finding_effect_verified,
+    finding_effect,
+    effect_evidence,
+):
+    with loopback_service(b"SSH-2.0-Lab_9.0\r\n") as server:
+        plan = plan_for(server.server_address[1], service="ssh", skill_id="network-remote-and-file-services")
+        ledger = budget_ledger(tmp_path)
+        delegate = LoopbackEvidenceVerifier(server)
+
+        def verifier(*args):
+            return replace(
+                delegate(*args),
+                finding_effect=finding_effect,
+                effect_evidence=effect_evidence,
+                finding_effect_verified=finding_effect_verified,
+            )
+
+        result = execute_service_validation_action(
+            plan,
+            ValidationSelection(plan.plan_id, "low_impact_validation"),
+            ledger=ledger,
+            request=attempt(f"contradictory-effect-{finding_effect_verified}"),
+            authorization_gate=ExactApprovalGate(),
+            provider=LoopbackProvider(server),
+            evidence_verifier=verifier,
+        )
+
+    assert result.status == "dispatch_uncertain"
+    assert result.reason == "passive evidence could not be bound to the dispatched action: malformed evidence fields"
+    assert ledger.get_attempt(f"contradictory-effect-{finding_effect_verified}").state == "uncertain"
+
+
+def test_approval_expiring_before_durable_dispatch_is_rejected_atomically(tmp_path, monkeypatch):
+    ledger_now = [time.time_ns() // 1_000_000]
+    ledger = budget_ledger(tmp_path, clock=lambda: ledger_now[0])
+    original_mark_dispatched = ledger.mark_dispatched
+    original_transaction = ledger._transaction
+    delay_next_transaction = False
+    approval_expires_at_ms = 0
+    provider_calls = 0
+
+    @contextmanager
+    def delayed_transaction():
+        nonlocal delay_next_transaction
+        if delay_next_transaction:
+            delay_next_transaction = False
+            ledger_now[0] = approval_expires_at_ms
+        with original_transaction() as db:
+            yield db
+
+    def delayed_mark_dispatched(*args, **kwargs):
+        nonlocal delay_next_transaction, approval_expires_at_ms
+        expires_at = datetime.fromisoformat(
+            str(kwargs["dispatch_intent"]["approval_expires_at"]).replace("Z", "+00:00")
+        )
+        approval_expires_at_ms = int(expires_at.timestamp() * 1000)
+        delay_next_transaction = True
+        return original_mark_dispatched(*args, **kwargs)
+
+    def provider(*_args):
+        nonlocal provider_calls
+        provider_calls += 1
+        raise AssertionError("provider must not run after approval expiry")
+
+    monkeypatch.setattr(ledger, "mark_dispatched", delayed_mark_dispatched)
+    monkeypatch.setattr(ledger, "_transaction", delayed_transaction)
+    with loopback_service(b"SSH-2.0-Lab_9.0\r\n") as server:
+        plan = plan_for(server.server_address[1], service="ssh", skill_id="network-remote-and-file-services")
+        result = execute_service_validation_action(
+            plan,
+            ValidationSelection(plan.plan_id, "low_impact_validation"),
+            ledger=ledger,
+            request=attempt("approval-expires-during-dispatch"),
+            authorization_gate=ExactApprovalGate(),
+            provider=provider,
+            evidence_verifier=LoopbackEvidenceVerifier(server),
+        )
+
+    assert result.status == "dispatch_error"
+    assert provider_calls == 0
+    assert ledger.get_attempt("approval-expires-during-dispatch").state == "released"
+    assert ledger.snapshot().charged_attempts == 0
+    assert ledger.snapshot().active_concurrency == 0
+
+
+def test_maximum_length_attempt_id_produces_bounded_receipt(tmp_path, monkeypatch):
+    attempt_id = "a" * 128
+    with loopback_service(b"SSH-2.0-Lab_9.0\r\n") as server:
+        plan = plan_for(server.server_address[1], service="ssh", skill_id="network-remote-and-file-services")
+        ledger = budget_ledger(tmp_path)
+        receipts = []
+        original_reconcile = ledger.reconcile
+
+        def capture_receipt(receipt, **kwargs):
+            receipts.append(receipt)
+            return original_reconcile(receipt, **kwargs)
+
+        monkeypatch.setattr(ledger, "reconcile", capture_receipt)
+        result = execute_service_validation_action(
+            plan,
+            ValidationSelection(plan.plan_id, "low_impact_validation"),
+            ledger=ledger,
+            request=attempt(attempt_id),
+            authorization_gate=ExactApprovalGate(receipt_id="approval-max-attempt"),
+            provider=LoopbackProvider(server),
+            evidence_verifier=LoopbackEvidenceVerifier(server),
+        )
+
+    assert result.status == "completed"
+    assert len(receipts) == 1
+    assert len(receipts[0].receipt_id) <= 128
+    expected_retained_output_bytes = len(
+        json.dumps(asdict(result), sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    )
+    assert receipts[0].retained_output_bytes == expected_retained_output_bytes
+    assert receipts[0].retained_output_bytes < 5_000
+    assert ledger.get_attempt(attempt_id).state == "settled"
+
+
+def test_provider_retained_output_declaration_is_an_upper_bound(tmp_path):
+    with loopback_service(b"SSH-2.0-Lab_9.0\r\n") as server:
+        plan = plan_for(server.server_address[1], service="ssh", skill_id="network-remote-and-file-services")
+        ledger = budget_ledger(tmp_path)
+        provider = LoopbackProvider(server)
+
+        def underreporting_provider(*args):
+            return replace(provider(*args), retained_output_bytes=1)
+
+        result = execute_service_validation_action(
+            plan,
+            ValidationSelection(plan.plan_id, "low_impact_validation"),
+            ledger=ledger,
+            request=attempt("underreported-retained-output"),
+            authorization_gate=ExactApprovalGate(),
+            provider=underreporting_provider,
+            evidence_verifier=LoopbackEvidenceVerifier(server),
+        )
+
+    assert result.status == "dispatch_uncertain"
+    assert result.reason == "retained result exceeded its declared or reserved output bound"
+    assert ledger.get_attempt("underreported-retained-output").state == "uncertain"
+
+
+@pytest.mark.parametrize(
+    "protocol_evidence",
+    [
+        ("x" * 4097,),
+        tuple(f"evidence-{index}" for index in range(33)),
+    ],
+    ids=("oversized-field", "excessive-item-count"),
+)
+def test_provider_retained_evidence_is_bounded(tmp_path, protocol_evidence):
+    with loopback_service(b"SSH-2.0-Lab_9.0\r\n") as server:
+        plan = plan_for(server.server_address[1], service="ssh", skill_id="network-remote-and-file-services")
+        ledger = budget_ledger(tmp_path)
+        provider = LoopbackProvider(server)
+
+        def oversized_provider(*args):
+            return replace(provider(*args), protocol_evidence=protocol_evidence)
+
+        result = execute_service_validation_action(
+            plan,
+            ValidationSelection(plan.plan_id, "low_impact_validation"),
+            ledger=ledger,
+            request=attempt("bounded-retained-evidence"),
+            authorization_gate=ExactApprovalGate(),
+            provider=oversized_provider,
+            evidence_verifier=LoopbackEvidenceVerifier(server),
+        )
+
+    assert result.status == "dispatch_uncertain"
+    assert result.reason == "provider returned malformed or unbounded usage evidence"
+    assert ledger.get_attempt("bounded-retained-evidence").state == "uncertain"
+
+
+def test_provider_interrupt_after_dispatch_marks_usage_uncertain(tmp_path):
+    with loopback_service(b"SSH-2.0-Lab_9.0\r\n") as server:
+        plan = plan_for(server.server_address[1], service="ssh", skill_id="network-remote-and-file-services")
+        ledger = budget_ledger(tmp_path)
+        verifier = LoopbackEvidenceVerifier(server)
+
+        def interrupted_provider(_plan, _action, _context):
+            raise KeyboardInterrupt
+
+        with pytest.raises(KeyboardInterrupt):
+            execute_service_validation_action(
+                plan,
+                ValidationSelection(plan.plan_id, "low_impact_validation"),
+                ledger=ledger,
+                request=attempt("provider-interrupt"),
+                authorization_gate=ExactApprovalGate(),
+                provider=interrupted_provider,
+                evidence_verifier=verifier,
+            )
+
+    assert ledger.get_attempt("provider-interrupt").state == "uncertain"
+    assert ledger.snapshot().active_concurrency == 1
+    assert verifier.calls == 0
+
+
+def test_provider_base_exception_after_dispatch_marks_usage_uncertain(tmp_path):
+    class ProviderAbort(BaseException):
+        pass
+
+    with loopback_service(b"SSH-2.0-Lab_9.0\r\n") as server:
+        plan = plan_for(server.server_address[1], service="ssh", skill_id="network-remote-and-file-services")
+        ledger = budget_ledger(tmp_path)
+        verifier = LoopbackEvidenceVerifier(server)
+
+        def aborted_provider(_plan, _action, _context):
+            raise ProviderAbort
+
+        with pytest.raises(ProviderAbort):
+            execute_service_validation_action(
+                plan,
+                ValidationSelection(plan.plan_id, "low_impact_validation"),
+                ledger=ledger,
+                request=attempt("provider-base-exception"),
+                authorization_gate=ExactApprovalGate(),
+                provider=aborted_provider,
+                evidence_verifier=verifier,
+            )
+
+    assert ledger.get_attempt("provider-base-exception").state == "uncertain"
+    assert ledger.snapshot().active_concurrency == 1
+    assert verifier.calls == 0
+
+
+def test_verifier_interrupt_after_dispatch_marks_usage_uncertain(tmp_path):
+    with loopback_service(b"SSH-2.0-Lab_9.0\r\n") as server:
+        plan = plan_for(server.server_address[1], service="ssh", skill_id="network-remote-and-file-services")
+        ledger = budget_ledger(tmp_path)
+
+        def interrupted_verifier(*_args):
+            raise KeyboardInterrupt
+
+        with pytest.raises(KeyboardInterrupt):
+            execute_service_validation_action(
+                plan,
+                ValidationSelection(plan.plan_id, "low_impact_validation"),
+                ledger=ledger,
+                request=attempt("verifier-interrupt"),
+                authorization_gate=ExactApprovalGate(),
+                provider=LoopbackProvider(server),
+                evidence_verifier=interrupted_verifier,
+            )
+
+    assert ledger.get_attempt("verifier-interrupt").state == "uncertain"
+    assert ledger.snapshot().active_concurrency == 1
+
+
+def test_precommit_reconciliation_interrupt_marks_usage_uncertain(tmp_path, monkeypatch):
+    with loopback_service(b"SSH-2.0-Lab_9.0\r\n") as server:
+        plan = plan_for(server.server_address[1], service="ssh", skill_id="network-remote-and-file-services")
+        ledger = budget_ledger(tmp_path)
+
+        def interrupted_reconcile(*_args, **_kwargs):
+            raise KeyboardInterrupt
+
+        monkeypatch.setattr(ledger, "reconcile", interrupted_reconcile)
+        with pytest.raises(KeyboardInterrupt):
+            execute_service_validation_action(
+                plan,
+                ValidationSelection(plan.plan_id, "low_impact_validation"),
+                ledger=ledger,
+                request=attempt("precommit-interrupt"),
+                authorization_gate=ExactApprovalGate(),
+                provider=LoopbackProvider(server),
+                evidence_verifier=LoopbackEvidenceVerifier(server),
+            )
+
+    assert ledger.get_attempt("precommit-interrupt").state == "uncertain"
+
+
+def test_postcommit_reconciliation_interrupt_preserves_settlement(tmp_path, monkeypatch):
+    with loopback_service(b"SSH-2.0-Lab_9.0\r\n") as server:
+        plan = plan_for(server.server_address[1], service="ssh", skill_id="network-remote-and-file-services")
+        ledger = budget_ledger(tmp_path)
+        original_reconcile = ledger.reconcile
+
+        def commit_then_interrupt(receipt, **kwargs):
+            original_reconcile(receipt, **kwargs)
+            raise KeyboardInterrupt
+
+        monkeypatch.setattr(ledger, "reconcile", commit_then_interrupt)
+        with pytest.raises(KeyboardInterrupt):
+            execute_service_validation_action(
+                plan,
+                ValidationSelection(plan.plan_id, "low_impact_validation"),
+                ledger=ledger,
+                request=attempt("postcommit-interrupt"),
+                authorization_gate=ExactApprovalGate(),
+                provider=LoopbackProvider(server),
+                evidence_verifier=LoopbackEvidenceVerifier(server),
+            )
+
+    assert ledger.get_attempt("postcommit-interrupt").state == "settled"

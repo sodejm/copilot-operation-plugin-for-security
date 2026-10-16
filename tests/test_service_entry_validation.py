@@ -41,7 +41,8 @@ def scan_session(observed: ActiveServiceAssessment, *, with_provenance: bool = T
         session_id="session-285",
         scope_reference="scope-285",
         approved_targets=[observed.target_host],
-        approved_ports=[observed.port],
+        approved_ports=[observed.port] if observed.protocol == "tcp" else [],
+        approved_udp_ports=[observed.port] if observed.protocol == "udp" else [],
         vantage=observed.vantage,
         status="completed",
         completed_probe_keys={key},
@@ -221,6 +222,34 @@ class ServiceEntryValidationTests(unittest.TestCase):
         self.assertEqual(result.status, "blocked_scope")
         self.assertIsNone(result.plan)
 
+    def test_partial_session_routes_only_unquarantined_completed_host(self) -> None:
+        session = scan_session(assessment())
+        session.status = "partial"
+        session.quarantined_targets.append(
+            TargetShiftQuarantine("other.example", "192.0.2.11", "192.0.2.12", "resolution changed")
+        )
+        other = assessment(target_host="other.example", resolved_ip="192.0.2.11", probe_id="other")
+        other_key = ActiveScanSession.make_probe_key(other.vantage, other.protocol, other.target_host, other.port)
+        other.provenance = EvidenceProvenance(
+            source_id=session.session_id,
+            source_type="active_scan",
+            sha256=active_assessment_digest(other),
+            timestamp=other.timestamp_utc,
+            path_or_uri=session.scope_reference,
+            raw_record_ref=other_key,
+        )
+        session.approved_targets.append(other.target_host)
+        session.completed_probe_keys.add(other_key)
+        session.assessments.append(other)
+        other_endpoint = ApprovedEndpoint("other.example", "192.0.2.11", 2222, "tcp", "internal")
+
+        results = prepare_session_service_handoffs(
+            session, approved_endpoints={self.endpoint, other_endpoint}
+        )
+
+        self.assertEqual([result.status for result in results], ["candidate", "blocked_scope"])
+        self.assertIsNone(results[1].plan)
+
     def test_ipv6_quarantine_alias_cannot_create_plan(self) -> None:
         endpoint = ApprovedEndpoint("2001:db8::1", "2001:db8::1", 2222, "tcp", "internal")
         session = scan_session(assessment(target_host="2001:0db8:0:0:0:0:0:1", resolved_ip="2001:db8::1"))
@@ -257,6 +286,13 @@ class ServiceEntryValidationTests(unittest.TestCase):
                 result = prepare_session_service_handoffs(session, approved_endpoints={self.endpoint})[0]
                 self.assertEqual(result.status, "invalid_session")
                 self.assertIsNone(result.plan)
+
+    def test_completed_probe_also_marked_pending_cannot_create_plan(self) -> None:
+        session = scan_session(assessment())
+        session.pending_probe_keys.update(session.completed_probe_keys)
+        result = prepare_session_service_handoffs(session, approved_endpoints={self.endpoint})[0]
+        self.assertEqual(result.status, "invalid_session")
+        self.assertIsNone(result.plan)
 
     def test_duplicate_assessments_for_one_completed_probe_fail_closed(self) -> None:
         session = scan_session(assessment())
@@ -321,6 +357,16 @@ class ServiceEntryValidationTests(unittest.TestCase):
         udp_endpoint = ApprovedEndpoint("lab.example", "192.0.2.10", 2222, "udp", "internal")
         result = self.handoff(assessment(protocol="udp"), approved_endpoints={udp_endpoint})
         self.assertEqual(result.status, "unverified_protocol")
+        self.assertIsNone(result.plan)
+
+    def test_udp_probe_is_not_authorized_by_tcp_port_allowlist(self) -> None:
+        observed = assessment(protocol="udp")
+        session = scan_session(observed)
+        session.approved_ports = [observed.port]
+        session.approved_udp_ports = []
+        udp_endpoint = ApprovedEndpoint("lab.example", "192.0.2.10", 2222, "udp", "internal")
+        result = prepare_session_service_handoffs(session, approved_endpoints={udp_endpoint})[0]
+        self.assertEqual(result.status, "invalid_session")
         self.assertIsNone(result.plan)
 
 

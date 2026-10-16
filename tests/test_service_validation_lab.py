@@ -110,6 +110,66 @@ def test_lab_registry_covers_seven_families_without_external_claims():
     adapters = lab_service_provider_registry()
     assert {adapter.service: adapter.skill_id for adapter in adapters} == EXPECTED_ROUTES
     assert all(adapter.evidence_scope == "disposable loopback fixture only" for adapter in adapters)
+    for skill_id in EXPECTED_ROUTES.values():
+        assert (REPOSITORY_ROOT / ".agents" / "skills" / skill_id / "SKILL.md").is_file()
+        assert (
+            REPOSITORY_ROOT
+            / "plugins"
+            / "offensive-security"
+            / "attack-surface-planner"
+            / "skills"
+            / skill_id
+            / "SKILL.md"
+        ).is_file()
+
+
+@pytest.mark.parametrize(
+    ("service", "banner", "expected_response"),
+    [
+        ("ssh", b"SSH-2.0-Lab_9.0\r\n", b"SSH-2.0-Lab_9.0\r\n"),
+        ("smtp", b"220 lab ESMTP\r\n", b"220 lab ESMTP\r\n250-lab\r\n250 HELP\r\n"),
+        ("redis", b"", b"+PONG\r\n"),
+        ("http", b"HTTP/1.1 200 OK\r\n\r\n", b"HTTP/1.1 200 OK\r\n\r\n"),
+    ],
+)
+def test_fixture_requires_one_use_audit_before_any_response(service, banner, expected_response):
+    fixture = _start_fixture(_Case(f"unaudited-{service}", service, banner, "lab-1", candidate=True))
+    request = lab._request_for(service, controlled_proof=False)
+
+    def exchange(wire: bytes) -> bytes:
+        with socket.create_connection(("127.0.0.1", fixture.endpoint.port), timeout=2) as connection:
+            connection.settimeout(2)
+            connection.sendall(wire)
+            connection.shutdown(socket.SHUT_WR)
+            return lab._recv_all(connection)
+
+    def frame(reference: str, correlation: str) -> bytes:
+        return f"COPS-AUDIT {reference} {correlation} {len(request)}\n".encode() + request
+
+    try:
+        assert exchange(request or b"raw-ssh-request") == b""
+        assert exchange(b"COPS-AUDIT malformed\n" + request) == b""
+        assert exchange(frame("unknown-reference", "correlation")) == b""
+        reference = fixture.server.issue_audit_reference({"dispatch_correlation_id": "correlation"})
+        assert exchange(frame(reference, "wrong-correlation")) == b""
+        with fixture.server.audit_lock:
+            assert fixture.server.requests == []
+            assert fixture.server.responses == []
+            assert fixture.server.audit == {}
+            assert reference in fixture.server.pending_audits
+
+        assert exchange(frame(reference, "correlation")) == expected_response
+        completed = fixture.server.read_completed_audit(reference)
+        assert completed["closed"] is True
+        assert completed["request"] == request
+        assert exchange(frame(reference, "correlation")) == b""
+        with fixture.server.audit_lock:
+            assert fixture.server.pending_audits == {}
+            assert fixture.server.audit == {}
+            expected_log = [banner, expected_response[len(banner) :]] if service == "smtp" else [expected_response]
+            assert fixture.server.responses == expected_log
+    finally:
+        fixture.stop()
 
 
 def test_fixture_audit_frame_accepts_fragmented_header_and_request():
@@ -204,7 +264,8 @@ def test_fixture_stop_rejects_live_request_worker(monkeypatch):
     fixture = _start_fixture(_Case("blocked-handler", "redis", b"", "redis-lab-5.0", candidate=True))
     connection = socket.create_connection(("127.0.0.1", fixture.endpoint.port), timeout=2)
     try:
-        connection.sendall(b"PING\r\n")
+        reference = fixture.server.issue_audit_reference({"dispatch_correlation_id": "blocked-handler"})
+        connection.sendall(f"COPS-AUDIT {reference} blocked-handler 6\nPING\r\n".encode())
         assert entered_handler.wait(timeout=2)
         with pytest.raises(RuntimeError, match="did not stop cleanly"):
             fixture.stop()
@@ -404,3 +465,28 @@ def test_cleanup_failure_attempts_every_fixture_and_fails_closed(tmp_path, monke
     assert len(started) == len(lab._CASES)
     assert len(stopped) == len(lab._CASES)
     assert all(not fixture.thread.is_alive() for fixture in started)
+
+
+def test_cleanup_failure_preserves_primary_journey_failure(tmp_path, monkeypatch):
+    original_start = lab._start_fixture
+    original_stop = lab._RunningFixture.stop
+    started: list[lab._RunningFixture] = []
+
+    def fail_after_first_start(case: lab._Case) -> lab._RunningFixture:
+        if started:
+            raise ValueError("injected journey failure")
+        fixture = original_start(case)
+        started.append(fixture)
+        return fixture
+
+    def fail_after_stop(fixture: lab._RunningFixture) -> None:
+        original_stop(fixture)
+        raise RuntimeError("injected cleanup failure")
+
+    monkeypatch.setattr(lab, "_start_fixture", fail_after_first_start)
+    monkeypatch.setattr(lab._RunningFixture, "stop", fail_after_stop)
+    with pytest.raises(ValueError, match="injected journey failure") as captured:
+        lab.run_loopback_service_validation_journey(tmp_path / "state")
+    assert len(started) == 1
+    assert not started[0].thread.is_alive()
+    assert "fixture cleanup failed: http-insufficient" in captured.value.__notes__
