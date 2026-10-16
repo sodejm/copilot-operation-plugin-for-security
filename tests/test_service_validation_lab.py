@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
+import socket
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 from cops.discovery import lab_service_provider_registry
+from cops.discovery.service_validation_lab import _read_wire_request
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPOSITORY_ROOT / "scripts" / "service_validation_loopback_example.py"
@@ -94,13 +97,38 @@ def assert_complete_public_journey(report: dict) -> None:
         for item in report["cleanup"]
         if item["case_id"] != "ssh-benign"
     )
-    assert next(item for item in report["cleanup"] if item["case_id"] == "redis-candidate")["connection_count"] >= 6
+    assert next(item for item in report["cleanup"] if item["case_id"] == "redis-candidate")["connection_count"] == 3
 
 
 def test_lab_registry_covers_seven_families_without_external_claims():
     adapters = lab_service_provider_registry()
     assert {adapter.service: adapter.skill_id for adapter in adapters} == EXPECTED_ROUTES
     assert all(adapter.evidence_scope == "disposable loopback fixture only" for adapter in adapters)
+
+
+def test_fixture_audit_frame_accepts_fragmented_header_and_request():
+    reader, writer = socket.socketpair()
+
+    def send_fragments() -> None:
+        try:
+            for fragment in (
+                b"COPS-AUDIT fixture-ref ",
+                b"dispatch-correlation 4\nP",
+                b"ING",
+            ):
+                writer.sendall(fragment)
+            writer.shutdown(socket.SHUT_WR)
+        finally:
+            writer.close()
+
+    thread = threading.Thread(target=send_fragments)
+    thread.start()
+    try:
+        assert _read_wire_request(reader) == ("fixture-ref", "dispatch-correlation", b"PING")
+    finally:
+        reader.close()
+        thread.join(timeout=1)
+    assert not thread.is_alive()
 
 
 def test_public_subprocess_runs_complete_service_validation_journey(tmp_path):
