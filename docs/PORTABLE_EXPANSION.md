@@ -35,3 +35,10 @@ The portable expansion test builds a package through a temporary Git index,
 exports it, and runs its offline demo with isolated Python path handling from the
 exported tree. This verifies that reviewed playbooks and dataset provenance are
 preserved and that the demo does not depend on an adjacent COPS checkout.
+
+## Optional EVTX runtime
+
+The EVTX adapter is a repository CLI capability. Portable plugin exports do not
+silently bundle its parser. The strict laboratory source snapshot includes the
+synthetic `.evtx` correction fixtures; its separately provisioned runtime pins
+both parser dependencies. Missing prerequisites fail the binary acceptance case.

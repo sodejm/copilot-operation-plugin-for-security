@@ -51,3 +51,10 @@ The returned mapping has schema `cops.artifact-assessment/v1`, uses repository-v
 workspace exclusions, deceptive registry URLs, multiline requirements, ecosystem
 collisions, quoted/local actions, write permissions, and pull-request checkout
 boundaries, including corrected and unsupported inputs.
+
+## Binary telemetry imports
+
+The [EVTX import contract](evtx-import.spec.md) precedes assessment. Its typed
+record references and source digest preserve provenance, but derived indicators
+alone cannot become verified findings. Unsupported or incomplete records remain
+partial evidence. Native acquisition requires separate permissions and evidence.

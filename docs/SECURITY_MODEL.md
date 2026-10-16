@@ -213,3 +213,16 @@ apply an offline-component claim to a live integration. Follow
 [Review coverage](security/REVIEW_COVERAGE.md) for retroactive review and
 maintenance. A repository owner can authorize merge under the engineering review
 policy; release review remains separate.
+
+## EVTX parser boundary
+
+The fixed artifact registry selects the pinned parser; artifacts cannot nominate
+code or dependencies. The importer verifies a bounded regular-file snapshot against
+an expected SHA-256 and validates EVTX framing and CRCs before creating a private
+read-only parser input. Linux CPU, address-space, output and file-descriptor limits,
+a deadline, a cleared environment and a fixed isolated interpreter invocation bound
+the worker. Event content is never executed; exported records omit raw commands,
+users and paths. Unsupported records are counted as partial evidence. These limits
+do not provide network isolation or protect against a compromised same-user process.
+Use the isolated runtime for untrusted data and review prerequisites independently.
+A matching supplied hash demonstrates integrity, not independent source authenticity.
