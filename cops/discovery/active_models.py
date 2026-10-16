@@ -12,7 +12,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from cops.evidence.canonical import canonical, decode_json, utc_now
+from cops.evidence.canonical import canonical, decode_json, digest, utc_now
 
 from .models import EvidenceProvenance
 
@@ -265,6 +265,13 @@ class ActiveServiceAssessment:
             error_message=data.get("error_message"),
             provenance=prov,
         )
+
+
+def active_assessment_digest(assessment: ActiveServiceAssessment) -> str:
+    """Digest the recorded probe result without its self-referential provenance."""
+    payload = assessment.to_dict()
+    payload.pop("provenance")
+    return digest(payload, max_bytes=65536)
 
 
 @dataclass

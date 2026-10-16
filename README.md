@@ -196,6 +196,7 @@ Before creating new plugins or modifying contracts, please review:
 - **[Documentation Site](https://sodejm.github.io/copilot-operation-plugin-for-security/)**: The official documentation website.
 - **[Getting Started Guide](docs/getting-started.md)**: Quickstart and command walkthroughs.
 - **[Authenticated Execution Guide](docs/AUTHENTICATED_EXECUTION.md)**: Configure verifier trust, immutable approval binding, one-time execution, migration, and key rotation.
+- **[Service Validation Playbook](docs/SERVICE_VALIDATION_PLAYBOOK.md)**: Route observed services, run the disposable loopback acceptance lab, and interpret evidence-bound validation states.
 - **[Offline Research Execution](docs/OFFLINE_RESEARCH_EXECUTION.md)**: Provision and review the opt-in Linux profile for approved local corpora.
 - **[AI Export Privacy Boundary](docs/AI_EXPORT_PRIVACY.md)**: Versioned, field-aware policy boundary and caller-provided offline provider, telemetry, report, and diagnostic export adapters.
 - **[Adding a Plugin](docs/ADDING_A_PLUGIN.md)**: Step-by-step instructions for contributing a new security capability.

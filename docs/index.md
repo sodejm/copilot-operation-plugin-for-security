@@ -138,6 +138,7 @@ Learn more in the [Specialist Agents Guide](specialist-agents.md).
 - [Troubleshooting](troubleshooting.md): Step-by-step solutions for common setup issues.
 - [Security Model](SECURITY_MODEL.md): Threat modeling, prompt injection resistance, and readiness modes.
 - [Authenticated Execution](AUTHENTICATED_EXECUTION.md): Verifier trust-store setup, one-time approval consumption, migration, and key rotation.
+- [Service Validation Playbook](SERVICE_VALIDATION_PLAYBOOK.md): Seven-family routing, provider gates, independent evidence, and the disposable loopback lab.
 - [Engagement Contracts Specification](../specs/engagement-contracts.spec.md): Schema contracts for engagements, scenarios, action plans, and findings.
 - [Offline Engagement Reporting](ENGAGEMENT_REPORTING.md): Build scoped JSON and Markdown assessments from local contracts and evidence.
 - [Engagement Findings and Reporting Specification](../specs/engagement-findings-and-reporting.spec.md): Assessment labels, evidence joins, and trust limits.

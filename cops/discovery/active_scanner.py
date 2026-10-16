@@ -19,7 +19,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-from cops.evidence.canonical import utc_now
+from cops.evidence.canonical import EvidenceError, utc_now
 
 from .active_models import (
     MAX_ACTIVE_PLANNED_PROBES,
@@ -33,6 +33,7 @@ from .active_models import (
     ScanDelta,
     ServiceReachability,
     TargetShiftQuarantine,
+    active_assessment_digest,
     canonical_target_identity,
 )
 from .fingerprinter import infer_service_fingerprint
@@ -1377,6 +1378,24 @@ class ActiveScanner:
                     persist()
                     return self.session
 
+                # Bind provenance before checkpointing so replay restores the
+                # same evidence identity after a crash.
+                try:
+                    assessment.provenance = EvidenceProvenance(
+                        source_id=self.session.session_id,
+                        source_type="active_scan",
+                        sha256=active_assessment_digest(assessment),
+                        timestamp=assessment.timestamp_utc,
+                        path_or_uri=self.session.scope_reference,
+                        raw_record_ref=probe_key,
+                    )
+                except (EvidenceError, AttributeError, TypeError, ValueError):
+                    # Dispatch may have taken effect, but this result cannot be
+                    # bound to replayable evidence. Keep its reservation pending.
+                    self.session.status = "requires_reconciliation"
+                    persist()
+                    return self.session
+
                 # Record the assessment durably before updating the in-memory
                 # ledger. A crash after this append is replayed on resume.
                 update_elapsed()
@@ -1388,6 +1407,7 @@ class ActiveScanner:
                         persist()
                         return self.session
                 self.session.pending_probe_keys.remove(probe_key)
+
                 self.session.completed_probe_keys.add(probe_key)
                 self.session.assessments.append(assessment)
                 self.session.total_side_effects += 1

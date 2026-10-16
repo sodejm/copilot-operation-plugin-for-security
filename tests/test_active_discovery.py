@@ -30,7 +30,11 @@ from cops.discovery import (
     import_nmap_xml,
     infer_service_fingerprint,
 )
-from cops.discovery.active_models import MAX_ACTIVE_PLANNED_PROBES, TargetShiftQuarantine
+from cops.discovery.active_models import (
+    MAX_ACTIVE_PLANNED_PROBES,
+    TargetShiftQuarantine,
+    active_assessment_digest,
+)
 from cops.discovery.active_scanner import (
     ActiveScanError,
     ProbeDispatcher,
@@ -722,6 +726,34 @@ class TestLiveScanSafety(unittest.TestCase):
         self.assertEqual(next_dispatcher.resolutions, 0)
         self.assertEqual(next_dispatcher.probes, [])
 
+    def test_completion_journal_replays_provenance_after_crash_before_memory_update(self):
+        session = self.session()
+        original_append = ActiveScanSession.append_probe_completion
+
+        def append_then_crash(current, path, probe_key, assessment):
+            original_append(current, path, probe_key, assessment)
+            raise KeyboardInterrupt("simulated crash")
+
+        with patch.object(ActiveScanSession, "append_probe_completion", append_then_crash):
+            with self.assertRaises(KeyboardInterrupt):
+                self.scanner(session).run()
+
+        probe_key = "external:tcp:app.corp.internal:80"
+        self.assertIn(probe_key, session.pending_probe_keys)
+        self.assertNotIn(probe_key, session.completed_probe_keys)
+        self.assertEqual(session.assessments, [])
+
+        replayed = ActiveScanSession.load_checkpoint(self.checkpoint)
+        self.assertNotIn(probe_key, replayed.pending_probe_keys)
+        self.assertIn(probe_key, replayed.completed_probe_keys)
+        self.assertEqual(len(replayed.assessments), 1)
+        provenance = replayed.assessments[0].provenance
+        self.assertIsNotNone(provenance)
+        assert provenance is not None
+        self.assertEqual(provenance.source_id, replayed.session_id)
+        self.assertEqual(provenance.raw_record_ref, probe_key)
+        self.assertEqual(provenance.sha256, active_assessment_digest(replayed.assessments[0]))
+
     def test_pending_checkpoint_status_is_reconciled_durably(self):
         self.scanner(self.session(), RecordingSocketDispatcher(fail=True)).run()
         data = json.loads(self.checkpoint.read_text(encoding="utf-8"))
@@ -934,6 +966,24 @@ class TestLiveScanSafety(unittest.TestCase):
         self.assertEqual(len(result.pending_probe_keys), 1)
         self.assertEqual(result.assessments, [])
 
+    def test_oversized_probe_evidence_requires_reconciliation(self):
+        class OversizedEvidence(RecordingSocketDispatcher):
+            def dispatch_probe(self, *args, **kwargs):
+                result = super().dispatch_probe(*args, **kwargs)
+                result.observed_config.raw_banner = "B" * 70_000
+                return result
+
+        result = self.scanner(self.session(), OversizedEvidence()).run()
+        self.assertEqual(result.status, "requires_reconciliation")
+        self.assertEqual(len(result.pending_probe_keys), 1)
+        self.assertEqual(result.completed_probe_keys, set())
+        self.assertEqual(result.assessments, [])
+        self.assertEqual(result.total_probes_dispatched, 1)
+        self.assertEqual(result.total_side_effects, 0)
+        restored = ActiveScanSession.load_checkpoint(self.checkpoint)
+        self.assertEqual(restored.status, "requires_reconciliation")
+        self.assertEqual(restored.pending_probe_keys, result.pending_probe_keys)
+
     def test_new_live_run_cannot_overwrite_existing_checkpoint(self):
         self.checkpoint.write_text("prior checkpoint", encoding="utf-8")
         dispatcher = RecordingSocketDispatcher()
@@ -1057,6 +1107,19 @@ class TestActiveScannerExecutionAndBudgets(unittest.TestCase):
         self.assertEqual(ports[443], PortState.OPEN.value)
         self.assertEqual(ports[8080], PortState.CLOSED.value)
         self.assertEqual(ports[9000], PortState.FILTERED.value)
+        for assessment in completed.assessments:
+            with self.subTest(port=assessment.port):
+                probe_key = ActiveScanSession.make_probe_key(
+                    assessment.vantage, assessment.protocol, assessment.target_host, assessment.port
+                )
+                self.assertIn(probe_key, completed.completed_probe_keys)
+                self.assertIsNotNone(assessment.provenance)
+                self.assertEqual(assessment.provenance.source_type, "active_scan")
+                self.assertEqual(assessment.provenance.source_id, completed.session_id)
+                self.assertEqual(assessment.provenance.path_or_uri, completed.scope_reference)
+                self.assertEqual(assessment.provenance.raw_record_ref, probe_key)
+                self.assertEqual(assessment.provenance.timestamp, assessment.timestamp_utc)
+                self.assertEqual(assessment.provenance.sha256, active_assessment_digest(assessment))
 
     def test_offline_udp_fixtures_are_protocol_aware_and_evidence_bound(self):
         fixtures = {
