@@ -5,9 +5,11 @@
 from __future__ import annotations
 
 import argparse
+import os
 import ssl
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from pytest_bdd import given, scenarios, then, when
@@ -32,7 +34,7 @@ from cops.discovery import (
     compare_active_scans,
     infer_service_fingerprint,
 )
-from cops.discovery.active_scanner import StandardSocketDispatcher, _create_tls_context
+from cops.discovery.active_scanner import StandardSocketDispatcher, _create_tls_context, _live_checkpoint_lock
 from cops.discovery.cli import command_active_discovery
 
 scenarios("../../specs/features/network_active_discovery.feature")
@@ -674,3 +676,46 @@ def when_tls_context_created(bdd_ctx):
 @then("the minimum TLS version is TLS 1.2")
 def then_minimum_tls_version(bdd_ctx):
     assert bdd_ctx["tls_context"].minimum_version == ssl.TLSVersion.TLSv1_2
+
+
+@given("a live checkpoint controller lock path")
+def given_live_checkpoint_controller_lock_path(bdd_ctx, tmp_path):
+    bdd_ctx["lock_checkpoint"] = tmp_path / "checkpoint.json"
+    bdd_ctx["lock_entered"] = False
+    bdd_ctx["lock_error"] = None
+    bdd_ctx["lock_replaced"] = False
+
+
+@when("that lock path is replaced during advisory lock acquisition")
+def when_lock_path_is_replaced_during_acquisition(bdd_ctx):
+    if os.name == "nt":
+        pytest.skip("POSIX replacement semantics")
+
+    import fcntl
+
+    checkpoint = bdd_ctx["lock_checkpoint"]
+    lock_path = checkpoint.with_name(f"{checkpoint.name}.lock")
+    displaced_lock = lock_path.with_name(f"{lock_path.name}.displaced")
+    real_flock = fcntl.flock
+
+    def replace_path_before_lock(descriptor, operation):
+        if operation == (fcntl.LOCK_EX | fcntl.LOCK_NB) and not bdd_ctx["lock_replaced"]:
+            os.replace(lock_path, displaced_lock)
+            lock_path.touch(mode=0o600)
+            bdd_ctx["lock_replaced"] = True
+        return real_flock(descriptor, operation)
+
+    try:
+        with patch.object(fcntl, "flock", side_effect=replace_path_before_lock):
+            with _live_checkpoint_lock(checkpoint):
+                bdd_ctx["lock_entered"] = True
+    except ActiveScanError as error:
+        bdd_ctx["lock_error"] = error
+
+
+@then("the protected live-scan section is not entered")
+def then_protected_live_scan_section_is_not_entered(bdd_ctx):
+    assert bdd_ctx["lock_replaced"]
+    assert not bdd_ctx["lock_entered"]
+    assert isinstance(bdd_ctx["lock_error"], ActiveScanError)
+    assert "unsafe" in str(bdd_ctx["lock_error"])

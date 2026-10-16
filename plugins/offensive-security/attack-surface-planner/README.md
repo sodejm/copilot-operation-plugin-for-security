@@ -113,6 +113,7 @@ The package extends reconnaissance foundations with bounded, rate-limited TCP an
 2. **Resumable Execution**:
    - Saves checkpoint after every probe or upon budget exhaustion.
    - Resuming skips completed probes without repeating network side effects or exceeding approved targets.
+   - Stores the checkpoint and controller lock in a private directory that other processes cannot mutate for the full live run. Lock identity is revalidated after acquisition, but advisory locking cannot prevent later pathname replacement by a process with the same filesystem authority.
 3. **Grounded Service Identification with Visible Uncertainty**:
    - Distinguishes verbatim observed configurations (raw banners, HTTP status/headers, TLS ciphers/certs) from inferred fingerprints (product, version, OS).
    - A TCP port number alone does not establish a service. TLS without an HTTP response identifies only TLS. By default, UDP sends one empty datagram per selected port: a reply establishes a responding port, while silence remains `unknown`. Opted-in UDP ports receive one nonrecursive DNS root NS query; only a matching DNS response identifies DNS, with no product or version claim. Other UDP replies remain unidentified, including replies on conventional DNS ports.

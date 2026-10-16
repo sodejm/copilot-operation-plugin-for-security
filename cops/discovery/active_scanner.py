@@ -130,6 +130,38 @@ def _open_live_checkpoint_lock(path: Path) -> int:
         raise ActiveScanError("Live checkpoint lock is unavailable or unsafe") from error
 
 
+def _validate_acquired_live_checkpoint_lock(path: Path, descriptor: int) -> None:
+    """Require the lock pathname to still identify the acquired descriptor."""
+    lock_path = path.with_name(f"{path.name}.lock")
+    try:
+        opened = _validate_live_checkpoint_lock_descriptor(descriptor)
+        if ActiveScanSession._supports_checkpoint_directory_fd():
+            directory = ActiveScanSession._open_checkpoint_directory(path)
+            try:
+                current = os.stat(lock_path.name, dir_fd=directory, follow_symlinks=False)
+            finally:
+                os.close(directory)
+            if (
+                stat.S_ISLNK(current.st_mode)
+                or ActiveScanSession._is_reparse_point(current)
+                or not stat.S_ISREG(current.st_mode)
+                or not ActiveScanSession._same_file_identity(opened, current)
+            ):
+                raise ValueError("Live checkpoint lock changed during acquisition")
+            return
+
+        parent = ActiveScanSession._validate_portable_checkpoint_parent(path)
+        current = _validate_portable_live_checkpoint_lock_path(lock_path)
+        current_parent = ActiveScanSession._validate_portable_checkpoint_parent(path)
+        if not (
+            ActiveScanSession._same_file_identity(opened, current)
+            and ActiveScanSession._same_file_identity(parent, current_parent)
+        ):
+            raise ValueError("Live checkpoint lock changed during acquisition")
+    except (OSError, ValueError) as error:
+        raise ActiveScanError("Live checkpoint lock is unavailable or unsafe") from error
+
+
 @contextmanager
 def _live_checkpoint_lock(path: Path) -> Iterator[None]:
     """Hold one cross-process controller lock for the whole live scan."""
@@ -149,6 +181,7 @@ def _live_checkpoint_lock(path: Path) -> Iterator[None]:
 
                 fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
             acquired = True
+            _validate_acquired_live_checkpoint_lock(path, descriptor)
         except OSError as err:
             raise ActiveScanError("Live checkpoint has another active controller; retry after it stops") from err
         yield

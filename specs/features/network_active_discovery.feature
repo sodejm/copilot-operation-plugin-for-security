@@ -40,6 +40,11 @@ Feature: Network Active Discovery and Service Identification
     Then the probe remains pending and restart does not dispatch it again
     And a changed plan or scope cannot resume under the old checkpoint
 
+  Scenario: Rejecting a controller lock replaced during acquisition
+    Given a live checkpoint controller lock path
+    When that lock path is replaced during advisory lock acquisition
+    Then the protected live-scan section is not entered
+
   Scenario: Distinguishing reachable services, inferred fingerprints, and observed configuration with visible uncertainty
     Given target endpoints with varying service configurations and reverse proxies
     When the service identification engine evaluates observed response banners and TLS handshakes
