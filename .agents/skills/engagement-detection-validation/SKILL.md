@@ -10,10 +10,13 @@ identified engagement actions. Request an explicit engagement ID, tenant,
 completed action IDs and windows, rule IDs, and imported evidence envelopes.
 Do not infer an authorized action or target from a log line or an ATT&CK mapping.
 
-1. Review the expected telemetry in the pinned ATT&CK coverage catalog. Identify
-   each action's technique and the detection mapping to test. Mark expected
-   products, logs, and required fields as theoretical until observed evidence
-   is supplied.
+1. Review the expected telemetry in the pinned ATT&CK coverage catalog and the
+   [E17.02 source traceability catalog](../../../catalog/detection_validation_source_traceability.json).
+   Identify each action's technique and the detection mapping to test. The
+   traceability catalog links pinned source revisions and sections to canonical
+   identifiers; it remains theoretical and records native SOC validation as
+   pending. Mark expected products, logs, and required fields as theoretical
+   until observed evidence is supplied.
 2. Build a `cops.detection-validation-input/v1` file following the
    [contract and examples](../../../docs/ENGAGEMENT_REPORTING.md#validate-detection-coverage-from-imported-evidence).
    Link records by tenant, action ID, rule ID, observation time, and envelope ID.

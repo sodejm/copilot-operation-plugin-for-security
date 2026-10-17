@@ -129,6 +129,15 @@ requires an engagement, tenant, action windows, mapping/rule checks, and
 `cops.evidence/v1` envelopes. The [workflow skill](../.agents/skills/engagement-detection-validation/SKILL.md)
 describes the evidence collection and review steps.
 
+The [E17.02 source traceability catalog](../catalog/detection_validation_source_traceability.json)
+and its [schema](../catalog/schemas/detection-validation-source-traceability.schema.json)
+link every pinned S01 through S13 source revision and inventory section to the
+canonical scenario or guidance identifiers used by the repository. This static
+catalog records theoretical source relationships only. Native SOC action and
+alert correlation, collection completeness, clock alignment, and cleanup
+evidence remain pending external execution; the catalog does not establish a
+measured detection result.
+
 ```bash
 private_dir="$(mktemp -d)"
 chmod 700 "$private_dir"
