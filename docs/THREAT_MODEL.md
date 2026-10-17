@@ -58,6 +58,7 @@ private payloads and real identifiers must never be copied into this document.
 
 | Approved local corpus → private Linux worker workspace → offline research adapter → run result | The signed plan binds corpus, inventory, isolation, and executable digests. The worker checks a fresh namespace observation before approval consumption and before each external adapter starts; its own measurements do not independently attest host controls. |
 | Operator-supplied synthetic case → runner → agent fixture proposal → authorization gate → MCP stdio fixture → observed state/report | Case text and MCP tool output are untrusted data. The agent child proposes but has no MCP pipe; only the runner can forward a proposal after case-scoped checks. The separate child processes share the host's OS authority, so their stdio boundary is not an OS network sandbox. |
+| Trusted stdio profile and untrusted MCP request → bounded Action Plan compiler → later worker | The compiler binds one exact read-only request to a registered adapter version, source revision, executable digest and no-egress plan assertion. It does not launch a process, authenticate a profile author, attest the executable on a worker, or enforce OS isolation. |
 | Synthetic provider plan and response fixture → exact plan gate → assessment budget ledger → normalized content-free report | Provider-shaped input remains untrusted. Exact environment, scope, endpoint, model, canary, tool and request-digest binding precede reservation and fixture processing. The importer makes no network request and executes no proposed tool. |
 | Ordinary-language goal plus Engagement → exact target resolver → selection result | Goal text is untrusted intent, not authority. The resolver accepts one exact included target or a recorded engagement selection, rejects quoted examples and ambiguity, and reports that no executable path or assessment exists. Engagement review remains unverified. |
 | Approved dispatch grant → worker egress broker → operator gateway → provider handler | The opt-in v2 broker accepts a bounded POST only to one configured gateway origin and path with an exact TLS SPIFFE identity. It verifies the signed grant against the plan, worker identity, provider scope, and request digest, then durably consumes the one-use dispatch and authorization IDs before sending. The gateway independently verifies those bindings and owns provider credentials. Repository tests use an emulator; no production gateway or credential path is provisioned. |
@@ -130,6 +131,15 @@ operation and accepts no case-selected command or endpoint, but the OS does not
 block network access. Run only trusted checkout code with synthetic data and no
 real credentials or live targets. These local results do not establish live
 model prompt-injection resistance, host containment or independent authorization.
+
+The separate offline stdio profile compiler accepts a trusted, versioned profile
+and an untrusted request. It requires an exact tool and argument match, one
+registered adapter with a pinned revision and executable digest, and bounded
+request, duration and output sizes. It emits and revalidates one inert Action
+Plan; its `egress_allowed: false` field is a contract assertion. A worker must
+independently verify the executable, authorization and no-egress isolation before
+dispatch. No disposable worker or independent observer is available for this
+phase, so the compiler tests are not laboratory containment evidence.
 
 ### Offline AI provider fixture boundary
 

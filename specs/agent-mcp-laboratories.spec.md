@@ -43,6 +43,22 @@ The package validator and `cops check foundry-agent-harness` inspect bounded JSO
 
 Untrusted content can claim higher priority, impersonate a peer, request cross-tenant access, or supply a tool call marker. The proposal fixture deliberately parses that marker so the gate can be exercised. It has no tool access. The MCP fixture accepts only fixed synthetic operations over stdio. The gate's allowlists prevent the proposal from selecting a process, tenant, resource, or network destination. This is process and data isolation within the local fixture design, not an operating-system network sandbox; run it only with synthetic case data and do not interpret its result as live-model resistance.
 
+## Offline stdio profile conformance (#149)
+
+A trusted, versioned profile pins one registered adapter action, source revision,
+executable digest, MCP protocol, exact read-only request contract, and duration and
+output limits. The compiler accepts only a bounded untrusted request matching that
+contract. It encodes the request and trusted bindings in one canonical base64url
+argument of a single Action Plan operation. Revalidation checks the plan digest,
+adapter registration, profile bindings, and decoded envelope before any later
+worker may consider execution. Unknown fields, changed arguments, changed adapter
+pins, credentials, prerequisites, or egress allowance fail closed.
+
+This module only compiles and validates data. It starts no process and confers no
+execution authorization or OS network isolation. Native worker, independent
+observer, no-egress, approval, canary, effect, and cleanup acceptance remains open
+until a disposable Linux laboratory is available.
+
 ## Agent delegation and MCP authorization boundary extension (issue 236)
 
 The extension is a separate local synthetic pack. Its versioned case, adapter, evidence, normalized observation, and run contracts record a redacted principal, agent or service, downstream audience, tenant, resource, operation, caller-presented scopes, decision, and effect provenance. Only fixed synthetic aliases and grants are accepted; case input never selects a process, network destination, credential, or arbitrary tool. No bearer token is stored or printed. The fixture speaks MCP 2025-11-25 over stdio, which is a local transport demonstration and makes no OAuth or HTTP authorization compliance claim.
