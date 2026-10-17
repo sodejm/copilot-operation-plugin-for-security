@@ -45,17 +45,19 @@ Untrusted content can claim higher priority, impersonate a peer, request cross-t
 
 ## Offline stdio profile conformance (#149)
 
-A trusted, versioned profile pins one registered adapter action, source revision,
-executable digest, command template (binary, base arguments, and typed request
-parameter), MCP protocol, exact read-only request contract, and duration and output
-limits. The compiler accepts only a bounded untrusted request matching that contract
-and rejects credential-shaped keys or values in the profile and request arguments
-before encoding. It encodes the request and trusted bindings in one canonical
-base64url argument of a single Action Plan operation. Revalidation checks the plan
-digest, adapter registration and command-template digest, profile bindings, and
-decoded envelope before any later worker may consider execution. Unknown fields,
-changed arguments, changed adapter commands or pins, recognizable credentials,
-prerequisites, or egress allowance fail closed.
+A trusted, versioned profile pins one registered adapter action, supported
+environments, provenance source, license, and revision, executable verification
+arguments, version pattern, digest, and size cap, the complete action command
+template (binary, base arguments, and typed request parameter), MCP protocol, exact
+read-only request contract, and duration and output limits. The compiler accepts only
+a bounded untrusted request matching that contract and rejects credential-shaped
+keys or values in the profile and request arguments before encoding. It encodes the
+request and trusted bindings in one canonical base64url argument of a single Action
+Plan operation. Revalidation checks the plan digest, adapter registration and
+command-template digest, profile bindings, and decoded envelope before any later
+worker may consider execution. Unknown fields, changed arguments or adapter
+execution-contract fields, recognizable credentials, prerequisites, or egress
+allowance fail closed.
 
 This module only compiles and validates data. It starts no process and confers no
 execution authorization or OS network isolation. Native worker, independent

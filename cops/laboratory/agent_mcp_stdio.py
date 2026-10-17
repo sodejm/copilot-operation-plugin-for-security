@@ -218,7 +218,8 @@ def _trusted_profile(profile: Mapping[str, object], registry: ToolAdapterRegistr
         raise StdioProfileError("profile adapter version differs from registration")
     if adapter.provenance.get("pinned_revision") != trusted.source_revision:
         raise StdioProfileError("profile source revision differs from registration")
-    if adapter.executable_verification is None or adapter.executable_verification.sha256 != trusted.executable_sha256:
+    verification = adapter.executable_verification
+    if verification is None or verification.sha256 != trusted.executable_sha256:
         raise StdioProfileError("profile executable digest differs from registration")
     action = adapter.actions.get(trusted.action)
     if action is None or set(action.parameters) != {trusted.request_parameter}:
@@ -234,6 +235,18 @@ def _trusted_profile(profile: Mapping[str, object], registry: ToolAdapterRegistr
         raise StdioProfileError("profile request parameter must be a required constrained string")
     command_template = {
         "binary": adapter.binary,
+        "supported_environments": list(adapter.supported_environments),
+        "provenance": {
+            "source": adapter.provenance.get("source"),
+            "license": adapter.provenance.get("license"),
+            "pinned_revision": adapter.provenance.get("pinned_revision"),
+        },
+        "executable_verification": {
+            "sha256": verification.sha256,
+            "version_args": list(verification.version_args),
+            "version_pattern": verification.version_pattern,
+            "max_size_bytes": verification.max_size_bytes,
+        },
         "action": action.action,
         "base_args": action.base_args,
         "parameter": {
