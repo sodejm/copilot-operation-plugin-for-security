@@ -93,7 +93,7 @@ def _target_key(target: str) -> str:
 
 
 def _supported_detail_pattern(subject: str) -> str:
-    return rf"{subject}(?:\s+for\s+exposed\s+services)?(?:\s+safely)?[.!?]?"
+    return rf"{subject}(?P<exposed_services>\s+for\s+exposed\s+services)?(?P<safely>\s+safely)?[.!?]?"
 
 
 def _matches_supported_subject(goal_subject: str, subject: str) -> bool:
@@ -102,6 +102,31 @@ def _matches_supported_subject(goal_subject: str, subject: str) -> bool:
 
 def _inside(span: tuple[int, int], containers: list[tuple[int, int]]) -> bool:
     return any(start <= span[0] and span[1] <= end for start, end in containers)
+
+
+_IPV4_MAPPED_RANGE = ipaddress.ip_network("::ffff:0:0/96")
+
+
+def _normalize_mapped_network(
+    network: ipaddress.IPv4Network | ipaddress.IPv6Network,
+) -> ipaddress.IPv4Network | ipaddress.IPv6Network:
+    if isinstance(network, ipaddress.IPv6Network) and network.prefixlen >= 96:
+        mapped = network.network_address.ipv4_mapped
+        if mapped is not None:
+            return ipaddress.IPv4Network((mapped, network.prefixlen - 96), strict=False)
+    return network
+
+
+def _networks_overlap_including_mapped(
+    target: ipaddress.IPv4Network | ipaddress.IPv6Network,
+    exclusion: ipaddress.IPv4Network | ipaddress.IPv6Network,
+) -> bool:
+    target = _normalize_mapped_network(target)
+    exclusion = _normalize_mapped_network(exclusion)
+    if target.version == exclusion.version:
+        return target.overlaps(exclusion)
+    ipv6_network = target if isinstance(target, ipaddress.IPv6Network) else exclusion
+    return ipv6_network.overlaps(_IPV4_MAPPED_RANGE)
 
 
 def _reject_overlapping_exclusions(target: str, excluded: list[str]) -> None:
@@ -122,6 +147,12 @@ def _reject_overlapping_exclusions(target: str, excluded: list[str]) -> None:
         if "/" not in target and ":" not in target:
             domain = _target_key(target).lstrip(".").rstrip(".")
             for exclusion in excluded:
+                try:
+                    ipaddress.ip_network(exclusion, strict=False)
+                except ValueError:
+                    pass
+                else:
+                    continue
                 if "/" in exclusion or ":" in exclusion:
                     continue
                 excluded_domain = _target_key(exclusion).lstrip(".").rstrip(".")
@@ -145,7 +176,7 @@ def _reject_overlapping_exclusions(target: str, excluded: list[str]) -> None:
             excluded_network = ipaddress.ip_network(exclusion, strict=False)
         except ValueError:
             continue
-        if target_network.version == excluded_network.version and target_network.overlaps(excluded_network):
+        if _networks_overlap_including_mapped(target_network, excluded_network):
             raise _fail(
                 "Selected target overlaps an excluded address or network",
                 code="overlapping_exclusion",
@@ -284,7 +315,8 @@ def _validate_goal_detail(goal: str, target: str, target_source: str) -> dict[st
     subject = re.escape(target) if target_source == "goal" else _SELECTED_SUBJECT
     supported_detail = _supported_detail_pattern(subject)
     detail = goal[intent.end() :].strip()
-    if re.fullmatch(supported_detail, detail, _ASCII_CASE_INSENSITIVE) is None:
+    detail_match = re.fullmatch(supported_detail, detail, _ASCII_CASE_INSENSITIVE)
+    if detail_match is None:
         retry_subject = target if target_source == "goal" else "the selected endpoint"
         raise _fail(
             "Goal contains a target or instruction this resolver cannot interpret",
@@ -296,12 +328,8 @@ def _validate_goal_detail(goal: str, target: str, target_source: str) -> dict[st
         )
     return {
         "verb": intent.group("verb").lower(),
-        "detail": (
-            "exposed_services"
-            if re.search(r"\bfor\s+exposed\s+services\b", detail, _ASCII_CASE_INSENSITIVE)
-            else "unspecified"
-        ),
-        "safe_mode_requested": bool(re.search(r"\bsafely\b", detail, _ASCII_CASE_INSENSITIVE)),
+        "detail": "exposed_services" if detail_match.group("exposed_services") is not None else "unspecified",
+        "safe_mode_requested": detail_match.group("safely") is not None,
         "status": "unbound",
     }
 
@@ -324,15 +352,15 @@ def resolve_engagement_goal(
             code="goal_too_long",
             next_action="Provide one direct assessment request of at most 4096 characters.",
         )
-    if _NEGATED_ASSESSMENT.search(goal):
-        raise _fail(
-            "Goal contains an instruction not to perform an assessment action",
-            code="negated_assessment",
-            next_action="State the assessment you want as a positive instruction, with explicit limits in the engagement contract.",
-        )
     stripped_goal = goal.strip()
     intent = _DIRECT_ASSESSMENT.match(stripped_goal)
     if intent is None:
+        if _NEGATED_ASSESSMENT.search(goal):
+            raise _fail(
+                "Goal contains an instruction not to perform an assessment action",
+                code="negated_assessment",
+                next_action="State the assessment you want as a positive instruction, with explicit limits in the engagement contract.",
+            )
         raise _fail(
             "Goal is not a direct request for an assessment action",
             code="missing_assessment_intent",
