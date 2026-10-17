@@ -53,3 +53,21 @@ at most 4 MiB, creates new owner-only JSON and Markdown files, and makes no
 network request. User text and evidence payloads never appear in the Markdown
 report. Native SIEM or EDR validation requires separately authorized runtime
 evidence.
+
+## Pinned source traceability
+
+`catalog/detection_validation_source_traceability.json` records the E17.02
+disposition of every pinned S01 through S13 source in `catalog/provenance.json`.
+Each row carries the source's exact pinned revision, a JSON Pointer to its
+file-or-section inventory, and the canonical scenario, guidance, or decision
+identifiers represented by that inventory. S02 is direct detection-validation
+guidance because its pinned inventory contains `COPS-E17.02-GUIDE`; the other
+sources provide action context whose observed activity may be evaluated by this
+workflow.
+
+This catalog is static, offline traceability. It does not contain action IDs,
+time windows, telemetry, alerts, searches, or measured outcomes. Native SOC
+validation remains pending until separately authorized execution evidence is
+correlated to source-authenticated telemetry and search receipts with explicit
+clock, ingest, collection, and correlation limits. Missing telemetry never
+proves prevention.

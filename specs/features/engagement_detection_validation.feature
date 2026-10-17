@@ -27,3 +27,9 @@ Feature: Evidence-bounded engagement detection validation
     Given a completed action with evidence from another tenant
     When the offline detection report is attempted
     Then the offline detection report is rejected
+
+  Scenario: Pinned source traceability remains theoretical
+    Given the E17.02 offline source traceability catalog
+    When source mappings are checked against pinned provenance
+    Then every S01 through S13 source maps to canonical identifiers
+    And native SOC validation remains pending
