@@ -534,6 +534,7 @@ class IsolatedWorker:
             egress_identity_verifier=self._egress_identity_verifier,
         )
         operation_egress_policies = self._preflight_execution_request(plan_model, cancel_requested=cancel_requested)
+        self._verify_plan_compatibility(plan_model)
 
         # Compatibility and workspace safety are part of the pre-consumption gate.
         secure_evidence_dirs = _supports_secure_evidence_dirs()
@@ -619,7 +620,6 @@ class IsolatedWorker:
                 raise WorkerIsolationError("worker workspace path must not contain symbolic-link components") from err
             self.approval_control.assert_ready(self.config.worker_id)
             self.sandbox.assert_ready(self.config.worker_id, cwd=target_workspace, expected_workspace_fd=workspace_fd)
-            self._verify_plan_compatibility(plan_model)
             if offline_profile is not None:
                 staged_corpora = stage_corpora(
                     offline_profile, workspace=target_workspace, workspace_fd=workspace_fd, ledger=ledger
