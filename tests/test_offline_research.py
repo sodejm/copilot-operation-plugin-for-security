@@ -214,10 +214,7 @@ def test_signed_inert_version_mismatch_rejects_before_approval_or_sandbox_launch
 
     assert approval_control.consume_calls == []
     assert sandbox_launches == []
-    assert (
-        approval_store.get_authorization(authorization.authorization_id).status
-        == "approved"
-    )
+    assert approval_store.get_authorization(authorization.authorization_id).status == "approved"
 
 
 @pytest.mark.parametrize("violation", ["url", "egress", "credentials", "proxy", "adapter", "stale"])
