@@ -47,3 +47,9 @@ Feature: Isolated local agent and MCP laboratory
     When the authorization assessment runs without additional approval
     Then missing identity is inconclusive with independently observed zero effects
     And both fixed processes and private evidence are cleaned up
+
+  Scenario: A bounded stdio request binds its command template without execution
+    Given a trusted read-only stdio profile and pinned fixture adapter
+    When a matching bounded MCP request is compiled into one Action Plan
+    Then the canonical envelope revalidates against the adapter command template
+    And credential arguments and changed command flags are rejected before execution

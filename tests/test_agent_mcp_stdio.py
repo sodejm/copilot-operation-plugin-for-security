@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import copy
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -158,7 +159,8 @@ def test_compile_stdio_request_binds_trusted_profile_to_action_plan(tmp_path: Pa
     envelope = _decode_envelope(operation["arguments"]["request_b64"])
     assert envelope["schema_version"] == "cops.agent-mcp-stdio-envelope/v1"
     assert envelope["request"] == _request()
-    assert envelope["adapter_binding"] == {
+    assert re.fullmatch(r"[0-9a-f]{64}", envelope["adapter_binding"]["command_template_sha256"])
+    assert {key: value for key, value in envelope["adapter_binding"].items() if key != "command_template_sha256"} == {
         "protocol_version": "2025-11-25",
         "source_revision": "a" * 64,
         "executable_sha256": "b" * 64,
@@ -219,6 +221,44 @@ def test_compile_rejects_changed_adapter_pin_and_oversized_request(tmp_path: Pat
     request["arguments"] = {"query": "x" * 17_000}
     with pytest.raises(StdioProfileError, match="bounded canonical JSON: payload_limit"):
         _compile(registry, request=request)
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"authorization": "Bearer fixture-credential-123456"},
+        {"query": "Bearer fixture-credential-123456"},
+        {"nested": [{"apiKey": "fixture-credential-123456"}]},
+        {"query": "password=fixture-credential-123456"},
+    ],
+)
+@pytest.mark.parametrize("source", ["profile", "request"])
+def test_compile_rejects_credential_shaped_arguments_without_echo(
+    tmp_path: Path, arguments: dict[str, object], source: str
+) -> None:
+    profile = _profile()
+    request = _request()
+    if source == "profile":
+        profile["request_contract"]["arguments"] = arguments
+    else:
+        request["arguments"] = arguments
+    with pytest.raises(StdioProfileError, match="cannot contain credentials") as exc_info:
+        _compile(_registry(tmp_path), profile=profile, request=request)
+    assert "fixture-credential-123456" not in str(exc_info.value)
+
+
+def test_revalidate_rejects_changed_registered_command_template(tmp_path: Path) -> None:
+    registry = _registry(tmp_path)
+    plan = _compile(registry)
+    adapter = registry.get_adapter("fixture-agent")
+    adapter.actions["invoke"].base_args.append("--different-mode")
+    with pytest.raises(StdioProfileError, match="adapter binding differs"):
+        validate_stdio_action_plan(plan=plan, profile=_profile(), registry=registry)
+
+    adapter.actions["invoke"].base_args.pop()
+    adapter.binary = "different-fixture-agent"
+    with pytest.raises(StdioProfileError, match="adapter binding differs"):
+        validate_stdio_action_plan(plan=plan, profile=_profile(), registry=registry)
 
 
 def test_revalidate_rejects_plan_tamper_and_rebound_envelope(tmp_path: Path) -> None:
