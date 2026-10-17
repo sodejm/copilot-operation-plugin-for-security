@@ -308,6 +308,24 @@ def test_negated_assessment_cannot_select_a_target(engagement: dict[str, object]
     assert error.value.code == "negated_assessment"
 
 
+def test_target_name_does_not_create_negated_assessment(engagement: dict[str, object]) -> None:
+    changed = copy.deepcopy(engagement)
+    changed["scope"]["included_targets"] = ["never-test.example"]  # type: ignore[index]
+    changed["metadata"] = {}
+    result = resolve_engagement_goal(goal="Assess never-test.example.", engagement=changed)
+    assert result["resolution"]["targets"] == ["never-test.example"]
+
+
+def test_target_name_does_not_request_safe_mode(engagement: dict[str, object]) -> None:
+    changed = copy.deepcopy(engagement)
+    changed["scope"]["included_targets"] = ["safely.internal"]  # type: ignore[index]
+    changed["metadata"] = {}
+    result = resolve_engagement_goal(goal="Assess safely.internal.", engagement=changed)
+    assert result["resolution"]["requested_intent"]["safe_mode_requested"] is False
+    result = resolve_engagement_goal(goal="Assess safely.internal safely.", engagement=changed)
+    assert result["resolution"]["requested_intent"]["safe_mode_requested"] is True
+
+
 @pytest.mark.parametrize(
     "goal",
     [
@@ -383,6 +401,26 @@ def test_goal_rejects_selected_network_overlapping_excluded_host(engagement: dic
     with pytest.raises(GoalResolutionError) as error:
         resolve_engagement_goal(goal=goal, engagement=changed)
     assert error.value.code == "overlapping_exclusion"
+
+
+@pytest.mark.parametrize("target", ["::ffff:10.0.0.5", "::ffff:10.0.0.0/120"])
+def test_goal_rejects_mapped_ipv4_overlap(engagement: dict[str, object], target: str) -> None:
+    changed = copy.deepcopy(engagement)
+    changed["scope"]["included_targets"] = [target]  # type: ignore[index]
+    changed["scope"]["excluded_targets"] = ["10.0.0.5"]  # type: ignore[index]
+    changed["metadata"] = {}
+    with pytest.raises(GoalResolutionError) as error:
+        resolve_engagement_goal(goal=f"Assess {target}.", engagement=changed)
+    assert error.value.code == "overlapping_exclusion"
+
+
+def test_ip_exclusion_is_not_a_domain_suffix(engagement: dict[str, object]) -> None:
+    changed = copy.deepcopy(engagement)
+    changed["scope"]["included_targets"] = ["service.10.0.0.5"]  # type: ignore[index]
+    changed["scope"]["excluded_targets"] = ["10.0.0.5"]  # type: ignore[index]
+    changed["metadata"] = {}
+    result = resolve_engagement_goal(goal="Assess service.10.0.0.5.", engagement=changed)
+    assert result["resolution"]["targets"] == ["service.10.0.0.5"]
 
 
 @pytest.mark.parametrize(
