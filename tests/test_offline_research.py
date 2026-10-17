@@ -17,6 +17,7 @@ import pytest
 from cops.adapters.registry import ToolAdapterRegistry
 from cops.contracts import ActionPlan, ContractError
 from cops.evidence.canonical import digest, utc_now
+from cops.execution import ApprovalStore, IsolatedWorker, WorkerExecutionError
 from cops.execution.cleanup import SideEffectLedger
 from cops.execution.filesystem import open_directory_no_symlinks
 from cops.execution.offline_research import (
@@ -27,6 +28,11 @@ from cops.execution.offline_research import (
     verify_isolation_observation,
 )
 from cops.execution.sandbox import LinuxBubblewrapSandbox, OfflineIsolationViolation
+from tests.auth_testkit import (
+    TestApprovalControl,
+    authorize_test_plan,
+    worker_inventory_for_plan,
+)
 
 WORKER_ID = "worker-offline-test"
 INVENTORY = {"worker_identity": WORKER_ID, "tools": {"inert": "0.7.0"}}
@@ -130,6 +136,88 @@ def test_inert_empty_array_arguments_survive_action_plan_freezing(tmp_path):
 
     assert plan.operations[0]["arguments"] == ()
     _validate(plan)
+
+
+def test_signed_inert_version_mismatch_rejects_before_approval_or_sandbox_launch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path.resolve() / "sample.txt"
+    source.write_text("inert fixture\n", encoding="utf-8")
+    inventory_plan = _plan(_profile(source))
+    inventory = worker_inventory_for_plan(inventory_plan, worker_identity=WORKER_ID)
+
+    profile = _profile(source)
+    profile["worker_inventory_sha256"] = digest(inventory.to_dict())
+    plan = _plan(
+        profile,
+        operations=[
+            {
+                "step_id": "step-1",
+                "tool": "inert",
+                "tool_version": "0.8.0",
+                "action": "print_status",
+                "arguments": {},
+                "timeout_seconds": 10,
+            }
+        ],
+    )
+    authorization, trust_store, engagement = authorize_test_plan(
+        plan,
+        worker_identity=WORKER_ID,
+    )
+    approval_store = ApprovalStore(tmp_path / "approvals.sqlite3")
+    approval_store.store_authorization(authorization)
+    approval_control = TestApprovalControl(approval_store, trust_store, engagement)
+    sandbox_launches: list[tuple[object, ...]] = []
+
+    def fake_assert_ready(
+        _sandbox: LinuxBubblewrapSandbox,
+        _worker_identity: str,
+        *,
+        cwd: Path,
+        expected_workspace_fd: int | None = None,
+    ) -> None:
+        del cwd, expected_workspace_fd
+
+    def fake_run(
+        _sandbox: LinuxBubblewrapSandbox,
+        *args: object,
+        **kwargs: object,
+    ) -> object:
+        sandbox_launches.append((*args, kwargs))
+        raise AssertionError("sandbox process must not launch")
+
+    monkeypatch.setattr(LinuxBubblewrapSandbox, "assert_ready", fake_assert_ready)
+    monkeypatch.setattr(LinuxBubblewrapSandbox, "run", fake_run)
+
+    cleanup_dir = tmp_path / "cleanup-journal"
+    cleanup_dir.mkdir(mode=0o700)
+    worker = IsolatedWorker(
+        inventory,
+        approval_control,
+        LinuxBubblewrapSandbox(),
+        cleanup_journal_path=cleanup_dir / "cleanup.sqlite3",
+    )
+
+    with pytest.raises(
+        WorkerExecutionError,
+        match=(
+            r"worker tool version for 'inert' does not match approved version "
+            r"'0\.8\.0'"
+        ),
+    ):
+        worker.execute_plan_with_receipt(
+            plan,
+            authorization_id=authorization.authorization_id,
+        )
+
+    assert approval_control.consume_calls == []
+    assert sandbox_launches == []
+    assert (
+        approval_store.get_authorization(authorization.authorization_id).status
+        == "approved"
+    )
 
 
 @pytest.mark.parametrize("violation", ["url", "egress", "credentials", "proxy", "adapter", "stale"])
