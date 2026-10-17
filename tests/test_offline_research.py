@@ -169,9 +169,9 @@ def test_signed_inert_version_mismatch_rejects_before_approval_or_sandbox_launch
     approval_store = ApprovalStore(tmp_path / "approvals.sqlite3")
     approval_store.store_authorization(authorization)
     approval_control = TestApprovalControl(approval_store, trust_store, engagement)
-    sandbox_launches: list[tuple[object, ...]] = []
+    sandbox_calls: list[str] = []
 
-    def fake_assert_ready(
+    def fail_assert_ready(
         _sandbox: LinuxBubblewrapSandbox,
         _worker_identity: str,
         *,
@@ -179,17 +179,20 @@ def test_signed_inert_version_mismatch_rejects_before_approval_or_sandbox_launch
         expected_workspace_fd: int | None = None,
     ) -> None:
         del cwd, expected_workspace_fd
+        sandbox_calls.append("assert_ready")
+        raise AssertionError("sandbox readiness must not run")
 
-    def fake_run(
+    def fail_run(
         _sandbox: LinuxBubblewrapSandbox,
         *args: object,
         **kwargs: object,
     ) -> object:
-        sandbox_launches.append((*args, kwargs))
+        del args, kwargs
+        sandbox_calls.append("run")
         raise AssertionError("sandbox process must not launch")
 
-    monkeypatch.setattr(LinuxBubblewrapSandbox, "assert_ready", fake_assert_ready)
-    monkeypatch.setattr(LinuxBubblewrapSandbox, "run", fake_run)
+    monkeypatch.setattr(LinuxBubblewrapSandbox, "assert_ready", fail_assert_ready)
+    monkeypatch.setattr(LinuxBubblewrapSandbox, "run", fail_run)
 
     cleanup_dir = tmp_path / "cleanup-journal"
     cleanup_dir.mkdir(mode=0o700)
@@ -212,8 +215,9 @@ def test_signed_inert_version_mismatch_rejects_before_approval_or_sandbox_launch
             authorization_id=authorization.authorization_id,
         )
 
+    assert approval_control.ready_workers == []
     assert approval_control.consume_calls == []
-    assert sandbox_launches == []
+    assert sandbox_calls == []
     assert approval_store.get_authorization(authorization.authorization_id).status == "approved"
 
 
