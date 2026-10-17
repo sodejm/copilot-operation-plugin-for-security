@@ -575,6 +575,14 @@ validation before the affected release/capability expansion and schedule P2 with
 - Proposed mitigation and validation: Keep positive and negative tests for exact, conflicting, multiple, excluded, quoted, and illustrative targets. Before adding headless execution, verify an actual worker adapter and operation, authenticated selection provenance, immutable plan persistence, idempotent lifecycle state, failure recovery, and exact authorization binding. Require exact-revision human security review.
 - Residual risk / status: Unrecognized phrasing requires clarification, and an Engagement author can change metadata within the same trust boundary. This increment performs no semantic interpretation, executable planning, approval, worker dispatch, action, or resume. No live-target evidence is present.
 
+### T36: Synthetic detection evidence confused with native SOC validation
+
+- Attack path / prerequisite: A caller supplies fabricated or cross-tenant evidence, treats an out-of-window alert as a measured detection, or presents a deterministic fixture result as proof that a native SIEM or EDR detected an authorized action.
+- Inherent impact: High for unsupported detection claims; likelihood: Medium when offline reports are shared without their evidence boundary; priority: P1 before operational use.
+- Existing evidence / limitation: `cops/reporting/detection.py` validates tenant, action, rule, mapping, and time-window joins. The persisted four-outcome fixture and its public-command regression exercise detected, missed, ambiguous, and unavailable classification, including an out-of-window alert. The cross-tenant negative fixture remains rejected. Imported hashes establish internal integrity only, and fixture playback does not authenticate a source or execution.
+- Proposed mitigation and validation: Keep the deterministic corpus and negative fixture executable through the public command. Preserve source, authorization, provider-completeness, and native-execution limitations in both report forms and practitioner documentation. Require separately authorized native action and independently verified telemetry and search evidence before making a SOC effectiveness claim.
+- Residual risk / status: This increment validates offline import, classification, and report generation only. It provides no source authenticity, execution authorization, provider-wide search completeness, native SOC effectiveness, or cleanup evidence.
+
 ## STRIDE and privacy coverage
 
 | Category | Review obligation |

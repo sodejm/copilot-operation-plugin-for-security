@@ -1,0 +1,558 @@
+{
+  "actions": [
+    {
+      "action_id": "act-detected",
+      "ended_at": "2026-10-02T10:01:00Z",
+      "started_at": "2026-10-02T10:00:00Z",
+      "status": "completed",
+      "technique_id": "T1110.003"
+    },
+    {
+      "action_id": "act-missed",
+      "ended_at": "2026-10-02T10:01:00Z",
+      "started_at": "2026-10-02T10:00:00Z",
+      "status": "completed",
+      "technique_id": "T1110.003"
+    },
+    {
+      "action_id": "act-ambiguous",
+      "ended_at": "2026-10-02T10:01:00Z",
+      "started_at": "2026-10-02T10:00:00Z",
+      "status": "completed",
+      "technique_id": "T1110.003"
+    },
+    {
+      "action_id": "act-unavailable",
+      "ended_at": "2026-10-02T10:01:00Z",
+      "started_at": "2026-10-02T10:00:00Z",
+      "status": "not_executed",
+      "technique_id": "T1110.003"
+    }
+  ],
+  "checks": [
+    {
+      "action_id": "act-detected",
+      "alert_record_ids": [
+        "d31ec5a65da6ad4521c15656ebaa8d11f8abaa475b78e3f066a9afd079ed2230"
+      ],
+      "clock_skew_seconds": 0,
+      "collection_status": "complete",
+      "correlation_status": "exact",
+      "execution_record_id": "9d9133f443381c45c6cefaae84534a7502818e13440d4a7944ec9fe39c488ed2",
+      "ingest_lag_seconds": 0,
+      "mapping_id": "COPS-COV-H01-A",
+      "rule_id": "rule-detected",
+      "search_receipt_record_id": null,
+      "telemetry_record_ids": [
+        "6324e62d71e03648dbda2703d4da44b7c925906de2f852a2d3cf2b3d9e42e49b"
+      ]
+    },
+    {
+      "action_id": "act-missed",
+      "alert_record_ids": [],
+      "clock_skew_seconds": 0,
+      "collection_status": "complete",
+      "correlation_status": "exact",
+      "execution_record_id": "220a53e5fe7d1399e70e7b5ba551c4ac6f3fcb0aaf0c2c7f81f8e4c42ed93b53",
+      "ingest_lag_seconds": 0,
+      "mapping_id": "COPS-COV-H01-A",
+      "rule_id": "rule-missed",
+      "search_receipt_record_id": "4260cca6208be5d3ec51316a609a0ff95d1e3e26476bcf37794d76419defed2a",
+      "telemetry_record_ids": [
+        "51e10bb55a84f0547cceb07b6d58663dcc5548653c1741e6a5b1967825706eaf"
+      ]
+    },
+    {
+      "action_id": "act-ambiguous",
+      "alert_record_ids": [
+        "a62f5812cde6c38dacc5fbee5915320188800ab50de2a58d4215df681240f92d"
+      ],
+      "clock_skew_seconds": 0,
+      "collection_status": "complete",
+      "correlation_status": "exact",
+      "execution_record_id": "1cbf647cc882a4c837970b9588a3087d51f5d038c9f4e6edf9b35645f8c375ce",
+      "ingest_lag_seconds": 0,
+      "mapping_id": "COPS-COV-H01-A",
+      "rule_id": "rule-ambiguous",
+      "search_receipt_record_id": null,
+      "telemetry_record_ids": [
+        "c310f8bbde635f0d49c372afc6bf8dee967d59f0117fd3be4bb21172b1677609"
+      ]
+    },
+    {
+      "action_id": "act-unavailable",
+      "alert_record_ids": [],
+      "clock_skew_seconds": 0,
+      "collection_status": "unavailable",
+      "correlation_status": "unavailable",
+      "execution_record_id": null,
+      "ingest_lag_seconds": 0,
+      "mapping_id": "COPS-COV-H01-A",
+      "rule_id": "rule-unavailable",
+      "search_receipt_record_id": null,
+      "telemetry_record_ids": []
+    }
+  ],
+  "engagement_id": "eng-offline-outcomes",
+  "evidence_envelopes": [
+    {
+      "acquired_at": "2026-10-02T10:06:00Z",
+      "acquisition_id": "import-offline-outcomes",
+      "content_hash": "8f96b8c08a8dc2ea9b3725623d39b41f24495893e4778faeee128a00245c25f6",
+      "emitted": {
+        "at": null,
+        "unknown_reason": "not_available"
+      },
+      "normalization": [
+        "projection/v1"
+      ],
+      "observed": {
+        "at": "2026-10-02T10:00:30Z",
+        "unknown_reason": null
+      },
+      "page": 1,
+      "parents": [],
+      "payload": {
+        "action_id": "act-detected",
+        "kind": "action_execution",
+        "status": "completed",
+        "technique_id": "T1110.003"
+      },
+      "raw_reference": null,
+      "record_id": "9d9133f443381c45c6cefaae84534a7502818e13440d4a7944ec9fe39c488ed2",
+      "redaction": [
+        "omit-unselected-fields/v1"
+      ],
+      "request_fingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "schema_version": "cops.evidence/v1",
+      "sensitivity": "restricted",
+      "source": {
+        "api": "records/v1",
+        "identity": "act-detected-action_execution",
+        "locator": "synthetic-offline-corpus",
+        "product": "offline-corpus",
+        "region": {
+          "unknown_reason": "not_available",
+          "value": null
+        },
+        "scope": [
+          "synthetic-offline-corpus"
+        ],
+        "tenant": "tenant-offline-1",
+        "version": null
+      },
+      "transformed_at": "2026-10-02T10:06:00Z"
+    },
+    {
+      "acquired_at": "2026-10-02T10:06:00Z",
+      "acquisition_id": "import-offline-outcomes",
+      "content_hash": "a7cc232356b453228f6ed79db3294f7d3c78c6759d99aa654311e3d9d9232ec7",
+      "emitted": {
+        "at": null,
+        "unknown_reason": "not_available"
+      },
+      "normalization": [
+        "projection/v1"
+      ],
+      "observed": {
+        "at": "2026-10-02T10:00:30Z",
+        "unknown_reason": null
+      },
+      "page": 1,
+      "parents": [],
+      "payload": {
+        "action_id": "act-detected",
+        "kind": "telemetry",
+        "observed_fields": [
+          "TimeGenerated",
+          "UserPrincipalName",
+          "IPAddress",
+          "ResultType",
+          "AppDisplayName"
+        ],
+        "rule_id": "rule-detected",
+        "table_or_log": "SigninLogs"
+      },
+      "raw_reference": null,
+      "record_id": "6324e62d71e03648dbda2703d4da44b7c925906de2f852a2d3cf2b3d9e42e49b",
+      "redaction": [
+        "omit-unselected-fields/v1"
+      ],
+      "request_fingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "schema_version": "cops.evidence/v1",
+      "sensitivity": "restricted",
+      "source": {
+        "api": "records/v1",
+        "identity": "act-detected-telemetry",
+        "locator": "synthetic-offline-corpus",
+        "product": "Sentinel",
+        "region": {
+          "unknown_reason": "not_available",
+          "value": null
+        },
+        "scope": [
+          "synthetic-offline-corpus"
+        ],
+        "tenant": "tenant-offline-1",
+        "version": null
+      },
+      "transformed_at": "2026-10-02T10:06:00Z"
+    },
+    {
+      "acquired_at": "2026-10-02T10:06:00Z",
+      "acquisition_id": "import-offline-outcomes",
+      "content_hash": "d2ddf7732ca5dd1f34ae2057276f1b96160fbfb1b83bc500953774a780c114a8",
+      "emitted": {
+        "at": null,
+        "unknown_reason": "not_available"
+      },
+      "normalization": [
+        "projection/v1"
+      ],
+      "observed": {
+        "at": "2026-10-02T10:00:30Z",
+        "unknown_reason": null
+      },
+      "page": 1,
+      "parents": [],
+      "payload": {
+        "action_id": "act-detected",
+        "kind": "alert",
+        "rule_id": "rule-detected"
+      },
+      "raw_reference": null,
+      "record_id": "d31ec5a65da6ad4521c15656ebaa8d11f8abaa475b78e3f066a9afd079ed2230",
+      "redaction": [
+        "omit-unselected-fields/v1"
+      ],
+      "request_fingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "schema_version": "cops.evidence/v1",
+      "sensitivity": "restricted",
+      "source": {
+        "api": "records/v1",
+        "identity": "act-detected-alert",
+        "locator": "synthetic-offline-corpus",
+        "product": "offline-corpus",
+        "region": {
+          "unknown_reason": "not_available",
+          "value": null
+        },
+        "scope": [
+          "synthetic-offline-corpus"
+        ],
+        "tenant": "tenant-offline-1",
+        "version": null
+      },
+      "transformed_at": "2026-10-02T10:06:00Z"
+    },
+    {
+      "acquired_at": "2026-10-02T10:06:00Z",
+      "acquisition_id": "import-offline-outcomes",
+      "content_hash": "7dece885d2239691fd98d16bf7819c238e98b6e9614ac33c1999a090fc986dcd",
+      "emitted": {
+        "at": null,
+        "unknown_reason": "not_available"
+      },
+      "normalization": [
+        "projection/v1"
+      ],
+      "observed": {
+        "at": "2026-10-02T10:00:30Z",
+        "unknown_reason": null
+      },
+      "page": 1,
+      "parents": [],
+      "payload": {
+        "action_id": "act-missed",
+        "kind": "action_execution",
+        "status": "completed",
+        "technique_id": "T1110.003"
+      },
+      "raw_reference": null,
+      "record_id": "220a53e5fe7d1399e70e7b5ba551c4ac6f3fcb0aaf0c2c7f81f8e4c42ed93b53",
+      "redaction": [
+        "omit-unselected-fields/v1"
+      ],
+      "request_fingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "schema_version": "cops.evidence/v1",
+      "sensitivity": "restricted",
+      "source": {
+        "api": "records/v1",
+        "identity": "act-missed-action_execution",
+        "locator": "synthetic-offline-corpus",
+        "product": "offline-corpus",
+        "region": {
+          "unknown_reason": "not_available",
+          "value": null
+        },
+        "scope": [
+          "synthetic-offline-corpus"
+        ],
+        "tenant": "tenant-offline-1",
+        "version": null
+      },
+      "transformed_at": "2026-10-02T10:06:00Z"
+    },
+    {
+      "acquired_at": "2026-10-02T10:06:00Z",
+      "acquisition_id": "import-offline-outcomes",
+      "content_hash": "7a16535cece4ba4ccecd934b9e2a44a848d78507fa758786fba2df88a8b524c0",
+      "emitted": {
+        "at": null,
+        "unknown_reason": "not_available"
+      },
+      "normalization": [
+        "projection/v1"
+      ],
+      "observed": {
+        "at": "2026-10-02T10:00:30Z",
+        "unknown_reason": null
+      },
+      "page": 1,
+      "parents": [],
+      "payload": {
+        "action_id": "act-missed",
+        "kind": "telemetry",
+        "observed_fields": [
+          "TimeGenerated",
+          "UserPrincipalName",
+          "IPAddress",
+          "ResultType",
+          "AppDisplayName"
+        ],
+        "rule_id": "rule-missed",
+        "table_or_log": "SigninLogs"
+      },
+      "raw_reference": null,
+      "record_id": "51e10bb55a84f0547cceb07b6d58663dcc5548653c1741e6a5b1967825706eaf",
+      "redaction": [
+        "omit-unselected-fields/v1"
+      ],
+      "request_fingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "schema_version": "cops.evidence/v1",
+      "sensitivity": "restricted",
+      "source": {
+        "api": "records/v1",
+        "identity": "act-missed-telemetry",
+        "locator": "synthetic-offline-corpus",
+        "product": "Sentinel",
+        "region": {
+          "unknown_reason": "not_available",
+          "value": null
+        },
+        "scope": [
+          "synthetic-offline-corpus"
+        ],
+        "tenant": "tenant-offline-1",
+        "version": null
+      },
+      "transformed_at": "2026-10-02T10:06:00Z"
+    },
+    {
+      "acquired_at": "2026-10-02T10:06:00Z",
+      "acquisition_id": "import-offline-outcomes",
+      "content_hash": "bdb30669499f581ab77cf2dae81c33fc592afac3aefa7fa3bc2fe409d80c854b",
+      "emitted": {
+        "at": null,
+        "unknown_reason": "not_available"
+      },
+      "normalization": [
+        "projection/v1"
+      ],
+      "observed": {
+        "at": "2026-10-02T10:02:00Z",
+        "unknown_reason": null
+      },
+      "page": 1,
+      "parents": [],
+      "payload": {
+        "action_id": "act-missed",
+        "finished_at": "2026-10-02T10:02:00Z",
+        "kind": "search_receipt",
+        "result_count": 0,
+        "rule_id": "rule-missed",
+        "status": "complete",
+        "window_end": "2026-10-02T10:01:00Z",
+        "window_start": "2026-10-02T10:00:00Z"
+      },
+      "raw_reference": null,
+      "record_id": "4260cca6208be5d3ec51316a609a0ff95d1e3e26476bcf37794d76419defed2a",
+      "redaction": [
+        "omit-unselected-fields/v1"
+      ],
+      "request_fingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "schema_version": "cops.evidence/v1",
+      "sensitivity": "restricted",
+      "source": {
+        "api": "records/v1",
+        "identity": "act-missed-search_receipt",
+        "locator": "synthetic-offline-corpus",
+        "product": "offline-corpus",
+        "region": {
+          "unknown_reason": "not_available",
+          "value": null
+        },
+        "scope": [
+          "synthetic-offline-corpus"
+        ],
+        "tenant": "tenant-offline-1",
+        "version": null
+      },
+      "transformed_at": "2026-10-02T10:06:00Z"
+    },
+    {
+      "acquired_at": "2026-10-02T10:06:00Z",
+      "acquisition_id": "import-offline-outcomes",
+      "content_hash": "3bc3b89e32dc26b8b6bf7e8296887e31906dd0251c1aad91ea4b04288465e487",
+      "emitted": {
+        "at": null,
+        "unknown_reason": "not_available"
+      },
+      "normalization": [
+        "projection/v1"
+      ],
+      "observed": {
+        "at": "2026-10-02T10:00:30Z",
+        "unknown_reason": null
+      },
+      "page": 1,
+      "parents": [],
+      "payload": {
+        "action_id": "act-ambiguous",
+        "kind": "action_execution",
+        "status": "completed",
+        "technique_id": "T1110.003"
+      },
+      "raw_reference": null,
+      "record_id": "1cbf647cc882a4c837970b9588a3087d51f5d038c9f4e6edf9b35645f8c375ce",
+      "redaction": [
+        "omit-unselected-fields/v1"
+      ],
+      "request_fingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "schema_version": "cops.evidence/v1",
+      "sensitivity": "restricted",
+      "source": {
+        "api": "records/v1",
+        "identity": "act-ambiguous-action_execution",
+        "locator": "synthetic-offline-corpus",
+        "product": "offline-corpus",
+        "region": {
+          "unknown_reason": "not_available",
+          "value": null
+        },
+        "scope": [
+          "synthetic-offline-corpus"
+        ],
+        "tenant": "tenant-offline-1",
+        "version": null
+      },
+      "transformed_at": "2026-10-02T10:06:00Z"
+    },
+    {
+      "acquired_at": "2026-10-02T10:06:00Z",
+      "acquisition_id": "import-offline-outcomes",
+      "content_hash": "f4cd0183950c23b09394f61a44a5fd4e6a051dd919aae7f0c0aa07a6df219199",
+      "emitted": {
+        "at": null,
+        "unknown_reason": "not_available"
+      },
+      "normalization": [
+        "projection/v1"
+      ],
+      "observed": {
+        "at": "2026-10-02T10:00:30Z",
+        "unknown_reason": null
+      },
+      "page": 1,
+      "parents": [],
+      "payload": {
+        "action_id": "act-ambiguous",
+        "kind": "telemetry",
+        "observed_fields": [
+          "TimeGenerated",
+          "UserPrincipalName",
+          "IPAddress",
+          "ResultType",
+          "AppDisplayName"
+        ],
+        "rule_id": "rule-ambiguous",
+        "table_or_log": "SigninLogs"
+      },
+      "raw_reference": null,
+      "record_id": "c310f8bbde635f0d49c372afc6bf8dee967d59f0117fd3be4bb21172b1677609",
+      "redaction": [
+        "omit-unselected-fields/v1"
+      ],
+      "request_fingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "schema_version": "cops.evidence/v1",
+      "sensitivity": "restricted",
+      "source": {
+        "api": "records/v1",
+        "identity": "act-ambiguous-telemetry",
+        "locator": "synthetic-offline-corpus",
+        "product": "Sentinel",
+        "region": {
+          "unknown_reason": "not_available",
+          "value": null
+        },
+        "scope": [
+          "synthetic-offline-corpus"
+        ],
+        "tenant": "tenant-offline-1",
+        "version": null
+      },
+      "transformed_at": "2026-10-02T10:06:00Z"
+    },
+    {
+      "acquired_at": "2026-10-02T10:06:00Z",
+      "acquisition_id": "import-offline-outcomes",
+      "content_hash": "7b218309d85dfc4df606c1ea6022c2a2ab0e6b37af2ecbdf5a253691d183a694",
+      "emitted": {
+        "at": null,
+        "unknown_reason": "not_available"
+      },
+      "normalization": [
+        "projection/v1"
+      ],
+      "observed": {
+        "at": "2026-10-02T10:05:00Z",
+        "unknown_reason": null
+      },
+      "page": 1,
+      "parents": [],
+      "payload": {
+        "action_id": "act-ambiguous",
+        "kind": "alert",
+        "rule_id": "rule-ambiguous"
+      },
+      "raw_reference": null,
+      "record_id": "a62f5812cde6c38dacc5fbee5915320188800ab50de2a58d4215df681240f92d",
+      "redaction": [
+        "omit-unselected-fields/v1"
+      ],
+      "request_fingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "schema_version": "cops.evidence/v1",
+      "sensitivity": "restricted",
+      "source": {
+        "api": "records/v1",
+        "identity": "act-ambiguous-alert",
+        "locator": "synthetic-offline-corpus",
+        "product": "offline-corpus",
+        "region": {
+          "unknown_reason": "not_available",
+          "value": null
+        },
+        "scope": [
+          "synthetic-offline-corpus"
+        ],
+        "tenant": "tenant-offline-1",
+        "version": null
+      },
+      "transformed_at": "2026-10-02T10:06:00Z"
+    }
+  ],
+  "generated_at": "2026-10-02T10:06:00Z",
+  "schema_version": "cops.detection-validation-input/v1",
+  "tenant": "tenant-offline-1",
+  "validation_id": "validation-offline-outcomes"
+}

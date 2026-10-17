@@ -47,12 +47,16 @@ hashes establish only internal integrity; source trust remains unverified.
 
 ## Acceptance
 
-Executable scenarios cover detected, missed, ambiguous, unavailable, mismatched
-tenant or action evidence, and the zero-result/full-window rule. The CLI reads
-at most 4 MiB, creates new owner-only JSON and Markdown files, and makes no
-network request. User text and evidence payloads never appear in the Markdown
-report. Native SIEM or EDR validation requires separately authorized runtime
-evidence.
+The persisted synthetic corpus is executable through the public CLI and covers
+detected, missed, ambiguous, and unavailable outcomes. It includes exact
+in-window correlation, a complete zero-result search covering the expanded
+window, and an alert outside the expanded window. Negative fixtures cover
+cross-tenant evidence; executable scenarios also cover mismatched action evidence
+and the zero-result/full-window rule. The CLI reads at most 4 MiB, creates new
+owner-only JSON and Markdown files, and makes no network request. User text and
+evidence payloads never appear in the Markdown report. This acceptance validates
+offline import and classification only. Native SIEM or EDR validation requires
+separately authorized runtime evidence.
 
 ## Pinned source traceability
 
