@@ -121,9 +121,11 @@ def _compile(
 
 def _rebuild_with_envelope(plan: ActionPlan, envelope: dict[str, object]) -> ActionPlan:
     data = plan.to_dict()
-    encoded = base64.urlsafe_b64encode(
-        json.dumps(envelope, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    ).decode("ascii").rstrip("=")
+    encoded = (
+        base64.urlsafe_b64encode(json.dumps(envelope, sort_keys=True, separators=(",", ":")).encode("utf-8"))
+        .decode("ascii")
+        .rstrip("=")
+    )
     data["operations"][0]["arguments"]["request_b64"] = encoded
     return ActionPlan.create(
         plan_id=data["plan_id"],
@@ -185,9 +187,7 @@ def test_compile_rejects_request_owned_effect_classification(tmp_path: Path) -> 
         ("arguments", {"query": "status", "destination": "https://example.invalid"}),
     ],
 )
-def test_compile_rejects_request_outside_exact_contract(
-    tmp_path: Path, field: str, value: object
-) -> None:
+def test_compile_rejects_request_outside_exact_contract(tmp_path: Path, field: str, value: object) -> None:
     request = _request()
     request[field] = value
     with pytest.raises(StdioProfileError, match="differ[s]? from trusted contract"):

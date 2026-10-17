@@ -21,26 +21,51 @@ STDIO_REQUEST_SCHEMA = "cops.agent-mcp-stdio-request/v1"
 STDIO_ENVELOPE_SCHEMA = "cops.agent-mcp-stdio-envelope/v1"
 
 _PROFILE_FIELDS = {
-    "schema_version", "profile_id", "target", "adapter", "effect",
-    "request_contract", "limits",
+    "schema_version",
+    "profile_id",
+    "target",
+    "adapter",
+    "effect",
+    "request_contract",
+    "limits",
 }
 _ADAPTER_FIELDS = {
-    "tool", "tool_version", "action", "protocol_version", "source_revision",
-    "executable_sha256", "request_parameter",
+    "tool",
+    "tool_version",
+    "action",
+    "protocol_version",
+    "source_revision",
+    "executable_sha256",
+    "request_parameter",
 }
 _EFFECT_FIELDS = {"classification", "network_egress"}
 _CONTRACT_FIELDS = {"method", "tool_name", "arguments"}
 _LIMIT_FIELDS = {"max_duration_seconds", "max_output_bytes"}
 _REQUEST_FIELDS = {
-    "schema_version", "request_id", "method", "tool_name", "arguments", "nonce",
+    "schema_version",
+    "request_id",
+    "method",
+    "tool_name",
+    "arguments",
+    "nonce",
 }
 _ENVELOPE_FIELDS = {
-    "schema_version", "profile_id", "adapter_binding", "effect", "request",
+    "schema_version",
+    "profile_id",
+    "adapter_binding",
+    "effect",
+    "request",
 }
 _BINDING_FIELDS = {"protocol_version", "source_revision", "executable_sha256"}
 _OPERATION_FIELDS = {
-    "step_id", "tool", "tool_version", "action", "arguments",
-    "timeout_seconds", "idempotent", "side_effects",
+    "step_id",
+    "tool",
+    "tool_version",
+    "action",
+    "arguments",
+    "timeout_seconds",
+    "idempotent",
+    "side_effects",
 }
 _IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 _TOOL_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,127}")
@@ -88,8 +113,7 @@ def _exact_fields(value: Mapping[str, object], expected: set[str], name: str) ->
     actual = set(value)
     if actual != expected:
         raise StdioProfileError(
-            f"{name} fields differ: missing={sorted(expected - actual)}, "
-            f"unexpected={sorted(actual - expected)}"
+            f"{name} fields differ: missing={sorted(expected - actual)}, unexpected={sorted(actual - expected)}"
         )
 
 
@@ -166,10 +190,7 @@ def _trusted_profile(profile: Mapping[str, object], registry: ToolAdapterRegistr
         raise StdioProfileError("profile adapter version differs from registration")
     if adapter.provenance.get("pinned_revision") != trusted.source_revision:
         raise StdioProfileError("profile source revision differs from registration")
-    if (
-        adapter.executable_verification is None
-        or adapter.executable_verification.sha256 != trusted.executable_sha256
-    ):
+    if adapter.executable_verification is None or adapter.executable_verification.sha256 != trusted.executable_sha256:
         raise StdioProfileError("profile executable digest differs from registration")
     action = adapter.actions.get(trusted.action)
     if action is None or set(action.parameters) != {trusted.request_parameter}:
@@ -294,10 +315,7 @@ def _validate_plan(plan: ActionPlan, trusted: _TrustedProfile, registry: ToolAda
         raise StdioProfileError("compiled envelope adapter binding differs from trusted profile")
     envelope_effect = _object(envelope["effect"], "compiled envelope effect")
     _exact_fields(envelope_effect, _EFFECT_FIELDS, "compiled envelope effect")
-    if (
-        envelope_effect["classification"] != "read_only"
-        or envelope_effect["network_egress"] is not False
-    ):
+    if envelope_effect["classification"] != "read_only" or envelope_effect["network_egress"] is not False:
         raise StdioProfileError("compiled envelope effect differs from trusted profile")
     request = _validated_request(_object(envelope["request"], "compiled envelope request"), trusted)
     if envelope != _envelope(trusted, request) or encoded != _encode_envelope(envelope):
@@ -336,16 +354,18 @@ def compile_stdio_action_plan(
             scenario_id=scenario_id,
             target=target,
             specialist_id=specialist_id,
-            operations=[{
-                "step_id": f"stdio-{trusted.profile_id}",
-                "tool": trusted.tool,
-                "tool_version": trusted.tool_version,
-                "action": trusted.action,
-                "arguments": {trusted.request_parameter: encoded},
-                "timeout_seconds": trusted.max_duration_seconds,
-                "idempotent": True,
-                "side_effects": ["read_only"],
-            }],
+            operations=[
+                {
+                    "step_id": f"stdio-{trusted.profile_id}",
+                    "tool": trusted.tool,
+                    "tool_version": trusted.tool_version,
+                    "action": trusted.action,
+                    "arguments": {trusted.request_parameter: encoded},
+                    "timeout_seconds": trusted.max_duration_seconds,
+                    "idempotent": True,
+                    "side_effects": ["read_only"],
+                }
+            ],
             limits={
                 "max_duration_seconds": trusted.max_duration_seconds,
                 "max_output_bytes": trusted.max_output_bytes,
