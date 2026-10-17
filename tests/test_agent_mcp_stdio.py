@@ -4,6 +4,7 @@ import base64
 import copy
 import json
 import re
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -257,6 +258,47 @@ def test_revalidate_rejects_changed_registered_command_template(tmp_path: Path) 
 
     adapter.actions["invoke"].base_args.pop()
     adapter.binary = "different-fixture-agent"
+    with pytest.raises(StdioProfileError, match="adapter binding differs"):
+        validate_stdio_action_plan(plan=plan, profile=_profile(), registry=registry)
+
+
+@pytest.mark.parametrize(
+    "field",
+    (
+        "version_args",
+        "version_pattern",
+        "max_size_bytes",
+        "supported_environments",
+        "provenance_source",
+        "provenance_license",
+    ),
+)
+def test_revalidate_rejects_changed_registered_execution_contract(tmp_path: Path, field: str) -> None:
+    registry = _registry(tmp_path)
+    plan = _compile(registry)
+    adapter = registry.get_adapter("fixture-agent")
+    verification = adapter.executable_verification
+    assert verification is not None
+
+    if field == "version_args":
+        adapter.executable_verification = replace(verification, version_args=("--build-version",))
+    elif field == "version_pattern":
+        adapter.executable_verification = replace(
+            verification,
+            version_pattern=r"fixture-agent build (?P<version>[0-9.]+)",
+        )
+    elif field == "max_size_bytes":
+        adapter.executable_verification = replace(
+            verification,
+            max_size_bytes=verification.max_size_bytes + 1,
+        )
+    elif field == "supported_environments":
+        adapter.supported_environments.append("windows")
+    elif field == "provenance_source":
+        adapter.provenance["source"] = "different-source"
+    else:
+        adapter.provenance["license"] = "Apache-2.0"
+
     with pytest.raises(StdioProfileError, match="adapter binding differs"):
         validate_stdio_action_plan(plan=plan, profile=_profile(), registry=registry)
 
