@@ -134,9 +134,11 @@ model prompt-injection resistance, host containment or independent authorization
 
 The separate offline stdio profile compiler accepts a trusted, versioned profile
 and an untrusted request. It requires an exact tool and argument match, one
-registered adapter with a pinned revision and executable digest, and bounded
-request, duration and output sizes. It emits and revalidates one inert Action
-Plan; its `egress_allowed: false` field is a contract assertion. A worker must
+registered adapter with a pinned revision, executable digest, and command-template
+digest, and bounded request, duration and output sizes. It rejects recognizable
+credential material in request arguments before encoding the inert Action Plan;
+unknown credential formats remain a caller responsibility. Its
+`egress_allowed: false` field is a contract assertion. A worker must
 independently verify the executable, authorization and no-egress isolation before
 dispatch. No disposable worker or independent observer is available for this
 phase, so the compiler tests are not laboratory containment evidence.

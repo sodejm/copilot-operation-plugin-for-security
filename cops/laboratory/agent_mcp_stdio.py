@@ -8,13 +8,15 @@ from __future__ import annotations
 
 import base64
 import binascii
+import hashlib
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from cops.adapters import AdapterError, ToolAdapterRegistry
 from cops.contracts.models import ActionPlan
 from cops.evidence.canonical import EvidenceError, canonical, decode_json
+from cops.execution.redaction import DEFAULT_SENSITIVE_PATTERNS
 
 STDIO_PROFILE_SCHEMA = "cops.agent-mcp-stdio-profile/v1"
 STDIO_REQUEST_SCHEMA = "cops.agent-mcp-stdio-request/v1"
@@ -56,7 +58,7 @@ _ENVELOPE_FIELDS = {
     "effect",
     "request",
 }
-_BINDING_FIELDS = {"protocol_version", "source_revision", "executable_sha256"}
+_BINDING_FIELDS = {"protocol_version", "source_revision", "executable_sha256", "command_template_sha256"}
 _OPERATION_FIELDS = {
     "step_id",
     "tool",
@@ -71,6 +73,10 @@ _IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 _TOOL_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,127}")
 _SHA256 = re.compile(r"[0-9a-f]{64}")
 _BASE64URL = re.compile(r"[A-Za-z0-9_-]+")
+_CREDENTIAL_KEY = re.compile(
+    r"(?i)(?:auth(?:orization|entication)?|credential|password|passwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|cookie)"
+)
+_CREDENTIAL_VALUE = re.compile(r"(?i)\b(?:bearer|basic)\s+[A-Za-z0-9+/_.~=-]+|\bsk-[A-Za-z0-9_-]{8,}\b")
 _MAX_REQUEST_BYTES = 16_384
 _MAX_ENVELOPE_BYTES = 32_768
 
@@ -89,6 +95,7 @@ class _TrustedProfile:
     protocol_version: str
     source_revision: str
     executable_sha256: str
+    command_template_sha256: str
     request_parameter: str
     request_contract: dict[str, object]
     max_duration_seconds: int
@@ -100,6 +107,7 @@ class _TrustedProfile:
             "protocol_version": self.protocol_version,
             "source_revision": self.source_revision,
             "executable_sha256": self.executable_sha256,
+            "command_template_sha256": self.command_template_sha256,
         }
 
 
@@ -142,6 +150,23 @@ def _canonical_bytes(value: object, name: str, maximum: int) -> bytes:
         raise StdioProfileError(f"{name} is not bounded canonical JSON: {exc.code}") from exc
 
 
+def _reject_credentials(value: object) -> None:
+    """Reject recognizable credential material without including it in diagnostics."""
+
+    if isinstance(value, Mapping):
+        for key, child in value.items():
+            if _CREDENTIAL_KEY.search(key):
+                raise StdioProfileError("stdio request arguments cannot contain credentials")
+            _reject_credentials(child)
+    elif isinstance(value, list):
+        for child in value:
+            _reject_credentials(child)
+    elif isinstance(value, str) and (
+        _CREDENTIAL_VALUE.search(value) or any(pattern.search(value) for _, pattern in DEFAULT_SENSITIVE_PATTERNS)
+    ):
+        raise StdioProfileError("stdio request arguments cannot contain credentials")
+
+
 def _trusted_profile(profile: Mapping[str, object], registry: ToolAdapterRegistry) -> _TrustedProfile:
     source = _object(profile, "profile")
     _exact_fields(source, _PROFILE_FIELDS, "profile")
@@ -160,7 +185,9 @@ def _trusted_profile(profile: Mapping[str, object], registry: ToolAdapterRegistr
     if request_contract["method"] != "tools/call":
         raise StdioProfileError("only MCP tools/call is supported")
     _string(request_contract["tool_name"], "profile.request_contract.tool_name", _TOOL_NAME)
-    _object(request_contract["arguments"], "profile.request_contract.arguments")
+    contract_arguments = _object(request_contract["arguments"], "profile.request_contract.arguments")
+    _canonical_bytes(contract_arguments, "profile.request_contract.arguments", _MAX_REQUEST_BYTES)
+    _reject_credentials(contract_arguments)
     contract = dict(request_contract)
     _canonical_bytes(contract, "profile.request_contract", _MAX_REQUEST_BYTES)
 
@@ -173,6 +200,7 @@ def _trusted_profile(profile: Mapping[str, object], registry: ToolAdapterRegistr
         protocol_version=_string(adapter_source["protocol_version"], "profile.adapter.protocol_version"),
         source_revision=_digest(adapter_source["source_revision"], "profile.adapter.source_revision"),
         executable_sha256=_digest(adapter_source["executable_sha256"], "profile.adapter.executable_sha256"),
+        command_template_sha256="",
         request_parameter=_string(adapter_source["request_parameter"], "profile.adapter.request_parameter"),
         request_contract=contract,
         max_duration_seconds=_positive_int(limits["max_duration_seconds"], "profile.limits.max_duration_seconds", 300),
@@ -204,7 +232,24 @@ def _trusted_profile(profile: Mapping[str, object], registry: ToolAdapterRegistr
         or parameter.regex_pattern is None
     ):
         raise StdioProfileError("profile request parameter must be a required constrained string")
-    return trusted
+    command_template = {
+        "binary": adapter.binary,
+        "action": action.action,
+        "base_args": action.base_args,
+        "parameter": {
+            "name": parameter.name,
+            "param_type": parameter.param_type,
+            "flag": parameter.flag,
+            "required": parameter.required,
+            "default": parameter.default,
+            "allowed_values": parameter.allowed_values,
+            "regex_pattern": parameter.regex_pattern,
+        },
+    }
+    template_digest = hashlib.sha256(
+        _canonical_bytes(command_template, "registered adapter command template", _MAX_REQUEST_BYTES)
+    ).hexdigest()
+    return replace(trusted, command_template_sha256=template_digest)
 
 
 def _validated_request(request: Mapping[str, object], trusted: _TrustedProfile) -> dict[str, object]:
@@ -218,7 +263,9 @@ def _validated_request(request: Mapping[str, object], trusted: _TrustedProfile) 
         raise StdioProfileError("request method differs from trusted contract")
     if source["tool_name"] != trusted.request_contract["tool_name"]:
         raise StdioProfileError("request tool differs from trusted contract")
-    _object(source["arguments"], "request.arguments")
+    request_arguments = _object(source["arguments"], "request.arguments")
+    _canonical_bytes(request_arguments, "request.arguments", _MAX_REQUEST_BYTES)
+    _reject_credentials(request_arguments)
     normalized = dict(source)
     _canonical_bytes(normalized, "request", _MAX_REQUEST_BYTES)
     if _canonical_bytes(source["arguments"], "request.arguments", _MAX_REQUEST_BYTES) != _canonical_bytes(
