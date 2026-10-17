@@ -124,6 +124,12 @@ It does not run an action, contact a telemetry provider, or prove source
 authenticity or authorization. This workflow is an offline import. Start with the
 [accepted input fixture](../cops/contracts/fixtures/valid_detection_validation_input.json)
 or inspect the [rejected cross-tenant fixture](../cops/contracts/fixtures/invalid_detection_validation_cross_tenant.json).
+The [four-outcome synthetic corpus](../cops/contracts/fixtures/valid_detection_validation_outcomes.json)
+persists detected, missed, ambiguous, and unavailable examples for deterministic
+offline playback through the public command. It validates import, classification,
+and report generation only. It does not prove that an action ran, that a source is
+authentic, that an action was authorized, that a provider search was complete, or
+that a native SOC detected activity.
 The [input contract](../catalog/schemas/detection-validation-input.schema.json)
 requires an engagement, tenant, action windows, mapping/rule checks, and
 `cops.evidence/v1` envelopes. The [workflow skill](../.agents/skills/engagement-detection-validation/SKILL.md)
@@ -141,12 +147,12 @@ measured detection result.
 ```bash
 private_dir="$(mktemp -d)"
 chmod 700 "$private_dir"
-cp cops/contracts/fixtures/valid_detection_validation_input.json "$private_dir/detection.local.json"
-python3 -m cops engagement detection-validate \
+cp cops/contracts/fixtures/valid_detection_validation_outcomes.json "$private_dir/detection.local.json"
+.venv/bin/python -m cops engagement detection-validate \
   --input "$private_dir/detection.local.json" \
   --json-output "$private_dir/detection-report.local.json" \
   --markdown-output "$private_dir/detection-report.local.md"
-python3 -m cops contract validate --type detection_validation_report "$private_dir/detection-report.local.json"
+.venv/bin/python -m cops contract validate --type detection_validation_report "$private_dir/detection-report.local.json"
 ```
 
 The command reads at most 4 MiB, creates new owner-only files, and prints no
