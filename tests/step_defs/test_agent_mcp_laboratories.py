@@ -16,9 +16,9 @@ sys.path.insert(0, str(PACKAGE))
 from foundryharness import auth_approval, auth_bootstrap, auth_laboratory  # noqa: E402
 from foundryharness.laboratory import LabError, load_lab_cases, run_lab_case  # noqa: E402
 
-from tests.test_auth_assessment_approval import authorized_batch  # noqa: E402
-from tests.test_agent_mcp_stdio import _compile, _profile, _registry  # noqa: E402
 from cops.laboratory.agent_mcp_stdio import StdioProfileError, validate_stdio_action_plan  # noqa: E402
+from tests.test_agent_mcp_stdio import _compile, _profile, _registry  # noqa: E402
+from tests.test_auth_assessment_approval import authorized_batch  # noqa: E402
 
 scenarios("../../specs/features/agent_mcp_laboratories.feature")
 
