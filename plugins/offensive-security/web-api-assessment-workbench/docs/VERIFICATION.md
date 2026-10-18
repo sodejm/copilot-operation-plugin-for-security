@@ -12,6 +12,13 @@ The local acceptance laboratory starts disposable services on loopback and sends
 
 ## Baseline checks
 
+Run `python3 -m pytest -q tests/test_web_api_import_safety.py` from the source
+checkout. It verifies exact-byte and canonical-mapping hashes, digest mismatch
+rejection, long inline inputs, origin separation, ambiguous Host rejection and
+redaction across inventory, previews and replay reports. Serialized provenance
+uses `sha256:<digest>`; retain the original source separately under its evidence
+custody policy. Redaction does not replace classification of arbitrary source text.
+
 Run each package entry point independently:
 
 ```bash
