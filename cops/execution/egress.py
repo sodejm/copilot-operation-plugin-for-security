@@ -1378,6 +1378,9 @@ class ExecutionEgressBroker:
             raise EgressProtocolError("gateway dispatch envelope is malformed") from err
         if len(body) > config.max_body_bytes:
             raise EgressProtocolError("gateway dispatch body exceeds the configured limit")
+        parsed_gateway = urlsplit(config.gateway_url)
+        gateway_origin = f"{parsed_gateway.scheme}://{parsed_gateway.netloc}"
+        gateway_path = _request_target(parsed_gateway)
         endpoint = config.authorizer.verify_for_transport(
             grant=grant,
             action_plan_id=config.action_plan_id,
@@ -1385,14 +1388,20 @@ class ExecutionEgressBroker:
             presented_worker_spiffe_id=config.worker_spiffe_id,
             request_target=grant.request_target,
             body=body,
+            endpoint_origin=gateway_origin,
+            gateway_path=gateway_path,
         )
-        if endpoint.gateway_identity != config.gateway_spiffe_id:
-            raise EgressProtocolError("gateway dispatch identity does not match the configured endpoint")
+        if (
+            endpoint.gateway_identity != config.gateway_spiffe_id
+            or endpoint.endpoint_origin != gateway_origin
+            or endpoint.gateway_path != gateway_path
+        ):
+            raise EgressProtocolError("gateway dispatch does not match the configured endpoint")
         envelope = encode_gateway_dispatch_envelope(grant=grant, body=body)
         policy = GatewayPostEgressPolicy(
             protocol=GATEWAY_POST_BROKER_PROTOCOL,
             gateway_url=config.gateway_url,
-            request_target=_request_target(urlsplit(config.gateway_url)),
+            request_target=gateway_path,
             expected_identity=config.expected_identity,
             expected_spiffe_id=config.gateway_spiffe_id,
             body_sha256=hashlib.sha256(envelope).hexdigest(),
@@ -1408,9 +1417,15 @@ class ExecutionEgressBroker:
                 presented_worker_spiffe_id=config.worker_spiffe_id,
                 request_target=grant.request_target,
                 body=body,
+                endpoint_origin=gateway_origin,
+                gateway_path=gateway_path,
             )
-            if current_endpoint.gateway_identity != config.gateway_spiffe_id:
-                raise EgressProtocolError("gateway dispatch identity does not match the configured endpoint")
+            if (
+                current_endpoint.gateway_identity != config.gateway_spiffe_id
+                or current_endpoint.endpoint_origin != gateway_origin
+                or current_endpoint.gateway_path != gateway_path
+            ):
+                raise EgressProtocolError("gateway dispatch does not match the configured endpoint")
             config.replay_store.consume(grant)
 
         return self._mediator.post_gateway(

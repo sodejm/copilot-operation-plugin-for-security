@@ -198,6 +198,31 @@ must not receive those credentials. A consumed grant followed by a disconnect
 has an uncertain outcome and must not be replayed automatically. Provider usage,
 billing, remote cancellation, and deletion require independent evidence.
 
+### Opt-in provider assessment emulator boundary
+
+The separate live plan requires explicit paid-execution intent but only drives
+synthetic, local dispatch in this increment. A signed grant and matching body
+digest do not make arbitrary provider JSON safe. The runner admits only narrow
+text canaries with an exact provider path, model, output limit, and retention or
+streaming settings; it rejects tool declarations, attachments, extra keys, and
+direct provider destinations. The gateway endpoint origin and verification time
+must come from trusted configuration and the gateway's own clock, not claims in
+the case or grant. A forged scope, worker identity, or gateway origin is denied
+before budget reservation.
+
+Budget reservation precedes dispatch. A committed dispatch intent remains
+charged when a send or ledger update has an ambiguous outcome, and no automatic
+replay follows a timeout, disconnect, cancellation, malformed response, or
+missing usage. Tool-use output is an inert proposal requiring a separate
+authorization. Public evidence omits raw prompts, provider output, tool
+arguments, endpoint, account, and canary; its case hashes are correlators,
+not anonymity controls. Synthetic gateway usage is an estimate, not independent
+billing. Local cancellation and cleanup do not prove remote cancellation,
+deletion, residency, or retention. A compromised checkout or absent production
+network isolation remains outside the emulator's protection. See the
+[live gateway contract](../specs/ai-provider-live-gateway.spec.md) and
+[operator guidance](PROVIDER_GATEWAY.md).
+
 ### Service attack notice boundary
 
 The service attack notice command reads a versioned local registry and one

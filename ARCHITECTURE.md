@@ -167,18 +167,19 @@ normalized request metadata on opt-in; ledgers stay outside Git. See its
 [accounting contract](.agents/skills/plugin-run-cost/references/accounting.md) for
 privacy, missing evidence, pricing expiry and forecast limitations.
 
-## Planned operator gateway assessment boundary
+## Operator gateway assessment boundary
 
-The optional provider assessment will require bounded request envelopes for
-OpenAI, Azure OpenAI, Bedrock, and Vertex from a separately versioned plan.
-Its local emulator path must reserve a shared budget, verify a signed one-use
-gateway dispatch grant against the exact request and provider scope, and
-record only normalized, redacted evidence. Provider usage remains an estimate
+The optional provider assessment has a separately versioned live plan and
+bounded, text-only request envelopes for OpenAI, Azure OpenAI, Bedrock, and
+Vertex. Its local emulator path reserves a shared budget, verifies a signed
+one-use gateway dispatch grant against the exact request and provider scope,
+and records normalized, redacted evidence. Provider usage remains an estimate
 until an independent billing reconciliation exists.
 
-The versioned egress broker must permit a bounded `POST` only to a configured
+The versioned egress broker permits a bounded `POST` only to a configured
 operator gateway origin, path, and authenticated SPIFFE identity. The gateway
-must own provider credentials and independently verify each dispatch grant.
+owns provider credentials and independently verifies each dispatch grant.
 The repository does not wire this route into a production worker or provision
 a gateway, provider credentials, or a paid canary. The remaining operational
-gate is recorded in [the execution audit](docs/EXECUTION_GATE_AUDIT.md).
+gate is recorded in [the execution audit](docs/EXECUTION_GATE_AUDIT.md) and
+[gateway operator guidance](docs/PROVIDER_GATEWAY.md).

@@ -94,8 +94,8 @@ execution requires a COPS checkout. See the
 with a synthetic dispatcher. It atomically charges child attempts and retries,
 keeps uncertain dispatches reserved across cancellation and restart, signals
 active fixture callbacks on cancellation, and binds the operator's price
-assumptions to the policy. The planned provider gateway assessment must reserve
-an emulator dispatch before sending it and retain uncertain attempts. The
+assumptions to the policy. The provider gateway emulator assessment reserves
+each dispatch before sending it and retains uncertain attempts. The
 current ledger does not establish provider billing or authorize a paid call.
 See the [budget specification](../specs/aggregate-assessment-budgets.spec.md)
 and [operator guide](../docs/ASSESSMENT_BUDGETS.md).

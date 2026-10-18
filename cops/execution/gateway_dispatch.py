@@ -31,6 +31,7 @@ GATEWAY_DISPATCH_TRUST_SCHEMA = "cops.operator-gateway-dispatch-trust-store/v1"
 GATEWAY_DISPATCH_ENVELOPE_SCHEMA = "cops.operator-gateway-envelope/v2"
 GATEWAY_DISPATCH_ALGORITHM = "ed25519"
 MAX_GATEWAY_DISPATCH_TTL_SECONDS = 300
+MAX_GATEWAY_RESPONSE_BYTES = 1_048_576
 _MAX_GRANT_BYTES = 16 * 1024
 _MAX_TRUST_BYTES = 64 * 1024
 _TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}\Z")
@@ -77,8 +78,10 @@ def _require_spiffe(value: object) -> str:
         parsed = urlsplit(value)
         host = parsed.hostname
         port = parsed.port
-    except ValueError as err:
-        raise _deny() from err
+    except ValueError:
+        parsed = None
+    if parsed is None:
+        raise _deny()
     if (
         host is None
         or not host.isascii()
@@ -101,8 +104,10 @@ def _require_request_target(value: object) -> str:
         parsed = urlsplit(value)
         host = parsed.hostname
         port = parsed.port
-    except ValueError as err:
-        raise _deny() from err
+    except ValueError:
+        parsed = None
+    if parsed is None:
+        raise _deny()
     if (
         parsed.scheme != "https"
         or not parsed.netloc
@@ -122,11 +127,61 @@ def _require_request_target(value: object) -> str:
     return value
 
 
+def _require_endpoint_origin(value: object) -> str:
+    if not isinstance(value, str) or len(value) > 2048 or value != value.strip():
+        raise _deny()
+    try:
+        parsed = urlsplit(value)
+        port = parsed.port
+    except ValueError:
+        parsed = None
+    if parsed is None:
+        raise _deny()
+    host = parsed.hostname
+    if (
+        parsed.scheme != "https"
+        or not host
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.path
+        or parsed.query
+        or parsed.fragment
+        or ":" in host
+        or any(ord(character) > 127 for character in host)
+    ):
+        raise _deny()
+    authority = host if port is None else f"{host}:{port}"
+    canonical = f"https://{authority}"
+    if parsed.netloc != authority or value != canonical:
+        raise _deny()
+    return value
+
+
+def _require_gateway_path(value: object) -> str:
+    if (
+        not isinstance(value, str)
+        or not value.startswith("/")
+        or value.startswith("//")
+        or len(value) > 2048
+        or any(ord(ch) < 0x21 or ord(ch) > 0x7E for ch in value)
+        or "?" in value
+        or "#" in value
+        or "\\" in value
+        or "%" in value
+        or any(segment in {".", ".."} for segment in value.split("/"))
+    ):
+        raise _deny()
+    return value
+
+
 def _require_time(value: object) -> str:
+    invalid = False
     try:
         timestamp(value)
-    except EvidenceError as err:
-        raise _deny() from err
+    except EvidenceError:
+        invalid = True
+    if invalid:
+        raise _deny()
     return value  # type: ignore[return-value]
 
 
@@ -314,14 +369,17 @@ class GatewayDispatchTrustStore:
             raise _deny() from err
 
     def verify(self, grant: GatewayDispatchGrant) -> None:
+        invalid = False
         try:
             from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
             key = Ed25519PublicKey.from_public_bytes(self.keys[grant.key_id])
             key.verify(bytes.fromhex(grant.signature), canonical(grant.unsigned_dict(), max_bytes=_MAX_GRANT_BYTES))
-        except (KeyError, ValueError, TypeError, Exception) as err:  # cryptography raises InvalidSignature
+        except Exception:  # cryptography raises InvalidSignature
             # The public error must not distinguish unknown key, malformed signatures, or invalid signatures.
-            raise _deny() from err
+            invalid = True
+        if invalid:
+            raise _deny()
 
 
 def verify_gateway_dispatch(
@@ -419,6 +477,8 @@ class GatewayDispatchEndpoint:
 
     gateway_endpoint_id: str
     gateway_identity: str
+    endpoint_origin: str
+    gateway_path: str
     provider: str
     account_or_project_kind: str
     account_or_project: str
@@ -430,6 +490,8 @@ class GatewayDispatchEndpoint:
         for value in (self.gateway_endpoint_id, self.provider, self.account_or_project, self.region, self.model):
             _require_token(value)
         _require_spiffe(self.gateway_identity)
+        _require_endpoint_origin(self.endpoint_origin)
+        _require_gateway_path(self.gateway_path)
         if self.account_or_project_kind not in {"account", "project"}:
             raise _deny()
         _require_request_target(self.request_target)
@@ -460,6 +522,8 @@ class GatewayDispatchTransportAuthorizer:
         presented_worker_spiffe_id: str,
         request_target: str,
         body: bytes,
+        endpoint_origin: str,
+        gateway_path: str,
         current_time_iso: str | None = None,
     ) -> GatewayDispatchEndpoint:
         if not isinstance(body, bytes):
@@ -482,6 +546,8 @@ class GatewayDispatchTransportAuthorizer:
             or endpoint.region != grant.region
             or endpoint.model != grant.model
             or endpoint.request_target != grant.request_target
+            or endpoint.endpoint_origin != endpoint_origin
+            or endpoint.gateway_path != gateway_path
         ):
             raise _deny()
         return endpoint
@@ -549,17 +615,52 @@ class GatewayDispatchEmulator:
         action_plan_id: str,
         plan_digest: str,
         worker_spiffe_id: str,
+        endpoint_origin: str,
+        gateway_path: str,
         handler: Callable[[GatewayDispatchInvocation], GatewayDispatchResponse | None] | None = None,
     ) -> None:
         _require_token(action_plan_id)
         _require_hash(plan_digest)
         _require_spiffe(worker_spiffe_id)
+        _require_endpoint_origin(endpoint_origin)
+        _require_gateway_path(gateway_path)
         self._authorizer = authorizer
         self._replay_store = replay_store
         self._action_plan_id = action_plan_id
         self._plan_digest = plan_digest
         self._worker_spiffe_id = worker_spiffe_id
+        self._endpoint_origin = endpoint_origin
+        self._gateway_path = gateway_path
         self._handler = handler
+
+    def preflight(
+        self,
+        *,
+        grant: GatewayDispatchGrant,
+        presented_worker_spiffe_id: str,
+        request_target: str,
+        body: bytes,
+        current_time_iso: str | None = None,
+    ) -> GatewayDispatchEndpoint:
+        """Check the signed scope without consuming a grant or calling a handler."""
+        endpoint = self._authorizer.verify_for_transport(
+            grant=grant,
+            action_plan_id=self._action_plan_id,
+            plan_digest=self._plan_digest,
+            presented_worker_spiffe_id=presented_worker_spiffe_id,
+            request_target=request_target,
+            body=body,
+            endpoint_origin=self._endpoint_origin,
+            gateway_path=self._gateway_path,
+            current_time_iso=current_time_iso,
+        )
+        if (
+            presented_worker_spiffe_id != self._worker_spiffe_id
+            or endpoint.endpoint_origin != self._endpoint_origin
+            or endpoint.gateway_path != self._gateway_path
+        ):
+            raise _deny()
+        return endpoint
 
     def dispatch(
         self,
@@ -570,17 +671,13 @@ class GatewayDispatchEmulator:
         body: bytes,
         current_time_iso: str | None = None,
     ) -> GatewayDispatchReceipt:
-        endpoint = self._authorizer.verify_for_transport(
+        endpoint = self.preflight(
             grant=grant,
-            action_plan_id=self._action_plan_id,
-            plan_digest=self._plan_digest,
             presented_worker_spiffe_id=presented_worker_spiffe_id,
             request_target=request_target,
             body=body,
             current_time_iso=current_time_iso,
         )
-        if presented_worker_spiffe_id != self._worker_spiffe_id:
-            raise _deny()
         descriptor_digest, consumed_at = self._replay_store.consume(grant, current_time_iso=current_time_iso)
         invocation = GatewayDispatchInvocation(
             dispatch_id=grant.dispatch_id,
@@ -683,7 +780,7 @@ def decode_gateway_dispatch_envelope(value: bytes) -> tuple[GatewayDispatchGrant
         if len(body) != grant.body_bytes or parsed["body_sha256"] != grant.body_sha256:
             raise _deny()
         return grant, body
-    except (UnicodeError, ValueError, TypeError, json.JSONDecodeError, GatewayDispatchValidationError) as err:
-        if isinstance(err, GatewayDispatchValidationError):
-            raise
-        raise _deny() from err
+    except (UnicodeError, ValueError, TypeError, json.JSONDecodeError, GatewayDispatchValidationError):
+        invalid = True
+    if invalid:
+        raise _deny()
