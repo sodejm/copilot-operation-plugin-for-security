@@ -176,7 +176,10 @@ caller-owned requests, sessions, budgets and destinations first, then uses only 
 snapshots for plan validation, approval consumption and transport. Each redirect is
 independently scoped; the connection uses a checked numeric address while TLS verifies the certificate chain
 and original hostname, preventing a second resolver lookup from changing the
-endpoint. Environment proxies and HTTPS downgrade are disallowed. Cross-origin
+endpoint. HTTPS permits TLS 1.2 or newer only: default contexts set that floor explicitly,
+and caller-supplied contexts are rejected if they permit older protocols or disable
+certificate or hostname verification. Supplied contexts are rechecked before use and
+are not changed by the replay transport. Environment proxies and HTTPS downgrade are disallowed. Cross-origin
 redirects cannot retain a body or credential-bearing header. Session-supplied headers
 and declared session authentication header names remain credential-bearing regardless
 of their spelling. Other caller and session headers are cleared before a safe
