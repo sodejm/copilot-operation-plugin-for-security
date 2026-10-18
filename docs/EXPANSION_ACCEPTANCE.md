@@ -7,22 +7,24 @@ capability incomplete.
 
 ## Tested revision and runtime
 
-- Implementation revision: `e4c552d600910ae277d7efa0a638308595b1d0a2`.
-- Integration base: `6c2a1b5f9659429dfd0c260c3929ff0f2511e3e7`.
-- Acceptance date: 2026-10-16. The final acceptance change updates documentation
+- Implementation revision: `1493640424c30c1cda5942b4dbc9b13c3d508da8`.
+- Integration base: `5a40c2ecc99d6ce347a625d80f9c3b11e502d7fd`.
+- Acceptance date: 2026-10-18. The final acceptance change updates documentation
   only; it does not change the tested executable source or fixtures.
 - Strict service image:
   `sha256:1091037480cdd8172ab3c942fbf88da9150ea07934b362d190867b9344e7204e`.
 - Service source snapshot:
-  `20eb221cf1920ff93efbcd3d8db7cc3228e5f88eb448c7fb442098f882eed230`.
+  `45e196dcaf590ad4104e061b836042145e6eda6048d27f9899fbb855dc114485`.
   Recomputing the snapshot at the clean implementation revision matched the run.
 - Portable host: macOS arm64, Python 3.14.8. Strict runtime: Linux arm64,
   Python 3.14.6, Git 2.47.3, pip 26.1.2, cryptography 50.0.2,
   python-evtx 0.8.1 and hexdump 3.3.
 
-Changes are committed on dedicated, dependency-ordered local branches. The
-original API checkout retains its branch and unfinished edits. No push, hosted
-pull request, merge, release or production deployment is recorded here.
+Changes are committed on dedicated, dependency-ordered branches and integrated
+with the base above on `codex/expansion-delivery`. The original API checkout
+retains its branch and unfinished edits. This record captures local acceptance
+before the authorized push and merge; the pull request records hosted checks and
+delivery separately. It does not establish release or production deployment.
 
 ## Commands and check ledger
 
@@ -34,7 +36,7 @@ prerequisites must be provisioned before the strict gate, as described in the
 [Kubernetes runbook](KUBERNETES_LABORATORY.md).
 
 ```sh
-.venv/bin/python -m pytest tests/test_supply_chain_laboratory.py tests/step_defs/test_supply_chain_laboratory_steps.py tests/test_service_laboratory.py --no-header -x -q
+.venv/bin/python -m pytest -q tests/test_cve_evidence_binding.py tests/test_integrated_workflows.py
 PATH="$PWD/.venv/bin:$PATH" PYTEST_ADDOPTS='-ra' make check PYTHON=.venv/bin/python
 make check-docs PYTHON=.venv/bin/python
 DOCKER_CONTEXT=colima make check-laboratory PYTHON=.venv/bin/python LABORATORY_ARGS='--runtime docker --image sha256:1091037480cdd8172ab3c942fbf88da9150ea07934b362d190867b9344e7204e --kubernetes-timeout 480'
@@ -42,15 +44,15 @@ DOCKER_CONTEXT=colima make check-laboratory PYTHON=.venv/bin/python LABORATORY_A
 
 | Check | Observed result | Scope or limitation |
 | --- | --- | --- |
-| Latest focused correction tests | 31 passed | Offline wheel installation, vulnerable/corrected runtime, tampering, missing evidence and cleanup; includes service regression tests |
-| `make check` | Passed, including all 25 package gates | Root suite: 3,026 passed, 24 skipped; platform skips are listed below |
-| `make check-docs` | Passed, 57 pages | Documentation contract and local links |
+| Latest focused correction tests | 60 passed | CVE advisory/source binding and integrated workflow correction, missing evidence, tampering and cleanup |
+| `make check` | Passed, including all 25 package gates | Root suite passed with 24 platform skips; the quiet output does not report a passed-test count; skips are listed below |
+| `make check-docs` | Passed, 58 pages | Documentation contract and local links |
 | Strict `make check-laboratory` | 13/13 cases passed; no failures or blockers | Twelve service-container cases plus three Kubernetes lifecycle runs in one composite case |
 | Held-out routing | 270/270 clear requests correct; 10/10 for each of 27 specialists | 100/100 ambiguous or negative requests clarified; published examples remain separate |
 | Hosted/native CI | Not run for these local branches | Retained Linux worker and Windows filesystem jobs remain required |
 | Production/provider integrations | Not run | Separate live validation required before support claims |
 
-An initial final portable run failed because the execution sandbox denied local
+The initial integration portable run failed because the execution sandbox denied local
 TCP, UDP and Unix socket creation. The command was rerun unchanged with local
 socket permissions; no test was disabled or implementation changed for the retry.
 
@@ -70,7 +72,7 @@ EVTX counterparts additionally have the following digests.
 
 | Fixture | SHA-256 |
 | --- | --- |
-| `cops/laboratory/service_fixtures/manifest.json` | `d9d67d59a1a23bd65bfecf8d63f9296aab70fbda7ac85edc3ce8fbbe80fa733a` |
+| `cops/laboratory/service_fixtures/manifest.json` | `9dad6f3958f011263ef7580ecb05de580b4ee51c8f065c5ef02d28f5abbcf6fc` |
 | Vulnerable Sysmon EVTX | `4dbd6c4f96c5adae0e2c1df9847ab03a76131ecc60136c227d35f0fde8c1c245` |
 | Corrected Sysmon EVTX | `74e3ba983be16a897f515c12744f9f155876ed06f4eeb52fa790507cf339b8d2` |
 | Insufficient Sysmon EVTX | `5023fa444889f6a5d54c524f6507dfffe3677f076fb0640132c69ec6f8bd5ff9` |
