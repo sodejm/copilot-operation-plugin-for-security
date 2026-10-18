@@ -197,6 +197,10 @@ contains four independent artifact kinds. Each requires its matching
   inventory plus expected Pod-to-Pod TCP/UDP paths. Predictions implement
   additive ingress/egress rules, label selectors and expressions, namespace/pod
   selector intersection, CIDR exclusions, named destination ports and port ranges.
+  Kubernetes `NotIn` matches peers missing the specified label as well as peers
+  with other values. Combine it with `Exists` when the label must be present;
+  `In` requires a matching value on a present label. This applies to both pod
+  and namespace selectors.
 - `flow_evidence`: expected IP paths and explicit allow/deny observations with
   opaque evidence references and timestamps no older than 15 minutes. Missing
   traffic cannot establish denial; contradictory observations remain unknown.
