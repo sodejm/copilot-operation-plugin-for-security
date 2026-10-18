@@ -325,3 +325,8 @@ redaction tests in an environment where the extra is installed.
 For Actions parser changes, run `tests/test_supply_chain_corrections.py` with
 named, reordered and adjacent steps, block scalars, corrected refs and unsupported
 input mappings. Regenerate portable artifact runtimes after changing the parser.
+
+Cloud policy parser changes require `tests/test_cloud_corrections.py`, including
+conditional statements in direct AWS, Policy wrapper and Terraform plan shapes.
+Keep conditional evidence unknown, test independent unconditional statements, and
+synchronize the portable artifact runtimes.
