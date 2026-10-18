@@ -102,7 +102,13 @@ def test_nested_wrong_types_are_partial_without_crashing(kind: str, content: dic
 
 
 def bucket_statement(**extra: object) -> dict:
-    return {"Effect": "Allow", "Principal": "*", "Action": "s3:GetObject", "Resource": "arn:aws:s3:::example/*", **extra}
+    return {
+        "Effect": "Allow",
+        "Principal": "*",
+        "Action": "s3:GetObject",
+        "Resource": "arn:aws:s3:::example/*",
+        **extra,
+    }
 
 
 @pytest.mark.parametrize("wrapper", ["direct", "policy", "terraform-iam", "terraform-bucket"])

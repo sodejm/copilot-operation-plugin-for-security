@@ -109,9 +109,7 @@ def test_alert_must_match_every_expected_telemetry_field() -> None:
         "event.action": "blocked",
         "event.category": "authentication",
     }
-    assert verified["rule_proposal"]["kql"] == (
-        'event.action == "blocked" and event.category == "authentication"'
-    )
+    assert verified["rule_proposal"]["kql"] == ('event.action == "blocked" and event.category == "authentication"')
     assert contract.handoff_digest == "e85564fd6e86a0f35f5fe3c81ab99501a13901ceb675e429d9bb7c34867a7117"
 
 
@@ -281,9 +279,7 @@ def test_invalid_handoff_fields_are_rejected(mutate) -> None:
 def test_contract_defensively_copies_input_and_output(direct_constructor: bool) -> None:
     document = handoff().to_dict()
     contract = (
-        PurpleTeamHandoffContract(document)
-        if direct_constructor
-        else PurpleTeamHandoffContract.from_dict(document)
+        PurpleTeamHandoffContract(document) if direct_constructor else PurpleTeamHandoffContract.from_dict(document)
     )
     document["source"]["ref"] = "changed"
     exported = contract.to_dict()
