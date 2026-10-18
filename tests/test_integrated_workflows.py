@@ -172,6 +172,15 @@ def test_fixture_evidence_bundle_can_be_cryptographically_signed() -> None:
         public_key.verify(bytes.fromhex(signature["value"]), canonical(changed_payload))
 
 
+def test_invalid_evidence_signer_fails_without_returning_signed_evidence() -> None:
+    with pytest.raises(IntegratedWorkflowError, match="evidence_signing_failed"):
+        run_fixture_profile(
+            "leaked-credential-blast-radius",
+            "vulnerable",
+            evidence_signer=EvidenceBundleSigner("fixture-signing-key", object()),
+        )
+
+
 def test_kubernetes_playback_models_lab_expectations_without_claiming_activity() -> None:
     report = run_fixture_profile("kubernetes-compromise-containment", "vulnerable")
     application = report["stages"]["lab_apply"]["outputs"]["lab_application"]
