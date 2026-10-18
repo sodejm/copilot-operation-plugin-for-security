@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Associate Actions checkout inputs with their owning step regardless of key
+  order. Exclude adjacent steps, environment mappings and block scalars; report
+  duplicate or unsupported input mappings as partial evidence.
+
 - Keep workflow discovery, validation, and unsigned fixture playback usable
   without optional site packages. Ed25519 evidence signing now loads the
   `crypto` extra only when requested and fails explicitly when unavailable.

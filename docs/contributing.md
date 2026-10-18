@@ -321,3 +321,7 @@ crypto import to workflow startup: use a subprocess with site packages disabled
 to cover workflow listing, catalog validation, and every unsigned fixture
 playback profile. Keep real Ed25519 signing, invalid-key/signature, and
 redaction tests in an environment where the extra is installed.
+
+For Actions parser changes, run `tests/test_supply_chain_corrections.py` with
+named, reordered and adjacent steps, block scalars, corrected refs and unsupported
+input mappings. Regenerate portable artifact runtimes after changing the parser.

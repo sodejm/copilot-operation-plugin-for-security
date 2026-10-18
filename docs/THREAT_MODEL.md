@@ -645,6 +645,17 @@ validation before the affected release/capability expansion and schedule P2 with
 - Proposed mitigation and validation: Test vulnerable, corrected, benign and insufficient inputs; verify forensic hashes without altering originals; require offline SARIF conformance to the bundled, hash-pinned official schema with local references and disabled retrieval; reject malformed exports and test report redaction and status preservation. Keep correction tests for equal and conflicting duplicate telemetry fields and valid multi-field predicates. Reject unsupported rules and formats explicitly. Run the separate laboratory gate on an authorized isolated host and retain native-platform worker and filesystem CI.
 - Residual risk / status: Pattern-based source review, configuration projections and pinned advisory fixtures have limited coverage. Metadata cannot prove source authenticity, runtime reachability, cloud behavior, malware safety or provider resistance. Laboratory and live readiness remain incomplete when required checks are unavailable. No automated gate closes the independent human-review backlog.
 
+Laboratory HTTP requests also reject non-loopback destinations before I/O,
+disable environment proxies and redirects, and bound responses and socket waits.
+`tests/test_laboratory_http_client.py` exercises these controls against an actual
+disposable service, including an unvisited redirect target and oversized evidence.
+
+Actions checkout evidence is scoped to one sequence item and its direct `with`
+mapping. This prevents an attacker from hiding head checkout by reordering step
+keys or causing a false finding through neighboring actions or environment text.
+Duplicate input mappings and unsupported YAML forms remain coverage gaps. The
+parser does not evaluate actions or claim general YAML interpretation.
+
 ## STRIDE and privacy coverage
 
 | Category | Review obligation |
