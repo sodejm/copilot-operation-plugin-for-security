@@ -8,7 +8,7 @@ import sys
 
 import pytest
 
-from cops.laboratory import integrated_lab, service_lab, workflow_lab
+from cops.laboratory import integrated_lab, service_lab, service_supply_chain, workflow_lab
 from cops.laboratory.acceptance_cases import ACCEPTANCE_CASE_IDS, INTEGRATED_WORKFLOW_IDS
 from cops.laboratory.service_lab import IsolationProbe
 from scripts import check_laboratory
@@ -41,23 +41,42 @@ def reviewed_test_git(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(integrated_lab, "_runtime_git_pin", lambda: pin)
 
 
+def _expected_installer_failures(available: bool) -> list[str]:
+    if available:
+        return []
+    failures = [
+        "pinned supply-chain installer is unavailable or acceptance is incomplete",
+        "synthetic dependency was not installed from the reviewed source",
+        "installed dependency service activity or cleanup is incomplete",
+        "installed dependency changed the permitted query",
+        "installed dependency injection correction differs",
+        "pinned dependency advisory disagrees with runtime correction",
+        "missing dependency evidence did not remain unknown",
+        "supply-chain hash_mismatch_rejected is incomplete",
+        "supply-chain tampered_install_absent is incomplete",
+        "supply-chain disposable_root_removed is incomplete",
+    ]
+    return [f"{case}: {failure}" for case in ("service-vulnerable", "service-corrected") for failure in failures]
+
+
 def test_gate_runs_all_functional_evidence_then_blocks_without_isolation(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     reviewed_test_git: None,
 ) -> None:
     _install_probe(monkeypatch, _probe(verified=False))
+    installer_available = service_supply_chain.prerequisite_status()["available"]
 
     exit_code, summary = check_laboratory.run_acceptance_gate(tmp_path)
 
-    assert exit_code == 2, summary["failures"]
-    assert summary["status"] == "blocked"
+    assert exit_code == (2 if installer_available else 1), summary["failures"]
+    assert summary["status"] == ("blocked" if installer_available else "failed")
     assert summary["blockers"] == ["verified network isolation is unavailable"]
-    assert summary["failures"] == []
+    assert summary["failures"] == _expected_installer_failures(installer_available)
     assert summary["strict_preflight"]["passed"] is True
     assert summary["strict_preflight"]["state_created"] is False
     assert summary["summary"] == {
-        "cases_passed": len(ACCEPTANCE_CASE_IDS),
+        "cases_passed": len(ACCEPTANCE_CASE_IDS) - (0 if installer_available else 2),
         "cases_total": len(ACCEPTANCE_CASE_IDS),
         "functional_evidence_only": True,
     }
@@ -76,25 +95,31 @@ def test_gate_runs_all_functional_evidence_then_blocks_without_isolation(
         assert metrics["status"] == "success"
         assert metrics["restored"] and metrics["services_stopped"]
         assert metrics["authorizations_consumed"] == len(integrated_lab.WORKFLOW_STAGES[workflow_id])
-    assert all(case["passed"] is True for case in cases.values())
+    for name, case in cases.items():
+        assert case["passed"] is (installer_available or name not in ("service-vulnerable", "service-corrected"))
 
 
+@pytest.mark.parametrize("force_unavailable_installer", [False, True])
 def test_gate_can_pass_only_when_probe_and_runtime_reports_verify_isolation(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     reviewed_test_git: None,
+    force_unavailable_installer: bool,
 ) -> None:
     _install_probe(monkeypatch, _probe(verified=True))
+    if force_unavailable_installer:
+        monkeypatch.setattr(service_supply_chain.importlib.metadata, "version", lambda _: "unreviewed-version")
+    installer_available = service_supply_chain.prerequisite_status()["available"]
 
     exit_code, summary = check_laboratory.run_acceptance_gate(tmp_path)
 
-    assert exit_code == 0, summary["failures"]
-    assert summary["status"] == "passed"
+    assert exit_code == (0 if installer_available else 1), summary["failures"]
+    assert summary["status"] == ("passed" if installer_available else "failed")
     assert summary["blockers"] == []
-    assert summary["failures"] == []
+    assert summary["failures"] == _expected_installer_failures(installer_available)
     assert summary["isolation"]["verified"] is True
     assert summary["summary"] == {
-        "cases_passed": len(ACCEPTANCE_CASE_IDS),
+        "cases_passed": len(ACCEPTANCE_CASE_IDS) - (0 if installer_available else 2),
         "cases_total": len(ACCEPTANCE_CASE_IDS),
         "functional_evidence_only": False,
     }
