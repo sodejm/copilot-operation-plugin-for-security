@@ -528,9 +528,7 @@ def _live_request(req: ReplayRequest, sessions: dict[str, SessionContext]) -> _W
         raise ReplayAuthorizationError("request role does not match its isolated session")
     headers = dict(session.headers)
     session_header_names = {name.lower() for name in headers}
-    declared_credential_header_names = {
-        name.lower() for name in headers if SENSITIVE_FIELD_PATTERNS.search(name)
-    }
+    declared_credential_header_names = {name.lower() for name in headers if SENSITIVE_FIELD_PATTERNS.search(name)}
     if session.auth_mechanism.location.lower() == "header" and session.auth_mechanism.token_name:
         declared_credential_header_names.add(session.auth_mechanism.token_name.lower())
     credential_overrides = [
@@ -558,9 +556,7 @@ def _live_request(req: ReplayRequest, sessions: dict[str, SessionContext]) -> _W
     if session.cookies:
         credential_header_names.add("cookie")
     credential_header_names.update(declared_credential_header_names)
-    credential_header_names.update(
-        name.lower() for name in headers if SENSITIVE_FIELD_PATTERNS.search(name)
-    )
+    credential_header_names.update(name.lower() for name in headers if SENSITIVE_FIELD_PATTERNS.search(name))
     return _WireRequest(
         request=replace(req, headers=headers, role_id=req.role_id or session.role_id),
         credential_header_names=frozenset(credential_header_names),
