@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import time
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from dataclasses import replace
@@ -261,6 +262,39 @@ def test_stalled_gateway_dispatch_times_out_and_remains_charged(tmp_path):
     finally:
         release.set()
         assert completed.wait(2)
+
+
+def test_stalled_gateway_obeys_inherited_child_deadline(tmp_path):
+    entered = Event()
+    release = Event()
+    completed = Event()
+
+    def stalled(_invocation):
+        entered.set()
+        release.wait(3)
+        completed.set()
+        return GatewayDispatchResponse(200, "application/json", canonical(_response("openai")))
+
+    plan, case, args, _ = _setup(
+        tmp_path,
+        "openai",
+        handler=stalled,
+        elapsed_ms=5000,
+        limit_overrides={"max_attempts": 2, "max_concurrency": 2},
+    )
+    child_limits = replace(_policy(plan).limits, max_elapsed_ms=1000)
+    args["ledger"].reserve(AttemptRequest("agent-root", None, 0, 0, 0), child_limits=child_limits)
+    started = time.monotonic()
+    try:
+        result = execute_live_case(plan, case, parent_attempt_id="agent-root", **args)
+        assert entered.is_set()
+        assert time.monotonic() - started < 2
+        assert result["outcome"] == "uncertain"
+        assert result["ledger_state"] == "uncertain"
+        assert args["ledger"].snapshot().charged_attempts == 2
+    finally:
+        release.set()
+        assert completed.wait(3)
 
 
 @pytest.mark.parametrize("provider", ["openai", "azure", "aws", "gcp"])

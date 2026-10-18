@@ -77,7 +77,9 @@ grant remains a separate requirement. See [provider gateway operations](PROVIDER
 ## Recover and reconcile
 
 `reserved` means no dispatch intent was recorded and may be released with
-`release_undispatched`. `dispatched` and `uncertain` may have reached the callback:
+`release_undispatched` after all its descendants are released. A released
+ancestor prevents descendant dispatch even if that child was reserved earlier.
+`dispatched` and `uncertain` may have reached the callback:
 do not release them on timeout, restart, or cancellation. Reopening the ledger
 marks unresolved dispatches `uncertain`; cancellation stops new admission, sets
 the signal for every active attempt in the engagement, and releases only

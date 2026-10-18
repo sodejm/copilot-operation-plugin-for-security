@@ -46,7 +46,9 @@ A callback failure or crash after this intent produces an `uncertain` outcome;
 its allowance remains reserved until a trustworthy terminal receipt. The fixture
 API has no operation to turn external no-dispatch evidence into a release. A time
 or lease expiry never releases possibly in-flight allowance. An undispatched
-reservation may be released idempotently. A terminal receipt has its own ID
+reservation may be released idempotently only after all its descendants are
+released. A released ancestor denies later descendant dispatch, including a
+reservation created before the release. A terminal receipt has its own ID
 and bound attempt ID. Duplicate identical receipts are
 idempotent; conflicts and duplicate IDs across attempts fail. A partial receipt
 can be completed only with the same outcome and previously known values. Actual usage
@@ -79,4 +81,7 @@ dispatch, and cooperative versus uncooperative cancellation. Cost and token chec
 admission, not live billing control. Gateway emulator tests exercise OpenAI, Azure
 OpenAI, Bedrock, and Vertex child dispatches under a shared parent budget; a local
 tool attempt consumes the same subtree allowance. They also cover parent mismatch,
-widened child limits, and concurrent provider dispatch denial before gateway send.
+widened child limits, concurrent provider dispatch denial before gateway send,
+ancestor release, and inherited deadline bounds. The shared-parent, widened-child,
+and concurrent-denial cases have executable scenarios and step definitions in
+`features/ai_provider_live_gateway.feature`.
