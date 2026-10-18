@@ -34,8 +34,9 @@ def dispatch_four(context):
 
 @then("each result has a normalized outcome and a conservative budget state")
 def normalized_results(context):
-    assert all(result["outcome"] == "completed" and result["ledger_state"] == "uncertain"
-               for result in context["results"])
+    assert all(
+        result["outcome"] == "completed" and result["ledger_state"] == "uncertain" for result in context["results"]
+    )
     assert all(called == ["dispatch-001"] for _, _, _, called in context["cases"])
 
 
@@ -43,8 +44,12 @@ def normalized_results(context):
 def redacted_results(context):
     for (_, case, _, _), result in zip(context["cases"], context["results"], strict=True):
         public = json.dumps(result)
-        for private in ("COPS_CANARY_001", "PRIVATE_CANARY_RESPONSE", case["request_target"],
-                        case["account_or_project"]):
+        for private in (
+            "COPS_CANARY_001",
+            "PRIVATE_CANARY_RESPONSE",
+            case["request_target"],
+            case["account_or_project"],
+        ):
             assert private not in public
 
 
@@ -114,8 +119,12 @@ def unknown_cases(context):
 
     context["unknown"] = [
         _setup(context["path"] / name, "openai", handler=handler)
-        for name, handler in (("malformed", malformed), ("partial", partial),
-                              ("disconnected", disconnected), ("cancelled", cancelled))
+        for name, handler in (
+            ("malformed", malformed),
+            ("partial", partial),
+            ("disconnected", disconnected),
+            ("cancelled", cancelled),
+        )
     ]
 
 
@@ -140,14 +149,19 @@ def unknown_is_charged(context):
 @given("an admitted provider response with a tool proposal")
 def proposal(context):
     def handler(_):
-        return GatewayDispatchResponse(200, "application/json", canonical({
-            "status": "completed",
-            "output": [{"type": "function_call", "name": "inspect"}],
-            "usage": {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2},
-        }))
+        return GatewayDispatchResponse(
+            200,
+            "application/json",
+            canonical(
+                {
+                    "status": "completed",
+                    "output": [{"type": "function_call", "name": "inspect"}],
+                    "usage": {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2},
+                }
+            ),
+        )
 
-    context["proposal"] = _setup(context["path"] / "proposal", "openai", handler=handler,
-                                 allowed_tools=("inspect",))
+    context["proposal"] = _setup(context["path"] / "proposal", "openai", handler=handler, allowed_tools=("inspect",))
 
 
 @when("the response is normalized")

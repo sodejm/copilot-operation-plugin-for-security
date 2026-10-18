@@ -19,15 +19,17 @@ from .gateway_dispatch import (
 )
 
 SUPPORTED_GATEWAY_PROVIDERS = frozenset({"openai", "azure_openai", "bedrock", "vertex"})
-LIVE_PROVIDER_TRANSPORT = MappingProxyType({
-    "openai": "openai",
-    "azure": "azure_openai",
-    "aws": "bedrock",
-    "gcp": "vertex",
-    "azure_openai": "azure_openai",
-    "bedrock": "bedrock",
-    "vertex": "vertex",
-})
+LIVE_PROVIDER_TRANSPORT = MappingProxyType(
+    {
+        "openai": "openai",
+        "azure": "azure_openai",
+        "aws": "bedrock",
+        "gcp": "vertex",
+        "azure_openai": "azure_openai",
+        "bedrock": "bedrock",
+        "vertex": "vertex",
+    }
+)
 
 
 @dataclass(frozen=True)
