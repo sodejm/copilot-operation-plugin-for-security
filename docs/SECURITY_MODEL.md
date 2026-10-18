@@ -1,5 +1,15 @@
 # Security Model & Trust Boundaries
 
+## API import and persistence
+
+Imported API documents are untrusted evidence. Hash exact source bytes and reject
+supplied provenance mismatches before normalization; retain only an opaque digest
+reference in reports. Reject conflicting HTTP authorities. Report serialization
+removes URL user information and redacts query values, fragments, credential
+headers and recognizable credential assignments, including nested relative
+references. Arbitrary free text still requires evidence classification. Lossy
+report values must never construct executable requests or authorization digests.
+
 Defensive security tools operating inside AI assistants handle sensitive contexts: codebases, audit logs, cloud infrastructure graphs, and incident triage records. When an AI assistant has access to files and terminal commands, the assistant itself becomes an operational boundary.
 
 If untrusted data (such as a poisoned log string, an adversary-controlled issue, or an external package) contains a prompt injection attack, or if an automated tool executes arbitrary shell scripts, the security practitioner's workstation or CI runner could be compromised.
@@ -158,6 +168,24 @@ While COPS enforces rigorous safeguards within our own packages and scripts, pra
 - **Human Authority**: Automated tools assist, suggest, and structure data, but **the human engineer is the ultimate decision-maker**. No high-consequence action (such as modifying firewall rules, blocking accounts, or deploying hunt rules) should take place without human authorization.
 
 ## Expansion boundaries
+
+API replay binds exact source requests and session contexts, effective wire requests,
+all budget fields and all allowed destinations into the approved plan. It rejects
+ambiguous framing and URL authority before approval consumption. Execution copies
+caller-owned requests, sessions, budgets and destinations first, then uses only those
+snapshots for plan validation, approval consumption and transport. Each redirect is
+independently scoped; the connection uses a checked numeric address while TLS verifies the certificate chain
+and original hostname, preventing a second resolver lookup from changing the
+endpoint. Environment proxies and HTTPS downgrade are disallowed. Cross-origin
+redirects cannot retain a body or credential-bearing header. Session-supplied headers
+and declared session authentication header names remain credential-bearing regardless
+of their spelling. Other caller and session headers are cleared before a safe
+cross-origin follow-up. Standard body-dropping method rewrites remain supported. A
+monotonic deadline cancels socket activity and prevents dispatch after delayed DNS
+completion. A transport failure stops further
+requests because remote effects may be uncertain. Signed, persisted local approval
+tests establish plan binding and replay rejection, not independent administration
+of an authority.
 
 Repository discovery inventories only allowed local artifact metadata and excludes
 credentials, raw Terraform state, terminal history, symlinks, and unrelated paths.

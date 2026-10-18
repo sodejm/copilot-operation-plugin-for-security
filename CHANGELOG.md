@@ -14,6 +14,16 @@
   without optional site packages. Ed25519 evidence signing now loads the
   `crypto` extra only when requested and fails explicitly when unavailable.
 
+- Bind API replay approvals to exact requests, session contexts and complete
+  budgets, pin scoped DNS connections, enforce redirect and deadline boundaries, and preserve HTTP
+  error responses as evidence. Exercise actual services with signed, persisted
+  approvals, use owned execution snapshots, and reject malformed framing,
+  post-approval drift, unverified TLS and cross-origin retained bodies or credentials.
+
+- Hash exact API import bytes, reject conflicting provenance and raw HTTP
+  authorities, and redact URL credentials and query values throughout persisted
+  inventory and replay evidence while binding approvals to lossless requests.
+
 - Record revision-bound expansion acceptance, including 13 passing isolated
   laboratory cases, held-out routing results, fixture digests and capability
   limits. Keep unavailable native-platform and production validation incomplete.
