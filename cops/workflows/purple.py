@@ -29,24 +29,19 @@ class PurpleTeamHandoffContract:
 
     _document: dict[str, Any]
 
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_document", _copy_and_validate_handoff(self._document))
+
     @classmethod
     def from_dict(cls, document: dict[str, Any]) -> PurpleTeamHandoffContract:
-        try:
-            copied = deepcopy(document)
-            canonical(copied, max_bytes=2_097_152)
-            _validate_handoff(copied)
-        except WorkflowContractError:
-            raise
-        except Exception as exc:
-            raise WorkflowContractError("purple_handoff") from exc
-        return cls(copied)
+        return cls(document)
 
     def to_dict(self) -> dict[str, Any]:
-        return deepcopy(self._document)
+        return _copy_and_validate_handoff(self._document)
 
     @property
     def handoff_digest(self) -> str:
-        return digest(self._document)
+        return digest(_copy_and_validate_handoff(self._document))
 
 
 def emit_purple_team_handoff(
@@ -84,6 +79,7 @@ def evaluate_purple_team_handoff(
 ) -> dict[str, Any]:
     """Correlate evidence and execute the generated Sigma and KQL proposals."""
     document = handoff.to_dict()
+    _validate_handoff(document)
     rule = {"all": deepcopy(document["expected_telemetry"]), "correlation_ids": document["correlation_ids"]}
     proposal = {
         "sigma": _sigma_proposal(document["expected_telemetry"]),
@@ -309,6 +305,18 @@ def _evaluation(
     }
 
 
+def _copy_and_validate_handoff(document: Any) -> dict[str, Any]:
+    try:
+        copied = deepcopy(document)
+        canonical(copied, max_bytes=2_097_152)
+        _validate_handoff(copied)
+    except WorkflowContractError:
+        raise
+    except Exception as exc:
+        raise WorkflowContractError("purple_handoff") from exc
+    return copied
+
+
 def _validate_handoff(doc: Any) -> None:
     required = {
         "schema_version",
@@ -330,18 +338,7 @@ def _validate_handoff(doc: Any) -> None:
         or not source["ref"]
     ):
         raise WorkflowContractError("purple_source")
-    expected = doc["expected_telemetry"]
-    if not isinstance(expected, list) or not expected:
-        raise WorkflowContractError("expected_telemetry")
-    for item in expected:
-        if (
-            not isinstance(item, dict)
-            or set(item) != {"field", "value"}
-            or not isinstance(item["field"], str)
-            or _FIELD_PATH_RE.fullmatch(item["field"]) is None
-            or not isinstance(item["value"], str)
-        ):
-            raise WorkflowContractError("expected_telemetry")
+    _validate_expected_telemetry(doc["expected_telemetry"])
     correlations = doc["correlation_ids"]
     if not isinstance(correlations, list) or not correlations or len(set(correlations)) != len(correlations):
         raise WorkflowContractError("correlation_ids")
@@ -369,6 +366,24 @@ def _validate_handoff(doc: Any) -> None:
         raise WorkflowContractError("detection_result")
 
 
+def _validate_expected_telemetry(expected: Any) -> None:
+    if not isinstance(expected, list) or not expected:
+        raise WorkflowContractError("expected_telemetry")
+    fields: set[str] = set()
+    for item in expected:
+        if (
+            not isinstance(item, dict)
+            or set(item) != {"field", "value"}
+            or not isinstance(item["field"], str)
+            or _FIELD_PATH_RE.fullmatch(item["field"]) is None
+            or not isinstance(item["value"], str)
+        ):
+            raise WorkflowContractError("expected_telemetry")
+        if item["field"] in fields:
+            raise WorkflowContractError("duplicate_expected_telemetry_field")
+        fields.add(item["field"])
+
+
 def _sigma_proposal(expected: list[dict[str, str]]) -> dict[str, Any]:
     return {
         "title": "COPS purple-team correlation proposal",
@@ -377,10 +392,12 @@ def _sigma_proposal(expected: list[dict[str, str]]) -> dict[str, Any]:
 
 
 def _kql_proposal(expected: list[dict[str, str]]) -> str:
+    _validate_expected_telemetry(expected)
     return " and ".join(f'{item["field"]} == "{_escape_kql(item["value"])}"' for item in expected)
 
 
 def _selection(expected: list[dict[str, str]]) -> dict[str, str]:
+    _validate_expected_telemetry(expected)
     return {item["field"]: item["value"] for item in expected}
 
 
