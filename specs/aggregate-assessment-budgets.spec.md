@@ -4,10 +4,10 @@
 
 `cops.assessment-budget/v1` is an opt-in, engagement-scoped local admission
 contract for assessment attempt dispatch. It does not alter the existing
-`cops.engagement/v1` action limits. This revision has a synthetic fixture
-dispatcher only. Provider assessment adapters depend on issue #150 and require
-their own integration and exact-revision review before this contract can enforce
-real provider calls. A caller that bypasses this dispatcher is outside coverage.
+`cops.engagement/v1` action limits. The synthetic fixture dispatcher and opt-in
+provider gateway emulator use the same ledger. Production worker and gateway
+integration still require exact-revision review and independent evidence. A caller
+that bypasses these wrappers is outside coverage.
 
 The operator supplies a trusted, immutable budget and price basis before an
 engagement begins. All children, retries, and provider/tool attempts use one
@@ -76,4 +76,7 @@ idempotency, late and unknown receipts, cancellation, restart uncertainty,
 deadline, denied-action clock rollback, and unavailable storage. Synthetic
 concurrency tests exercise the SQLite transaction boundary, bounded callback
 dispatch, and cooperative versus uncooperative cancellation. Cost and token checks prove local estimate-based
-admission, not live billing control.
+admission, not live billing control. Gateway emulator tests exercise OpenAI, Azure
+OpenAI, Bedrock, and Vertex child dispatches under a shared parent budget; a local
+tool attempt consumes the same subtree allowance. They also cover parent mismatch,
+widened child limits, and concurrent provider dispatch denial before gateway send.
