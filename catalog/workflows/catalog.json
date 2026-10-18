@@ -26,19 +26,19 @@
       "profiles": [
         {
           "expected_outcome": "urgent_remediation",
-          "input_digest": "be5f6801c87efe68ceef0c27acdb798c344cd636376b93022f6e516f5c79c8f4",
+          "input_digest": "c132f23effc7998834d6a7b85ba0a897104755e60d09c3418177fd1349c6cc8f",
           "path": "fixtures/cve-reachability-triage.vulnerable.json",
           "profile_id": "vulnerable"
         },
         {
           "expected_outcome": "insufficient_evidence",
-          "input_digest": "ad14e9be3245dd4f0b76f8c0d58dfb3600eba99523917fe9a3f32d1259667a3a",
+          "input_digest": "1e0234e9b4316190ee683c9a9a4927a823504e005c4752843e6e47902b749082",
           "path": "fixtures/cve-reachability-triage.limited.json",
           "profile_id": "limited"
         },
         {
           "expected_outcome": "known_corrected_component",
-          "input_digest": "8e786992843cf3cc5f8041d63118ff57d5fe112b35700230a054249eb3e631fb",
+          "input_digest": "a9bf45f9f05e2c4790790331b4db5d6008c9325e578a53572141e8c90b4a752c",
           "path": "fixtures/cve-reachability-triage.corrected.json",
           "profile_id": "corrected"
         }

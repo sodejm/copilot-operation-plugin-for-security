@@ -50,3 +50,15 @@ Provide two deterministic acceptance paths for COPS service scenarios: offline f
     query and rejects injection. Modified wheels must fail installation, missing
     dependency evidence remains unknown, and temporary installations and services
     are removed after success, failure, timeout, or cancellation.
+
+27. Laboratory HTTP requests require literal loopback destinations and explicit
+    ports. Environment proxies and redirects cannot change the destination.
+    Responses larger than 64 KiB fail evidence collection, and each socket
+    operation has a three-second timeout. Invalid URLs fail before network I/O.
+
+28. The executable SQL fixture selects a fixed query for one reviewed attack seed
+    and parameterizes other submitted values. The corrected profile parameterizes
+    every value. Static vulnerable/corrected scanner examples remain nonexecuted
+    source artifacts with separate digests. Acceptance requires supported scanner
+    assessments, actual SQLite/HTTP outcomes, and unchanged CVE/runtime/wheel
+    identity binding; missing or invalid scanner evidence remains insufficient.
