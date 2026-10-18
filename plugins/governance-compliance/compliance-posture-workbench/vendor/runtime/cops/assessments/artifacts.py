@@ -12,9 +12,10 @@ import ast
 import base64
 import binascii
 import hashlib
+import ipaddress
 import json
 import re
-from collections import defaultdict, deque
+from collections import Counter, defaultdict, deque
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -49,6 +50,7 @@ CAPABILITIES = frozenset(
 _ID = re.compile(r"[a-zA-Z0-9_.:-]{1,96}\Z")
 _HEX64 = re.compile(r"[0-9a-fA-F]{64}\Z")
 _SECRET_KEYS = frozenset({"secret", "password", "private_key", "access_token", "api_key", "credential_value"})
+_MAX_SCANNER_RECORDS = 1000
 
 
 class ArtifactAssessmentError(ValueError):
@@ -188,9 +190,19 @@ def _issue(
 
 
 def _finding(
-    issue: _Issue, *, capability: str, engagement_id: str, result_id: str, scenario_id: str, created_at: str
+    issue: _Issue,
+    *,
+    capability: str,
+    engagement_id: str,
+    result_id: str,
+    scenario_id: str,
+    created_at: str,
+    occurrence: int | None = None,
 ) -> dict[str, Any]:
-    suffix = hashlib.sha256((capability + issue.code + "|".join(issue.refs)).encode()).hexdigest()[:24]
+    identity = capability + issue.code + "|".join(issue.refs)
+    if occurrence is not None:
+        identity += f"|occurrence:{occurrence}"
+    suffix = hashlib.sha256(identity.encode()).hexdigest()[:24]
     data = Finding(
         schema_version="cops.finding/v1",
         finding_id=f"find-{suffix}",
@@ -357,12 +369,15 @@ def _application_security(
                         )
                     )
         elif artifact.kind == "scanner_json" and type(artifact.content) in (dict, list):
-            analyzed.add(artifact.artifact_id)
             records = artifact.content.get("findings", []) if isinstance(artifact.content, dict) else artifact.content
             if not isinstance(records, list):
+                analyzed.add(artifact.artifact_id)
                 issues.append(_unresolved(artifact, "scanner_output"))
+            elif len(records) > _MAX_SCANNER_RECORDS:
+                raise ArtifactAssessmentError("scanner_record_limit")
             else:
-                for record in records[:1000]:
+                analyzed.add(artifact.artifact_id)
+                for record in records:
                     if (
                         isinstance(record, dict)
                         and record.get("status", "open") == "open"
@@ -1090,6 +1105,64 @@ def _b64url_json(value: str) -> dict[str, Any] | None:
     return result if isinstance(result, dict) else None
 
 
+_DNS_LABEL = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\Z")
+_NUMERIC_ADDRESS = re.compile(r"[0-9.]+\Z")
+
+
+def _metadata_dns_name(value: str) -> str | None:
+    if not value or len(value) > 253 or "*" in value:
+        return None
+    try:
+        value.encode("ascii")
+    except UnicodeEncodeError:
+        return None
+    labels = value.split(".")
+    if any(label.lower().startswith("xn--") or not _DNS_LABEL.fullmatch(label) for label in labels):
+        return None
+    return value.lower()
+
+
+def _metadata_identity(value: Any, *, allow_wildcard: bool) -> tuple[str, object] | None:
+    if not isinstance(value, str) or not value or len(value) > 253:
+        return None
+    if "%" not in value:
+        try:
+            return "ip", ipaddress.ip_address(value)
+        except ValueError:
+            pass
+    if "*" in value:
+        if not allow_wildcard or not value.startswith("*.") or value.count("*") != 1:
+            return None
+        suffix = _metadata_dns_name(value[2:])
+        return ("wildcard", suffix) if suffix is not None else None
+    if ":" in value or _NUMERIC_ADDRESS.fullmatch(value):
+        return None
+    name = _metadata_dns_name(value)
+    return ("dns", name) if name is not None else None
+
+
+def _metadata_hostname_match(hostname: Any, sans: Any) -> bool | None:
+    """Compare bounded metadata identities without implying certificate verification."""
+    expected = _metadata_identity(hostname, allow_wildcard=False)
+    if expected is None or not isinstance(sans, list):
+        return None
+    unsupported = False
+    for value in sans:
+        identity = _metadata_identity(value, allow_wildcard=True)
+        if identity is None:
+            unsupported = True
+            continue
+        kind, candidate = identity
+        if kind == expected[0] and candidate == expected[1]:
+            return True
+        if kind == "wildcard" and expected[0] == "dns":
+            expected_labels = str(expected[1]).split(".")
+            suffix_labels = str(candidate).split(".")
+            if len(expected_labels) == len(suffix_labels) + 1 and expected_labels[1:] == suffix_labels:
+                return True
+    return None if unsupported else False
+
+
 def _transport(
     items: list[_Artifact], as_of: datetime, *, verification_results: list[dict[str, Any]] | None = None
 ) -> tuple[list[_Issue], list[str], list[str], set[str]]:
@@ -1138,7 +1211,7 @@ def _transport(
         elif artifact.kind == "tls_config" and isinstance(artifact.content, dict):
             chain = artifact.content.get("chain")
             hostname = artifact.content.get("hostname")
-            if not isinstance(chain, list) or not chain or not isinstance(hostname, str):
+            if not isinstance(chain, list) or not chain:
                 issues.append(_unresolved(artifact, "tls_configuration"))
                 continue
             analyzed.add(artifact.artifact_id)
@@ -1176,8 +1249,10 @@ def _transport(
                         )
                     )
             leaf = chain[0] if isinstance(chain[0], dict) else {}
-            sans = leaf.get("san", [])
-            if not isinstance(sans, list) or hostname not in sans:
+            hostname_match = _metadata_hostname_match(hostname, leaf.get("san"))
+            if hostname_match is None:
+                issues.append(_unresolved(artifact, "certificate_hostname"))
+            elif not hostname_match:
                 issues.append(
                     _issue(
                         artifact,
@@ -1311,17 +1386,23 @@ def assess(
         {"artifact_id": item.artifact_id, "kind": item.kind, "sha256": item.sha256, "bytes": len(item.raw)}
         for item in prepared
     ]
-    findings = [
-        _finding(
-            issue,
-            capability=capability,
-            engagement_id=engagement_id,
-            result_id=result_id,
-            scenario_id=scenario_id,
-            created_at=as_of,
+    issue_keys = [(issue.code, issue.refs) for issue in issues]
+    issue_counts = Counter(issue_keys)
+    seen_issues: defaultdict[tuple[str, tuple[str, ...]], int] = defaultdict(int)
+    findings = []
+    for issue, issue_key in zip(issues, issue_keys, strict=True):
+        seen_issues[issue_key] += 1
+        findings.append(
+            _finding(
+                issue,
+                capability=capability,
+                engagement_id=engagement_id,
+                result_id=result_id,
+                scenario_id=scenario_id,
+                created_at=as_of,
+                occurrence=seen_issues[issue_key] if issue_counts[issue_key] > 1 else None,
+            )
         )
-        for issue in issues
-    ]
     return {
         "schema_version": REPORT_SCHEMA,
         "capability": capability,

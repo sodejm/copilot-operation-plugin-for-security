@@ -14,13 +14,14 @@ The returned mapping has schema `cops.artifact-assessment/v1`, uses repository-v
 ## Required behavior
 
 1. Input processing is offline and deterministic. It does not execute supplied code, decoded PowerShell, binaries, hooks, templates, or workflow steps. It does not use the network or shell.
-2. Count, per-artifact byte, total-byte, decoded-PowerShell, record, and traversal bounds constrain processing.
+2. Count, per-artifact byte, total-byte, decoded-PowerShell, record, and traversal bounds constrain processing. A normalized `scanner_json` list or `findings` list may contain at most 1,000 records. Larger inputs fail with a stable, content-free error before any prefix is analyzed; they cannot produce a truncated clean result.
 3. Evidence contains the original canonical input digest and byte count. Forensic byte input is neither decoded nor modified.
 4. Findings quote no source, prompt, scanner message, credential occurrence, token, or decoded payload content.
 5. Explicit credential-value fields are rejected recursively with a stable content-free error. Credential-history assessment accepts opaque fingerprints only. The separate registered Git scanner recognizes bounded COPS, classic GitHub PAT, AWS access-key identifier, Bearer and PEM private-key shapes, emits opaque fingerprints and never includes matched bytes in output. Matches establish potential exposure, not credential validity.
 6. Unsupported heavyweight or live formats return a limitation and a pinned registered-adapter prerequisite. They do not produce a passing readiness claim.
 7. Missing or malformed required security evidence remains unknown through an unresolved finding or `insufficient_evidence` readiness.
 8. An offline clean result cannot establish provider-side revocation, current advisory state, runtime segmentation, remote service trust, production configuration, or deployment readiness. Typed cryptographic verification establishes only the supplied local trust policy at the assessment timestamp.
+9. Finding identifiers are deterministic and unique within each report. Repeated findings with the same code and artifact evidence are disambiguated by their stable occurrence position, while singleton identifiers remain compatible. Identifier derivation uses bounded finding metadata and never raw source, scanner messages, credential values, or secret text. `finding_codes` maps every finding identifier exactly once.
 
 ## Capability assertions
 
@@ -42,6 +43,20 @@ The returned mapping has schema `cops.artifact-assessment/v1`, uses repository-v
   flow cannot prove denial; static predictions cannot prove CNI enforcement.
 - Transport identity preserves metadata inspection and adds `certificate_chain` and `jwt_verification` through `cryptographic-verification/v1`, pinned to cryptography 50.0.2. Explicit local trust, bounded keys/chains, strict identity and time validation, and an explicit client fingerprint allowlist are required. Malformed trust and missing prerequisites yield unknown; actual rejection is a local observation. Revocation and remote acceptance still require separate evidence. Laboratory correction compares these offline results with actual mTLS and JWT service requests using ephemeral credentials.
 
+For legacy `tls_config` metadata, DNS SAN comparison is limited to well-formed
+ASCII names. Exact names compare case-insensitively. A wildcard is supported only
+as the complete left-most label and matches exactly one label; it does not match
+the apex or multiple labels. Numeric IP addresses must parse strictly and compare
+as equal addresses. DNS wildcards never match an IP address. Partial or multiple
+wildcards, Unicode and unresolved IDNA, whitespace or control characters, empty
+labels, labels over 63 characters, names over 253 characters, malformed numeric
+addresses, and other unsupported identity formats are inconclusive. A supported
+match is sufficient even when another SAN is unsupported. Otherwise, any
+unsupported hostname or SAN produces content-free insufficient evidence; a
+hostname mismatch is reported only when the hostname and every SAN are supported
+and none match. Metadata comparison does not verify a signature, chain, trust,
+revocation, live TLS acceptance, or production readiness.
+
 ## Regression evidence
 
 `tests/fixtures/artifact_assessment_cases_v1.json` is a versioned, synthetic corpus with four cases per capability:
@@ -51,7 +66,9 @@ The returned mapping has schema `cops.artifact-assessment/v1`, uses repository-v
 - missing or malformed evidence that remains unknown
 - benign evidence that exercises the parser without a false positive
 
-`tests/test_artifact_assessments.py` validates all 40 cases, every serialized Finding, input immutability, hashes and byte counts, output redaction, hard bounds, recursive credential rejection, and an unsupported PCAP adapter boundary.
+`tests/test_artifact_assessments.py` validates all 40 cases, every serialized Finding, input immutability, hashes and byte counts, output redaction, hard bounds, recursive credential rejection, repeated scanner and Python findings, the 1,000-record scanner boundary, and an unsupported PCAP adapter boundary.
+
+`tests/test_artifact_report_integrity.py` verifies that repeated findings retain unique deterministic identifiers and complete code mappings when adapted to the repository assessment-report contract.
 
 `tests/test_supply_chain_corrections.py` covers nested/scoped npm identity,
 workspace exclusions, deceptive registry URLs, multiline requirements, ecosystem

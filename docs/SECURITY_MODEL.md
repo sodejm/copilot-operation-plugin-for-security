@@ -216,6 +216,12 @@ custody metadata does not independently authenticate an evidence source. Synthet
 fixtures demonstrate supported behavior without establishing complete vulnerability
 coverage or production integration support.
 
+Normalized scanner input is limited to 1,000 records and fails with a content-free
+error before analysis when that limit is exceeded. Reports never treat an analyzed
+prefix as the complete scanner result. Finding identifiers use deterministic,
+bounded metadata and occurrence positions, not raw source, scanner messages, or
+credential text; repeated findings remain distinct in the report code mapping.
+
 Git history scanning accepts only explicitly scoped ordinary repositories and
 uses an executable pinned by SHA-256 through the registered Git adapter. It copies
 and verifies that executable before invocation, disables repository hooks, external
