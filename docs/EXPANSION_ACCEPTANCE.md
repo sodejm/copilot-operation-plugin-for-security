@@ -11,8 +11,8 @@ capability incomplete.
 - Integration base: `5a40c2ecc99d6ce347a625d80f9c3b11e502d7fd`.
 - Acceptance date: 2026-10-18. The acceptance record was initially added in a
   documentation-only change. A subsequent push-gate correction formats five
-  canonical modules and their 28 packaged copies, then refreshes seven provenance
-  manifests. All 33 Python syntax trees are unchanged; fixtures are unchanged.
+  canonical modules and their 30 packaged copies, then refreshes eight provenance
+  manifests. All 35 Python syntax trees are unchanged; fixtures are unchanged.
   The strict run below remains bound to the implementation revision and source
   snapshot listed here. Hosted checks separately validate the final PR revision.
 - Strict service image:
