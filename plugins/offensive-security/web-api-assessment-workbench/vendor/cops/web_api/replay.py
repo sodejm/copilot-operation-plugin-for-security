@@ -268,8 +268,10 @@ class StandardHttpReplayer(Replayer):
         *,
         tls_context: ssl.SSLContext | None = None,
     ) -> None:
-        if tls_context is not None:
-            self._validate_tls_context(tls_context)
+        if tls_context is None:
+            tls_context = ssl.create_default_context()
+            tls_context.minimum_version = ssl.TLSVersion.TLSv1_2
+        self._validate_tls_context(tls_context)
         self.destination_guard = destination_guard
         self.scope_guard = scope_guard
         self.tls_context = tls_context
@@ -278,6 +280,8 @@ class StandardHttpReplayer(Replayer):
     def _validate_tls_context(tls_context: ssl.SSLContext) -> None:
         if tls_context.verify_mode != ssl.CERT_REQUIRED or not tls_context.check_hostname:
             raise ReplayAuthorizationError("TLS context must enable certificate and hostname verification")
+        if tls_context.minimum_version < ssl.TLSVersion.TLSv1_2:
+            raise ReplayAuthorizationError("TLS context must require TLS 1.2 or newer")
 
     def _exchange(
         self,
@@ -297,6 +301,8 @@ class StandardHttpReplayer(Replayer):
             parsed = _parse_destination(url)
             if parsed.scheme not in {"http", "https"}:
                 raise DestinationViolationError("only HTTP and HTTPS replay are supported")
+            if parsed.scheme == "https":
+                self._validate_tls_context(self.tls_context)
             host = parsed.hostname
             port = parsed.port or (443 if parsed.scheme == "https" else 80)
             deadline.remaining()
@@ -316,10 +322,9 @@ class StandardHttpReplayer(Replayer):
                 sock.settimeout(deadline.remaining())
                 sock.connect((str(address), port))
                 if parsed.scheme == "https":
-                    tls_context = self.tls_context or ssl.create_default_context()
-                    self._validate_tls_context(tls_context)
+                    self._validate_tls_context(self.tls_context)
                     sock.settimeout(deadline.remaining())
-                    sock = tls_context.wrap_socket(sock, server_hostname=host)
+                    sock = self.tls_context.wrap_socket(sock, server_hostname=host)
                     deadline.attach(sock)
                 connection.sock = sock
                 sock.settimeout(deadline.remaining())
