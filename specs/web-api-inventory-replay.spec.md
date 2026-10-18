@@ -41,7 +41,10 @@ resolution, transport and reporting.
 
 The transport resolves each hop once, validates its addresses, and connects directly
 to a validated numeric address. HTTPS retains the original hostname for certificate
-verification and SNI. Environment proxies are ignored. Redirects require fresh scope
+verification and SNI and permits TLS 1.2 or newer only. Default TLS contexts set that
+minimum explicitly. Caller-supplied contexts must require certificate and hostname
+verification and a TLS 1.2-or-newer minimum; replay validates them at construction and
+again before use without changing them. Environment proxies are ignored. Redirects require fresh scope
 checks; HTTPS downgrade is refused. A cross-origin redirect may proceed only after a
 standard method rewrite has removed the request body and content headers and when no
 credential-bearing header remains. Session-provided headers and declared session

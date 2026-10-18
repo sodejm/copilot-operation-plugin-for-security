@@ -347,6 +347,53 @@ def test_tls_context_cannot_disable_certificate_verification():
         StandardHttpReplayer(DestinationGuard(["replay.test"]), _scope(), tls_context=insecure_context)
 
 
+def test_default_tls_context_has_explicit_tls_1_2_minimum():
+    replayer = StandardHttpReplayer(DestinationGuard(["replay.test"]), _scope())
+
+    assert replayer.tls_context.minimum_version == ssl.TLSVersion.TLSv1_2
+
+
+@pytest.mark.parametrize(
+    "minimum_version",
+    [ssl.TLSVersion.MINIMUM_SUPPORTED, ssl.TLSVersion.TLSv1_1],
+)
+def test_tls_context_rejects_unsafe_minimum_versions(minimum_version):
+    unsafe_context = ssl.create_default_context()
+    unsafe_context.minimum_version = minimum_version
+
+    with pytest.raises(ReplayAuthorizationError, match="TLS 1.2 or newer"):
+        StandardHttpReplayer(DestinationGuard(["replay.test"]), _scope(), tls_context=unsafe_context)
+
+    assert unsafe_context.minimum_version == minimum_version
+
+
+def test_tls_context_accepts_stronger_minimum_without_mutation():
+    stronger_context = ssl.create_default_context()
+    stronger_context.minimum_version = ssl.TLSVersion.TLSv1_3
+
+    replayer = StandardHttpReplayer(DestinationGuard(["replay.test"]), _scope(), tls_context=stronger_context)
+
+    assert replayer.tls_context is stronger_context
+    assert stronger_context.minimum_version == ssl.TLSVersion.TLSv1_3
+
+
+def test_tls_context_mutation_is_rejected_before_network_use():
+    resolved = []
+    supplied_context = ssl.create_default_context()
+    supplied_context.minimum_version = ssl.TLSVersion.TLSv1_2
+    replayer = StandardHttpReplayer(
+        DestinationGuard(["replay.test"]),
+        _scope(lambda host: resolved.append(host) or ["127.0.0.1"]),
+        tls_context=supplied_context,
+    )
+    supplied_context.minimum_version = ssl.TLSVersion.MINIMUM_SUPPORTED
+
+    with pytest.raises(ReplayAuthorizationError, match="TLS 1.2 or newer"):
+        replayer.send(_request("https://replay.test/"), ReplayBudget(timeout_seconds=1))
+
+    assert resolved == []
+
+
 def test_body_deadline_is_aggregate_and_returns_no_false_success(http_lab):
     base, seen, _ = http_lab
     started = time.monotonic()
