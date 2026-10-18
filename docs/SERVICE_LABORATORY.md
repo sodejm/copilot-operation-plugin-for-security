@@ -134,8 +134,15 @@ raw-file integrity only; they do not establish native disk or memory collection.
 `synthetic-wheel-installation@1` creates deterministic versions 1.0.0 and 1.0.1 of
 the reviewed synthetic query dependency. It installs each wheel offline into a
 temporary directory, requires its SHA-256 and verifies the installed source.
-Actual HTTP requests preserve owner access while demonstrating vulnerable SQL
-injection and its correction. The same component version enters the pinned
+Actual HTTP requests preserve owner access and execute real SQLite queries. The
+vulnerable profile maps only the reviewed `' OR 1=1 --` seed to a fixed query
+that exposes both synthetic objects; the corrected profile returns no object.
+Every other submitted value is parameterized in both profiles. This bounded
+fixture does not accept arbitrary SQL programs. Static scanner examples live
+separately in `boundary_scanner_fixtures.py`, are assessed as source text without
+execution, and have their own digests in boundary reports. Runtime component
+digests bind the executable query function, including installed wheel evidence.
+The same component version enters the pinned
 advisory assessment; an empty inventory remains unknown.
 
 A second installation deliberately changes the wheel bytes and must fail hash

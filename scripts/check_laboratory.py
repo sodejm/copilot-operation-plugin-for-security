@@ -28,6 +28,9 @@ from cops.laboratory.acceptance_cases import (  # noqa: E402  # Import after run
     INTEGRATED_WORKFLOW_IDS,
     KUBERNETES_CASE_ID,
 )
+from cops.laboratory.boundary_scanner_fixtures import (  # noqa: E402  # Import after runtime prerequisite/path selection.
+    query_scanner_fixture,
+)
 from cops.laboratory.container_runtime import (  # noqa: E402  # Import after runtime prerequisite/path selection.
     run_container_acceptance,
 )
@@ -315,8 +318,16 @@ def _service_case(
     )
     _expect(
         failures,
-        bool(boundaries.get("application_codes")) is expected_reached,
-        "source assessment disagrees with observed SQL injection",
+        boundaries.get("application_codes") == (["sql_interpolation"] if expected_reached else [])
+        and boundaries.get("application_readiness") == "supported",
+        "static query fixture assessment is incomplete or differs",
+    )
+    scanner_fixture = query_scanner_fixture("vulnerable" if expected_reached else "corrected")
+    _expect(
+        failures,
+        boundaries.get("scanner_fixture")
+        == {key: scanner_fixture[key] for key in ("artifact_id", "kind", "sha256", "execution")},
+        "static query fixture provenance differs",
     )
     expected_gateway = (
         {"foundry_tool_scope", "foundry_resource_scope", "foundry_prompt_injection"} if expected_reached else set()
