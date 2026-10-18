@@ -656,6 +656,12 @@ keys or causing a false finding through neighboring actions or environment text.
 Duplicate input mappings and unsupported YAML forms remain coverage gaps. The
 parser does not evaluate actions or claim general YAML interpretation.
 
+Cloud IAM observations do not infer effective access from a conditional Allow
+statement. Any `Condition` field leaves that statement unresolved; syntactically
+public principals and wildcard actions alone cannot override this gap. Separate
+unconditional statements remain assessable. Full condition and policy precedence
+evaluation requires a separately validated adapter and request context.
+
 ## STRIDE and privacy coverage
 
 | Category | Review obligation |

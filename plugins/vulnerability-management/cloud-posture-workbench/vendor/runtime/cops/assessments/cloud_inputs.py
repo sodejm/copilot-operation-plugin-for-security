@@ -51,6 +51,12 @@ def _iam(value: Any, result: CloudInput) -> None:
             continue
         if statement["Effect"] == "Deny":
             continue
+        # Conditions need request context and policy evaluation, neither of
+        # which this offline shape parser has. Even an empty/malformed condition
+        # cannot establish effective public access or wildcard permissions.
+        if "Condition" in statement:
+            result.incomplete = True
+            continue
         actions, resources = _strings(statement.get("Action")), _strings(statement.get("Resource"))
         if actions is None or resources is None or "NotAction" in statement or "NotResource" in statement:
             result.incomplete = True
