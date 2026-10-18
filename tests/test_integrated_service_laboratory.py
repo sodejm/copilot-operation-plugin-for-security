@@ -14,6 +14,7 @@ from cops.evidence.canonical import canonical, digest
 from cops.execution.store import ApprovalStore
 from cops.laboratory import integrated_lab
 from cops.laboratory.service_lab import IsolationProbe
+from cops.workflows.consent_evidence import assess_consent
 from cops.workflows.contracts import WorkflowDefinition
 from cops.workflows.runtime import WorkflowRuntimeError, compile_action_plan
 from tests.auth_testkit import make_test_authorization_context
@@ -21,6 +22,30 @@ from tests.auth_testkit import make_test_authorization_context
 
 GIT = shutil.which("git")
 GIT_SHA256 = hashlib.sha256(Path(GIT).resolve().read_bytes()).hexdigest() if GIT else None
+CONSENT_FIXTURE_EVIDENCE_REFS = [
+    "fixture:grant-attack-001",
+    "fixture:grant-benign-001",
+    "fixture:signin-attack-001",
+    "fixture:signin-benign-001",
+    "fixture:sp-attack-001",
+    "fixture:sp-benign-001",
+]
+
+
+def test_integrated_consent_fixture_binds_all_assessed_evidence_without_widening_target() -> None:
+    evidence = integrated_lab.load_consent_fixture()
+
+    assessment = assess_consent(evidence)
+
+    assert assessment["targets"] == [
+        {
+            "tenant_id": evidence["coverage"]["tenant_id"],
+            "grant_id": "grant-attack-001",
+            "client_id": evidence["grants"][0]["client_id"],
+            "app_id": evidence["signins"][0]["app_id"],
+        }
+    ]
+    assert assessment["evidence_refs"] == CONSENT_FIXTURE_EVIDENCE_REFS
 
 
 @pytest.mark.parametrize("workflow_id", tuple(integrated_lab.WORKFLOW_STAGES))
@@ -93,7 +118,7 @@ def test_integrated_workflow_uses_services_and_action_bound_approvals(
         assert proposal["eligible"] is True
         assert proposal["targets"][0]["grant_id"] == "grant-attack-001"
         assert proposal["targets"][0]["client_id"] != proposal["targets"][0]["app_id"]
-        assert len(proposal["evidence_refs"]) == 3
+        assert proposal["evidence_refs"] == CONSENT_FIXTURE_EVIDENCE_REFS
         revoked = [event for event in report["events"] if event["event"] == "grant_revoked"]
         assert [event["identity"] for event in revoked] == proposal["targets"]
     elif workflow_id == "detection-rule-ci-validation":
