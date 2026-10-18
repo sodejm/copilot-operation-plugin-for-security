@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from ipaddress import IPv4Network, IPv6Network, ip_network
 from typing import Any
 
 
@@ -26,6 +27,70 @@ def _strings(value: Any) -> list[str] | None:
 
 def _world(value: Any) -> bool:
     return isinstance(value, str) and value in {"0.0.0.0/0", "::/0", "*", "Internet"}
+
+
+def _kubernetes_cidr(value: Any, result: CloudInput) -> IPv4Network | IPv6Network | None:
+    if not isinstance(value, str) or value.count("/") != 1:
+        result.incomplete = True
+        return None
+    address, prefix = value.rsplit("/", 1)
+    if "%" in address or not prefix.isascii() or not prefix.isdecimal():
+        result.incomplete = True
+        return None
+    try:
+        return ip_network(value, strict=True)
+    except ValueError:
+        result.incomplete = True
+        return None
+
+
+def _network_policy_world_ip_block(value: Any, result: CloudInput) -> bool:
+    if not isinstance(value, dict) or set(value) - {"cidr", "except"}:
+        result.incomplete = True
+        return False
+    network = _kubernetes_cidr(value.get("cidr"), result)
+    if network is None:
+        return False
+
+    exclusions = value.get("except", [])
+    if not isinstance(exclusions, list):
+        result.incomplete = True
+        return False
+    for exclusion in exclusions:
+        excluded_network = _kubernetes_cidr(exclusion, result)
+        if excluded_network is None:
+            return False
+        if excluded_network.version != network.version or not excluded_network.subnet_of(network):
+            result.incomplete = True
+            return False
+
+    # Computing the address space left by exclusions requires effective-policy
+    # evaluation. Retain that gap instead of treating the enclosing CIDR as open.
+    if exclusions:
+        result.incomplete = True
+        return False
+    return network.prefixlen == 0
+
+
+def _network_policy_peer_world(peer: Any, result: CloudInput) -> bool:
+    if not isinstance(peer, dict):
+        result.incomplete = True
+        return False
+    keys = set(peer)
+    selector_keys = {"namespaceSelector", "podSelector"}
+    if keys - selector_keys - {"ipBlock"}:
+        result.incomplete = True
+        return False
+    if not keys:
+        return True
+    if "ipBlock" in keys:
+        if keys != {"ipBlock"}:
+            result.incomplete = True
+            return False
+        return _network_policy_world_ip_block(peer["ipBlock"], result)
+    if any(not isinstance(peer[key], dict) for key in keys):
+        result.incomplete = True
+    return False
 
 
 def _iam(value: Any, result: CloudInput) -> None:
@@ -205,9 +270,7 @@ def _kubernetes(value: Any, result: CloudInput) -> None:
                 result.codes.add("internet_ingress")
             else:
                 for peer in peers:
-                    if not isinstance(peer, dict):
-                        result.incomplete = True
-                    elif peer == {} or isinstance(peer.get("ipBlock"), dict) and _world(peer["ipBlock"].get("cidr")):
+                    if _network_policy_peer_world(peer, result):
                         result.codes.add("internet_ingress")
     else:
         result.incomplete = True
