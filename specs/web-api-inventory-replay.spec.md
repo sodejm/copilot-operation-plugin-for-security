@@ -7,6 +7,14 @@ the approval authority returns a matching receipt for the worker identity and
 after the destination and resolved address pass scope checks. Preview produces
 a redacted plan report and performs no I/O.
 
+Source provenance hashes exact file or inline UTF-8 bytes, including whitespace;
+mapping inputs use sorted, compact JSON. Inventories retain an opaque digest
+reference, never a source path or inline document. Caller-supplied digests must
+match the imported bytes. Ambiguous raw HTTP authorities are rejected.
+Report serialization strips URL user information and redacts query values,
+fragments and recognizable credentials in relative references and metadata.
+Wire requests remain separate: approval digests bind their lossless content.
+
 Authorization assessment uses actual disposable loopback services. Each REST
 and GraphQL object case records owner, other-user, and anonymous outcomes. A
 vulnerable profile exposes the owner's object to the other user; a corrected

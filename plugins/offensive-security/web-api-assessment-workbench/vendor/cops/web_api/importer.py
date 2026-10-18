@@ -23,6 +23,7 @@ from .models import (
     UserRole,
     redact_credential_value,
 )
+from .sanitization import authority, sanitize_text
 
 
 class ImporterError(Exception):
@@ -34,7 +35,11 @@ def _sanitize_headers(headers: list[dict[str, Any]] | dict[str, Any]) -> tuple[d
     clean_headers: dict[str, str] = {}
     auth_mechs: list[AuthenticationMechanism] = []
 
-    header_items = headers.items() if isinstance(headers, dict) else [(h.get("name", ""), h.get("value", "")) for h in headers]
+    header_items = (
+        headers.items()
+        if isinstance(headers, dict)
+        else [(h.get("name", h.get("key", "")), h.get("value", "")) for h in headers]
+    )
 
     for k, v in header_items:
         k_str = str(k).strip()
@@ -45,12 +50,16 @@ def _sanitize_headers(headers: list[dict[str, Any]] | dict[str, Any]) -> tuple[d
             # Extract Bearer or Basic
             parts = v_str.split(" ", 1)
             scheme = parts[0].lower() if parts else "bearer"
-            auth_type = AuthType.BEARER.value if "bearer" in scheme else (AuthType.BASIC.value if "basic" in scheme else AuthType.CUSTOM.value)
+            auth_type = (
+                AuthType.BEARER.value
+                if scheme == "bearer"
+                else (AuthType.BASIC.value if scheme == "basic" else AuthType.CUSTOM.value)
+            )
             c_hash = hashlib.sha256(v_str.encode("utf-8")).hexdigest()
             auth_mechs.append(
                 AuthenticationMechanism(
                     auth_type=auth_type,
-                    token_name=parts[0] if len(parts) > 1 else "Authorization",
+                    token_name=scheme.title() if scheme in ("bearer", "basic") else "Authorization",
                     location="header",
                     is_redacted=True,
                     credential_hash=c_hash,
@@ -82,7 +91,7 @@ def _sanitize_headers(headers: list[dict[str, Any]] | dict[str, Any]) -> tuple[d
             )
             clean_headers[k_str] = redact_credential_value(v_str)
         else:
-            clean_headers[k_str] = v_str
+            clean_headers[k_str] = sanitize_text(v_str)
 
     return clean_headers, auth_mechs
 
@@ -92,7 +101,11 @@ def _sanitize_query(query_dict: dict[str, str] | list[dict[str, str]]) -> tuple[
     clean_params: dict[str, str] = {}
     auth_mechs: list[AuthenticationMechanism] = []
 
-    items = query_dict.items() if isinstance(query_dict, dict) else [(q.get("name", ""), q.get("value", "")) for q in query_dict]
+    items = (
+        query_dict.items()
+        if isinstance(query_dict, dict)
+        else [(q.get("name", q.get("key", "")), q.get("value", "")) for q in query_dict]
+    )
 
     for k, v in items:
         k_str = str(k).strip()
@@ -110,50 +123,61 @@ def _sanitize_query(query_dict: dict[str, str] | list[dict[str, str]]) -> tuple[
             )
             clean_params[k_str] = redact_credential_value(v_str)
         else:
-            clean_params[k_str] = v_str
+            clean_params[k_str] = redact_credential_value(v_str)
 
     return clean_params, auth_mechs
 
 
-def _load_json_data(data: dict[str, Any] | str | Path) -> dict[str, Any]:
-    """Load JSON data from dict, JSON string, or file Path."""
-    if isinstance(data, dict):
-        return data
-    if isinstance(data, Path):
-        try:
-            return json.loads(data.read_text(encoding="utf-8"))
-        except Exception as e:
-            raise ImporterError(f"Failed to read/parse JSON from file {data}: {e}") from e
-    if isinstance(data, str):
-        p = Path(data)
-        if p.is_file():
-            try:
-                return json.loads(p.read_text(encoding="utf-8"))
-            except Exception as e:
-                raise ImporterError(f"Failed to parse JSON file {data}: {e}") from e
-        try:
-            return json.loads(data)
-        except Exception as e:
-            raise ImporterError(f"Failed to parse JSON string: {e}") from e
-    raise ImporterError(f"Unsupported data type for JSON import: {type(data)}")
+def _input_bytes(data: dict[str, Any] | str | Path) -> bytes:
+    """Read once, retaining exact UTF-8 bytes for content provenance."""
+    try:
+        if isinstance(data, dict):
+            return json.dumps(data, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+        if isinstance(data, Path):
+            return data.read_bytes()
+        if isinstance(data, str):
+            # JSON and HTTP payloads must never be probed as filesystem paths.
+            if len(data) < 240 and not any(char in data for char in '\r\n{["'):
+                candidate = Path(data)
+                if candidate.is_file():
+                    return candidate.read_bytes()
+            return data.encode("utf-8")
+    except (OSError, ValueError, TypeError, RecursionError):
+        raise ImporterError("Unable to read API import input") from None
+    raise ImporterError("Unsupported API import input type")
 
 
-def _load_text_data(data: str | Path) -> str:
-    """Load text data from string or file Path."""
-    if isinstance(data, Path):
-        try:
-            return data.read_text(encoding="utf-8")
-        except Exception as e:
-            raise ImporterError(f"Failed to read file {data}: {e}") from e
-    if isinstance(data, str):
-        p = Path(data)
-        if p.is_file():
-            try:
-                return p.read_text(encoding="utf-8")
-            except Exception as e:
-                raise ImporterError(f"Failed to read file {data}: {e}") from e
-        return data
-    raise ImporterError(f"Unsupported data type for text import: {type(data)}")
+def _load_json_data(data: dict[str, Any] | str | Path) -> tuple[dict[str, Any], bytes]:
+    content = _input_bytes(data)
+    try:
+        result = json.loads(content)
+    except (ValueError, UnicodeError, RecursionError):
+        raise ImporterError("Invalid API import JSON") from None
+    if not isinstance(result, dict):
+        raise ImporterError("API import JSON must be an object")
+    return result, content
+
+
+def _provenance(
+    content: bytes, kind: str, source_id: str | None, supplied: EvidenceProvenance | None
+) -> EvidenceProvenance:
+    content_hash = hashlib.sha256(content).hexdigest()
+    if supplied is not None and supplied.sha256 != content_hash:
+        raise ImporterError("API import provenance does not match input content")
+    return EvidenceProvenance(
+        source_id=source_id or (supplied.source_id if supplied else f"source-{content_hash[:12]}"),
+        source_type=kind,
+        sha256=content_hash,
+        timestamp=supplied.timestamp if supplied else utc_now(),
+        path_or_uri=f"sha256:{content_hash}",
+    )
+
+
+def _import_authority(url: str) -> str:
+    try:
+        return authority(url)
+    except ValueError:
+        raise ImporterError("Invalid API import authority") from None
 
 
 def import_har(
@@ -162,21 +186,14 @@ def import_har(
     provenance: EvidenceProvenance | None = None,
 ) -> ApiInventory:
     """Import and normalize HTTP traffic from HAR (HTTP Archive) format."""
-    raw_obj = _load_json_data(har_data)
-    if provenance is None and source_id:
-        provenance = EvidenceProvenance(
-            source_id=source_id,
-            source_type="har_import",
-            sha256=hashlib.sha256(str(source_id).encode("utf-8")).hexdigest(),
-            timestamp=utc_now(),
-            path_or_uri=str(har_data) if isinstance(har_data, (str, Path)) else f"har:{source_id}",
-        )
+    raw_obj, content = _load_json_data(har_data)
+    provenance = _provenance(content, "har_import", source_id, provenance)
 
     log = raw_obj.get("log")
     if not isinstance(log, dict) or "entries" not in log:
         raise ImporterError("Invalid HAR document: missing 'log.entries'")
 
-    endpoints_map: dict[tuple[str, str], HttpEndpoint] = {}
+    endpoints_map: dict[tuple[str, str, str, str], HttpEndpoint] = {}
     target_hosts: set[str] = set()
     unsupported: list[UnsupportedFeature] = []
 
@@ -188,7 +205,7 @@ def import_har(
             continue
 
         parsed_url = urlparse(raw_url)
-        host = parsed_url.netloc or parsed_url.hostname or "unknown-host"
+        host = _import_authority(raw_url) or "unknown-host"
         target_hosts.add(host)
         path = parsed_url.path or "/"
         method = (req.get("method") or "GET").upper()
@@ -196,7 +213,9 @@ def import_har(
         headers_raw = req.get("headers", [])
         clean_headers, auth_mechs = _sanitize_headers(headers_raw)
 
-        query_raw = req.get("queryString", [])
+        query_raw = req.get("queryString") or {
+            k: v[0] for k, v in parse_qs(parsed_url.query, keep_blank_values=True).items()
+        }
         clean_query, q_auth_mechs = _sanitize_query(query_raw)
         auth_mechs.extend(q_auth_mechs)
 
@@ -230,9 +249,11 @@ def import_har(
             text = post_data.get("text", "")
             body_schema = {"mimeType": mime_type, "sample_length": len(text)}
 
-        key = (method, path)
+        key = (parsed_url.scheme.lower(), host, method, path)
         if key not in endpoints_map:
-            endpoint_id = f"ep-{hashlib.sha256(f'{host}:{method}:{path}'.encode('utf-8')).hexdigest()[:12]}"
+            endpoint_id = (
+                f"ep-{hashlib.sha256(f'{parsed_url.scheme.lower()}:{host}:{method}:{path}'.encode()).hexdigest()[:12]}"
+            )
             endpoints_map[key] = HttpEndpoint(
                 endpoint_id=endpoint_id,
                 method=method,
@@ -289,15 +310,8 @@ def import_openapi(
     provenance: EvidenceProvenance | None = None,
 ) -> ApiInventory:
     """Import and normalize API inventory from OpenAPI 3.x or Swagger 2.0 specification."""
-    raw_obj = _load_json_data(openapi_data)
-    if provenance is None and source_id:
-        provenance = EvidenceProvenance(
-            source_id=source_id,
-            source_type="openapi_import",
-            sha256=hashlib.sha256(str(source_id).encode("utf-8")).hexdigest(),
-            timestamp=utc_now(),
-            path_or_uri=str(openapi_data) if isinstance(openapi_data, (str, Path)) else f"openapi:{source_id}",
-        )
+    raw_obj, content = _load_json_data(openapi_data)
+    provenance = _provenance(content, "openapi_import", source_id, provenance)
 
     if "paths" not in raw_obj or not isinstance(raw_obj["paths"], dict):
         raise ImporterError("Invalid OpenAPI document: missing 'paths' mapping")
@@ -312,9 +326,9 @@ def import_openapi(
             if u:
                 p = urlparse(u)
                 if p.netloc:
-                    target_hosts.add(p.netloc)
+                    target_hosts.add(_import_authority(u))
     elif "host" in raw_obj:
-        target_hosts.add(str(raw_obj["host"]))
+        target_hosts.add(_import_authority("//" + str(raw_obj["host"])))
 
     if not target_hosts:
         target_hosts.add("api.target.local")
@@ -451,15 +465,8 @@ def import_postman(
     provenance: EvidenceProvenance | None = None,
 ) -> ApiInventory:
     """Import and normalize Postman Collection (v2.0 / v2.1) into ApiInventory."""
-    raw_obj = _load_json_data(postman_data)
-    if provenance is None and source_id:
-        provenance = EvidenceProvenance(
-            source_id=source_id,
-            source_type="postman_import",
-            sha256=hashlib.sha256(str(source_id).encode("utf-8")).hexdigest(),
-            timestamp=utc_now(),
-            path_or_uri=str(postman_data) if isinstance(postman_data, (str, Path)) else f"postman:{source_id}",
-        )
+    raw_obj, content = _load_json_data(postman_data)
+    provenance = _provenance(content, "postman_import", source_id, provenance)
 
     info = raw_obj.get("info", {})
     title = info.get("name", "Postman Collection")
@@ -483,8 +490,15 @@ def import_postman(
             method = req.get("method", "GET").upper()
             url_obj = req.get("url", "")
             raw_url = url_obj if isinstance(url_obj, str) else url_obj.get("raw", "")
+            if isinstance(url_obj, dict) and not raw_url:
+                hostname = url_obj.get("host", "")
+                hostname = ".".join(hostname) if isinstance(hostname, list) else hostname
+                port = f":{url_obj['port']}" if url_obj.get("port") else ""
+                segments = url_obj.get("path", "")
+                path_value = "/".join(segments) if isinstance(segments, list) else segments
+                raw_url = f"{url_obj.get('protocol', 'https')}://{hostname}{port}/{path_value.lstrip('/')}"
             parsed = urlparse(raw_url)
-            host = parsed.netloc or "postman.target.local"
+            host = _import_authority(raw_url) or "postman.target.local"
             target_hosts.add(host)
             path = parsed.path or "/"
 
@@ -498,7 +512,7 @@ def import_postman(
                 auth_mechs.append(
                     AuthenticationMechanism(
                         auth_type=atype if atype in [a.value for a in AuthType] else AuthType.BEARER.value,
-                        token_name=f"postman-{atype}",
+                        token_name=f"postman-{atype}" if atype in [a.value for a in AuthType] else "postman-custom",
                         location="header",
                         is_redacted=True,
                         credential_hash=hashlib.sha256(json.dumps(req_auth).encode("utf-8")).hexdigest(),
@@ -506,7 +520,7 @@ def import_postman(
                 )
 
             # Query params
-            query_raw = []
+            query_raw = {k: v[0] for k, v in parse_qs(parsed.query, keep_blank_values=True).items()}
             if isinstance(url_obj, dict) and "query" in url_obj:
                 query_raw = url_obj["query"]
             clean_query, q_auths = _sanitize_query(query_raw)
@@ -551,23 +565,20 @@ def import_raw_http(
     provenance: EvidenceProvenance | None = None,
 ) -> ApiInventory:
     """Parse raw HTTP request text into an ApiInventory containing a modeled endpoint."""
-    text_content = _load_text_data(raw_text)
-    if provenance is None and source_id:
-        provenance = EvidenceProvenance(
-            source_id=source_id,
-            source_type="raw_http_import",
-            sha256=hashlib.sha256(str(source_id).encode("utf-8")).hexdigest(),
-            timestamp=utc_now(),
-            path_or_uri=str(raw_text) if isinstance(raw_text, (str, Path)) else f"raw:{source_id}",
-        )
+    content = _input_bytes(raw_text)
+    try:
+        text_content = content.decode("utf-8")
+    except UnicodeError:
+        raise ImporterError("Invalid raw HTTP encoding") from None
+    provenance = _provenance(content, "raw_http_import", source_id, provenance)
 
     lines = text_content.strip().splitlines()
     if not lines:
         raise ImporterError("Empty raw HTTP input")
 
-    req_line = lines[0].strip().split(" ")
-    if len(req_line) < 2:
-        raise ImporterError(f"Malformed HTTP request line: {lines[0]}")
+    req_line = lines[0].strip().split()
+    if len(req_line) != 3 or not req_line[2].startswith("HTTP/"):
+        raise ImporterError("Malformed HTTP request line")
 
     method = req_line[0].upper()
     uri = req_line[1]
@@ -586,10 +597,20 @@ def import_raw_http(
         else:
             parts = l.split(":", 1)
             if len(parts) == 2:
-                headers_raw[parts[0].strip()] = parts[1].strip()
+                name = parts[0].strip()
+                if name.lower() == "host" and any(key.lower() == "host" for key in headers_raw):
+                    raise ImporterError("Ambiguous raw HTTP Host headers")
+                headers_raw[name] = parts[1].strip()
 
-    if "Host" in headers_raw:
-        host = headers_raw["Host"]
+    host_values = [value for name, value in headers_raw.items() if name.lower() == "host"]
+    if len(host_values) > 1:
+        raise ImporterError("Ambiguous raw HTTP Host headers")
+    host = _import_authority("//" + (host_values[0] if host_values else host))
+    if parsed.netloc:
+        absolute_host = _import_authority(uri)
+        if host_values and absolute_host != host:
+            raise ImporterError("Conflicting raw HTTP authorities")
+        host = absolute_host
 
     clean_headers, auth_mechs = _sanitize_headers(headers_raw)
 

@@ -13,6 +13,9 @@
 - Keep workflow discovery, validation, and unsigned fixture playback usable
   without optional site packages. Ed25519 evidence signing now loads the
   `crypto` extra only when requested and fails explicitly when unavailable.
+- Hash exact API import bytes, reject conflicting provenance and raw HTTP
+  authorities, and redact URL credentials and query values throughout persisted
+  inventory and replay evidence while binding approvals to lossless requests.
 
 - Record revision-bound expansion acceptance, including 13 passing isolated
   laboratory cases, held-out routing results, fixture digests and capability

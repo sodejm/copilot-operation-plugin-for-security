@@ -17,12 +17,12 @@
     },
     {
       "path": "cops/contracts/models.py",
-      "sha256": "eaba55cc687abb25a3dd9f226486fd1fa28f5b7b0aec0342a250ad47bc647ebb",
+      "sha256": "1b53f7af98ec5f59714f024832c34a0d44bac40999b648c198caff6976bee9b4",
       "source": "cops/contracts/models.py"
     },
     {
       "path": "cops/contracts/validation.py",
-      "sha256": "b2035eae76e5a5c694e51f493736c4f5932b68391c7245dcc6bded08d2b0d966",
+      "sha256": "bf8db4d2cb7cec92c4c2dd27fa9762912212fcdf68e7578f0ff8c09eb7393959",
       "source": "cops/contracts/validation.py"
     },
     {
@@ -92,7 +92,7 @@
     },
     {
       "path": "cops/web_api/importer.py",
-      "sha256": "345c556cbdd909bb9f12dc102d16f59b8e6386983c4591fe888c2845ef641ce5",
+      "sha256": "d7c7f273b2ba0090106685d8619420ccdfea043529492ea2e73b4adbd0400a93",
       "source": "cops/web_api/importer.py"
     },
     {
@@ -102,13 +102,18 @@
     },
     {
       "path": "cops/web_api/models.py",
-      "sha256": "dab961906eb33ba22e72546b3c6fcd11eccb28ce09bc143e76c67b676bddcae7",
+      "sha256": "a8593a6da1d1ed2c776e02eba010d42d6d4e981ff9503197a277bfcb7ef08b19",
       "source": "cops/web_api/models.py"
     },
     {
       "path": "cops/web_api/replay.py",
-      "sha256": "b487ff071a0b3a4fc8b05893a10323869372afec30f870fa3df30f17541abec2",
+      "sha256": "c2c13db244476f98a3d09988ebeea950468fbea65851773e2c527abeb8265b65",
       "source": "cops/web_api/replay.py"
+    },
+    {
+      "path": "cops/web_api/sanitization.py",
+      "sha256": "8ffe93de134d51b4efb694772ea5a8666352ca4d3607f8b20303a9358e3ebbf3",
+      "source": "cops/web_api/sanitization.py"
     }
   ],
   "purpose": "offline Web API workbench execution from an installed portable package",

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 import hashlib
@@ -13,6 +14,21 @@ from urllib.parse import urlparse
 
 from cops.evidence.canonical import canonical, utc_now
 from cops.discovery.models import EvidenceProvenance
+
+from .sanitization import (
+    SENSITIVE_FIELD_PATTERNS as SENSITIVE_FIELD_PATTERNS,
+)
+from .sanitization import (
+    redact_credential_value as redact_credential_value,
+)
+from .sanitization import (
+    redact_mapping as redact_mapping,
+)
+from .sanitization import (
+    sanitize_body,
+    sanitize_reference,
+    sanitize_tree,
+)
 
 
 class HttpMethod(str, Enum):
@@ -48,27 +64,6 @@ class AuthType(str, Enum):
     CUSTOM = "custom"
 
 
-SENSITIVE_FIELD_PATTERNS = re.compile(
-    r"(?i)(password|secret|token|auth|key|bearer|credential|session|cookie|private|jwt|api_key|access_token|refresh_token)"
-)
-
-
-def redact_credential_value(val: str) -> str:
-    """Deterministically redact credential value into a tamper-evident truncated hash."""
-    if not val or val.startswith("[REDACTED"):
-        return val
-    val_hash = hashlib.sha256(val.encode("utf-8")).hexdigest()[:12]
-    return f"[REDACTED:{val_hash}]"
-
-
-def redact_mapping(values: dict[str, str]) -> dict[str, str]:
-    """Redact values whose field names can carry credentials."""
-    return {
-        key: redact_credential_value(value) if SENSITIVE_FIELD_PATTERNS.search(key) else value
-        for key, value in values.items()
-    }
-
-
 @dataclass
 class AuthenticationMechanism:
     """Authentication mechanism attached to an API endpoint or session."""
@@ -80,7 +75,7 @@ class AuthenticationMechanism:
     credential_hash: str = ""
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        return sanitize_tree(asdict(self))
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> AuthenticationMechanism:
@@ -117,7 +112,10 @@ class HttpEndpoint:
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
         d["auth_mechanisms"] = [a.to_dict() for a in self.auth_mechanisms]
-        return d
+        d["headers_schema"] = redact_mapping(self.headers_schema)
+        d["query_parameters"] = {key: redact_credential_value(value) for key, value in self.query_parameters.items()}
+        d["request_body_schema"] = sanitize_tree(self.request_body_schema, sensitive_keys=True)
+        return sanitize_tree(d)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> HttpEndpoint:
@@ -152,7 +150,7 @@ class UserRole:
     assigned_endpoints: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        return sanitize_tree(asdict(self))
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> UserRole:
@@ -180,7 +178,7 @@ class SessionContext:
         d["auth_mechanism"] = self.auth_mechanism.to_dict()
         d["headers"] = redact_mapping(self.headers)
         d["cookies"] = {key: redact_credential_value(value) for key, value in self.cookies.items()}
-        return d
+        return sanitize_tree(d)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> SessionContext:
@@ -205,7 +203,7 @@ class UnsupportedFeature:
     affected_endpoints: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        return sanitize_tree(asdict(self))
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> UnsupportedFeature:
@@ -234,19 +232,21 @@ class ApiInventory:
     provenance: EvidenceProvenance | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "inventory_id": self.inventory_id,
-            "name": self.name,
-            "target_hosts": self.target_hosts,
-            "endpoints": [e.to_dict() for e in self.endpoints],
-            "roles": [r.to_dict() for r in self.roles],
-            "sessions": [s.to_dict() for s in self.sessions],
-            "unsupported_features": [u.to_dict() for u in self.unsupported_features],
-            "imported_sources": self.imported_sources,
-            "credentials_redacted": self.credentials_redacted,
-            "created_at_utc": self.created_at_utc,
-            "provenance": self.provenance.to_dict() if self.provenance else None,
-        }
+        return sanitize_tree(
+            {
+                "inventory_id": self.inventory_id,
+                "name": self.name,
+                "target_hosts": self.target_hosts,
+                "endpoints": [e.to_dict() for e in self.endpoints],
+                "roles": [r.to_dict() for r in self.roles],
+                "sessions": [s.to_dict() for s in self.sessions],
+                "unsupported_features": [u.to_dict() for u in self.unsupported_features],
+                "imported_sources": self.imported_sources,
+                "credentials_redacted": self.credentials_redacted,
+                "created_at_utc": self.created_at_utc,
+                "provenance": self.provenance.to_dict() if self.provenance else None,
+            }
+        )
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ApiInventory:
@@ -323,7 +323,14 @@ class ReplayRequest:
     websocket_messages: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        data = asdict(self)
+        data["url"] = sanitize_reference(self.url)
+        data["headers"] = redact_mapping(self.headers)
+        data["query_parameters"] = {key: redact_credential_value(value) for key, value in self.query_parameters.items()}
+        data["body"] = sanitize_body(self.body)
+        data["graphql_query"] = sanitize_body(self.graphql_query)
+        data["websocket_messages"] = [sanitize_body(value) for value in self.websocket_messages]
+        return sanitize_tree(data)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ReplayRequest:
@@ -359,7 +366,12 @@ class ReplayResponse:
     replay_success: bool = True
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        data = asdict(self)
+        data["headers"] = redact_mapping(self.headers)
+        data["body_excerpt"] = sanitize_body(self.body_excerpt)
+        data["final_url"] = sanitize_reference(self.final_url)
+        data["websocket_replies"] = [sanitize_body(value) for value in self.websocket_replies]
+        return sanitize_tree(data)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ReplayResponse:
@@ -394,19 +406,21 @@ class ReplaySessionReport:
     created_at_utc: str = field(default_factory=utc_now)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "session_id": self.session_id,
-            "target_hosts": self.target_hosts,
-            "allowed_destinations": self.allowed_destinations,
-            "budget": self.budget.to_dict(),
-            "requests": [r.to_dict() for r in self.requests],
-            "responses": [r.to_dict() for r in self.responses],
-            "total_dispatched": self.total_dispatched,
-            "total_successful": self.total_successful,
-            "total_failed": self.total_failed,
-            "destination_violations": self.destination_violations,
-            "created_at_utc": self.created_at_utc,
-        }
+        return sanitize_tree(
+            {
+                "session_id": self.session_id,
+                "target_hosts": self.target_hosts,
+                "allowed_destinations": self.allowed_destinations,
+                "budget": self.budget.to_dict(),
+                "requests": [r.to_dict() for r in self.requests],
+                "responses": [r.to_dict() for r in self.responses],
+                "total_dispatched": self.total_dispatched,
+                "total_successful": self.total_successful,
+                "total_failed": self.total_failed,
+                "destination_violations": self.destination_violations,
+                "created_at_utc": self.created_at_utc,
+            }
+        )
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ReplaySessionReport:
