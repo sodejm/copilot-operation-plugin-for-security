@@ -14,11 +14,11 @@ import binascii
 import hashlib
 import json
 import re
-from collections import defaultdict, deque
-from collections.abc import Mapping, Sequence
+from collections import Counter, defaultdict, deque
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Callable
+from typing import Any
 
 from cops.contracts.models import Finding
 from cops.evidence.canonical import EvidenceError, canonical, timestamp
@@ -49,6 +49,7 @@ CAPABILITIES = frozenset(
 _ID = re.compile(r"[a-zA-Z0-9_.:-]{1,96}\Z")
 _HEX64 = re.compile(r"[0-9a-fA-F]{64}\Z")
 _SECRET_KEYS = frozenset({"secret", "password", "private_key", "access_token", "api_key", "credential_value"})
+_MAX_SCANNER_RECORDS = 1000
 
 
 class ArtifactAssessmentError(ValueError):
@@ -187,8 +188,20 @@ def _issue(artifact: _Artifact, code: str, title: str, severity: str, claim: str
     return _Issue(code, title, severity, claim, remediation, (artifact.evidence_ref,), **kwargs)
 
 
-def _finding(issue: _Issue, *, capability: str, engagement_id: str, result_id: str, scenario_id: str, created_at: str) -> dict[str, Any]:
-    suffix = hashlib.sha256((capability + issue.code + "|".join(issue.refs)).encode()).hexdigest()[:24]
+def _finding(
+    issue: _Issue,
+    *,
+    capability: str,
+    engagement_id: str,
+    result_id: str,
+    scenario_id: str,
+    created_at: str,
+    occurrence: int | None = None,
+) -> dict[str, Any]:
+    identity = capability + issue.code + "|".join(issue.refs)
+    if occurrence is not None:
+        identity += f"|occurrence:{occurrence}"
+    suffix = hashlib.sha256(identity.encode()).hexdigest()[:24]
     data = Finding(
         schema_version="cops.finding/v1",
         finding_id=f"find-{suffix}",
@@ -273,13 +286,20 @@ def _application_security(items: list[_Artifact], _as_of: datetime) -> tuple[lis
                 if not re.search(r"authoriz|permission|requireRole|require_role", match.group(1), re.I):
                     issues.append(_issue(artifact, "js_route_authorization", "Route lacks visible authorization middleware", "medium", "A JavaScript route has no recognized authorization middleware in the supplied source.", "Add explicit authorization middleware and denied-identity tests."))
         elif artifact.kind == "scanner_json" and type(artifact.content) in (dict, list):
-            analyzed.add(artifact.artifact_id)
             records = artifact.content.get("findings", []) if isinstance(artifact.content, dict) else artifact.content
             if not isinstance(records, list):
+                analyzed.add(artifact.artifact_id)
                 issues.append(_unresolved(artifact, "scanner_output"))
+            elif len(records) > _MAX_SCANNER_RECORDS:
+                raise ArtifactAssessmentError("scanner_record_limit")
             else:
-                for record in records[:1000]:
-                    if isinstance(record, dict) and record.get("status", "open") == "open" and isinstance(record.get("rule_id"), str):
+                analyzed.add(artifact.artifact_id)
+                for record in records:
+                    if (
+                        isinstance(record, dict)
+                        and record.get("status", "open") == "open"
+                        and isinstance(record.get("rule_id"), str)
+                    ):
                         severity = str(record.get("severity", "medium")).lower()
                         if severity not in {"critical", "high", "medium", "low", "informational"}:
                             severity = "medium"
@@ -802,17 +822,23 @@ def assess(
         {"artifact_id": item.artifact_id, "kind": item.kind, "sha256": item.sha256, "bytes": len(item.raw)}
         for item in prepared
     ]
-    findings = [
-        _finding(
-            issue,
-            capability=capability,
-            engagement_id=engagement_id,
-            result_id=result_id,
-            scenario_id=scenario_id,
-            created_at=as_of,
+    issue_keys = [(issue.code, issue.refs) for issue in issues]
+    issue_counts = Counter(issue_keys)
+    seen_issues: defaultdict[tuple[str, tuple[str, ...]], int] = defaultdict(int)
+    findings = []
+    for issue, issue_key in zip(issues, issue_keys, strict=True):
+        seen_issues[issue_key] += 1
+        findings.append(
+            _finding(
+                issue,
+                capability=capability,
+                engagement_id=engagement_id,
+                result_id=result_id,
+                scenario_id=scenario_id,
+                created_at=as_of,
+                occurrence=seen_issues[issue_key] if issue_counts[issue_key] > 1 else None,
+            )
         )
-        for issue in issues
-    ]
     return {
         "schema_version": REPORT_SCHEMA,
         "capability": capability,

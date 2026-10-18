@@ -48,6 +48,22 @@ exports it, and runs its offline demo with isolated Python path handling from th
 exported tree. This verifies that reviewed playbooks and dataset provenance are
 preserved and that the demo does not depend on an adjacent COPS checkout.
 
+## Artifact assessment runtimes
+
+Six portable workbenches carry a synchronized copy of the offline artifact
+assessment runtime. After changing that runtime, refresh the vendor copies and
+their lock files with:
+
+```console
+python3 scripts/sync_artifact_assessment_runtime.py
+```
+
+Normalized scanner lists and `findings` lists are limited to 1,000 records. A
+larger collection fails before analysis instead of producing a clean result from
+a truncated prefix. Repeated findings retain deterministic, unique identifiers;
+the report code mapping contains one entry for every occurrence without copying
+source or scanner text into identifiers.
+
 ## Optional EVTX runtime
 
 The EVTX adapter is a repository CLI capability. Portable plugin exports do not

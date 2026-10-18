@@ -115,6 +115,125 @@ def test_unsupported_artifact_returns_prerequisite_and_does_not_claim_readiness(
     assert any("registered adapter" in value for value in report["limitations"])
 
 
+def test_repeated_scanner_findings_have_unique_deterministic_content_free_ids() -> None:
+    artifacts = [
+        {
+            "artifact_id": "scanner",
+            "kind": "scanner_json",
+            "content": {
+                "findings": [
+                    {
+                        "rule_id": "private-rule-alpha",
+                        "status": "open",
+                        "severity": "high",
+                        "message": "scanner-message-alpha-must-not-leak",
+                    },
+                    {
+                        "rule_id": "private-rule-beta",
+                        "status": "open",
+                        "severity": "low",
+                        "message": "scanner-message-beta-must-not-leak",
+                    },
+                ]
+            },
+        }
+    ]
+    before = copy.deepcopy(artifacts)
+
+    first = assess("application_security", artifacts, as_of=FIXTURE["as_of"])
+    second = assess("application_security", artifacts, as_of=FIXTURE["as_of"])
+
+    assert artifacts == before
+    assert first == second
+    finding_ids = [finding["finding_id"] for finding in first["findings"]]
+    assert len(finding_ids) == len(set(finding_ids)) == 2
+    assert set(first["finding_codes"]) == set(finding_ids)
+    assert list(first["finding_codes"].values()) == ["scanner_open_finding"] * 2
+    serialized = json.dumps(first, sort_keys=True)
+    assert "private-rule" not in serialized
+    assert "scanner-message" not in serialized
+
+
+def test_repeated_python_ast_findings_have_unique_deterministic_content_free_ids() -> None:
+    source = (
+        "# source-marker-must-not-leak\n"
+        "def evaluate(value):\n"
+        "    return eval(value)\n\n"
+        "def execute(value):\n"
+        "    exec(value)\n"
+    )
+    artifacts = [{"artifact_id": "source", "kind": "python_source", "content": source}]
+    before = copy.deepcopy(artifacts)
+
+    first = assess("application_security", artifacts, as_of=FIXTURE["as_of"])
+    second = assess("application_security", artifacts, as_of=FIXTURE["as_of"])
+
+    assert artifacts == before
+    assert first == second
+    finding_ids = [finding["finding_id"] for finding in first["findings"]]
+    assert len(finding_ids) == len(set(finding_ids)) == 2
+    assert set(first["finding_codes"]) == set(finding_ids)
+    assert list(first["finding_codes"].values()) == ["dynamic_code_execution"] * 2
+    assert "source-marker-must-not-leak" not in json.dumps(first, sort_keys=True)
+
+
+def test_singleton_finding_id_remains_compatible() -> None:
+    report = assess(
+        "application_security",
+        [
+            {
+                "artifact_id": "scanner",
+                "kind": "scanner_json",
+                "content": [{"rule_id": "one", "status": "open"}],
+            }
+        ],
+        as_of=FIXTURE["as_of"],
+    )
+    reference = report["findings"][0]["evidence_references"][0]
+    suffix = hashlib.sha256(("application_security" + "scanner_open_finding" + reference).encode()).hexdigest()[:24]
+
+    assert report["findings"][0]["finding_id"] == f"find-{suffix}"
+
+
+@pytest.mark.parametrize("as_mapping", [False, True], ids=["list", "findings-mapping"])
+def test_scanner_accepts_exactly_1000_records_without_truncation(as_mapping: bool) -> None:
+    records = [{"rule_id": f"closed-{index}", "status": "closed"} for index in range(1000)]
+    content: object = {"findings": records} if as_mapping else records
+
+    report = assess(
+        "application_security",
+        [{"artifact_id": "scanner", "kind": "scanner_json", "content": content}],
+        as_of=FIXTURE["as_of"],
+    )
+
+    assert report["readiness"] == "supported"
+    assert report["findings"] == []
+    assert report["coverage"]["analyzed_artifact_count"] == 1
+
+
+@pytest.mark.parametrize("as_mapping", [False, True], ids=["list", "findings-mapping"])
+def test_scanner_rejects_1001_records_before_analyzing_a_prefix(as_mapping: bool) -> None:
+    records = [{"rule_id": f"closed-{index}", "status": "closed"} for index in range(1000)]
+    records.append(
+        {
+            "rule_id": "final-open-rule-must-not-leak",
+            "status": "open",
+            "message": "final-open-message-must-not-leak",
+        }
+    )
+    content: object = {"findings": records} if as_mapping else records
+    artifacts = [{"artifact_id": "scanner", "kind": "scanner_json", "content": content}]
+    before = copy.deepcopy(artifacts)
+
+    with pytest.raises(ArtifactAssessmentError) as caught:
+        assess("application_security", artifacts, as_of=FIXTURE["as_of"])
+
+    assert artifacts == before
+    assert caught.value.code == "scanner_record_limit"
+    assert str(caught.value) == "scanner_record_limit"
+    assert "final-open" not in str(caught.value)
+
+
 @pytest.mark.parametrize(
     ("case_id", "expected_readiness"),
     [
