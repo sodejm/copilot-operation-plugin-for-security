@@ -1,15 +1,18 @@
 """Executable acceptance scenarios for the local provider gateway emulator."""
 
 import json
+from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
+from dataclasses import replace
 
 import pytest
 from pytest_bdd import given, scenarios, then, when
 from test_provider_live_execution import _setup
 
+from cops.assessment_budget import AttemptRequest
 from cops.evidence.canonical import canonical
 from cops.execution.gateway_dispatch import GatewayDispatchResponse
-from cops.provider_live import ProviderLiveError, execute_live_case
+from cops.provider_live import ProviderLiveError, _policy, execute_live_case
 
 scenarios("../specs/features/ai_provider_live_gateway.feature")
 
@@ -176,3 +179,96 @@ def proposal_is_inert(context):
     assert result["outcome"] == "tool_proposal"
     assert result["tool_proposal_count"] == 1
     assert result["ledger_state"] == "uncertain"
+
+
+@given("a local tool has reserved allowance under an agent parent")
+def local_tool_under_parent(context):
+    overrides = {"max_attempts": 5, "max_concurrency": 4, "max_children_per_parent": 3}
+    context["parent_cases"] = []
+    for provider in ("openai", "azure", "aws", "gcp"):
+        path = context["path"] / f"shared-{provider}"
+        plan, case, args, called = _setup(path, provider, max_cost=5000, limit_overrides=overrides)
+        narrow = replace(_policy(plan).limits, max_estimated_cost_microunits=1500)
+        args["ledger"].reserve(AttemptRequest("agent-root", None, 0, 0, 0), child_limits=narrow)
+        args["ledger"].reserve(AttemptRequest("local-tool", "agent-root", 10, 400, 100))
+        context["parent_cases"].append((path, provider, plan, case, args, called, narrow))
+
+
+@when("approved provider canaries dispatch under that parent")
+def dispatch_under_parent(context):
+    context["parent_results"] = [
+        execute_live_case(plan, case, parent_attempt_id="agent-root", child_limits=narrow, **args)
+        for _, _, plan, case, args, _, narrow in context["parent_cases"]
+    ]
+
+
+@then("each provider dispatch consumes the remaining subtree allowance")
+def shared_allowance_charged(context):
+    assert all(result["ledger_state"] == "uncertain" for result in context["parent_results"])
+    for _, _, _, _, args, called, _ in context["parent_cases"]:
+        assert called == ["dispatch-001"]
+        assert args["ledger"].snapshot().charged_cost_microunits == 1400
+
+
+@then("a further provider dispatch is denied before gateway send")
+def no_subtree_retry(context):
+    overrides = {"max_attempts": 5, "max_concurrency": 4, "max_children_per_parent": 3}
+    for path, provider, _, _, _, _, _ in context["parent_cases"]:
+        plan, case, args, called = _setup(
+            path, provider, max_cost=5000, limit_overrides=overrides, dispatch_id="dispatch-002"
+        )
+        with pytest.raises(ProviderLiveError, match="dispatch denied"):
+            execute_live_case(plan, case, parent_attempt_id="agent-root", **args)
+        assert called == []
+
+
+@given("a live provider case with a narrower agent parent budget")
+def narrow_agent_parent(context):
+    context["narrow_case"] = _setup(context["path"] / "narrow", "openai")
+    plan, _, args, _ = context["narrow_case"]
+    narrow = replace(_policy(plan).limits, max_estimated_cost_microunits=1500)
+    args["ledger"].reserve(AttemptRequest("agent-root", None, 0, 0, 0), child_limits=narrow)
+
+
+@when("its provider child requests wider limits")
+def request_wider_provider_child(context):
+    plan, case, args, _ = context["narrow_case"]
+    with pytest.raises(ProviderLiveError, match="dispatch denied"):
+        execute_live_case(plan, case, parent_attempt_id="agent-root", child_limits=_policy(plan).limits, **args)
+
+
+@then("the widened provider child is denied before gateway send")
+def widened_provider_was_not_sent(context):
+    _, _, args, called = context["narrow_case"]
+    assert called == []
+    assert args["ledger"].snapshot().charged_attempts == 1
+
+
+@given("two approved provider cases with one shared concurrency slot")
+def concurrent_provider_cases(context):
+    path = context["path"] / "concurrent"
+    context["concurrent_cases"] = [
+        _setup(path, provider, dispatch_id=dispatch_id)
+        for provider, dispatch_id in (("openai", "dispatch-001"), ("azure", "dispatch-002"))
+    ]
+
+
+@when("both provider dispatches start concurrently")
+def dispatch_concurrently(context):
+    def invoke(config):
+        plan, case, args, called = config
+        try:
+            execute_live_case(plan, case, **args)
+        except ProviderLiveError:
+            return "denied", called
+        return "dispatched", called
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        context["concurrent_results"] = list(pool.map(invoke, context["concurrent_cases"]))
+
+
+@then("only one provider request reaches its gateway emulator")
+def one_concurrent_provider_send(context):
+    assert sorted(outcome for outcome, _ in context["concurrent_results"]) == ["denied", "dispatched"]
+    assert sum(len(called) for _, called in context["concurrent_results"]) == 1
+    assert context["concurrent_cases"][0][2]["ledger"].snapshot().charged_attempts == 1

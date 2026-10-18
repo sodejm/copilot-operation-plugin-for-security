@@ -1,7 +1,7 @@
-"""Fixture-only, engagement-scoped admission ledger for assessment attempts.
+"""Engagement-scoped admission ledger for assessment attempts.
 
 The caller owns the policy, ledger path, and dispatch boundary. This module does
-not wrap real provider clients; those adapters are tracked by issue #150.
+not wrap provider clients. The opt-in provider emulator uses this shared ledger.
 """
 
 from __future__ import annotations
@@ -527,6 +527,8 @@ class AssessmentBudgetLedger:
                     raise BudgetDenied("parent attempt unavailable")
                 current = parent
                 while current is not None:
+                    if current["state"] == "released":
+                        raise BudgetDenied("parent attempt unavailable")
                     ancestors.append(current)
                     current = (
                         db.execute("SELECT * FROM attempts WHERE attempt_id = ?", (current["parent_id"],)).fetchone()
@@ -667,6 +669,8 @@ class AssessmentBudgetLedger:
                 raise BudgetDenied("attempt is not reserved")
             current = row
             while current is not None:
+                if current["state"] == "released":
+                    raise BudgetDenied("ancestor attempt unavailable")
                 limits = BudgetLimits(**json.loads(current["limits_json"]))
                 if now - engagement["started_at_ms"] > limits.max_elapsed_ms:
                     raise BudgetDenied("subtree deadline expired")
@@ -732,6 +736,15 @@ class AssessmentBudgetLedger:
             row = db.execute("SELECT * FROM attempts WHERE attempt_id = ?", (attempt_id,)).fetchone()
             if row is None or row["state"] not in {"reserved", "released"}:
                 raise BudgetDenied("attempt may be in flight")
+            rows = list(db.execute("SELECT attempt_id,parent_id,state FROM attempts"))
+            by_id = {candidate["attempt_id"]: candidate for candidate in rows}
+            if any(
+                candidate["attempt_id"] != attempt_id
+                and candidate["state"] != "released"
+                and self._descends_from(candidate, attempt_id, by_id)
+                for candidate in rows
+            ):
+                raise BudgetDenied("attempt has live descendants")
             db.execute("UPDATE attempts SET state = 'released' WHERE attempt_id = ?", (attempt_id,))
             return Attempt(attempt_id, row["parent_id"], "released", row["depth"])
 
@@ -948,10 +961,26 @@ class AssessmentBudgetLedger:
             snapshot = self._charged(list(db.execute("SELECT * FROM attempts")))
             return BudgetSnapshot(**{**asdict(snapshot), "over_budget": not self._within(snapshot, self.policy.limits)})
 
-    def remaining_elapsed_ms(self) -> int:
-        """Return the time left on the engagement's durable wall-clock budget."""
-        with self._transaction() as (_db, engagement, now):
-            return max(0, self.policy.limits.max_elapsed_ms - (now - engagement["started_at_ms"]))
+    def remaining_elapsed_ms(self, attempt_id: str | None = None) -> int:
+        """Return the shortest remaining engagement or inherited attempt deadline."""
+        if attempt_id is not None:
+            _identifier(attempt_id, "attempt_id")
+        with self._transaction() as (db, engagement, now):
+            elapsed = now - engagement["started_at_ms"]
+            remaining = self.policy.limits.max_elapsed_ms - elapsed
+            if attempt_id is not None:
+                current = db.execute("SELECT * FROM attempts WHERE attempt_id = ?", (attempt_id,)).fetchone()
+                if current is None:
+                    raise BudgetDenied("attempt not found")
+                while current is not None:
+                    limits = BudgetLimits(**json.loads(current["limits_json"]))
+                    remaining = min(remaining, limits.max_elapsed_ms - elapsed)
+                    current = (
+                        db.execute("SELECT * FROM attempts WHERE attempt_id = ?", (current["parent_id"],)).fetchone()
+                        if current["parent_id"] is not None
+                        else None
+                    )
+            return max(0, remaining)
 
 
 @dataclass(frozen=True)

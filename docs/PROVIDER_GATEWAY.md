@@ -37,7 +37,17 @@ The gateway owns provider credential resolution and limits credentials to the ap
 
 ## Budget, cancellation, and cleanup
 
-Live assessment uses the shared `AssessmentBudgetLedger`; it must not create a parallel budget model. The safe order is:
+Live assessment uses the shared `AssessmentBudgetLedger`; it must not create a parallel budget model.
+
+The trusted controller passes an admitted agent attempt as `parent_attempt_id` and
+may pass narrower `child_limits` to `execute_live_case`. The live plan and provider
+response cannot select these values. Agent tools and provider calls must use the
+same private engagement ledger so aggregate, subtree, fanout, depth, concurrency,
+time, token, cost, and retained-output limits apply across both paths. A denied
+child reservation prevents gateway dispatch. Restore this ledger after restart;
+replacing it with an empty file could admit charges twice.
+
+The safe order is:
 
 1. Verify the signed grant and exact plan/request bindings without consuming the grant or reserving budget.
 2. Reserve the approved worst-case amount in the shared ledger and require a newly `reserved` attempt.
@@ -46,7 +56,7 @@ Live assessment uses the shared `AssessmentBudgetLedger`; it must not create a p
 
 A reservation may be released only when the gateway proves that no send occurred. After dispatch, a timeout, disconnect, cancellation, cleanup failure, process interruption, malformed response, or other unknown outcome leaves the attempt `uncertain` and retains the conservative reservation. Local cancellation and cleanup do not prove that a remote request stopped or that remote data was deleted.
 
-The emulator runner bounds its wait for a dispatch by the smaller of the approved request time estimate and the remaining engagement wall-clock budget. A timed-out handler can still finish in the background; the runner does not treat the timeout as remote cancellation and cannot reuse that authorization. A production gateway transport must enforce its own network deadline and account for an in-flight request independently.
+The emulator runner bounds its wait for a dispatch by the smaller of the approved request time estimate and the remaining engagement or inherited parent/child deadline. A timed-out handler can still finish in the background; the runner does not treat the timeout as remote cancellation and cannot reuse that authorization. A production gateway transport must enforce its own network deadline and account for an in-flight request independently.
 
 The gateway accepts at most 1 MiB of response bytes. The live plan must reserve no more than that limit for each response, and the runner rejects an actual response larger than its approved reservation before parsing it. A response-size overrun after dispatch leaves the attempt uncertain and charged.
 
