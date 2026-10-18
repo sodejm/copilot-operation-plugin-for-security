@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Keep workflow discovery, validation, and unsigned fixture playback usable
+  without optional site packages. Ed25519 evidence signing now loads the
+  `crypto` extra only when requested and fails explicitly when unavailable.
+
 - Record revision-bound expansion acceptance, including 13 passing isolated
   laboratory cases, held-out routing results, fixture digests and capability
   limits. Keep unavailable native-platform and production validation incomplete.

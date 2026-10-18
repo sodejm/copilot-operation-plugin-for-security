@@ -13,10 +13,7 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
-
-from cryptography.exceptions import InvalidSignature
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from typing import TYPE_CHECKING, Any
 
 from cops.evidence.canonical import canonical, digest
 
@@ -30,6 +27,9 @@ from .runtime import (
     _validate_inputs,
     compile_action_plan,
 )
+
+if TYPE_CHECKING:
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 CATALOG_SCHEMA_VERSION = "cops.integrated-workflow-catalog/v1"
 FIXTURE_SCHEMA_VERSION = "cops.integrated-workflow-fixture/v1"
@@ -402,6 +402,11 @@ def _credential_bundle(
         signature_verified = False
         trust_status = "unsigned"
     else:
+        try:
+            from cryptography.exceptions import InvalidSignature
+        except ImportError as exc:
+            raise IntegratedWorkflowError("evidence_signing_requires_cryptography") from exc
+
         try:
             payload_bytes = canonical(payload)
             signature_bytes = signer.private_key.sign(payload_bytes)
