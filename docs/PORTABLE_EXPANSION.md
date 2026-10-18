@@ -33,7 +33,17 @@ is only for source-tree development.
 
 The inventory includes the report sanitizer. Keep its report-only transformations
 separate from lossless request digests when updating the portable runtime. The
-live integration must supply the same isolated role sessions to plan construction
+OpenAPI and Swagger importers reconstruct authentication from each operation's
+effective security requirement; a public override does not inherit root credentials,
+and unused declarations do not create sessions. OpenAPI server paths and Swagger
+`basePath` values become part of the endpoint and preview URL. Server alternatives
+select the first declared value and are reported as unsupported; relative or
+non-HTTPS servers, unresolved variables, empty-host or malformed-port authorities,
+unrepresentable authentication, and operation-path keys containing `?` or `#` fail
+closed without echoing imported content. Header credential names use case-insensitive
+collision checks, while query credential names remain case-sensitive.
+
+The live integration must supply the same isolated role sessions to plan construction
 and execution so the signed digest covers the effective wire request. The
 standard-library transport pins each connection to its scope-checked DNS result
 and keeps certificate-chain and original-hostname verification for HTTPS. It sets

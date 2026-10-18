@@ -15,6 +15,58 @@ Report serialization strips URL user information and redacts query values,
 fragments and recognizable credentials in relative references and metadata.
 Wire requests remain separate: approval digests bind their lossless content.
 
+OpenAPI 3.0.3 and Swagger 2 imports reconstruct each operation from its
+effective security and location. Operation-level `security` replaces root
+security, including an empty array that makes the operation public. A
+requirement object combines its named schemes with AND; requirement objects are
+OR alternatives, and an empty object is an anonymous alternative. Only named,
+referenced declarations are resolved. Unknown, malformed, or unrepresentable
+referenced schemes fail closed without echoing attacker-controlled content.
+Unused declarations and sensitive-looking parameters never add credentials.
+When multiple authenticated OR alternatives cannot fit one endpoint, the
+importer selects the first declared alternative and records the omitted
+alternatives as unsupported instead of combining them.
+
+Security-requirement scope arrays must be valid for the referenced scheme.
+HTTP and API-key schemes accept only an empty array. OAuth scopes must be
+declared by the referenced scheme; a non-empty OAuth scope requirement fails
+closed because the current inventory cannot preserve required scopes through
+replay. HTTP Basic and Bearer credentials use `Authorization`.
+
+For OpenAPI 3, the first declared server at the narrowest applicable level is
+selected in operation, path, then root order. Server-variable defaults are
+resolved before validation. The selected server must be an absolute HTTPS URL
+whose authority has a non-empty hostname and, when present, a syntactically
+valid, in-range port. Relative URLs, unresolved variables, empty-host or
+malformed-port authorities, user information, query strings, fragments, and
+non-HTTPS schemes fail closed with content-free errors. If no server is
+declared, the offline placeholder `https://api.target.local/` is used. For
+Swagger 2, an
+operation-level `schemes` declaration replaces the root declaration. The first
+effective scheme is selected, HTTPS is required, an absent scheme defaults to
+HTTPS, and `basePath` is applied to every operation path. An explicit host must
+have a non-empty hostname and, when present, a syntactically valid, in-range
+port; empty-host and malformed-port authorities fail closed with content-free
+errors. An absent host uses the same placeholder authority. Server URL paths
+and `basePath` are joined with operation paths by normalizing only their shared
+boundary; a root operation path (`/`) keeps its terminal slash after a non-root
+prefix. Operation-path keys are paths, not request targets: `?` and `#`
+delimiters are rejected rather
+than being reinterpreted during replay. Normalization-changing controls,
+whitespace, and backslashes in server, host, base-path, or operation-path input
+also fail closed. Endpoint identifiers remain stable when the effective host,
+method, and path are unchanged.
+
+Preview requests synthesize redacted Basic, Bearer, header API-key, or query
+API-key placeholders only for the selected operation requirement. Public
+operations do not receive credentials, and imported session metadata contains
+only mechanisms used by an operation. Unsupported authentication cannot be
+silently converted to another mechanism. Header API-key names must be valid
+HTTP field names and must not name transport-controlled fields such as `Host`
+or `Content-Length`. Header credential destinations collide case-insensitively;
+query credential destinations are case-sensitive, so names such as `api_key`
+and `API_KEY` remain distinct in one representable AND requirement.
+
 Authorization assessment uses actual disposable loopback services. Each REST
 and GraphQL object case records owner, other-user, and anonymous outcomes. A
 vulnerable profile exposes the owner's object to the other user; a corrected

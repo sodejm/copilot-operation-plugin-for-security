@@ -93,7 +93,9 @@ class TestWebApiWorkbench(unittest.TestCase):
             self.assertIn("api.example.com", inv.target_hosts)
             self.assertTrue(inv.credentials_redacted)
             get_ep = next(e for e in inv.endpoints if e.method == "GET")
-            self.assertTrue(any(a.auth_type == AuthType.API_KEY.value for a in get_ep.auth_mechanisms))
+            self.assertEqual(get_ep.path, "/api/users/{id}")
+            self.assertEqual(get_ep.auth_mechanisms, [])
+            self.assertIn("api_key", get_ep.headers_schema)
         finally:
             if temp_file.exists():
                 temp_file.unlink()
@@ -123,7 +125,7 @@ class TestWebApiWorkbench(unittest.TestCase):
             inv = import_openapi(temp_file)
             self.assertEqual(len(inv.endpoints), 1)
             self.assertEqual(inv.endpoints[0].host, "legacy.example")
-            self.assertEqual(inv.endpoints[0].path, "/items/{id}")
+            self.assertEqual(inv.endpoints[0].path, "/v1/items/{id}")
             self.assertEqual(temp_file.read_text(encoding="utf-8"), source)
         finally:
             if temp_file.exists():
