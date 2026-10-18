@@ -7,6 +7,7 @@ import socket
 import ssl
 import threading
 import time
+import traceback
 from dataclasses import replace
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -27,6 +28,8 @@ from cops.web_api.replay import (
     preview_replay_session,
 )
 from tests.auth_testkit import TestApprovalControl, authorize_test_plan
+
+_OVERSIZED_DECIMAL_PORT = "9" * 5_000
 
 
 @pytest.fixture
@@ -551,6 +554,67 @@ def test_approved_wire_session_and_every_budget_are_bound(tmp_path, change):
             _scope(lambda h: resolved.append(h) or ["127.0.0.1"]),
         )
     assert resolved == [] and approval.consume_calls == []
+
+
+@pytest.mark.parametrize(
+    ("request_url", "destinations", "malformed_destinations"),
+    [
+        ("http://other.test/200", ["other.test"], ["alice:password@other.test"]),
+        (
+            "http://replay.test/200",
+            ["replay.test"],
+            ["replay.test", "alice:password@other.test"],
+        ),
+        ("http://other.test/200", ["other.test"], ["[private-token]"]),
+        ("http://replay.test/200", ["replay.test"], ["replay.test", "[private-token]"]),
+        ("http://other.test/200", ["other.test"], ["2130706433"]),
+        ("http://replay.test/200", ["replay.test"], ["replay.test", "2130706433"]),
+        ("http://replay.test/200", ["replay.test"], ["replay.test", "0x7f000001"]),
+        ("http://replay.test/200", ["replay.test"], ["replay.test", "0x7f.0.0.1"]),
+        (
+            "http://replay.test/200",
+            ["replay.test"],
+            ["replay.test", f"api.example.test:{_OVERSIZED_DECIMAL_PORT}"],
+        ),
+        (
+            "http://replay.test/200",
+            ["replay.test"],
+            ["replay.test", f"127.0.0.1:{_OVERSIZED_DECIMAL_PORT}"],
+        ),
+        (
+            "http://replay.test/200",
+            ["replay.test"],
+            ["replay.test", f"[::1]:{_OVERSIZED_DECIMAL_PORT}"],
+        ),
+    ],
+)
+def test_malformed_allowlist_item_fails_before_io_or_approval_consumption(
+    tmp_path, request_url, destinations, malformed_destinations
+):
+    requests = [_request(request_url)]
+    budget = ReplayBudget(max_requests=1, timeout_seconds=1, rate_limit_rps=0)
+    plan = _plan(requests, destinations, budget)
+    auth_id, approval = _authority(tmp_path, plan)
+    resolved = []
+    original_destinations = list(malformed_destinations)
+
+    with pytest.raises(DestinationViolationError) as raised:
+        _execute(
+            plan,
+            auth_id,
+            approval,
+            requests,
+            malformed_destinations,
+            budget,
+            scope=_scope(lambda host: resolved.append(host) or ["127.0.0.1"]),
+        )
+
+    formatted = "".join(traceback.format_exception(type(raised.value), raised.value, raised.value.__traceback__))
+    assert str(raised.value) == "destination allowlist contains an invalid entry"
+    assert malformed_destinations[-1] not in formatted
+    assert malformed_destinations == original_destinations
+    assert resolved == []
+    assert approval.consume_calls == []
 
 
 def test_caller_mutation_during_approval_consumption_cannot_change_wire_behavior(http_lab, tmp_path):

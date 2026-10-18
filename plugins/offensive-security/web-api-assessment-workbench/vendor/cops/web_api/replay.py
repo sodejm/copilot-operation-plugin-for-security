@@ -44,11 +44,104 @@ class ReplayAuthorizationError(Exception):
     """Live replay is missing or does not match an approved action plan."""
 
 
+_INVALID_ALLOWLIST_MESSAGE = "destination allowlist contains an invalid entry"
+_DNS_LABEL = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?")
+_DECIMAL_PORT = re.compile(r"[0-9]+")
+_LEGACY_IPV4_COMPONENT = re.compile(r"(?:[0-9]+|0[xX][0-9A-Fa-f]+)")
+
+
+@dataclass(frozen=True)
+class _AllowedDestination:
+    host: str
+    port: int | None = None
+    wildcard: bool = False
+
+
+def _invalid_allowlist_item():
+    raise DestinationViolationError(_INVALID_ALLOWLIST_MESSAGE) from None
+
+
+def _snapshot_allowlist(allowed_destinations: list[str]) -> list[str]:
+    """Take an owned container snapshot without copying or rendering its elements."""
+    try:
+        return list(allowed_destinations)
+    except Exception:
+        _invalid_allowlist_item()
+
+
+def _parse_allowlist_port(value: str | None) -> int | None:
+    if value is None:
+        return None
+    if len(value) > 5 or not _DECIMAL_PORT.fullmatch(value) or (len(value) > 1 and value.startswith("0")):
+        _invalid_allowlist_item()
+    port = int(value)
+    if not 1 <= port <= 65535:
+        _invalid_allowlist_item()
+    return port
+
+
+def _parse_dns_name(value: str) -> str:
+    labels = value.split(".")
+    if (
+        not value
+        or len(value) > 253
+        or any(not _DNS_LABEL.fullmatch(label) for label in labels)
+        or all(_LEGACY_IPV4_COMPONENT.fullmatch(label) for label in labels)
+    ):
+        _invalid_allowlist_item()
+    return value.lower()
+
+
+def _parse_allowlist_item(item: object) -> _AllowedDestination:
+    if (
+        not isinstance(item, str)
+        or not item
+        or any(char.isspace() or ord(char) < 32 or ord(char) == 127 for char in item)
+        or any(char in item for char in "/?#%@\\")
+    ):
+        _invalid_allowlist_item()
+
+    if "*" in item:
+        if not item.startswith("*.") or item.count("*") != 1 or ":" in item:
+            _invalid_allowlist_item()
+        return _AllowedDestination(host=_parse_dns_name(item[2:]), wildcard=True)
+
+    if item.startswith("["):
+        closing = item.find("]")
+        if closing < 0:
+            _invalid_allowlist_item()
+        literal = item[1:closing]
+        remainder = item[closing + 1 :]
+        if remainder and not remainder.startswith(":"):
+            _invalid_allowlist_item()
+        try:
+            ipaddress.IPv6Address(literal)
+        except ValueError:
+            _invalid_allowlist_item()
+        return _AllowedDestination(
+            host=literal.lower(),
+            port=_parse_allowlist_port(remainder[1:] if remainder else None),
+        )
+
+    if item.count(":") > 1:
+        _invalid_allowlist_item()
+    host, separator, raw_port = item.partition(":")
+    port = _parse_allowlist_port(raw_port if separator else None)
+    try:
+        ipaddress.IPv4Address(host)
+    except ValueError:
+        normalized_host = _parse_dns_name(host)
+    else:
+        normalized_host = host
+    return _AllowedDestination(host=normalized_host.lower(), port=port)
+
+
 class DestinationGuard:
     """Match URL hosts against exact hosts, exact host:ports, or wildcard domains."""
 
     def __init__(self, allowed_destinations: list[str]) -> None:
-        self.allowed_destinations = [item.strip().lower() for item in allowed_destinations if item.strip()]
+        self.allowed_destinations = _snapshot_allowlist(allowed_destinations)
+        self._rules = tuple(_parse_allowlist_item(item) for item in self.allowed_destinations)
 
     def is_destination_allowed(self, url: str) -> bool:
         try:
@@ -57,13 +150,11 @@ class DestinationGuard:
             return False
         host = parsed.hostname.lower()
         port = parsed.port if parsed.port is not None else (443 if parsed.scheme in {"https", "wss"} else 80)
-        authority = f"[{host}]:{port}" if ":" in host else f"{host}:{port}"
-        for allowed in self.allowed_destinations:
-            if allowed.startswith("*."):
-                suffix = allowed[2:]
-                if host == suffix or host.endswith("." + suffix):
+        for rule in self._rules:
+            if rule.wildcard:
+                if host == rule.host or host.endswith("." + rule.host):
                     return True
-            elif allowed == host or allowed == authority:
+            elif rule.host == host and (rule.port is None or rule.port == port):
                 return True
         return False
 
@@ -503,17 +594,19 @@ def preview_replay_session(
     session_id: str | None = None,
 ) -> ReplaySessionReport:
     """Create a redacted, side-effect-free preview without dispatching requests."""
-    active_budget = budget or ReplayBudget()
+    owned_destinations = _snapshot_allowlist(allowed_destinations)
+    guard = DestinationGuard(owned_destinations)
+    owned_requests = deepcopy(requests)
+    active_budget = deepcopy(budget) if budget is not None else ReplayBudget()
     _validate_budget(active_budget)
-    if len(requests) > active_budget.max_requests:
+    if len(owned_requests) > active_budget.max_requests:
         raise ReplayBudgetExceededError("request count exceeds max_requests")
-    guard = DestinationGuard(allowed_destinations)
-    for request in requests:
+    for request in owned_requests:
         guard.check_destination(request.url)
     return _report(
-        requests=requests,
+        requests=owned_requests,
         responses=[],
-        allowed_destinations=allowed_destinations,
+        allowed_destinations=owned_destinations,
         budget=active_budget,
         session_id=session_id,
         violations=0,
@@ -638,19 +731,19 @@ def build_replay_action_plan(
     created_at: str | None = None,
 ) -> ActionPlan:
     """Build the exact immutable plan which an approval must authorize for live replay."""
-    owned_requests = deepcopy(requests)
-    owned_sessions = deepcopy(sessions or [])
-    owned_destinations = deepcopy(allowed_destinations)
-    active_budget = deepcopy(budget) if budget is not None else ReplayBudget()
-    _validate_budget(active_budget)
+    owned_destinations = _snapshot_allowlist(allowed_destinations)
     if not owned_destinations:
         raise ReplayAuthorizationError("live replay requires an explicit destination allowlist")
+    guard = DestinationGuard(owned_destinations)
+    owned_requests = deepcopy(requests)
+    owned_sessions = deepcopy(sessions or [])
+    active_budget = deepcopy(budget) if budget is not None else ReplayBudget()
+    _validate_budget(active_budget)
     if len(owned_requests) > active_budget.max_requests:
         raise ReplayBudgetExceededError("request count exceeds max_requests")
     identifiers = [request.request_id for request in owned_requests]
     if len(set(identifiers)) != len(identifiers):
         raise ReplayAuthorizationError("request identifiers must be unique")
-    guard = DestinationGuard(owned_destinations)
     for request in owned_requests:
         guard.check_destination(request.url)
     wire = _wire_requests(owned_requests, owned_sessions)
@@ -677,13 +770,15 @@ def execute_replay_session(
     session_id: str | None = None,
 ) -> ReplaySessionReport:
     """Run deterministic offline replay; network replay requires the approved entry point."""
-    active_budget = budget or ReplayBudget()
+    owned_destinations = _snapshot_allowlist(allowed_destinations)
+    guard = DestinationGuard(owned_destinations)
+    owned_requests = deepcopy(requests)
+    active_budget = deepcopy(budget) if budget is not None else ReplayBudget()
     active_replayer = replayer or OfflineSyntheticReplayer()
     if not isinstance(active_replayer, OfflineSyntheticReplayer):
         raise ReplayAuthorizationError("live replay requires execute_authorized_replay_session")
     _validate_budget(active_budget)
-    guard = DestinationGuard(allowed_destinations)
-    selected = requests[: active_budget.max_requests]
+    selected = owned_requests[: active_budget.max_requests]
     responses: list[ReplayResponse] = []
     violations = 0
     for request in selected:
@@ -704,7 +799,7 @@ def execute_replay_session(
     return _report(
         requests=selected,
         responses=responses,
-        allowed_destinations=allowed_destinations,
+        allowed_destinations=owned_destinations,
         budget=active_budget,
         session_id=session_id,
         violations=violations,
@@ -725,16 +820,16 @@ def execute_authorized_replay_session(
     session_id: str | None = None,
 ) -> ReplaySessionReport:
     """Consume one exact approval, then dispatch the corresponding bounded live replay."""
-    owned_requests = deepcopy(requests)
-    owned_sessions = deepcopy(sessions)
-    owned_destinations = deepcopy(allowed_destinations)
-    owned_budget = deepcopy(budget)
-    _validate_budget(owned_budget)
+    owned_destinations = _snapshot_allowlist(allowed_destinations)
     if not owned_destinations:
         raise ReplayAuthorizationError("live replay requires an explicit destination allowlist")
+    destination_guard = DestinationGuard(owned_destinations)
+    owned_requests = deepcopy(requests)
+    owned_sessions = deepcopy(sessions)
+    owned_budget = deepcopy(budget)
+    _validate_budget(owned_budget)
     if len(owned_requests) > owned_budget.max_requests:
         raise ReplayBudgetExceededError("request count exceeds max_requests")
-    destination_guard = DestinationGuard(owned_destinations)
     wire_requests = _wire_requests(owned_requests, owned_sessions)
     for item in wire_requests:
         destination_guard.check_destination(item.request.url)
