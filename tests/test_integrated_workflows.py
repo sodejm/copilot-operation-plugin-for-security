@@ -59,6 +59,44 @@ def _catalog_copy(tmp_path: Path) -> Path:
     return target
 
 
+def _conditioned_catalog(
+    tmp_path: Path,
+    *,
+    operator: str,
+    guarded_binding: bool,
+) -> tuple[Path, dict[str, object]]:
+    catalog_dir = _catalog_copy(tmp_path)
+    workflow_id = "cve-reachability-triage"
+    definition_path = catalog_dir / f"{workflow_id}.workflow.json"
+    definition = json.loads(definition_path.read_text(encoding="utf-8"))
+    guard_spec: dict[str, object] = {"type": "boolean", "required": False}
+    if operator != "exists":
+        guard_spec["default"] = False
+    definition["inputs"]["playback_guard"] = guard_spec
+    first_stage = definition["stages"][0]
+    first_stage["condition"] = {
+        "source": "workflow.input.playback_guard",
+        "operator": operator,
+        **({"value": True} if operator != "exists" else {}),
+    }
+    if guarded_binding:
+        first_stage["inputs"]["playback_guard"] = {
+            "type": "boolean",
+            "source": "workflow.input.playback_guard",
+        }
+    definition_path.write_text(json.dumps(definition), encoding="utf-8")
+
+    catalog_path = catalog_dir / "catalog.json"
+    catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+    entry = next(item for item in catalog["workflows"] if item["workflow_id"] == workflow_id)
+    entry["definition_digest"] = digest(definition)
+    catalog_path.write_text(json.dumps(catalog), encoding="utf-8")
+
+    fixture_path = catalog_dir / "fixtures" / f"{workflow_id}.limited.json"
+    inputs = json.loads(fixture_path.read_text(encoding="utf-8"))["inputs"]
+    return catalog_dir, inputs
+
+
 def test_catalog_contains_six_strict_versioned_workflows() -> None:
     catalog = validate_integrated_workflow_catalog()
     definitions = load_integrated_workflows()
@@ -312,6 +350,42 @@ def test_playback_rejects_invalid_typed_inputs() -> None:
 
     with pytest.raises(WorkflowContractError, match="workflow_input_type"):
         run_offline_playback("cve-reachability-triage", inputs)
+
+
+@pytest.mark.parametrize(
+    ("operator", "guarded_binding", "provided", "expected_status"),
+    [
+        ("exists", True, None, "partial_failure"),
+        ("exists", True, True, "completed"),
+        ("eq", False, None, "partial_failure"),
+        ("eq", False, True, "completed"),
+    ],
+)
+def test_playback_evaluates_conditions_before_bindings_and_handlers(
+    tmp_path: Path,
+    operator: str,
+    guarded_binding: bool,
+    provided: bool | None,
+    expected_status: str,
+) -> None:
+    catalog_dir, inputs = _conditioned_catalog(
+        tmp_path,
+        operator=operator,
+        guarded_binding=guarded_binding,
+    )
+    if provided is not None:
+        inputs["playback_guard"] = provided
+
+    report = run_offline_playback("cve-reachability-triage", inputs, catalog_dir=catalog_dir)
+
+    assert report["status"] == expected_status
+    if expected_status == "completed":
+        assert all(stage["status"] == "success" for stage in report["stages"].values())
+        assert report["outputs"]
+    else:
+        assert report["outcome"] is None
+        assert report["outputs"] == {}
+        assert report["stages"] == {"match": {"status": "skipped", "outputs": {}, "evidence_refs": []}}
 
 
 @pytest.mark.parametrize(

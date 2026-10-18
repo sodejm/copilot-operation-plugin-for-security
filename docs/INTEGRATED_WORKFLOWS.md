@@ -111,6 +111,12 @@ records include the compiled ActionPlan snapshot, typed outputs, and a determini
 evidence reference. This report is suitable for tests and demonstrations; it is
 not an authorization record and does not execute a worker.
 
+Playback evaluates each stage condition before resolving that stage's inputs or
+calling its handler. A false condition records `skipped` with no outputs or
+evidence. A stage whose dependency did not succeed does not run, and a workflow
+output that is unavailable because a stage was skipped cannot be reported as a
+completed success.
+
 ## Authorization and evidence boundaries
 
 The catalog fixture definitions are limited to offline evidence transformation.

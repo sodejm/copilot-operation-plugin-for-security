@@ -15,6 +15,9 @@ workflow outputs, and definitions that exceed their declared stage or attempt
 budgets. Action target, specialist, tool, tool version, and action are literal
 values; interpolation such as `${workflow.input.target}` is rejected. This
 prevents an input or upstream result from widening an approved target.
+An optional workflow input used directly as a stage input must define a typed
+default or be guarded by that stage's `exists` condition on the same input.
+`eq` and `not_eq` conditions do not establish that an optional value is present.
 
 This single-stage document is executable:
 
@@ -114,10 +117,15 @@ directory; cross-process scheduling and locking belong to the caller.
 
 Cancellation is checked before each stage and attempt. A failed or interrupted
 stage with a declared cleanup operation completes cleanup before cancellation or
-another attempt. If a process stops after authorization consumption, resume
-marks that attempt interrupted and requires a fresh authorization for the next
-bounded attempt. Terminal stage failure returns `partial_failure`; dependent
-stages do not run.
+another attempt. If a process stops after writing a planned attempt but before
+authorization consumption, resume reuses the persisted plan, attempt number, and
+unconsumed authorization; it does not recompile the plan with a new timestamp or
+spend a retry. If a process stops after authorization consumption, resume first
+reconciles the persisted receipt's authorization, plan, engagement, worker, and
+target bindings with retained authority provenance. It then marks that attempt
+interrupted and requires a fresh authorization for the next bounded attempt.
+Missing or inconsistent provenance fails closed instead of replaying approval.
+Terminal stage failure returns `partial_failure`; dependent stages do not run.
 
 ## Purple-team handoff
 

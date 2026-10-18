@@ -33,3 +33,16 @@ host indexes from the canonical catalog.
     standard library. Ed25519 evidence signing is available only when explicitly
     requested with the optional crypto extra; an unavailable signer dependency
     fails with a stable workflow error and does not produce signed evidence.
+11. Resuming a persisted `planned` attempt reuses its exact plan, attempt number,
+    and unconsumed authorization. A consumed attempt records the authority-issued
+    authorization digest and exact authorization, action-plan, plan-digest,
+    engagement, worker, and target bindings. Recovery advances such an attempt
+    only when those fields reconcile with both the persisted plan and retained
+    authority provenance; otherwise it fails closed without replaying approval.
+12. A direct stage binding from an optional workflow input is valid only when the
+    input has a typed default or the same stage has an `exists` condition on that
+    exact input. Equality and inequality conditions do not guard absence.
+13. Offline playback evaluates stage conditions before resolving bindings or
+    invoking handlers. A false condition records a skipped stage without outputs
+    or evidence, and unavailable dependencies or workflow outputs cannot be
+    reported as successful completion.
