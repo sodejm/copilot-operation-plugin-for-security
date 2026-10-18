@@ -58,6 +58,12 @@ workspace exclusions, deceptive registry URLs, multiline requirements, ecosystem
 collisions, quoted/local actions, write permissions, and pull-request checkout
 boundaries, including corrected and unsupported inputs.
 
+Checkout analysis associates `uses` and `with` with the same sequence item under
+`steps`, regardless of key order or an initial `name`. Only direct `with` inputs
+can establish untrusted-head checkout; adjacent steps, nested environment maps,
+and block-scalar contents cannot. Duplicate or unsupported input mappings remain
+partial evidence.
+
 ## Binary telemetry imports
 
 The [EVTX import contract](evtx-import.spec.md) precedes assessment. Its typed

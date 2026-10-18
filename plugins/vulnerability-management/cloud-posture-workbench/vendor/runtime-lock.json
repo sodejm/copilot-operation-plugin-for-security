@@ -44,7 +44,7 @@
     "cops/assessments/jwt.py": "c66c99a4641176447e470a5283b23597ff3b5c29ea1a9a3db3d93a55ee814649",
     "cops/assessments/network_inputs.py": "3d04ddcbf66ddacf8efc30b3925a1caa306deff97c066dff0eecc4924241af85",
     "cops/assessments/reporting.py": "77317989ccb0971c617eb6d374acab6a7486fdc85a2165f2ac4bb9d9388036d3",
-    "cops/assessments/supply_inputs.py": "feb465c0e9e2294617e99edbcdee1191fa6a02e4a6510b9d70ddde11cd3049fe",
+    "cops/assessments/supply_inputs.py": "1826361eb247b448e4160a98eac17116d00d8f5fe74fa6113f25f7e91f928a07",
     "cops/contracts/__init__.py": "cb9cc33ee56dcfdb95d6e02b50ef59218393b798c8dad3414e2b8640bccaae28",
     "cops/contracts/lifecycle.py": "4e5df48f9a97f8ef8ca406682708ccf2ff1e2213f014f9ad3afbeb4632da43d4",
     "cops/contracts/models.py": "eaba55cc687abb25a3dd9f226486fd1fa28f5b7b0aec0342a250ad47bc647ebb",
