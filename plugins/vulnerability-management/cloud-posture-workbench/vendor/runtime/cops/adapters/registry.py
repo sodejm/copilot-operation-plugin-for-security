@@ -53,9 +53,7 @@ class ToolParameter:
         # Traversal / injection guard
         str_val = str(value)
         if any(c in str_val for c in (";", "&", "|", "`", "$", "\n", "\r")):
-            raise AdapterInjectionError(
-                f"Shell metacharacters detected in parameter '{self.name}': {str_val!r}"
-            )
+            raise AdapterInjectionError(f"Shell metacharacters detected in parameter '{self.name}': {str_val!r}")
         if ".." in str_val or str_val.startswith("/etc") or str_val.startswith("~"):
             raise AdapterInjectionError(
                 f"Directory climbing or path traversal detected in parameter '{self.name}': {str_val!r}"
@@ -83,13 +81,17 @@ class ToolParameter:
                 ipaddress.ip_address(str_val)
                 val_token = str_val
             except ValueError:
-                raise AdapterParameterError(f"Parameter '{self.name}' must be a valid IP address, got {str_val!r}") from None
+                raise AdapterParameterError(
+                    f"Parameter '{self.name}' must be a valid IP address, got {str_val!r}"
+                ) from None
         elif self.param_type == "cidr":
             try:
                 ipaddress.ip_network(str_val, strict=False)
                 val_token = str_val
             except ValueError:
-                raise AdapterParameterError(f"Parameter '{self.name}' must be a valid CIDR network, got {str_val!r}") from None
+                raise AdapterParameterError(
+                    f"Parameter '{self.name}' must be a valid CIDR network, got {str_val!r}"
+                ) from None
         else:
             val_token = str_val
 
@@ -149,9 +151,13 @@ class ToolAdapter:
     def assemble_command(self, action: str, arguments: dict[str, Any] | None = None) -> list[str]:
         """Assemble deterministic argument array for tool execution."""
         if action not in self.actions:
-            raise AdapterError(f"Action '{action}' is not supported by tool '{self.tool}'. Allowed: {sorted(self.actions)}")
+            raise AdapterError(
+                f"Action '{action}' is not supported by tool '{self.tool}'. Allowed: {sorted(self.actions)}"
+            )
 
-        current_env = "darwin" if sys.platform == "darwin" else ("linux" if sys.platform.startswith("linux") else sys.platform)
+        current_env = (
+            "darwin" if sys.platform == "darwin" else ("linux" if sys.platform.startswith("linux") else sys.platform)
+        )
         if self.supported_environments and current_env not in self.supported_environments:
             raise AdapterError(
                 f"Tool '{self.tool}' does not support environment '{current_env}'. Supported: {self.supported_environments}"
@@ -170,9 +176,7 @@ class ToolAdapter:
         # Reject unrecognized parameters
         unknown_params = set(args) - set(action_def.parameters)
         if unknown_params:
-            raise AdapterParameterError(
-                f"Unknown parameters {sorted(unknown_params)} passed to '{self.tool}:{action}'"
-            )
+            raise AdapterParameterError(f"Unknown parameters {sorted(unknown_params)} passed to '{self.tool}:{action}'")
 
         return cmd
 
@@ -191,9 +195,7 @@ class ToolAdapterRegistry:
         self._executable_sha256_pins = dict(executable_sha256_pins or {})
         for tool, sha256 in self._executable_sha256_pins.items():
             if not tool or not re.fullmatch(r"[0-9a-f]{64}", sha256):
-                raise AdapterError(
-                    f"platform executable pin for {tool!r} must be 64 lowercase hexadecimal characters"
-                )
+                raise AdapterError(f"platform executable pin for {tool!r} must be 64 lowercase hexadecimal characters")
         self.load_definitions()
         unknown_pins = set(self._executable_sha256_pins) - set(self._adapters)
         if unknown_pins:
@@ -210,12 +212,8 @@ class ToolAdapterRegistry:
             pin = self._executable_sha256_pins.get(adapter.tool)
             if pin is not None:
                 if adapter.executable_verification is None:
-                    raise AdapterError(
-                        f"adapter {adapter.tool!r} has no executable verification contract"
-                    )
-                adapter.executable_verification = replace(
-                    adapter.executable_verification, sha256=pin
-                )
+                    raise AdapterError(f"adapter {adapter.tool!r} has no executable verification contract")
+                adapter.executable_verification = replace(adapter.executable_verification, sha256=pin)
             self._adapters[adapter.tool] = adapter
 
     def _parse_adapter(self, data: dict[str, Any]) -> ToolAdapter:
@@ -245,9 +243,7 @@ class ToolAdapterRegistry:
             if not isinstance(execution_data, dict):
                 raise AdapterError("adapter execution metadata must be an object")
             sha256 = execution_data.get("sha256")
-            if sha256 is not None and (
-                not isinstance(sha256, str) or not re.fullmatch(r"[0-9a-f]{64}", sha256)
-            ):
+            if sha256 is not None and (not isinstance(sha256, str) or not re.fullmatch(r"[0-9a-f]{64}", sha256)):
                 raise AdapterError("adapter execution sha256 must be 64 lowercase hexadecimal characters")
             version_args = execution_data.get("version_args", ["--version"])
             if not isinstance(version_args, list) or any(not isinstance(arg, str) for arg in version_args):
@@ -290,7 +286,9 @@ class ToolAdapterRegistry:
     def get_adapter(self, tool: str) -> ToolAdapter:
         """Get an adapter by tool name."""
         if tool not in self._adapters:
-            raise AdapterError(f"Tool '{tool}' is not registered in the adapter registry. Registered: {sorted(self._adapters)}")
+            raise AdapterError(
+                f"Tool '{tool}' is not registered in the adapter registry. Registered: {sorted(self._adapters)}"
+            )
         return self._adapters[tool]
 
     def list_tools(self) -> list[str]:
