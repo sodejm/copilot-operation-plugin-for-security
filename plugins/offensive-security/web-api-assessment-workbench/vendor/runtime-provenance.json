@@ -102,12 +102,12 @@
     },
     {
       "path": "cops/web_api/models.py",
-      "sha256": "a8593a6da1d1ed2c776e02eba010d42d6d4e981ff9503197a277bfcb7ef08b19",
+      "sha256": "2fd890f097435fa5bee128579a847d5432e025429b99c926188b79e0f96f5ad5",
       "source": "cops/web_api/models.py"
     },
     {
       "path": "cops/web_api/replay.py",
-      "sha256": "c2c13db244476f98a3d09988ebeea950468fbea65851773e2c527abeb8265b65",
+      "sha256": "6d2e6739cfa63962af30ea806c9e907820293f50d135cc239198ba1302c2cfc7",
       "source": "cops/web_api/replay.py"
     },
     {

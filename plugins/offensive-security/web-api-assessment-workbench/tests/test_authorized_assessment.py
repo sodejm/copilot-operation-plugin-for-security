@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import ipaddress
 import json
+import sys
+from dataclasses import replace
 from pathlib import Path
 import sys
 
@@ -13,9 +15,12 @@ REPO_ROOT = Path(__file__).resolve().parents[4]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from cops.execution.control import ApprovalConsumptionReceipt
-from cops.execution.scope_guard import ScopeDefinition, ScopeGuard
-from cops.web_api import (
+from cops.execution.scope_guard import (  # noqa: E402  # Import after runtime prerequisite/path selection.
+    ScopeDefinition,
+    ScopeGuard,
+)
+from cops.execution.store import ApprovalStore  # noqa: E402
+from cops.web_api import (  # noqa: E402  # Import after runtime prerequisite/path selection.
     AssessmentVerdict,
     AuthorizationCase,
     ReplayAuthorizationError,
@@ -26,38 +31,20 @@ from cops.web_api import (
     execute_authorized_replay_session,
     preview_replay_session,
 )
-from cops.web_api.models import ReplayBudget, ReplayRequest, SessionContext
+from cops.web_api.models import (  # noqa: E402  # Import after runtime prerequisite/path selection.
+    ReplayBudget,
+    ReplayRequest,
+    SessionContext,
+)
+from tests.auth_testkit import TestApprovalControl, authorize_test_plan  # noqa: E402
 
 
-class _ApprovalControl:
-    """Small authority double that records the approval-boundary interactions."""
-
-    def __init__(self) -> None:
-        self.ready_workers: list[str] = []
-        self.consume_count = 0
-        self.released = False
-
-    def assert_ready(self, worker_identity: str) -> None:
-        self.ready_workers.append(worker_identity)
-
-    def consume_authorization(self, authorization_id, action_plan, worker_identity):
-        self.consume_count += 1
-        return ApprovalConsumptionReceipt(
-            authorization_id=authorization_id,
-            authorization_digest="a" * 64,
-            action_plan_id=action_plan.plan_id,
-            plan_digest=action_plan.plan_digest,
-            engagement_id=action_plan.engagement_id,
-            worker_identity=worker_identity,
-            target=action_plan.target,
-        )
-
-    def validate_receipt_provenance(self, receipt):
-        return receipt
-
-    def release_receipt_provenance(self, receipt) -> None:
-        del receipt
-        self.released = True
+def _authority(tmp_path, plan):
+    """Persist a signed fixture approval and use the existing verifier/consumer."""
+    auth, trust, engagement = authorize_test_plan(plan, worker_identity="worker-web-api-lab")
+    store = ApprovalStore(tmp_path / "authority" / "approvals.sqlite3")
+    store.store_authorization(auth)
+    return auth.authorization_id, TestApprovalControl(store, trust, engagement)
 
 
 def _sessions() -> list[SessionContext]:
@@ -136,7 +123,7 @@ def _rate_requests(base_url: str, count: int = 4) -> list[ReplayRequest]:
     ]
 
 
-def _execute(laboratory, requests, *, plan_id: str):
+def _execute(laboratory, requests, tmp_path, *, plan_id: str):
     port = laboratory.base_url.rsplit(":", 1)[1]
     destinations = [f"127.0.0.1:{port}"]
     budget = ReplayBudget(max_requests=len(requests), rate_limit_rps=1000, timeout_seconds=2)
@@ -146,12 +133,13 @@ def _execute(laboratory, requests, *, plan_id: str):
         scenario_id="scen-web-api-assessment",
         specialist_id="web-api-assessment-workbench",
         requests=requests,
+        sessions=_sessions(),
         allowed_destinations=destinations,
         budget=budget,
         credential_references=["lab-owner-session", "lab-other-session"],
         created_at="2026-10-15T00:00:00Z",
     )
-    approval = _ApprovalControl()
+    authorization_id, approval = _authority(tmp_path, plan)
     report = execute_authorized_replay_session(
         requests=requests,
         sessions=_sessions(),
@@ -159,7 +147,7 @@ def _execute(laboratory, requests, *, plan_id: str):
         scope_guard=_scope_guard(),
         budget=budget,
         action_plan=plan,
-        authorization_id=f"auth-{plan_id}",
+        authorization_id=authorization_id,
         approval_control=approval,
         worker_identity="worker-web-api-lab",
     )
@@ -170,7 +158,7 @@ def _execute(laboratory, requests, *, plan_id: str):
     ("profile", "expected_verdict"),
     [("vulnerable", AssessmentVerdict.FAIL), ("corrected", AssessmentVerdict.PASS)],
 )
-def test_owner_other_and_anonymous_authorization_evidence(profile, expected_verdict) -> None:
+def test_owner_other_and_anonymous_authorization_evidence(profile, expected_verdict, tmp_path) -> None:
     with WebApiAssessmentLaboratory(profile) as laboratory:
         requests = _authorization_requests(laboratory.base_url)
         port = laboratory.base_url.rsplit(":", 1)[1]
@@ -180,11 +168,11 @@ def test_owner_other_and_anonymous_authorization_evidence(profile, expected_verd
         assert preview.total_dispatched == 0
         assert laboratory.request_count == 0
 
-        report, approval, _, _, _ = _execute(laboratory, requests, plan_id=f"plan-auth-{profile}")
+        report, approval, _, _, _ = _execute(laboratory, requests, tmp_path, plan_id=f"plan-auth-{profile}")
         assert laboratory.request_count == 6
         assert approval.ready_workers == ["worker-web-api-lab"]
-        assert approval.consume_count == 1
-        assert approval.released
+        assert len(approval.consume_calls) == 1
+        assert not approval._issued_receipts
 
         response_by_request = {response.request_id: response for response in report.responses}
         cases = [
@@ -211,32 +199,34 @@ def test_owner_other_and_anonymous_authorization_evidence(profile, expected_verd
     ("profile", "expected_verdict"),
     [("vulnerable", AssessmentVerdict.FAIL), ("corrected", AssessmentVerdict.PASS)],
 )
-def test_bounded_request_rate_evidence(profile, expected_verdict) -> None:
+def test_bounded_request_rate_evidence(profile, expected_verdict, tmp_path) -> None:
     with WebApiAssessmentLaboratory(profile) as laboratory:
         report, approval, _, _, _ = _execute(
-            laboratory, _rate_requests(laboratory.base_url), plan_id=f"plan-rate-{profile}"
+            laboratory, _rate_requests(laboratory.base_url), tmp_path, plan_id=f"plan-rate-{profile}"
         )
         assessment = assess_rate_limit(report.responses, minimum_attempts=3)
         assert assessment.verdict is expected_verdict
-        assert approval.consume_count == 1
-        assert approval.released
+        assert len(approval.consume_calls) == 1
+        assert not approval._issued_receipts
 
 
-def test_rate_limit_requires_enough_evidence() -> None:
+def test_rate_limit_requires_enough_evidence(tmp_path) -> None:
     with WebApiAssessmentLaboratory("corrected") as laboratory:
         report, _, _, _, _ = _execute(
-            laboratory, _rate_requests(laboratory.base_url, count=2), plan_id="plan-rate-insufficient"
+            laboratory, _rate_requests(laboratory.base_url, count=2), tmp_path, plan_id="plan-rate-insufficient"
         )
         assessment = assess_rate_limit(report.responses, minimum_attempts=3)
         assert assessment.verdict is AssessmentVerdict.INSUFFICIENT_EVIDENCE
 
 
-def test_plan_mismatch_is_rejected_before_approval_or_dispatch() -> None:
+def test_plan_mismatch_is_rejected_before_approval_or_dispatch(tmp_path) -> None:
     with WebApiAssessmentLaboratory("corrected") as laboratory:
         original = _rate_requests(laboratory.base_url, count=1)
-        _, _, plan, budget, destinations = _execute(laboratory, original, plan_id="plan-original")
+        _, _, plan, budget, destinations = _execute(
+            laboratory, original, tmp_path / "original", plan_id="plan-original"
+        )
         laboratory.reset()
-        approval = _ApprovalControl()
+        authorization_id, approval = _authority(tmp_path / "changed", plan)
         changed = [
             ReplayRequest(
                 request_id="rate-owner-0",
@@ -255,15 +245,15 @@ def test_plan_mismatch_is_rejected_before_approval_or_dispatch() -> None:
                 scope_guard=_scope_guard(),
                 budget=budget,
                 action_plan=plan,
-                authorization_id="auth-plan-original",
+                authorization_id=authorization_id,
                 approval_control=approval,
                 worker_identity="worker-web-api-lab",
             )
-        assert approval.consume_count == 0
+        assert approval.consume_calls == []
         assert laboratory.request_count == 0
 
 
-def test_request_cannot_override_isolated_session_credentials() -> None:
+def test_request_cannot_override_isolated_session_credentials(tmp_path) -> None:
     with WebApiAssessmentLaboratory("corrected") as laboratory:
         requests = [
             ReplayRequest(
@@ -284,12 +274,13 @@ def test_request_cannot_override_isolated_session_credentials() -> None:
             engagement_id="eng-web-api-lab",
             scenario_id="scen-web-api-assessment",
             specialist_id="web-api-assessment-workbench",
-            requests=requests,
+            requests=[replace(requests[0], headers={})],
+            sessions=_sessions(),
             allowed_destinations=destinations,
             budget=budget,
             created_at="2026-10-15T00:00:00Z",
         )
-        approval = _ApprovalControl()
+        authorization_id, approval = _authority(tmp_path, plan)
         with pytest.raises(ReplayAuthorizationError, match="cannot override"):
             execute_authorized_replay_session(
                 requests=requests,
@@ -298,9 +289,9 @@ def test_request_cannot_override_isolated_session_credentials() -> None:
                 scope_guard=_scope_guard(),
                 budget=budget,
                 action_plan=plan,
-                authorization_id="auth-credential-override",
+                authorization_id=authorization_id,
                 approval_control=approval,
                 worker_identity="worker-web-api-lab",
             )
-        assert approval.consume_count == 0
+        assert approval.consume_calls == []
         assert laboratory.request_count == 0

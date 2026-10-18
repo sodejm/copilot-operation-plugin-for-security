@@ -122,7 +122,7 @@ The package CLI intentionally supports offline replay only. Live HTTP replay is 
 from cops.web_api import build_replay_action_plan, execute_authorized_replay_session
 ```
 
-Production-provider validation remains incomplete. Live WebSocket replay is unsupported; WebSocket entries remain inventory and offline-modeling data. Binary streaming and Server-Sent Events are also unsupported.
+Production-provider validation remains incomplete. Live HTTP execution snapshots its requests, isolated sessions, destinations, and complete budget before validating and consuming the exact signed approval. Its transport pins scope-checked numeric addresses, verifies the TLS certificate and original hostname, rejects HTTPS downgrade, and prevents cross-origin redirects from retaining a body or credential-bearing header. Live WebSocket replay is unsupported; WebSocket entries remain inventory and offline-modeling data. Binary streaming and Server-Sent Events are also unsupported.
 
 ## Design and data flow
 

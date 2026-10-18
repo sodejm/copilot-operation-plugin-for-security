@@ -25,4 +25,28 @@ observations are reported as insufficient evidence rather than success.
 WebSocket import metadata is preserved, but live WebSocket replay is not
 implemented. Production approval-provider deployment validation is a separate
 Linux integration concern; focused tests use the same consume-only approval
-protocol with a deterministic local authority double.
+protocol with signed authorizations and a persisted one-use approval store. The
+local test authority does not demonstrate a separately administered deployment.
+
+Live replay plans use tool version 2 and bind each exact source request, the complete
+session list, the effective request after isolated role-session credentials are
+applied, the complete budget, and the complete destination allowlist. Any change
+requires a new plan and approval. Invalid header framing, URL user information,
+non-finite budgets and ambiguous session isolation are rejected before consumption.
+HTTP error statuses remain observed responses; transport failure stops the batch
+because the remote effect can be uncertain.
+Execution copies caller-owned requests, sessions, destinations and budgets before
+plan comparison, then uses only those owned snapshots for approval consumption,
+resolution, transport and reporting.
+
+The transport resolves each hop once, validates its addresses, and connects directly
+to a validated numeric address. HTTPS retains the original hostname for certificate
+verification and SNI. Environment proxies are ignored. Redirects require fresh scope
+checks; HTTPS downgrade is refused. A cross-origin redirect may proceed only after a
+standard method rewrite has removed the request body and content headers and when no
+credential-bearing header remains. Session-provided headers and declared session
+authentication header names are credential-bearing even when their names do not match
+common credential patterns; redirects that retain either a body or credentials are refused,
+and other caller or session headers are cleared before the cross-origin follow-up.
+One monotonic deadline covers DNS, connection, TLS, headers and bounded body reads.
+A DNS resolver may finish after cancellation, but cannot dispatch a late request.

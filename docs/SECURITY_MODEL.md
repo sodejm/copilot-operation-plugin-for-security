@@ -169,6 +169,24 @@ While COPS enforces rigorous safeguards within our own packages and scripts, pra
 
 ## Expansion boundaries
 
+API replay binds exact source requests and session contexts, effective wire requests,
+all budget fields and all allowed destinations into the approved plan. It rejects
+ambiguous framing and URL authority before approval consumption. Execution copies
+caller-owned requests, sessions, budgets and destinations first, then uses only those
+snapshots for plan validation, approval consumption and transport. Each redirect is
+independently scoped; the connection uses a checked numeric address while TLS verifies the certificate chain
+and original hostname, preventing a second resolver lookup from changing the
+endpoint. Environment proxies and HTTPS downgrade are disallowed. Cross-origin
+redirects cannot retain a body or credential-bearing header. Session-supplied headers
+and declared session authentication header names remain credential-bearing regardless
+of their spelling. Other caller and session headers are cleared before a safe
+cross-origin follow-up. Standard body-dropping method rewrites remain supported. A
+monotonic deadline cancels socket activity and prevents dispatch after delayed DNS
+completion. A transport failure stops further
+requests because remote effects may be uncertain. Signed, persisted local approval
+tests establish plan binding and replay rejection, not independent administration
+of an authority.
+
 Repository discovery inventories only allowed local artifact metadata and excludes
 credentials, raw Terraform state, terminal history, symlinks, and unrelated paths.
 Routing requires clarification for uncertain matches; optional classification sees

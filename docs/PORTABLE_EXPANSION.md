@@ -32,7 +32,14 @@ directory on `sys.path` before importing `cops.web_api`; repository-root fallbac
 is only for source-tree development.
 
 The inventory includes the report sanitizer. Keep its report-only transformations
-separate from lossless request digests when updating the portable runtime.
+separate from lossless request digests when updating the portable runtime. The
+live integration must supply the same isolated role sessions to plan construction
+and execution so the signed digest covers the effective wire request. The
+standard-library transport pins each connection to its scope-checked DNS result
+and keeps certificate-chain and original-hostname verification for HTTPS. Live
+execution uses owned request, session, budget and destination snapshots and refuses
+cross-origin redirects that retain a body or credentials; offline exports make no
+live calls.
 
 The portable expansion test builds a package through a temporary Git index,
 exports it, and runs its offline demo with isolated Python path handling from the

@@ -43,6 +43,13 @@ Run the focused local-service assessment with the repository environment:
 python3 -m pytest -q plugins/offensive-security/web-api-assessment-workbench/tests/test_authorized_assessment.py
 ```
 
+The test issues signed authorizations through a persisted one-use approval store,
+verifies consumption and rejects reuse or changed requests, sessions, destinations
+and budget fields. Transport-focused tests also mutate caller input during approval
+consumption, exercise trusted and rejected TLS handshakes, preserve completed HTTP
+error responses and verify redirect credential and body boundaries. This local
+authority does not prove independent administration in production.
+
 The test starts vulnerable and corrected loopback services and sends requests through the `ActionPlan`, approval verification, worker-readiness, and scope controls. It covers owner, other-user, and anonymous cases for REST BOLA/IDOR and GraphQL object access. It also covers an unbounded-success rate failure, a corrected `429` with retry guidance, and a sequence that is too short to support a conclusion.
 
 For an imported inventory, preview any proposed live operation before approval:
@@ -61,13 +68,18 @@ The preview must name exact target and allowed destinations, request and redirec
 - The vulnerable service yields failed object-authorization findings when another user or an anonymous caller reaches a protected REST or GraphQL object. The corrected service permits the owner and denies both non-owner roles.
 - A bounded all-success request sequence yields a failed rate-limit finding; a `429` with retry guidance yields a passed finding; missing attempts or transport/server errors yield `insufficient_evidence`.
 - Approved live HTTP replay rejects action-plan drift, unapproved execution, unready workers, out-of-scope destinations, excess redirects, and exhausted request budgets before further dispatch.
+- Approved live HTTP replay uses owned snapshots after plan verification, verifies the TLS certificate and original hostname, rejects HTTPS downgrade, and refuses cross-origin redirects that retain a body or credential-bearing header.
 - Unsupported protocols and missing evidence remain explicit limitations. They never become successful evidence.
 
 ## Failure and recovery
 
 If the environment blocks loopback binding, record the local-service exercise as blocked with the command and error. Do not replace real-service evidence with a synthetic success. Re-run unchanged in an environment that permits disposable loopback listeners.
 
-If approval, worker readiness, scope, redirect, or budget validation fails, preserve the sanitized failure report, correct the plan or environment, obtain a new approval for the exact revised `ActionPlan`, and restart with a fresh bounded session. Never reuse a session across roles. If any required owner, other-user, anonymous, REST, GraphQL, or rate observation is absent, record `insufficient_evidence` and collect only the missing authorized case.
+If approval, worker readiness, scope, redirect, or budget validation fails, preserve the sanitized failure report, correct the plan or environment, obtain a new approval for the exact revised `ActionPlan`, and restart with a fresh bounded session. Supply the same isolated role sessions to plan construction and execution; tool
+version 2 binds their effective credentials, the entire budget and the destination
+allowlist. Never reuse a session across roles. Treat HTTP error statuses as observed
+responses, and transport failures as uncertain effects requiring review before
+a new attempt. If any required owner, other-user, anonymous, REST, GraphQL, or rate observation is absent, record `insufficient_evidence` and collect only the missing authorized case.
 
 ## Host exercise
 
