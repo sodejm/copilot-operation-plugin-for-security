@@ -272,9 +272,7 @@ def test_provider_and_agent_tool_share_parent_budget(tmp_path, provider):
     ledger.reserve(AttemptRequest("agent-root", None, 0, 0, 0), child_limits=narrow)
     ledger.reserve(AttemptRequest("local-tool", "agent-root", 10, 400, 100))
 
-    result = execute_live_case(
-        plan, case, parent_attempt_id="agent-root", child_limits=narrow, **args
-    )
+    result = execute_live_case(plan, case, parent_attempt_id="agent-root", child_limits=narrow, **args)
     assert result["ledger_state"] == "uncertain"
     assert called == ["dispatch-001"]
     assert ledger.snapshot().charged_cost_microunits == 1400
