@@ -127,6 +127,28 @@ def test_namespace_and_pod_selector_are_intersection():
     assert report("kubernetes_network_policy", value) == set()
 
 
+@pytest.mark.parametrize("selector_kind", ["podSelector", "namespaceSelector"])
+@pytest.mark.parametrize("label_value", [None, "excluded", "other"])
+@pytest.mark.parametrize("operator,require_exists", [("NotIn", False), ("NotIn", True), ("In", False)])
+def test_set_selectors_match_kubernetes_missing_label_semantics(selector_kind, label_value, operator, require_exists):
+    value = kubernetes()
+    resource = value["items"][1 if selector_kind == "podSelector" else 0]
+    if label_value is not None:
+        resource["metadata"].setdefault("labels", {})["environment"] = label_value
+    expressions = [{"key": "environment", "operator": operator, "values": ["excluded"]}]
+    if require_exists:
+        expressions.append({"key": "environment", "operator": "Exists"})
+    peer = value["items"][-1]["spec"]["ingress"][0]["from"][0]
+    peer[selector_kind] = {"matchExpressions": expressions}
+    allowed = label_value != "excluded" if operator == "NotIn" else label_value == "excluded"
+    if require_exists and label_value is None:
+        allowed = False
+    value["expected_reachability"][0]["allowed"] = allowed
+    assert report("kubernetes_network_policy", value) == set()
+    value["expected_reachability"][0]["allowed"] = not allowed
+    assert report("kubernetes_network_policy", value) == {"segmentation_mismatch"}
+
+
 @pytest.mark.parametrize(
     "mutation",
     [
