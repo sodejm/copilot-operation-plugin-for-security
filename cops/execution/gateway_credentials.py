@@ -19,6 +19,15 @@ from .gateway_dispatch import (
 )
 
 SUPPORTED_GATEWAY_PROVIDERS = frozenset({"openai", "azure_openai", "bedrock", "vertex"})
+LIVE_PROVIDER_TRANSPORT = MappingProxyType({
+    "openai": "openai",
+    "azure": "azure_openai",
+    "aws": "bedrock",
+    "gcp": "vertex",
+    "azure_openai": "azure_openai",
+    "bedrock": "bedrock",
+    "vertex": "vertex",
+})
 
 
 @dataclass(frozen=True)
@@ -31,7 +40,7 @@ class GatewayCredentialBinding:
     def __post_init__(self) -> None:
         if not isinstance(self.endpoint, GatewayDispatchEndpoint):
             raise GatewayDispatchError("gateway credential binding is invalid")
-        if self.endpoint.provider not in SUPPORTED_GATEWAY_PROVIDERS:
+        if self.endpoint.provider not in LIVE_PROVIDER_TRANSPORT:
             raise GatewayDispatchError("gateway credential binding is invalid")
         if (
             not isinstance(self.credential_ref, str)
@@ -90,7 +99,7 @@ class GatewayScopedProviderHandler:
             or invocation.gateway_identity != binding.endpoint.gateway_identity
         ):
             raise GatewayDispatchError("gateway credential scope unavailable")
-        transport = self._transports.get(binding.endpoint.provider)
+        transport = self._transports.get(LIVE_PROVIDER_TRANSPORT[binding.endpoint.provider])
         if transport is None:
             raise GatewayDispatchError("gateway provider transport unavailable")
 
