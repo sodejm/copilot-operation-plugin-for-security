@@ -42,7 +42,7 @@ jobs:
       - name: Build without network access and run the strict gate
         run: |
           docker build --tag cops-service-runtime:acceptance --network none --pull=false \
-            --build-arg "BASE_IMAGE=$(cat "$RUNNER_TEMP/cops-runtime/base.id")" \
+            --build-arg BASE_IMAGE=python:3.14.6@sha256:51570a50616289f78f340811c34ca4384985f9e891819cbe7620f738d6ca8525 \
             --iidfile "$RUNNER_TEMP/cops-runtime/image.id" "$RUNNER_TEMP/cops-runtime"
           cat "$RUNNER_TEMP/cops-runtime/base.id" "$RUNNER_TEMP/cops-runtime/image.id"
           make check-laboratory PYTHON=python LABORATORY_ARGS="--runtime docker --image $(cat "$RUNNER_TEMP/cops-runtime/image.id")"
