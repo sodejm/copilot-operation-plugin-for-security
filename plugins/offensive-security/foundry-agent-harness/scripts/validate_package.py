@@ -48,6 +48,8 @@ SUPPORTED_PATTERNS = {
     r"\S",
     "^[a-f0-9]{64}$",
     "^[0-9a-f]{64}$",
+    "^[0-9a-f]{128}$",
+    "^/[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*$",
     "^[A-Za-z0-9+/]{86}==$",
     "^CANARY_[A-Z0-9_]+$",
     "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
@@ -55,6 +57,12 @@ SUPPORTED_PATTERNS = {
     "^synthetic-[A-Za-z0-9._-]+$",
     r"^https://[A-Za-z0-9.-]+\.invalid(?:/[A-Za-z0-9._/-]*)?$",
     "^case-[0-9a-f]{64}$",
+    "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$",
+    "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+    r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,6})?Z$",
+    "^https://[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?(?::[1-9][0-9]{0,4})?$",
+    "^https://[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?(?:/[A-Za-z0-9._~!$&'()*+,;=:@%/-]*)?$",
+    "^spiffe://[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?/[A-Za-z0-9._~!$&'()*+,;=:@%/-]+$",
 }
 SCHEMA_TYPES = {
     "object": (dict,),
@@ -496,6 +504,8 @@ def validate() -> int:
         PLUGIN_ROOT / "schemas" / "provider-plan.schema.json",
         PLUGIN_ROOT / "schemas" / "provider-cases.schema.json",
         PLUGIN_ROOT / "schemas" / "provider-report.schema.json",
+        PLUGIN_ROOT / "schemas" / "provider-live-plan.schema.json",
+        PLUGIN_ROOT / "schemas" / "provider-live-cases.schema.json",
     ]
 
     try:
@@ -508,6 +518,7 @@ def validate() -> int:
         # The response envelope uses conditionals outside this data-only gate's admitted
         # schema vocabulary. Check bounded syntax here; the offline runner checks it fully.
         load_json(PLUGIN_ROOT / "schemas" / "provider-response.schema.json")
+        load_json(PLUGIN_ROOT / "schemas" / "provider-live-response.schema.json")
         report_schema = admit_schema(load_json(PLUGIN_ROOT / "schemas" / "auth-report.schema.json"))
         normalized_schema = load_json(PLUGIN_ROOT / "schemas" / "auth-normalized-observation.schema.json")
         embedded_schema = report_schema["$defs"]["normalized_observation"]

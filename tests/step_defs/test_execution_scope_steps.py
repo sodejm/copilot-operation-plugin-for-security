@@ -394,6 +394,8 @@ def _gateway_fixture(tmp_path, *, authorization_id="auth-1", dispatch_id="dispat
     endpoint = GatewayDispatchEndpoint(
         gateway_endpoint_id="endpoint-1",
         gateway_identity=_IDENTITY_URI,
+        endpoint_origin="https://api.example.test",
+        gateway_path="/v2/dispatch",
         provider="openai",
         account_or_project_kind="project",
         account_or_project="project-1",
@@ -596,6 +598,8 @@ def assert_gateway_no_retry(scope_context):
 def _gateway_emulator(case, handler):
     return GatewayDispatchEmulator(
         authorizer=case["authorizer"],
+        endpoint_origin="https://api.example.test",
+        gateway_path="/v2/dispatch",
         replay_store=case["replay_store"],
         action_plan_id="plan-1",
         plan_digest="a" * 64,

@@ -19,7 +19,7 @@ The report contains deterministic SHA-256 case references produced by `report_ca
 
 - Bundled fixtures cover all four families, a wrong environment binding, an unapproved tool, a denied endpoint, budget exhaustion, a partial response with unknown usage, and a remediated denial with no effect.
 - The same synthetic plan and report contract applies to every provider family. After admission, strict envelopes require OpenAI or Azure `status` and `output`, AWS `stopReason` and `output.message.content` with a tool-use item when applicable, or one GCP candidate with `content.parts` and `finishReason`; unknown properties and unsupported shapes fail validation before normalization into the common outcome vocabulary.
-- The runner rejects any `live` or paid plan and offers no live switch. A real provider adapter requires separately authorized isolated worker egress capable of exact POST origin, path, request body, and identity binding. The current shared egress broker permits only GET and HEAD.
+- The runner rejects any `live` or paid plan and offers no live switch. A separate v2 egress route permits bounded POST to an operator gateway, but the offline importer does not use it. A real provider adapter still requires separately authorized isolated worker egress with exact gateway origin, path, request body, and identity binding.
 - Focused tests, the package validator, `python -m cops check foundry-agent-harness`, and `make check` run in a virtual environment.
 
 ## Threat and abuse cases

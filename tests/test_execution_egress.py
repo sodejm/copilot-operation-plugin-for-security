@@ -143,6 +143,8 @@ def _dispatch_endpoint(
     return GatewayDispatchEndpoint(
         gateway_endpoint_id="endpoint-1",
         gateway_identity=_identity_uri(),
+        endpoint_origin="https://api.example.test",
+        gateway_path="/v2/dispatch",
         provider=provider,
         account_or_project_kind="project",
         account_or_project="project-1",
@@ -1098,6 +1100,8 @@ def test_gateway_emulator_uses_independent_plan_and_worker_scope_and_replay_stor
     invocations: list[object] = []
     gateway = GatewayDispatchEmulator(
         authorizer=_dispatch_authorizer(trust),
+        endpoint_origin="https://api.example.test",
+        gateway_path="/v2/dispatch",
         replay_store=GatewayDispatchReplayStore(tmp_path / "gateway-replay.sqlite"),
         action_plan_id="plan-1",
         plan_digest="a" * 64,
@@ -1170,6 +1174,8 @@ def test_gateway_emulator_returns_bounded_response_after_consumption(tmp_path) -
 
     gateway = GatewayDispatchEmulator(
         authorizer=_dispatch_authorizer(trust),
+        endpoint_origin="https://api.example.test",
+        gateway_path="/v2/dispatch",
         replay_store=store,
         action_plan_id="plan-1",
         plan_digest="a" * 64,
@@ -1199,6 +1205,8 @@ def test_gateway_emulator_does_not_replay_after_oversized_response(tmp_path) -> 
 
     gateway = GatewayDispatchEmulator(
         authorizer=_dispatch_authorizer(trust),
+        endpoint_origin="https://api.example.test",
+        gateway_path="/v2/dispatch",
         replay_store=GatewayDispatchReplayStore(tmp_path / "gateway-oversize-replay.sqlite"),
         action_plan_id="plan-1",
         plan_digest="a" * 64,
@@ -1264,6 +1272,8 @@ def test_gateway_credential_scope_dispatches_once_after_grant_consumption(
             trust_store=trust,
             endpoints={endpoint.gateway_endpoint_id: endpoint},
         ),
+        endpoint_origin="https://api.example.test",
+        gateway_path="/v2/dispatch",
         replay_store=GatewayDispatchReplayStore(tmp_path / "credential-replay.sqlite"),
         action_plan_id=grant.action_plan_id,
         plan_digest=grant.plan_digest,
@@ -1314,6 +1324,8 @@ def test_gateway_credential_scope_mismatch_consumes_grant_without_resolving(tmp_
         authorizer=GatewayDispatchTransportAuthorizer(
             trust_store=trust, endpoints={endpoint.gateway_endpoint_id: endpoint}
         ),
+        endpoint_origin="https://api.example.test",
+        gateway_path="/v2/dispatch",
         replay_store=GatewayDispatchReplayStore(tmp_path / "mismatch-replay.sqlite"),
         action_plan_id=grant.action_plan_id,
         plan_digest=grant.plan_digest,
@@ -1357,6 +1369,8 @@ def test_gateway_credential_failure_has_no_secret_exception_chain(tmp_path) -> N
         authorizer=GatewayDispatchTransportAuthorizer(
             trust_store=trust, endpoints={endpoint.gateway_endpoint_id: endpoint}
         ),
+        endpoint_origin="https://api.example.test",
+        gateway_path="/v2/dispatch",
         replay_store=GatewayDispatchReplayStore(tmp_path / "failure-replay.sqlite"),
         action_plan_id=grant.action_plan_id,
         plan_digest=grant.plan_digest,
