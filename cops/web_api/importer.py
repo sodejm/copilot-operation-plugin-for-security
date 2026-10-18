@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
-from pathlib import Path
 import re
+from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
@@ -30,7 +30,34 @@ class ImporterError(Exception):
     """Raised when an import input format is malformed or invalid."""
 
 
-def _sanitize_headers(headers: list[dict[str, Any]] | dict[str, Any]) -> tuple[dict[str, str], list[AuthenticationMechanism]]:
+_UNSAFE_LOCATION_CHARACTER = re.compile(r"[\\\s\x00-\x1f\x7f]")
+_HEADER_NAME = re.compile(r"^[!#$%&'*+.^_`|~0-9A-Za-z-]+$")
+_TRANSPORT_CONTROLLED_HEADERS = {
+    "connection",
+    "content-length",
+    "expect",
+    "host",
+    "proxy-authorization",
+    "proxy-connection",
+    "trailer",
+    "transfer-encoding",
+    "upgrade",
+}
+
+
+def _has_unsafe_location_character(value: str) -> bool:
+    """Return whether parsing could normalize or reinterpret a location value."""
+    return _UNSAFE_LOCATION_CHARACTER.search(value) is not None
+
+
+def _is_safe_auth_header_name(value: str) -> bool:
+    """Return whether a synthesized credential can safely use this header."""
+    return _HEADER_NAME.fullmatch(value) is not None and value.lower() not in _TRANSPORT_CONTROLLED_HEADERS
+
+
+def _sanitize_headers(
+    headers: list[dict[str, Any]] | dict[str, Any],
+) -> tuple[dict[str, str], list[AuthenticationMechanism]]:
     """Sanitize headers, redact credential values, and extract authentication mechanisms."""
     clean_headers: dict[str, str] = {}
     auth_mechs: list[AuthenticationMechanism] = []
@@ -180,6 +207,287 @@ def _import_authority(url: str) -> str:
         raise ImporterError("Invalid API import authority") from None
 
 
+def _join_api_paths(prefix: str, operation_path: str) -> str:
+    """Join paths by normalizing only their shared boundary separator."""
+    if prefix in ("", "/"):
+        return operation_path
+    return f"{prefix[:-1] if prefix.endswith('/') else prefix}{operation_path}"
+
+
+def _openapi_server_location(server: Any) -> tuple[str, str]:
+    """Resolve and validate one representable OpenAPI 3 server."""
+    if not isinstance(server, dict) or not isinstance(server.get("url"), str) or not server["url"]:
+        raise ImporterError("OpenAPI server is malformed")
+    if _has_unsafe_location_character(server["url"]):
+        raise ImporterError("OpenAPI server cannot be represented safely")
+
+    variables = server.get("variables", {})
+    if not isinstance(variables, dict):
+        raise ImporterError("OpenAPI server is malformed")
+
+    def replace_variable(match: re.Match[str]) -> str:
+        definition = variables.get(match.group(1))
+        if not isinstance(definition, dict) or not isinstance(definition.get("default"), str):
+            raise ImporterError("OpenAPI server contains an unresolved variable")
+        return definition["default"]
+
+    resolved_url = re.sub(r"\{([^{}]+)\}", replace_variable, server["url"])
+    if "{" in resolved_url or "}" in resolved_url:
+        raise ImporterError("OpenAPI server contains an unresolved variable")
+    if _has_unsafe_location_character(resolved_url):
+        raise ImporterError("OpenAPI server cannot be represented safely")
+
+    try:
+        parsed = urlparse(resolved_url)
+        parsed_hostname = parsed.hostname
+        _ = parsed.port
+    except ValueError:
+        raise ImporterError("OpenAPI server cannot be represented safely") from None
+    if (
+        parsed.scheme.lower() != "https"
+        or not parsed.netloc
+        or not parsed_hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ImporterError("OpenAPI server cannot be represented safely")
+    return _import_authority(resolved_url), parsed.path or "/"
+
+
+def _selected_openapi_server(
+    raw_obj: dict[str, Any],
+    path_item: dict[str, Any],
+    operation: dict[str, Any],
+) -> tuple[str, str, bool]:
+    """Return the narrowest applicable OpenAPI server and alternative flag."""
+    selected: Any = None
+    for owner in (operation, path_item, raw_obj):
+        if "servers" in owner:
+            selected = owner["servers"]
+            break
+    if selected is None:
+        return "api.target.local", "/", False
+    if not isinstance(selected, list) or not selected:
+        raise ImporterError("OpenAPI server declaration is malformed")
+    host, prefix = _openapi_server_location(selected[0])
+    return host, prefix, len(selected) > 1
+
+
+def _swagger_scheme(raw_obj: dict[str, Any], operation: dict[str, Any] | None = None) -> bool:
+    """Validate the effective Swagger 2 scheme and report alternatives."""
+    owner = operation if operation is not None and "schemes" in operation else raw_obj
+    schemes = owner.get("schemes")
+    if schemes is None:
+        selected_scheme = "https"
+        has_alternatives = False
+    else:
+        if not isinstance(schemes, list) or not schemes or not all(isinstance(value, str) for value in schemes):
+            raise ImporterError("Swagger scheme declaration is malformed")
+        selected_scheme = schemes[0].lower()
+        has_alternatives = len(schemes) > 1
+    if selected_scheme != "https":
+        raise ImporterError("Swagger transport cannot be represented safely")
+    return has_alternatives
+
+
+def _swagger_host_and_base(raw_obj: dict[str, Any]) -> tuple[str, str]:
+    """Resolve a Swagger 2 authority and base path."""
+    raw_host = raw_obj.get("host", "api.target.local")
+    if not isinstance(raw_host, str) or not raw_host or _has_unsafe_location_character(raw_host):
+        raise ImporterError("Swagger host is malformed")
+    try:
+        parsed_host = urlparse(f"//{raw_host}")
+        parsed_hostname = parsed_host.hostname
+        _ = parsed_host.port
+    except ValueError:
+        raise ImporterError("Swagger host cannot be represented safely") from None
+    if (
+        not parsed_host.netloc
+        or not parsed_hostname
+        or parsed_host.path
+        or parsed_host.query
+        or parsed_host.fragment
+        or parsed_host.username is not None
+        or parsed_host.password is not None
+    ):
+        raise ImporterError("Swagger host cannot be represented safely")
+    host = _import_authority(f"//{raw_host}")
+
+    base_path = raw_obj.get("basePath", "/")
+    if (
+        not isinstance(base_path, str)
+        or not base_path.startswith("/")
+        or "?" in base_path
+        or "#" in base_path
+        or _has_unsafe_location_character(base_path)
+    ):
+        raise ImporterError("Swagger base path is malformed")
+    return host, base_path or "/"
+
+
+def _security_definitions(raw_obj: dict[str, Any], is_swagger: bool) -> dict[str, Any]:
+    if is_swagger:
+        definitions = raw_obj.get("securityDefinitions", {})
+    else:
+        components = raw_obj.get("components", {})
+        definitions = components.get("securitySchemes", {}) if isinstance(components, dict) else {}
+    return definitions if isinstance(definitions, dict) else {}
+
+
+def _resolve_security_scheme(definition: Any, is_swagger: bool) -> AuthenticationMechanism:
+    """Resolve one referenced scheme without trusting its declaration name."""
+    if not isinstance(definition, dict) or not isinstance(definition.get("type"), str):
+        raise ImporterError("Referenced security scheme is malformed")
+    scheme_type = definition["type"].lower()
+
+    if (is_swagger and scheme_type == "basic") or (not is_swagger and scheme_type == "http"):
+        raw_http_scheme = "basic" if is_swagger else definition.get("scheme")
+        if not isinstance(raw_http_scheme, str):
+            raise ImporterError("Referenced security scheme is malformed")
+        http_scheme = raw_http_scheme.lower()
+        if http_scheme not in ("basic", "bearer"):
+            raise ImporterError("Referenced security scheme cannot be represented safely")
+        return AuthenticationMechanism(
+            auth_type=AuthType.BASIC.value if http_scheme == "basic" else AuthType.BEARER.value,
+            token_name="Authorization",  # noqa: S106 -- HTTP header name, not a token value.
+            location="header",
+        )
+
+    if scheme_type == "apikey":
+        location = definition.get("in")
+        name = definition.get("name")
+        if location not in ("header", "query") or not isinstance(name, str) or not name:
+            raise ImporterError("Referenced security scheme cannot be represented safely")
+        if location == "header" and not _is_safe_auth_header_name(name):
+            raise ImporterError("Referenced security scheme cannot be represented safely")
+        return AuthenticationMechanism(auth_type=AuthType.API_KEY.value, token_name=name, location=location)
+
+    if scheme_type == "oauth2":
+        if is_swagger:
+            flow = definition.get("flow")
+            required_urls = {
+                "implicit": ("authorizationUrl",),
+                "password": ("tokenUrl",),
+                "application": ("tokenUrl",),
+                "accessCode": ("authorizationUrl", "tokenUrl"),
+            }
+            if flow not in required_urls or not isinstance(definition.get("scopes"), dict):
+                raise ImporterError("Referenced security scheme is malformed")
+            if any(
+                not isinstance(definition.get(field), str) or not definition[field] for field in required_urls[flow]
+            ):
+                raise ImporterError("Referenced security scheme is malformed")
+        else:
+            flows = definition.get("flows")
+            required_urls = {
+                "implicit": ("authorizationUrl",),
+                "password": ("tokenUrl",),
+                "clientCredentials": ("tokenUrl",),
+                "authorizationCode": ("authorizationUrl", "tokenUrl"),
+            }
+            if not isinstance(flows, dict) or not flows:
+                raise ImporterError("Referenced security scheme is malformed")
+            for flow_name, flow in flows.items():
+                if (
+                    flow_name not in required_urls
+                    or not isinstance(flow, dict)
+                    or not isinstance(flow.get("scopes"), dict)
+                ):
+                    raise ImporterError("Referenced security scheme is malformed")
+                if any(not isinstance(flow.get(field), str) or not flow[field] for field in required_urls[flow_name]):
+                    raise ImporterError("Referenced security scheme is malformed")
+        return AuthenticationMechanism(
+            auth_type=AuthType.OAUTH2.value,
+            token_name="Authorization",  # noqa: S106 -- HTTP header name, not a token value.
+            location="header",
+        )
+
+    raise ImporterError("Referenced security scheme cannot be represented safely")
+
+
+def _declared_oauth_scopes(definition: dict[str, Any], is_swagger: bool) -> set[str]:
+    """Return validated OAuth scope names from a referenced scheme."""
+    scope_maps = [definition["scopes"]] if is_swagger else [flow["scopes"] for flow in definition["flows"].values()]
+    if any(
+        not all(isinstance(name, str) and name and isinstance(description, str) for name, description in scopes.items())
+        for scopes in scope_maps
+    ):
+        raise ImporterError("Referenced security scheme is malformed")
+    return {name for scopes in scope_maps for name in scopes}
+
+
+def _validate_security_scopes(
+    definition: dict[str, Any],
+    mechanism: AuthenticationMechanism,
+    scopes: list[str],
+    is_swagger: bool,
+) -> None:
+    """Reject scope requirements the replay inventory cannot preserve."""
+    if mechanism.auth_type != AuthType.OAUTH2.value:
+        if scopes:
+            raise ImporterError("OpenAPI security requirement cannot be represented safely")
+        return
+
+    declared_scopes = _declared_oauth_scopes(definition, is_swagger)
+    if any(scope not in declared_scopes for scope in scopes):
+        raise ImporterError("OpenAPI security requirement is malformed")
+    if scopes:
+        raise ImporterError("OpenAPI security requirement cannot be represented safely")
+
+
+def _credential_destination(mechanism: AuthenticationMechanism) -> tuple[str, str]:
+    """Return credential destination identity using HTTP name semantics."""
+    name = mechanism.token_name.lower() if mechanism.location == "header" else mechanism.token_name
+    return mechanism.location, name
+
+
+def _operation_authentication(
+    raw_obj: dict[str, Any],
+    operation: dict[str, Any],
+    definitions: dict[str, Any],
+    is_swagger: bool,
+) -> tuple[list[AuthenticationMechanism], bool]:
+    """Validate effective security and resolve its selected alternative."""
+    security = operation["security"] if "security" in operation else raw_obj.get("security", [])
+    if not isinstance(security, list):
+        raise ImporterError("OpenAPI security requirement is malformed")
+    if not security:
+        return [], False
+    if not all(isinstance(requirement, dict) for requirement in security):
+        raise ImporterError("OpenAPI security requirement is malformed")
+
+    resolved_alternatives: list[list[AuthenticationMechanism]] = []
+    for requirement in security:
+        mechanisms: list[AuthenticationMechanism] = []
+        occupied: set[tuple[str, str]] = set()
+        for scheme_name, scopes in requirement.items():
+            if (
+                not isinstance(scheme_name, str)
+                or not scheme_name
+                or not isinstance(scopes, list)
+                or not all(isinstance(scope, str) for scope in scopes)
+            ):
+                raise ImporterError("OpenAPI security requirement is malformed")
+            if scheme_name not in definitions:
+                raise ImporterError("OpenAPI operation references an unknown security scheme")
+            definition = definitions[scheme_name]
+            mechanism = _resolve_security_scheme(definition, is_swagger)
+            _validate_security_scopes(definition, mechanism, scopes, is_swagger)
+            destination = _credential_destination(mechanism)
+            if destination in occupied:
+                raise ImporterError("Operation security combination cannot be represented safely")
+            occupied.add(destination)
+            mechanisms.append(mechanism)
+        resolved_alternatives.append(mechanisms)
+
+    has_alternatives = len(resolved_alternatives) > 1
+    if any(not mechanisms for mechanisms in resolved_alternatives):
+        return [], has_alternatives
+    return resolved_alternatives[0], has_alternatives
+
+
 def import_har(
     har_data: dict[str, Any] | str | Path,
     source_id: str | None = None,
@@ -316,45 +624,31 @@ def import_openapi(
     if "paths" not in raw_obj or not isinstance(raw_obj["paths"], dict):
         raise ImporterError("Invalid OpenAPI document: missing 'paths' mapping")
 
-    title = raw_obj.get("info", {}).get("title", "OpenAPI Service")
+    info = raw_obj.get("info", {})
+    title = info.get("title", "OpenAPI Service") if isinstance(info, dict) else "OpenAPI Service"
+    title = sanitize_text(str(title))
+    is_swagger = raw_obj.get("swagger") == "2.0"
+    definitions = _security_definitions(raw_obj, is_swagger)
     target_hosts: set[str] = set()
-
-    # Extract hosts from servers (OpenAPI 3) or host (Swagger 2)
-    if "servers" in raw_obj and isinstance(raw_obj["servers"], list):
-        for s in raw_obj["servers"]:
-            u = s.get("url", "")
-            if u:
-                p = urlparse(u)
-                if p.netloc:
-                    target_hosts.add(_import_authority(u))
-    elif "host" in raw_obj:
-        target_hosts.add(_import_authority("//" + str(raw_obj["host"])))
-
-    if not target_hosts:
-        target_hosts.add("api.target.local")
-
-    default_host = sorted(target_hosts)[0]
-
-    # Parse security schemes
-    sec_schemes = raw_obj.get("components", {}).get("securitySchemes", {}) or raw_obj.get("securityDefinitions", {})
-    global_auth_mechs: list[AuthenticationMechanism] = []
-    for s_name, s_def in sec_schemes.items():
-        stype = s_def.get("type", "").lower()
-        if stype in ("http",):
-            scheme = s_def.get("scheme", "").lower()
-            atype = AuthType.BEARER.value if scheme == "bearer" else AuthType.BASIC.value
-            global_auth_mechs.append(AuthenticationMechanism(auth_type=atype, token_name=s_name, location="header"))
-        elif stype in ("apikey",):
-            in_loc = s_def.get("in", "header")
-            param_name = s_def.get("name", s_name)
-            global_auth_mechs.append(AuthenticationMechanism(auth_type=AuthType.API_KEY.value, token_name=param_name, location=in_loc))
-        elif stype in ("oauth2",):
-            global_auth_mechs.append(AuthenticationMechanism(auth_type=AuthType.OAUTH2.value, token_name="Authorization", location="header"))
 
     endpoints: list[HttpEndpoint] = []
     unsupported: list[UnsupportedFeature] = []
+    used_auth: dict[tuple[str, str, str], AuthenticationMechanism] = {}
+
+    swagger_location: tuple[str, str] | None = None
+    if is_swagger:
+        swagger_location = _swagger_host_and_base(raw_obj)
+        target_hosts.add(swagger_location[0])
 
     for path, path_item in raw_obj["paths"].items():
+        if (
+            not isinstance(path, str)
+            or not path.startswith("/")
+            or "?" in path
+            or "#" in path
+            or _has_unsafe_location_character(path)
+        ):
+            raise ImporterError("OpenAPI operation path cannot be represented safely")
         if not isinstance(path_item, dict):
             continue
 
@@ -366,15 +660,38 @@ def import_openapi(
             if not isinstance(op, dict):
                 continue
 
+            if swagger_location is not None:
+                host, prefix = swagger_location
+                has_server_alternatives = _swagger_scheme(raw_obj, op)
+            else:
+                host, prefix, has_server_alternatives = _selected_openapi_server(raw_obj, path_item, op)
+            effective_path = _join_api_paths(prefix, path)
+            target_hosts.add(host)
+            if has_server_alternatives:
+                unsupported.append(
+                    UnsupportedFeature(
+                        protocol=ApiProtocol.HTTP.value,
+                        feature_name="server_alternatives",
+                        reason="Only the first applicable declared server can be represented by one endpoint",
+                        affected_endpoints=[f"{method.upper()} {effective_path}"],
+                    )
+                )
+
             summary = op.get("summary", f"{method.upper()} {path}")
-            tags = list(op.get("tags", []))
+            tags_value = op.get("tags", [])
+            tags = list(tags_value) if isinstance(tags_value, list) else []
             deprecated = bool(op.get("deprecated", False))
 
             query_params: dict[str, str] = {}
             header_params: dict[str, str] = {}
-            for param in op.get("parameters", []):
+            parameters = op.get("parameters", [])
+            for param in parameters if isinstance(parameters, list) else []:
+                if not isinstance(param, dict):
+                    continue
                 p_in = param.get("in")
                 p_name = param.get("name", "")
+                if not isinstance(p_name, str) or not p_name:
+                    continue
                 if p_in == "query":
                     query_params[p_name] = redact_credential_value("sample_val") if SENSITIVE_FIELD_PATTERNS.search(p_name) else "string"
                 elif p_in == "header":
@@ -383,44 +700,52 @@ def import_openapi(
             # Response status codes
             responses = op.get("responses", {})
             status_codes: list[int] = []
-            for code_key in responses.keys():
-                try:
-                    status_codes.append(int(code_key))
-                except ValueError:
-                    pass
+            if isinstance(responses, dict):
+                for code_key in responses:
+                    try:
+                        status_codes.append(int(code_key))
+                    except (TypeError, ValueError):
+                        pass
 
             # Body schema
             body_schema = {}
             if "requestBody" in op and isinstance(op["requestBody"], dict):
-                content = op["requestBody"].get("content", {})
-                for ctype, cval in content.items():
-                    body_schema[ctype] = cval.get("schema", {})
+                body_content = op["requestBody"].get("content", {})
+                if isinstance(body_content, dict):
+                    for ctype, cval in body_content.items():
+                        if isinstance(cval, dict):
+                            body_schema[ctype] = cval.get("schema", {})
 
             proto = ApiProtocol.HTTP.value
             graphql_ops: list[str] = []
-            if "graphql" in path.lower():
+            if "graphql" in effective_path.lower():
                 proto = ApiProtocol.GRAPHQL.value
                 graphql_ops.append("query")
-            elif "websocket" in path.lower() or path.endswith("/ws"):
+            elif "websocket" in effective_path.lower() or effective_path.endswith("/ws"):
                 proto = ApiProtocol.WEBSOCKET.value
 
-            # Endpoint auth
-            op_auth = list(global_auth_mechs) if ("security" in op or global_auth_mechs) else []
-            for param in op.get("parameters", []):
-                p_in = param.get("in", "")
-                p_name = param.get("name", "")
-                if SENSITIVE_FIELD_PATTERNS.search(p_name):
-                    op_auth.append(AuthenticationMechanism(auth_type=AuthType.API_KEY.value, token_name=p_name, location=p_in or "header"))
-            if not op_auth:
-                op_auth = [AuthenticationMechanism(auth_type=AuthType.NONE.value)]
+            op_auth, has_security_alternatives = _operation_authentication(raw_obj, op, definitions, is_swagger)
+            if has_security_alternatives:
+                unsupported.append(
+                    UnsupportedFeature(
+                        protocol=proto,
+                        feature_name="security_alternatives",
+                        reason="Only one declared security alternative can be represented by one endpoint",
+                        affected_endpoints=[f"{method.upper()} {effective_path}"],
+                    )
+                )
+            for mechanism in op_auth:
+                location, name = _credential_destination(mechanism)
+                key = (mechanism.auth_type, location, name)
+                used_auth.setdefault(key, mechanism)
 
-            endpoint_id = f"ep-{hashlib.sha256(f'{default_host}:{method.upper()}:{path}'.encode('utf-8')).hexdigest()[:12]}"
+            endpoint_id = f"ep-{hashlib.sha256(f'{host}:{method.upper()}:{effective_path}'.encode()).hexdigest()[:12]}"
             endpoints.append(
                 HttpEndpoint(
                     endpoint_id=endpoint_id,
                     method=method.upper(),
-                    path=path,
-                    host=default_host,
+                    path=effective_path,
+                    host=host,
                     protocol=proto,
                     summary=summary,
                     query_parameters=query_params,
@@ -428,29 +753,35 @@ def import_openapi(
                     request_body_schema=body_schema,
                     response_status_codes=status_codes,
                     auth_mechanisms=op_auth,
-                    roles_allowed=["admin" if "admin" in path else "user"],
+                    roles_allowed=["authenticated" if op_auth else "anonymous"],
                     tags=tags,
                     deprecated=deprecated,
                     graphql_operations=graphql_ops,
                 )
             )
 
-    inv_id = f"inv-{hashlib.sha256(f'openapi:{title}:{len(endpoints)}'.encode('utf-8')).hexdigest()[:12]}"
+    if is_swagger and not endpoints:
+        _swagger_scheme(raw_obj)
+    if not target_hosts:
+        target_hosts.add("api.target.local")
+
+    inv_id = f"inv-{hashlib.sha256(f'openapi:{title}:{len(endpoints)}'.encode()).hexdigest()[:12]}"
     return ApiInventory(
         inventory_id=inv_id,
         name=f"OpenAPI Spec: {title}",
         target_hosts=sorted(target_hosts),
         endpoints=endpoints,
         roles=[
-            UserRole(role_id="role-user", role_name="user", permissions=["api_read"]),
-            UserRole(role_id="role-admin", role_name="admin", permissions=["api_read", "api_write", "admin_config"]),
+            UserRole(role_id="role-anon", role_name="anonymous", permissions=["read_public"]),
+            UserRole(role_id="role-auth", role_name="authenticated", permissions=["api_read", "execute_request"]),
         ],
         sessions=[
             SessionContext(
-                session_id="sess-openapi-01",
-                role_id="role-user",
-                auth_mechanism=global_auth_mechs[0] if global_auth_mechs else AuthenticationMechanism(),
+                session_id=f"sess-openapi-{index:02d}",
+                role_id="role-auth",
+                auth_mechanism=mechanism,
             )
+            for index, mechanism in enumerate(used_auth.values(), start=1)
         ],
         unsupported_features=unsupported,
         imported_sources=[f"OpenAPI 3.x / Swagger: {title}"],

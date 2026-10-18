@@ -87,12 +87,12 @@
     },
     {
       "path": "cops/web_api/cli.py",
-      "sha256": "13ecd55c9d58228439c16ef2e363350e29e864581b359a6ca1ea757bcaf1f684",
+      "sha256": "16dd5979cac6e713152f130bfc1fe144598cc15cfb4bb4f9ba57ec19a20ff4ed",
       "source": "cops/web_api/cli.py"
     },
     {
       "path": "cops/web_api/importer.py",
-      "sha256": "d7c7f273b2ba0090106685d8619420ccdfea043529492ea2e73b4adbd0400a93",
+      "sha256": "d93d7fb614d7d67a1796bc33efe82b070e115b5e6b8f78c9b281deafe1859504",
       "source": "cops/web_api/importer.py"
     },
     {

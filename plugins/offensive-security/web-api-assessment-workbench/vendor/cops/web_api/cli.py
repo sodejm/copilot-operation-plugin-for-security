@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import sys
 from typing import Any
 
 from .importer import (
-    ImporterError,
+    _is_safe_auth_header_name,
     import_har,
     import_openapi,
     import_postman,
@@ -18,6 +19,7 @@ from .importer import (
 from .models import (
     ApiInventory,
     ApiProtocol,
+    AuthType,
     ReplayBudget,
     ReplayRequest,
     ReplayResponse,
@@ -36,6 +38,93 @@ _PREVIEW_UNKNOWNS = [
     "Inventory-derived requests may still require runtime parameters or credentials; "
     "this preview does not prove that a request is viable.",
 ]
+
+
+def _credential_placeholder(auth_type: str, location: str, name: str) -> str:
+    """Create a deterministic non-secret value for one credential destination."""
+    identity = f"{auth_type}:{location}:{name}".encode()
+    return f"[REDACTED:{hashlib.sha256(identity).hexdigest()[:12]}]"
+
+
+def _requests_from_inventory(inventory: ApiInventory) -> list[ReplayRequest]:
+    """Construct fail-closed replay requests from reconstructed endpoints."""
+    requests: list[ReplayRequest] = []
+    for index, endpoint in enumerate(inventory.endpoints, start=1):
+        if not endpoint.path.startswith("/") or "?" in endpoint.path or "#" in endpoint.path:
+            raise ValueError("inventory endpoint path cannot be represented safely")
+
+        host = endpoint.host or (inventory.target_hosts[0] if inventory.target_hosts else "localhost")
+        scheme = "wss" if endpoint.protocol == ApiProtocol.WEBSOCKET.value else "https"
+        headers: dict[str, str] = {}
+        query_parameters = dict(endpoint.query_parameters)
+        occupied: set[tuple[str, str]] = set()
+
+        for mechanism in endpoint.auth_mechanisms:
+            auth_type = mechanism.auth_type
+            if auth_type == AuthType.NONE.value:
+                continue
+
+            if auth_type in (AuthType.BEARER.value, AuthType.OAUTH2.value):
+                if mechanism.location != "header":
+                    raise ValueError("inventory authentication cannot be represented safely")
+                destination = ("header", "authorization")
+                header_name = "Authorization"
+                header_value = f"Bearer {_credential_placeholder(auth_type, 'header', header_name)}"
+            elif auth_type == AuthType.BASIC.value:
+                if mechanism.location != "header":
+                    raise ValueError("inventory authentication cannot be represented safely")
+                destination = ("header", "authorization")
+                header_name = "Authorization"
+                header_value = f"Basic {_credential_placeholder(auth_type, 'header', header_name)}"
+            elif auth_type == AuthType.API_KEY.value:
+                if not mechanism.token_name:
+                    raise ValueError("inventory authentication cannot be represented safely")
+                if mechanism.location == "header":
+                    if not _is_safe_auth_header_name(mechanism.token_name):
+                        raise ValueError("inventory authentication cannot be represented safely")
+                    destination = ("header", mechanism.token_name.lower())
+                    header_name = mechanism.token_name
+                    header_value = _credential_placeholder(auth_type, "header", header_name)
+                elif mechanism.location == "query":
+                    destination = ("query", mechanism.token_name)
+                    if destination in occupied:
+                        raise ValueError("inventory authentication cannot be represented safely")
+                    occupied.add(destination)
+                    query_parameters[mechanism.token_name] = _credential_placeholder(
+                        auth_type, "query", mechanism.token_name
+                    )
+                    continue
+                else:
+                    raise ValueError("inventory authentication cannot be represented safely")
+            elif auth_type == AuthType.COOKIE.value:
+                if mechanism.location != "cookie" or not mechanism.token_name:
+                    raise ValueError("inventory authentication cannot be represented safely")
+                destination = ("header", "cookie")
+                header_name = "Cookie"
+                marker = _credential_placeholder(auth_type, "cookie", mechanism.token_name)
+                header_value = (
+                    marker if mechanism.token_name.lower() == "cookie" else f"{mechanism.token_name}={marker}"
+                )
+            else:
+                raise ValueError("inventory authentication cannot be represented safely")
+
+            if destination in occupied:
+                raise ValueError("inventory authentication cannot be represented safely")
+            occupied.add(destination)
+            headers[header_name] = header_value
+
+        requests.append(
+            ReplayRequest(
+                request_id=f"req-{index:03d}",
+                endpoint_id=endpoint.endpoint_id,
+                method=endpoint.method,
+                url=f"{scheme}://{host}{endpoint.path}",
+                headers=headers,
+                query_parameters=query_parameters,
+                protocol=endpoint.protocol,
+            )
+        )
+    return requests
 
 
 def _replay_preview_document(
@@ -296,28 +385,7 @@ def command_web_api(args: argparse.Namespace, *, root: Path | None = None) -> in
                 max_websocket_frames=args.max_frames,
             )
 
-            # Generate requests from endpoints
-            requests: list[ReplayRequest] = []
-            for i, ep in enumerate(inventory.endpoints):
-                host = ep.host or (inventory.target_hosts[0] if inventory.target_hosts else "localhost")
-                scheme = "wss" if ep.protocol == ApiProtocol.WEBSOCKET.value else "https"
-                url = f"{scheme}://{host}{ep.path}"
-                headers: dict[str, str] = {}
-                for am in ep.auth_mechanisms:
-                    if am.location == "header" and am.token_name:
-                        headers[am.token_name] = f"Bearer [REDACTED:{am.credential_hash[:12]}]"
-
-                requests.append(
-                    ReplayRequest(
-                        request_id=f"req-{i+1:03d}",
-                        endpoint_id=ep.endpoint_id,
-                        method=ep.method,
-                        url=url,
-                        headers=headers,
-                        query_parameters=dict(ep.query_parameters),
-                        protocol=ep.protocol,
-                    )
-                )
+            requests = _requests_from_inventory(inventory)
 
             if getattr(args, "dry_run", False) or getattr(args, "explain", False):
                 preview = _replay_preview_document(

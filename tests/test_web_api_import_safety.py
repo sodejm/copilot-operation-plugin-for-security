@@ -55,6 +55,63 @@ def test_mapping_provenance_is_canonical_and_long_inline_input_is_not_a_path():
     assert import_openapi(json.dumps(value)).endpoints == []
 
 
+@pytest.mark.parametrize("dialect", ["openapi", "swagger"])
+@pytest.mark.parametrize("delimiter", ["?", "#"])
+def test_openapi_operation_paths_reject_query_and_fragment_delimiters_without_echo(dialect, delimiter):
+    marker = f"/items{delimiter}private-operation-value"
+    document = {
+        ("openapi" if dialect == "openapi" else "swagger"): ("3.0.3" if dialect == "openapi" else "2.0"),
+        "paths": {marker: {"get": {}}},
+    }
+    with pytest.raises(ImporterError) as caught:
+        import_openapi(document)
+    assert "private-operation-value" not in str(caught.value)
+
+
+@pytest.mark.parametrize(
+    "document",
+    [
+        {
+            "openapi": "3.0.3",
+            "servers": [{"url": "https://:443/private-authority-value"}],
+            "paths": {"/": {"get": {}}},
+        },
+        {
+            "openapi": "3.0.3",
+            "servers": [{"url": "https://api.example.test:private-authority-value/v1"}],
+            "paths": {"/": {"get": {}}},
+        },
+        {
+            "openapi": "3.0.3",
+            "servers": [{"url": "https://api.example.test:70000/private-authority-value"}],
+            "paths": {"/": {"get": {}}},
+        },
+        {
+            "swagger": "2.0",
+            "host": ":443",
+            "basePath": "/private-authority-value",
+            "paths": {"/": {"get": {}}},
+        },
+        {
+            "swagger": "2.0",
+            "host": "api.example.test:private-authority-value",
+            "paths": {"/": {"get": {}}},
+        },
+        {
+            "swagger": "2.0",
+            "host": "api.example.test:70000",
+            "basePath": "/private-authority-value",
+            "paths": {"/": {"get": {}}},
+        },
+    ],
+)
+def test_openapi_authorities_require_hostname_and_valid_port_without_echo(document):
+    with pytest.raises(ImporterError) as caught:
+        import_openapi(document)
+
+    assert "private-authority-value" not in str(caught.value)
+
+
 @pytest.mark.parametrize("value", ['{"paths": {}, "private-value":', "[]", "null", "42"])
 def test_invalid_json_errors_do_not_echo_source(value):
     with pytest.raises(ImporterError) as caught:
