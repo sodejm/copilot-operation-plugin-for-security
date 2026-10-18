@@ -12,6 +12,11 @@ envelopes. It makes no provider call, obtains no
 credential, and does not enable the production worker route. The existing
 offline fixture command and schema remain unchanged.
 
+Live plans use the existing provider IDs `openai`, `azure`, `aws`, and `gcp`.
+The gateway credential handler maps those IDs to its configured transport
+keys `openai`, `azure_openai`, `bedrock`, and `vertex` after verifying the
+signed provider scope. Credentials remain gateway owned.
+
 ## Admission and dispatch order
 
 1. Strictly validate the live plan and cases. Only text canary request shapes

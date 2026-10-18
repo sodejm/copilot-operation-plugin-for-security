@@ -25,6 +25,11 @@ from cops.execution.gateway_dispatch import (
     GatewayDispatchTrustStore,
     sign_gateway_dispatch,
 )
+from cops.execution.gateway_credentials import (
+    GatewayCredentialBinding,
+    GatewayScopedProviderHandler,
+    LIVE_PROVIDER_TRANSPORT,
+)
 from cops.provider_live import ProviderLiveError, _policy, execute_live_case, live_plan_digest
 
 
@@ -48,7 +53,8 @@ def _response(provider: str) -> dict:
     }
 
 
-def _setup(tmp_path, provider: str, *, handler=None, max_cost: int = 1000000):
+def _setup(tmp_path, provider: str, *, handler=None, max_cost: int = 1000000,
+           scoped_handler: bool = False, allowed_tools: tuple[str, ...] = ()):
     plan, case = _plan(), _cases()["cases"][0]
     sample, body = _case(provider)
     raw = canonical(body)
@@ -56,6 +62,8 @@ def _setup(tmp_path, provider: str, *, handler=None, max_cost: int = 1000000):
     for target in (plan["environments"][0], case):
         for field in ("provider", "account_or_project_kind", "account_or_project", "region", "model", "request_target"):
             target[field] = sample[field]
+    plan["environments"][0]["allowed_tools"] = list(allowed_tools)
+    case["requested_tools"] = list(allowed_tools)
     case["request"].update(
         body_canonical_json=raw.decode(), body_sha256=digest, body_size_bytes=len(raw), max_output_tokens=32
     )
@@ -118,7 +126,22 @@ def _setup(tmp_path, provider: str, *, handler=None, max_cost: int = 1000000):
         endpoints={env["gateway_endpoint_id"]: endpoint},
     )
     called = []
-    if handler is None:
+    if scoped_handler:
+        assert handler is None
+
+        def transport(transport_endpoint, transport_body, credential):
+            assert transport_endpoint == endpoint
+            assert transport_body == raw
+            assert credential == "fixture-credential"
+            called.append("dispatch-001")
+            return GatewayDispatchResponse(200, "application/json", canonical(_response(provider)))
+
+        handler = GatewayScopedProviderHandler(
+            bindings={endpoint.gateway_endpoint_id: GatewayCredentialBinding(endpoint, "fixture-ref")},
+            credential_resolver=lambda ref: "fixture-credential" if ref == "fixture-ref" else None,
+            transports={LIVE_PROVIDER_TRANSPORT[provider]: transport},
+        )
+    elif handler is None:
 
         def handler(invocation):
             called.append(invocation.dispatch_id)
@@ -147,7 +170,7 @@ def _setup(tmp_path, provider: str, *, handler=None, max_cost: int = 1000000):
 
 @pytest.mark.parametrize("provider", ["openai", "azure", "aws", "gcp"])
 def test_signed_emulator_dispatch_is_one_use_and_redacted(tmp_path, provider):
-    plan, case, args, called = _setup(tmp_path, provider)
+    plan, case, args, called = _setup(tmp_path, provider, scoped_handler=True)
     result = execute_live_case(plan, case, **args)
     assert result["outcome"] == "completed"
     assert result["ledger_state"] == "uncertain"
