@@ -232,7 +232,9 @@ def _test_boundary():
     if _boundary_entered:
         return
     _boundary_entered = True
-    Path({str(ready)!r}).write_text(json.dumps(_started_processes))
+    pending = Path({str(ready.with_suffix(".pending"))!r})
+    pending.write_text(json.dumps(_started_processes))
+    pending.replace({str(ready)!r})
     while not Path({str(acknowledge)!r}).exists():
         time.sleep(0.01)
 class _ObservedProcess(_OriginalProcess):
