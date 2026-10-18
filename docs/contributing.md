@@ -73,6 +73,13 @@ Changes to Action Plans, execution authorizations, trust stores, approval storag
 
 Add focused acceptance tests for tampering, unknown/revoked/expired keys, operator and worker mismatches, replay, migration, inventory ownership and permissions, exact tool/platform compatibility, authority peer credentials, SSH identity binding, and sandbox readiness. Update the [Authenticated Execution Guide](AUTHENTICATED_EXECUTION.md), Security Model, compatibility/migration guidance, and affected plugin operator docs when an interface or trust assumption changes. Never add live secrets, private paths, or realistic credential material to fixtures or evidence.
 
+For purple-team handoff changes, preserve the four documented result states and
+require every `expected_telemetry` field path to be unique. Tests must cover
+equal and conflicting duplicate values, valid multi-field predicates, and
+insufficient or malformed input. Duplicate fields must fail before handoff
+output, detection classification, or Sigma/KQL proposal generation; do not test
+or document predicate collapsing as supported behavior.
+
 ---
 
 ## Environment Setup

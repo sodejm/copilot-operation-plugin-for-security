@@ -64,6 +64,14 @@ expected telemetry predicate as well as correlation and time bounds. Clients
 that previously relied on an unrelated alert sharing those bounds must supply
 the expected alert evidence or retain a detection gap.
 
+Each expected telemetry field path must now be unique. Both equal and
+conflicting duplicates are rejected with `duplicate_expected_telemetry_field`
+during direct construction, handoff import, or emission and again before
+serialization, digest access, evaluation, or Sigma/KQL proposal generation.
+Producers must remove the duplicate source entry rather than relying on
+last-value-wins behavior. Unique multi-field predicates and their handoff
+digests are unchanged.
+
 ## Packages and portable exports
 
 The new governance category covers control mapping and evidence sufficiency.

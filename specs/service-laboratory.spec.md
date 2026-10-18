@@ -10,7 +10,7 @@ Provide two deterministic acceptance paths for COPS service scenarios: offline f
 2. The vulnerable profile reaches the lateral target and the corrected profile blocks that path. Both outcomes come from checksum-verified configuration fixtures.
 3. Issued credentials authenticate before revocation and receive HTTP 401 after containment revokes them.
 4. Valid client mTLS succeeds; missing and untrusted client certificates fail a real TLS handshake. All keys and certificates are deleted with the temporary directory.
-5. Telemetry and alert events contain a correlation ID and RFC3339 timestamp so the workflow purple-team handoff evaluator can consume them directly. Both must satisfy every expected telemetry predicate before detection can be verified; an unrelated correlated alert does not qualify.
+5. Telemetry and alert events contain a correlation ID and RFC3339 timestamp so the workflow purple-team handoff evaluator can consume them directly. Each expected telemetry field occurs exactly once; equal-value and conflicting-value duplicates fail with `duplicate_expected_telemetry_field` before a handoff, rule proposal, or evaluation result is produced. Telemetry and alerts must satisfy every unique expected predicate before detection can be verified; an unrelated correlated alert does not qualify.
 6. Detection counts include attack and benign classes during offline playback and rule matches during process acceptance.
 7. IOC ingestion, hunting, and containment use the actual hunt and identity services.
 8. Normal completion, injected failure, and cancellation restore the service baseline. Final graph shutdown verifies the clean baseline again.
