@@ -25,6 +25,10 @@
       "type": "string",
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$"
     },
+    "account_or_project_kind": {
+      "type": "string",
+      "enum": ["account", "project"]
+    },
     "sha256": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
@@ -110,7 +114,7 @@
           "$ref": "#/$defs/provider"
         },
         "account_or_project_kind": {
-          "$ref": "#/$defs/token"
+          "$ref": "#/$defs/account_or_project_kind"
         },
         "account_or_project": {
           "$ref": "#/$defs/token"
@@ -275,7 +279,7 @@
           "$ref": "#/$defs/provider"
         },
         "account_or_project_kind": {
-          "$ref": "#/$defs/token"
+          "$ref": "#/$defs/account_or_project_kind"
         },
         "account_or_project": {
           "$ref": "#/$defs/token"

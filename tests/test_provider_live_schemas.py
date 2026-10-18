@@ -174,6 +174,37 @@ def test_live_cases_accept_bounded_synthetic_request_and_empty_tools() -> None:
     CASES_VALIDATOR.validate(_cases())
 
 
+@pytest.mark.parametrize("kind", ["account", "project"])
+def test_live_schemas_accept_only_supported_account_or_project_kinds(kind: str) -> None:
+    plan = _plan()
+    cases = _cases()
+    plan["environments"][0]["account_or_project_kind"] = kind
+    plan["environments"][0]["approved_requests"][0]["dispatch_grant"]["account_or_project_kind"] = kind
+    cases["cases"][0]["account_or_project_kind"] = kind
+    cases["cases"][0]["dispatch_grant"]["account_or_project_kind"] = kind
+    PLAN_VALIDATOR.validate(plan)
+    CASES_VALIDATOR.validate(cases)
+    for target in (
+        plan["environments"][0],
+        plan["environments"][0]["approved_requests"][0]["dispatch_grant"],
+    ):
+        invalid = copy.deepcopy(plan)
+        selected = (
+            invalid["environments"][0]
+            if target is plan["environments"][0]
+            else invalid["environments"][0]["approved_requests"][0]["dispatch_grant"]
+        )
+        selected["account_or_project_kind"] = "tenant"
+        with pytest.raises(ValidationError):
+            PLAN_VALIDATOR.validate(invalid)
+    for grant in (False, True):
+        invalid = copy.deepcopy(cases)
+        selected = invalid["cases"][0]["dispatch_grant"] if grant else invalid["cases"][0]
+        selected["account_or_project_kind"] = "tenant"
+        with pytest.raises(ValidationError):
+            CASES_VALIDATOR.validate(invalid)
+
+
 def test_live_plan_requires_paid_execution_opt_in() -> None:
     plan = _plan()
     plan["paid_execution_opt_in"] = False

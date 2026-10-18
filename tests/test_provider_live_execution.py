@@ -6,6 +6,7 @@ import hashlib
 import json
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta
+from threading import Event
 
 import pytest
 from cryptography.hazmat.primitives import serialization
@@ -61,6 +62,7 @@ def _setup(
     max_cost: int = 1000000,
     scoped_handler: bool = False,
     allowed_tools: tuple[str, ...] = (),
+    elapsed_ms: int = 5000,
 ):
     plan, case = _plan(), _cases()["cases"][0]
     sample, body = _case(provider)
@@ -82,7 +84,7 @@ def _setup(
         "cost_microunits": 1000,
         "request_bytes": len(raw),
         "response_bytes": 4096,
-        "elapsed_ms": 5000,
+        "elapsed_ms": elapsed_ms,
     }
     approved["estimate"] = deepcopy(estimate)
     case["estimate"] = deepcopy(estimate)
@@ -225,3 +227,30 @@ def test_partial_response_and_cancel_hold_reservation_and_cleanup(tmp_path):
         execute_live_case(plan, case, cleanup=lambda: cleaned.append(True) or True, **args)
     assert args["ledger"].snapshot().charged_attempts == 1
     assert cleaned == [True, True]
+
+
+def test_stalled_gateway_dispatch_times_out_and_remains_charged(tmp_path):
+    entered = Event()
+    release = Event()
+    completed = Event()
+    cleaned = []
+
+    def stalled(_invocation):
+        entered.set()
+        release.wait(2)
+        completed.set()
+        return GatewayDispatchResponse(200, "application/json", canonical(_response("openai")))
+
+    plan, case, args, _ = _setup(tmp_path, "openai", handler=stalled, elapsed_ms=100)
+    try:
+        result = execute_live_case(plan, case, cleanup=lambda: cleaned.append(True) or True, **args)
+        assert entered.is_set()
+        assert result["outcome"] == "uncertain"
+        assert result["ledger_state"] == "uncertain"
+        assert cleaned == [True]
+        assert args["ledger"].snapshot().charged_attempts == 1
+        with pytest.raises(ProviderLiveError, match="dispatch denied"):
+            execute_live_case(plan, case, **args)
+    finally:
+        release.set()
+        assert completed.wait(2)

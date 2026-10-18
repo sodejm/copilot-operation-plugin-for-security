@@ -10,6 +10,8 @@ import hashlib
 import logging
 from collections.abc import Callable
 from copy import deepcopy
+from queue import Empty, Queue
+from threading import Thread
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -81,6 +83,28 @@ def _redacted_evidence(case: dict[str, Any], estimate: dict[str, int], ledger_st
         "tool_proposal_digest": None,
         "estimated_cost_microunits": estimate["cost_microunits"],
     }
+
+
+def _dispatch_with_deadline(gateway: GatewayDispatchEmulator, *, timeout_ms: int, **kwargs: Any) -> Any:
+    """Bound the local emulator wait without replaying an ambiguous dispatch."""
+    if timeout_ms <= 0:
+        raise TimeoutError("provider dispatch deadline expired")
+    result: Queue[tuple[bool, Any]] = Queue(maxsize=1)
+
+    def invoke() -> None:
+        try:
+            result.put((True, gateway.dispatch(**kwargs)))
+        except BaseException as exc:
+            result.put((False, exc))
+
+    Thread(target=invoke, name="provider-gateway-dispatch", daemon=True).start()
+    try:
+        succeeded, value = result.get(timeout=timeout_ms / 1000)
+    except Empty:
+        raise TimeoutError("provider dispatch deadline expired") from None
+    if not succeeded:
+        raise value
+    return value
 
 
 def live_plan_digest(plan: dict[str, Any]) -> str:
@@ -423,7 +447,9 @@ def execute_live_case(
     if dispatch_intent_uncertain:
         return evidence
     try:
-        receipt = gateway.dispatch(
+        receipt = _dispatch_with_deadline(
+            gateway,
+            timeout_ms=min(estimate["elapsed_ms"], ledger.remaining_elapsed_ms()),
             grant=grant,
             presented_worker_spiffe_id=worker_spiffe_id,
             request_target=case["request_target"],
