@@ -8,6 +8,8 @@ from typing import Any
 import pytest
 from jsonschema import Draft202012Validator
 
+from cops.contracts import ActionPlan
+from cops.evidence.canonical import digest
 from cops.execution.authorization import AuthorizationError
 from cops.execution.store import ApprovalStore
 from cops.workflows import (
@@ -187,6 +189,240 @@ def test_interrupted_authorized_attempt_cannot_replay_approval(tmp_path: Path) -
     result = runner.run(definition, "run-1", {"query": "ioc"}, authorizations)
     assert result.status == "success"
     assert len(executor.cleanup_calls) == 1
+
+
+def test_planned_attempt_resumes_exact_plan_without_spending_retry(tmp_path: Path, monkeypatch: Any) -> None:
+    definition = WorkflowDefinition.from_dict(workflow_document())
+    executor = QueueExecutor(StageExecutionResult("success", {"count": 1}))
+    runner, authorizations, control = authorized_runner(tmp_path, definition, executor, attempts=1)
+    current_time = [NOW]
+    runner.clock = lambda: current_time[0]
+    consume = control.consume_authorization
+
+    def crash_before_consume(*args: Any, **kwargs: Any) -> Any:
+        raise RuntimeError("crash before consume")
+
+    monkeypatch.setattr(control, "consume_authorization", crash_before_consume)
+    with pytest.raises(RuntimeError, match="crash before consume"):
+        runner.run(definition, "run-1", {"query": "ioc"}, authorizations)
+
+    state_path = next((tmp_path / "state").glob("run-*.json"))
+    planned = json.loads(state_path.read_text(encoding="utf-8"))["payload"]["stages"]["probe"]
+    planned_snapshot = planned["attempts"][0]["plan"]
+    current_time[0] = "2026-10-15T12:30:00Z"
+    monkeypatch.setattr(control, "consume_authorization", consume)
+
+    result = runner.run(definition, "run-1", {"query": "ioc"}, {})
+
+    assert result.status == "success"
+    assert result.outputs == {"count": 1}
+    assert len(result.stages["probe"]["attempts"]) == 1
+    assert result.stages["probe"]["attempts"][0]["attempt"] == 1
+    assert result.stages["probe"]["attempts"][0]["plan"] == planned_snapshot
+    assert executor.execute_calls[0][0].approved_snapshot(include_digest=True) == planned_snapshot
+    assert [call[0] for call in control.consume_calls] == [authorizations["probe:1"]]
+
+
+def test_planned_attempt_rejects_a_semantically_changed_persisted_plan(tmp_path: Path, monkeypatch: Any) -> None:
+    definition = WorkflowDefinition.from_dict(workflow_document())
+    executor = QueueExecutor(StageExecutionResult("success", {"count": 1}))
+    runner, authorizations, control = authorized_runner(tmp_path, definition, executor, attempts=1)
+
+    monkeypatch.setattr(
+        control,
+        "consume_authorization",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("crash before consume")),
+    )
+    with pytest.raises(RuntimeError, match="crash before consume"):
+        runner.run(definition, "run-1", {"query": "ioc"}, authorizations)
+
+    state_path = next((tmp_path / "state").glob("run-*.json"))
+    envelope = json.loads(state_path.read_text(encoding="utf-8"))
+    changed = compile_action_plan(definition, "run-1", "probe", {"query": "changed"}, NOW)
+    envelope["payload"]["stages"]["probe"]["attempts"][0]["plan"] = changed.approved_snapshot(include_digest=True)
+    envelope["digest"] = digest(envelope["payload"])
+    state_path.write_text(json.dumps(envelope), encoding="utf-8")
+
+    with pytest.raises(WorkflowRuntimeError, match="state_tampering"):
+        runner.run(definition, "run-1", {"query": "ioc"}, {})
+    assert executor.execute_calls == []
+
+
+def test_unreconciled_consumption_of_planned_attempt_fails_closed(tmp_path: Path, monkeypatch: Any) -> None:
+    definition = WorkflowDefinition.from_dict(workflow_document())
+    executor = QueueExecutor(StageExecutionResult("success", {"count": 1}))
+    runner, authorizations, control = authorized_runner(tmp_path, definition, executor, attempts=1)
+    consume = control.consume_authorization
+
+    monkeypatch.setattr(
+        control,
+        "consume_authorization",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("crash before consume")),
+    )
+    with pytest.raises(RuntimeError, match="crash before consume"):
+        runner.run(definition, "run-1", {"query": "ioc"}, authorizations)
+
+    state_path = next((tmp_path / "state").glob("run-*.json"))
+    snapshot = json.loads(state_path.read_text(encoding="utf-8"))["payload"]["stages"]["probe"]["attempts"][0]["plan"]
+    persisted_plan = ActionPlan.from_dict({**snapshot, "status": "draft"})
+    receipt = consume(authorizations["probe:1"], persisted_plan, WORKER)
+    control.release_receipt_provenance(receipt)
+    monkeypatch.setattr(control, "consume_authorization", consume)
+
+    with pytest.raises(AuthorizationError):
+        runner.run(definition, "run-1", {"query": "ioc"}, {})
+    assert executor.execute_calls == []
+
+
+def test_consumed_attempt_crash_cannot_replay_with_exhausted_retry_budget(tmp_path: Path) -> None:
+    definition = WorkflowDefinition.from_dict(workflow_document())
+    executor = QueueExecutor(RuntimeError("crash after consume"))
+    runner, authorizations, control = authorized_runner(tmp_path, definition, executor, attempts=1)
+
+    with pytest.raises(RuntimeError, match="crash after consume"):
+        runner.run(definition, "run-1", {"query": "ioc"}, authorizations)
+    result = runner.run(definition, "run-1", {"query": "ioc"}, authorizations)
+
+    assert result.status == "partial_failure"
+    assert result.outputs == {}
+    assert result.stages["probe"]["status"] == "interrupted"
+    assert len(result.stages["probe"]["attempts"]) == 1
+    assert len(control.consume_calls) == 1
+    assert len(executor.execute_calls) == 1
+
+
+def test_unreconciled_authorized_attempt_cannot_precede_planned_retry(tmp_path: Path) -> None:
+    definition = WorkflowDefinition.from_dict(workflow_document(max_attempts=2))
+    executor = QueueExecutor(RuntimeError("crash after consume"), StageExecutionResult("success", {"count": 1}))
+    runner, authorizations, control = authorized_runner(tmp_path, definition, executor, attempts=2)
+
+    with pytest.raises(RuntimeError, match="crash after consume"):
+        runner.run(definition, "run-1", {"query": "ioc"}, authorizations)
+
+    state_path = next((tmp_path / "state").glob("run-*.json"))
+    envelope = json.loads(state_path.read_text(encoding="utf-8"))
+    stage_state = envelope["payload"]["stages"]["probe"]
+    second_plan = compile_action_plan(definition, "run-1", "probe", {"query": "ioc"}, NOW, attempt=2)
+    stage_state["attempts"].append(
+        {
+            "attempt": 2,
+            "authorization_id": authorizations["probe:2"],
+            "plan": second_plan.approved_snapshot(include_digest=True),
+            "status": "planned",
+        }
+    )
+    stage_state["status"] = "planned"
+    envelope["digest"] = digest(envelope["payload"])
+    state_path.write_text(json.dumps(envelope), encoding="utf-8")
+
+    with pytest.raises(WorkflowRuntimeError, match="state_tampering"):
+        runner.run(definition, "run-1", {"query": "ioc"}, {})
+    assert len(control.consume_calls) == 1
+    assert len(executor.execute_calls) == 1
+
+
+@pytest.mark.parametrize("field", ["consumed_authorizations", "receipt"])
+def test_consumed_attempt_state_requires_receipt_and_consumption_record(tmp_path: Path, field: str) -> None:
+    definition = WorkflowDefinition.from_dict(workflow_document())
+    executor = QueueExecutor(RuntimeError("crash after consume"))
+    runner, authorizations, control = authorized_runner(tmp_path, definition, executor, attempts=1)
+
+    with pytest.raises(RuntimeError, match="crash after consume"):
+        runner.run(definition, "run-1", {"query": "ioc"}, authorizations)
+
+    state_path = next((tmp_path / "state").glob("run-*.json"))
+    envelope = json.loads(state_path.read_text(encoding="utf-8"))
+    if field == "consumed_authorizations":
+        envelope["payload"][field] = []
+    else:
+        del envelope["payload"]["stages"]["probe"]["attempts"][0][field]
+    envelope["digest"] = digest(envelope["payload"])
+    state_path.write_text(json.dumps(envelope), encoding="utf-8")
+
+    with pytest.raises(WorkflowRuntimeError, match="state_tampering"):
+        runner.run(definition, "run-1", {"query": "ioc"}, {})
+    assert len(control.consume_calls) == 1
+    assert len(executor.execute_calls) == 1
+
+
+@pytest.mark.parametrize(
+    ("field", "replacement"),
+    [
+        ("authorization_id", "auth-substituted"),
+        ("action_plan_id", "plan-substituted"),
+        ("plan_digest", "b" * 64),
+        ("engagement_id", "eng-substituted"),
+        ("worker_identity", "other-worker"),
+        ("target", "lab://other"),
+    ],
+)
+def test_consumed_attempt_rejects_mismatched_receipt_bindings(tmp_path: Path, field: str, replacement: str) -> None:
+    definition = WorkflowDefinition.from_dict(workflow_document())
+    executor = QueueExecutor(RuntimeError("crash after consume"))
+    runner, authorizations, control = authorized_runner(tmp_path, definition, executor, attempts=1)
+
+    with pytest.raises(RuntimeError, match="crash after consume"):
+        runner.run(definition, "run-1", {"query": "ioc"}, authorizations)
+
+    state_path = next((tmp_path / "state").glob("run-*.json"))
+    envelope = json.loads(state_path.read_text(encoding="utf-8"))
+    envelope["payload"]["stages"]["probe"]["attempts"][0]["receipt"][field] = replacement
+    envelope["digest"] = digest(envelope["payload"])
+    state_path.write_text(json.dumps(envelope), encoding="utf-8")
+
+    with pytest.raises(WorkflowRuntimeError, match="state_tampering"):
+        runner.run(definition, "run-1", {"query": "ioc"}, {})
+    assert len(control.consume_calls) == 1
+    assert len(executor.execute_calls) == 1
+
+
+def test_consumed_attempt_rejects_valid_but_wrong_authorization_digest(tmp_path: Path) -> None:
+    definition = WorkflowDefinition.from_dict(workflow_document())
+    executor = QueueExecutor(RuntimeError("crash after consume"))
+    runner, authorizations, control = authorized_runner(tmp_path, definition, executor, attempts=1)
+
+    with pytest.raises(RuntimeError, match="crash after consume"):
+        runner.run(definition, "run-1", {"query": "ioc"}, authorizations)
+
+    state_path = next((tmp_path / "state").glob("run-*.json"))
+    envelope = json.loads(state_path.read_text(encoding="utf-8"))
+    envelope["payload"]["stages"]["probe"]["attempts"][0]["receipt"]["authorization_digest"] = "b" * 64
+    envelope["digest"] = digest(envelope["payload"])
+    state_path.write_text(json.dumps(envelope), encoding="utf-8")
+
+    with pytest.raises(WorkflowRuntimeError, match="unreconciled_authorization"):
+        runner.run(definition, "run-1", {"query": "ioc"}, {})
+    assert len(control.consume_calls) == 1
+    assert len(executor.execute_calls) == 1
+
+
+def test_consumed_attempt_without_retained_authority_provenance_fails_closed(tmp_path: Path) -> None:
+    definition = WorkflowDefinition.from_dict(workflow_document())
+    executor = QueueExecutor(RuntimeError("crash after consume"))
+    runner, authorizations, control = authorized_runner(tmp_path, definition, executor, attempts=1)
+
+    with pytest.raises(RuntimeError, match="crash after consume"):
+        runner.run(definition, "run-1", {"query": "ioc"}, authorizations)
+
+    restarted = WorkflowRunner(tmp_path / "state", control, WORKER, executor, clock=lambda: NOW)
+    with pytest.raises(WorkflowRuntimeError, match="unreconciled_authorization"):
+        restarted.run(definition, "run-1", {"query": "ioc"}, {})
+    assert len(control.consume_calls) == 1
+    assert len(executor.execute_calls) == 1
+
+
+def test_interrupted_consumed_attempt_rejects_changed_inputs(tmp_path: Path) -> None:
+    definition = WorkflowDefinition.from_dict(workflow_document(max_attempts=2))
+    executor = QueueExecutor(RuntimeError("crash after consume"))
+    runner, authorizations, control = authorized_runner(tmp_path, definition, executor, attempts=2)
+
+    with pytest.raises(RuntimeError, match="crash after consume"):
+        runner.run(definition, "run-1", {"query": "ioc"}, authorizations)
+
+    with pytest.raises(WorkflowRuntimeError, match="resume_binding_mismatch"):
+        runner.run(definition, "run-1", {"query": "changed"}, authorizations)
+    assert len(control.consume_calls) == 1
+    assert len(executor.execute_calls) == 1
 
 
 def test_restart_finishes_interrupted_cleanup_before_retry(tmp_path: Path) -> None:
