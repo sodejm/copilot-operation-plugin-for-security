@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Hash exact API import bytes, reject conflicting provenance and raw HTTP
+  authorities, and redact URL credentials and query values throughout persisted
+  inventory and replay evidence while binding approvals to lossless requests.
+
 - Record revision-bound expansion acceptance, including 13 passing isolated
   laboratory cases, held-out routing results, fixture digests and capability
   limits. Keep unavailable native-platform and production validation incomplete.

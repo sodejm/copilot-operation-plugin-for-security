@@ -92,7 +92,7 @@
     },
     {
       "path": "cops/web_api/importer.py",
-      "sha256": "27a14ebe2982f5ca2e1487a852d8acd69a531462380945d50cc045df9d883024",
+      "sha256": "93a75aa56912cf714f49323f674dead0a94e5a61dcd3528f4c3debb2770634ef",
       "source": "cops/web_api/importer.py"
     },
     {
@@ -102,13 +102,18 @@
     },
     {
       "path": "cops/web_api/models.py",
-      "sha256": "f005190ffe1b4e8843ff2a53e9cbf686ff1e7cab562c862248190a15ec67aafb",
+      "sha256": "d7cee712ee20fb8a598f2e7acb75e113ecfa89decc0d81ddfedb5e789f328759",
       "source": "cops/web_api/models.py"
     },
     {
       "path": "cops/web_api/replay.py",
-      "sha256": "be8815038ed5a5098164c4caf5a2c1ac3f2cddca3991565caf33b089db90358f",
+      "sha256": "5de98ac9e7394b96111e9b8c177e1d994cab28f6a534fbe781a596b55215004a",
       "source": "cops/web_api/replay.py"
+    },
+    {
+      "path": "cops/web_api/sanitization.py",
+      "sha256": "8ffe93de134d51b4efb694772ea5a8666352ca4d3607f8b20303a9358e3ebbf3",
+      "source": "cops/web_api/sanitization.py"
     }
   ],
   "purpose": "offline Web API workbench execution from an installed portable package",

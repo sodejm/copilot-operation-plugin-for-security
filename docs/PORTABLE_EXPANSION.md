@@ -31,6 +31,9 @@ files in the managed vendor directory. The package demo must put its own `vendor
 directory on `sys.path` before importing `cops.web_api`; repository-root fallback
 is only for source-tree development.
 
+The inventory includes the report sanitizer. Keep its report-only transformations
+separate from lossless request digests when updating the portable runtime.
+
 The portable expansion test builds a package through a temporary Git index,
 exports it, and runs its offline demo with isolated Python path handling from the
 exported tree. This verifies that reviewed playbooks and dataset provenance are

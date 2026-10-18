@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import json
 import math
-import re
 import time
 import urllib.request
 from abc import ABC, abstractmethod
-from dataclasses import replace
+from dataclasses import asdict, replace
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urljoin, urlparse, urlunparse
@@ -19,16 +17,14 @@ from cops.execution.control import ApprovalConsumptionReceipt, ApprovalControl
 from cops.execution.scope_guard import ScopeGuard, ScopeViolationError
 
 from .models import (
-    SENSITIVE_FIELD_PATTERNS,
     ApiProtocol,
     ReplayBudget,
     ReplayRequest,
     ReplayResponse,
     ReplaySessionReport,
     SessionContext,
-    redact_credential_value,
-    redact_mapping,
 )
+from .sanitization import SENSITIVE_FIELD_PATTERNS, authority, sanitize_reference
 
 
 class DestinationViolationError(Exception):
@@ -266,62 +262,12 @@ class StandardHttpReplayer(Replayer):
             )
 
 
-def _redact_body(body: str | None) -> str | None:
-    if body is None:
-        return None
-    try:
-        value = json.loads(body)
-    except (json.JSONDecodeError, TypeError):
-        value = None
-    if value is not None:
-
-        def redact(item: Any, sensitive: bool = False) -> Any:
-            if sensitive:
-                raw = (
-                    json.dumps(item, sort_keys=True, separators=(",", ":"))
-                    if isinstance(item, (dict, list))
-                    else str(item)
-                )
-                return redact_credential_value(raw)
-            if isinstance(item, dict):
-                return {
-                    key: redact(child, bool(SENSITIVE_FIELD_PATTERNS.search(str(key)))) for key, child in item.items()
-                }
-            if isinstance(item, list):
-                return [redact(child, sensitive) for child in item]
-            return item
-
-        return json.dumps(redact(value), sort_keys=True, separators=(",", ":"))
-    result = re.sub(
-        r"(?i)((?:password|secret|token|auth|key|bearer|credential|session|cookie|jwt|api_key|access_token|refresh_token)=)([^&\s]+)",
-        lambda match: match.group(1) + redact_credential_value(match.group(2)),
-        body,
-    )
-    return re.sub(
-        r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+",
-        lambda match: "Bearer " + redact_credential_value(match.group(0).split(None, 1)[1]),
-        result,
-    )
-
-
 def _sanitize_request(req: ReplayRequest) -> ReplayRequest:
-    return replace(
-        req,
-        headers=redact_mapping(req.headers),
-        query_parameters=redact_mapping(req.query_parameters),
-        body=_redact_body(req.body),
-        graphql_query=_redact_body(req.graphql_query),
-        websocket_messages=[_redact_body(message) or "" for message in req.websocket_messages],
-    )
+    return ReplayRequest.from_dict(req.to_dict())
 
 
 def _sanitize_response(response: ReplayResponse) -> ReplayResponse:
-    return replace(
-        response,
-        headers=redact_mapping(response.headers),
-        body_excerpt=_redact_body(response.body_excerpt) or "",
-        websocket_replies=[_redact_body(message) or "" for message in response.websocket_replies],
-    )
+    return ReplayResponse.from_dict(response.to_dict())
 
 
 def _validate_budget(budget: ReplayBudget) -> None:
@@ -344,7 +290,7 @@ def _report(
     session_id: str | None,
     violations: int,
 ) -> ReplaySessionReport:
-    targets = sorted({urlparse(item.url).netloc for item in requests if urlparse(item.url).netloc})
+    targets = sorted({authority(item.url) for item in requests if urlparse(item.url).netloc})
     identifier = (
         session_id
         or f"rep-sess-{digest({'destinations': sorted(allowed_destinations), 'requests': [item.request_id for item in requests]})[:12]}"
@@ -423,9 +369,9 @@ def _plan_parts(
             "tool_version": "1",
             "action": "replay_http_request",
             "arguments": {
-                "request_digest": digest(request.to_dict()),
+                "request_digest": digest(asdict(request)),
                 "method": request.method.upper(),
-                "url": request.url,
+                "url": sanitize_reference(request.url),
                 "protocol": request.protocol,
                 "session_id": request.session_id or "",
             },

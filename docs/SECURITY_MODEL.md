@@ -1,5 +1,15 @@
 # Security Model & Trust Boundaries
 
+## API import and persistence
+
+Imported API documents are untrusted evidence. Hash exact source bytes and reject
+supplied provenance mismatches before normalization; retain only an opaque digest
+reference in reports. Reject conflicting HTTP authorities. Report serialization
+removes URL user information and redacts query values, fragments, credential
+headers and recognizable credential assignments, including nested relative
+references. Arbitrary free text still requires evidence classification. Lossy
+report values must never construct executable requests or authorization digests.
+
 Defensive security tools operating inside AI assistants handle sensitive contexts: codebases, audit logs, cloud infrastructure graphs, and incident triage records. When an AI assistant has access to files and terminal commands, the assistant itself becomes an operational boundary.
 
 If untrusted data (such as a poisoned log string, an adversary-controlled issue, or an external package) contains a prompt injection attack, or if an automated tool executes arbitrary shell scripts, the security practitioner's workstation or CI runner could be compromised.

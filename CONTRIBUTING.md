@@ -2,6 +2,12 @@
 
 Thank you for improving this project.
 
+API import changes must preserve exact source hashes and keep report redaction
+separate from lossless approval digests. Run
+`python -m pytest tests/test_web_api_import_safety.py`, then synchronize and check
+the package runtime with `scripts/sync_web_api_runtime.py` and `--check`.
+Retain source identity, malformed-input, credential and origin regression cases.
+
 1. Read `AGENTS.md`, whether contributing manually or with an AI assistant.
 2. Open or reference a focused issue when the project uses issue tracking.
 3. Work on a short-lived branch; do not mix unrelated changes.

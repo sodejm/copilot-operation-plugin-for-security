@@ -78,6 +78,13 @@ skill ID and observed-service routing safeguards remain unchanged.
 packages when using the cross-package service workflow. The old duplicate skill
 copy is removed so host marketplaces have exactly one implementation per skill ID.
 
+API import provenance now hashes exact source bytes (canonical sorted, compact
+JSON for mapping inputs) and uses an opaque `sha256:` reference. Previously
+computed content hashes may differ; reimport the preserved source rather than
+relabeling old evidence. Supplied mismatched hashes and ambiguous raw HTTP Host
+headers are rejected. Report URLs lose user information, query values and
+fragments; keep executable requests separate from these lossy reports.
+
 Each package includes machine-readable `playbooks/` material, a `walkthroughs/`
 guide, and its existing `docs/PLAYBOOK.md` entrypoint. Use the portable exporter
 to retain these assets and pinned runtime dependencies together. Heavy parsers
