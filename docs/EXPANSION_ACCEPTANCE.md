@@ -7,18 +7,19 @@ capability incomplete.
 
 ## Tested revision and runtime
 
-- Implementation revision: `3ca524359ce38c29273fe91670dd2a4793dc3ea0`.
+- Implementation revision: `19fa8df91184109b13f542e6e31fcefc0b9c7a28`.
 - Integration base: `50e6d96c144f9d81d52c99403e5ceae8815d3e16`.
 - Acceptance date: 2026-10-18. This documentation-only refresh records the
   integrated provenance (`38e091b`), authorized transport (`cda3255`), bounded SQL
-  fixture (`b55c68d`) and review corrections. The final formatting commit changes
-  four Python files without changing their syntax trees and refreshes package
-  provenance. The portable and strict gates below were rerun on those formatted
-  sources. Hosted checks separately validate the final PR revision.
+  fixture (`b55c68d`), TLS minimum policy (`19fa8df`) and review corrections.
+  The focused, portable, documentation and strict gates were rerun after the TLS
+  correction. One subsequent test formatting change preserves its syntax tree;
+  the runtime sources are unchanged. Hosted checks separately validate the final
+  PR revision.
 - Strict service image:
-  `sha256:d040defa699beb0716bc76a74432128e874e4ebbd069a54b149b5f205cc732c9`.
+  `sha256:8d21dbed75b45e4198ef03e2bd1f802c894f5efb95e2477faa9782757fd67a12`.
 - Service source snapshot:
-  `c0115084645565a367193d5ab66c15d8e0369456277a7c9bb3955760f4d1ae71`.
+  `2e75aabd6cb49f565e2cb9d9d1107bf462063b92afa7efa8b3b33803589fd2e5`.
   Recomputing the snapshot at the clean implementation revision matched the run.
 - Portable host: macOS arm64, Python 3.14.8. Strict runtime: Linux arm64,
   Python 3.14.6, Git 2.47.3, pip 26.1.2, cryptography 50.0.2,
@@ -48,12 +49,12 @@ prerequisites must be provisioned before the strict gate, as described in the
   tests/test_supply_chain_corrections.py tests/test_purple_team_workflows.py
 make check PYTHON=.venv/bin/python
 make check-docs PYTHON=.venv/bin/python
-DOCKER_CONTEXT=colima make check-laboratory PYTHON=.venv/bin/python LABORATORY_ARGS='--runtime docker --image sha256:d040defa699beb0716bc76a74432128e874e4ebbd069a54b149b5f205cc732c9 --kubernetes-timeout 480'
+DOCKER_CONTEXT=colima make check-laboratory PYTHON=.venv/bin/python LABORATORY_ARGS='--runtime docker --image sha256:8d21dbed75b45e4198ef03e2bd1f802c894f5efb95e2477faa9782757fd67a12 --kubernetes-timeout 480'
 ```
 
 | Check | Observed result | Scope or limitation |
 | --- | --- | --- |
-| Focused correction tests at `1689736` | 316 passed, no skips | API transport/import, SQL fixture, CVE/integrated workflows, network, optional signing, cloud, supply-chain and predicate corrections; subsequently covered by the final portable gate |
+| Focused correction tests at `19fa8df` | 321 passed, no skips | API transport/import and TLS floor, SQL fixture, CVE/integrated workflows, network, optional signing, cloud, supply-chain and predicate corrections |
 | `make check` | Passed, including all 25 package gates | Root suite passed with 24 platform skips; the quiet output does not report a passed-test count; skips are listed below |
 | `make check-docs` | Passed, 58 pages | Documentation contract and local links |
 | Strict `make check-laboratory` | 13/13 cases passed; no failures or blockers | Twelve service-container cases plus three Kubernetes lifecycle runs in one composite case |
@@ -67,8 +68,10 @@ the fresh source manifest and inspected the container configuration before use;
 old evidence and marker files were not accepted as readiness evidence.
 
 Transport regressions exercise numeric-address DNS pinning, original-host TLS
-verification (valid, wrong-host and untrusted certificates), redirect policy and
-credential removal, aggregate deadlines, HTTP error responses and real signed,
+verification (valid, wrong-host and untrusted certificates), TLS 1.2 minimum
+without weakening stricter caller settings, rejection of a mutated TLS context
+before DNS, redirect policy and credential removal, aggregate deadlines, HTTP
+error responses and real signed,
 persisted, single-use approvals. Request, session, destination and budget changes
 cannot reuse an approval bound to the frozen transport plan.
 
