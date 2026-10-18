@@ -5,11 +5,11 @@ from copy import deepcopy
 
 import pytest
 from pytest_bdd import given, scenarios, then, when
+from test_provider_live_execution import _setup
 
 from cops.evidence.canonical import canonical
 from cops.execution.gateway_dispatch import GatewayDispatchResponse
 from cops.provider_live import ProviderLiveError, execute_live_case
-from test_provider_live_execution import _setup
 
 scenarios("../specs/features/ai_provider_live_gateway.feature")
 

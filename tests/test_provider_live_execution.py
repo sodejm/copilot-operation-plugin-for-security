@@ -15,6 +15,11 @@ from test_provider_live_schemas import _cases, _plan
 
 from cops.assessment_budget import AssessmentBudgetLedger
 from cops.evidence.canonical import canonical
+from cops.execution.gateway_credentials import (
+    LIVE_PROVIDER_TRANSPORT,
+    GatewayCredentialBinding,
+    GatewayScopedProviderHandler,
+)
 from cops.execution.gateway_dispatch import (
     GatewayDispatchEmulator,
     GatewayDispatchEndpoint,
@@ -24,11 +29,6 @@ from cops.execution.gateway_dispatch import (
     GatewayDispatchTransportAuthorizer,
     GatewayDispatchTrustStore,
     sign_gateway_dispatch,
-)
-from cops.execution.gateway_credentials import (
-    GatewayCredentialBinding,
-    GatewayScopedProviderHandler,
-    LIVE_PROVIDER_TRANSPORT,
 )
 from cops.provider_live import ProviderLiveError, _policy, execute_live_case, live_plan_digest
 
