@@ -43,6 +43,20 @@ The returned mapping has schema `cops.artifact-assessment/v1`, uses repository-v
   flow cannot prove denial; static predictions cannot prove CNI enforcement.
 - Transport identity preserves metadata inspection and adds `certificate_chain` and `jwt_verification` through `cryptographic-verification/v1`, pinned to cryptography 50.0.2. Explicit local trust, bounded keys/chains, strict identity and time validation, and an explicit client fingerprint allowlist are required. Malformed trust and missing prerequisites yield unknown; actual rejection is a local observation. Revocation and remote acceptance still require separate evidence. Laboratory correction compares these offline results with actual mTLS and JWT service requests using ephemeral credentials.
 
+For legacy `tls_config` metadata, DNS SAN comparison is limited to well-formed
+ASCII names. Exact names compare case-insensitively. A wildcard is supported only
+as the complete left-most label and matches exactly one label; it does not match
+the apex or multiple labels. Numeric IP addresses must parse strictly and compare
+as equal addresses. DNS wildcards never match an IP address. Partial or multiple
+wildcards, Unicode and unresolved IDNA, whitespace or control characters, empty
+labels, labels over 63 characters, names over 253 characters, malformed numeric
+addresses, and other unsupported identity formats are inconclusive. A supported
+match is sufficient even when another SAN is unsupported. Otherwise, any
+unsupported hostname or SAN produces content-free insufficient evidence; a
+hostname mismatch is reported only when the hostname and every SAN are supported
+and none match. Metadata comparison does not verify a signature, chain, trust,
+revocation, live TLS acceptance, or production readiness.
+
 ## Regression evidence
 
 `tests/fixtures/artifact_assessment_cases_v1.json` is a versioned, synthetic corpus with four cases per capability:

@@ -12,6 +12,7 @@ import ast
 import base64
 import binascii
 import hashlib
+import ipaddress
 import json
 import re
 from collections import Counter, defaultdict, deque
@@ -1104,6 +1105,64 @@ def _b64url_json(value: str) -> dict[str, Any] | None:
     return result if isinstance(result, dict) else None
 
 
+_DNS_LABEL = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\Z")
+_NUMERIC_ADDRESS = re.compile(r"[0-9.]+\Z")
+
+
+def _metadata_dns_name(value: str) -> str | None:
+    if not value or len(value) > 253 or "*" in value:
+        return None
+    try:
+        value.encode("ascii")
+    except UnicodeEncodeError:
+        return None
+    labels = value.split(".")
+    if any(label.lower().startswith("xn--") or not _DNS_LABEL.fullmatch(label) for label in labels):
+        return None
+    return value.lower()
+
+
+def _metadata_identity(value: Any, *, allow_wildcard: bool) -> tuple[str, object] | None:
+    if not isinstance(value, str) or not value or len(value) > 253:
+        return None
+    if "%" not in value:
+        try:
+            return "ip", ipaddress.ip_address(value)
+        except ValueError:
+            pass
+    if "*" in value:
+        if not allow_wildcard or not value.startswith("*.") or value.count("*") != 1:
+            return None
+        suffix = _metadata_dns_name(value[2:])
+        return ("wildcard", suffix) if suffix is not None else None
+    if ":" in value or _NUMERIC_ADDRESS.fullmatch(value):
+        return None
+    name = _metadata_dns_name(value)
+    return ("dns", name) if name is not None else None
+
+
+def _metadata_hostname_match(hostname: Any, sans: Any) -> bool | None:
+    """Compare bounded metadata identities without implying certificate verification."""
+    expected = _metadata_identity(hostname, allow_wildcard=False)
+    if expected is None or not isinstance(sans, list):
+        return None
+    unsupported = False
+    for value in sans:
+        identity = _metadata_identity(value, allow_wildcard=True)
+        if identity is None:
+            unsupported = True
+            continue
+        kind, candidate = identity
+        if kind == expected[0] and candidate == expected[1]:
+            return True
+        if kind == "wildcard" and expected[0] == "dns":
+            expected_labels = str(expected[1]).split(".")
+            suffix_labels = str(candidate).split(".")
+            if len(expected_labels) == len(suffix_labels) + 1 and expected_labels[1:] == suffix_labels:
+                return True
+    return None if unsupported else False
+
+
 def _transport(
     items: list[_Artifact], as_of: datetime, *, verification_results: list[dict[str, Any]] | None = None
 ) -> tuple[list[_Issue], list[str], list[str], set[str]]:
@@ -1152,7 +1211,7 @@ def _transport(
         elif artifact.kind == "tls_config" and isinstance(artifact.content, dict):
             chain = artifact.content.get("chain")
             hostname = artifact.content.get("hostname")
-            if not isinstance(chain, list) or not chain or not isinstance(hostname, str):
+            if not isinstance(chain, list) or not chain:
                 issues.append(_unresolved(artifact, "tls_configuration"))
                 continue
             analyzed.add(artifact.artifact_id)
@@ -1190,8 +1249,10 @@ def _transport(
                         )
                     )
             leaf = chain[0] if isinstance(chain[0], dict) else {}
-            sans = leaf.get("san", [])
-            if not isinstance(sans, list) or hostname not in sans:
+            hostname_match = _metadata_hostname_match(hostname, leaf.get("san"))
+            if hostname_match is None:
+                issues.append(_unresolved(artifact, "certificate_hostname"))
+            elif not hostname_match:
                 issues.append(
                     _issue(
                         artifact,

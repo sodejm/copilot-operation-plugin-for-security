@@ -40,7 +40,7 @@
     "cops/assessments/__init__.py": "79d88ad17f642801935995abaa1ddb06845fa1db2289e61f407c62867f8ec339",
     "cops/assessments/__main__.py": "2ce594f8840fa62601c5995ce838d61ab1215e552cf38e6e40e365a03727e323",
     "cops/assessments/acquisition.py": "97e600e9be0ea95358bafe819ea7cb5156488a3e59a6eca8c6d923198f9af299",
-    "cops/assessments/artifacts.py": "da5dbe5f118af2ad56dafc2133f0818530fe1e3ea3e1587fbeabcf5bf47dcce6",
+    "cops/assessments/artifacts.py": "f618c430de447ebe5054d26de2e619d7127178b3ee7fec58783bc7d6827056c4",
     "cops/assessments/cloud_inputs.py": "94418b618d06104aa1932362ce56f3d5453ab3677c44d3cbcf958d0348757b16",
     "cops/assessments/crypto_inputs.py": "63ed0b01b5c71513fd410355219f90b73a4ffa0aa709b84156ff6822bc8508f4",
     "cops/assessments/git_history.py": "92a732549abeec76e4466180ded7d2c93f55e0f38c6574137f67d5d24a4d196e",
