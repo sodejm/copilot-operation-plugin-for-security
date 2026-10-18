@@ -36,7 +36,9 @@ separate from lossless request digests when updating the portable runtime. The
 live integration must supply the same isolated role sessions to plan construction
 and execution so the signed digest covers the effective wire request. The
 standard-library transport pins each connection to its scope-checked DNS result
-and keeps certificate-chain and original-hostname verification for HTTPS. Live
+and keeps certificate-chain and original-hostname verification for HTTPS. It sets
+an explicit TLS 1.2 minimum on default contexts, rejects caller contexts that permit
+older protocols, and rechecks supplied contexts before use without changing them. Live
 execution uses owned request, session, budget and destination snapshots and refuses
 cross-origin redirects that retain a body or credentials; offline exports make no
 live calls.
