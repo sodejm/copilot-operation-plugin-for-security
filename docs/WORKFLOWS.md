@@ -128,6 +128,14 @@ window, evidence_refs)` accepts a source with `kind` equal to `finding` or
 reference, expected telemetry fields and values, correlation IDs, an inclusive
 time window, evidence references, and a detection result.
 
+Each `expected_telemetry` field path must occur exactly once. Importing or
+emitting a handoff, or constructing `PurpleTeamHandoffContract` directly, with
+either equal or conflicting duplicate field paths raises
+`duplicate_expected_telemetry_field`. Serialization, digest access, and
+evaluation apply the same check before evidence classification, Sigma or KQL
+proposal generation, or fixture execution, so a duplicate predicate cannot be
+collapsed into a successful result.
+
 Evaluate it with `evaluate_purple_team_handoff(handoff, telemetry, alerts,
 attack_fixture=(), benign_fixture=())`. The result classifications are:
 

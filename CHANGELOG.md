@@ -82,6 +82,10 @@
 - Require every expected telemetry predicate on purple-team alerts. Verify all
   four outcomes using labeled views of captured service activity and execute the
   generated Sigma/KQL subsets against attack and benign events.
+- Reject equal and conflicting duplicate expected telemetry field paths with a
+  stable error before purple-team handoff output, evidence classification, or
+  Sigma/KQL proposal generation. Preserve unique-field handoff digests and rule
+  semantics.
 - Add `make check-laboratory` as a separate required readiness gate. Functional
   loopback tests alone leave laboratory readiness incomplete. The Docker path uses
   a preinstalled immutable image, inspected isolation, real service activity,

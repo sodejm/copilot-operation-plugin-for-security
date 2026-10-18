@@ -99,8 +99,72 @@ def test_alert_must_match_every_expected_telemetry_field() -> None:
     unrelated = alert(event={"action": "blocked", "category": "network"})
     matched = alert(event={"action": "blocked", "category": "authentication"})
 
-    assert evaluate_purple_team_handoff(contract, [captured], [unrelated])["status"] == "detection_gap"
-    assert evaluate_purple_team_handoff(contract, [captured], [matched])["status"] == "verified_detection"
+    gap = evaluate_purple_team_handoff(contract, [captured], [unrelated])
+    verified = evaluate_purple_team_handoff(contract, [captured], [matched])
+
+    assert gap["status"] == "detection_gap"
+    assert verified["status"] == "verified_detection"
+    assert verified["rule"]["all"] == document["expected_telemetry"]
+    assert verified["rule_proposal"]["sigma"]["detection"]["selection"] == {
+        "event.action": "blocked",
+        "event.category": "authentication",
+    }
+    assert verified["rule_proposal"]["kql"] == (
+        'event.action == "blocked" and event.category == "authentication"'
+    )
+    assert contract.handoff_digest == "e85564fd6e86a0f35f5fe3c81ab99501a13901ceb675e429d9bb7c34867a7117"
+
+
+@pytest.mark.parametrize("duplicate_value", ["blocked", "allowed"])
+def test_duplicate_expected_telemetry_fields_are_rejected_on_import(duplicate_value) -> None:
+    document = handoff().to_dict()
+    document["expected_telemetry"].append({"field": "event.action", "value": duplicate_value})
+
+    with pytest.raises(WorkflowContractError, match="^duplicate_expected_telemetry_field$"):
+        PurpleTeamHandoffContract.from_dict(document)
+
+
+@pytest.mark.parametrize("duplicate_value", ["blocked", "allowed"])
+def test_duplicate_expected_telemetry_fields_are_rejected_on_direct_construction(duplicate_value) -> None:
+    document = handoff().to_dict()
+    document["expected_telemetry"].append({"field": "event.action", "value": duplicate_value})
+
+    with pytest.raises(WorkflowContractError, match="^duplicate_expected_telemetry_field$"):
+        PurpleTeamHandoffContract(document)
+
+
+@pytest.mark.parametrize("duplicate_value", ["blocked", "allowed"])
+def test_duplicate_expected_telemetry_fields_are_rejected_on_emit(duplicate_value) -> None:
+    with pytest.raises(WorkflowContractError, match="^duplicate_expected_telemetry_field$"):
+        emit_purple_team_handoff(
+            source_result={"kind": "finding", "ref": "finding://F-17"},
+            expected_telemetry=[
+                {"field": "event.action", "value": "blocked"},
+                {"field": "event.action", "value": duplicate_value},
+            ],
+            correlation_ids=["corr-17"],
+            window={"start": "2026-10-15T12:00:00Z", "end": "2026-10-15T12:05:00Z"},
+            evidence_refs=[],
+        )
+
+
+@pytest.mark.parametrize("duplicate_value", ["blocked", "allowed"])
+def test_duplicate_expected_telemetry_fields_are_rejected_before_evaluation(duplicate_value) -> None:
+    contract = handoff(evidence=False)
+    contract._document["expected_telemetry"].append({"field": "event.action", "value": duplicate_value})
+
+    with pytest.raises(WorkflowContractError, match="^duplicate_expected_telemetry_field$"):
+        evaluate_purple_team_handoff(contract, [event()], [alert()])
+
+
+@pytest.mark.parametrize("duplicate_value", ["blocked", "allowed"])
+@pytest.mark.parametrize("accessor", [lambda contract: contract.to_dict(), lambda contract: contract.handoff_digest])
+def test_corrupted_contract_cannot_be_serialized_or_identified(duplicate_value, accessor) -> None:
+    contract = handoff()
+    contract._document["expected_telemetry"].append({"field": "event.action", "value": duplicate_value})
+
+    with pytest.raises(WorkflowContractError, match="^duplicate_expected_telemetry_field$"):
+        accessor(contract)
 
 
 def test_generated_rule_executes_against_attack_and_benign_fixtures() -> None:
@@ -202,6 +266,7 @@ def test_unsupported_kql_proposals_are_explicit(proposal) -> None:
         lambda doc: doc["source"].update({"kind": "unknown"}),
         lambda doc: doc.update({"correlation_ids": []}),
         lambda doc: doc["time_window"].update({"end": "2026-10-15T11:00:00Z"}),
+        lambda doc: doc.update({"expected_telemetry": []}),
         lambda doc: doc["expected_telemetry"].append({"field": "bad field", "value": "x"}),
     ],
 )
@@ -212,9 +277,14 @@ def test_invalid_handoff_fields_are_rejected(mutate) -> None:
         PurpleTeamHandoffContract.from_dict(document)
 
 
-def test_contract_defensively_copies_input_and_output() -> None:
+@pytest.mark.parametrize("direct_constructor", [False, True])
+def test_contract_defensively_copies_input_and_output(direct_constructor: bool) -> None:
     document = handoff().to_dict()
-    contract = PurpleTeamHandoffContract.from_dict(document)
+    contract = (
+        PurpleTeamHandoffContract(document)
+        if direct_constructor
+        else PurpleTeamHandoffContract.from_dict(document)
+    )
     document["source"]["ref"] = "changed"
     exported = contract.to_dict()
     exported["source"]["ref"] = "also-changed"
