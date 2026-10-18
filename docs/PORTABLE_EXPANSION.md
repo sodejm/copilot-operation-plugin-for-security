@@ -48,6 +48,25 @@ exports it, and runs its offline demo with isolated Python path handling from th
 exported tree. This verifies that reviewed playbooks and dataset provenance are
 preserved and that the demo does not depend on an adjacent COPS checkout.
 
+## Artifact assessment runtime
+
+Six portable workbenches carry the shared offline artifact assessment runtime.
+Synchronize the vendored modules and their SHA-256 runtime locks after changing
+`cops/assessments` or another managed runtime dependency:
+
+```console
+python3 scripts/sync_artifact_assessment_runtime.py
+```
+
+The cloud parser reports a bounded observation from a Kubernetes NetworkPolicy
+world CIDR only when its `ipBlock.except` field is absent or empty. It does not
+solve the address space that remains after exclusions. Nonempty exclusions and
+malformed `ipBlock` fields therefore leave coverage partial and cannot establish
+internet ingress from that peer. The CIDR must use Kubernetes syntax with an
+explicit decimal prefix length; dotted netmasks and scoped IPv6 addresses are not
+accepted. An `ipBlock` peer cannot also contain selectors or unknown fields.
+Independent supported peers are still assessed.
+
 ## Optional EVTX runtime
 
 The EVTX adapter is a repository CLI capability. Portable plugin exports do not
