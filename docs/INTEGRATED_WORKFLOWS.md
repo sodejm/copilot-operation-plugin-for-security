@@ -26,6 +26,25 @@ mistyped inputs, undeclared output references, unsafe fixture targets, egress,
 side effects, unregistered playback actions, unregistered specialist ownership,
 and unregistered scenario IDs.
 
+Catalog discovery, validation, and unsigned fixture playback use only the
+standard library:
+
+```bash
+python -m cops workflow list
+python -m cops workflow validate
+python -m cops workflow playback leaked-credential-blast-radius --profile vulnerable
+```
+
+Ed25519 signing is optional and only needed when a caller passes an
+`EvidenceBundleSigner`. Install the `crypto` extra before using that path:
+
+```bash
+python -m pip install ".[crypto]"
+```
+
+When the extra is unavailable, an explicitly requested signing path fails with
+`evidence_signing_requires_cryptography` and returns no signed evidence.
+
 Use the public functions from `cops.workflows.playback`:
 
 ```python
@@ -115,6 +134,8 @@ Fixture reports state their evidence limits directly:
   a caller-owned Ed25519 signer, it records and verifies the signature while
   reporting `caller_configured_unanchored` and
   `authenticity_established: false`; key trust remains external evidence.
+  An unsigned bundle has no signature value, key ID, algorithm, or authenticity
+  claim.
 - Kubernetes containment playback only models proposed changes and expected lab
   checks. It reports `activity_performed: false`, never claims connectivity or
   cleanup verification, and returns `insufficient_lab_validation` when changes
