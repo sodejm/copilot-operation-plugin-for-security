@@ -30,7 +30,7 @@ The returned mapping has schema `cops.artifact-assessment/v1`, uses repository-v
 - Compliance evidence requires a named SOC 2, CIS, or NIST framework version, control identifier, status, evidence references, and collection time. Evidence older than 90 days is unresolved as stale.
 - Forensic evidence verifies original-byte SHA-256, collection permission, and chronological custody metadata.
 - Malware analysis performs static byte checks and bounded base64 decoding without execution or attribution claims.
-- Cloud analysis uses typed Terraform 1.x effective-after resources, rendered Kubernetes/Helm workloads, RBAC and NetworkPolicy, and registered AWS/Azure/GCP export shapes. Unknown values and unsupported or malformed resources retain insufficient-evidence findings. Deny statements, deleted resources and outbound traffic cannot establish inbound exposure; effective-policy and provider validation remain separate.
+- Cloud analysis uses typed Terraform 1.x effective-after resources, rendered Kubernetes/Helm workloads, RBAC and NetworkPolicy, and registered AWS/Azure/GCP export shapes. A NetworkPolicy `ipBlock` establishes unrestricted ingress only when it is the peer's sole field, its CIDR is a valid Kubernetes IPv4 or IPv6 world range with an explicit decimal prefix length, and `except` is absent or an empty list. Nonempty exclusions are outside the bounded evaluator. CIDRs without a prefix length, dotted netmasks, scoped IPv6 addresses, malformed exclusion values, mixed peer fields, and unknown peer fields remain insufficient evidence; an unsupported peer does not suppress findings from independent supported peers. Unknown values and unsupported or malformed resources retain insufficient-evidence findings. Deny statements, deleted resources and outbound traffic cannot establish inbound exposure; effective-policy and provider validation remain separate.
 - Supply-chain analysis processes npm and Python locks, CycloneDX/SPDX/container SBOMs, GitHub Actions references, and caller-supplied pinned advisory fixtures. npm root/workspace/link records are not registry packages. Registry identity is an exact HTTPS hostname check. Python continuation lines are joined before exact-version/hash validation. Advisory matching retains the package ecosystem and normalizes Python names. Workflow write permissions and privileged untrusted-head checkout are reported. Unsupported includes, substitutions, aliases, dynamic action references, and malformed components remain unresolved; no dependency or workflow is executed.
 - Credential history correlates exposure state, redaction, rotation, and author identity by opaque fingerprint without retaining a credential value.
 - Registered Git collection requires a caller-supplied executable SHA-256 pin, verifies a private copy before invocation, bounds history, files, bytes and elapsed time, and refuses symlinks, linked metadata and object alternates. Hooks, replacement objects, interactive prompts and lazy fetch are disabled. Findings distinguish a historical match from provider-side revocation; the isolated laboratory separately verifies revocation against an ephemeral service and checks repository immutability.
@@ -74,6 +74,13 @@ revocation, live TLS acceptance, or production readiness.
 workspace exclusions, deceptive registry URLs, multiline requirements, ecosystem
 collisions, quoted/local actions, write permissions, and pull-request checkout
 boundaries, including corrected and unsupported inputs.
+
+`tests/test_cloud_networkpolicy_exclusions.py` verifies that world IPv4 and IPv6
+CIDRs without exclusions, or with an empty exclusion list, establish the bounded
+internet-ingress observation. Nonempty or malformed exclusions remain partial
+evidence and cannot establish ingress from that peer; independent supported peers
+remain observable without modifying the input. CIDRs outside Kubernetes syntax
+and peers that mix `ipBlock` with selectors or unknown fields also remain partial.
 
 Checkout analysis associates `uses` and `with` with the same sequence item under
 `steps`, regardless of key order or an initial `name`. Only direct `with` inputs

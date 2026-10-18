@@ -72,6 +72,15 @@ matches. This metadata check does not perform cryptographic verification or prov
 live TLS acceptance; use the typed `certificate_chain` artifact for supplied-PEM
 verification under an explicit local trust policy.
 
+The cloud parser reports a bounded observation from a Kubernetes NetworkPolicy
+world CIDR only when its `ipBlock.except` field is absent or empty. It does not
+solve the address space that remains after exclusions. Nonempty exclusions and
+malformed `ipBlock` fields therefore leave coverage partial and cannot establish
+internet ingress from that peer. The CIDR must use Kubernetes syntax with an
+explicit decimal prefix length; dotted netmasks and scoped IPv6 addresses are not
+accepted. An `ipBlock` peer cannot also contain selectors or unknown fields.
+Independent supported peers are still assessed.
+
 ## Optional EVTX runtime
 
 The EVTX adapter is a repository CLI capability. Portable plugin exports do not
