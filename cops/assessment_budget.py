@@ -1,7 +1,7 @@
-"""Fixture-only, engagement-scoped admission ledger for assessment attempts.
+"""Engagement-scoped admission ledger for assessment attempts.
 
 The caller owns the policy, ledger path, and dispatch boundary. This module does
-not wrap real provider clients; those adapters are tracked by issue #150.
+not wrap provider clients. The opt-in provider emulator uses this shared ledger.
 """
 
 from __future__ import annotations

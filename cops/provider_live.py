@@ -298,12 +298,16 @@ def execute_live_case(
     trusted_gateway_origin: str,
     trusted_gateway_identity: str,
     worker_spiffe_id: str,
+    parent_attempt_id: str | None = None,
+    child_limits: BudgetLimits | None = None,
     cleanup: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
     """Dispatch one approved canary once and emit only redacted evidence.
 
-    Once intent is durable, every transport or response ambiguity remains charged
-    and uncertain. This function never retries a gateway or provider call.
+    The controller supplies the parent attempt and any narrower child limits;
+    neither is read from provider content. Once intent is durable, every transport
+    or response ambiguity remains charged and uncertain. This function never
+    retries a gateway or provider call.
     """
     cleanup_attempted = False
     dispatch_intent_uncertain = False
@@ -377,11 +381,12 @@ def execute_live_case(
         ledger.reserve(
             AttemptRequest(
                 attempt_id=attempt_id,
-                parent_id=None,
+                parent_id=parent_attempt_id,
                 estimated_tokens=estimate["input_tokens"] + estimate["output_tokens"],
                 estimated_cost_microunits=estimate["cost_microunits"],
                 reserved_output_bytes=estimate["response_bytes"],
-            )
+            ),
+            child_limits=child_limits,
         )
         intent = {
             "approval_issued_at": grant.issued_at,

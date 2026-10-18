@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from threading import Event
 
@@ -14,7 +16,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from test_provider_live_request_shapes import _case
 from test_provider_live_schemas import _cases, _plan
 
-from cops.assessment_budget import AssessmentBudgetLedger
+from cops.assessment_budget import AssessmentBudgetLedger, AttemptRequest
 from cops.evidence.canonical import canonical
 from cops.execution.gateway_credentials import (
     LIVE_PROVIDER_TRANSPORT,
@@ -63,6 +65,8 @@ def _setup(
     scoped_handler: bool = False,
     allowed_tools: tuple[str, ...] = (),
     elapsed_ms: int = 5000,
+    dispatch_id: str = "dispatch-001",
+    limit_overrides: dict[str, int] | None = None,
 ):
     plan, case = _plan(), _cases()["cases"][0]
     sample, body = _case(provider)
@@ -89,6 +93,7 @@ def _setup(
     approved["estimate"] = deepcopy(estimate)
     case["estimate"] = deepcopy(estimate)
     plan["shared_budget"]["limits"]["max_estimated_cost_microunits"] = max_cost
+    plan["shared_budget"]["limits"].update(limit_overrides or {})
     now = datetime.now(UTC)
     issued = (now - timedelta(seconds=10)).strftime("%Y-%m-%dT%H:%M:%SZ")
     expires = (now + timedelta(minutes=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -96,6 +101,8 @@ def _setup(
     public = private.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
     fields = dict(approved["dispatch_grant"])
     fields.update(
+        dispatch_id=dispatch_id,
+        authorization_id=f"authorization-{dispatch_id}",
         plan_digest=live_plan_digest(plan),
         provider=provider,
         account_or_project_kind=case["account_or_project_kind"],
@@ -142,7 +149,7 @@ def _setup(
             assert transport_endpoint == endpoint
             assert transport_body == raw
             assert credential == "fixture-credential"
-            called.append("dispatch-001")
+            called.append(dispatch_id)
             return GatewayDispatchResponse(200, "application/json", canonical(_response(provider)))
 
         handler = GatewayScopedProviderHandler(
@@ -254,3 +261,59 @@ def test_stalled_gateway_dispatch_times_out_and_remains_charged(tmp_path):
     finally:
         release.set()
         assert completed.wait(2)
+
+
+@pytest.mark.parametrize("provider", ["openai", "azure", "aws", "gcp"])
+def test_provider_and_agent_tool_share_parent_budget(tmp_path, provider):
+    overrides = {"max_attempts": 5, "max_concurrency": 4, "max_children_per_parent": 3}
+    plan, case, args, called = _setup(tmp_path, provider, max_cost=5000, limit_overrides=overrides)
+    ledger = args["ledger"]
+    narrow = replace(_policy(plan).limits, max_estimated_cost_microunits=1500)
+    ledger.reserve(AttemptRequest("agent-root", None, 0, 0, 0), child_limits=narrow)
+    ledger.reserve(AttemptRequest("local-tool", "agent-root", 10, 400, 100))
+
+    result = execute_live_case(
+        plan, case, parent_attempt_id="agent-root", child_limits=narrow, **args
+    )
+    assert result["ledger_state"] == "uncertain"
+    assert called == ["dispatch-001"]
+    assert ledger.snapshot().charged_cost_microunits == 1400
+
+    retry_plan, retry_case, retry_args, retry_called = _setup(
+        tmp_path, provider, max_cost=5000, limit_overrides=overrides, dispatch_id="dispatch-002"
+    )
+    with pytest.raises(ProviderLiveError, match="dispatch denied"):
+        execute_live_case(retry_plan, retry_case, parent_attempt_id="agent-root", **retry_args)
+    assert retry_called == []
+    assert ledger.snapshot().charged_attempts == 3
+
+
+def test_invalid_parent_and_widened_child_limit_deny_before_dispatch(tmp_path):
+    plan, case, args, called = _setup(tmp_path, "openai")
+    with pytest.raises(ProviderLiveError, match="dispatch denied"):
+        execute_live_case(plan, case, parent_attempt_id="missing-agent", **args)
+    narrow = replace(_policy(plan).limits, max_estimated_cost_microunits=1500)
+    args["ledger"].reserve(AttemptRequest("agent-root", None, 0, 0, 0), child_limits=narrow)
+    with pytest.raises(ProviderLiveError, match="dispatch denied"):
+        execute_live_case(plan, case, parent_attempt_id="agent-root", child_limits=_policy(plan).limits, **args)
+    assert called == []
+    assert args["ledger"].snapshot().charged_attempts == 1
+
+
+def test_concurrent_provider_dispatches_respect_shared_limit(tmp_path):
+    first = _setup(tmp_path, "openai", dispatch_id="dispatch-001")
+    second = _setup(tmp_path, "azure", dispatch_id="dispatch-002")
+
+    def invoke(config):
+        plan, case, args, called = config
+        try:
+            execute_live_case(plan, case, **args)
+        except ProviderLiveError:
+            return "denied", called
+        return "dispatched", called
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(invoke, (first, second)))
+    assert sorted(outcome for outcome, _ in results) == ["denied", "dispatched"]
+    assert sum(len(called) for _, called in results) == 1
+    assert first[2]["ledger"].snapshot().charged_attempts == 1

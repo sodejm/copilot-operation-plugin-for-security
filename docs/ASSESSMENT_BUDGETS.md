@@ -1,9 +1,9 @@
 # Aggregate assessment budgets
 
 `cops.assessment_budget` supplies an opt-in local ledger and synthetic dispatcher
-for an operator-controlled assessment engagement. It is currently a fixture-only
-contract. Issue #150 must supply real provider adapters and their dispatch-boundary
-integration before this ledger can enforce provider calls. The existing engagement
+for an operator-controlled assessment engagement. The opt-in #150 gateway emulator
+uses the same ledger for provider-shaped dispatches. This is local admission
+evidence, not production provider or billing evidence. The existing engagement
 action limits are separate.
 
 ## Configure the engagement
@@ -64,6 +64,16 @@ previously admitted parent ID, share the engagement ledger, and may supply only
 narrower `child_limits` to `reserve`. Every retry needs a fresh attempt ID and is
 charged against the same aggregate budget.
 
+For opt-in provider emulation, the trusted controller passes the same ledger to
+`execute_live_case` and supplies `parent_attempt_id` when the provider call belongs
+to an agent attempt. It may supply narrower `child_limits` for that call. Both
+values come from controller state, never from a plan, agent message, tool output,
+or provider response. Local tool attempts and provider attempts under that parent
+then consume the same aggregate and subtree allowances. A missing parent, a
+released parent, widened limits, exhausted allowance, or unavailable ledger denies
+the provider dispatch before the gateway is called. The signed one-use gateway
+grant remains a separate requirement. See [provider gateway operations](PROVIDER_GATEWAY.md).
+
 ## Recover and reconcile
 
 `reserved` means no dispatch intent was recorded and may be released with
@@ -97,6 +107,9 @@ moves backward, admission fails closed. A denied admission still advances the
 durable clock checkpoint, so setting the clock back after expiry cannot regain
 allowance. Restore the original ledger and policy
 before recovery; do not substitute a fresh empty file for an engagement with
-possibly in-flight calls. The current fixture tests cover these local
-transitions. They do not establish provider billing, authenticated receipts,
-remote cancellation, or coverage of callers that bypass the wrapper.
+possibly in-flight calls. The fixture and gateway emulator tests cover these local
+transitions, including concurrent provider admission and parent budget accounting.
+They do not establish provider billing, authenticated provider receipts, remote
+cancellation, or coverage of callers that bypass the wrapper. Retain the private
+ledger until independent reconciliation and the engagement retention policy permit
+deletion; restore the original ledger and pinned policy after restart or migration.
