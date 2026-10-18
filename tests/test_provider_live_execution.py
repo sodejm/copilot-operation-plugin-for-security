@@ -31,10 +31,21 @@ from cops.provider_live import ProviderLiveError, _policy, execute_live_case, li
 def _response(provider: str) -> dict:
     secret = "PRIVATE_CANARY_RESPONSE"
     if provider in {"openai", "azure"}:
-        return {"status": "completed", "output": [{"text": secret}], "usage": {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}}
+        return {
+            "status": "completed",
+            "output": [{"text": secret}],
+            "usage": {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2},
+        }
     if provider == "aws":
-        return {"stopReason": "end_turn", "output": {"message": {"content": [{"text": secret}]}}, "usage": {"inputTokens": 1, "outputTokens": 1, "totalTokens": 2}}
-    return {"candidates": [{"content": {"parts": [{"text": secret}]}, "finishReason": "STOP"}], "usageMetadata": {"promptTokenCount": 1, "candidatesTokenCount": 1, "totalTokenCount": 2}}
+        return {
+            "stopReason": "end_turn",
+            "output": {"message": {"content": [{"text": secret}]}},
+            "usage": {"inputTokens": 1, "outputTokens": 1, "totalTokens": 2},
+        }
+    return {
+        "candidates": [{"content": {"parts": [{"text": secret}]}, "finishReason": "STOP"}],
+        "usageMetadata": {"promptTokenCount": 1, "candidatesTokenCount": 1, "totalTokenCount": 2},
+    }
 
 
 def _setup(tmp_path, provider: str, *, handler=None, max_cost: int = 1000000):
@@ -45,10 +56,19 @@ def _setup(tmp_path, provider: str, *, handler=None, max_cost: int = 1000000):
     for target in (plan["environments"][0], case):
         for field in ("provider", "account_or_project_kind", "account_or_project", "region", "model", "request_target"):
             target[field] = sample[field]
-    case["request"].update(body_canonical_json=raw.decode(), body_sha256=digest, body_size_bytes=len(raw), max_output_tokens=32)
+    case["request"].update(
+        body_canonical_json=raw.decode(), body_sha256=digest, body_size_bytes=len(raw), max_output_tokens=32
+    )
     approved = plan["environments"][0]["approved_requests"][0]
     approved.update(request_sha256=digest, max_output_tokens=32)
-    estimate = {"input_tokens": len(raw), "output_tokens": 32, "cost_microunits": 1000, "request_bytes": len(raw), "response_bytes": 4096, "elapsed_ms": 5000}
+    estimate = {
+        "input_tokens": len(raw),
+        "output_tokens": 32,
+        "cost_microunits": 1000,
+        "request_bytes": len(raw),
+        "response_bytes": 4096,
+        "elapsed_ms": 5000,
+    }
     approved["estimate"] = deepcopy(estimate)
     case["estimate"] = deepcopy(estimate)
     plan["shared_budget"]["limits"]["max_estimated_cost_microunits"] = max_cost
@@ -58,21 +78,70 @@ def _setup(tmp_path, provider: str, *, handler=None, max_cost: int = 1000000):
     private = Ed25519PrivateKey.generate()
     public = private.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
     fields = dict(approved["dispatch_grant"])
-    fields.update(plan_digest=live_plan_digest(plan), provider=provider, account_or_project_kind=case["account_or_project_kind"], account_or_project=case["account_or_project"], region=case["region"], model=case["model"], request_target=case["request_target"], body_sha256=digest, body_bytes=len(raw), issued_at=issued, expires_at=expires, signature="")
+    fields.update(
+        plan_digest=live_plan_digest(plan),
+        provider=provider,
+        account_or_project_kind=case["account_or_project_kind"],
+        account_or_project=case["account_or_project"],
+        region=case["region"],
+        model=case["model"],
+        request_target=case["request_target"],
+        body_sha256=digest,
+        body_bytes=len(raw),
+        issued_at=issued,
+        expires_at=expires,
+        signature="",
+    )
     grant = sign_gateway_dispatch(GatewayDispatchGrant(**fields), private).to_dict()
     approved["dispatch_grant"] = grant
     case["dispatch_grant"] = deepcopy(grant)
     env = plan["environments"][0]
-    endpoint = GatewayDispatchEndpoint(**{key: env[key] for key in ("gateway_endpoint_id", "endpoint_origin", "gateway_path", "provider", "account_or_project_kind", "account_or_project", "region", "model", "request_target")}, gateway_identity=env["gateway_spiffe_id"])
-    authorizer = GatewayDispatchTransportAuthorizer(trust_store=GatewayDispatchTrustStore({"operator-key-001": public}), endpoints={env["gateway_endpoint_id"]: endpoint})
+    endpoint = GatewayDispatchEndpoint(
+        **{
+            key: env[key]
+            for key in (
+                "gateway_endpoint_id",
+                "endpoint_origin",
+                "gateway_path",
+                "provider",
+                "account_or_project_kind",
+                "account_or_project",
+                "region",
+                "model",
+                "request_target",
+            )
+        },
+        gateway_identity=env["gateway_spiffe_id"],
+    )
+    authorizer = GatewayDispatchTransportAuthorizer(
+        trust_store=GatewayDispatchTrustStore({"operator-key-001": public}),
+        endpoints={env["gateway_endpoint_id"]: endpoint},
+    )
     called = []
     if handler is None:
+
         def handler(invocation):
             called.append(invocation.dispatch_id)
             return GatewayDispatchResponse(200, "application/json", canonical(_response(provider)))
-    gateway = GatewayDispatchEmulator(authorizer=authorizer, replay_store=GatewayDispatchReplayStore(tmp_path / "replay" / "store.sqlite3"), action_plan_id=plan["action_plan_id"], plan_digest=live_plan_digest(plan), worker_spiffe_id=grant["worker_spiffe_id"], endpoint_origin=env["endpoint_origin"], gateway_path=env["gateway_path"], handler=handler)
+
+    gateway = GatewayDispatchEmulator(
+        authorizer=authorizer,
+        replay_store=GatewayDispatchReplayStore(tmp_path / "replay" / "store.sqlite3"),
+        action_plan_id=plan["action_plan_id"],
+        plan_digest=live_plan_digest(plan),
+        worker_spiffe_id=grant["worker_spiffe_id"],
+        endpoint_origin=env["endpoint_origin"],
+        gateway_path=env["gateway_path"],
+        handler=handler,
+    )
     ledger = AssessmentBudgetLedger(tmp_path / "budget" / "ledger.sqlite3", _policy(plan))
-    args = dict(gateway=gateway, ledger=ledger, trusted_gateway_origin=env["endpoint_origin"], trusted_gateway_identity=env["gateway_spiffe_id"], worker_spiffe_id=grant["worker_spiffe_id"])
+    args = dict(
+        gateway=gateway,
+        ledger=ledger,
+        trusted_gateway_origin=env["endpoint_origin"],
+        trusted_gateway_identity=env["gateway_spiffe_id"],
+        worker_spiffe_id=grant["worker_spiffe_id"],
+    )
     return plan, case, args, called
 
 
@@ -108,8 +177,10 @@ def test_scope_identity_and_budget_fail_before_dispatch(tmp_path):
 
 def test_partial_response_and_cancel_hold_reservation_and_cleanup(tmp_path):
     cleaned = []
+
     def incomplete(_invocation):
         return GatewayDispatchResponse(200, "application/json", b'{"status":"incomplete"}')
+
     plan, case, args, _ = _setup(tmp_path / "partial", "openai", handler=incomplete)
     result = execute_live_case(plan, case, cleanup=lambda: cleaned.append(True) or True, **args)
     assert result["outcome"] == "uncertain"
@@ -118,6 +189,7 @@ def test_partial_response_and_cancel_hold_reservation_and_cleanup(tmp_path):
 
     def cancelled(_invocation):
         raise KeyboardInterrupt()
+
     plan, case, args, _ = _setup(tmp_path / "cancel", "openai", handler=cancelled)
     with pytest.raises(KeyboardInterrupt):
         execute_live_case(plan, case, cleanup=lambda: cleaned.append(True) or True, **args)
