@@ -10,11 +10,7 @@ from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError
 
 SCHEMA_DIR = (
-    Path(__file__).resolve().parents[1]
-    / "plugins"
-    / "offensive-security"
-    / "foundry-agent-harness"
-    / "schemas"
+    Path(__file__).resolve().parents[1] / "plugins" / "offensive-security" / "foundry-agent-harness" / "schemas"
 )
 PLAN_SCHEMA_PATH = SCHEMA_DIR / "provider-live-plan.schema.json"
 CASES_SCHEMA_PATH = SCHEMA_DIR / "provider-live-cases.schema.json"
@@ -256,9 +252,7 @@ def test_live_case_rejects_response_estimate_over_gateway_limit() -> None:
         ("gateway_spiffe_id", "https://example.test/gateway"),
     ],
 )
-def test_live_case_rejects_malformed_endpoint_identity(
-    field: str, value: str
-) -> None:
+def test_live_case_rejects_malformed_endpoint_identity(field: str, value: str) -> None:
     cases = _cases()
     cases["cases"][0][field] = value
 
@@ -280,7 +274,10 @@ def test_live_case_rejects_unrecognized_fields() -> None:
         ("openai", {"status": "completed", "output": [{"type": "function_call", "name": "inspect"}]}),
         ("azure", {"status": "completed", "output": [{"type": "function_call", "name": "inspect"}]}),
         ("aws", {"stopReason": "tool_use", "output": {"message": {"content": [{"toolUse": {"name": "inspect"}}]}}}),
-        ("gcp", {"candidates": [{"content": {"parts": [{"functionCall": {"name": "inspect"}}]}, "finishReason": "STOP"}]}),
+        (
+            "gcp",
+            {"candidates": [{"content": {"parts": [{"functionCall": {"name": "inspect"}}]}, "finishReason": "STOP"}]},
+        ),
     ],
 )
 def test_live_projection_accepts_inert_tool_proposals(provider: str, response: dict[str, Any]) -> None:
@@ -289,12 +286,21 @@ def test_live_projection_accepts_inert_tool_proposals(provider: str, response: d
 
 def test_offline_response_schema_still_rejects_openai_tool_proposal() -> None:
     offline_validator = Draft202012Validator(_load_schema(OFFLINE_RESPONSE_SCHEMA_PATH))
-    envelope = {"provider": "openai", "response": {"status": "completed", "output": [{"type": "function_call", "name": "inspect"}]}}
+    envelope = {
+        "provider": "openai",
+        "response": {"status": "completed", "output": [{"type": "function_call", "name": "inspect"}]},
+    }
     with pytest.raises(ValidationError):
         offline_validator.validate(envelope)
 
 
 def test_live_projection_rejects_tool_arguments() -> None:
-    envelope = {"provider": "openai", "response": {"status": "completed", "output": [{"type": "function_call", "name": "inspect", "arguments": "secret"}]}}
+    envelope = {
+        "provider": "openai",
+        "response": {
+            "status": "completed",
+            "output": [{"type": "function_call", "name": "inspect", "arguments": "secret"}],
+        },
+    }
     with pytest.raises(ValidationError):
         RESPONSE_VALIDATOR.validate(envelope)

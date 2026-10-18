@@ -254,11 +254,7 @@ def _validate_provider_request(case: dict[str, Any], body: Any) -> None:
 
 def _tool_names(provider: str, response: dict[str, Any]) -> list[str]:
     if provider == "aws":
-        return [
-            item["toolUse"]["name"]
-            for item in response["output"]["message"]["content"]
-            if "toolUse" in item
-        ]
+        return [item["toolUse"]["name"] for item in response["output"]["message"]["content"] if "toolUse" in item]
     if provider in {"openai", "azure"}:
         return [item["name"] for item in response.get("output", []) if item.get("type") == "function_call"]
     names: list[str] = []
@@ -407,7 +403,16 @@ def execute_live_case(
                             intent_ledger_state = _mark_uncertain_or_observe(ledger, attempt_id)
                     except Exception:
                         _LOG.warning("provider dispatch intent state could not be confirmed")
-    except (ProviderAssessmentError, GatewayDispatchError, BudgetDenied, BudgetStoreError, EvidenceError, KeyError, TypeError, ValueError):
+    except (
+        ProviderAssessmentError,
+        GatewayDispatchError,
+        BudgetDenied,
+        BudgetStoreError,
+        EvidenceError,
+        KeyError,
+        TypeError,
+        ValueError,
+    ):
         denied = True
     if denied:
         # Raising after the handler prevents sensitive source exceptions from
@@ -434,7 +439,9 @@ def execute_live_case(
         if state == "partial" or (output_tokens is not None and output_tokens > case["request"]["max_output_tokens"]):
             raise ProviderLiveError("provider response was incomplete")
         proposed = _tool_names(case["provider"], response)
-        if not set(proposed).issubset(case["requested_tools"]) or not set(proposed).issubset(environment["allowed_tools"]):
+        if not set(proposed).issubset(case["requested_tools"]) or not set(proposed).issubset(
+            environment["allowed_tools"]
+        ):
             raise ProviderLiveError("provider proposed an unapproved tool")
         if proposed and state == "completed":
             state = "tool_proposal"

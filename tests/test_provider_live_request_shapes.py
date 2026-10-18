@@ -31,7 +31,10 @@ def _case(provider: str) -> tuple[dict, dict]:
         ),
         "gcp": (
             "https://vertex.example.test/v1/projects/test-project/locations/us-east1/publishers/google/models/test-model:generateContent",
-            {"contents": [{"role": "user", "parts": [{"text": _TEXT}]}], "generationConfig": {"maxOutputTokens": _LIMIT}},
+            {
+                "contents": [{"role": "user", "parts": [{"text": _TEXT}]}],
+                "generationConfig": {"maxOutputTokens": _LIMIT},
+            },
         ),
     }
     target, body = target_and_body[provider]
