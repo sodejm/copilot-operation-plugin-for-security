@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Bind API replay approvals to exact requests, session contexts and complete
+  budgets, pin scoped DNS connections, enforce redirect and deadline boundaries, and preserve HTTP
+  error responses as evidence. Exercise actual services with signed, persisted
+  approvals, use owned execution snapshots, and reject malformed framing,
+  post-approval drift, unverified TLS and cross-origin retained bodies or credentials.
+
 - Hash exact API import bytes, reject conflicting provenance and raw HTTP
   authorities, and redact URL credentials and query values throughout persisted
   inventory and replay evidence while binding approvals to lossless requests.
