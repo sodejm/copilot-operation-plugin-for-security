@@ -53,6 +53,17 @@ execution uses owned request, session, budget and destination snapshots and refu
 cross-origin redirects that retain a body or credentials; offline exports make no
 live calls.
 
+Keep destination allowlist validation synchronized with the source runtime. Each
+item must be an exact ASCII DNS hostname or canonical dotted-decimal IPv4 address,
+optionally with a decimal port from 1 through 65535; a bracketed numeric IPv6
+address with the same optional port; or an ASCII DNS wildcard in the form
+`*.example.test`. Wildcards do not accept ports and match both the domain apex and
+its subdomains. Before preview, plan construction, offline replay, or live
+execution retains an allowlist, the runtime takes a shallow container snapshot and
+validates every item without name resolution. One malformed item rejects the
+complete list, even when no request uses it, without copying or echoing the value
+in reports, errors, or formatted exception chains.
+
 The portable expansion test builds a package through a temporary Git index,
 exports it, and runs its offline demo with isolated Python path handling from the
 exported tree. This verifies that reviewed playbooks and dataset provenance are
