@@ -948,6 +948,11 @@ class AssessmentBudgetLedger:
             snapshot = self._charged(list(db.execute("SELECT * FROM attempts")))
             return BudgetSnapshot(**{**asdict(snapshot), "over_budget": not self._within(snapshot, self.policy.limits)})
 
+    def remaining_elapsed_ms(self) -> int:
+        """Return the time left on the engagement's durable wall-clock budget."""
+        with self._transaction() as (_db, engagement, now):
+            return max(0, self.policy.limits.max_elapsed_ms - (now - engagement["started_at_ms"]))
+
 
 @dataclass(frozen=True)
 class CancellationSignal:
