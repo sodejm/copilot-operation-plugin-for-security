@@ -64,6 +64,14 @@ a truncated prefix. Repeated findings retain deterministic, unique identifiers;
 the report code mapping contains one entry for every occurrence without copying
 source or scanner text into identifiers.
 
+Legacy `tls_config` metadata compares bounded ASCII DNS SANs case-insensitively
+and supports only a complete left-most wildcard that covers one label. Strictly
+parsed IP SANs compare only with the same numeric address. Unsupported or
+malformed identities remain insufficient evidence unless another supported SAN
+matches. This metadata check does not perform cryptographic verification or prove
+live TLS acceptance; use the typed `certificate_chain` artifact for supplied-PEM
+verification under an explicit local trust policy.
+
 ## Optional EVTX runtime
 
 The EVTX adapter is a repository CLI capability. Portable plugin exports do not
