@@ -189,7 +189,7 @@ class SessionContext:
             auth_mechanism=auth,
             headers=dict(data.get("headers", {})),
             cookies=dict(data.get("cookies", {})),
-            is_isolated=bool(data.get("is_isolated", True)),
+            is_isolated=data.get("is_isolated", True),
         )
 
 
@@ -297,11 +297,11 @@ class ReplayBudget:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ReplayBudget:
         return cls(
-            max_requests=int(data.get("max_requests", 50)),
-            rate_limit_rps=float(data.get("rate_limit_rps", 10.0)),
-            timeout_seconds=float(data.get("timeout_seconds", 5.0)),
-            max_redirect_hops=int(data.get("max_redirect_hops", 3)),
-            max_websocket_frames=int(data.get("max_websocket_frames", 10)),
+            max_requests=data.get("max_requests", 50),
+            rate_limit_rps=data.get("rate_limit_rps", 10.0),
+            timeout_seconds=data.get("timeout_seconds", 5.0),
+            max_redirect_hops=data.get("max_redirect_hops", 3),
+            max_websocket_frames=data.get("max_websocket_frames", 10),
         )
 
 
