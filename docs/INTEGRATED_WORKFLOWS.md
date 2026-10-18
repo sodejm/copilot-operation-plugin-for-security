@@ -143,10 +143,14 @@ Fixture reports state their evidence limits directly:
 - Illicit-consent playback requires complete tenant-bound exports, unique IDs,
   in-window timestamps and evidence references. Grant `client_id` joins a service
   principal object ID; its `app_id` joins sign-ins. Principal-specific grants
-  require the same user. Missing or conflicting evidence returns
-  `insufficient_evidence` with no target. Risk labels and completeness are supplied
-  assertions, and corrected flags support only `no_suspicious_consent_observed`.
-  Playback models the expected identity and hunt package checks.
+  require the same user. For every assessed grant, the result's sorted, unique
+  `evidence_refs` includes that grant, its matching service principal, and every
+  matching assessed sign-in, including low-privilege or nonsuspicious records. It
+  excludes principals and sign-ins unrelated to an assessed grant. Missing or
+  conflicting evidence returns `insufficient_evidence` with no target or partial
+  references. Risk labels and completeness are supplied assertions, and corrected
+  flags support only `no_suspicious_consent_observed`. Playback models the expected
+  identity and hunt package checks.
   It never reports either package as exercised and returns
   `insufficient_lab_validation` when a remediation proposal requires laboratory
   validation.

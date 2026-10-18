@@ -92,6 +92,7 @@ def assess_consent(evidence: dict[str, Any]) -> dict[str, Any]:
         if not matches:
             return unresolved
         suspicious = [item for item in matches if item["suspicious"]]
+        refs.update([grant["evidence_ref"], principal["evidence_ref"], *(item["evidence_ref"] for item in matches)])
         if grant["high_privilege"] and suspicious:
             targets.append(
                 {
@@ -100,9 +101,6 @@ def assess_consent(evidence: dict[str, Any]) -> dict[str, Any]:
                     "client_id": grant["client_id"],
                     "app_id": principal["app_id"],
                 }
-            )
-            refs.update(
-                [grant["evidence_ref"], principal["evidence_ref"], *(item["evidence_ref"] for item in suspicious)]
             )
     return {
         "status": "suspicious_consent_observed" if targets else "no_suspicious_consent_observed",

@@ -32,9 +32,13 @@ Provide two deterministic acceptance paths for COPS service scenarios: offline f
 
 24. Consent correlation requires complete, unique, in-window tenant-bound records
     joining grant client object IDs through service principals to sign-in app IDs.
-    Missing or conflicting evidence yields no target. The emulator revokes only an
-    exact tenant/grant/client/app tuple; acceptance proves target 200 → 401 and
-    unrelated grant 200 → 200. Session revocation and hunt steps remain proposals.
+    Every successfully assessed grant binds its grant, matching service principal,
+    and every matching assessed sign-in to the conclusion, regardless of its risk
+    labels. References are sorted and unique and exclude unrelated records. Missing
+    or conflicting evidence yields no target or partial references. The emulator
+    revokes only an exact tenant/grant/client/app tuple; acceptance proves target
+    200 → 401 and unrelated grant 200 → 200. Session revocation and hunt steps
+    remain proposals.
 
 25. Exposure acceptance requires a real fixed-name DNS exchange and exact endpoint,
     address, timestamp and evidence-reference correlation. Anonymous access changes
