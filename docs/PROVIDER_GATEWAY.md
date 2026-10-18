@@ -37,7 +37,7 @@ The gateway owns provider credential resolution and limits credentials to the ap
 
 ## Budget, cancellation, and cleanup
 
-Live assessment uses the shared `AssessmentBudgetLedger`; it must not create a parallel budget model. The safe order is:
+Live assessment uses the shared `AssessmentBudgetLedger`; it must not create a parallel budget model.
 
 The trusted controller passes an admitted agent attempt as `parent_attempt_id` and
 may pass narrower `child_limits` to `execute_live_case`. The live plan and provider
@@ -46,6 +46,8 @@ same private engagement ledger so aggregate, subtree, fanout, depth, concurrency
 time, token, cost, and retained-output limits apply across both paths. A denied
 child reservation prevents gateway dispatch. Restore this ledger after restart;
 replacing it with an empty file could admit charges twice.
+
+The safe order is:
 
 1. Verify the signed grant and exact plan/request bindings without consuming the grant or reserving budget.
 2. Reserve the approved worst-case amount in the shared ledger and require a newly `reserved` attempt.
