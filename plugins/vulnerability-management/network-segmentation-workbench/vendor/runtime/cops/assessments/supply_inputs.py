@@ -121,10 +121,21 @@ def _scalar(value: str) -> str | None:
     return value.split(" #", 1)[0].strip()
 
 
-def github_actions(content: str) -> SupplyInput:
-    result = SupplyInput()
-    # A small indentation/scalar subset, not a general YAML interpreter.
-    lines: list[tuple[int, str, str]] = []
+@dataclass(frozen=True)
+class _WorkflowEntry:
+    indent: int
+    key: str
+    value: str
+    parent: int | None
+    item: int | None
+
+
+def _workflow_entries(content: str, result: SupplyInput) -> list[_WorkflowEntry]:
+    # A small indentation/scalar subset, not a general YAML interpreter. Mapping
+    # parents and sequence identities keep sibling steps from sharing inputs.
+    lines: list[_WorkflowEntry] = []
+    mappings: list[int] = []
+    items: list[tuple[int, int]] = []
     block_indent: int | None = None
     for line in content.splitlines():
         if not line.strip() or line.lstrip().startswith("#"):
@@ -136,24 +147,76 @@ def github_actions(content: str) -> SupplyInput:
             block_indent = None
         if "\t" in line[:indent] or re.search(r"(?:^|\s)[&*!][A-Za-z_]", line) or "<<:" in line:
             result.incomplete = True
-        match = re.match(r"^\s*(?:-\s+)?([A-Za-z_][A-Za-z0-9_-]*|['\"]on['\"]):\s*(.*?)\s*$", line)
-        if match:
-            key, value = match.groups()
-            if value in {"|", ">", "|-", ">-", "|+", ">+"}:
-                block_indent = indent
-                continue
-            scalar = _scalar(value)
-            if scalar is None:
-                result.incomplete = True
-                continue
-            lines.append((indent, key.strip("'\""), scalar))
-    uses = [(index, indent, value) for index, (indent, key, value) in enumerate(lines) if key == "uses"]
+        match = re.match(r"^\s*(-\s+)?([A-Za-z_][A-Za-z0-9_-]*|['\"]on['\"]):\s*(.*?)\s*$", line)
+        if not match:
+            result.incomplete = True
+            continue
+        sequence, key, value = match.groups()
+        key_indent = indent + len(sequence or "")
+        while mappings and lines[mappings[-1]].indent >= (indent if sequence else key_indent):
+            mappings.pop()
+        while items and items[-1][0] >= indent:
+            items.pop()
+        if sequence:
+            items.append((indent, len(lines)))
+        scalar = _scalar(value)
+        if scalar is None:
+            result.incomplete = True
+            scalar = value
+        if value in {"|", ">", "|-", ">-", "|+", ">+"}:
+            block_indent = key_indent
+        lines.append(
+            _WorkflowEntry(
+                key_indent,
+                key.strip("'\""),
+                scalar,
+                mappings[-1] if mappings else None,
+                items[-1][1] if items else None,
+            )
+        )
+        if scalar == "":
+            mappings.append(len(lines) - 1)
+    return lines
+
+
+def _checkout_inputs(lines: list[_WorkflowEntry], entry: _WorkflowEntry, result: SupplyInput) -> None:
+    if entry.item is None or entry.parent is None or lines[entry.parent].key != "steps":
+        result.incomplete = True
+        return
+    siblings = [
+        (index, item) for index, item in enumerate(lines) if item.parent == entry.parent and item.item == entry.item
+    ]
+    inputs = [(index, item) for index, item in siblings if item.key == "with"]
+    if len(inputs) > 1 or sum(item.key == "uses" for _, item in siblings) != 1:
+        result.incomplete = True
+        return
+    if not inputs:
+        return
+    offset, mapping = inputs[0]
+    if mapping.value:
+        result.incomplete = True
+        return
+    fields = [item for item in lines if item.parent == offset]
+    if len({item.key for item in fields}) != len(fields):
+        result.incomplete = True
+        return
+    for item in fields:
+        if item.key in {"ref", "repository"} and re.search(r"github\.event\.pull_request\.head\.", item.value):
+            result.codes.add("workflow_untrusted_head")
+
+
+def github_actions(content: str) -> SupplyInput:
+    result = SupplyInput()
+    lines = _workflow_entries(content, result)
+    uses = [entry for entry in lines if entry.key == "uses"]
     if not uses:
         result.incomplete = True
     target_event = any(
-        (key == "on" and "pull_request_target" in value) or key == "pull_request_target" for _, key, value in lines
+        (entry.key == "on" and "pull_request_target" in entry.value) or entry.key == "pull_request_target"
+        for entry in lines
     )
-    for offset, (indent, key, value) in enumerate(lines):
+    for offset, entry in enumerate(lines):
+        indent, key, value = entry.indent, entry.key, entry.value
         if key != "permissions":
             continue
         if value == "write-all" or re.search(r"\b[A-Za-z-]+\s*:\s*write\b", value):
@@ -161,14 +224,15 @@ def github_actions(content: str) -> SupplyInput:
         elif value not in {"", "read-all", "{}"}:
             result.incomplete = True
         if not value:
-            for child_indent, _, child_value in lines[offset + 1 :]:
-                if child_indent <= indent:
+            for child in lines[offset + 1 :]:
+                if child.indent <= indent:
                     break
-                if child_value == "write":
+                if child.value == "write":
                     result.codes.add("workflow_write_permissions")
-                elif child_value not in {"read", "none"}:
+                elif child.value not in {"read", "none"}:
                     result.incomplete = True
-    for offset, indent, use in uses:
+    for entry in uses:
+        use = entry.value
         if "${{" in use:
             result.incomplete = True
         if use.startswith("./"):
@@ -181,11 +245,5 @@ def github_actions(content: str) -> SupplyInput:
         elif not re.fullmatch(r"[^\s@]+@[0-9a-fA-F]{40}", use):
             result.codes.add("action_unpinned")
         if target_event and use.split("@", 1)[0].lower() == "actions/checkout":
-            for child_indent, child_key, child_value in lines[offset + 1 :]:
-                if child_indent <= indent:
-                    break
-                if child_key in {"ref", "repository"} and re.search(
-                    r"github\.event\.pull_request\.head\.", child_value
-                ):
-                    result.codes.add("workflow_untrusted_head")
+            _checkout_inputs(lines, entry, result)
     return result

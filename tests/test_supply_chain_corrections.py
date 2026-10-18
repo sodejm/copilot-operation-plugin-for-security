@@ -195,3 +195,61 @@ def test_dynamic_action_and_malformed_sbom_remain_partial() -> None:
     sbom = report(("cyclonedx", {"components": ["not-a-component"]}))
     assert "github_actions_insufficient_evidence" in codes(action)
     assert "versioned_sbom_component_insufficient_evidence" in codes(sbom)
+
+
+def checkout_workflow(steps: str) -> str:
+    return "on: pull_request_target\npermissions: read-all\njobs:\n  test:\n    steps:\n" + steps
+
+
+@pytest.mark.parametrize("field", ["ref", "repository"])
+@pytest.mark.parametrize("order", ["uses-first", "name-first", "with-first"])
+def test_checkout_inputs_belong_to_the_step_regardless_of_key_order(field: str, order: str) -> None:
+    head = "${{ github.event.pull_request.head.sha }}"
+    layouts = {
+        "uses-first": f"      - uses: actions/checkout@{SHA}\n        with:\n          {field}: {head}\n",
+        "name-first": f"      - name: Checkout\n        uses: actions/checkout@{SHA}\n        with:\n          {field}: {head}\n",
+        "with-first": f"      - with:\n          {field}: {head}\n        name: Checkout\n        uses: actions/checkout@{SHA}\n",
+    }
+    result = report(("github_actions", checkout_workflow(layouts[order])))
+    assert "workflow_untrusted_head" in codes(result)
+    assert "github_actions_insufficient_evidence" not in codes(result)
+    corrected = report(("github_actions", checkout_workflow(layouts[order].replace(head, "main"))))
+    assert "workflow_untrusted_head" not in codes(corrected)
+
+
+@pytest.mark.parametrize("head_first", [False, True])
+def test_adjacent_step_inputs_do_not_attach_to_checkout(head_first: bool) -> None:
+    checkout = f"      - name: Checkout\n        uses: actions/checkout@{SHA}\n"
+    other = (
+        f"      - name: Other action\n        uses: example/inspect@{SHA}\n"
+        "        with:\n          ref: ${{ github.event.pull_request.head.sha }}\n"
+    )
+    result = report(("github_actions", checkout_workflow(other + checkout if head_first else checkout + other)))
+    assert "workflow_untrusted_head" not in codes(result)
+
+
+def test_nested_env_and_block_scalar_are_not_checkout_inputs() -> None:
+    result = report(
+        (
+            "github_actions",
+            checkout_workflow(
+                "      - run: |\n          with:\n            ref: ${{ github.event.pull_request.head.sha }}\n"
+                f"      - uses: actions/checkout@{SHA}\n"
+                "        env:\n          ref: ${{ github.event.pull_request.head.sha }}\n"
+            ),
+        )
+    )
+    assert "workflow_untrusted_head" not in codes(result)
+
+
+@pytest.mark.parametrize(
+    "inputs",
+    [
+        "        with: {ref: '${{ github.event.pull_request.head.sha }}'}\n",
+        "        with: *checkout-inputs\n",
+        "        with:\n          ref: main\n        with:\n          ref: main\n",
+    ],
+)
+def test_ambiguous_or_unsupported_checkout_inputs_remain_partial(inputs: str) -> None:
+    result = report(("github_actions", checkout_workflow(f"      - uses: actions/checkout@{SHA}\n" + inputs)))
+    assert "github_actions_insufficient_evidence" in codes(result)

@@ -90,6 +90,10 @@ current advisory query or version-range resolver.
 Actions parsing accepts a bounded indentation and scalar subset, quoted pins,
 local actions, and digest-pinned container actions. It reports token write
 permissions and explicit untrusted head checkout under `pull_request_target`.
+Checkout inputs must belong to that step's direct `with` mapping. Step names
+and key order do not change the result; inputs from adjacent steps, nested
+environment mappings and block-scalar text cannot establish a checkout finding.
+Duplicate or unsupported checkout input mappings leave the assessment partial.
 Includes, substitutions, YAML aliases/tags, dynamic action references, and other
 unsupported constructs remain evidence gaps. No parser executes includes,
 resolves variables, downloads dependencies, or runs workflow steps. A clean
