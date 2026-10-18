@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Bound the executable SQL laboratory to its reviewed attack seed, parameterize
+  other submitted values, and separate static scanner examples from runtime
+  component evidence. Preserve real SQLite/HTTP correction and hash binding.
+
 - Hash exact API import bytes, reject conflicting provenance and raw HTTP
   authorities, and redact URL credentials and query values throughout persisted
   inventory and replay evidence while binding approvals to lossless requests.
