@@ -12,7 +12,7 @@
     },
     {
       "path": "cops/contracts/lifecycle.py",
-      "sha256": "909dbf8862ee7a40ee6bd9d6ec1d6d6837cd6ee3236118c042b2a5b46b45b255",
+      "sha256": "4e5df48f9a97f8ef8ca406682708ccf2ff1e2213f014f9ad3afbeb4632da43d4",
       "source": "cops/contracts/lifecycle.py"
     },
     {
@@ -32,7 +32,7 @@
     },
     {
       "path": "cops/discovery/models.py",
-      "sha256": "c1676c1e012ce9b3949001bd74c38fa0e76d321b959f39735bfdc405593b6387",
+      "sha256": "c9117da7a6d7ff8fb2931219135e782cd475a1582d92038d0d1466c7d722141c",
       "source": "cops/discovery/models.py"
     },
     {
@@ -42,12 +42,12 @@
     },
     {
       "path": "cops/evidence/canonical.py",
-      "sha256": "f049d0a73867aafecd6975a7a6be97f17fe1e56474c9d70f19d7ed5babb85397",
+      "sha256": "e33b21d1cbe58798043f3b6b212c375f27a24bea1c38b1d9fbcb1cf86d230504",
       "source": "cops/evidence/canonical.py"
     },
     {
       "path": "cops/evidence/validation.py",
-      "sha256": "30b9369cca4872d014c48fe885e75578f1d995f3331243f304b790abd9641e44",
+      "sha256": "289643c4d0e9e1154d4579ec5dd641cae0173cb6d643750584a3b6ce2088e521",
       "source": "cops/evidence/validation.py"
     },
     {

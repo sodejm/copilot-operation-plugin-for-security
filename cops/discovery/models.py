@@ -86,10 +86,7 @@ class DiscoveredAsset:
             asset_type=data.get("asset_type", "dns"),
             identifier=str(data.get("identifier", "")),
             attributes=dict(data.get("attributes", {})),
-            provenance=[
-                EvidenceProvenance.from_dict(p)
-                for p in data.get("provenance", [])
-            ],
+            provenance=[EvidenceProvenance.from_dict(p) for p in data.get("provenance", [])],
             status=data.get("status", "quarantined"),
             quarantine_reasons=list(data.get("quarantine_reasons", [])),
         )
@@ -114,9 +111,6 @@ class DiscoveryInventory:
     def from_dict(cls, data: dict[str, Any]) -> DiscoveryInventory:
         return cls(
             timestamp=str(data.get("timestamp", "")),
-            assets=[
-                DiscoveredAsset.from_dict(a)
-                for a in data.get("assets", [])
-            ],
+            assets=[DiscoveredAsset.from_dict(a) for a in data.get("assets", [])],
             summary=dict(data.get("summary", {})),
         )

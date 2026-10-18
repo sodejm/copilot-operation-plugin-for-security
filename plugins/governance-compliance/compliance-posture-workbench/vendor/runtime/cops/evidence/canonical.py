@@ -1,4 +1,5 @@
 """Bounded canonical JSON; error messages never include untrusted values."""
+
 import hashlib
 import json
 import math
@@ -13,9 +14,7 @@ class EvidenceError(ValueError):
 
 
 def timestamp(value):
-    if not isinstance(value, str) or not re.fullmatch(
-        r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z", value
-    ):
+    if not isinstance(value, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z", value):
         raise EvidenceError("invalid_timestamp")
     try:
         return datetime.fromisoformat(value.replace("Z", "+00:00"))
@@ -79,8 +78,9 @@ def canonical(value, *, max_bytes=1024 * 1024, max_depth=32):
         if minimum_bytes > max_bytes:
             raise EvidenceError("payload_limit")
     try:
-        result = json.dumps(value, ensure_ascii=False, sort_keys=True,
-                            separators=(",", ":"), allow_nan=False).encode("utf-8")
+        result = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode(
+            "utf-8"
+        )
     except (ValueError, UnicodeError, RecursionError):
         raise EvidenceError("invalid_json") from None
     if len(result) > max_bytes:
@@ -129,8 +129,7 @@ def decode_json(raw, *, max_bytes=4 * 1024 * 1024, max_depth=32):
         raise EvidenceError("invalid_json")
 
     try:
-        result = json.loads(raw.decode("utf-8"), object_pairs_hook=pairs,
-                            parse_constant=invalid_constant)
+        result = json.loads(raw.decode("utf-8"), object_pairs_hook=pairs, parse_constant=invalid_constant)
         canonical(result, max_bytes=max_bytes * 6, max_depth=max_depth)
         return result
     except EvidenceError:

@@ -1,4 +1,5 @@
 """Validate the published, deliberately small JSON Schema vocabulary without deps."""
+
 import json
 import re
 from pathlib import Path
@@ -9,8 +10,15 @@ SCHEMAS = Path(__file__).resolve().parents[2] / "catalog" / "schemas"
 
 
 def _check(value, schema):
-    kinds = {"object": dict, "array": list, "string": str, "integer": int,
-             "number": (int, float), "boolean": bool, "null": type(None)}
+    kinds = {
+        "object": dict,
+        "array": list,
+        "string": str,
+        "integer": int,
+        "number": (int, float),
+        "boolean": bool,
+        "null": type(None),
+    }
     types = schema.get("type", list(kinds))
     if isinstance(types, str):
         types = [types]
@@ -71,8 +79,15 @@ def validate_envelope(item, *, max_bytes=1024 * 1024, max_depth=32):
     source = item["source"]
     if source["scope"] != sorted(source["scope"]):
         raise EvidenceError("invalid_contract")
-    identity = ["cops.record/v1", source["product"], source["tenant"], source["scope"],
-                source["identity"], source["version"], digest(item["payload"], max_bytes=max_bytes, max_depth=max_depth)]
+    identity = [
+        "cops.record/v1",
+        source["product"],
+        source["tenant"],
+        source["scope"],
+        source["identity"],
+        source["version"],
+        digest(item["payload"], max_bytes=max_bytes, max_depth=max_depth),
+    ]
     if digest(identity, max_bytes=max_bytes) != item["record_id"]:
         raise EvidenceError("integrity_mismatch")
     return item
@@ -86,8 +101,14 @@ def validate_receipt(item):
         raise EvidenceError("invalid_contract")
     if item["status"] == "partial" and not item["reasons"]:
         raise EvidenceError("invalid_contract")
-    bounds = {"pages": "pages", "attempts": "attempts", "records": "records",
-              "bytes": "total_bytes", "storage_bytes": "storage_bytes", "active_seconds": "active_seconds"}
+    bounds = {
+        "pages": "pages",
+        "attempts": "attempts",
+        "records": "records",
+        "bytes": "total_bytes",
+        "storage_bytes": "storage_bytes",
+        "active_seconds": "active_seconds",
+    }
     if any(item["consumed"][counter] > item["limits"][limit] for counter, limit in bounds.items()):
         raise EvidenceError("invalid_contract")
     if item["scope"] != sorted(item["scope"]):
