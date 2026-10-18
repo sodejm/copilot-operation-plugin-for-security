@@ -53,8 +53,15 @@ def _response(provider: str) -> dict:
     }
 
 
-def _setup(tmp_path, provider: str, *, handler=None, max_cost: int = 1000000,
-           scoped_handler: bool = False, allowed_tools: tuple[str, ...] = ()):
+def _setup(
+    tmp_path,
+    provider: str,
+    *,
+    handler=None,
+    max_cost: int = 1000000,
+    scoped_handler: bool = False,
+    allowed_tools: tuple[str, ...] = (),
+):
     plan, case = _plan(), _cases()["cases"][0]
     sample, body = _case(provider)
     raw = canonical(body)
