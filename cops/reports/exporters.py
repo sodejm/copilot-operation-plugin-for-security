@@ -6,6 +6,7 @@ import hashlib
 import json
 import re
 import subprocess
+import threading
 import unicodedata
 import xml.etree.ElementTree as ET
 from collections.abc import Mapping, Sequence
@@ -20,6 +21,8 @@ SARIF_SCHEMA = "https://docs.oasis-open.org/sarif/sarif/v2.1.0/os/schemas/sarif-
 _FORMATS = frozenset({"sarif", "junit", "pr-markdown"})
 _FULL_COMMIT = re.compile(r"(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})")
 _CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+_MAX_SOURCE_BLOB_BYTES = 1024 * 1024
+_GIT_NO_REPLACE = ("git", "--no-replace-objects")
 _SEVERITY_LEVEL = {
     "critical": "error",
     "high": "error",
@@ -117,7 +120,7 @@ def _coerce_anchor(value: SourceAnchor | Mapping[str, Any]) -> SourceAnchor:
 def _git(repository_root: Path, *args: str) -> bytes:
     try:
         result = subprocess.run(
-            ["git", "-C", str(repository_root), *args],
+            [*_GIT_NO_REPLACE, "-C", str(repository_root), *args],
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
@@ -140,6 +143,88 @@ def _resolve_revision(repository_root: str | Path | None, revision: str | None) 
     if resolved != revision.lower():
         raise ExportError("revision must identify the exact immutable Git commit")
     return root, resolved
+
+
+def _git_blob_info(repository_root: Path, revision: str, path: str) -> tuple[str, str, int]:
+    """Resolve one commit path to its exact object identity and metadata."""
+    try:
+        result = subprocess.run(
+            [
+                *_GIT_NO_REPLACE,
+                "-C",
+                str(repository_root),
+                "cat-file",
+                "--batch-check=%(objectname) %(objecttype) %(objectsize)",
+            ],
+            input=f"{revision}:{path}\n".encode(),
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=10,
+        )
+        fields = result.stdout.decode("ascii").strip().split()
+        if len(fields) != 3 or _FULL_COMMIT.fullmatch(fields[0]) is None:
+            raise ValueError("unexpected Git object metadata")
+        size = int(fields[2])
+        if size < 0:
+            raise ValueError("negative Git object size")
+    except (OSError, UnicodeError, ValueError, subprocess.SubprocessError) as error:
+        raise ExportError("unable to verify immutable Git source anchor") from error
+    return fields[0].lower(), fields[1], size
+
+
+def _read_git_blob(repository_root: Path, object_id: str) -> bytes:
+    """Read at most one byte beyond the source-blob limit from an immutable object."""
+    try:
+        process = subprocess.Popen(
+            [*_GIT_NO_REPLACE, "-C", str(repository_root), "cat-file", "blob", object_id],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+    except OSError as error:
+        raise ExportError("unable to verify immutable Git source anchor") from error
+
+    assert process.stdout is not None
+    captured: list[bytes] = []
+    read_errors: list[OSError] = []
+
+    def read_bounded() -> None:
+        try:
+            captured.append(process.stdout.read(_MAX_SOURCE_BLOB_BYTES + 1))
+        except OSError as error:
+            read_errors.append(error)
+
+    reader = threading.Thread(target=read_bounded, daemon=True)
+    try:
+        reader.start()
+        reader.join(timeout=10)
+        if reader.is_alive():
+            raise subprocess.TimeoutExpired(process.args, 10)
+        if read_errors or not captured:
+            raise OSError("unable to read Git blob")
+        blob = captured[0]
+        if len(blob) > _MAX_SOURCE_BLOB_BYTES:
+            raise ExportError("source anchor Git blob exceeds the 1 MiB limit")
+        if process.wait(timeout=10) != 0:
+            raise subprocess.CalledProcessError(process.returncode, process.args)
+        return blob
+    except ExportError:
+        raise
+    except (OSError, RuntimeError, subprocess.SubprocessError) as error:
+        raise ExportError("unable to verify immutable Git source anchor") from error
+    finally:
+        try:
+            if process.poll() is None:
+                process.kill()
+        finally:
+            try:
+                process.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                pass
+            finally:
+                process.stdout.close()
+                if reader.ident is not None:
+                    reader.join(timeout=1)
 
 
 def _verify_anchors(
@@ -184,7 +269,12 @@ def _verify_anchors(
         if key in seen:
             raise ExportError("duplicate source anchor")
         seen.add(key)
-        blob = _git(repository_root, "show", f"{revision}:{anchor.path}")
+        object_id, object_type, object_size = _git_blob_info(repository_root, revision, anchor.path)
+        if object_type != "blob":
+            raise ExportError("source anchor path must identify a Git blob")
+        if object_size > _MAX_SOURCE_BLOB_BYTES:
+            raise ExportError("source anchor Git blob exceeds the 1 MiB limit")
+        blob = _read_git_blob(repository_root, object_id)
         try:
             text = blob.decode("utf-8")
         except UnicodeDecodeError as error:

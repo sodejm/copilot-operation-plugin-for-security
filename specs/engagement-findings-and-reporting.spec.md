@@ -69,9 +69,15 @@ authorization grant, or report publication occurs in this workflow.
    rather than skip it. Remote schema retrieval is forbidden. Optional source
    locations and every Markdown
    suggestion resolve against a full immutable Git commit, a repository-relative
-   UTF-8 path and an existing line range. The export records a digest of the
-   committed lines and rejects unknown Findings, duplicate locations, traversal,
-   invalid ranges and credential-bearing paths.
+   UTF-8 path and an existing line range. Before reading content, the exporter
+   resolves each commit-and-path pair to one exact Git blob object with Git
+   replacement objects disabled, verifies its type and declared size, and rejects
+   non-blobs or blobs larger than 1 MiB without capturing their content. It reads
+   content by that immutable object ID, also with replacement objects disabled,
+   and keeps the read bounded to 1 MiB even if Git metadata disagrees with the
+   returned body.
+   The export records a digest of the committed lines and rejects unknown Findings,
+   duplicate locations, traversal, invalid ranges and credential-bearing paths.
 
 ## Trust limits
 
