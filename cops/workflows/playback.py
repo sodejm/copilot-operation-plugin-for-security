@@ -22,6 +22,7 @@ from .exposure_evidence import assess_exposure, scoped_records
 from .purple import PurpleTeamHandoffContract, emit_purple_team_handoff, evaluate_purple_team_handoff
 from .runtime import (
     WorkflowRuntimeError,
+    _condition_matches,
     _resolve_bindings,
     _topological_order,
     _validate_inputs,
@@ -200,6 +201,11 @@ def run_offline_playback(
     stage_map = {stage["stage_id"]: stage for stage in definition.stages}
     for stage_id in _topological_order(stage_map):
         stage = stage_map[stage_id]
+        if any(state["stages"].get(dep, {}).get("status") != "success" for dep in stage["depends_on"]):
+            return _playback_report(workflow_id, run_id, state, status="partial_failure")
+        if not _condition_matches(stage.get("condition"), workflow_inputs, state):
+            state["stages"][stage_id] = {"status": "skipped", "outputs": {}, "evidence_refs": []}
+            continue
         resolved = _resolve_bindings(stage["inputs"], workflow_inputs, state)
         plan = compile_action_plan(
             definition,
@@ -234,15 +240,32 @@ def run_offline_playback(
             "evidence_refs": [evidence_ref],
             "plan": plan.approved_snapshot(include_digest=True),
         }
-    workflow_outputs = {name: _resolve_output(spec["source"], state) for name, spec in definition.outputs.items()}
+    try:
+        workflow_outputs = {name: _resolve_output(spec["source"], state) for name, spec in definition.outputs.items()}
+    except IntegratedWorkflowError as exc:
+        if exc.code != "missing_workflow_output":
+            raise
+        return _playback_report(workflow_id, run_id, state, status="partial_failure")
+    return _playback_report(workflow_id, run_id, state, status="completed", outputs=workflow_outputs)
+
+
+def _playback_report(
+    workflow_id: str,
+    run_id: str,
+    state: dict[str, Any],
+    *,
+    status: str,
+    outputs: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    workflow_outputs = outputs or {}
     outcome = workflow_outputs.get("outcome")
-    if not isinstance(outcome, str):
+    if status == "completed" and not isinstance(outcome, str):
         raise IntegratedWorkflowError("missing_outcome")
     return {
         "schema_version": PLAYBACK_SCHEMA_VERSION,
         "workflow_id": workflow_id,
         "run_id": run_id,
-        "status": "completed",
+        "status": status,
         "outcome": outcome,
         "outputs": workflow_outputs,
         "stages": state["stages"],

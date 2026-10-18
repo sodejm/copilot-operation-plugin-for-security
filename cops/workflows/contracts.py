@@ -285,6 +285,17 @@ def _validate_graph(stage_map: dict[str, dict[str, Any]], workflow_inputs: dict[
         for binding in stage["inputs"].values():
             if "source" in binding and _source_type(binding["source"], stage_map, workflow_inputs) != binding["type"]:
                 raise WorkflowContractError("binding_source_type")
+            if "source" not in binding:
+                continue
+            source = binding["source"]
+            kind, input_name, _ = _parse_source(source)
+            if kind != "workflow":
+                continue
+            input_spec = workflow_inputs[input_name]
+            condition = stage.get("condition", {})
+            guarded = condition.get("operator") == "exists" and condition.get("source") == source
+            if not input_spec.get("required", True) and "default" not in input_spec and not guarded:
+                raise WorkflowContractError("unguarded_optional_input_binding")
         sources = [binding["source"] for binding in stage["inputs"].values() if "source" in binding]
         if "condition" in stage:
             sources.append(stage["condition"]["source"])
