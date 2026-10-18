@@ -9,8 +9,12 @@ capability incomplete.
 
 - Implementation revision: `1493640424c30c1cda5942b4dbc9b13c3d508da8`.
 - Integration base: `5a40c2ecc99d6ce347a625d80f9c3b11e502d7fd`.
-- Acceptance date: 2026-10-18. The final acceptance change updates documentation
-  only; it does not change the tested executable source or fixtures.
+- Acceptance date: 2026-10-18. The acceptance record was initially added in a
+  documentation-only change. A subsequent push-gate correction formats five
+  canonical modules and their 28 packaged copies, then refreshes seven provenance
+  manifests. All 33 Python syntax trees are unchanged; fixtures are unchanged.
+  The strict run below remains bound to the implementation revision and source
+  snapshot listed here. Hosted checks separately validate the final PR revision.
 - Strict service image:
   `sha256:1091037480cdd8172ab3c942fbf88da9150ea07934b362d190867b9344e7204e`.
 - Service source snapshot:
