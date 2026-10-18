@@ -454,7 +454,7 @@ def execute_live_case(
     try:
         receipt = _dispatch_with_deadline(
             gateway,
-            timeout_ms=min(estimate["elapsed_ms"], ledger.remaining_elapsed_ms()),
+            timeout_ms=min(estimate["elapsed_ms"], ledger.remaining_elapsed_ms(attempt_id)),
             grant=grant,
             presented_worker_spiffe_id=worker_spiffe_id,
             request_target=case["request_target"],

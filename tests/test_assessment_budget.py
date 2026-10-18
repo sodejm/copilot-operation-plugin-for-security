@@ -216,6 +216,49 @@ def test_subtree_deadline_checked_at_dispatch(tmp_path):
     assert store.get_attempt("attempt-a").state == "reserved"
 
 
+def test_inherited_deadline_bounds_remaining_dispatch_time(tmp_path):
+    clock = Clock()
+    store = ledger(tmp_path, clock)
+    parent_limits = replace(policy().limits, max_elapsed_ms=2500)
+    child_limits = replace(parent_limits, max_elapsed_ms=1000)
+    store.reserve(request("root"), child_limits=parent_limits)
+    store.reserve(request("child", "root"), child_limits=child_limits)
+    clock.now += 100
+    assert store.remaining_elapsed_ms() == 9900
+    assert store.remaining_elapsed_ms("root") == 2400
+    assert store.remaining_elapsed_ms("child") == 900
+    clock.now += 901
+    assert store.remaining_elapsed_ms("child") == 0
+    with pytest.raises(BudgetDenied, match="deadline"):
+        store.mark_dispatched("child")
+
+
+def test_parent_release_requires_released_descendants(tmp_path):
+    store = ledger(tmp_path, Clock())
+    store.reserve(request("root"))
+    store.reserve(request("child", "root"))
+    with pytest.raises(BudgetDenied, match="live descendants"):
+        store.release_undispatched("root")
+    assert store.get_attempt("root").state == "reserved"
+    store.release_undispatched("child")
+    assert store.release_undispatched("root").state == "released"
+    with pytest.raises(BudgetDenied, match="parent attempt unavailable"):
+        store.reserve(request("later", "root"))
+
+
+def test_dispatch_rejects_historically_released_ancestor(tmp_path):
+    store = ledger(tmp_path, Clock())
+    store.reserve(request("root"))
+    store.reserve(request("child", "root"))
+    # Simulate a ledger created before the parent-release invariant was enforced.
+    with sqlite3.connect(store.db_path) as db:
+        db.execute("UPDATE attempts SET state = 'released' WHERE attempt_id = 'root'")
+    with pytest.raises(BudgetDenied, match="ancestor attempt unavailable"):
+        store.mark_dispatched("child")
+    with pytest.raises(BudgetDenied, match="parent attempt unavailable"):
+        store.reserve(request("grandchild", "child"))
+
+
 def test_oversized_dispatch_intent_rejected_before_persisting(tmp_path):
     store = ledger(tmp_path, Clock())
     store.reserve(request("attempt-a"))

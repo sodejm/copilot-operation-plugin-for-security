@@ -26,3 +26,19 @@ Feature: Opt-in provider gateway emulator
     Given an admitted provider response with a tool proposal
     When the response is normalized
     Then no provider tool is executed
+
+  Scenario: Provider dispatch and local tool share a parent allowance
+    Given a local tool has reserved allowance under an agent parent
+    When approved provider canaries dispatch under that parent
+    Then each provider dispatch consumes the remaining subtree allowance
+    And a further provider dispatch is denied before gateway send
+
+  Scenario: A provider child cannot widen its parent allowance
+    Given a live provider case with a narrower agent parent budget
+    When its provider child requests wider limits
+    Then the widened provider child is denied before gateway send
+
+  Scenario: Concurrent provider dispatches compete for one allowance
+    Given two approved provider cases with one shared concurrency slot
+    When both provider dispatches start concurrently
+    Then only one provider request reaches its gateway emulator
