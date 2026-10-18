@@ -63,12 +63,21 @@ and [GitHub SARIF support reference](https://docs.github.com/en/code-security/re
 
 A source anchor has `finding_id`, repository-relative POSIX `path`, positive
 `start_line`, optional `end_line`, and optional replacement text. The exporter
-resolves the supplied revision as an exact commit, reads the file from that
-commit with `git show`, verifies that the UTF-8 line range exists, and records a
-SHA-256 digest of those committed lines. Paths containing traversal, absolute
-locations, control characters, credential-shaped text, or platform-specific
-separators are rejected. Duplicate and unknown-finding anchors are also
-rejected.
+resolves the supplied revision as an exact commit, then resolves each
+`commit:path` to its exact Git object ID, type, and declared byte size. All three
+Git operations disable replacement objects, so repository-local `refs/replace`
+entries cannot substitute the commit or blob. Only blob objects of at most 1 MiB
+are accepted. The exporter rejects other object types and larger declared sizes
+before reading content, reads an accepted blob by its immutable object ID, and
+independently stops after 1 MiB plus one detection byte if the returned body
+exceeds the declared size. Size and type failures contain no blob content.
+
+After this bounded read, the exporter verifies that the blob is UTF-8, checks
+that the requested line range exists, and records a SHA-256 digest of those
+committed lines. Paths containing traversal, absolute locations, control
+characters, credential-shaped text, or platform-specific separators are
+rejected. Duplicate and unknown-finding anchors are also rejected. Uncommitted
+worktree changes do not affect the resolved content or line digest.
 
 PR Markdown emits a GitHub suggestion block only when an anchor has explicit
 replacement text. The exporter validates the anchor and redacts known credential
@@ -83,7 +92,7 @@ The option contracts are documented under
 schema and GitHub subset. To run the focused check:
 
 ```bash
-python -m pytest -q tests/test_report_exports.py
+python -m pytest -q tests/test_report_exports.py tests/test_report_anchor_bounds.py
 ```
 
 The tests pin the schema SHA-256, reject remote references, and use the declared
