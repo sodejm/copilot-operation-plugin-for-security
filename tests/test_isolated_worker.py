@@ -329,7 +329,30 @@ def test_isolated_worker_rejects_unauthorized_tool(temp_store, sample_plan, clea
 def test_readiness_failure_stops_execution_before_approval_consumption(
     temp_store, sample_plan, cleanup_journal_path, failed_boundary
 ):
-    auth, trust_store, engagement = authorize_test_plan(sample_plan, worker_identity="readiness-test")
+    plan_data = sample_plan.to_dict()
+    plan = ActionPlan.create(
+        plan_id=sample_plan.plan_id,
+        engagement_id=sample_plan.engagement_id,
+        scenario_id=sample_plan.scenario_id,
+        target=sample_plan.target,
+        specialist_id=sample_plan.specialist_id,
+        operations=[
+            {
+                "step_id": "step-readiness",
+                "tool": "inert",
+                "tool_version": "0.7.0",
+                "action": "print_status",
+                "arguments": {"message": "readiness gate"},
+                "timeout_seconds": 10,
+            }
+        ],
+        limits=plan_data["limits"],
+        credential_references=plan_data["credential_references"],
+        platform_prerequisites=plan_data["platform_prerequisites"],
+        batch=plan_data["batch"],
+        created_at=sample_plan.created_at,
+    )
+    auth, trust_store, engagement = authorize_test_plan(plan, worker_identity="readiness-test")
     temp_store.store_authorization(auth)
     readiness_error = WorkerExecutionError(f"{failed_boundary} unavailable")
     approval_control = TestApprovalControl(
@@ -340,16 +363,17 @@ def test_readiness_failure_stops_execution_before_approval_consumption(
     )
     sandbox = TestExecutionSandbox(readiness_error=readiness_error if failed_boundary == "sandbox" else None)
     worker = IsolatedWorker(
-        worker_inventory_for_plan(sample_plan, worker_identity="readiness-test"),
+        worker_inventory_for_plan(plan, worker_identity="readiness-test"),
         approval_control,
         sandbox,
         cleanup_journal_path=cleanup_journal_path,
     )
 
     with pytest.raises(WorkerExecutionError, match=f"{failed_boundary} unavailable"):
-        worker.execute_plan(sample_plan, authorization=auth.authorization_id)
+        worker.execute_plan(plan, authorization=auth.authorization_id)
 
     assert approval_control.consume_calls == []
+    assert len(sandbox.ready_calls) == (1 if failed_boundary == "sandbox" else 0)
     assert sandbox.run_calls == []
     assert temp_store.get_authorization(auth.authorization_id).status == "approved"
 

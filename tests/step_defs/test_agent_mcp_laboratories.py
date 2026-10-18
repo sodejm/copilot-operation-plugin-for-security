@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,8 @@ sys.path.insert(0, str(PACKAGE))
 from foundryharness import auth_approval, auth_bootstrap, auth_laboratory  # noqa: E402
 from foundryharness.laboratory import LabError, load_lab_cases, run_lab_case  # noqa: E402
 
+from cops.laboratory.agent_mcp_stdio import StdioProfileError, validate_stdio_action_plan  # noqa: E402
+from tests.test_agent_mcp_stdio import _compile, _profile, _registry  # noqa: E402
 from tests.test_auth_assessment_approval import authorized_batch  # noqa: E402
 
 scenarios("../../specs/features/agent_mcp_laboratories.feature")
@@ -247,6 +250,42 @@ def request_unsigned_auth(context, monkeypatch: pytest.MonkeyPatch):
 def unsigned_rejected(context):
     assert context["unsigned_rejected"] is True
     assert context["fixture_launches"] == 0
+
+
+@given("a trusted read-only stdio profile and pinned fixture adapter")
+def trusted_stdio_fixture(context, tmp_path: Path):
+    context["stdio_registry"] = _registry(tmp_path)
+    context["stdio_profile"] = _profile()
+
+
+@when("a matching bounded MCP request is compiled into one Action Plan")
+def compile_bounded_stdio(context):
+    context["stdio_plan"] = _compile(context["stdio_registry"], profile=context["stdio_profile"])
+
+
+@then("the canonical envelope revalidates against the adapter command template")
+def stdio_envelope_binding(context):
+    envelope = validate_stdio_action_plan(
+        plan=context["stdio_plan"], profile=context["stdio_profile"], registry=context["stdio_registry"]
+    )
+    assert len(context["stdio_plan"].operations) == 1
+    assert len(envelope["adapter_binding"]["command_template_sha256"]) == 64
+
+
+@then("credential arguments and changed command flags are rejected before execution")
+def stdio_rejects_credential_and_template_drift(context):
+    profile = deepcopy(context["stdio_profile"])
+    profile["request_contract"]["arguments"] = {"authorization": "Bearer fixture-credential-123456"}
+    with pytest.raises(StdioProfileError, match="cannot contain credentials") as exc_info:
+        _compile(context["stdio_registry"], profile=profile)
+    assert "fixture-credential-123456" not in str(exc_info.value)
+
+    action = context["stdio_registry"].get_adapter("fixture-agent").actions["invoke"]
+    action.base_args.append("--changed-mode")
+    with pytest.raises(StdioProfileError, match="adapter binding differs"):
+        validate_stdio_action_plan(
+            plan=context["stdio_plan"], profile=context["stdio_profile"], registry=context["stdio_registry"]
+        )
 
 
 @given("a signed case whose target omits identity telemetry")

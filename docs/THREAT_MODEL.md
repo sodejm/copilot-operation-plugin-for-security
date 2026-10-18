@@ -58,6 +58,7 @@ private payloads and real identifiers must never be copied into this document.
 
 | Approved local corpus → private Linux worker workspace → offline research adapter → run result | The signed plan binds corpus, inventory, isolation, and executable digests. The worker checks a fresh namespace observation before approval consumption and before each external adapter starts; its own measurements do not independently attest host controls. |
 | Operator-supplied synthetic case → runner → agent fixture proposal → authorization gate → MCP stdio fixture → observed state/report | Case text and MCP tool output are untrusted data. The agent child proposes but has no MCP pipe; only the runner can forward a proposal after case-scoped checks. The separate child processes share the host's OS authority, so their stdio boundary is not an OS network sandbox. |
+| Trusted stdio profile and untrusted MCP request → bounded Action Plan compiler → later worker | The compiler binds one exact read-only request to a registered adapter version, source revision, executable digest and no-egress plan assertion. It does not launch a process, authenticate a profile author, attest the executable on a worker, or enforce OS isolation. |
 | Synthetic provider plan and response fixture → exact plan gate → assessment budget ledger → normalized content-free report | Provider-shaped input remains untrusted. Exact environment, scope, endpoint, model, canary, tool and request-digest binding precede reservation and fixture processing. The importer makes no network request and executes no proposed tool. |
 | Ordinary-language goal plus Engagement → exact target resolver → selection result | Goal text is untrusted intent, not authority. The resolver accepts one exact included target or a recorded engagement selection, rejects quoted examples and ambiguity, and reports that no executable path or assessment exists. Engagement review remains unverified. |
 | Approved dispatch grant → worker egress broker → operator gateway → provider handler | The opt-in v2 broker accepts a bounded POST only to one configured gateway origin and path with an exact TLS SPIFFE identity. It verifies the signed grant against the plan, worker identity, provider scope, and request digest, then durably consumes the one-use dispatch and authorization IDs before sending. The gateway independently verifies those bindings and owns provider credentials. Repository tests use an emulator; no production gateway or credential path is provisioned. |
@@ -130,6 +131,17 @@ operation and accepts no case-selected command or endpoint, but the OS does not
 block network access. Run only trusted checkout code with synthetic data and no
 real credentials or live targets. These local results do not establish live
 model prompt-injection resistance, host containment or independent authorization.
+
+The separate offline stdio profile compiler accepts a trusted, versioned profile
+and an untrusted request. It requires an exact tool and argument match, one
+registered adapter with a pinned revision, executable digest, and command-template
+digest, and bounded request, duration and output sizes. It rejects recognizable
+credential material in request arguments before encoding the inert Action Plan;
+unknown credential formats remain a caller responsibility. Its
+`egress_allowed: false` field is a contract assertion. A worker must
+independently verify the executable, authorization and no-egress isolation before
+dispatch. No disposable worker or independent observer is available for this
+phase, so the compiler tests are not laboratory containment evidence.
 
 ### Offline AI provider fixture boundary
 
@@ -599,6 +611,14 @@ validation before the affected release/capability expansion and schedule P2 with
 - Existing evidence / limitation: The offline resolver requires a supported positive assessment instruction, including a direct polite question, and one exact included target or a matching recorded `metadata.goal_selection.target`. It binds targets only from the parsed request subject, not the verb, polite framing, or supported detail. ASCII case variations count as the same target without equating Unicode lookalikes. It rejects recognized quotation and example forms, conflicting and multiple targets, excluded targets, overlapping network exclusions, selected domains at or beneath excluded domains, and details it cannot interpret. Duplicate ASCII case-insensitive target entries count as one selection without changing the contract digest. A raw scope-count cap runs before potentially expensive intake validation. It does not infer a target from unique scope membership. It retains unbound requested intent and a canonical contract digest, explicitly labels review unverified, and returns `needs_execution_path` and `not_assessed` without an ActionPlan. When contract validation succeeds, clarification responses also carry the Engagement ID and digest; invalid contracts do not. Engagement metadata is validated but not independently signed, and language recognition is deliberately narrow. The result contains an internal target identifier and must remain within the private review boundary.
 - Proposed mitigation and validation: Keep positive and negative tests for exact, conflicting, multiple, excluded, quoted, and illustrative targets. Before adding headless execution, verify an actual worker adapter and operation, authenticated selection provenance, immutable plan persistence, idempotent lifecycle state, failure recovery, and exact authorization binding. Require exact-revision human security review.
 - Residual risk / status: Unrecognized phrasing requires clarification, and an Engagement author can change metadata within the same trust boundary. This increment performs no semantic interpretation, executable planning, approval, worker dispatch, action, or resume. No live-target evidence is present.
+
+### T36: Synthetic detection evidence confused with native SOC validation
+
+- Attack path / prerequisite: A caller supplies fabricated or cross-tenant evidence, treats an out-of-window alert as a measured detection, or presents a deterministic fixture result as proof that a native SIEM or EDR detected an authorized action.
+- Inherent impact: High for unsupported detection claims; likelihood: Medium when offline reports are shared without their evidence boundary; priority: P1 before operational use.
+- Existing evidence / limitation: `cops/reporting/detection.py` validates tenant, action, rule, mapping, and time-window joins. The persisted four-outcome fixture and its public-command regression exercise detected, missed, ambiguous, and unavailable classification, including an out-of-window alert. The cross-tenant negative fixture remains rejected. Imported hashes establish internal integrity only, and fixture playback does not authenticate a source or execution.
+- Proposed mitigation and validation: Keep the deterministic corpus and negative fixture executable through the public command. Preserve source, authorization, provider-completeness, and native-execution limitations in both report forms and practitioner documentation. Require separately authorized native action and independently verified telemetry and search evidence before making a SOC effectiveness claim.
+- Residual risk / status: This increment validates offline import, classification, and report generation only. It provides no source authenticity, execution authorization, provider-wide search completeness, native SOC effectiveness, or cleanup evidence.
 
 ## STRIDE and privacy coverage
 

@@ -1,0 +1,197 @@
+{
+  "schema_version": "cops.detection-validation-source-traceability/v1",
+  "issue_family": "COPS-E17.02",
+  "mode": "offline_traceability",
+  "provenance_snapshot": {
+    "path": "catalog/provenance.json",
+    "schema_version": "cops.provenance/v1",
+    "updated_at": "2026-10-02T23:00:00Z"
+  },
+  "source_mappings": [
+    {
+      "source_id": "S01",
+      "pinned_revision": "4c118399602212f205c91e8f01e418e226fa320c",
+      "inventory_reference": "catalog/provenance.json#/sources/0/inventory",
+      "relationship": "action_context",
+      "canonical_ids": [
+        "COPS-E01.01-GUIDE",
+        "COPS-E01.01-S01",
+        "COPS-E04.01-S01",
+        "COPS-E04.02-S01",
+        "COPS-E04.03-S01",
+        "COPS-E04.04-S01",
+        "COPS-E04.06-S01",
+        "COPS-E05.01-S01",
+        "COPS-E05.02-S01",
+        "COPS-E05.03-S01",
+        "COPS-E05.04-S01",
+        "COPS-E05.05-S01",
+        "COPS-E05.06-S01",
+        "COPS-E06.01-S01",
+        "COPS-E06.02-S01",
+        "COPS-E06.03-GUIDE",
+        "COPS-E06.03-S01",
+        "COPS-E07.01-S01",
+        "COPS-E07.02-S01",
+        "COPS-E07.03-S01",
+        "COPS-E07.04-S01",
+        "COPS-E12.02-S01",
+        "COPS-E15.02-S01"
+      ]
+    },
+    {
+      "source_id": "S02",
+      "pinned_revision": "b879fd62eaae297b38087b8227dde5f8f0cf7668",
+      "inventory_reference": "catalog/provenance.json#/sources/1/inventory",
+      "relationship": "direct_detection_guidance",
+      "canonical_ids": [
+        "COPS-E01.01-GUIDE",
+        "COPS-E03.01-GUIDE",
+        "COPS-E04.02-S01",
+        "COPS-E04.03-S01",
+        "COPS-E04.04-S01",
+        "COPS-E05.03-S01",
+        "COPS-E05.04-S01",
+        "COPS-E05.05-S01",
+        "COPS-E05.06-S01",
+        "COPS-E06.01-S01",
+        "COPS-E06.02-S01",
+        "COPS-E06.03-GUIDE",
+        "COPS-E06.03-S01",
+        "COPS-E07.01-S01",
+        "COPS-E07.02-S01",
+        "COPS-E07.03-S01",
+        "COPS-E10.01-S01",
+        "COPS-E10.07-S01",
+        "COPS-E10.08-S01",
+        "COPS-E14.01-GUIDE",
+        "COPS-E15.01-S01",
+        "COPS-E15.02-S01",
+        "COPS-E15.03-S01",
+        "COPS-E17.02-GUIDE"
+      ]
+    },
+    {
+      "source_id": "S03",
+      "pinned_revision": "2026-10-02",
+      "inventory_reference": "catalog/provenance.json#/sources/2/inventory",
+      "relationship": "action_context",
+      "canonical_ids": [
+        "COPS-E10.07-S01"
+      ]
+    },
+    {
+      "source_id": "S04",
+      "pinned_revision": "2026-10-02",
+      "inventory_reference": "catalog/provenance.json#/sources/3/inventory",
+      "relationship": "action_context",
+      "canonical_ids": [
+        "COPS-E10.07-S01",
+        "COPS-E10.08-S01",
+        "COPS-E10.09-S01",
+        "COPS-E10.10-S01"
+      ]
+    },
+    {
+      "source_id": "S05",
+      "pinned_revision": "2026-10-02",
+      "inventory_reference": "catalog/provenance.json#/sources/4/inventory",
+      "relationship": "action_context",
+      "canonical_ids": [
+        "COPS-E10.07-S01",
+        "COPS-E10.08-S01",
+        "COPS-E10.09-S01"
+      ]
+    },
+    {
+      "source_id": "S06",
+      "pinned_revision": "2026-10-02",
+      "inventory_reference": "catalog/provenance.json#/sources/5/inventory",
+      "relationship": "action_context",
+      "canonical_ids": [
+        "COPS-E10.07-S01",
+        "COPS-E10.08-S01"
+      ]
+    },
+    {
+      "source_id": "S07",
+      "pinned_revision": "2026-10-02",
+      "inventory_reference": "catalog/provenance.json#/sources/6/inventory",
+      "relationship": "action_context",
+      "canonical_ids": [
+        "COPS-E10.07-S01"
+      ]
+    },
+    {
+      "source_id": "S08",
+      "pinned_revision": "v3.0.0",
+      "inventory_reference": "catalog/provenance.json#/sources/7/inventory",
+      "relationship": "action_context",
+      "canonical_ids": [
+        "COPS-E10.02-S01",
+        "COPS-E10.07-S01",
+        "COPS-E10.08-S01",
+        "COPS-E10.09-S01"
+      ]
+    },
+    {
+      "source_id": "S09",
+      "pinned_revision": "v0.8.0",
+      "inventory_reference": "catalog/provenance.json#/sources/8/inventory",
+      "relationship": "action_context",
+      "canonical_ids": [
+        "COPS-E10.04-S01"
+      ]
+    },
+    {
+      "source_id": "S10",
+      "pinned_revision": "v0.6.8",
+      "inventory_reference": "catalog/provenance.json#/sources/9/inventory",
+      "relationship": "action_context",
+      "canonical_ids": [
+        "COPS-E10.05-S01"
+      ]
+    },
+    {
+      "source_id": "S11",
+      "pinned_revision": "v0.58.0",
+      "inventory_reference": "catalog/provenance.json#/sources/10/inventory",
+      "relationship": "action_context",
+      "canonical_ids": [
+        "COPS-E10.06-S01",
+        "COPS-E10.08-S01"
+      ]
+    },
+    {
+      "source_id": "S12",
+      "pinned_revision": "2026-10-02",
+      "inventory_reference": "catalog/provenance.json#/sources/11/inventory",
+      "relationship": "action_context",
+      "canonical_ids": [
+        "COPS-E10.08-GUIDE"
+      ]
+    },
+    {
+      "source_id": "S13",
+      "pinned_revision": "2026-10-02",
+      "inventory_reference": "catalog/provenance.json#/sources/12/inventory",
+      "relationship": "action_context",
+      "canonical_ids": [
+        "COPS-E10.07-GUIDE"
+      ]
+    }
+  ],
+  "native_soc_validation": {
+    "status": "pending_external_execution",
+    "required_evidence": [
+      "Separately authorized completed action identifiers and execution time windows.",
+      "Source-authenticated telemetry, alert, and completed search receipts tied to those actions.",
+      "Documented clock skew, ingest lag, collection completeness, and correlation quality.",
+      "Native SOC outcomes correlated to the same action identifiers and time windows."
+    ],
+    "limitations": [
+      "These static source mappings are theoretical and do not establish a measured detection outcome.",
+      "Missing telemetry never proves that an action was prevented."
+    ]
+  }
+}
