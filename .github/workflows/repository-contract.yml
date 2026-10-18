@@ -26,9 +26,14 @@ jobs:
           python -m pip install cryptography==50.0.2 jsonschema==4.26.0
           mkdir -p "$RUNNER_TEMP/cops-runtime/wheels"
           cp laboratories/service-runtime/Dockerfile laboratories/service-runtime/requirements.txt laboratories/service-runtime/pin_runtime.py "$RUNNER_TEMP/cops-runtime/"
-          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 --max-filesize 65536 --output "$RUNNER_TEMP/cops-runtime/hexdump-3.3.zip" https://files.pythonhosted.org/packages/55/b3/279b1d57fa3681725d0db8820405cdcb4e62a9239c205e4ceac4391c78e4/hexdump-3.3.zip
+          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+            --max-filesize 65536 --output "$RUNNER_TEMP/cops-runtime/hexdump-3.3.zip" \
+            https://files.pythonhosted.org/packages/55/b3/279b1d57fa3681725d0db8820405cdcb4e62a9239c205e4ceac4391c78e4/hexdump-3.3.zip
           python laboratories/service-runtime/build_hexdump_wheel.py "$RUNNER_TEMP/cops-runtime/hexdump-3.3.zip" "$RUNNER_TEMP/cops-runtime/wheels"
-          python -m pip download --index-url https://pypi.org/simple --only-binary=:all: --require-hashes --find-links "$RUNNER_TEMP/cops-runtime/wheels" --platform manylinux_2_28_x86_64 --platform manylinux2014_x86_64 --python-version 314 --implementation cp --abi cp314 --dest "$RUNNER_TEMP/cops-runtime/wheels" -r laboratories/service-runtime/requirements.txt
+          python -m pip download --index-url https://pypi.org/simple --only-binary=:all: --require-hashes \
+            --find-links "$RUNNER_TEMP/cops-runtime/wheels" --platform manylinux_2_28_x86_64 \
+            --platform manylinux2014_x86_64 --python-version 314 --implementation cp --abi cp314 \
+            --dest "$RUNNER_TEMP/cops-runtime/wheels" -r laboratories/service-runtime/requirements.txt
           docker pull python:3.14.6@sha256:51570a50616289f78f340811c34ca4384985f9e891819cbe7620f738d6ca8525
           docker image inspect python:3.14.6@sha256:51570a50616289f78f340811c34ca4384985f9e891819cbe7620f738d6ca8525 --format '{{.Id}}' > "$RUNNER_TEMP/cops-runtime/base.id"
           docker pull rancher/k3s@sha256:b032bfb68a10fee30ab60c160d32a6b3af7ea33620e9f7a29d59890e42ceefed
@@ -36,7 +41,9 @@ jobs:
           docker pull python:3.14.6-slim@sha256:b921fe7e7522f828d45197a47656ec465a9b15689b27fa8e1fba2864fca5b967
       - name: Build without network access and run the strict gate
         run: |
-          docker build --tag cops-service-runtime:acceptance --network none --pull=false --build-arg "BASE_IMAGE=$(cat "$RUNNER_TEMP/cops-runtime/base.id")" --iidfile "$RUNNER_TEMP/cops-runtime/image.id" "$RUNNER_TEMP/cops-runtime"
+          docker build --tag cops-service-runtime:acceptance --network none --pull=false \
+            --build-arg "BASE_IMAGE=$(cat "$RUNNER_TEMP/cops-runtime/base.id")" \
+            --iidfile "$RUNNER_TEMP/cops-runtime/image.id" "$RUNNER_TEMP/cops-runtime"
           cat "$RUNNER_TEMP/cops-runtime/base.id" "$RUNNER_TEMP/cops-runtime/image.id"
           make check-laboratory PYTHON=python LABORATORY_ARGS="--runtime docker --image $(cat "$RUNNER_TEMP/cops-runtime/image.id")"
 
