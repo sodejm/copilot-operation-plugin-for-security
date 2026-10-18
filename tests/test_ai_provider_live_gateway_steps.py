@@ -234,9 +234,7 @@ def narrow_agent_parent(context):
 def request_wider_provider_child(context):
     plan, case, args, _ = context["narrow_case"]
     with pytest.raises(ProviderLiveError, match="dispatch denied"):
-        execute_live_case(
-            plan, case, parent_attempt_id="agent-root", child_limits=_policy(plan).limits, **args
-        )
+        execute_live_case(plan, case, parent_attempt_id="agent-root", child_limits=_policy(plan).limits, **args)
 
 
 @then("the widened provider child is denied before gateway send")
