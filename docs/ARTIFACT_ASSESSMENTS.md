@@ -185,6 +185,11 @@ The pinned regression corpus is `tests/fixtures/artifact_assessment_cases_v1.jso
 
 Cloud analysis accepts Terraform plan JSON version 1.x, using effective `after` values and excluding deleted resources. It checks registered AWS IAM policies, security groups and S3 ACLs; rendered Kubernetes workloads, RBAC and NetworkPolicy; AWS security-group/IAM/ACL exports; Azure NSG and storage-account exports; and GCP firewall/IAM exports. Unknown Terraform values, unsupported resource types, malformed fields and empty unrecognized documents produce an insufficient-evidence finding. Deny statements and outbound rules do not become ingress findings. These observations do not resolve policy conditions, effective permissions, rule precedence, or live reachability. Raw Helm and other formats require registered adapters.
 
+An IAM Allow statement containing `Condition` remains insufficient evidence,
+including an empty or malformed condition. It cannot establish public storage
+or effective wildcard permissions without policy evaluation and request context.
+Separate unconditional statements still produce their supported observations.
+
 ## Typed network evidence
 
 The [typed example](../plugins/vulnerability-management/network-segmentation-workbench/examples/typed-input.json)

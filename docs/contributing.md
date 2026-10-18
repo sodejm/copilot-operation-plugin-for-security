@@ -321,3 +321,8 @@ crypto import to workflow startup: use a subprocess with site packages disabled
 to cover workflow listing, catalog validation, and every unsigned fixture
 playback profile. Keep real Ed25519 signing, invalid-key/signature, and
 redaction tests in an environment where the extra is installed.
+
+Cloud policy parser changes require `tests/test_cloud_corrections.py`, including
+conditional statements in direct AWS, Policy wrapper and Terraform plan shapes.
+Keep conditional evidence unknown, test independent unconditional statements, and
+synchronize the portable artifact runtimes.

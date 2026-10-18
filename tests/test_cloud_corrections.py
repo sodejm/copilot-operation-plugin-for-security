@@ -181,3 +181,40 @@ def test_unrecognized_or_malformed_exports_are_unknown(kind: str, content: objec
 )
 def test_nested_wrong_types_are_partial_without_crashing(kind: str, content: dict) -> None:
     assert "cloud_configuration_insufficient_evidence" in codes(kind, content)
+
+
+def bucket_statement(**extra: object) -> dict:
+    return {"Effect": "Allow", "Principal": "*", "Action": "s3:GetObject", "Resource": "arn:aws:s3:::example/*", **extra}
+
+
+@pytest.mark.parametrize("wrapper", ["direct", "policy", "terraform-iam", "terraform-bucket"])
+@pytest.mark.parametrize(
+    "condition",
+    [{"StringEquals": {"aws:PrincipalOrgID": "o-synthetic"}}, {}, None, [], "unsupported"],
+)
+def test_conditional_public_principal_is_unknown_in_every_registered_shape(wrapper: str, condition: object) -> None:
+    policy = {"Statement": [bucket_statement(Condition=condition)]}
+    if wrapper.startswith("terraform"):
+        kind = "terraform_plan"
+        resource = "aws_iam_policy" if wrapper == "terraform-iam" else "aws_s3_bucket_policy"
+        content = plan(resource, {"policy": json.dumps(policy)})
+    else:
+        kind = "aws_export"
+        content = policy if wrapper == "direct" else {"Policy": json.dumps(policy)}
+    observed = codes(kind, content)
+    assert "public_storage" not in observed
+    assert "iam_wildcard" not in observed
+    assert "cloud_configuration_insufficient_evidence" in observed
+
+
+def test_conditional_policy_does_not_hide_an_unconditional_public_statement() -> None:
+    conditional = bucket_statement(Condition={"StringEquals": {"aws:PrincipalOrgID": "o-synthetic"}})
+    assert "public_storage" in codes("aws_export", {"Statement": [bucket_statement()]})
+    mixed = codes("aws_export", {"Statement": [conditional, bucket_statement()]})
+    assert {"public_storage", "cloud_configuration_insufficient_evidence"} <= mixed
+    assert "public_storage" not in codes("aws_export", {"Statement": [bucket_statement(Effect="Deny")]})
+
+
+def test_conditional_wildcard_cannot_establish_effective_permissions() -> None:
+    observed = codes("aws_export", {"Statement": [bucket_statement(Action="s3:*", Resource="*", Condition={})]})
+    assert observed == {"cloud_configuration_insufficient_evidence"}

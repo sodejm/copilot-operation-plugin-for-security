@@ -650,6 +650,12 @@ disable environment proxies and redirects, and bound responses and socket waits.
 `tests/test_laboratory_http_client.py` exercises these controls against an actual
 disposable service, including an unvisited redirect target and oversized evidence.
 
+Cloud IAM observations do not infer effective access from a conditional Allow
+statement. Any `Condition` field leaves that statement unresolved; syntactically
+public principals and wildcard actions alone cannot override this gap. Separate
+unconditional statements remain assessable. Full condition and policy precedence
+evaluation requires a separately validated adapter and request context.
+
 ## STRIDE and privacy coverage
 
 | Category | Review obligation |
