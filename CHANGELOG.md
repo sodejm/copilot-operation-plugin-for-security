@@ -6,6 +6,10 @@
   order. Exclude adjacent steps, environment mappings and block scalars; report
   duplicate or unsupported input mappings as partial evidence.
 
+- Keep conditional IAM Allow statements unresolved across AWS and Terraform
+  inputs. Conditional public principals and wildcard actions no longer become
+  verified exposure observations without policy evaluation evidence.
+
 - Keep workflow discovery, validation, and unsigned fixture playback usable
   without optional site packages. Ed25519 evidence signing now loads the
   `crypto` extra only when requested and fails explicitly when unavailable.

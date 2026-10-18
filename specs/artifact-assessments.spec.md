@@ -70,3 +70,11 @@ The [EVTX import contract](evtx-import.spec.md) precedes assessment. Its typed
 record references and source digest preserve provenance, but derived indicators
 alone cannot become verified findings. Unsupported or incomplete records remain
 partial evidence. Native acquisition requires separate permissions and evidence.
+
+## Conditional IAM statements
+
+An Allow statement containing `Condition` is outside the bounded IAM evaluator,
+including an empty or malformed condition. It produces an evidence gap and cannot
+establish public storage or effective wildcard permissions. Other unconditional
+statements are still assessed. This applies to direct AWS policies, `Policy`
+exports, and registered Terraform IAM/S3 policy resources; no input is modified.
