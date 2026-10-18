@@ -7,8 +7,8 @@ Feature: Capability Reconciliation and Truth-in-Advertising
     Given the current COPS repository catalog
     When the capability truth-in-advertising auditor is executed
     Then the audit succeeds with status "valid"
-    And exactly 18 plugins are reconciled
-    And exactly 21 specialist profiles are reconciled
+    And exactly 25 plugins are reconciled
+    And exactly 27 specialist profiles are reconciled
     And exactly 37 scenarios are reconciled
     And exactly 0 capabilities claim "live-validated" mode
 
@@ -29,7 +29,7 @@ Feature: Capability Reconciliation and Truth-in-Advertising
   Scenario: Rejecting packages claiming unverified live integration
     Given a plugin package claiming "live_integration" as "validated" without live evidence
     When capability audit is executed on the candidate registry
-    Then the audit fails with error code "unverified_live_integration"
+    Then the audit fails with error code "unverified_live_claim"
 
   Scenario: Rejecting capabilities with missing truth boundaries
     Given a capability entry with empty truth boundaries

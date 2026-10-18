@@ -4,3 +4,5 @@
 *.jpeg binary
 *.gif binary
 *.pdf binary
+# Preserve the official schema bytes used by the offline conformance hash.
+cops/reports/schemas/sarif-schema-2.1.0.json -text whitespace=cr-at-eol

@@ -1,33 +1,33 @@
 ---
 layout: documentation
 title: "COPS — Copilot Operations Plugins for Security"
-description: "Universal catalog of offline-first defensive cybersecurity plugins, 21 specialist AI agent profiles, and deterministic verification tools for GitHub Copilot, Claude Code, and Codex."
+description: "Universal catalog of 25 offline-first defensive cybersecurity plugins, 27 specialist AI agent profiles, and deterministic verification tools for GitHub Copilot, Claude Code, and Codex."
 ---
 
 <div class="cops-hero">
   <img src="assets/cops-logo.png" alt="COPS Shield and Copilot Visor Logo">
   <h1 class="cops-hero-title">COPS</h1>
   <p class="cops-hero-tagline">
-    Copilot Operations Plugins for Security: an open-source, universal catalog of defensive cybersecurity plugins, 21 specialist agent profiles, and offline verification tools for AI coding assistants.
+    Copilot Operations Plugins for Security: an open-source, universal catalog of 25 defensive cybersecurity plugins, 27 specialist agent profiles, and offline verification tools for AI coding assistants.
   </p>
   <div class="cops-cta-row">
     <a href="getting-started.html" class="cops-btn cops-btn-primary">5-Minute Quickstart</a>
-    <a href="plugin-guide.html" class="cops-btn cops-btn-secondary">Explore 18 Plugins</a>
+    <a href="plugin-guide.html" class="cops-btn cops-btn-secondary">Explore 25 Plugins</a>
     <a href="plugin-verification.html" class="cops-btn cops-btn-secondary">Verify a Plugin</a>
-    <a href="specialist-agents.html" class="cops-btn cops-btn-secondary">21 Specialist Agents</a>
+    <a href="specialist-agents.html" class="cops-btn cops-btn-secondary">27 Specialist Agents</a>
     <a href="https://github.com/sodejm/copilot-operation-plugin-for-security" class="cops-btn cops-btn-secondary">GitHub Repository</a>
   </div>
 </div>
 
 ## Why COPS?
 
-Whether your engineering and security teams operate in **GitHub Copilot**, **Claude Code**, or **Codex / ChatGPT**, COPS provides production-grade cybersecurity capabilities without vendor lock-in.
+Whether your engineering and security teams operate in **GitHub Copilot**, **Claude Code**, or **Codex / ChatGPT**, COPS provides bounded, evidence-aware cybersecurity workflows without vendor lock-in.
 
-- **100% Offline-First by Default**: Explore tools, run demos, and validate detection logic straight from your local terminal with standard Python. No cloud credentials, assistant installations, or live tenant connections required.
+- **Offline-First by Default**: Explore tools, run demos, and validate detection logic straight from your local terminal with standard Python. No cloud credentials, assistant installations, or live tenant connections required.
 - **Deterministic Script-First Tooling**: Offloads calculations, graph traversals, and schema validations to standard-library Python scripts. Fast, deterministic, and preserves model tokens.
 - **Universal Multi-Assistant Portability**: A single catalog in `catalog/plugins.json` powers GitHub Copilot, Claude Code, and Codex with zero configuration drift.
-- **21 Specialist Agent Profiles**: Pre-tuned security personas spanning detection engineering, threat hunting, DFIR, cloud IAM, Active Directory, AppSec, Kubernetes context, and host assessment, with dynamic zero-token routing and Triad orchestration.
-- **Truth-in-Advertising & Evidence Standard**: Every capability is categorized into four explicit operational readiness modes (`planned`, `import`, `laboratory`, `live-validated`), preventing over-claiming.
+- **27 Specialist Agent Profiles**: Security personas spanning detection engineering, threat hunting, DFIR, cloud IAM, Active Directory, AppSec, Kubernetes context, host assessment, API security, cloud posture, network segmentation, secrets remediation, supply-chain security, and TLS/cryptography. Deterministic routing proposes specialists and Triad handoffs; it does not start agents or authorize execution.
+- **Truth-in-Advertising & Evidence Standard**: Every capability is categorized into five explicit operational readiness modes (`planned`, `guidance`, `import`, `laboratory`, `live-validated`), with evidence required for its stated mode.
 - **MITRE ATT&CK & Attack Flow Coverage**: Formally mapped against the pinned ATT&CK Enterprise Matrix (v18.0) and MITRE Attack Flow standards.
 
 ---
@@ -44,7 +44,7 @@ cd copilot-operation-plugin-for-security
 # 2. Check local environment health and catalog synchronization
 python3 -m cops doctor
 
-# 3. List all 18 plugins and their validation status
+# 3. List all 25 plugins and their validation status
 python3 -m cops list
 
 # 4. Route a natural language security task to the optimal specialist
@@ -63,38 +63,82 @@ Read the full [Getting Started Guide](getting-started.md) for detailed step-by-s
 
 ## Cybersecurity Capability Domains
 
-COPS organizes 18 dedicated security plugins across six cybersecurity disciplines:
+COPS organizes 25 dedicated security plugins across seven cybersecurity disciplines:
 
 <div class="cops-grid">
   <div class="cops-card">
     <h3>📡 Logging &amp; Telemetry</h3>
     <p>Audit codebases for security logging gaps, flag sensitive data leaks, and verify end-to-end pipeline routes from Cribl to Splunk and Sentinel.</p>
-    <p><strong>Plugins:</strong> <a href="plugin-guide.html#security-logging-advisor">Security Logging Advisor</a> <span class="badge badge-stable">Stable</span>, <a href="plugin-guide.html#telemetry-proof-pack">Telemetry Proof Pack</a> <span class="badge badge-beta">Beta</span></p>
+    <p><strong>Plugins:</strong></p>
+    <ul>
+      <li><a href="plugin-guide.html#security-logging-advisor">Security Logging Advisor</a> <span class="badge badge-stable">Stable</span></li>
+      <li><a href="plugin-guide.html#telemetry-proof-pack">Telemetry Proof Pack</a> <span class="badge badge-beta">Beta</span></li>
+    </ul>
   </div>
   <div class="cops-card">
     <h3>🔍 Detection &amp; Hunting</h3>
     <p>Guide SOC alert triage with rival hypotheses, stress-test 12 Microsoft Sentinel KQL hunts, trace cloud lateral movement paths, and enrich indicators.</p>
-    <p><strong>Plugins:</strong> <a href="plugin-guide.html#soc-investigation-workbench">SOC Investigation</a>, <a href="plugin-guide.html#sentinel-hunt-workbench">Sentinel Hunt</a>, <a href="plugin-guide.html#attack-path-workbench">Attack Path</a>, <a href="plugin-guide.html#detection-quality-workbench">Detection Quality</a>, <a href="plugin-guide.html#threat-intelligence-enrichment">Threat Intel</a></p>
+    <p><strong>Plugins:</strong></p>
+    <ul>
+      <li><a href="plugin-guide.html#soc-investigation-workbench">SOC Investigation</a> <span class="badge badge-beta">Beta</span></li>
+      <li><a href="plugin-guide.html#sentinel-hunt-workbench">Sentinel Hunt</a> <span class="badge badge-beta">Beta</span></li>
+      <li><a href="plugin-guide.html#attack-path-workbench">Attack Path</a> <span class="badge badge-experimental">Experimental</span></li>
+      <li><a href="plugin-guide.html#detection-quality-workbench">Detection Quality</a> <span class="badge badge-beta">Beta</span></li>
+      <li><a href="plugin-guide.html#threat-intelligence-enrichment">Threat Intelligence</a> <span class="badge badge-experimental">Experimental</span></li>
+    </ul>
   </div>
   <div class="cops-card">
     <h3>🔑 Identity &amp; Access</h3>
-    <p>Audit Microsoft Entra ID exports and map scoped Active Directory relationships and candidate paths from offline evidence.</p>
-    <p><strong>Plugins:</strong> <a href="plugin-guide.html#entra-identity-workbench">Entra Identity Workbench</a> <span class="badge badge-beta">Beta</span>, <a href="plugin-guide.html#ad-assessment-workbench">AD Assessment Workbench</a> <span class="badge badge-experimental">Experimental</span></p>
+    <p>Audit Microsoft Entra ID exports, map scoped Active Directory relationships, and plan secrets remediation from redacted imported evidence.</p>
+    <p><strong>Plugins:</strong></p>
+    <ul>
+      <li><a href="plugin-guide.html#entra-identity-workbench">Entra Identity Workbench</a> <span class="badge badge-beta">Beta</span></li>
+      <li><a href="plugin-guide.html#ad-assessment-workbench">AD Assessment Workbench</a> <span class="badge badge-experimental">Experimental</span></li>
+      <li><a href="plugin-guide.html#secrets-remediation-workbench">Secrets Remediation Workbench</a> <span class="badge badge-experimental">Experimental</span></li>
+    </ul>
   </div>
   <div class="cops-card">
     <h3>🛡️ Vulnerability Management</h3>
-    <p>Correlate advisory CVEs with software bills of materials (SBOM) and call graph reachability, inspect pull request diffs, and preflight versioned reproduction plans offline.</p>
-    <p><strong>Plugins:</strong> <a href="plugin-guide.html#exposure-triage-workbench">Exposure Triage</a> <span class="badge badge-beta">Beta</span>, <a href="plugin-guide.html#exploit-validation-workbench">Exploit Validation Workbench</a> <span class="badge badge-experimental">Experimental</span>, <a href="plugin-guide.html#patch-security-review">Patch Security Review</a> <span class="badge badge-beta">Beta</span></p>
+    <p>Correlate advisory CVEs with SBOM and call-graph evidence, inspect pull request diffs, and assess imported cloud, supply-chain, segmentation, and TLS artifacts offline.</p>
+    <p><strong>Plugins:</strong></p>
+    <ul>
+      <li><a href="plugin-guide.html#exposure-triage-workbench">Exposure Triage</a> <span class="badge badge-beta">Beta</span></li>
+      <li><a href="plugin-guide.html#exploit-validation-workbench">Exploit Validation Workbench</a> <span class="badge badge-experimental">Experimental</span></li>
+      <li><a href="plugin-guide.html#patch-security-review">Patch Security Review</a> <span class="badge badge-beta">Beta</span></li>
+      <li><a href="plugin-guide.html#cloud-posture-workbench">Cloud Posture Workbench</a> <span class="badge badge-experimental">Experimental</span></li>
+      <li><a href="plugin-guide.html#supply-chain-cicd-workbench">Supply Chain and CI/CD Workbench</a> <span class="badge badge-experimental">Experimental</span></li>
+      <li><a href="plugin-guide.html#network-segmentation-workbench">Network Segmentation Workbench</a> <span class="badge badge-experimental">Experimental</span></li>
+      <li><a href="plugin-guide.html#tls-crypto-workbench">TLS and Cryptography Workbench</a> <span class="badge badge-experimental">Experimental</span></li>
+    </ul>
   </div>
   <div class="cops-card">
     <h3>⚔️ Offensive Security</h3>
-    <p>Plan bounded reviews, reconcile approved Kubernetes context from local records, classify imported Linux privilege-boundary observations, validate authorized engagement scope, and evaluate AI agent prompt injection resistance in a sandbox.</p>
-    <p><strong>Plugins:</strong> <a href="plugin-guide.html#attack-surface-planner">Attack Surface Planner</a> <span class="badge badge-experimental">Experimental</span>, <a href="plugin-guide.html#kubernetes-assessment-workbench">Kubernetes Assessment Workbench</a> <span class="badge badge-experimental">Experimental</span>, <a href="plugin-guide.html#host-assessment-workbench">Host Assessment Workbench</a> <span class="badge badge-experimental">Experimental</span>, <a href="plugin-guide.html#offensive-engagement-workbench">Offensive Engagement Workbench</a> <span class="badge badge-experimental">Experimental</span>, <a href="plugin-guide.html#foundry-agent-harness">Foundry Agent Harness</a> <span class="badge badge-beta">Beta</span></p>
+    <p>Plan bounded reviews, reconcile approved Kubernetes context, classify imported host observations, validate engagement scope, evaluate prompt-injection resistance, and assess imported web/API artifacts.</p>
+    <p><strong>Plugins:</strong></p>
+    <ul>
+      <li><a href="plugin-guide.html#attack-surface-planner">Attack Surface Planner</a> <span class="badge badge-experimental">Experimental</span></li>
+      <li><a href="plugin-guide.html#kubernetes-assessment-workbench">Kubernetes Assessment Workbench</a> <span class="badge badge-experimental">Experimental</span></li>
+      <li><a href="plugin-guide.html#host-assessment-workbench">Host Assessment Workbench</a> <span class="badge badge-experimental">Experimental</span></li>
+      <li><a href="plugin-guide.html#offensive-engagement-workbench">Offensive Engagement Workbench</a> <span class="badge badge-experimental">Experimental</span></li>
+      <li><a href="plugin-guide.html#foundry-agent-harness">Foundry Agent Harness</a> <span class="badge badge-beta">Beta</span></li>
+      <li><a href="plugin-guide.html#web-api-assessment-workbench">Web and API Assessment Workbench</a> <span class="badge badge-experimental">Experimental</span></li>
+    </ul>
   </div>
   <div class="cops-card">
     <h3>🚨 Incident Response</h3>
     <p>Rehearse containment playbooks, calculate cloud resource blast radius, and generate cryptographic execution receipts under interactive operator approval.</p>
-    <p><strong>Plugins:</strong> <a href="plugin-guide.html#incident-response-sandbox">Incident Response Sandbox</a> <span class="badge badge-experimental">Experimental</span></p>
+    <p><strong>Plugins:</strong></p>
+    <ul>
+      <li><a href="plugin-guide.html#incident-response-sandbox">Incident Response Sandbox</a> <span class="badge badge-experimental">Experimental</span></li>
+    </ul>
+  </div>
+  <div class="cops-card">
+    <h3>📋 Governance &amp; Compliance</h3>
+    <p>Map dated imported evidence to control frameworks and preserve supported, missing, stale, and unknown states. Fixture results do not establish operating effectiveness.</p>
+    <p><strong>Plugins:</strong></p>
+    <ul>
+      <li><a href="plugin-guide.html#compliance-posture-workbench">Compliance Posture Workbench</a> <span class="badge badge-experimental">Experimental</span></li>
+    </ul>
   </div>
 </div>
 
@@ -106,14 +150,14 @@ through malicious, benign, and insufficient-evidence cases.
 
 ---
 
-## 21 Specialist Agent Profiles & Dynamic Routing
+## 27 Specialist Agent Profiles & Dynamic Routing
 
-COPS centralizes 21 callable specialist profiles housed in [`agents/`](specialist-agents.md) across offensive, defensive, forensics, identity, and governance domains:
+COPS centralizes 27 callable specialist profiles housed in [`agents/`](specialist-agents.md) across offensive, defensive, forensics, identity, and governance domains. The additions are `cops-api-security-specialist`, `cops-cloud-posture-specialist`, `cops-network-segmentation-specialist`, `cops-secrets-remediation-specialist`, `cops-supply-chain-specialist`, and `cops-tls-crypto-specialist`.
 
 ```mermaid
 flowchart LR
-    TASK["Incoming Security Task"] --> ROUTER["Zero-Token Router<br/>cops route"]
-    ROUTER --> SPEC["21 Specialist Profiles"]
+    TASK["Incoming Security Task"] --> ROUTER["Deterministic Router<br/>cops route"]
+    ROUTER --> SPEC["27 Specialist Profiles"]
     SPEC --> OFF["Offensive Security<br/>Pentest, Red Team, AI Red Team"]
     SPEC --> DEF["Defensive & Detection<br/>Sentinel KQL, Threat Hunter, SOC"]
     SPEC --> DFIR["Incident Response & Forensics<br/>Blast Radius, Collector, Malware"]
@@ -121,7 +165,7 @@ flowchart LR
     SPEC --> GOV["Governance & Efficacy<br/>Purple Team, Logging Architect"]
 ```
 
-When high-risk operations are requested (e.g. penetration testing, red team emulation, active containment rehearsal), COPS dynamically activates **Triad Orchestration** (Primary Specialist + Domain Skeptic + Evidence Auditor) requiring interactive human operator confirmation.
+For high-risk requests, the router proposes a **Triad Orchestration** plan with a Primary Specialist, Domain Skeptic, and Evidence Auditor. The proposal does not start agents. Execution requires separately validated concrete actions, scope, and authorization.
 
 Learn more in the [Specialist Agents Guide](specialist-agents.md).
 
@@ -131,7 +175,7 @@ Learn more in the [Specialist Agents Guide](specialist-agents.md).
 
 - [5-Minute Quickstart Guide](getting-started.md): Installation, diagnostics, and running your first demo.
 - [Plugin Selection Guide](plugin-guide.md): Clear criteria on when to reach for each plugin.
-- [21 Specialist Agents](specialist-agents.md): Agent catalog, zero-token routing, and Triad safety.
+- [27 Specialist Agents](specialist-agents.md): Agent catalog, clarification, optional classifier routing, and Triad safety.
 - [ATT&CK Matrix (v18.0)](COVERAGE_MATRIX.md): Mappings and validation state across all capabilities.
 - [Universal Portability](PORTABILITY.md): Multi-assistant sync architecture.
 - [Contributor Guide](contributing.md): Development environment setup, adding plugins, and test gates.

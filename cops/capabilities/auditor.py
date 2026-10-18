@@ -54,7 +54,9 @@ def build_capability_registry(root: Path = ROOT) -> dict[str, Any]:
         # Determine mode
         if live_int == "validated":
             mode = "live-validated"
-            live_verified = True
+            # A manifest is a claim, not verified execution evidence. Keep the
+            # claim visible so the audit rejects it until a verifier is added.
+            live_verified = False
         elif pid in PLANNED_PLUGIN_IDS:
             mode = "planned"
             live_verified = False
@@ -71,7 +73,11 @@ def build_capability_registry(root: Path = ROOT) -> dict[str, Any]:
 
         # Evidence requirements
         if mode == "laboratory":
-            ev_reqs = ["Deterministic offline test execution", "Synthetic fixture validation", "Zero network egress"]
+            ev_reqs = [
+                "Deterministic offline fixture validation",
+                "Recorded laboratory execution evidence",
+                "Verified isolation and restoration before laboratory readiness",
+            ]
         elif mode == "import":
             ev_reqs = [
                 "Local static file/manifest parsing",
@@ -120,7 +126,7 @@ def build_capability_registry(root: Path = ROOT) -> dict[str, Any]:
             ),
             evidence_requirements=[
                 "Specialist profile frontmatter validation",
-                "Intent routing keyword mapping",
+                "Canonical routing metadata and explicit handoff capability mapping",
                 "Contract file presence",
             ],
             live_evidence_verified=False,
@@ -136,7 +142,7 @@ def build_capability_registry(root: Path = ROOT) -> dict[str, Any]:
     for s in scenarios_data["scenarios"]:
         safety = s.get("safety_profile", {})
         mode = s.get("coverage_mode", "planned")
-        live_verified = mode == "live-validated"
+        live_verified = False
 
         bounds = (
             f"Impact: {safety.get('impact', 'unknown')}; "
@@ -210,7 +216,7 @@ def audit_capabilities(root: Path = ROOT, registry_data: dict[str, Any] | None =
     1. Unverified Live Claims: No capability may claim 'live-validated' mode or 'live_integration: validated'
        without verified live evidence records.
     2. Truth Boundaries: Every capability must specify non-empty truth boundaries.
-    3. Descriptive Drift: Total counts must match expected counts (18 plugins, 21 specialists, 37 scenarios).
+    3. Descriptive Drift: IDs and summary counts must match the canonical catalogs.
     4. Specialist Advisory Constraints: Specialists cannot claim direct execution without an ActionPlan contract.
     """
     if registry_data is None:
@@ -225,10 +231,10 @@ def audit_capabilities(root: Path = ROOT, registry_data: dict[str, Any] | None =
         mode = cap["mode"]
         live_verified = cap.get("live_evidence_verified", False)
 
-        if mode == "live-validated" and not live_verified:
+        if mode == "live-validated" or live_verified:
             raise CapabilityTruthError(
                 "unverified_live_claim",
-                f"Capability '{cid}' claims 'live-validated' mode without verified live execution evidence.",
+                f"Capability '{cid}' claims verified live execution, but no live-evidence verifier is registered.",
             )
 
         # Check for empty boundaries
@@ -246,28 +252,35 @@ def audit_capabilities(root: Path = ROOT, registry_data: dict[str, Any] | None =
                 support = pkg.get("support", {})
                 live_int = support.get("live_integration")
                 if live_int == "validated":
-                    # Check if verified live evidence envelope exists
-                    evidence_dir = root / "cops" / "evidence" / "live_receipts"
-                    if not evidence_dir.is_dir() or not any(evidence_dir.glob(f"{p['id']}-*.json")):
-                        raise CapabilityTruthError(
-                            "unverified_live_integration",
-                            f"Plugin '{p['id']}' claims live_integration: validated without verified evidence receipts.",
-                        )
+                    raise CapabilityTruthError(
+                        "unverified_live_integration",
+                        f"Plugin '{p['id']}' claims live_integration: validated, but no live-evidence verifier is registered.",
+                    )
 
-    # Rule 3: Catalog descriptive drift check
-    if summary["by_kind"]["plugin"] != 18:
-        raise CapabilityTruthError(
-            "catalog_descriptive_drift", f"Expected exactly 18 plugins, found {summary['by_kind']['plugin']}."
-        )
-    if summary["by_kind"]["specialist"] != 21:
-        raise CapabilityTruthError(
-            "catalog_descriptive_drift",
-            f"Expected exactly 21 specialist profiles, found {summary['by_kind']['specialist']}.",
-        )
-    if summary["by_kind"]["scenario"] != 37:
-        raise CapabilityTruthError(
-            "catalog_descriptive_drift", f"Expected exactly 37 scenarios, found {summary['by_kind']['scenario']}."
-        )
+    # Rule 3: Compare identities as well as totals; equal counts can hide missing entries.
+    sources = {
+        "plugin": ("catalog/plugins.json", "plugins", "id"),
+        "specialist": ("agents/registry.json", "specialists", "id"),
+        "scenario": ("catalog/scenarios.json", "scenarios", "scenario_id"),
+    }
+    expected_counts = {}
+    for kind, (relative, key, id_key) in sources.items():
+        source = json.loads((root / relative).read_text(encoding="utf-8"))
+        expected = {entry[id_key] for entry in source[key]}
+        actual = [cap["id"] for cap in capabilities if cap["kind"] == kind]
+        expected_counts[kind] = len(expected)
+        if len(actual) != len(set(actual)) or set(actual) != expected:
+            raise CapabilityTruthError("catalog_descriptive_drift", f"{kind} IDs differ from {relative}.")
+    actual_modes = {
+        mode: sum(cap["mode"] == mode for cap in capabilities)
+        for mode in ("planned", "import", "laboratory", "live-validated")
+    }
+    if (
+        summary["by_kind"] != expected_counts
+        or summary["total_capabilities"] != len(capabilities)
+        or summary["by_mode"] != actual_modes
+    ):
+        raise CapabilityTruthError("catalog_descriptive_drift", "Summary counts differ from canonical entries.")
 
     return {
         "status": "valid",

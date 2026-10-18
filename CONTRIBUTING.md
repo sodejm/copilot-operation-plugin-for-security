@@ -74,6 +74,11 @@ a dependency is missing or cannot be imported, or an installed version is
 incompatible. Verification is offline, never runs pip, and never installs or
 upgrades packages. Installation is a separate command under your control.
 
+Report conformance is mandatory in `make check`. The official SARIF 2.1.0 schema
+is bundled unchanged and verified by SHA-256; the declared `jsonschema` dependency
+validates exports offline. No external schema path is needed. See the
+[report export guide](docs/REPORT_EXPORTS.md) for the focused check.
+
 `requirements.txt` is the canonical declaration for local setup and all CI test
 jobs. Each non-comment line contains a distribution name with an optional numeric
 `>=` minimum version. The verifier checks stable numeric releases, including post
@@ -126,3 +131,81 @@ Use the [plugin-run-cost contributor skill](.agents/skills/plugin-run-cost/SKILL
 for local execution accounting and input-based forecasts. It reuses session audit
 request normalization. Keep private ledgers outside Git, and keep development costs
 separate from plugin executions. Synthetic examples are not production benchmarks.
+
+### EVTX correction evidence
+
+For shared laboratory HTTP changes, run
+`python -m pytest tests/test_laboratory_http_client.py tests/test_service_laboratory.py tests/test_integrated_service_laboratory.py`.
+Verify destination rejection, proxy and redirect refusal, bounded responses, and
+actual service correction outcomes before the full repository and laboratory gates.
+
+Run `python -m pytest tests/test_evtx_import.py tests/test_check_laboratory.py`
+after importer changes. `python scripts/build_evtx_fixtures.py` regenerates the
+three synthetic binary counterparts; update their manifest checksums only after
+reviewing the intended fixture change. Portable tests cover framing and worker
+boundaries. The required Linux laboratory gate parses every counterpart with the
+pinned parser and cannot skip a missing prerequisite. See
+[the runtime recipe](laboratories/service-runtime/README.md).
+
+### Forensic import correction evidence
+
+Run `python -m pytest tests/test_forensic_import.py tests/test_acquisition.py`
+for raw import and acquisition changes. Include source replacement during reads,
+symlink ancestors, special files, malformed custody, missing permission, bounded
+streaming, and unchanged originals. Then run `make check`, `make check-docs`, and
+`make check-laboratory` with the pinned isolated runtime. The gate imports the
+actual acquired copy and checks rejection and restoration; fabricated receipt
+records cannot replace this playback.
+
+### Credential pattern correction evidence
+
+Use only synthetic values when extending Git-history patterns. Run
+`python -m pytest tests/test_git_history_scanner.py` for historical exposure,
+corrected history, insufficient bounds, benign lookalikes, redaction and unchanged
+source bytes. Retain existing synthetic fingerprints so the actual laboratory
+revocation exercise correlates the same credential. Synchronize portable runtimes
+and run the repository, documentation and laboratory gates.
+
+### Kubernetes correction evidence
+
+Run `python -m pytest tests/test_kubernetes_laboratory.py tests/test_check_laboratory.py`
+after changes to the cluster adapter or composite gate. Keep malformed isolation,
+missing telemetry, namespace replacement and incomplete case-list regressions.
+Then run all three repository gates with the preprovisioned image pins in
+[the Kubernetes runbook](docs/KUBERNETES_LABORATORY.md). Actual pod connectivity,
+audit records and cleanup are required; mocked policy results are insufficient.
+
+### CVE correction evidence
+
+Run `python -m pytest tests/test_cve_evidence_binding.py tests/test_integrated_workflows.py tests/test_integrated_service_laboratory.py`.
+Keep exact component and malformed inventory regressions, missing invocation
+evidence, unbound controls, and vulnerable/corrected real HTTP cases. A source
+change requires reviewing and repinning the synthetic advisory fixtures. Then
+run the portable, documentation and strict laboratory gates.
+
+### Consent correction evidence
+
+Run `python -m pytest tests/test_consent_evidence.py tests/test_integrated_workflows.py tests/test_integrated_service_laboratory.py`.
+Retain missing, stale, conflicting and cross-tenant cases, principal-specific
+correlation, corrected risk assertions, and mismatched grant rejection. Actual
+HTTP acceptance must show target access changing from 200 to 401 while unrelated
+access stays 200. Run portable, documentation and strict laboratory gates.
+
+### Exposure correction evidence
+
+Run `python -m pytest tests/test_exposure_evidence.py tests/test_exposure_dns.py tests/test_integrated_workflows.py tests/test_integrated_service_laboratory.py`.
+Retain wrong endpoint/address, stale, duplicate, incomplete and redirect cases.
+DNS tests must reject malformed responses, timeouts and address changes while
+proving early-failure cleanup. Actual laboratory evidence must show a DNS exchange
+and anonymous HTTP 200 → 401 with authorized access preserved. Run `make check`,
+`make check-docs` and `make check-laboratory` before claiming acceptance.
+
+### Supply-chain installation correction evidence
+
+Run `python -m pytest tests/test_supply_chain_laboratory.py tests/step_defs/test_supply_chain_laboratory_steps.py tests/test_service_laboratory.py`.
+Retain deterministic wheel hashes, installed-source verification, real vulnerable
+and corrected HTTP responses, hash-rejection and insufficient-evidence cases.
+Timeout, output-limit and cancellation tests must reap actual workers and remove
+partial installations. Run `make check`, `make check-docs` and the strict isolated
+`make check-laboratory` gate with the registered installer version before claiming
+laboratory acceptance.

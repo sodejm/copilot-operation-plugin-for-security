@@ -237,3 +237,10 @@ query a Microsoft or Splunk service; inspect real telemetry; or prove scheduled
 rule firing, suppression, production precision, recall, latency, or
 availability. Validate those properties separately in an authorized test
 environment.
+
+<!-- BEGIN COPS GENERATED OFFLINE ASSESSMENT LINKS -->
+## Generated offline assessment
+
+- [Machine-readable playbook](../playbooks/offline-assessment.json)
+- [Runnable offline walkthrough](../walkthroughs/offline-assessment.md)
+<!-- END COPS GENERATED OFFLINE ASSESSMENT LINKS -->

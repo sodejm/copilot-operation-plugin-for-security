@@ -1,0 +1,14 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "web-api-assessment-workbench",
+  "version": "0.1.0",
+  "description": "Import HTTP traffic, OpenAPI schemas, and Postman collections, model endpoints and isolated sessions, and execute bounded request replays.",
+  "author": {"name": "Justin Soderberg", "url": "https://github.com/sodejm"},
+  "repository": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "keywords": ["cybersecurity", "offensive-security", "web-api", "inventory", "request-replay", "graphql", "websocket"],
+  "extensions": {
+    "com.openai": {"displayName": "COPS Web API Assessment Workbench", "category": "Developer Tools"},
+    "org.cops": {}
+  }
+}

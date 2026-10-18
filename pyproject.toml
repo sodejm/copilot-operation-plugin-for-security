@@ -12,7 +12,9 @@ license = { text = "Apache-2.0" }
 dependencies = []
 
 [project.optional-dependencies]
-laboratory = ["cryptography>=43"]
+laboratory = ["cryptography==50.0.2"]
+crypto = ["cryptography==50.0.2"]
+evtx = ["python-evtx==0.8.1", "hexdump==3.3"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"

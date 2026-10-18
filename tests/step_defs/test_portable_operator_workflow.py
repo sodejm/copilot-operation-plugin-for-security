@@ -166,7 +166,33 @@ EXPECTED_PLAYBACK_FIELDS: dict[str, dict[tuple[str, ...], object]] = {
         ("execution_authorized",): False,
         ("mismatch_refused",): True,
     },
+    "web-api-assessment-workbench": {
+        ("status",): "passed",
+        ("mode",): "offline",
+        ("network_requests",): 0,
+        ("inventory", "credentials_redacted"): True,
+        ("inventory", "endpoints_count"): 4,
+        ("replay_summary", "total_dispatched"): 4,
+        ("replay_summary", "total_successful"): 4,
+        ("replay_summary", "total_failed"): 0,
+        ("replay_summary", "destination_violations"): 0,
+    },
 }
+
+CORRECTION_PACKAGES = {
+    "compliance-posture-workbench",
+    "cloud-posture-workbench",
+    "supply-chain-cicd-workbench",
+    "secrets-remediation-workbench",
+    "network-segmentation-workbench",
+    "tls-crypto-workbench",
+}
+for _package in CORRECTION_PACKAGES:
+    EXPECTED_PLAYBACK_FIELDS[_package] = {
+        ("schema_version",): "cops.correction-playback/v1",
+        ("mode",): "offline",
+        ("laboratory_readiness",): "unverified",
+    }
 
 
 def _json_documents(output: str) -> list[dict[str, Any]]:
@@ -208,7 +234,21 @@ def _assert_playback_semantics(plugin_id: str, result: subprocess.CompletedProce
         actual = _value_at(payload, path)
         assert actual == expected, f"{plugin_id} {'.'.join(path)}: expected {expected!r}, got {actual!r}"
 
-    if plugin_id == "soc-investigation-workbench":
+    if plugin_id in CORRECTION_PACKAGES:
+        cases = payload["cases"]
+        assert {case["phase"] for case in cases} == {
+            "vulnerable",
+            "corrected",
+            "insufficient",
+            "benign",
+        }
+        for case in cases:
+            if case["phase"] == "vulnerable":
+                assert case["finding_codes"]
+            elif case["phase"] in {"corrected", "benign"}:
+                assert not case["finding_codes"]
+            assert case["assessment_status"] in {"partial", "not_assessed"}
+    elif plugin_id == "soc-investigation-workbench":
         assert payload["artifacts"] == "validated_in_disposable_directory"
         summary = _value_at(payload, ("playback_summary",))
         assert summary["schema_version"] == "soc-investigation.playback/v1"

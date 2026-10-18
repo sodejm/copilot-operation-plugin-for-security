@@ -54,8 +54,18 @@ def load_specialists_registry(registry_path: Path | None = None) -> list[Special
                 skills=tuple(str(s) for s in entry["skills"]),
                 tools=tuple(str(t) for t in entry["tools"]),
                 contract_file=str(entry["contract_file"]),
-                intent_keywords=tuple(str(k).lower() for k in entry["intent_keywords"]),
+                # ``intent_keywords`` was the v1 routing surface.  Canonical v2
+                # registries may omit it; the classifier still consumes it as a
+                # compatibility fallback when no symptom triggers are present.
+                intent_keywords=tuple(str(k).lower() for k in entry.get("intent_keywords", ())),
+                capabilities=tuple(str(c) for c in entry.get("capabilities", ())),
                 triad_defaults=dict(entry["triad_defaults"]) if "triad_defaults" in entry else None,
+                symptom_triggers=tuple(str(k).lower() for k in entry.get("symptom_triggers", ())),
+                artifact_triggers=tuple(str(k).lower() for k in entry.get("artifact_triggers", ())),
+                anti_triggers=tuple(str(k).lower() for k in entry.get("anti_triggers", ())),
+                example_prompts=tuple(str(k) for k in entry.get("example_prompts", ())),
+                purpose=str(entry.get("purpose", entry["description"])),
+                required_permissions=tuple(str(k) for k in entry.get("required_permissions", ())),
             )
             profiles.append(profile)
         except KeyError as err:

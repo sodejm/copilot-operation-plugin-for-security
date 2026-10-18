@@ -1,20 +1,30 @@
 ---
 layout: documentation
-title: "21 Specialist Cybersecurity Agents & Dynamic Routing"
-description: "Catalog of twenty-one cybersecurity agent profiles, deterministic profile selection, proposed triad plans, and specialist handoff records."
+title: "27 Specialist Cybersecurity Agents & Dynamic Routing"
+description: "Catalog of twenty-seven cybersecurity agent profiles, deterministic profile selection, proposed triad plans, and specialist handoff records."
 ---
 
-# 21 Specialist Cybersecurity Agents & Dynamic Routing
+# 27 Specialist Cybersecurity Agents & Dynamic Routing
 
-COPS centralizes **21 specialist cybersecurity agent profiles** housed in `agents/`. Each profile defines a dedicated persona, tool allowlist, domain constraints, and evaluation criteria tailored to specific security disciplines.
+COPS centralizes **27 specialist cybersecurity agent profiles** housed in `agents/`. Each profile defines a dedicated persona, tool allowlist, domain constraints, and evaluation criteria tailored to specific security disciplines.
 
 The COPS router recommends a specialist profile for your host assistant to use. Starting an agent is a separate action in that host.
 
 ---
 
-## Dynamic Zero-Token Routing (`cops route`)
+## Dynamic local routing (`cops route`)
 
-The router selects a profile by an explicit profile ID or weighted matches against keywords, skills, and tools. It falls back to the SOC analyst profile when no match scores above zero. These local rules use standard Python **without consuming LLM tokens** or calling external APIs:
+The router selects a profile by an explicit profile ID or by deterministic matches
+against the profile's symptom, artifact, anti-trigger, and example-prompt metadata.
+It extracts only routing-safe feature categories, then combines exact trigger,
+BM25, and conservative fuzzy scores. A result below 0.65 confidence, or with less
+than 0.15 confidence between its leading candidates, asks for clarification. It
+does not silently select a general-purpose profile. The clarification includes
+candidate purposes and required permissions so the caller can make a bounded
+choice.
+
+These local rules use standard Python **without consuming LLM tokens** or calling
+external APIs:
 
 ```bash
 # Route any natural language task:
@@ -27,11 +37,31 @@ python3 -m cops route "Rehearse containment of a compromised service principal w
 python3 -m cops route "Audit this Python codebase for missing audit logs and credential leaks"
 ```
 
-To list all 21 specialist profiles from your terminal:
+To list all 27 specialist profiles from your terminal:
 
 ```bash
 python3 -m cops specialists
 ```
+
+The versioned `cops.routing-decision/v2` result includes its status, ranked
+candidates, reasons, confidence, and authorization requirements. Integrators can
+optionally supply a classifier callback when deterministic routing remains
+ambiguous. The callback contract requires an explicit model, deadline, and token
+budget. It receives redacted feature categories and registered profile IDs rather
+than the raw request. Missing limits, an exhausted budget, an unavailable or timed
+out callback, an unknown profile, or a low-confidence answer leaves the result in
+clarification status.
+
+Repository integrations can use `collect_repository_context` from `cops.context`
+to inventory supported local artifacts without returning file content. It detects
+dependency manifests, CI workflows, rendered Kubernetes or Helm output, and
+Terraform plan JSON while excluding credentials, raw state, history, symlinks,
+special files, and unrelated directories. Network collection is a separate,
+explicit input. `build_execution_preview` from `cops.preview` turns a routing
+decision and declared actions into a pure preview of specialist order, reads,
+writes, exact destinations, authorization, evidence, budget, noise, and unknowns.
+The preview does not connect services, launch workers, consume approval, or write
+state.
 
 ---
 
@@ -73,7 +103,8 @@ replace execution authorization.
 | `cops-kubernetes-specialist` | Kubernetes Assessment Specialist | Offline approved-context, namespace, and surface comparison with live-evidence limits. |
 | `cops-redteam-operator` | Red Team Operations Specialist | Threat actor emulation planning, ATT&CK TTP mapping, defensive evasion analysis. |
 | `cops-attack-surface-planner` | Attack Surface Planner | Passive reconnaissance planning, domain mapping, in-scope vs. out-of-scope enforcement. |
-| `cops-ai-adversary-specialist` | AI Adversary & Red Teamer | Prompt injection resistance testing, jailbreak evaluation, model safety boundaries. |
+| `cops-ai-adversary-specialist` | AI Adversary & Red Teamer | Bounded direct and indirect injection cases and recorded tool-boundary assessment; provider resistance requires separate live evidence. |
+| `cops-api-security-specialist` | API Security Specialist | REST and GraphQL inventory, isolated role/object authorization playback, and bounded rate-limit cases. |
 
 ---
 
@@ -107,6 +138,8 @@ replace execution authorization.
 | `cops-exposure-analyst` | Vulnerability Exposure Analyst | SBOM correlation (CycloneDX/SPDX), CVE reachability analysis, exploit exposure scoring. |
 | `cops-appsec-engineer` | Application Security Engineer | Static code review, logging gap analysis, patch security review, CWE pattern detection. |
 | `cops-threat-intel-analyst` | Threat Intelligence Analyst | IOC enrichment, MITRE ATT&CK actor attribution, offline feed correlation. |
+| `cops-secrets-remediation-specialist` | Secrets Remediation Specialist | Bounded, read-only Git-history review, redacted exposure evidence, and rotation or revocation guidance. |
+| `cops-supply-chain-specialist` | Supply Chain Security Specialist | Lockfile and SBOM review against pinned advisory evidence, workflow permissions, and registry-resolution risks. |
 
 ---
 
@@ -116,7 +149,10 @@ replace execution authorization.
 | :--- | :--- | :--- |
 | `cops-purple-team-coordinator` | Purple Team Coordinator | Joint offensive-defensive exercise design, detection gap analysis, remediation tracking. |
 | `cops-logging-architect` | Enterprise Logging Architect | Telemetry pipeline design (Cribl Stream, Splunk, Sentinel), ingestion volume management. |
-| `cops-compliance-auditor` | Security & Compliance Auditor | Regulatory control mapping (SOC 2, ISO 27001, NIST CSF), evidence verification. |
+| `cops-compliance-auditor` | Security & Compliance Auditor | Versioned SOC 2, CIS, and NIST evidence mappings with supported, unsupported, and unknown outcomes. |
+| `cops-cloud-posture-specialist` | Cloud Posture Specialist | Bounded Terraform plan, rendered Kubernetes, and cloud configuration export review with explicit coverage limits. |
+| `cops-network-segmentation-specialist` | Network Segmentation Specialist | Expected versus recorded reachability, firewall and NetworkPolicy evidence, and bounded laboratory connectivity checks. |
+| `cops-tls-crypto-specialist` | TLS & Cryptography Specialist | Certificate and JWT/JWKS configuration review and ephemeral TLS/mTLS service tests. |
 
 ---
 
@@ -143,7 +179,8 @@ The approved `ActionPlan` supplies the bounds checked by this workflow. Tool exe
 
 ## Using Specialist Profiles in AI Assistants
 
-Each specialist profile is packaged for immediate use across:
+Profiles and skills are packaged for these hosts. Installation and actual host execution require separate validation:
+
 - **GitHub Copilot**: Configured in `.github/copilot-instructions.md` and repository skills.
 - **Claude Code**: Packaged under `.claude/` and callable via subagents.
 - **Codex / ChatGPT**: Packaged under `.agents/` and registered with the Agent Skills specification.

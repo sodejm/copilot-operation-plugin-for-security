@@ -141,3 +141,10 @@ rm -rf "$COPS_ENGAGEMENT_RUN"
 Keep private engagement data outside shared build directories. For broader
 package qualification, including independent scope comparison and host-specific
 checks, continue with [VERIFICATION.md](VERIFICATION.md).
+
+<!-- BEGIN COPS GENERATED OFFLINE ASSESSMENT LINKS -->
+## Generated offline assessment
+
+- [Machine-readable playbook](../playbooks/offline-assessment.json)
+- [Runnable offline walkthrough](../walkthroughs/offline-assessment.md)
+<!-- END COPS GENERATED OFFLINE ASSESSMENT LINKS -->

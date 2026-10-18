@@ -271,3 +271,10 @@ Microsoft API call, does not run a scheduled query, and cannot authenticate an
 export or prove collection completeness, native runtime behavior, service
 availability, or a production alert rate. Collect and validate those facts
 separately through authorized provider workflows.
+
+<!-- BEGIN COPS GENERATED OFFLINE ASSESSMENT LINKS -->
+## Generated offline assessment
+
+- [Machine-readable playbook](../playbooks/offline-assessment.json)
+- [Runnable offline walkthrough](../walkthroughs/offline-assessment.md)
+<!-- END COPS GENERATED OFFLINE ASSESSMENT LINKS -->

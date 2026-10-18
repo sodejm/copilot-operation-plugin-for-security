@@ -1,0 +1,26 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "secrets-remediation-workbench",
+  "version": "0.1.0",
+  "description": "Assess redacted Git history and identity evidence to plan credential exposure remediation and verify lab revocation.",
+  "author": {
+    "name": "Justin Soderberg",
+    "url": "https://github.com/sodejm"
+  },
+  "repository": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "keywords": [
+    "claude",
+    "codex",
+    "github-copilot",
+    "identity-access",
+    "offline-analysis"
+  ],
+  "extensions": {
+    "com.openai": {
+      "displayName": "COPS Secrets Remediation Workbench",
+      "category": "Developer Tools"
+    },
+    "org.cops": {}
+  }
+}

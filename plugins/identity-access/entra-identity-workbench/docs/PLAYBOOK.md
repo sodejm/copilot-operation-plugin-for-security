@@ -60,3 +60,19 @@ For a rerun, use a new workspace or delete a disposable workspace after review. 
 ## Production use limits
 
 Replace the fixture only with an authorized, local export and preserve its manifest and hashes with the assessment record. This playback proves the offline pipeline works for the synthetic contract. It does not prove live Microsoft integration, production export completeness, exploitability, or tenant security.
+
+<!-- BEGIN COPS GENERATED OFFLINE ASSESSMENT LINKS -->
+## Generated offline assessment
+
+- [Machine-readable playbook](../playbooks/offline-assessment.json)
+- [Runnable offline walkthrough](../walkthroughs/offline-assessment.md)
+<!-- END COPS GENERATED OFFLINE ASSESSMENT LINKS -->
+
+## Integrated consent remediation
+
+The repository [integrated workflow guide](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/docs/INTEGRATED_WORKFLOWS.md)
+provides vulnerable, corrected and limited consent export playback. Correlation
+requires a tenant-bound service-principal mapping between grant client object IDs
+and sign-in application IDs. The isolated synthetic service validates exact-grant
+revocation while preserving unrelated access. Production Entra remediation,
+session revocation and hunting remain separately validated operations.

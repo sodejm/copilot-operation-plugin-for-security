@@ -1,0 +1,49 @@
+{
+  "tool": "git",
+  "version": "object-enumerator-v1",
+  "binary": "git",
+  "provenance": {
+    "source": "https://git-scm.com/",
+    "license": "GPL-2.0-only",
+    "pinned_revision": "v2.47.3"
+  },
+  "execution": {
+    "version_args": ["--version"],
+    "version_pattern": "git version (?P<version>2\\.[0-9]+\\.[0-9]+)(?:[ .()+A-Za-z0-9-]*)"
+  },
+  "supported_environments": ["darwin", "linux", "win32"],
+  "actions": {
+    "version": {
+      "description": "Read the pinned Git executable version",
+      "base_args": ["--version"],
+      "parameters": {}
+    },
+    "head": {
+      "description": "Read the current local commit identity",
+      "base_args": ["rev-parse", "--verify", "HEAD^{commit}"],
+      "parameters": {}
+    },
+    "revisions": {
+      "description": "Enumerate a bounded set of reachable local commits",
+      "base_args": ["rev-list", "--all"],
+      "parameters": {
+        "max_count": {"type": "integer", "required": true, "flag": "--max-count", "regex_pattern": "[1-9][0-9]{0,4}"},
+        "head": {"type": "enum", "allowed_values": ["HEAD"]}
+      }
+    },
+    "tree": {
+      "description": "Enumerate ordinary files in one verified commit",
+      "base_args": ["ls-tree", "-rz", "--full-tree"],
+      "parameters": {
+        "commit": {"type": "string", "required": true, "regex_pattern": "[0-9a-f]{40}(?:[0-9a-f]{24})?"}
+      }
+    },
+    "blob": {
+      "description": "Read one verified local blob without executing its content",
+      "base_args": ["cat-file", "blob"],
+      "parameters": {
+        "object_id": {"type": "string", "required": true, "regex_pattern": "[0-9a-f]{40}(?:[0-9a-f]{24})?"}
+      }
+    }
+  }
+}

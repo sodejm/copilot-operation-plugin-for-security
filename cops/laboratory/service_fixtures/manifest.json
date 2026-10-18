@@ -1,0 +1,205 @@
+{
+  "schema_version": "cops.service-laboratory-fixtures/v1",
+  "provenance": {
+    "generator": "COPS deterministic synthetic fixture set",
+    "generated_on": "2026-10-15",
+    "license": "repository license",
+    "safety": "Reserved documentation address ranges, example.invalid identities, and synthetic identifiers only"
+  },
+  "profiles": {
+    "vulnerable": {
+      "configuration": "vulnerable.json",
+      "expected_outcomes": {
+        "authenticated_request": 200,
+        "lateral_request": 200,
+        "lateral_target_reached": true,
+        "post_revoke_authenticated_request": 401
+      }
+    },
+    "corrected": {
+      "configuration": "corrected.json",
+      "expected_outcomes": {
+        "authenticated_request": 200,
+        "lateral_request": 403,
+        "lateral_target_reached": false,
+        "post_revoke_authenticated_request": 401
+      }
+    }
+  },
+  "fixtures": [
+    {
+      "path": "vulnerable.json",
+      "sha256": "3d69048ad8f66c75752083e0051ac33fb320843f50e1088a3392aa432d73d770",
+      "format": "COPS service profile JSON",
+      "synthetic": true
+    },
+    {
+      "path": "corrected.json",
+      "sha256": "68ed853d8442f37fd5991a8a4b7e8762cbae8490c0703d97bf70626db64043c0",
+      "format": "COPS service profile JSON",
+      "synthetic": true
+    },
+    {
+      "path": "entra-grants.jsonl",
+      "sha256": "7f5b7dfbd24994cd1bb4065ae06cd81de864c150ebe067ec6f5c90da7e7cc49f",
+      "format": "Microsoft Graph oauth2PermissionGrant-shaped JSONL",
+      "synthetic": true
+    },
+    {
+      "path": "entra-signins.jsonl",
+      "sha256": "83117f6f9ccae1a1b60f7cdd9a3a78e5bfca5b7d4e9e30cf07b1247ef48ef50f",
+      "format": "Microsoft Graph signIn-shaped JSONL",
+      "synthetic": true
+    },
+    {
+      "path": "kubernetes-audit.jsonl",
+      "sha256": "403a0ee307c87bec2a39f799f74389e25dcbe86939f417641ae975e446555633",
+      "format": "Kubernetes audit.k8s.io/v1 JSONL",
+      "synthetic": true
+    },
+    {
+      "path": "sysmon-normalized.jsonl",
+      "sha256": "a52f4337e2794b7fb7e1dfa12bd6d450326cda4cc32a10ca8ad0cf6850250a99",
+      "format": "normalized Sysmon-shaped JSONL",
+      "synthetic": true,
+      "is_evtx": false
+    },
+    {
+      "path": "sysmon-vulnerable.evtx",
+      "sha256": "4dbd6c4f96c5adae0e2c1df9847ab03a76131ecc60136c227d35f0fde8c1c245",
+      "format": "EVTX 3.1 binary, synthetic inline BinXML",
+      "synthetic": true,
+      "is_evtx": true,
+      "generator": "python scripts/build_evtx_fixtures.py",
+      "expected_outcomes": {
+        "status": "imported",
+        "records_total": 2,
+        "records_normalized": 2,
+        "indicator_counts": {
+          "powershell_network": 1,
+          "encoded_command": 1
+        }
+      }
+    },
+    {
+      "path": "sysmon-corrected.evtx",
+      "sha256": "74e3ba983be16a897f515c12744f9f155876ed06f4eeb52fa790507cf339b8d2",
+      "format": "EVTX 3.1 binary, synthetic inline BinXML",
+      "synthetic": true,
+      "is_evtx": true,
+      "generator": "python scripts/build_evtx_fixtures.py",
+      "expected_outcomes": {
+        "status": "imported",
+        "records_total": 2,
+        "records_normalized": 2,
+        "indicator_counts": {
+          "powershell_network": 0,
+          "encoded_command": 0
+        }
+      }
+    },
+    {
+      "path": "sysmon-insufficient.evtx",
+      "sha256": "5023fa444889f6a5d54c524f6507dfffe3677f076fb0640132c69ec6f8bd5ff9",
+      "format": "EVTX 3.1 binary, synthetic inline BinXML",
+      "synthetic": true,
+      "is_evtx": true,
+      "generator": "python scripts/build_evtx_fixtures.py",
+      "expected_outcomes": {
+        "status": "partial",
+        "records_total": 1,
+        "records_normalized": 0,
+        "indicator_counts": {
+          "powershell_network": 0,
+          "encoded_command": 0
+        }
+      }
+    },
+    {
+      "path": "cve-advisory.json",
+      "sha256": "f7eea187e118faf1df208c7fd0284b01d4d8c21c65e57002dc3f8bc07869ebdc",
+      "format": "COPS synthetic advisory v1",
+      "synthetic": true,
+      "expected_outcomes": {
+        "vulnerable": "reachable",
+        "corrected": "corrected_dependency",
+        "missing_evidence": "not_established"
+      }
+    },
+    {
+      "expected_outcomes": [
+        "tenant-bound service principal to application mapping; grants and sign-ins are separate exports"
+      ],
+      "path": "consent-context.json",
+      "sha256": "c4d06dcb2f5e02b85e4bc4f2ce5488b7e688e6d0bd8074c1c37c9e8c940f57c0",
+      "format": "COPS consent evidence context v1",
+      "synthetic": true
+    }
+  ],
+  "reset": {
+    "service_state": "Restore the in-memory baseline on normal exit, failure, and cancellation.",
+    "certificates": "Delete the temporary certificate directory after every TLS acceptance run.",
+    "persistent_data": "No database, credential, certificate, or listening service survives the runner process.",
+    "evtx": "Read-only import leaves originals unchanged; each private parser snapshot is removed on success, error, and timeout."
+  },
+  "heavyweight_adapters": [
+    {
+      "name": "Docker Engine",
+      "pinned_prerequisite": "preinstalled immutable image sha256 digest; Python >=3.11 and cryptography==50.0.2 inside the image",
+      "bundled": false,
+      "platforms": [
+        "linux",
+        "macOS-hosted-Linux-VM"
+      ],
+      "status": "explicit Docker gate adapter; requires reachable daemon, pre-start container inspection, kernel boundary probes, actual service activity, and verified cleanup"
+    },
+    {
+      "name": "kubectl",
+      "pinned_prerequisite": "1.31.3",
+      "bundled": false,
+      "platforms": [
+        "linux",
+        "macOS",
+        "windows"
+      ],
+      "status": "fixture playback does not invoke a cluster"
+    },
+    {
+      "name": "Zeek",
+      "pinned_prerequisite": "7.0.4",
+      "bundled": false,
+      "platforms": [
+        "linux",
+        "macOS"
+      ],
+      "status": "registered for future isolated packet fixtures"
+    },
+    {
+      "name": "Suricata",
+      "pinned_prerequisite": "7.0.7",
+      "bundled": false,
+      "platforms": [
+        "linux"
+      ],
+      "status": "registered for future isolated packet fixtures"
+    },
+    {
+      "name": "Sysmon",
+      "pinned_prerequisite": "15.15",
+      "bundled": false,
+      "platforms": [
+        "windows"
+      ],
+      "status": "Native Windows acquisition remains unvalidated; generated binary EVTX fixtures establish bounded import only."
+    },
+    {
+      "name": "python-evtx",
+      "pinned_prerequisite": "0.8.1",
+      "bundled": false,
+      "platforms": [
+        "linux"
+      ],
+      "status": "sysmon-evtx/v1 bounded import with hexdump==3.3; Linux resource limits required; other platforms explicitly unsupported"
+    }
+  ]
+}

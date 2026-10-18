@@ -1,0 +1,15 @@
+---
+name: secrets-remediation-workbench
+description: Assess redacted Git history and identity evidence to plan credential exposure remediation and verify lab revocation.
+---
+
+# COPS Secrets Remediation Workbench
+
+Use supplied, authorized artifacts. Run `python3 scripts/demo.py` from the package
+for correction playback, or `python3 scripts/assess.py --input examples/input.json
+--as-of 2026-10-15T12:00:00Z` for bounded inspection. Resolve script paths relative
+to this package, never to an unrelated current directory.
+
+Report artifact hashes, finding status and limitations. Missing evidence remains
+unknown. Never echo credential values, execute submitted content or promote
+laboratory or live support from fixture results. Follow the [playbook](../../docs/PLAYBOOK.md).

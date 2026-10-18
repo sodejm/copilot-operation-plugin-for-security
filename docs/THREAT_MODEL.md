@@ -620,6 +620,30 @@ validation before the affected release/capability expansion and schedule P2 with
 - Proposed mitigation and validation: Keep the deterministic corpus and negative fixture executable through the public command. Preserve source, authorization, provider-completeness, and native-execution limitations in both report forms and practitioner documentation. Require separately authorized native action and independently verified telemetry and search evidence before making a SOC effectiveness claim.
 - Residual risk / status: This increment validates offline import, classification, and report generation only. It provides no source authenticity, execution authorization, provider-wide search completeness, native SOC effectiveness, or cleanup evidence.
 
+### T37: Routing disclosure, misleading assessments, or workflow scope expansion
+
+- Attack path / prerequisite: An untrusted request or workspace file injects instructions into routing, discloses credentials to an optional classifier, selects an unregistered capability, or presents a preview as permission to execute. A workflow substitutes an output, replays an approval, expands its targets, or retries a write after an uncertain outcome.
+- Inherent impact: High for unauthorized execution or disclosure; likelihood: Medium; priority: P1 before operational use.
+- Existing evidence / limitation: Routing uses registered candidates and bounded, redacted features; ambiguity and classifier failure return clarification. Context discovery excludes sensitive filenames and raw state. Preview tests forbid connector, worker, approval and execution-state effects. Workflow definitions reject invalid types and cycles, compile executable stages into ActionPlans, bind outputs to persisted digests, and require fresh authorization for changed actions or targets. These controls rely on trusted local code, storage and registered handlers; they do not create an operating-system sandbox.
+- Integrated laboratory evidence: The approval adapter independently reconstructs each next-stage plan from its typed configuration and previous observations, including exact service URLs and worker identity, before signing and atomically consuming a one-use authorization. Tampered prior inputs, destinations, actions, workers, authorization IDs, and replay are rejected. This local adapter does not provide an independent human approver or the production distinct-user authority boundary.
+- Git-history boundary: A registered Git adapter reads bounded ordinary repositories with hooks, lazy fetch, replacement objects and interactive prompts disabled. It refuses linked metadata, alternates and unsafe paths. A configured SHA-256 pin is verified while copying the executable into private temporary storage before invocation. The scanner emits fingerprints and content-free counts for bounded COPS, GitHub PAT, AWS identifier, Bearer and PEM private-key shapes; the laboratory verifies a synthetic credential removed from HEAD remains discoverable in history without changing source bytes. Matches do not establish validity. Unsupported formats and encoded values remain outside coverage; new pattern corrections verify redaction and source immutability.
+- Runtime prerequisite: The disposable container's root-owned prerequisite manifest binds its Git executable. Its bounded temporary filesystem permits execution of the private pinned copy; dropped capabilities, no-new-privileges, a read-only root and independently checked network isolation remain required. Temporary executable storage alone is not an isolation boundary. The container is destroyed after checking service shutdown and restoration.
+- Proposed mitigation and validation: Keep held-out routing, redaction, timeout, malformed definition, output tampering, replay, retry, cancellation and duplicate-write tests. Review exact destinations and concrete plans before approval. Provision isolation independently, exercise actual service effects and verify restoration before laboratory readiness. Require separate provider evidence before live-support claims.
+- Residual risk / status: Same-user storage substitution, misleading operator-supplied evidence, novel credential formats, unknown classifier-provider retention and unverified acquisition tools remain boundaries. Offline findings and report exports cannot authenticate supplied evidence. The service harness requires a verified isolation boundary; unsupported hosts remain blocked rather than accepted through marker files. Independent human review of the expansion is pending.
+
+### T38: Parser execution, report promotion, or laboratory evidence overclaim
+
+- Attack path / prerequisite: A submitted binary, encoded script, configuration, log or report causes unbounded parsing, executes content, leaks a credential, or promotes incomplete evidence into a verified finding. Fabricated telemetry, a marker file, or an uncontained localhost exercise is presented as proof of isolated activity and cleanup.
+- Inherent impact: High; likelihood: Medium; priority: P1 before real-data use or readiness promotion.
+- Existing evidence / limitation: Assessors bound bytes, records and decoding and never execute submitted content. Heavy acquisition and unsupported native formats require registered adapters. The EVTX adapter pins its parser and dependency, verifies SHA-256 and structural CRCs, and parses private snapshots under Linux resource limits and a deadline. It rejects malformed XML and mismatched record identities, emits only allowlisted derived fields, and counts unsupported records as partial evidence. Binary fixtures establish synthetic import behavior; they do not establish native Windows acquisition. The child process alone is not a network or same-user isolation boundary. Reports preserve verification and provenance, validate file/line references and separate inconclusive JUnit outcomes. Purple-team evaluation requires every expected predicate on correlated telemetry and alerts; a different alert with the same correlation ID and time window cannot verify a detection. It executes a limited, explicit Sigma/KQL subset against attack and benign fixtures. Four labelled views of captured service evidence exercise detection, instrumentation-gap, detection-gap and indeterminate outcomes with source and handoff digests. Laboratory receipts distinguish actual requests, telemetry and restoration from independent isolation evidence.
+- Proposed mitigation and validation: Test vulnerable, corrected, benign and insufficient inputs; verify forensic hashes without altering originals; require offline SARIF conformance to the bundled, hash-pinned official schema with local references and disabled retrieval; reject malformed exports and test report redaction and status preservation. Reject unsupported rules and formats explicitly. Run the separate laboratory gate on an authorized isolated host and retain native-platform worker and filesystem CI.
+- Residual risk / status: Pattern-based source review, configuration projections and pinned advisory fixtures have limited coverage. Metadata cannot prove source authenticity, runtime reachability, cloud behavior, malware safety or provider resistance. Laboratory and live readiness remain incomplete when required checks are unavailable. No automated gate closes the independent human-review backlog.
+
+Laboratory HTTP requests also reject non-loopback destinations before I/O,
+disable environment proxies and redirects, and bound responses and socket waits.
+`tests/test_laboratory_http_client.py` exercises these controls against an actual
+disposable service, including an unvisited redirect target and oversized evidence.
+
 ## STRIDE and privacy coverage
 
 | Category | Review obligation |
@@ -663,3 +687,108 @@ checkpoint commits and exact-revision approval, and
 [Review coverage](security/REVIEW_COVERAGE.md) for the outstanding retroactive
 inventory. Human reviewer/date/accepted revision: **pending**. No residual risk is
 accepted by this initial document.
+
+## Raw forensic import abuse cases
+
+For `raw-forensic-image/v1`, an attacker may substitute a file, redirect an
+ancestor through a symlink, submit a FIFO/device, exhaust memory, forge custody,
+or induce private content in an error. Descriptor-relative no-follow opens,
+regular-file checks, bounded streaming, stable source identity and supplied
+SHA-256 checks, strict opaque metadata, and content-free errors address these
+cases within the local process boundary. Correction tests replace and modify
+sources during reads and reject malformed or unbound custody. The laboratory
+imports actual acquired files and rejects tampered copies. Caller-supplied
+digests and authority references remain unauthenticated; compromised same-user
+processes, malicious storage, native capture, and image-content analysis need
+separate controls. These tests do not close independent human review.
+
+
+### Typed network prediction boundary
+
+Untrusted firewall and Kubernetes exports can omit a permissive rule, include
+unsupported policy semantics, or exhaust selector work. Typed inputs require a
+complete inventory assertion, bounded lists and a comparison budget. Unsupported
+semantics fail closed to unknown. This assertion is not independently authenticated.
+Flow denial requires explicit, fresh evidence; absence and contradictory records
+remain unknown. DNS comparisons use exact address sets within TTL. Offline parsing
+never resolves names, contacts targets, installs policy or consumes authorizations.
+
+### Local cryptographic trust boundary
+
+Certificate and JWT artifacts can substitute trust anchors, duplicate key IDs,
+include private keys, expand parsing work, or manipulate time and client identity.
+The registered verifier bounds bytes, chains and key sets; rejects ambiguous keys
+and unsupported algorithms; requires explicit trust and assessment time; and uses
+a pinned cryptographic library. Client certificates also require an explicit
+fingerprint allowlist. Results expose fingerprints and fixed codes only.
+Caller-supplied trust and clocks are not authenticated, and local acceptance does
+not establish revocation status or deployed behavior. No token-controlled URL,
+issuer discovery, AIA or revocation endpoint is fetched. Correction tests and
+real ephemeral TLS/JWT services cover rejection and corrected acceptance.
+
+### Kubernetes containment acceptance
+
+A substituted image, ambient cluster context, namespace replacement, unrelated
+telemetry or cleanup failure could produce misleading containment evidence.
+The fixed adapter permits only pinned publisher images, never reads kubeconfig,
+validates the node configuration, binds namespace UID and resolved scope to
+single-use ActionPlans, and checks nonce-correlated HTTP plus successful policy
+create/delete audit records. Bounded exports omit identities and request bodies.
+All three lifecycle cases must restore connectivity and remove owned resources.
+Malformed isolation evidence and incomplete composite case sets fail closed.
+The privileged node shares the Docker kernel; use a dedicated disposable VM.
+Compromised publisher images, a hostile daemon, other CNIs and production clusters
+remain outside the tested boundary. Independent human security review is pending.
+
+## Integrated CVE evidence binding
+
+Untrusted inventory, runtime and control records could falsely claim a corrected
+or unreachable dependency and suppress remediation. The shared matcher requires
+a complete well-formed inventory, exact advisory component identity, timestamped
+execution references and positive invocation counts. Controls additionally bind
+the advisory ID. The laboratory emits these records at actual query execution.
+`tests/test_cve_evidence_binding.py` and the integrated service suite reject
+unrelated identities, malformed entries, missing observations and unbound
+controls while verifying vulnerable/corrected HTTP outcomes. Offline source
+authenticity and semantic truth remain operator responsibilities; no negative
+observation establishes non-exploitability. Production advisory and version-range
+resolution remain outside this synthetic contract.
+
+## Consent correlation abuse cases
+
+Untrusted export flags could nominate an unrelated grant or falsely clear a
+partial tenant export. Exact tenant, grant, client object and application IDs
+prevent cross-identity joins; unique records and complete, timestamped collections
+prevent missing evidence from clearing an assessment. Existing plan digests bind
+configuration and prior output before authorization. The disposable service checks
+the target tuple and independently preserves a benign grant. Tests cover
+cross-tenant, stale, conflicting, incomplete, duplicate and malformed records,
+wrong-target HTTP rejection and unchanged source evidence. Producer assertions
+and production Graph semantics remain outside this synthetic service boundary.
+
+## Exposure correlation abuse cases
+
+Untrusted imports could substitute a clean route, stale authentication result or
+different DNS address for an exposed endpoint. The shared assessor requires exact
+endpoint joins, explicit completeness, unique records and in-window references;
+redirects, denied authorized access and partial collections remain insufficient.
+The fixed DNS lab rejects altered wire responses and has no forwarding path.
+Tests cover wrong host/port/scheme/path/address, stale and duplicate evidence,
+DNS corruption, timeout and address change. Early failures must stop the workflow
+before authentication and restore services. Actual corrected and vulnerable HTTP
+requests establish only the fixed laboratory policy, not production coverage.
+
+## Synthetic package installation abuse cases
+
+Package installation could execute untrusted build code, resolve external
+dependencies or retain a worker after cancellation. The adapter accepts only two
+registered profiles, generates reviewed pure-Python wheel contents, and uses a
+pinned pip with no index, no dependencies, binary-only input and required hashes.
+Installed source must match the generated module digest before execution. A
+deliberately altered wheel must fail installation. Each fixed worker has bounded
+output and a deadline; cleanup kills and reaps its process group and removes the
+temporary root. Tests also reject unsupported prerequisites and mismatched runtime
+nonces. The strict container gate supplies network isolation; installer flags and
+version checks alone cannot establish it. Arbitrary package execution, hostile
+interpreters/installers and production registries remain outside this adapter.
+Independent human security review is pending.

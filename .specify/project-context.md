@@ -162,3 +162,44 @@ reviewed evidence record under a repository-defined contract.
 See [Getting Started](../docs/GETTING_STARTED.md),
 [architecture](../ARCHITECTURE.md), [repository layout](../docs/REPOSITORY_LAYOUT.md),
 and [adding a plugin](../docs/ADDING_A_PLUGIN.md).
+
+## Optional artifact parsers
+
+The operator core remains standard-library based. Binary Sysmon EVTX import uses
+the fixed `sysmon-evtx/v1` adapter with `python-evtx==0.8.1` and `hexdump==3.3`
+in a resource-limited Linux subprocess. It validates a read-only snapshot before
+normalizing supported records; native acquisition is a separate capability.
+See [the import specification](../specs/evtx-import.spec.md).
+
+Raw disk/memory imports use the registered POSIX `raw-forensic-image/v1`
+adapter, strict versioned metadata, bounded streaming and shared no-follow file
+helpers. Integrity, asserted provenance and unperformed analysis remain separate.
+See `specs/forensic-import.spec.md` and the forensic service-laboratory case.
+
+Kubernetes containment acceptance uses `isolated-k3s-containment/v1` on a
+disposable privileged K3s node, separate from the unprivileged service container.
+Both adapters require observed isolation, activity, telemetry and restoration.
+The composite gate requires twelve service cases plus real Kubernetes enforcement;
+see `docs/KUBERNETES_LABORATORY.md` for pinned prerequisites and host limitations.
+
+Integrated CVE playback shares exact component/advisory binding with the service
+laboratory. Real query invocation records distinguish affected and fixed source
+identities; missing or unrelated evidence remains insufficient. This is a pinned
+synthetic advisory case, with no general non-exploitability or provider claim.
+
+Consent remediation now requires tenant-bound grant, service-principal and sign-in
+exports with explicit completeness and observation windows. Offline correlation
+returns targets only for exact identity joins. Isolated acceptance must revoke
+the selected synthetic grant while preserving an unrelated grant; production
+Entra and session/hunt operations remain unverified.
+
+Exposure playback requires complete, in-window DNS, connection and authentication
+evidence for each exact endpoint. Its isolated lab observes a fixed non-forwarding
+DNS answer plus actual vulnerable/corrected HTTP responses. Incomplete coverage
+and DNS failures cannot clear an audit; production discovery remains unverified.
+
+Supply-chain laboratory acceptance uses a registered offline installer for two
+reviewed synthetic wheels. Actual installed-code HTTP behavior, source hashes,
+tamper rejection and cleanup augment the artifact assessor. The strict gate
+requires its pinned installer; arbitrary packages and registry execution remain
+unsupported. See `docs/SERVICE_LABORATORY.md` for prerequisites and evidence limits.

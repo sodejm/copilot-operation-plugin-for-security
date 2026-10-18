@@ -1,0 +1,116 @@
+{
+  "files": [
+    {
+      "path": "cops/__init__.py",
+      "sha256": "8d372a47e4328f57bffeb32c08d6ae08b5562533a81cf1139e043a5ab571a48a",
+      "source": "cops/__init__.py"
+    },
+    {
+      "path": "cops/contracts/__init__.py",
+      "sha256": "e9a7a757db04e33ea4a19abdc0df3e734592afc7cc061577e32b833a4d553160",
+      "source": "generated-package-marker"
+    },
+    {
+      "path": "cops/contracts/lifecycle.py",
+      "sha256": "909dbf8862ee7a40ee6bd9d6ec1d6d6837cd6ee3236118c042b2a5b46b45b255",
+      "source": "cops/contracts/lifecycle.py"
+    },
+    {
+      "path": "cops/contracts/models.py",
+      "sha256": "1b53f7af98ec5f59714f024832c34a0d44bac40999b648c198caff6976bee9b4",
+      "source": "cops/contracts/models.py"
+    },
+    {
+      "path": "cops/contracts/validation.py",
+      "sha256": "bf8db4d2cb7cec92c4c2dd27fa9762912212fcdf68e7578f0ff8c09eb7393959",
+      "source": "cops/contracts/validation.py"
+    },
+    {
+      "path": "cops/discovery/__init__.py",
+      "sha256": "e9a7a757db04e33ea4a19abdc0df3e734592afc7cc061577e32b833a4d553160",
+      "source": "generated-package-marker"
+    },
+    {
+      "path": "cops/discovery/models.py",
+      "sha256": "c1676c1e012ce9b3949001bd74c38fa0e76d321b959f39735bfdc405593b6387",
+      "source": "cops/discovery/models.py"
+    },
+    {
+      "path": "cops/evidence/__init__.py",
+      "sha256": "e9a7a757db04e33ea4a19abdc0df3e734592afc7cc061577e32b833a4d553160",
+      "source": "generated-package-marker"
+    },
+    {
+      "path": "cops/evidence/canonical.py",
+      "sha256": "f049d0a73867aafecd6975a7a6be97f17fe1e56474c9d70f19d7ed5babb85397",
+      "source": "cops/evidence/canonical.py"
+    },
+    {
+      "path": "cops/evidence/validation.py",
+      "sha256": "30b9369cca4872d014c48fe885e75578f1d995f3331243f304b790abd9641e44",
+      "source": "cops/evidence/validation.py"
+    },
+    {
+      "path": "cops/execution/__init__.py",
+      "sha256": "e9a7a757db04e33ea4a19abdc0df3e734592afc7cc061577e32b833a4d553160",
+      "source": "generated-package-marker"
+    },
+    {
+      "path": "cops/execution/authorization.py",
+      "sha256": "ea2eeb96ab085482c886f9ebf860ba0f4f2e5c551e425bcf59a0c9dc16f6ff16",
+      "source": "cops/execution/authorization.py"
+    },
+    {
+      "path": "cops/execution/control.py",
+      "sha256": "6aca045c7fe1d83d989a992f7cc0781b8fb2cfb59af66acff211bd182bf2bb55",
+      "source": "cops/execution/control.py"
+    },
+    {
+      "path": "cops/execution/scope_guard.py",
+      "sha256": "431ce77475da1558f64e9bdde6d79d33085713e18676edf5185ce1c64924e869",
+      "source": "cops/execution/scope_guard.py"
+    },
+    {
+      "path": "cops/execution/store.py",
+      "sha256": "7b798f00776fb5720232f049eaa7fc4d4d4f953c1cbb609974c74456865493c4",
+      "source": "cops/execution/store.py"
+    },
+    {
+      "path": "cops/web_api/__init__.py",
+      "sha256": "408aaefab718babe38939ef332aa9ece20a9192e52f88be47b8f83e529ab947a",
+      "source": "cops/web_api/__init__.py"
+    },
+    {
+      "path": "cops/web_api/assessment.py",
+      "sha256": "55a266e4fd793afd2b5ff4d14ce8661bf91fb92b2e0f8dd01e02570a690f5337",
+      "source": "cops/web_api/assessment.py"
+    },
+    {
+      "path": "cops/web_api/cli.py",
+      "sha256": "836d9bc8132200c36111fbe563cd930ccc45d1c4f59187ed2963f89543e965a7",
+      "source": "cops/web_api/cli.py"
+    },
+    {
+      "path": "cops/web_api/importer.py",
+      "sha256": "27a14ebe2982f5ca2e1487a852d8acd69a531462380945d50cc045df9d883024",
+      "source": "cops/web_api/importer.py"
+    },
+    {
+      "path": "cops/web_api/laboratory.py",
+      "sha256": "545eb8099786f687e30f704adb09fbbc5b1fb8516ffad0a2512d7ed61497bc4e",
+      "source": "cops/web_api/laboratory.py"
+    },
+    {
+      "path": "cops/web_api/models.py",
+      "sha256": "f005190ffe1b4e8843ff2a53e9cbf686ff1e7cab562c862248190a15ec67aafb",
+      "source": "cops/web_api/models.py"
+    },
+    {
+      "path": "cops/web_api/replay.py",
+      "sha256": "be8815038ed5a5098164c4caf5a2c1ac3f2cddca3991565caf33b089db90358f",
+      "source": "cops/web_api/replay.py"
+    }
+  ],
+  "purpose": "offline Web API workbench execution from an installed portable package",
+  "schema_version": "cops.vendored-python-runtime/v1"
+}

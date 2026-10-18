@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "COPS Offline Detection Validation Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "validation_id", "generated_at", "engagement_id", "tenant", "mode", "source_notice", "checks"],
+  "properties": {
+    "schema_version": {"const": "cops.detection-validation-report/v1"},
+    "validation_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "engagement_id": {"type": "string", "pattern": "^eng-[a-z0-9_-]{4,64}$"},
+    "tenant": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"},
+    "mode": {"const": "offline_import"},
+    "source_notice": {"const": "Imported record hashes prove internal integrity only. Source authenticity, execution authorization, and provider-wide search completeness require separate evidence."},
+    "checks": {
+      "type": "array", "minItems": 1, "maxItems": 1000,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["action_id", "technique_id", "mapping_id", "rule_id", "status", "declared_action_status", "action_window", "expanded_window", "expected_telemetry", "observed_signals", "search_evidence", "declared_collection_status", "declared_correlation_status", "clock_skew_seconds", "ingest_lag_seconds", "evidence_record_ids", "limitations", "next_action"],
+        "properties": {
+          "action_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"},
+          "technique_id": {"type": "string", "pattern": "^T[0-9]{4}(\\.[0-9]{3})?$"},
+          "mapping_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"},
+          "rule_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"},
+          "status": {"enum": ["detected", "missed", "ambiguous", "unavailable"]},
+          "declared_action_status": {"enum": ["completed", "not_executed"]},
+          "action_window": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "string", "format": "date-time"}},
+          "expanded_window": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "string", "format": "date-time"}},
+          "expected_telemetry": {
+            "type": "array", "maxItems": 100,
+            "items": {
+              "type": "object", "additionalProperties": false,
+              "required": ["product", "table_or_log", "required_fields", "onboarding_status"],
+              "properties": {
+                "product": {"type": "string", "minLength": 1},
+                "table_or_log": {"type": "string", "minLength": 1},
+                "required_fields": {"type": "array", "items": {"type": "string"}},
+                "onboarding_status": {"type": "string"}
+              }
+            }
+          },
+          "observed_signals": {
+            "type": "array", "maxItems": 2001,
+            "items": {
+              "type": "object", "additionalProperties": false,
+              "required": ["kind", "record_id", "observed_at", "in_window", "matches_expected_source", "has_required_fields"],
+              "properties": {
+                "kind": {"enum": ["action_execution", "telemetry", "alert"]},
+                "record_id": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+                "observed_at": {"oneOf": [{"type": "string", "format": "date-time"}, {"type": "null"}]},
+                "in_window": {"type": "boolean"},
+                "matches_expected_source": {"type": ["boolean", "null"]},
+                "has_required_fields": {"type": ["boolean", "null"]}
+              }
+            }
+          },
+          "search_evidence": {
+            "oneOf": [
+              {"type": "null"},
+              {
+                "type": "object", "additionalProperties": false,
+                "required": ["record_id", "status", "result_count", "window_start", "window_end", "covers_expanded_window"],
+                "properties": {
+                  "record_id": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+                  "status": {"enum": ["complete", "partial"]},
+                  "result_count": {"type": "integer", "minimum": 0, "maximum": 1000000},
+                  "window_start": {"type": "string", "format": "date-time"},
+                  "window_end": {"type": "string", "format": "date-time"},
+                  "covers_expanded_window": {"type": "boolean"}
+                }
+              }
+            ]
+          },
+          "declared_collection_status": {"enum": ["complete", "partial", "unavailable"]},
+          "declared_correlation_status": {"enum": ["exact", "ambiguous", "unavailable"]},
+          "clock_skew_seconds": {"type": "integer", "minimum": 0, "maximum": 3600},
+          "ingest_lag_seconds": {"type": "integer", "minimum": 0, "maximum": 86400},
+          "evidence_record_ids": {"type": "array", "maxItems": 2000, "items": {"type": "string", "pattern": "^[a-f0-9]{64}$"}},
+          "limitations": {"type": "array", "items": {"type": "string"}},
+          "next_action": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  }
+}

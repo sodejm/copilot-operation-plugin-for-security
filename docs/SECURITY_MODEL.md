@@ -87,7 +87,7 @@ flowchart TD
 ### Threat 4: Supply Chain Poisoning & Adapter Drift
 - **The Risk**: A malicious dependency or a drifted host manifest quietly introduces altered behavior into one assistant while passing tests in another.
 - **Our Defense**:
-  - Core tools use Python standard library only—no third-party dependencies required for normal operations. The optional laboratory receipt verifier loads `cryptography` only when checking signed observations.
+  - Core offline parsing and routing use the Python standard library. Optional laboratory receipt verification and Ed25519 evidence-bundle signing use `cryptography`; official SARIF schema validation uses the development-only `jsonschema` dependency. An opt-in classifier is a caller-provided integration with explicit model, deadline, budget, and redacted inputs.
   - Manifests for Copilot, Claude Code, and Codex are generated from a single canonical catalog and validated for byte-for-byte agreement in CI (`python3 -m cops generate --check`).
 
 ### Threat 5: False Assurance & Hallucinated Proof
@@ -157,6 +157,58 @@ While COPS enforces rigorous safeguards within our own packages and scripts, pra
 - **Host Sandboxes**: Host application sandboxes differ. Claude Code, Codex, and VS Code apply different limits on filesystem and network access.
 - **Human Authority**: Automated tools assist, suggest, and structure data, but **the human engineer is the ultimate decision-maker**. No high-consequence action (such as modifying firewall rules, blocking accounts, or deploying hunt rules) should take place without human authorization.
 
+## Expansion boundaries
+
+Repository discovery inventories only allowed local artifact metadata and excludes
+credentials, raw Terraform state, terminal history, symlinks, and unrelated paths.
+Routing requires clarification for uncertain matches; optional classification sees
+redacted feature categories and registered candidate IDs. Routing and preview do
+not launch workers, call action connectors, consume approvals, or change execution
+state.
+
+Typed workflows compile each executable step into the existing ActionPlan. A new
+target or changed action requires a newly validated plan and authorization. Resume
+checks bind persisted outputs by digest; retries do not repeat uncertain writes.
+Purple-team results preserve instrumentation gaps, detection gaps, verified
+detections, and indeterminate evidence. Verification requires both telemetry and
+alerts to satisfy every expected predicate, correlation ID, and time window;
+an unrelated alert with a matching correlation ID cannot establish detection.
+Report exports retain those distinctions
+and do not turn inconclusive results into verified findings or passing tests.
+The portable gate validates SARIF against an unmodified, hash-pinned official
+schema with only local references and disabled retrieval. Schema conformance
+checks report structure, not source authenticity or authorization.
+
+Artifact assessors accept bounded documented formats. Heavy acquisition and
+platform parsers require registered adapters with pinned prerequisites. Imported
+custody metadata does not independently authenticate an evidence source. Synthetic
+fixtures demonstrate supported behavior without establishing complete vulnerability
+coverage or production integration support.
+
+Git history scanning accepts only explicitly scoped ordinary repositories and
+uses an executable pinned by SHA-256 through the registered Git adapter. It copies
+and verifies that executable before invocation, disables repository hooks, external
+configuration, replacement objects and lazy fetches, and enforces output and time
+budgets. Registered patterns cover COPS test tokens, classic GitHub PAT shapes,
+AWS access-key identifiers, Bearer values and bounded PEM private-key blocks.
+Values are replaced with domain-separated fingerprints; paths containing these
+shapes are replaced by path digests. Matching does not establish validity. A clean bounded scan does not prove
+the absence of other credential types or validate provider revocation.
+
+The required laboratory gate demands observed activity, correlated telemetry,
+verified isolation, and restoration. Loopback services and marker files cannot
+establish network isolation. Unsupported isolation platforms remain incomplete
+even when functional service tests pass. The Docker gate trusts an independently
+provisioned immutable image and the local daemon. It mounts only a digest-bound
+allowlisted source snapshot, with no host credentials, and checks container
+configuration before execution plus kernel interfaces, routes, and bounded
+IPv4/IPv6 egress rejection inside the container. This adapter does not establish
+the production approval authority's distinct-UID boundary. Its size-limited tmpfs
+permits execution so the verified Git copy can run, with `nosuid`, `nodev`, dropped
+capabilities, and no new privileges still enforced. The tmpfs is discarded when
+the owned container is removed. See [service laboratories](SERVICE_LABORATORY.md),
+[workflow contracts](WORKFLOWS.md), and [artifact assessments](ARTIFACT_ASSESSMENTS.md).
+
 ## Detailed model and review obligations
 
 Use the [project threat model](THREAT_MODEL.md) for component-specific boundaries,
@@ -166,3 +218,71 @@ apply an offline-component claim to a live integration. Follow
 [Review coverage](security/REVIEW_COVERAGE.md) for retroactive review and
 maintenance. A repository owner can authorize merge under the engineering review
 policy; release review remains separate.
+
+## EVTX parser boundary
+
+The fixed artifact registry selects the pinned parser; artifacts cannot nominate
+code or dependencies. The importer verifies a bounded regular-file snapshot against
+an expected SHA-256 and validates EVTX framing and CRCs before creating a private
+read-only parser input. Linux CPU, address-space, output and file-descriptor limits,
+a deadline, a cleared environment and a fixed isolated interpreter invocation bound
+the worker. Event content is never executed; exported records omit raw commands,
+users and paths. Unsupported records are counted as partial evidence. These limits
+do not provide network isolation or protect against a compromised same-user process.
+Use the isolated runtime for untrusted data and review prerequisites independently.
+A matching supplied hash demonstrates integrity, not independent source authenticity.
+
+## Raw forensic imports
+
+The importer treats bytes, paths and custody metadata as untrusted. POSIX
+no-follow directory descriptors constrain every path component; nonblocking
+regular-file checks reject pipes and devices before reads. Fixed byte/record
+bounds and chunked hashing limit memory use. File identity and digest checks
+reject observed modification or replacement. No image content is executed,
+mounted, copied into reports, or interpreted as instructions. A hostile same-user
+process or storage backend is outside this boundary; use trusted storage and an
+isolated runtime. Permission references and digest-bound custody are assertions,
+not cryptographic execution grants or independently authenticated provenance.
+
+## Kubernetes acceptance host
+
+The fixed K3s acceptance node needs privilege to enforce pod networking. It shares
+the Docker host kernel and must run in a dedicated disposable Linux VM. Digest
+pins, network mode `none`, no host paths or published ports, bounded resources,
+owned volumes and exact startup configuration constrain the fixture. Node routes
+and actual IPv4/IPv6 pod egress failures must corroborate host inspection.
+Namespace identity and prior evidence bind single-use approvals. Content-bounded,
+metadata-only API audit records and nonce-correlated HTTP logs establish observed
+activity; missing evidence fails acceptance. Cleanup verifies namespace, node,
+volume and temporary-tag removal. This trust boundary does not protect the host
+from a compromised privileged image or certify the production worker boundary.
+
+## CVE evidence trust
+
+The synthetic advisory workflow binds runtime calls and controls to exact
+component identities. Unrelated modules, malformed inventories and unbound
+controls cannot establish reachability or lower remediation priority. Offline
+records remain supplied assertions; the isolated laboratory generates actual
+invocation records. Neither path authenticates an external advisory publisher or
+establishes non-exploitability outside the supplied component and observation.
+
+## Consent evidence trust
+
+Complete export and risk flags remain producer assertions. Tenant, unique IDs,
+observation window and explicit service-principal/application joins constrain
+correlation; missing or conflicting records produce no actionable target.
+Laboratory approvals bind the exact target tuple and prior evidence. The emulator
+rejects a different grant, and acceptance verifies unrelated access remains valid.
+This is synthetic grant revocation evidence; production Entra, session revocation
+and follow-up hunting require separate validation.
+
+## Exposure evidence trust
+
+Imported observations and completeness remain producer assertions. Exact endpoint
+identity, canonical addresses, unique records and collection windows prevent
+unrelated or stale evidence from clearing an audit. The isolated DNS responder
+serves only one fixed A record and never forwards requests. The client validates
+the complete response and transaction ID; timeout, malformed data or changed
+address stops later actions. Existing plans bind the resolver and endpoint, and
+all HTTP traffic stays on loopback. This does not validate public DNS or production
+authentication policy.

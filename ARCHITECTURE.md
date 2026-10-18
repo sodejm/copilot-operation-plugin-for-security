@@ -183,3 +183,76 @@ The repository does not wire this route into a production worker or provision
 a gateway, provider credentials, or a paid canary. The remaining operational
 gate is recorded in [the execution audit](docs/EXECUTION_GATE_AUDIT.md) and
 [gateway operator guidance](docs/PROVIDER_GATEWAY.md).
+
+## Raw forensic file boundary
+
+The registered `raw-forensic-image/v1` adapter streams supplied disk/memory copies
+into `cops.forensic-import/v1` integrity results. Shared descriptor-relative helpers
+in `cops/evidence/files.py` also protect disposable acquisition. Manifest and
+image reads reject symlink ancestors, special files, identity replacement, and
+budget overruns. Metadata is validated separately from bytes; output distinguishes
+verified integrity from unperformed analysis and caller-asserted authority.
+See [the contract](specs/forensic-import.spec.md).
+
+## Kubernetes laboratory boundary
+
+Service laboratories share a loopback-only HTTP client with disabled proxies and
+redirects, bounded responses, and socket timeouts. Container inspection and
+IPv4/IPv6 egress probes independently establish isolation for acceptance.
+
+`isolated-k3s-containment/v1` is a fixed acceptance adapter beside the unprivileged
+service-container adapter. Its privileged, network-disconnected K3s node imports
+only pinned images and owns its namespaces and volumes. Typed stages use the
+existing workflow runner, ActionPlan validator and single-use approval store;
+namespace UID, pod IP, policy and prior observations bind each plan. Observed
+connectivity, correlated HTTP and API audit records, and restoration determine
+acceptance. The composite gate requires all thirteen named cases. This fixture
+does not add a production cluster connector or privilege-isolation claim. See
+[the runbook](docs/KUBERNETES_LABORATORY.md).
+
+## CVE component evidence
+
+The integrated workflow shares `cops.workflows.cve_evidence` across offline
+playback and actual service observations. Exact component identities connect the
+pinned advisory, complete inventory, invocation records and compensating controls.
+The source laboratory records calls at the query boundary; missing provenance
+cannot establish reachability. See [integrated workflows](docs/INTEGRATED_WORKFLOWS.md).
+
+## Consent identity binding
+
+`cops.workflows.consent_evidence` supplies the same bounded assessment to offline
+and active workflows. Complete, in-window exports bind tenant and grant identity
+through service-principal object IDs to sign-in application IDs. The resulting
+target and evidence references enter the existing ActionPlan configuration and
+prior-output digests. The synthetic identity service validates the exact tuple
+before changing grant state; token-to-grant bindings separate unrelated access.
+
+## Exposure endpoint binding
+
+`cops.workflows.exposure_evidence` correlates exact scheme, host, port and route
+identities across DNS, connection and authentication observations. Timestamped
+references and explicit completeness constrain negative results. The service lab
+uses the same assessor after a fixed, non-forwarding loopback DNS exchange and
+actual HTTP requests. Endpoint, resolver port, profiles and prior observations
+bind existing ActionPlans; validation failure stops later stages and runs cleanup.
+
+## Report export conformance
+
+Runtime exporters validate assessment semantics and GitHub's SARIF subset before
+rendering. The portable test gate additionally validates vulnerable, corrected
+and inconclusive exports against the bundled official SARIF 2.1.0 schema. Its
+original bytes are hash-pinned, all references must be local, and retrieval is
+disabled. Development validation does not add a parser dependency to the runtime
+exporter or authenticate source evidence. See [report exports](docs/REPORT_EXPORTS.md).
+
+## Synthetic dependency installation
+
+The registered `synthetic-wheel-installation@1` laboratory adapter builds two
+deterministic pure-Python wheels from reviewed query fixtures. A pinned pip
+installs only the generated local wheel with hashes required, indexes and
+dependencies disabled, and source builds forbidden. The adapter verifies the
+installed module digest before a fixed subprocess serves actual SQLite-backed
+HTTP requests. Nonce-bound observations, advisory results, tamper rejection and
+cleanup enter `service_activity.supply_chain`. Process execution has finite time
+and output limits; the enclosing container supplies verified network isolation.
+See [the laboratory contract](specs/service-laboratory.spec.md).

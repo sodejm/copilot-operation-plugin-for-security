@@ -99,3 +99,10 @@ If the default demo stops, inspect its last stderr message; its internal tempora
 - Local artifacts may still contain sensitive case data. Apply your organization's retention, access-control, and redaction requirements.
 
 Run package-specific validation as described in the [verification guide](VERIFICATION.md).
+
+<!-- BEGIN COPS GENERATED OFFLINE ASSESSMENT LINKS -->
+## Generated offline assessment
+
+- [Machine-readable playbook](../playbooks/offline-assessment.json)
+- [Runnable offline walkthrough](../walkthroughs/offline-assessment.md)
+<!-- END COPS GENERATED OFFLINE ASSESSMENT LINKS -->

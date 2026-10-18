@@ -8,8 +8,6 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from .harness import LaboratoryHarness
-
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -42,6 +40,21 @@ def command_laboratory(args: argparse.Namespace, root: Path = ROOT) -> int:
     cmd = getattr(args, "lab_command", None)
 
     try:
+        if cmd == "run":
+            if getattr(args, "explain", False):
+                from ..contracts import ActionPlan
+                from ..expansion_cli import load_bounded_json
+                from ..preview import preview_action_plan, render_preview
+
+                preview = preview_action_plan(ActionPlan.from_dict(load_bounded_json(Path(args.plan))))
+                print(json.dumps(preview, indent=2) if args.json else render_preview(preview))
+                return 0
+            raise ValueError(
+                "laboratory execution requires live observations, verified worker inventories, "
+                "and an explicit scope guard; use the Python harness API"
+            )
+        from .harness import LaboratoryHarness
+
         harness = LaboratoryHarness(evidence_dir=getattr(args, "evidence_dir", None))
         if cmd == "register":
             doc = _load_json_or_file(args.environment)
@@ -78,12 +91,6 @@ def command_laboratory(args: argparse.Namespace, root: Path = ROOT) -> int:
                 "supported_runtimes": harness.matrix.supported_runtimes,
                 "tool_minimum_versions": harness.matrix.tool_minimum_versions,
             }
-
-        elif cmd == "run":
-            raise ValueError(
-                "laboratory execution requires live observations, verified worker inventories, "
-                "and an explicit scope guard; use the Python harness API"
-            )
 
         else:
             print(f"Unknown laboratory command: {cmd}", file=sys.stderr)
