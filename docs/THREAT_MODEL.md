@@ -650,6 +650,12 @@ disable environment proxies and redirects, and bound responses and socket waits.
 `tests/test_laboratory_http_client.py` exercises these controls against an actual
 disposable service, including an unvisited redirect target and oversized evidence.
 
+Actions checkout evidence is scoped to one sequence item and its direct `with`
+mapping. This prevents an attacker from hiding head checkout by reordering step
+keys or causing a false finding through neighboring actions or environment text.
+Duplicate input mappings and unsupported YAML forms remain coverage gaps. The
+parser does not evaluate actions or claim general YAML interpretation.
+
 ## STRIDE and privacy coverage
 
 | Category | Review obligation |
