@@ -91,6 +91,22 @@ Execution copies caller-owned requests, sessions, destinations and budgets befor
 plan comparison, then uses only those owned snapshots for approval consumption,
 resolution, transport and reporting.
 
+Every destination allowlist item is validated before preview, plan construction,
+offline replay, or authorized execution can retain or report the allowlist. An item
+must be an exact ASCII DNS hostname or canonical dotted-decimal IPv4 address, either
+optionally followed by a decimal port from 1 through 65535, or a bracketed numeric
+IPv6 address with an optional port. Legacy integer, hexadecimal, octal, and shortened
+numeric IPv4 spellings are invalid rather than treated as DNS names. A wildcard is
+supported only as `*.` followed by an ASCII DNS domain, has no port, and matches both
+the domain apex and its subdomains. DNS name matching is case-insensitive. Schemes,
+user information, paths, queries, fragments, percent encoding, surrounding or
+embedded whitespace and control characters, empty or non-string values, invalid
+ports, unbracketed IPv6, and other wildcard positions are invalid. The complete
+allowlist fails closed if any item is invalid, including an unused item. Validation
+performs no name resolution, takes a shallow snapshot without copying allowlist
+elements, does not change caller-owned input, and does not include a rejected value
+in an error, report, or formatted exception chain.
+
 The transport resolves each hop once, validates its addresses, and connects directly
 to a validated numeric address. HTTPS retains the original hostname for certificate
 verification and SNI and permits TLS 1.2 or newer only. Default TLS contexts set that
