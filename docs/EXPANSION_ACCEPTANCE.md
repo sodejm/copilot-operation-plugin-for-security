@@ -7,18 +7,18 @@ capability incomplete.
 
 ## Tested revision and runtime
 
-- Implementation revision: `1493640424c30c1cda5942b4dbc9b13c3d508da8`.
-- Integration base: `5a40c2ecc99d6ce347a625d80f9c3b11e502d7fd`.
-- Acceptance date: 2026-10-18. The acceptance record was initially added in a
-  documentation-only change. A subsequent push-gate correction formats five
-  canonical modules and their 30 packaged copies, then refreshes eight provenance
-  manifests. All 35 Python syntax trees are unchanged; fixtures are unchanged.
-  The strict run below remains bound to the implementation revision and source
-  snapshot listed here. Hosted checks separately validate the final PR revision.
+- Implementation revision: `3ca524359ce38c29273fe91670dd2a4793dc3ea0`.
+- Integration base: `50e6d96c144f9d81d52c99403e5ceae8815d3e16`.
+- Acceptance date: 2026-10-18. This documentation-only refresh records the
+  integrated provenance (`38e091b`), authorized transport (`cda3255`), bounded SQL
+  fixture (`b55c68d`) and review corrections. The final formatting commit changes
+  four Python files without changing their syntax trees and refreshes package
+  provenance. The portable and strict gates below were rerun on those formatted
+  sources. Hosted checks separately validate the final PR revision.
 - Strict service image:
-  `sha256:1091037480cdd8172ab3c942fbf88da9150ea07934b362d190867b9344e7204e`.
+  `sha256:d040defa699beb0716bc76a74432128e874e4ebbd069a54b149b5f205cc732c9`.
 - Service source snapshot:
-  `45e196dcaf590ad4104e061b836042145e6eda6048d27f9899fbb855dc114485`.
+  `c0115084645565a367193d5ab66c15d8e0369456277a7c9bb3955760f4d1ae71`.
   Recomputing the snapshot at the clean implementation revision matched the run.
 - Portable host: macOS arm64, Python 3.14.8. Strict runtime: Linux arm64,
   Python 3.14.6, Git 2.47.3, pip 26.1.2, cryptography 50.0.2,
@@ -40,25 +40,37 @@ prerequisites must be provisioned before the strict gate, as described in the
 [Kubernetes runbook](KUBERNETES_LABORATORY.md).
 
 ```sh
-.venv/bin/python -m pytest -q tests/test_cve_evidence_binding.py tests/test_integrated_workflows.py
-PATH="$PWD/.venv/bin:$PATH" PYTEST_ADDOPTS='-ra' make check PYTHON=.venv/bin/python
+.venv/bin/python -m pytest -q -ra \
+  tests/test_web_api_replay_transport.py tests/test_web_api_import_safety.py \
+  tests/test_boundary_query_safety.py tests/test_cve_evidence_binding.py \
+  tests/test_integrated_workflows.py tests/test_network_policy_inputs.py \
+  tests/test_workflow_optional_signing.py tests/test_cloud_corrections.py \
+  tests/test_supply_chain_corrections.py tests/test_purple_team_workflows.py
+make check PYTHON=.venv/bin/python
 make check-docs PYTHON=.venv/bin/python
-DOCKER_CONTEXT=colima make check-laboratory PYTHON=.venv/bin/python LABORATORY_ARGS='--runtime docker --image sha256:1091037480cdd8172ab3c942fbf88da9150ea07934b362d190867b9344e7204e --kubernetes-timeout 480'
+DOCKER_CONTEXT=colima make check-laboratory PYTHON=.venv/bin/python LABORATORY_ARGS='--runtime docker --image sha256:d040defa699beb0716bc76a74432128e874e4ebbd069a54b149b5f205cc732c9 --kubernetes-timeout 480'
 ```
 
 | Check | Observed result | Scope or limitation |
 | --- | --- | --- |
-| Latest focused correction tests | 60 passed | CVE advisory/source binding and integrated workflow correction, missing evidence, tampering and cleanup |
+| Focused correction tests at `1689736` | 316 passed, no skips | API transport/import, SQL fixture, CVE/integrated workflows, network, optional signing, cloud, supply-chain and predicate corrections; subsequently covered by the final portable gate |
 | `make check` | Passed, including all 25 package gates | Root suite passed with 24 platform skips; the quiet output does not report a passed-test count; skips are listed below |
 | `make check-docs` | Passed, 58 pages | Documentation contract and local links |
 | Strict `make check-laboratory` | 13/13 cases passed; no failures or blockers | Twelve service-container cases plus three Kubernetes lifecycle runs in one composite case |
 | Held-out routing | 270/270 clear requests correct; 10/10 for each of 27 specialists | 100/100 ambiguous or negative requests clarified; published examples remain separate |
-| Hosted/native CI | Not run for these local branches | Retained Linux worker and Windows filesystem jobs remain required |
+| Hosted/native CI | Pending for the final pushed revision | Retained Linux worker and Windows filesystem jobs remain required; earlier PR results do not validate this revision |
 | Production/provider integrations | Not run | Separate live validation required before support claims |
 
-The initial integration portable run failed because the execution sandbox denied local
-TCP, UDP and Unix socket creation. The command was rerun unchanged with local
-socket permissions; no test was disabled or implementation changed for the retry.
+The service image was rebuilt from the current runtime Dockerfile and pinned,
+hash-verified offline dependencies before the strict run. The launcher verified
+the fresh source manifest and inspected the container configuration before use;
+old evidence and marker files were not accepted as readiness evidence.
+
+Transport regressions exercise numeric-address DNS pinning, original-host TLS
+verification (valid, wrong-host and untrusted certificates), redirect policy and
+credential removal, aggregate deadlines, HTTP error responses and real signed,
+persisted, single-use approvals. Request, session, destination and budget changes
+cannot reuse an approval bound to the frozen transport plan.
 
 The portable suite also covers threshold boundaries and conflicting artifacts,
 classifier redaction/timeouts/unavailability, preview side-effect exclusion,
@@ -76,7 +88,7 @@ EVTX counterparts additionally have the following digests.
 
 | Fixture | SHA-256 |
 | --- | --- |
-| `cops/laboratory/service_fixtures/manifest.json` | `9dad6f3958f011263ef7580ecb05de580b4ee51c8f065c5ef02d28f5abbcf6fc` |
+| `cops/laboratory/service_fixtures/manifest.json` | `a2fb5f80ffe97409f91653f4574052665ed992da597e25cb472b1547ef3a7803` |
 | Vulnerable Sysmon EVTX | `4dbd6c4f96c5adae0e2c1df9847ab03a76131ecc60136c227d35f0fde8c1c245` |
 | Corrected Sysmon EVTX | `74e3ba983be16a897f515c12744f9f155876ed06f4eeb52fa790507cf339b8d2` |
 | Insufficient Sysmon EVTX | `5023fa444889f6a5d54c524f6507dfffe3677f076fb0640132c69ec6f8bd5ff9` |
@@ -124,6 +136,14 @@ tampered wheel and verified cleanup. Advisory evidence changed from `matched`
 to `clear` with the corrected installed component. An empty inventory remained
 unknown. Both profiles restored their baseline.
 
+The vulnerable SQL runtime accepts one exact, reviewed injection seed and executes
+a constant query for that seed. All other submitted values use bound SQLite
+parameters; the corrected profile always uses parameters. The separate scanner
+fixture retains explicit vulnerable/corrected source for static AST inspection
+only. Descriptor hashes bind that fixture to the observed HTTP/SQLite outcome;
+missing or inconsistent evidence remains inconclusive. Focused tests cover
+arbitrary submitted input, both runtime outcomes and this evidence boundary.
+
 All six integrated workflows have offline and isolated execution paths. Their
 stages use typed prior outputs and exact, single-use ActionPlan approvals. The
 IOC → hunt → containment example additionally exercises success, failure and
@@ -151,7 +171,7 @@ cases. Source identity, provenance and verification status survive reporting.
 | Cloud infrastructure | Typed Terraform, Kubernetes and AWS/Azure/GCP exports; actual K3s NetworkPolicy application and restoration | Provider enforcement and incomplete configuration exports |
 | Supply chain and CI/CD | Lockfiles, SBOMs, Actions and pinned advisories; actual offline wheel installation, runtime correction and hash rejection | Arbitrary package builds, registry behavior and hosted CI integration |
 | Secrets remediation | Redacted bounded Git history, identity/exposure assessment and actual ephemeral revocation returning 401; caller-signed evidence bundle | Provider validity/rotation and external signing-key trust |
-| REST/GraphQL security | Existing inventory/replay formats preserved; ten actual HTTP checks per profile across owner, other-user, anonymous and rate-limit cases | Production targets and unsupported API semantics |
+| REST/GraphQL security | Lossless import provenance and redacted reports; approved frozen transport with DNS/TLS/redirect/deadline checks; ten actual HTTP checks per profile across owner, other-user, anonymous and rate-limit cases | Production targets and unsupported API semantics |
 | Network segmentation | Typed firewall/NetworkPolicy/flow/DNS evidence; real allowed/denied service and pod connectivity | Native firewall enforcement and unobserved networks |
 | TLS, mTLS and JWT | Typed chain/RS256 verification, ephemeral certificate/client acceptance and nine actual JWT requests | Production trust, revocation services and unsupported algorithms |
 
@@ -165,10 +185,12 @@ parsing was exercised by the strict Linux gate; that does not validate native
 Windows acquisition. No skipped check is counted as a pass.
 
 The existing CI matrix retains Linux bubblewrap, Windows filesystem/PowerShell,
-multi-version portable and isolated laboratory jobs. Hosted runs for these local
-branches were not performed. Production/provider, native acquisition and the
-unavailable platform checks above remain incomplete. Exported reports are review
-artifacts; hosted posting and production integration remain separate transitions.
+multi-version portable and isolated laboratory jobs. Results for the exact final
+pushed revision must be verified on the pull request before merge. Until then,
+the unavailable platform checks above remain incomplete. Production/provider and
+native acquisition validation remain incomplete regardless of synthetic CI
+results. Exported reports are review artifacts; hosted posting and production
+integration remain separate transitions.
 
 After a behavioral change, rerun the relevant corrections and all required gates
 against its new revision and source snapshot. Documentation-only changes require
