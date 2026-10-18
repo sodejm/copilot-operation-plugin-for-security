@@ -10,6 +10,8 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from test_provider_live_request_shapes import _case
+from test_provider_live_schemas import _cases, _plan
 
 from cops.assessment_budget import AssessmentBudgetLedger
 from cops.evidence.canonical import canonical
@@ -24,8 +26,6 @@ from cops.execution.gateway_dispatch import (
     sign_gateway_dispatch,
 )
 from cops.provider_live import ProviderLiveError, _policy, execute_live_case, live_plan_digest
-from test_provider_live_request_shapes import _case
-from test_provider_live_schemas import _cases, _plan
 
 
 def _response(provider: str) -> dict:

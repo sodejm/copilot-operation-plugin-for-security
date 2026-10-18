@@ -7,6 +7,7 @@ production worker must supply its own independently reviewed gateway boundary.
 from __future__ import annotations
 
 import hashlib
+import logging
 from collections.abc import Callable
 from copy import deepcopy
 from typing import Any
@@ -22,10 +23,10 @@ from cops.assessment_budget import (
 )
 from cops.evidence.canonical import EvidenceError, canonical, decode_json
 from cops.execution.gateway_dispatch import (
+    MAX_GATEWAY_RESPONSE_BYTES,
     GatewayDispatchEmulator,
     GatewayDispatchError,
     GatewayDispatchGrant,
-    MAX_GATEWAY_RESPONSE_BYTES,
 )
 from cops.provider_assessment import (
     ProviderAssessmentError,
@@ -39,6 +40,7 @@ _PLAN_SCHEMA = "provider-live-plan.schema.json"
 _CASES_SCHEMA = "provider-live-cases.schema.json"
 _CASES_VERSION = "cops.ai-provider-live-assessment-cases/v2"
 _DENIED = "live provider dispatch denied"
+_LOG = logging.getLogger(__name__)
 
 
 class ProviderLiveError(ValueError):
@@ -396,7 +398,7 @@ def execute_live_case(
                     try:
                         ledger.release_undispatched(attempt_id)
                     except Exception:
-                        pass
+                        _LOG.warning("provider reservation release could not be confirmed")
                     raise _deny()
                 dispatch_intent_uncertain = True
                 if attempt.state in {"dispatched", "uncertain"}:
@@ -404,7 +406,7 @@ def execute_live_case(
                         if ledger.get_dispatch_intent(attempt_id) == intent:
                             intent_ledger_state = _mark_uncertain_or_observe(ledger, attempt_id)
                     except Exception:
-                        pass
+                        _LOG.warning("provider dispatch intent state could not be confirmed")
     except (ProviderAssessmentError, GatewayDispatchError, BudgetDenied, BudgetStoreError, EvidenceError, KeyError, TypeError, ValueError):
         denied = True
     if denied:
@@ -462,7 +464,7 @@ def execute_live_case(
             try:
                 cleanup()
             except Exception:
-                pass
+                _LOG.warning("provider assessment cleanup did not complete")
         return evidence
     except BaseException:
         # Cancellation has the same uncertain effect, but callers must still
@@ -473,5 +475,5 @@ def execute_live_case(
             try:
                 cleanup()
             except Exception:
-                pass
+                _LOG.warning("provider assessment cleanup did not complete")
         raise

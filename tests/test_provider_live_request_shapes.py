@@ -10,7 +10,6 @@ import pytest
 from cops.evidence.canonical import canonical
 from cops.provider_live import ProviderLiveError, _body
 
-
 _TEXT = "COPS_SYNTHETIC_CANARY_ONLY"
 _MODEL = "test-model"
 _LIMIT = 32
