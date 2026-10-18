@@ -117,7 +117,7 @@
     },
     {
       "path": "cve-advisory.json",
-      "sha256": "9d6bd29dbee6f1fe0509c28af65d2f31960cc39277896259cc713da17aebdd9f",
+      "sha256": "5841cd0dfc20c6a332c8436558914b57261035f91e9fe4181c46537d25698380",
       "format": "COPS synthetic advisory v1",
       "synthetic": true,
       "expected_outcomes": {

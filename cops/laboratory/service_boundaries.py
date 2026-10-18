@@ -19,12 +19,16 @@ from typing import Any
 from cops.adapters.forensic import ForensicImportError, import_forensic_image
 from cops.assessments.acquisition import ADAPTER_ID, AcquisitionError, acquire_disposable_file
 from cops.assessments.artifacts import assess
+
+from .boundary_scanner_fixtures import query_scanner_fixture
 from .service_authentication import _request
 
 
 def _vulnerable_query(connection: sqlite3.Connection, value: str) -> list[tuple[str, str]]:
-    # Intentional injection fixture; the database contains synthetic rows only.
-    return connection.execute(f"SELECT id, owner FROM objects WHERE id = '{value}'").fetchall()
+    # Execute only the reviewed attack seed; all other submitted values stay data.
+    if value == "' OR 1=1 --":
+        return connection.execute("SELECT id, owner FROM objects WHERE id = '' OR 1=1 --").fetchall()
+    return connection.execute("SELECT id, owner FROM objects WHERE id = ?", (value,)).fetchall()
 
 
 def _corrected_query(connection: sqlite3.Connection, value: str) -> list[tuple[str, str]]:
@@ -118,8 +122,12 @@ def run_boundary_acceptance(profile: str) -> dict[str, Any]:
         server.shutdown()
         server.server_close()
         thread.join(timeout=3)
-    source = textwrap.dedent(inspect.getsource(query))
-    source_report = assess("application_security", [{"artifact_id": "lab-query", "kind": "python_source", "content": source}], as_of="2026-10-15T12:00:00Z")
+    scanner_fixture = query_scanner_fixture(profile)
+    source_report = assess(
+        "application_security",
+        [scanner_fixture],
+        as_of="2026-10-15T12:00:00Z",
+    )
     gateway_report = assess("foundry_security", observations, as_of="2026-10-15T12:00:00Z")
     return {
         "schema_version": "cops.boundary-laboratory-acceptance/v1", "profile": profile,
@@ -127,7 +135,10 @@ def run_boundary_acceptance(profile: str) -> dict[str, Any]:
         "runtime_evidence": {"modules": runtime_calls},
         "benign_query_preserved": benign == ["owner-object"], "injection_rows": len(injection),
         "injection_exposed_other_object": "other-object" in injection,
-        "application_codes": sorted(set(source_report["finding_codes"].values())), "allowed_tool_status": allowed,
+        "scanner_fixture": {key: scanner_fixture[key] for key in ("artifact_id", "kind", "sha256", "execution")},
+        "application_readiness": source_report["readiness"],
+        "application_codes": sorted(set(source_report["finding_codes"].values())),
+        "allowed_tool_status": allowed,
         "denied_attack_calls": sum(not item["content"]["observed_calls"] for item in observations),
         "gateway_codes": sorted(set(gateway_report["finding_codes"].values())), "actual_requests": 7,
         "service_stopped": not thread.is_alive(), "submitted_content_executed": False,

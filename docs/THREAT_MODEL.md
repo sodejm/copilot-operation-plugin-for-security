@@ -761,6 +761,16 @@ remain outside the tested boundary. Independent human security review is pending
 
 ## Integrated CVE evidence binding
 
+The synthetic query endpoint previously interpolated arbitrary submitted input.
+Its vulnerable profile now selects a constant SQL statement only for the reviewed
+attack seed and parameterizes every other value. Tests reject alternate SQL
+programs while preserving actual vulnerable/corrected SQLite and HTTP outcomes.
+Static scanner examples are explicit, separately hashed source text and are never
+executed. The acceptance gate requires their supported assessment and exact
+provenance independently of runtime evidence. The intentional seed still exposes
+synthetic objects inside the disposable laboratory; it is not a general SQL
+injection target or evidence about production applications.
+
 Untrusted inventory, runtime and control records could falsely claim a corrected
 or unreachable dependency and suppress remediation. The shared matcher requires
 a complete well-formed inventory, exact advisory component identity, timestamped

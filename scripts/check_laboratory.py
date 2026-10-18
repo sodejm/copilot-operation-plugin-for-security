@@ -16,13 +16,35 @@ from typing import Any, Callable
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from cops.laboratory.service_lab import ServiceLaboratory, probe_isolated_runtime
-from cops.evidence.canonical import digest
-from cops.laboratory.container_runtime import run_container_acceptance
-from cops.laboratory.acceptance_cases import ACCEPTANCE_CASE_IDS, COMPLETE_CASE_IDS, INTEGRATED_WORKFLOW_IDS, KUBERNETES_CASE_ID
-from cops.laboratory.integrated_lab import WORKFLOW_STAGES, run_integrated_service_laboratory
-from cops.laboratory.kubernetes_lab import run_kubernetes_laboratory
-from cops.laboratory.workflow_lab import (
+from cops.adapters.evtx import (  # noqa: E402  # Import after runtime prerequisite/path selection.
+    EvtxImportError,
+    import_evtx,
+)
+from cops.evidence.canonical import digest  # noqa: E402  # Import after runtime prerequisite/path selection.
+from cops.laboratory.acceptance_cases import (  # noqa: E402  # Import after runtime prerequisite/path selection.
+    ACCEPTANCE_CASE_IDS,
+    COMPLETE_CASE_IDS,
+    INTEGRATED_WORKFLOW_IDS,
+    KUBERNETES_CASE_ID,
+)
+from cops.laboratory.boundary_scanner_fixtures import (  # noqa: E402  # Import after runtime prerequisite/path selection.
+    query_scanner_fixture,
+)
+from cops.laboratory.container_runtime import (  # noqa: E402  # Import after runtime prerequisite/path selection.
+    run_container_acceptance,
+)
+from cops.laboratory.integrated_lab import (  # noqa: E402  # Import after runtime prerequisite/path selection.
+    WORKFLOW_STAGES,
+    run_integrated_service_laboratory,
+)
+from cops.laboratory.kubernetes_lab import (  # noqa: E402  # Import after runtime prerequisite/path selection.
+    run_kubernetes_laboratory,
+)
+from cops.laboratory.service_lab import (  # noqa: E402  # Import after runtime prerequisite/path selection.
+    ServiceLaboratory,
+    probe_isolated_runtime,
+)
+from cops.laboratory.workflow_lab import (  # noqa: E402  # Import after runtime prerequisite/path selection.
     IsolationRequiredError,
     run_workflow_service_laboratory,
 )
@@ -215,11 +237,37 @@ def _service_case(
     _expect(failures, boundaries.get("injection_exposed_other_object") is expected_reached, "SQL injection correction outcome differs")
     _expect(failures, boundaries.get("injection_rows") == (2 if expected_reached else 0), "SQL injection row count differs")
     _expect(failures, boundaries.get("allowed_tool_status") == 200, "tool gateway rejected the allowed call")
-    _expect(failures, boundaries.get("denied_attack_calls") == (0 if expected_reached else 4), "direct/indirect tool or resource scope outcome differs")
-    _expect(failures, bool(boundaries.get("application_codes")) is expected_reached, "source assessment disagrees with observed SQL injection")
-    expected_gateway = {"foundry_tool_scope", "foundry_resource_scope", "foundry_prompt_injection"} if expected_reached else set()
-    _expect(failures, set(boundaries.get("gateway_codes", [])) == expected_gateway, "tool gateway findings disagree with observed scope controls")
-    _expect(failures, boundaries.get("actual_requests") == 7 and boundaries.get("service_stopped") is True, "boundary service activity or cleanup is incomplete")
+    _expect(
+        failures,
+        boundaries.get("denied_attack_calls") == (0 if expected_reached else 4),
+        "direct/indirect tool or resource scope outcome differs",
+    )
+    _expect(
+        failures,
+        boundaries.get("application_codes") == (["sql_interpolation"] if expected_reached else [])
+        and boundaries.get("application_readiness") == "supported",
+        "static query fixture assessment is incomplete or differs",
+    )
+    scanner_fixture = query_scanner_fixture("vulnerable" if expected_reached else "corrected")
+    _expect(
+        failures,
+        boundaries.get("scanner_fixture")
+        == {key: scanner_fixture[key] for key in ("artifact_id", "kind", "sha256", "execution")},
+        "static query fixture provenance differs",
+    )
+    expected_gateway = (
+        {"foundry_tool_scope", "foundry_resource_scope", "foundry_prompt_injection"} if expected_reached else set()
+    )
+    _expect(
+        failures,
+        set(boundaries.get("gateway_codes", [])) == expected_gateway,
+        "tool gateway findings disagree with observed scope controls",
+    )
+    _expect(
+        failures,
+        boundaries.get("actual_requests") == 7 and boundaries.get("service_stopped") is True,
+        "boundary service activity or cleanup is incomplete",
+    )
     acquisition = activity.get("acquisition", {})
     for field in ("original_unchanged", "permission_rejected", "modified_source_rejected", "no_partial_outputs", "disposable_root_removed"):
         _expect(failures, acquisition.get(field) is True, f"forensic acquisition {field} is incomplete")

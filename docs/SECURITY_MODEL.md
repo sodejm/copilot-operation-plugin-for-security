@@ -287,6 +287,13 @@ from a compromised privileged image or certify the production worker boundary.
 
 ## CVE evidence trust
 
+The executable SQL laboratory uses a constant query for one reviewed attack seed
+and parameterizes all other submitted values. The corrected profile parameterizes
+every value. Intentionally vulnerable scanner examples remain static source text
+with separate provenance; their findings cannot stand in for actual runtime
+activity. Runtime, advisory and installed-wheel digests bind the executable
+function, while the gate separately requires scanner findings and source hashes.
+
 The synthetic advisory workflow binds runtime calls and controls to exact
 component identities. Unrelated modules, malformed inventories and unbound
 controls cannot establish reachability or lower remediation priority. Offline
