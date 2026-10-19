@@ -28,6 +28,8 @@ from cops.validation import (
     ValidationError,
     generate_marketplaces,
 )
+from cops.workflows import StageExecutionResult, WorkflowDefinition
+from tests.test_workflow_runtime import QueueExecutor, authorized_runner, workflow_document
 
 scenarios("../../specs/features/portable_operator_workflow.feature")
 
@@ -493,3 +495,151 @@ def check_generated_indexes(context):
 def stale_index_reported(context):
     assert "generated host indexes are stale" in str(context["error"])
     assert context["target"].read_text(encoding="utf-8") == context["original"]
+
+
+@given("a workflow action with two attempts and no idempotence opt-in")
+def default_non_idempotent_action(context, tmp_path):
+    definition = WorkflowDefinition.from_dict(workflow_document(max_attempts=2))
+    executor = QueueExecutor(
+        StageExecutionResult("failed", {}, (), "uncertain side effects"),
+        StageExecutionResult("success", {"count": 1}),
+    )
+    runner, authorizations, control = authorized_runner(tmp_path, definition, executor, attempts=2)
+    context.update(
+        definition=definition,
+        executor=executor,
+        runner=runner,
+        authorizations=authorizations,
+        control=control,
+    )
+
+
+@when("its first execution fails")
+def first_execution_fails(context):
+    context["workflow_result"] = context["runner"].run(
+        context["definition"], "run-1", {"query": "ioc"}, context["authorizations"]
+    )
+
+
+@then("the workflow stops without a second execution or approval consumption")
+def default_action_stops(context):
+    assert context["workflow_result"].status == "partial_failure"
+    assert len(context["executor"].execute_calls) == 1
+    assert [call[0] for call in context["control"].consume_calls] == [context["authorizations"]["probe:1"]]
+
+
+@given("a workflow action with two attempts and explicit idempotence")
+def explicitly_idempotent_action(context, tmp_path):
+    definition = WorkflowDefinition.from_dict(workflow_document(max_attempts=2, idempotent=True))
+    executor = QueueExecutor(
+        StageExecutionResult("failed", {}, (), "retryable failure"),
+        StageExecutionResult("success", {"count": 1}),
+    )
+    runner, authorizations, control = authorized_runner(tmp_path, definition, executor, attempts=2)
+    context.update(
+        definition=definition,
+        executor=executor,
+        runner=runner,
+        authorizations=authorizations,
+        control=control,
+    )
+
+
+@when("its first execution fails and its second succeeds")
+def retry_succeeds(context):
+    context["workflow_result"] = context["runner"].run(
+        context["definition"], "run-1", {"query": "ioc"}, context["authorizations"]
+    )
+
+
+@then("both approved attempts use the same logical idempotency key")
+def retries_share_logical_key(context):
+    assert context["workflow_result"].status == "success"
+    assert len(context["executor"].execute_calls) == 2
+    assert context["executor"].execute_calls[0][1] == context["executor"].execute_calls[1][1]
+    assert [call[0] for call in context["control"].consume_calls] == [
+        context["authorizations"]["probe:1"],
+        context["authorizations"]["probe:2"],
+    ]
+
+
+@given("a non-idempotent workflow action with cleanup")
+def interrupted_non_idempotent_action(context, tmp_path):
+    definition = WorkflowDefinition.from_dict(workflow_document(max_attempts=2, cleanup=True))
+    executor = QueueExecutor(RuntimeError("process lost"), StageExecutionResult("success", {"count": 1}))
+    runner, authorizations, control = authorized_runner(tmp_path, definition, executor, attempts=2)
+    context.update(
+        definition=definition,
+        executor=executor,
+        runner=runner,
+        authorizations=authorizations,
+        control=control,
+    )
+
+
+@when("execution is interrupted after its approval is consumed")
+def execution_is_interrupted(context):
+    with pytest.raises(RuntimeError, match="process lost"):
+        context["runner"].run(context["definition"], "run-1", {"query": "ioc"}, context["authorizations"])
+
+
+@when("the interrupted workflow resumes")
+def interrupted_workflow_resumes(context):
+    context["workflow_result"] = context["runner"].run(
+        context["definition"], "run-1", {"query": "ioc"}, context["authorizations"]
+    )
+
+
+@then("cleanup completes without a second execution or approval consumption")
+def interruption_stops_after_cleanup(context):
+    assert context["workflow_result"].status == "partial_failure"
+    assert len(context["executor"].execute_calls) == 1
+    assert len(context["executor"].cleanup_calls) == 1
+    assert [call[0] for call in context["control"].consume_calls] == [context["authorizations"]["probe:1"]]
+
+
+@given("a non-idempotent workflow action limited to one attempt")
+def single_planned_action(context, tmp_path):
+    definition = WorkflowDefinition.from_dict(workflow_document())
+    executor = QueueExecutor(StageExecutionResult("success", {"count": 1}))
+    runner, authorizations, control = authorized_runner(tmp_path, definition, executor, attempts=1)
+    context.update(
+        definition=definition,
+        executor=executor,
+        runner=runner,
+        authorizations=authorizations,
+        control=control,
+        state_dir=tmp_path / "state",
+    )
+
+
+@when("the process stops before its planned approval is consumed")
+def process_stops_before_consumption(context, monkeypatch):
+    consume = context["control"].consume_authorization
+    monkeypatch.setattr(
+        context["control"],
+        "consume_authorization",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("crash before consume")),
+    )
+    with pytest.raises(RuntimeError, match="crash before consume"):
+        context["runner"].run(context["definition"], "run-1", {"query": "ioc"}, context["authorizations"])
+    state_path = next(context["state_dir"].glob("run-*.json"))
+    context["planned_snapshot"] = json.loads(state_path.read_text(encoding="utf-8"))["payload"]["stages"]["probe"][
+        "attempts"
+    ][0]["plan"]
+    monkeypatch.setattr(context["control"], "consume_authorization", consume)
+
+
+@when("the planned workflow resumes")
+def planned_workflow_resumes(context):
+    context["workflow_result"] = context["runner"].run(context["definition"], "run-1", {"query": "ioc"}, {})
+
+
+@then("the exact saved plan and approval execute once")
+def saved_plan_executes_once(context):
+    assert context["workflow_result"].status == "success"
+    assert len(context["workflow_result"].stages["probe"]["attempts"]) == 1
+    assert len(context["executor"].execute_calls) == 1
+    executed_plan = context["executor"].execute_calls[0][0].approved_snapshot(include_digest=True)
+    assert executed_plan == context["planned_snapshot"]
+    assert [call[0] for call in context["control"].consume_calls] == [context["authorizations"]["probe:1"]]
