@@ -7,19 +7,21 @@ capability incomplete.
 
 ## Tested revision and runtime
 
-- Implementation revision: `19fa8df91184109b13f542e6e31fcefc0b9c7a28`.
+- Implementation revision: `1a660490426b346630a13d3d55fcd9acbac24808`.
 - Integration base: `50e6d96c144f9d81d52c99403e5ceae8815d3e16`.
-- Acceptance date: 2026-10-18. This documentation-only refresh records the
+- Acceptance date: 2026-10-19 UTC. This documentation-only refresh records the
   integrated provenance (`38e091b`), authorized transport (`cda3255`), bounded SQL
   fixture (`b55c68d`), TLS minimum policy (`19fa8df`) and review corrections.
-  The focused, portable, documentation and strict gates were rerun after the TLS
-  correction. One subsequent test formatting change preserves its syntax tree;
-  the runtime sources are unchanged. Hosted checks separately validate the final
-  PR revision.
+  Additional review corrections cover artifact result completeness, consent
+  evidence, workflow conditions and retries, bounded report anchors, cloud
+  exclusions, TLS metadata, OpenAPI reconstruction, import/session provenance,
+  replay allowlists and request budgets. All combined local gates passed on the
+  implementation revision above; hosted checks separately validate the final PR
+  revision containing this documentation-only refresh.
 - Strict service image:
-  `sha256:8d21dbed75b45e4198ef03e2bd1f802c894f5efb95e2477faa9782757fd67a12`.
+  `sha256:b8e6b1acd24b5803a2cc7ed8c911af40d518c2e9ef351ed915d6a4fdba317f3e`.
 - Service source snapshot:
-  `2e75aabd6cb49f565e2cb9d9d1107bf462063b92afa7efa8b3b33803589fd2e5`.
+  `242a1fe89d35897da90fd65ae84aae002804904bbbfad0dcebd081e6aa6cf285`.
   Recomputing the snapshot at the clean implementation revision matched the run.
 - Portable host: macOS arm64, Python 3.14.8. Strict runtime: Linux arm64,
   Python 3.14.6, Git 2.47.3, pip 26.1.2, cryptography 50.0.2,
@@ -29,7 +31,8 @@ Changes are committed on dedicated, dependency-ordered branches and integrated
 with the base above on `codex/expansion-delivery`. The original API checkout
 retains its branch and unfinished edits. This record captures local acceptance
 before the authorized push and merge; the pull request records hosted checks and
-delivery separately. It does not establish release or production deployment.
+delivery separately. Normal automatic documentation deployment after merge is
+authorized. These results do not establish release or production validation.
 
 ## Commands and check ledger
 
@@ -41,23 +44,47 @@ prerequisites must be provisioned before the strict gate, as described in the
 [Kubernetes runbook](KUBERNETES_LABORATORY.md).
 
 ```sh
-.venv/bin/python -m pytest -q -ra \
-  tests/test_web_api_replay_transport.py tests/test_web_api_import_safety.py \
-  tests/test_boundary_query_safety.py tests/test_cve_evidence_binding.py \
-  tests/test_integrated_workflows.py tests/test_network_policy_inputs.py \
-  tests/test_workflow_optional_signing.py tests/test_cloud_corrections.py \
-  tests/test_supply_chain_corrections.py tests/test_purple_team_workflows.py
+.venv/bin/python -m pytest -o addopts= -q -ra \
+  tests/step_defs/test_portable_operator_workflow.py \
+  tests/step_defs/test_web_api_inventory_replay.py \
+  tests/test_artifact_assessments.py \
+  tests/test_artifact_report_integrity.py \
+  tests/test_boundary_query_safety.py \
+  tests/test_cloud_corrections.py \
+  tests/test_cloud_networkpolicy_exclusions.py \
+  tests/test_consent_evidence.py \
+  tests/test_cve_evidence_binding.py \
+  tests/test_integrated_service_laboratory.py \
+  tests/test_integrated_workflows.py \
+  tests/test_network_policy_inputs.py \
+  tests/test_openapi_operation_reconstruction.py \
+  tests/test_purple_team_workflows.py \
+  tests/test_report_anchor_bounds.py \
+  tests/test_supply_chain_corrections.py \
+  tests/test_tls_metadata_hostnames.py \
+  tests/test_web_api_allowlist_validation.py \
+  tests/test_web_api_import_limits.py \
+  tests/test_web_api_import_safety.py \
+  tests/test_web_api_import_session_bindings.py \
+  tests/test_web_api_inventory_skill.py \
+  tests/test_web_api_offline_budget.py \
+  tests/test_web_api_preview_cli.py \
+  tests/test_web_api_replay_transport.py \
+  tests/test_workflow_idempotent_retries.py \
+  tests/test_workflow_optional_signing.py \
+  tests/test_workflow_resume_conditions.py \
+  tests/test_workflow_runtime.py
 make check PYTHON=.venv/bin/python
 make check-docs PYTHON=.venv/bin/python
-DOCKER_CONTEXT=colima make check-laboratory PYTHON=.venv/bin/python LABORATORY_ARGS='--runtime docker --image sha256:8d21dbed75b45e4198ef03e2bd1f802c894f5efb95e2477faa9782757fd67a12 --kubernetes-timeout 480'
+DOCKER_CONTEXT=colima make check-laboratory PYTHON=.venv/bin/python LABORATORY_ARGS='--runtime docker --image sha256:b8e6b1acd24b5803a2cc7ed8c911af40d518c2e9ef351ed915d6a4fdba317f3e --kubernetes-timeout 480'
 ```
 
 | Check | Observed result | Scope or limitation |
 | --- | --- | --- |
-| Focused correction tests at `19fa8df` | 321 passed, no skips | API transport/import and TLS floor, SQL fixture, CVE/integrated workflows, network, optional signing, cloud, supply-chain and predicate corrections |
-| `make check` | Passed, including all 25 package gates | Root suite passed with 24 platform skips; the quiet output does not report a passed-test count; skips are listed below |
-| `make check-docs` | Passed, 58 pages | Documentation contract and local links |
-| Strict `make check-laboratory` | 13/13 cases passed; no failures or blockers | Twelve service-container cases plus three Kubernetes lifecycle runs in one composite case |
+| Focused correction tests | 974 passed, no skips; one expected TLS 1.1 deprecation warning | API transport/import/session/provenance, TLS, SQL/CVE evidence, report integrity, workflow guards/retries, cloud/network, signing and supply chain |
+| `make check` | Passed, including all 25 package gates | Portable root suite includes 24 platform skips, detailed below |
+| `make check-docs` | Passed; 58 pages verified | Documentation contract and local links |
+| Strict `make check-laboratory` | Passed, 13/13 cases; no failures or blockers | Twelve service-container cases plus three Kubernetes lifecycle runs in one composite case |
 | Held-out routing | 270/270 clear requests correct; 10/10 for each of 27 specialists | 100/100 ambiguous or negative requests clarified; published examples remain separate |
 | Hosted/native CI | Pending for the final pushed revision | Retained Linux worker and Windows filesystem jobs remain required; earlier PR results do not validate this revision |
 | Production/provider integrations | Not run | Separate live validation required before support claims |
@@ -65,7 +92,12 @@ DOCKER_CONTEXT=colima make check-laboratory PYTHON=.venv/bin/python LABORATORY_A
 The service image was rebuilt from the current runtime Dockerfile and pinned,
 hash-verified offline dependencies before the strict run. The launcher verified
 the fresh source manifest and inspected the container configuration before use;
-old evidence and marker files were not accepted as readiness evidence.
+old evidence and marker files were not accepted as readiness evidence. The service
+run nonce was `b779c7da2220403fb188f8798e6f9d0d`; the Kubernetes run nonce was
+`98813139fb90eb610915497dc64d5552`, with observed audit activity from
+2026-10-19T02:27:38Z through 2026-10-19T02:29:32Z. The launcher verified removal
+of the service container; Kubernetes cleanup verified namespace removal for all
+three lifecycle cases, node removal and removal of both owned image tags.
 
 Transport regressions exercise numeric-address DNS pinning, original-host TLS
 verification (valid, wrong-host and untrusted certificates), TLS 1.2 minimum
@@ -74,6 +106,16 @@ before DNS, redirect policy and credential removal, aggregate deadlines, HTTP
 error responses and real signed,
 persisted, single-use approvals. Request, session, destination and budget changes
 cannot reuse an approval bound to the frozen transport plan.
+
+Review regression coverage now includes complete artifact collections and unique
+occurrence IDs, clean consent evidence, explicit workflow skips and optional-output
+guards, persisted planned-attempt recovery, and default non-idempotent actions.
+Report anchors enforce a byte limit before reading immutable Git blobs. Cloud
+exclusions and unsupported TLS metadata stay indeterminate. Replay validates every
+allowlist entry and rejects an oversized offline request batch before any send.
+Imports enforce an 8 MiB budget before parsing, retain all merged source
+provenance, namespace duplicate source/session identities and preserve the
+authentication mechanism attached to each request.
 
 The portable suite also covers threshold boundaries and conflicting artifacts,
 classifier redaction/timeouts/unavailability, preview side-effect exclusion,
