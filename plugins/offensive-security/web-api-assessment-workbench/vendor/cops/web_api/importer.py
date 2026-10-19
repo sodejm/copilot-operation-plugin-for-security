@@ -22,6 +22,8 @@ from .models import (
     UnsupportedFeature,
     UserRole,
     redact_credential_value,
+    safe_inventory_public_label,
+    validate_inventory_provenance,
 )
 from .sanitization import authority, sanitize_text
 
@@ -43,6 +45,10 @@ _TRANSPORT_CONTROLLED_HEADERS = {
     "transfer-encoding",
     "upgrade",
 }
+MAX_IMPORT_BYTES = 8 * 1024 * 1024
+_READ_CHUNK_BYTES = 64 * 1024
+_INPUT_TOO_LARGE = "API import input exceeds the byte limit"
+_AUTHORIZATION_HEADER = "Authorization"
 
 
 def _has_unsafe_location_character(value: str) -> bool:
@@ -86,7 +92,7 @@ def _sanitize_headers(
             auth_mechs.append(
                 AuthenticationMechanism(
                     auth_type=auth_type,
-                    token_name=scheme.title() if scheme in ("bearer", "basic") else "Authorization",
+                    token_name=_AUTHORIZATION_HEADER,
                     location="header",
                     is_redacted=True,
                     credential_hash=c_hash,
@@ -155,21 +161,72 @@ def _sanitize_query(query_dict: dict[str, str] | list[dict[str, str]]) -> tuple[
     return clean_params, auth_mechs
 
 
+def _bounded_bytes(chunks: Any) -> bytes:
+    """Collect at most max+1 bytes and reject oversized input without echoing it."""
+    content = bytearray()
+    for chunk in chunks:
+        content.extend(chunk[: MAX_IMPORT_BYTES + 1 - len(content)])
+        if len(content) > MAX_IMPORT_BYTES:
+            raise ImporterError(_INPUT_TOO_LARGE)
+    return bytes(content)
+
+
+def _read_bounded_path(path: Path) -> bytes:
+    """Read a path incrementally with a finite max+1 byte ceiling."""
+    try:
+        with path.open("rb") as stream:
+            content = bytearray()
+            while len(content) <= MAX_IMPORT_BYTES:
+                remaining = MAX_IMPORT_BYTES + 1 - len(content)
+                chunk = stream.read(min(_READ_CHUNK_BYTES, remaining))
+                if not chunk:
+                    break
+                content.extend(chunk)
+            if len(content) > MAX_IMPORT_BYTES:
+                raise ImporterError(_INPUT_TOO_LARGE)
+            return bytes(content)
+    except ImporterError:
+        raise
+    except OSError:
+        raise ImporterError("Unable to read API import input") from None
+
+
+def _bounded_text_bytes(value: str) -> bytes:
+    """Encode inline text incrementally so its UTF-8 form obeys the same bound."""
+    try:
+        return _bounded_bytes(
+            value[offset : offset + _READ_CHUNK_BYTES].encode("utf-8")
+            for offset in range(0, len(value), _READ_CHUNK_BYTES)
+        )
+    except UnicodeError:
+        raise ImporterError("Unable to read API import input") from None
+
+
+def _encoded_text_chunks(values: Any) -> Any:
+    """Yield bounded UTF-8 chunks without materializing a large encoded value."""
+    for value in values:
+        for offset in range(0, len(value), _READ_CHUNK_BYTES):
+            yield value[offset : offset + _READ_CHUNK_BYTES].encode("utf-8")
+
+
 def _input_bytes(data: dict[str, Any] | str | Path) -> bytes:
-    """Read once, retaining exact UTF-8 bytes for content provenance."""
+    """Read at most the documented limit, retaining exact accepted raw bytes."""
     try:
         if isinstance(data, dict):
-            return json.dumps(data, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+            encoder = json.JSONEncoder(sort_keys=True, separators=(",", ":"), allow_nan=False)
+            return _bounded_bytes(_encoded_text_chunks(encoder.iterencode(data)))
         if isinstance(data, Path):
-            return data.read_bytes()
+            return _read_bounded_path(data)
         if isinstance(data, str):
             # JSON and HTTP payloads must never be probed as filesystem paths.
             if len(data) < 240 and not any(char in data for char in '\r\n{["'):
                 candidate = Path(data)
                 if candidate.is_file():
-                    return candidate.read_bytes()
-            return data.encode("utf-8")
-    except (OSError, ValueError, TypeError, RecursionError):
+                    return _read_bounded_path(candidate)
+            return _bounded_text_bytes(data)
+    except ImporterError:
+        raise
+    except (OSError, ValueError, TypeError, RecursionError, UnicodeError):
         raise ImporterError("Unable to read API import input") from None
     raise ImporterError("Unsupported API import input type")
 
@@ -189,15 +246,25 @@ def _provenance(
     content: bytes, kind: str, source_id: str | None, supplied: EvidenceProvenance | None
 ) -> EvidenceProvenance:
     content_hash = hashlib.sha256(content).hexdigest()
-    if supplied is not None and supplied.sha256 != content_hash:
-        raise ImporterError("API import provenance does not match input content")
-    return EvidenceProvenance(
+    if supplied is not None:
+        try:
+            validate_inventory_provenance(supplied)
+        except ValueError:
+            raise ImporterError("API import provenance is invalid") from None
+        if supplied.sha256 != content_hash:
+            raise ImporterError("API import provenance does not match input content")
+    record = EvidenceProvenance(
         source_id=source_id or (supplied.source_id if supplied else f"source-{content_hash[:12]}"),
         source_type=kind,
         sha256=content_hash,
         timestamp=supplied.timestamp if supplied else utc_now(),
         path_or_uri=f"sha256:{content_hash}",
+        raw_record_ref=supplied.raw_record_ref if supplied else None,
     )
+    try:
+        return validate_inventory_provenance(record)
+    except ValueError:
+        raise ImporterError("API import provenance is invalid") from None
 
 
 def _import_authority(url: str) -> str:
@@ -443,6 +510,99 @@ def _credential_destination(mechanism: AuthenticationMechanism) -> tuple[str, st
     return mechanism.location, name
 
 
+def _authentication_signature(
+    mechanisms: list[AuthenticationMechanism],
+) -> tuple[tuple[str, str, str, str], ...]:
+    """Return the redacted authentication-context identity for one request."""
+    return tuple(
+        sorted(
+            (
+                mechanism.auth_type,
+                mechanism.location,
+                mechanism.token_name.lower() if mechanism.location == "header" else mechanism.token_name,
+                mechanism.credential_hash,
+            )
+            for mechanism in mechanisms
+            if mechanism.auth_type != AuthType.NONE.value
+        )
+    )
+
+
+def _bind_imported_sessions(
+    endpoints: list[HttpEndpoint], provenance: EvidenceProvenance, role_id: str
+) -> list[SessionContext]:
+    """Create source-scoped sessions and explicitly bind singular authentication."""
+    sessions: dict[tuple[str, str, str, str], SessionContext] = {}
+    for endpoint in endpoints:
+        active = [item for item in endpoint.auth_mechanisms if item.auth_type != AuthType.NONE.value]
+        for mechanism in active:
+            identity = _authentication_signature([mechanism])[0]
+            session = sessions.get(identity)
+            if session is None:
+                canonical = json.dumps(
+                    {"source_sha256": provenance.sha256, "authentication": identity},
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+                session = SessionContext(
+                    session_id="sess-" + hashlib.sha256(canonical).hexdigest()[:20],
+                    role_id=role_id,
+                    auth_mechanism=mechanism,
+                )
+                sessions[identity] = session
+        if len(active) == 1:
+            endpoint.session_id = sessions[_authentication_signature(active)[0]].session_id
+    return [sessions[key] for key in sorted(sessions)]
+
+
+def _postman_auth_mechanism(raw_auth: Any) -> AuthenticationMechanism | None:
+    """Normalize one supported Postman auth declaration without retaining credentials."""
+    if not isinstance(raw_auth, dict):
+        return None
+    raw_type = raw_auth.get("type")
+    if not isinstance(raw_type, str):
+        raise ImporterError("Postman authentication declaration is malformed")
+    auth_type = raw_type.lower()
+    if auth_type == "noauth":
+        return None
+    values = raw_auth.get(raw_type, raw_auth.get(auth_type, []))
+    if not isinstance(values, list):
+        raise ImporterError("Postman authentication declaration is malformed")
+    fields = {
+        str(item.get("key", "")): str(item.get("value", ""))
+        for item in values
+        if isinstance(item, dict) and item.get("key")
+    }
+    credential_hash = hashlib.sha256(
+        json.dumps(raw_auth, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    ).hexdigest()
+    if auth_type in ("bearer", "basic"):
+        return AuthenticationMechanism(
+            auth_type=auth_type,
+            token_name=_AUTHORIZATION_HEADER,
+            location="header",
+            is_redacted=True,
+            credential_hash=credential_hash,
+        )
+    if auth_type in ("apikey", "api_key"):
+        name = fields.get("key", "")
+        location = fields.get("in", "header").lower()
+        if (
+            not name
+            or location not in ("header", "query")
+            or (location == "header" and not _is_safe_auth_header_name(name))
+        ):
+            raise ImporterError("Postman authentication declaration cannot be represented safely")
+        return AuthenticationMechanism(
+            auth_type=AuthType.API_KEY.value,
+            token_name=name,
+            location=location,
+            is_redacted=True,
+            credential_hash=credential_hash,
+        )
+    raise ImporterError("Postman authentication declaration cannot be represented safely")
+
+
 def _operation_authentication(
     raw_obj: dict[str, Any],
     operation: dict[str, Any],
@@ -501,7 +661,7 @@ def import_har(
     if not isinstance(log, dict) or "entries" not in log:
         raise ImporterError("Invalid HAR document: missing 'log.entries'")
 
-    endpoints_map: dict[tuple[str, str, str, str], HttpEndpoint] = {}
+    endpoints_map: dict[tuple[str, str, str, str, tuple[tuple[str, str, str, str], ...]], HttpEndpoint] = {}
     target_hosts: set[str] = set()
     unsupported: list[UnsupportedFeature] = []
 
@@ -526,6 +686,7 @@ def import_har(
         }
         clean_query, q_auth_mechs = _sanitize_query(query_raw)
         auth_mechs.extend(q_auth_mechs)
+        auth_signature = _authentication_signature(auth_mechs)
 
         # Detect protocol & unsupported features
         proto = ApiProtocol.HTTP.value
@@ -557,10 +718,10 @@ def import_har(
             text = post_data.get("text", "")
             body_schema = {"mimeType": mime_type, "sample_length": len(text)}
 
-        key = (parsed_url.scheme.lower(), host, method, path)
+        key = (parsed_url.scheme.lower(), host, method, path, auth_signature)
         if key not in endpoints_map:
             endpoint_id = (
-                f"ep-{hashlib.sha256(f'{parsed_url.scheme.lower()}:{host}:{method}:{path}'.encode()).hexdigest()[:12]}"
+                "ep-" + hashlib.sha256(f"{parsed_url.scheme.lower()}:{host}:{method}:{path}".encode()).hexdigest()[:12]
             )
             endpoints_map[key] = HttpEndpoint(
                 endpoint_id=endpoint_id,
@@ -588,23 +749,33 @@ def import_har(
                 if am.token_name not in [x.token_name for x in ep.auth_mechanisms]:
                     ep.auth_mechanisms.append(am)
 
-    inv_id = f"inv-{hashlib.sha256(f'har:{len(endpoints_map)}:{sorted(target_hosts)}'.encode('utf-8')).hexdigest()[:12]}"
+    route_counts: dict[tuple[str, str, str, str], int] = {}
+    for key in endpoints_map:
+        route = key[:4]
+        route_counts[route] = route_counts.get(route, 0) + 1
+    for key, endpoint in endpoints_map.items():
+        route = key[:4]
+        if route_counts[route] > 1:
+            variant_identity = json.dumps(
+                {"route": route, "authentication": key[4]},
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+            endpoint.endpoint_id = "ep-" + hashlib.sha256(variant_identity).hexdigest()[:12]
+
+    endpoints = list(endpoints_map.values())
+    sessions = _bind_imported_sessions(endpoints, provenance, "role-auth")
+    inv_id = f"inv-{hashlib.sha256(f'har:{provenance.sha256}'.encode()).hexdigest()[:12]}"
     return ApiInventory(
         inventory_id=inv_id,
         name="HAR Imported API Inventory",
         target_hosts=sorted(target_hosts),
-        endpoints=list(endpoints_map.values()),
+        endpoints=endpoints,
         roles=[
             UserRole(role_id="role-anon", role_name="anonymous", permissions=["read_public"]),
             UserRole(role_id="role-auth", role_name="authenticated", permissions=["read_api", "execute_request"]),
         ],
-        sessions=[
-            SessionContext(
-                session_id="sess-imported-01",
-                role_id="role-auth",
-                auth_mechanism=AuthenticationMechanism(auth_type=AuthType.BEARER.value, token_name="Authorization"),
-            )
-        ],
+        sessions=sessions,
         unsupported_features=unsupported,
         imported_sources=["HAR 1.2 traffic capture"],
         credentials_redacted=True,
@@ -626,14 +797,13 @@ def import_openapi(
 
     info = raw_obj.get("info", {})
     title = info.get("title", "OpenAPI Service") if isinstance(info, dict) else "OpenAPI Service"
-    title = sanitize_text(str(title))
+    title = safe_inventory_public_label(str(title), "OpenAPI Service")
     is_swagger = raw_obj.get("swagger") == "2.0"
     definitions = _security_definitions(raw_obj, is_swagger)
     target_hosts: set[str] = set()
 
     endpoints: list[HttpEndpoint] = []
     unsupported: list[UnsupportedFeature] = []
-    used_auth: dict[tuple[str, str, str], AuthenticationMechanism] = {}
 
     swagger_location: tuple[str, str] | None = None
     if is_swagger:
@@ -734,11 +904,6 @@ def import_openapi(
                         affected_endpoints=[f"{method.upper()} {effective_path}"],
                     )
                 )
-            for mechanism in op_auth:
-                location, name = _credential_destination(mechanism)
-                key = (mechanism.auth_type, location, name)
-                used_auth.setdefault(key, mechanism)
-
             endpoint_id = f"ep-{hashlib.sha256(f'{host}:{method.upper()}:{effective_path}'.encode()).hexdigest()[:12]}"
             endpoints.append(
                 HttpEndpoint(
@@ -765,7 +930,8 @@ def import_openapi(
     if not target_hosts:
         target_hosts.add("api.target.local")
 
-    inv_id = f"inv-{hashlib.sha256(f'openapi:{title}:{len(endpoints)}'.encode()).hexdigest()[:12]}"
+    sessions = _bind_imported_sessions(endpoints, provenance, "role-auth")
+    inv_id = f"inv-{hashlib.sha256(f'openapi:{provenance.sha256}'.encode()).hexdigest()[:12]}"
     return ApiInventory(
         inventory_id=inv_id,
         name=f"OpenAPI Spec: {title}",
@@ -775,14 +941,7 @@ def import_openapi(
             UserRole(role_id="role-anon", role_name="anonymous", permissions=["read_public"]),
             UserRole(role_id="role-auth", role_name="authenticated", permissions=["api_read", "execute_request"]),
         ],
-        sessions=[
-            SessionContext(
-                session_id=f"sess-openapi-{index:02d}",
-                role_id="role-auth",
-                auth_mechanism=mechanism,
-            )
-            for index, mechanism in enumerate(used_auth.values(), start=1)
-        ],
+        sessions=sessions,
         unsupported_features=unsupported,
         imported_sources=[f"OpenAPI 3.x / Swagger: {title}"],
         credentials_redacted=True,
@@ -800,7 +959,7 @@ def import_postman(
     provenance = _provenance(content, "postman_import", source_id, provenance)
 
     info = raw_obj.get("info", {})
-    title = info.get("name", "Postman Collection")
+    title = safe_inventory_public_label(str(info.get("name", "Postman Collection")), "Postman Collection")
     items = raw_obj.get("item", [])
     if not isinstance(items, list):
         raise ImporterError("Invalid Postman Collection: missing 'item' array")
@@ -808,10 +967,13 @@ def import_postman(
     endpoints: list[HttpEndpoint] = []
     target_hosts: set[str] = set()
 
-    def _traverse(item_list: list[dict[str, Any]]) -> None:
+    def _traverse(item_list: list[dict[str, Any]], inherited_auth: Any = None) -> None:
         for it in item_list:
+            if not isinstance(it, dict):
+                continue
+            item_auth = it.get("auth", inherited_auth)
             if "item" in it and isinstance(it["item"], list):
-                _traverse(it["item"])
+                _traverse(it["item"], item_auth)
                 continue
 
             req = it.get("request")
@@ -836,20 +998,6 @@ def import_postman(
             headers_raw = req.get("header", [])
             clean_headers, auth_mechs = _sanitize_headers(headers_raw)
 
-            # Check postman auth field
-            req_auth = req.get("auth")
-            if isinstance(req_auth, dict):
-                atype = req_auth.get("type", "").lower()
-                auth_mechs.append(
-                    AuthenticationMechanism(
-                        auth_type=atype if atype in [a.value for a in AuthType] else AuthType.BEARER.value,
-                        token_name=f"postman-{atype}" if atype in [a.value for a in AuthType] else "postman-custom",
-                        location="header",
-                        is_redacted=True,
-                        credential_hash=hashlib.sha256(json.dumps(req_auth).encode("utf-8")).hexdigest(),
-                    )
-                )
-
             # Query params
             query_raw = {k: v[0] for k, v in parse_qs(parsed.query, keep_blank_values=True).items()}
             if isinstance(url_obj, dict) and "query" in url_obj:
@@ -857,7 +1005,14 @@ def import_postman(
             clean_query, q_auths = _sanitize_query(query_raw)
             auth_mechs.extend(q_auths)
 
-            endpoint_id = f"ep-{hashlib.sha256(f'{host}:{method}:{path}'.encode('utf-8')).hexdigest()[:12]}"
+            declared_auth = _postman_auth_mechanism(req.get("auth", item_auth))
+            if declared_auth is not None:
+                occupied = {_credential_destination(mechanism) for mechanism in auth_mechs}
+                if _credential_destination(declared_auth) not in occupied:
+                    auth_mechs.append(declared_auth)
+
+            endpoint_identity = f"{provenance.sha256}:{len(endpoints)}:{host}:{method}:{path}"
+            endpoint_id = f"ep-{hashlib.sha256(endpoint_identity.encode()).hexdigest()[:12]}"
             endpoints.append(
                 HttpEndpoint(
                     endpoint_id=endpoint_id,
@@ -865,7 +1020,7 @@ def import_postman(
                     path=path,
                     host=host,
                     protocol=ApiProtocol.HTTP.value,
-                    summary=it.get("name", f"{method} {path}"),
+                    summary=safe_inventory_public_label(it.get("name", f"{method} {path}"), f"{method} endpoint"),
                     query_parameters=clean_query,
                     headers_schema=clean_headers,
                     auth_mechanisms=auth_mechs or [AuthenticationMechanism(auth_type=AuthType.NONE.value)],
@@ -873,16 +1028,17 @@ def import_postman(
                 )
             )
 
-    _traverse(items)
+    _traverse(items, raw_obj.get("auth"))
 
-    inv_id = f"inv-{hashlib.sha256(f'postman:{title}:{len(endpoints)}'.encode('utf-8')).hexdigest()[:12]}"
+    sessions = _bind_imported_sessions(endpoints, provenance, "role-postman")
+    inv_id = f"inv-{hashlib.sha256(f'postman:{provenance.sha256}'.encode()).hexdigest()[:12]}"
     return ApiInventory(
         inventory_id=inv_id,
         name=f"Postman: {title}",
         target_hosts=sorted(target_hosts),
         endpoints=endpoints,
         roles=[UserRole(role_id="role-postman", role_name="postman_user", permissions=["replay"])],
-        sessions=[],
+        sessions=sessions,
         imported_sources=[f"Postman Collection: {title}"],
         credentials_redacted=True,
         provenance=provenance,
@@ -968,14 +1124,15 @@ def import_raw_http(
         roles_allowed=["anonymous" if not auth_mechs else "authenticated"],
     )
 
-    inv_id = f"inv-{hashlib.sha256(f'raw:{host}:{method}:{path}'.encode('utf-8')).hexdigest()[:12]}"
+    sessions = _bind_imported_sessions([endpoint], provenance, "role-raw")
+    inv_id = f"inv-{hashlib.sha256(f'raw:{provenance.sha256}'.encode()).hexdigest()[:12]}"
     return ApiInventory(
         inventory_id=inv_id,
         name=f"Raw HTTP: {method} {path}",
         target_hosts=[host],
         endpoints=[endpoint],
         roles=[UserRole(role_id="role-raw", role_name="operator", permissions=["replay"])],
-        sessions=[],
+        sessions=sessions,
         imported_sources=["Raw HTTP Request"],
         credentials_redacted=True,
         provenance=provenance,

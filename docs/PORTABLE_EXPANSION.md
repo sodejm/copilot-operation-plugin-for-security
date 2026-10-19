@@ -43,6 +43,40 @@ unrepresentable authentication, and operation-path keys containing `?` or `#` fa
 closed without echoing imported content. Header credential names use case-insensitive
 collision checks, while query credential names remain case-sensitive.
 
+HAR, OpenAPI/Swagger, Postman, and raw HTTP import inputs share an 8 MiB
+limit. Importers perform a bounded maximum-plus-one binary read before parsing,
+retain the accepted raw-byte digest, and never fetch or execute input. Repeated
+CLI inputs retain one validated, path-free provenance record per source in
+`provenance_sources`; the merged inventory identity is derived from the sorted
+source type, opaque source ID, and content digest records rather than endpoint
+counts or timestamps. Every serialized provenance record uses
+`sha256:<matching-digest>` as its source reference, so local paths and
+credential-bearing references cannot enter the public inventory contract.
+Saved inventories and replay reports use the same 8 MiB bounded binary reader.
+Inspection validates and reserializes the recognized public model instead of
+echoing parsed JSON. Inventory names and imported-source labels reject local or
+credential-bearing references at both deserialization and serialization.
+Endpoint and session authentication metadata is also validated when loaded and
+serialized. It must be explicitly redacted, and its credential identity is
+either empty for a declaration or a lowercase SHA-256 digest; plaintext or
+malformed credential identities fail with a content-free error.
+
+Imported authenticated endpoints carry an explicit `session_id`. Merge
+deterministically namespaces endpoint and session IDs per source occurrence, so
+duplicate inputs and distinct sources using the same scheme retain separate
+credential contexts. HAR, OpenAPI/Swagger, Postman, and raw HTTP Bearer, Basic,
+and API-key inputs preserve this association through serialization, preview,
+action-plan construction, and offline replay. HAR Bearer and Basic metadata use
+the header name `Authorization`; previews render
+`Authorization: Bearer <placeholder>` or
+`Authorization: Basic <placeholder>`. The CLI does not load credentials from
+the environment. An approved integration replaces a Bearer placeholder with
+the token only (no scheme prefix), a Basic placeholder with the RFC 7617
+base64-encoded `user:password` payload only (no scheme prefix), and an API-key
+placeholder with the exact header, query, or cookie value only. Suggested
+environment names are `COPS_WEB_API_BEARER_TOKEN`,
+`COPS_WEB_API_BASIC_CREDENTIALS_B64`, and `COPS_WEB_API_API_KEY_VALUE`.
+
 The live integration must supply the same isolated role sessions to plan construction
 and execution so the signed digest covers the effective wire request. The
 standard-library transport pins each connection to its scope-checked DNS result

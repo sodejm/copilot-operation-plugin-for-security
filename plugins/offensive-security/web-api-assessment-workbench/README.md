@@ -92,6 +92,7 @@ The workbench is exposed via the unified `cops web-api` command:
 python3 -m cops web-api inventory --openapi spec.json --output inventory.json
 python3 -m cops web-api inventory --har traffic.har --source-id ENG-01 -o inventory.json
 python3 -m cops web-api inventory --postman collection.json -o inventory.json
+python3 -m cops web-api inventory --openapi public.json --openapi admin.json -o combined.json
 
 # 2. Inspect an existing inventory or replay session report
 python3 -m cops web-api inspect inventory.json
@@ -136,7 +137,42 @@ Destination allowlist items accept exact ASCII DNS names and canonical dotted-de
 
 Importers normalize HAR 1.2, OpenAPI 3.x, Swagger 2.0, Postman 2.0/2.1, and raw HTTP into the same redacted inventory without rewriting the source artifact. Replay preparation converts inventory endpoints into bounded requests, checks exact destinations and limits, and produces a side-effect-free preview. Offline replay uses synthetic responses. Live HTTP replay is available only through the approved Python integration described above; no provider adapter is claimed.
 
+Every import format has an 8 MiB input ceiling enforced by a bounded
+maximum-plus-one binary read before parsing; accepted artifacts retain their
+exact raw-byte SHA-256 digest. Import flags are repeatable, including multiple
+inputs of the same type. A merged inventory retains every source in
+`provenance_sources` and derives a deterministic identity from sorted opaque
+source IDs, source types, and content digests. Provenance serialization rejects
+local paths, credential-bearing references, invalid digests, and mismatched
+`sha256:<digest>` references. Saved inventories and replay reports use the same
+8 MiB bounded binary reader. The inspection command validates and reserializes
+recognized public models; inventory names and imported-source labels reject
+local or credential-bearing references at both public boundaries.
+Endpoint and session authentication metadata is validated at both boundaries.
+It must be explicitly redacted, with either an empty declaration-only credential
+identity or a canonical lowercase SHA-256 digest. Plaintext and malformed values
+fail with a content-free error.
+
 OpenAPI and Swagger imports apply operation security overrides before creating replay credentials. An empty security array is public, unused declarations do not create sessions, and anonymous or alternative requirements are not combined into stronger authentication. Basic and Bearer use `Authorization`; header API-key names collide case-insensitively, while query API-key names are case-sensitive. OpenAPI operation/path/root server precedence and Swagger `basePath` are preserved in preview URLs. The importer deterministically selects the first declared server alternative and reports the remaining alternatives as unsupported. Relative or non-HTTPS servers, unresolved variables, empty-host or malformed-port authorities, unknown or unrepresentable security requirements, and operation path keys containing `?` or `#` fail closed without importing their content into an error.
+
+Every newly imported authenticated endpoint carries an explicit `session_id`.
+Serialization and merge retain the endpoint-to-session association, and merge
+namespaces endpoint and session IDs by source occurrence. Duplicate inputs and
+different inputs using the same scheme therefore keep distinct credential
+contexts through preview, action-plan construction, and offline replay. This
+applies to supported Bearer, Basic, and API-key authentication from HAR,
+OpenAPI/Swagger, Postman, and raw HTTP. Missing, conflicting, or ambiguous
+bindings fail closed.
+
+HAR Bearer and Basic metadata use the header name `Authorization`, and previews
+render `Authorization: Bearer <placeholder>` or
+`Authorization: Basic <placeholder>`. The CLI does not load credentials from
+the environment. An approved integration replaces a Bearer placeholder with
+the token only (no scheme prefix), a Basic placeholder with the RFC 7617
+base64-encoded `user:password` payload only (no scheme prefix), and an API-key
+placeholder with the exact header, query, or cookie value only. Suggested
+environment names are `COPS_WEB_API_BEARER_TOKEN`,
+`COPS_WEB_API_BASIC_CREDENTIALS_B64`, and `COPS_WEB_API_API_KEY_VALUE`.
 
 | Artifact | Purpose | Producer | Consumer | Validation |
 | :--- | :--- | :--- | :--- | :--- |

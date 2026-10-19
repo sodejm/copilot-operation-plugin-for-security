@@ -52,10 +52,10 @@ class TestWebApiInventoryAndReplaySkill(unittest.TestCase):
 
             args = argparse.Namespace(
                 web_api_command="inventory",
-                openapi=str(spec_file),
-                har=None,
-                postman=None,
-                raw=None,
+                openapi=[str(spec_file)],
+                har=[],
+                postman=[],
+                raw=[],
                 name="Accounts Inventory",
                 source_id="TEST-SRC-01",
                 output=str(out_file),
@@ -86,10 +86,10 @@ class TestWebApiInventoryAndReplaySkill(unittest.TestCase):
 
             args = argparse.Namespace(
                 web_api_command="inventory",
-                openapi=None,
-                har=None,
-                postman=None,
-                raw=str(raw_file),
+                openapi=[],
+                har=[],
+                postman=[],
+                raw=[str(raw_file)],
                 name="GraphQL Raw Request",
                 source_id="RAW-01",
                 output=str(out_file),
