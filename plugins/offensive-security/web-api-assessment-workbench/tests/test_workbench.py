@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -11,6 +12,9 @@ REPO_ROOT = Path(__file__).resolve().parents[4]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from cops.web_api.cli import (  # noqa: E402  # Import after runtime prerequisite/path selection.
+    _requests_from_inventory,
+)
 from cops.web_api.importer import (  # noqa: E402  # Import after runtime prerequisite/path selection.
     import_har,
     import_openapi,
@@ -18,7 +22,7 @@ from cops.web_api.importer import (  # noqa: E402  # Import after runtime prereq
     import_raw_http,
 )
 from cops.web_api.models import (  # noqa: E402  # Import after runtime prerequisite/path selection.
-    AuthType,
+    ApiInventory,
     ReplayBudget,
     ReplayRequest,
     redact_credential_value,
@@ -35,6 +39,15 @@ from cops.web_api.replay import (  # noqa: E402  # Import after runtime prerequi
 class TestWebApiWorkbench(unittest.TestCase):
     """Test suite for Web API inventory intake and request replay."""
 
+    def setUp(self) -> None:
+        self.temp_directory = tempfile.TemporaryDirectory()
+
+    def tearDown(self) -> None:
+        self.temp_directory.cleanup()
+
+    def temporary_path(self, name: str) -> Path:
+        return Path(self.temp_directory.name, name)
+
     def test_credential_redaction(self) -> None:
         raw_secret = "super-secret-token-12345"
         redacted = redact_credential_value(raw_secret)
@@ -43,6 +56,20 @@ class TestWebApiWorkbench(unittest.TestCase):
 
         # Idempotent
         self.assertEqual(redact_credential_value(redacted), redacted)
+
+    def test_authentication_metadata_rejects_plaintext_identity(self) -> None:
+        inventory = import_raw_http(
+            "GET /private HTTP/1.1\r\nHost: api.example.test\r\nAuthorization: Bearer fixture-secret\r\n\r\n"
+        )
+        document = inventory.to_dict()
+        marker = "PLAINTEXT-CREDENTIAL-MARKER"
+        document["endpoints"][0]["auth_mechanisms"][0]["credential_hash"] = marker
+        document["sessions"][0]["auth_mechanism"]["credential_hash"] = marker
+
+        with self.assertRaisesRegex(ValueError, "inventory authentication mechanism is invalid") as caught:
+            ApiInventory.from_dict(document)
+
+        self.assertNotIn(marker, str(caught.exception))
 
     def test_destination_guard(self) -> None:
         guard = DestinationGuard(["api.example.com", "*.corp.internal"])
@@ -77,7 +104,7 @@ class TestWebApiWorkbench(unittest.TestCase):
                 }
             },
         }
-        temp_file = Path("/tmp/test_spec.json")
+        temp_file = self.temporary_path("test_spec.json")
         temp_file.write_text(json.dumps(spec), encoding="utf-8")
         try:
             inv = import_openapi(temp_file)
@@ -109,7 +136,7 @@ class TestWebApiWorkbench(unittest.TestCase):
             },
         }
         source = json.dumps(spec, indent=2)
-        temp_file = Path("/tmp/test_swagger_2.json")
+        temp_file = self.temporary_path("test_swagger_2.json")
         temp_file.write_text(source, encoding="utf-8")
         try:
             inv = import_openapi(temp_file)
@@ -147,7 +174,7 @@ class TestWebApiWorkbench(unittest.TestCase):
                 ],
             }
         }
-        temp_file = Path("/tmp/test_har.json")
+        temp_file = self.temporary_path("test_har.json")
         temp_file.write_text(json.dumps(har), encoding="utf-8")
         try:
             inv = import_har(temp_file)
@@ -162,6 +189,34 @@ class TestWebApiWorkbench(unittest.TestCase):
         finally:
             if temp_file.exists():
                 temp_file.unlink()
+
+    def test_har_authorization_variants_bind_distinct_sessions(self) -> None:
+        entries = []
+        for scheme, credential in (("Bearer", "private-bearer"), ("Basic", "private-basic")):
+            entries.append(
+                {
+                    "request": {
+                        "method": "GET",
+                        "url": "https://target.app/api/profile",
+                        "headers": [{"name": "Authorization", "value": f"{scheme} {credential}"}],
+                        "cookies": [],
+                        "queryString": [],
+                    },
+                    "response": {"status": 200},
+                }
+            )
+        inventory = import_har({"log": {"version": "1.2", "entries": entries}})
+        requests = _requests_from_inventory(inventory)
+        sessions = {session.session_id: session.auth_mechanism.auth_type for session in inventory.sessions}
+
+        self.assertEqual({request.session_id for request in requests}, set(sessions))
+        self.assertEqual(
+            {
+                (request.headers["Authorization"].split()[0].lower(), sessions[request.session_id])
+                for request in requests
+            },
+            {("bearer", "bearer"), ("basic", "basic")},
+        )
 
     def test_postman_import(self) -> None:
         postman = {
@@ -186,7 +241,7 @@ class TestWebApiWorkbench(unittest.TestCase):
                 }
             ],
         }
-        temp_file = Path("/tmp/test_postman.json")
+        temp_file = self.temporary_path("test_postman.json")
         temp_file.write_text(json.dumps(postman), encoding="utf-8")
         try:
             inv = import_postman(temp_file)
@@ -208,7 +263,7 @@ class TestWebApiWorkbench(unittest.TestCase):
             "\r\n"
             '{"item_name": "Widget"}'
         )
-        temp_file = Path("/tmp/test_raw.http")
+        temp_file = self.temporary_path("test_raw.http")
         temp_file.write_text(raw_http, encoding="utf-8")
         try:
             inv = import_raw_http(temp_file)

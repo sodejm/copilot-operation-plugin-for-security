@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -23,6 +25,8 @@ from .models import (
     ReplayBudget,
     ReplayRequest,
     ReplaySessionReport,
+    load_bounded_json_document,
+    validate_inventory_provenance,
 )
 from .replay import (
     OfflineSyntheticReplayer,
@@ -36,6 +40,7 @@ _PREVIEW_UNKNOWNS = [
     "Inventory-derived requests may still require runtime parameters or credentials; "
     "this preview does not prove that a request is viable.",
 ]
+_SCHEME_PLACEHOLDER = re.compile(r"^(Bearer|Basic) (\[REDACTED:[0-9a-f]{12}\])$")
 
 
 def _credential_placeholder(auth_type: str, location: str, name: str) -> str:
@@ -111,6 +116,7 @@ def _requests_from_inventory(inventory: ApiInventory) -> list[ReplayRequest]:
             occupied.add(destination)
             headers[header_name] = header_value
 
+        session = _matching_inventory_session(inventory, endpoint)
         requests.append(
             ReplayRequest(
                 request_id=f"req-{index:03d}",
@@ -120,9 +126,166 @@ def _requests_from_inventory(inventory: ApiInventory) -> list[ReplayRequest]:
                 headers=headers,
                 query_parameters=query_parameters,
                 protocol=endpoint.protocol,
+                session_id=(session.session_id if session else None),
+                role_id=(session.role_id if session else None),
             )
         )
     return requests
+
+
+def _serialized_preview_request(
+    request: ReplayRequest, *, scheme_source: ReplayRequest | None = None
+) -> dict[str, Any]:
+    """Serialize a generated request while retaining its safe auth scheme label."""
+    document = request.to_dict()
+    for name, value in (scheme_source or request).headers.items():
+        if name.lower() == "authorization" and _SCHEME_PLACEHOLDER.fullmatch(value):
+            document["headers"][name] = value
+    return document
+
+
+def _merged_auth_identity(mechanisms: list[Any]) -> tuple[tuple[str, str, str, str], ...]:
+    """Return redacted authentication-context identity for binding validation."""
+    return tuple(
+        sorted(
+            (
+                mechanism.auth_type,
+                mechanism.location,
+                mechanism.token_name.lower() if mechanism.location == "header" else mechanism.token_name,
+                mechanism.credential_hash,
+            )
+            for mechanism in mechanisms
+            if mechanism.auth_type != AuthType.NONE.value
+        )
+    )
+
+
+def _matching_inventory_session(inventory: ApiInventory, endpoint: Any) -> Any | None:
+    """Resolve an explicit session reference, with a narrow legacy fallback."""
+    active = [mechanism for mechanism in endpoint.auth_mechanisms if mechanism.auth_type != AuthType.NONE.value]
+    if len(active) != 1:
+        return None
+    identity = _merged_auth_identity(active)
+    if endpoint.session_id is not None:
+        matches = [session for session in inventory.sessions if session.session_id == endpoint.session_id]
+        if len(matches) != 1 or _merged_auth_identity([matches[0].auth_mechanism]) != identity:
+            raise ValueError("inventory authentication session binding is invalid")
+        return matches[0]
+    if not inventory.sessions:
+        raise ValueError("inventory authentication session binding is invalid")
+    matches = [session for session in inventory.sessions if _merged_auth_identity([session.auth_mechanism]) == identity]
+    if len(matches) != 1:
+        raise ValueError("inventory authentication session binding is invalid")
+    return matches[0]
+
+
+def _merge_inventories(inventories: list[ApiInventory], name: str) -> ApiInventory:
+    """Merge complete source-scoped graphs without losing evidence or bindings."""
+    all_endpoints = []
+    all_hosts: set[str] = set()
+    all_roles = []
+    all_sessions = []
+    all_unsupported = []
+    all_sources = []
+    all_provenance = []
+
+    units: list[tuple[str, ApiInventory, list[Any]]] = []
+    for inventory in inventories:
+        inventory.to_dict()
+        records = ([inventory.provenance] if inventory.provenance is not None else []) + list(
+            inventory.provenance_sources
+        )
+        records = [validate_inventory_provenance(record) for record in records]
+        identities = sorted((record.source_id, record.source_type, record.sha256) for record in records)
+        unit_identity = json.dumps(identities, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        if not identities:
+            unit_identity = json.dumps({"legacy_inventory_id": inventory.inventory_id}, separators=(",", ":"))
+        units.append((unit_identity, inventory, records))
+
+    units.sort(key=lambda item: item[0])
+    occurrences: dict[str, int] = {}
+    for unit_identity, inventory, records in units:
+        occurrence = occurrences.get(unit_identity, 0)
+        occurrences[unit_identity] = occurrence + 1
+        namespace = hashlib.sha256(f"{unit_identity}:{occurrence}".encode()).hexdigest()[:16]
+
+        endpoints = copy.deepcopy(inventory.endpoints)
+        sessions = copy.deepcopy(inventory.sessions)
+        roles = copy.deepcopy(inventory.roles)
+        if len({endpoint.endpoint_id for endpoint in endpoints}) != len(endpoints):
+            raise ValueError("inventory endpoint graph is invalid")
+        if len({session.session_id for session in sessions}) != len(sessions):
+            raise ValueError("inventory authentication session binding is invalid")
+
+        endpoint_ids = {
+            endpoint.endpoint_id: "ep-"
+            + hashlib.sha256(f"{namespace}:endpoint:{endpoint.endpoint_id}".encode()).hexdigest()[:20]
+            for endpoint in endpoints
+        }
+        session_ids = {
+            session.session_id: "sess-"
+            + hashlib.sha256(f"{namespace}:session:{session.session_id}".encode()).hexdigest()[:20]
+            for session in sessions
+        }
+        role_ids = {
+            role.role_id: "role-" + hashlib.sha256(f"{namespace}:role:{role.role_id}".encode()).hexdigest()[:20]
+            for role in roles
+        }
+        for endpoint in endpoints:
+            endpoint.endpoint_id = endpoint_ids[endpoint.endpoint_id]
+            if endpoint.session_id is not None:
+                if endpoint.session_id not in session_ids:
+                    raise ValueError("inventory authentication session binding is invalid")
+                endpoint.session_id = session_ids[endpoint.session_id]
+        for session in sessions:
+            session.session_id = session_ids[session.session_id]
+            session.role_id = role_ids.get(session.role_id, session.role_id)
+        for role in roles:
+            role.role_id = role_ids[role.role_id]
+            role.assigned_endpoints = [endpoint_ids.get(value, value) for value in role.assigned_endpoints]
+
+        all_endpoints.extend(endpoints)
+        all_hosts.update(inventory.target_hosts)
+        all_roles.extend(roles)
+        all_sessions.extend(sessions)
+        all_unsupported.extend(copy.deepcopy(inventory.unsupported_features))
+        all_sources.extend(inventory.imported_sources)
+        all_provenance.extend(records)
+
+    all_provenance.sort(
+        key=lambda source: (
+            source.source_id,
+            source.source_type,
+            source.sha256,
+            source.timestamp,
+            source.path_or_uri,
+            source.raw_record_ref or "",
+        )
+    )
+    source_identities = [
+        {
+            "source_id": source.source_id,
+            "source_type": source.source_type,
+            "sha256": source.sha256,
+        }
+        for source in all_provenance
+    ]
+    canonical_identity = json.dumps(source_identities, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    inventory_id = f"inv-merged-{hashlib.sha256(canonical_identity.encode('utf-8')).hexdigest()[:12]}"
+    result = ApiInventory(
+        inventory_id=inventory_id,
+        name=name,
+        target_hosts=sorted(all_hosts),
+        endpoints=all_endpoints,
+        roles=all_roles,
+        sessions=all_sessions,
+        unsupported_features=all_unsupported,
+        imported_sources=sorted(all_sources),
+        credentials_redacted=True,
+        provenance_sources=all_provenance,
+    )
+    result.to_dict()
+    return result
 
 
 def _replay_preview_document(
@@ -154,7 +317,10 @@ def _replay_preview_document(
             "imported_sources": list(inventory.imported_sources),
             "credentials_redacted": inventory.credentials_redacted,
             "prepared_request_count": len(preview.requests),
-            "requests": [request.to_dict() for request in preview.requests],
+            "requests": [
+                _serialized_preview_request(request, scheme_source=source)
+                for request, source in zip(preview.requests, requests, strict=True)
+            ],
         },
         "effects": {
             "network_requests": 0,
@@ -214,10 +380,24 @@ def build_web_api_parser(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
         "inventory",
         help="Import API traffic/definitions and generate sanitized API inventory.",
     )
-    inv_parser.add_argument("--har", help="Path to HAR 1.2 traffic capture file.")
-    inv_parser.add_argument("--openapi", help="Path to OpenAPI 3.x or Swagger 2.0 definition file.")
-    inv_parser.add_argument("--postman", help="Path to Postman Collection v2.0/v2.1 file.")
-    inv_parser.add_argument("--raw", help="Path to raw HTTP request text file.")
+    inv_parser.add_argument(
+        "--har", action="append", default=[], help="Path to HAR 1.2 traffic capture file (repeatable)."
+    )
+    inv_parser.add_argument(
+        "--openapi",
+        action="append",
+        default=[],
+        help="Path to OpenAPI 3.x or Swagger 2.0 definition file (repeatable).",
+    )
+    inv_parser.add_argument(
+        "--postman",
+        action="append",
+        default=[],
+        help="Path to Postman Collection v2.0/v2.1 file (repeatable).",
+    )
+    inv_parser.add_argument(
+        "--raw", action="append", default=[], help="Path to raw HTTP request text file (repeatable)."
+    )
     inv_parser.add_argument("--name", default="", help="Name of the API inventory.")
     inv_parser.add_argument("--source-id", default="", help="Evidence provenance source ID.")
     inv_parser.add_argument("-o", "--output", help="Output file path for API inventory JSON.")
@@ -280,14 +460,14 @@ def command_web_api(args: argparse.Namespace, *, root: Path | None = None) -> in
         if cmd == "inventory":
             inventories: list[ApiInventory] = []
 
-            if args.har:
-                inventories.append(import_har(Path(args.har), source_id=args.source_id or None))
-            if args.openapi:
-                inventories.append(import_openapi(Path(args.openapi), source_id=args.source_id or None))
-            if args.postman:
-                inventories.append(import_postman(Path(args.postman), source_id=args.source_id or None))
-            if args.raw:
-                inventories.append(import_raw_http(Path(args.raw), source_id=args.source_id or None))
+            for path in args.har:
+                inventories.append(import_har(Path(path), source_id=args.source_id or None))
+            for path in args.openapi:
+                inventories.append(import_openapi(Path(path), source_id=args.source_id or None))
+            for path in args.postman:
+                inventories.append(import_postman(Path(path), source_id=args.source_id or None))
+            for path in args.raw:
+                inventories.append(import_raw_http(Path(path), source_id=args.source_id or None))
 
             if not inventories:
                 print(
@@ -302,31 +482,7 @@ def command_web_api(args: argparse.Namespace, *, root: Path | None = None) -> in
                     inventory.name = args.name
             else:
                 combined_name = args.name or f"Combined API Inventory ({len(inventories)} sources)"
-                all_endpoints = []
-                all_hosts = set()
-                all_roles = []
-                all_sessions = []
-                all_unsupported = []
-                all_sources = []
-                for inv in inventories:
-                    all_endpoints.extend(inv.endpoints)
-                    all_hosts.update(inv.target_hosts)
-                    all_roles.extend(inv.roles)
-                    all_sessions.extend(inv.sessions)
-                    all_unsupported.extend(inv.unsupported_features)
-                    all_sources.extend(inv.imported_sources)
-
-                inventory = ApiInventory(
-                    inventory_id=f"inv-merged-{len(all_endpoints)}",
-                    name=combined_name,
-                    target_hosts=sorted(all_hosts),
-                    endpoints=all_endpoints,
-                    roles=all_roles,
-                    sessions=all_sessions,
-                    unsupported_features=all_unsupported,
-                    imported_sources=sorted(set(all_sources)),
-                    credentials_redacted=True,
-                )
+                inventory = _merge_inventories(inventories, combined_name)
 
             if args.output:
                 inventory.save(args.output)
@@ -357,10 +513,6 @@ def command_web_api(args: argparse.Namespace, *, root: Path | None = None) -> in
 
         elif cmd == "replay":
             inv_path = Path(args.inventory)
-            if not inv_path.exists():
-                print(f"error: inventory file not found: {inv_path}", file=sys.stderr)
-                return 1
-
             inventory = ApiInventory.load(inv_path)
 
             # Parse destinations
@@ -451,19 +603,14 @@ def command_web_api(args: argparse.Namespace, *, root: Path | None = None) -> in
 
         elif cmd == "inspect":
             target_path = Path(args.file)
-            if not target_path.exists():
-                print(f"error: file not found: {target_path}", file=sys.stderr)
-                return 1
-
-            data = json.loads(target_path.read_text(encoding="utf-8"))
-
-            if args.json:
-                print(json.dumps(data, indent=2))
-                return 0
+            data = load_bounded_json_document(target_path)
 
             if "endpoints" in data:
                 # ApiInventory
                 inv = ApiInventory.from_dict(data)
+                if args.json:
+                    print(json.dumps(inv.to_dict(), indent=2))
+                    return 0
                 print(f"=== API Inventory: {inv.name} ({inv.inventory_id}) ===")
                 print(f"Target Hosts:        {', '.join(inv.target_hosts)}")
                 print(f"Total Endpoints:     {len(inv.endpoints)}")
@@ -485,6 +632,9 @@ def command_web_api(args: argparse.Namespace, *, root: Path | None = None) -> in
             elif "budget" in data and "responses" in data:
                 # ReplaySessionReport
                 rep = ReplaySessionReport.from_dict(data)
+                if args.json:
+                    print(json.dumps(rep.to_dict(), indent=2))
+                    return 0
                 print(f"=== Replay Session Report: {rep.session_id} ===")
                 print(f"Target Hosts:           {', '.join(rep.target_hosts)}")
                 print(f"Allowed Destinations:   {', '.join(rep.allowed_destinations)}")
@@ -499,7 +649,7 @@ def command_web_api(args: argparse.Namespace, *, root: Path | None = None) -> in
                     print(f"  [{status_icon}] {resp.request_id}: {resp.status_code} ({resp.latency_ms:.1f}ms){err}")
                 return 0
             else:
-                print(f"Unrecognized file schema: {target_path}", file=sys.stderr)
+                print("Unrecognized web API document schema", file=sys.stderr)
                 return 1
 
     except Exception as err:
