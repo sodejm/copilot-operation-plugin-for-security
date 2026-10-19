@@ -56,6 +56,7 @@ This single-stage document is executable:
         "tool": "fixture-probe",
         "tool_version": "1.0.0",
         "action": "probe",
+        "idempotent": true,
         "timeout_seconds": 30,
         "limits": {
           "max_duration_seconds": 30,
@@ -80,8 +81,9 @@ declared stage runs; they cannot synthesize a target or action.
 `compile_action_plan(definition, run_id, stage_id, resolved_inputs, created_at,
 attempt=1)` creates the exact `ActionPlan` for an executable stage. The plan
 digest binds the workflow definition, run, stage, attempt, resolved inputs,
-target, action, limits, and execution metadata. A changed target, action,
-input, or retry attempt therefore needs a separately matching authorization.
+target, action, explicit idempotence, limits, and execution metadata. A changed
+target, action, input, idempotence setting, or retry attempt therefore needs a
+separately matching authorization.
 
 Construct `WorkflowRunner(state_dir, approval_control, worker_identity,
 executor)`, then call:
@@ -103,7 +105,10 @@ The first attempt may use either `stage-id` or `stage-id:1` as its authorization
 map key. Later attempts require `stage-id:<attempt>`. The runtime consumes each
 authorization through `ApprovalControl`, validates the returned receipt, and
 passes that receipt to `WorkflowExecutor.execute`. It never derives an approval
-from an earlier attempt. Retries use a stable stage idempotency key so a worker
+from an earlier attempt. Actions are non-idempotent by default. Set the action's
+Boolean `idempotent` property to `true` only when repeating the action is known
+to be safe. The runtime does not infer idempotence from the tool name or
+`max_attempts`. Permitted retries use a stable stage idempotency key so a worker
 can suppress duplicate side effects, while the retry plan and authorization are
 fresh.
 
@@ -120,12 +125,25 @@ stage with a declared cleanup operation completes cleanup before cancellation or
 another attempt. If a process stops after writing a planned attempt but before
 authorization consumption, resume reuses the persisted plan, attempt number, and
 unconsumed authorization; it does not recompile the plan with a new timestamp or
-spend a retry. If a process stops after authorization consumption, resume first
+spend a retry. This planned resume remains valid with `max_attempts: 1` and does
+not depend on idempotence because the action has not begun.
+
+When an action omitted the new property, state produced by the previous compiler
+is accepted only when every saved plan matches that compiler and all receipts and
+artifacts remain valid. Only an existing final unconsumed plan may execute under
+its saved approval. Its terminal success, failure, partial result, or interruption
+remains loadable, but never enables another mutation retry.
+
+If a process stops after authorization consumption, resume first
 reconciles the persisted receipt's authorization, plan, engagement, worker, and
-target bindings with retained authority provenance. It then marks that attempt
-interrupted and requires a fresh authorization for the next bounded attempt.
-Missing or inconsistent provenance fails closed instead of replaying approval.
-Terminal stage failure returns `partial_failure`; dependent stages do not run.
+target bindings with retained authority provenance. The action's outcome is
+uncertain, so the runtime marks that attempt interrupted. A non-idempotent action
+then stops after cleanup with `partial_failure`; it does not execute again or
+consume another authorization. An explicitly idempotent action may use a fresh
+authorization for the next bounded attempt while retaining its logical
+idempotency key. Missing or inconsistent provenance fails closed instead of
+replaying approval. Terminal stage failure returns `partial_failure`; dependent
+stages do not run.
 
 ## Purple-team handoff
 

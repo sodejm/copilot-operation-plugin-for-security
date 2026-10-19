@@ -8,6 +8,12 @@ playback uses exact `fixture://<workflow-id>` targets, denies egress, and permit
 effects. Every stage still compiles to `cops.action-plan/v1`, including its bound
 target, action, arguments, limits, and expected evidence.
 
+The bundled definitions do not opt in to action retries. Their compiled actions
+therefore carry `idempotent: false`, the workflow default. A future catalog action
+may set `idempotent: true` only when repeating that exact operation is known to be
+safe; a retry still requires a fresh approval and remains bounded by
+`max_attempts`.
+
 | Workflow ID | Typed stage chain | Fixture profiles |
 | --- | --- | --- |
 | `leaked-credential-blast-radius` | Git history findings → identity and SOC evidence → exposure assessment → rotation/revocation checklist → evidence bundle | `vulnerable`, `corrected` |

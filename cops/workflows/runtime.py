@@ -65,6 +65,29 @@ def compile_action_plan(
     """Compile one stage to the repository's immutable approval-bound plan."""
     stage = definition.stage(stage_id)
     action = stage["action"]
+    return _compile_action_plan(
+        definition,
+        run_id,
+        stage_id,
+        resolved_inputs,
+        created_at,
+        attempt=attempt,
+        idempotent=action.get("idempotent", False),
+    )
+
+
+def _compile_action_plan(
+    definition: WorkflowDefinition,
+    run_id: str,
+    stage_id: str,
+    resolved_inputs: dict[str, Any],
+    created_at: str,
+    *,
+    attempt: int,
+    idempotent: bool,
+) -> ActionPlan:
+    """Compile a plan with an explicit effective idempotence value."""
+    action = definition.stage(stage_id)["action"]
     identity = digest(
         {
             "workflow_digest": definition.definition_digest,
@@ -81,7 +104,7 @@ def compile_action_plan(
         "action": action["action"],
         "arguments": resolved_inputs,
         "timeout_seconds": action["timeout_seconds"],
-        "idempotent": True,
+        "idempotent": idempotent,
     }
     for key in ("cleanup", "expected_evidence", "side_effects", "egress_policy"):
         if key in action:
@@ -157,6 +180,14 @@ class WorkflowRunner:
                 state["status"] = "cancelled"
                 self._write_state(state_path, state)
                 return self._result(state, definition)
+            if (
+                existing
+                and existing["status"] in {"failed", "partial", "interrupted"}
+                and not stage["action"].get("idempotent", False)
+            ):
+                state["status"] = "partial_failure"
+                self._write_state(state_path, state)
+                return self._result(state, definition)
             if any(state["stages"].get(dep, {}).get("status") != "success" for dep in stage["depends_on"]):
                 state["status"] = "partial_failure"
                 self._write_state(state_path, state)
@@ -182,7 +213,7 @@ class WorkflowRunner:
                 if planned_record is not None and attempt == planned_record["attempt"]:
                     attempt_record = planned_record
                     authorization_id = attempt_record["authorization_id"]
-                    plan = _validated_attempt_plan(definition, run_id, stage_id, resolved, attempt_record)
+                    plan, _ = _validated_attempt_plan(definition, run_id, stage_id, resolved, attempt_record)
                     planned_record = None
                 else:
                     created_at = self.clock()
@@ -254,6 +285,8 @@ class WorkflowRunner:
                         succeeded = True
                         break
                     self._cleanup(stage, plan, idempotency_key, attempt_record, state_path, state)
+                    if not stage["action"].get("idempotent", False):
+                        break
                 finally:
                     if receipt is not None and not receipt_retained:
                         self.approval_control.release_receipt_provenance(receipt)
@@ -538,7 +571,7 @@ def _validated_attempt_plan(
     stage_id: str,
     resolved_inputs: dict[str, Any],
     attempt_record: dict[str, Any],
-) -> ActionPlan:
+) -> tuple[ActionPlan, bool]:
     snapshot = attempt_record.get("plan")
     attempt = attempt_record.get("attempt")
     if not isinstance(snapshot, dict) or type(attempt) is not int:
@@ -553,14 +586,27 @@ def _validated_attempt_plan(
             plan.created_at,
             attempt=attempt,
         )
+        action = definition.stage(stage_id)["action"]
+        legacy_expected = None
+        if "idempotent" not in action:
+            legacy_expected = _compile_action_plan(
+                definition,
+                run_id,
+                stage_id,
+                resolved_inputs,
+                plan.created_at,
+                attempt=attempt,
+                idempotent=True,
+            )
     except Exception as exc:
         raise WorkflowRuntimeError("state_tampering") from exc
-    if (
-        plan.approved_snapshot(include_digest=True) != snapshot
-        or expected.approved_snapshot(include_digest=True) != snapshot
-    ):
+    if plan.approved_snapshot(include_digest=True) != snapshot:
         raise WorkflowRuntimeError("state_tampering")
-    return plan
+    current_matches = expected.approved_snapshot(include_digest=True) == snapshot
+    legacy_matches = legacy_expected is not None and legacy_expected.approved_snapshot(include_digest=True) == snapshot
+    if not current_matches and not legacy_matches:
+        raise WorkflowRuntimeError("state_tampering")
+    return plan, legacy_matches
 
 
 def _validate_persisted_state(
@@ -603,6 +649,7 @@ def _validate_persisted_state(
             resolved = _resolve_bindings(stage_map[stage_id]["inputs"], inputs, state)
         except WorkflowRuntimeError as exc:
             raise WorkflowRuntimeError("state_tampering") from exc
+        legacy_attempts: list[bool] = []
         for expected_attempt, attempt_record in enumerate(attempts, start=1):
             if (
                 not isinstance(attempt_record, dict)
@@ -617,14 +664,12 @@ def _validate_persisted_state(
                 or not authorization_id
                 or authorization_id in recorded_authorizations
                 or attempt_status not in {"planned", "authorized", "interrupted", "success", "failed", "partial"}
-                or (
-                    expected_attempt != len(attempts)
-                    and attempt_status not in {"interrupted", "failed", "partial"}
-                )
+                or (expected_attempt != len(attempts) and attempt_status not in {"interrupted", "failed", "partial"})
             ):
                 raise WorkflowRuntimeError("state_tampering")
             recorded_authorizations.add(authorization_id)
-            plan = _validated_attempt_plan(definition, run_id, stage_id, resolved, attempt_record)
+            plan, is_legacy = _validated_attempt_plan(definition, run_id, stage_id, resolved, attempt_record)
+            legacy_attempts.append(is_legacy)
             if attempt_status == "planned":
                 if (
                     authorization_id in consumed
@@ -637,6 +682,14 @@ def _validate_persisted_state(
                 if not _receipt_matches(receipt, authorization_id, plan, worker_identity):
                     raise WorkflowRuntimeError("state_tampering")
                 recorded_consumptions.add(receipt.authorization_id)
+
+        action = stage_map[stage_id]["action"]
+        if (
+            not action.get("idempotent", False)
+            and len(attempts) > 1
+            and ("idempotent" in action or not all(legacy_attempts))
+        ):
+            raise WorkflowRuntimeError("state_tampering")
 
     if recorded_consumptions != set(consumed):
         raise WorkflowRuntimeError("state_tampering")
