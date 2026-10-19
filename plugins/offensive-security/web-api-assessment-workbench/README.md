@@ -124,6 +124,12 @@ from cops.web_api import build_replay_action_plan, execute_authorized_replay_ses
 
 Production-provider validation remains incomplete. Live HTTP execution snapshots its requests, isolated sessions, destinations, and complete budget before validating and consuming the exact signed approval. Its transport pins scope-checked numeric addresses, verifies the TLS certificate and original hostname, permits TLS 1.2 or newer only, rejects HTTPS downgrade, and prevents cross-origin redirects from retaining a body or credential-bearing header. Default TLS contexts set the minimum explicitly. Caller-supplied contexts are rejected if they permit older protocols or disable certificate or hostname verification, and are rechecked before use without being changed. Live WebSocket replay is unsupported; WebSocket entries remain inventory and offline-modeling data. Binary streaming and Server-Sent Events are also unsupported.
 
+`max_requests` bounds the submitted batch. Preview, plan construction, offline
+replay, and approved live replay reject an oversized batch before dispatch or
+report construction rather than truncating it. Accepted offline batches preserve
+request ordering and report every request, including destination rejections and
+synthetic runtime outcomes.
+
 Destination allowlist items accept exact ASCII DNS names and canonical dotted-decimal IPv4 addresses, optionally followed by a decimal port from 1 through 65535, and bracketed numeric IPv6 addresses with the same optional port. `*.example.test` is the only wildcard form; it accepts no port and matches the apex and subdomains. Every entry point takes a shallow container snapshot and syntax-checks every item without name resolution before retaining the allowlist. A malformed item rejects the complete list even when unused, without copying its value into errors, reports, or formatted exception chains.
 
 ## Design and data flow

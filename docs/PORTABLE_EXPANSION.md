@@ -43,6 +43,12 @@ execution uses owned request, session, budget and destination snapshots and refu
 cross-origin redirects that retain a body or credentials; offline exports make no
 live calls.
 
+Preview, plan construction, offline replay, and approved live replay reject a
+submitted batch above `max_requests` before dispatch or report construction. They
+do not silently truncate it. Accepted offline batches retain request ordering and
+report every request, including per-request destination rejections and synthetic
+runtime outcomes.
+
 Keep destination allowlist validation synchronized with the source runtime. Each
 item must be an exact ASCII DNS hostname or canonical dotted-decimal IPv4 address,
 optionally with a decimal port from 1 through 65535; a bracketed numeric IPv6
