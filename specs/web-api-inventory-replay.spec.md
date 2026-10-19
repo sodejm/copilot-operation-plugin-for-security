@@ -7,10 +7,54 @@ the approval authority returns a matching receipt for the worker identity and
 after the destination and resolved address pass scope checks. Preview produces
 a redacted plan report and performs no I/O.
 
-Source provenance hashes exact file or inline UTF-8 bytes, including whitespace;
-mapping inputs use sorted, compact JSON. Inventories retain an opaque digest
-reference, never a source path or inline document. Caller-supplied digests must
-match the imported bytes. Ambiguous raw HTTP authorities are rejected.
+Every HAR, OpenAPI/Swagger, Postman, and raw HTTP source is limited to 8 MiB
+(8,388,608 bytes) before parsing. File inputs use a bounded binary read of at
+most the limit plus one byte, including when the stream returns short reads.
+Inline strings and compact, sorted mapping serialization obey the same
+encoded-byte limit. An exact-limit input is accepted; an oversized or unreadable
+input fails with a stable, content-free error that does not disclose the source
+path. Imports never fetch or execute source content.
+
+Saved inventories and replay reports, including documents passed to `inspect`,
+use the same 8 MiB maximum-plus-one binary-read boundary before UTF-8 decoding or
+JSON parsing. Inspection identifies the supported public model, validates it,
+and serializes that validated model; it never echoes an unvalidated parsed
+document. Oversized, unreadable, malformed, and unrecognized documents fail with
+stable content-free errors.
+
+Source provenance hashes exact accepted file or inline UTF-8 bytes, including
+whitespace; mapping inputs use sorted, compact JSON. Inventories retain an
+opaque digest reference, never a source path or inline document. Caller-supplied
+digests must match the imported bytes. A single-source inventory continues to
+use `provenance`. A merged inventory sets `provenance` to null and uses
+`provenance_sources` to preserve every source record, including repeated formats
+and duplicate sources. Its identity is a digest of the sorted multiset of
+non-secret source IDs, source types, and content digests. The identity is
+independent of ingestion order and timestamps, while duplicates remain
+significant.
+
+Each provenance record is validated when it crosses either deserialization or
+serialization. `source_id` must be an opaque, non-secret identifier of 1 to 128
+ASCII letters, digits, hyphens, or underscores and must start with a letter or
+digit. `sha256` must be 64 lowercase hexadecimal characters, and `path_or_uri`
+must equal `sha256:<sha256>`. `source_type`, timestamp, and an optional
+`raw_record_ref` must use their documented safe forms. Unknown provenance fields,
+path-like values, credential-bearing references, invalid or mismatched digests,
+and direct object mutations fail with content-free errors. Records are never
+silently dropped. Ambiguous raw HTTP authorities are rejected.
+Inventory display names and imported-source labels are also validated on both
+deserialization and serialization. They must be bounded, single-line labels and
+cannot contain absolute POSIX or Windows paths, URL references, credential
+assignments, or recognizable plaintext credentials. Importer-controlled OpenAPI
+and Postman titles that do not satisfy this contract are replaced with their
+format's non-secret default label before persistence.
+Authentication mechanisms are validated on both boundaries, including after
+direct object mutation. `is_redacted` must be the Boolean value `true`.
+`credential_hash` is either empty for a credential-free declaration or a
+canonical 64-character lowercase SHA-256 digest; it can never contain credential
+material. Authentication type, location, and token name must use the supported,
+bounded public forms. Invalid metadata fails with a stable, content-free error,
+including when an invalid endpoint and session contain matching values.
 Report serialization strips URL user information and redacts query values,
 fragments and recognizable credentials in relative references and metadata.
 Wire requests remain separate: approval digests bind their lossless content.
@@ -31,7 +75,37 @@ Security-requirement scope arrays must be valid for the referenced scheme.
 HTTP and API-key schemes accept only an empty array. OAuth scopes must be
 declared by the referenced scheme; a non-empty OAuth scope requirement fails
 closed because the current inventory cannot preserve required scopes through
-replay. HTTP Basic and Bearer credentials use `Authorization`.
+replay. HTTP Basic and Bearer credentials use `Authorization`. HAR imports
+retain `Authorization` as the authentication mechanism's header name rather
+than the scheme name. Preview synthesis emits
+`Authorization: Bearer <placeholder>` or
+`Authorization: Basic <placeholder>` and never creates `Bearer` or `Basic`
+header fields. The CLI does not read credentials from the environment. An
+integration replacing placeholders should provide `COPS_WEB_API_BEARER_TOKEN`
+as the token only, without the `Bearer ` prefix, and
+`COPS_WEB_API_BASIC_CREDENTIALS_B64` as the base64-encoded RFC 7617
+`username:password` payload only, without the `Basic ` prefix, and
+`COPS_WEB_API_API_KEY_VALUE` as the exact header, query, or cookie value only.
+When HAR observations use different authorization schemes for the same host,
+method, and path, the inventory preserves them as separate endpoint variants.
+Each variant produces its own preview request and session authentication binding,
+with a stable, unique endpoint identity; mutually exclusive `Authorization`
+schemes are never merged into one request.
+
+Every newly imported endpoint with one supported authentication mechanism has
+an explicit `session_id` that names its credential-free `SessionContext`.
+The association is retained through serialization, multi-source merge, preview,
+action-plan construction, and replay. Session and endpoint identifiers are
+deterministically namespaced by source content and occurrence during merge, so
+duplicate inputs and distinct inputs using the same authentication scheme do
+not collide or share a guessed credential context. Merged identity remains a
+digest of the source provenance multiset, independent of ingestion order and
+timestamps. Raw HTTP and Postman imports create these bindings for Bearer,
+Basic, and header or query API-key mechanisms, just as HAR and OpenAPI imports
+do. A malformed, missing, conflicting, or ambiguous explicit association fails
+closed with a content-free error. Legacy inventories without endpoint session
+references remain compatible only when an authenticated endpoint has exactly
+one unambiguous matching session; otherwise request synthesis fails closed.
 
 For OpenAPI 3, the first declared server at the narrowest applicable level is
 selected in operation, path, then root order. Server-variable defaults are

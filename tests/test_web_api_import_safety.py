@@ -10,6 +10,8 @@ import pytest
 from cops.discovery.models import EvidenceProvenance
 from cops.web_api.importer import ImporterError, import_har, import_openapi, import_postman, import_raw_http
 from cops.web_api.models import (
+    ApiInventory,
+    AuthenticationMechanism,
     ReplayBudget,
     ReplayRequest,
     ReplayResponse,
@@ -21,9 +23,218 @@ from cops.web_api.sanitization import sanitize_body
 
 
 def test_supplied_provenance_cannot_attest_different_content():
-    supplied = EvidenceProvenance("fixture", "openapi", "0" * 64, "2026-10-18T00:00:00Z", "source")
+    supplied = EvidenceProvenance("fixture", "openapi_import", "0" * 64, "2026-10-18T00:00:00Z", f"sha256:{'0' * 64}")
     with pytest.raises(ImporterError, match="does not match input content"):
         import_openapi('{"paths": {}}', provenance=supplied)
+
+
+@pytest.mark.parametrize(
+    "source_id",
+    [
+        "/private/tmp/customer/openapi.json",
+        r"C:\Customer\openapi.json",
+        "relative/openapi.json",
+        "customer-secret-token",
+    ],
+)
+@pytest.mark.parametrize("boundary", ["argument", "supplied"])
+def test_import_rejects_nonopaque_source_ids_without_disclosure(source_id, boundary):
+    document = {"openapi": "3.0.3", "paths": {}}
+    payload = json.dumps(document, sort_keys=True, separators=(",", ":")).encode()
+    supplied = None
+    argument = None
+    if boundary == "argument":
+        argument = source_id
+    else:
+        digest = hashlib.sha256(payload).hexdigest()
+        supplied = EvidenceProvenance(
+            source_id,
+            "openapi_import",
+            digest,
+            "2026-10-18T00:00:00Z",
+            f"sha256:{digest}",
+        )
+
+    with pytest.raises(ImporterError, match="API import provenance is invalid") as caught:
+        import_openapi(document, source_id=argument, provenance=supplied)
+
+    assert source_id not in "".join(traceback.format_exception(caught.type, caught.value, caught.tb))
+
+
+INVALID_PROVENANCE_VALUES = (
+    ("source_id", "/private/customer.json"),
+    ("source_id", r"C:\Customer\api.json"),
+    ("source_id", "customer-secret-token"),
+    ("source_type", "../private/openapi_import"),
+    ("source_type", "credential-export"),
+    ("sha256", "f" * 63),
+    ("sha256", "G" * 64),
+    ("path_or_uri", "/private/customer.json"),
+    ("path_or_uri", r"C:\Customer\api.json"),
+    ("path_or_uri", "https://user:secret@example.test/api.json"),
+    ("path_or_uri", f"sha256:{'1' * 64}"),
+    ("timestamp", "/private/timestamp"),
+    ("timestamp", "token=private-value"),
+    ("raw_record_ref", "/private/record.json"),
+    ("raw_record_ref", r"C:\Customer\record.json"),
+    ("raw_record_ref", "https://user:secret@example.test/record"),
+)
+
+UNSAFE_PUBLIC_LABELS = (
+    "/private/customer/openapi.json",
+    r"C:\Customer\openapi.json",
+    "customer/openapi.json",
+    "source=customer/openapi.json",
+    "user:private-value@example.test",
+    "https://user:private-value@example.test/openapi.json",
+    "token=private-value",
+)
+
+
+@pytest.mark.parametrize(
+    "boundary", ["deserialize-provenance", "deserialize-sources", "serialize-provenance", "serialize-sources"]
+)
+@pytest.mark.parametrize(("field", "unsafe_value"), INVALID_PROVENANCE_VALUES)
+def test_inventory_contract_rejects_unsafe_provenance_without_disclosure(boundary, field, unsafe_value):
+    inventory = import_openapi({"openapi": "3.0.3", "paths": {}}, source_id="opaque-source")
+    document = inventory.to_dict()
+
+    if boundary.startswith("deserialize"):
+        record = dict(document["provenance"])
+        record[field] = unsafe_value
+        if boundary == "deserialize-provenance":
+            document["provenance"] = record
+        else:
+            document["provenance"] = None
+            document["provenance_sources"] = [record]
+
+        def operation():
+            return ApiInventory.from_dict(document)
+
+    else:
+        setattr(inventory.provenance, field, unsafe_value)
+        if boundary == "serialize-sources":
+            inventory.provenance_sources = [inventory.provenance]
+            inventory.provenance = None
+        operation = inventory.to_dict
+
+    with pytest.raises(ValueError, match="inventory provenance record is invalid") as caught:
+        operation()
+    rendered = "".join(traceback.format_exception(caught.type, caught.value, caught.tb))
+    assert unsafe_value not in rendered
+
+
+def test_inventory_contract_rejects_unknown_provenance_fields_without_disclosure():
+    document = import_openapi({"openapi": "3.0.3", "paths": {}}).to_dict()
+    document["provenance"]["private-path"] = "/private/customer/openapi.json"
+
+    with pytest.raises(ValueError, match="inventory provenance record is invalid") as caught:
+        ApiInventory.from_dict(document)
+
+    rendered = "".join(traceback.format_exception(caught.type, caught.value, caught.tb))
+    assert "private-path" not in rendered
+    assert "/private/customer/openapi.json" not in rendered
+
+
+@pytest.mark.parametrize("unsafe_value", UNSAFE_PUBLIC_LABELS)
+@pytest.mark.parametrize("field", ["name", "imported_sources"])
+@pytest.mark.parametrize("boundary", ["deserialize", "serialize"])
+def test_inventory_contract_rejects_unsafe_public_labels_without_disclosure(boundary, field, unsafe_value):
+    inventory = import_openapi({"openapi": "3.0.3", "paths": {}})
+    if boundary == "deserialize":
+        document = inventory.to_dict()
+        document[field] = [unsafe_value] if field == "imported_sources" else unsafe_value
+
+        def operation():
+            return ApiInventory.from_dict(document)
+
+    else:
+        setattr(inventory, field, [unsafe_value] if field == "imported_sources" else unsafe_value)
+        operation = inventory.to_dict
+
+    with pytest.raises(ValueError, match="inventory public metadata is invalid") as caught:
+        operation()
+    rendered = "".join(traceback.format_exception(caught.type, caught.value, caught.tb))
+    assert unsafe_value not in rendered
+
+
+@pytest.mark.parametrize(
+    ("field", "unsafe_value"),
+    [
+        ("credential_hash", "PLAINTEXT-CREDENTIAL-MARKER"),
+        ("credential_hash", "A" * 64),
+        ("credential_hash", "f" * 63),
+        ("is_redacted", False),
+        ("is_redacted", "true"),
+        ("auth_type", "unsupported"),
+        ("location", "body"),
+    ],
+)
+@pytest.mark.parametrize("boundary", ["deserialize", "serialize"])
+@pytest.mark.parametrize("target", ["endpoint", "session", "matching"])
+def test_inventory_contract_rejects_unsafe_authentication_metadata_without_disclosure(
+    boundary, target, field, unsafe_value
+):
+    inventory = import_raw_http(
+        "GET /private HTTP/1.1\r\nHost: api.example.test\r\nAuthorization: Bearer fixture-secret\r\n\r\n"
+    )
+    if boundary == "deserialize":
+        document = inventory.to_dict()
+        if target in {"endpoint", "matching"}:
+            document["endpoints"][0]["auth_mechanisms"][0][field] = unsafe_value
+        if target in {"session", "matching"}:
+            document["sessions"][0]["auth_mechanism"][field] = unsafe_value
+
+        def operation():
+            return ApiInventory.from_dict(document)
+
+    else:
+        if target in {"endpoint", "matching"}:
+            setattr(inventory.endpoints[0].auth_mechanisms[0], field, unsafe_value)
+        if target in {"session", "matching"}:
+            setattr(inventory.sessions[0].auth_mechanism, field, unsafe_value)
+        operation = inventory.to_dict
+
+    with pytest.raises(ValueError, match="inventory authentication mechanism is invalid") as caught:
+        operation()
+    rendered = "".join(traceback.format_exception(caught.type, caught.value, caught.tb))
+    assert str(unsafe_value) not in rendered
+    assert "fixture-secret" not in rendered
+
+
+def test_authentication_mechanism_accepts_only_redacted_declaration_or_digest_identity():
+    declaration = AuthenticationMechanism(auth_type="bearer", token_name="Authorization")
+    digest = AuthenticationMechanism(
+        auth_type="api_key",
+        token_name="X-API-Key",
+        credential_hash=hashlib.sha256(b"fixture-secret").hexdigest(),
+    )
+
+    assert AuthenticationMechanism.from_dict(declaration.to_dict()) == declaration
+    assert AuthenticationMechanism.from_dict(digest.to_dict()) == digest
+
+
+@pytest.mark.parametrize(
+    ("loader", "document", "expected_name"),
+    [
+        (
+            import_openapi,
+            {"openapi": "3.0.3", "info": {"title": "/private/customer/openapi.json"}, "paths": {}},
+            "OpenAPI Spec: OpenAPI Service",
+        ),
+        (
+            import_postman,
+            {"info": {"name": r"C:\Customer\collection.json"}, "item": []},
+            "Postman: Postman Collection",
+        ),
+    ],
+)
+def test_importer_replaces_unsafe_source_titles_with_safe_defaults(loader, document, expected_name):
+    inventory = loader(document)
+    encoded = json.dumps(inventory.to_dict())
+
+    assert inventory.name == expected_name
+    assert "Customer" not in encoded
 
 
 @pytest.mark.parametrize("field", ["auth", "key", "session", "cookie", "jwt"])
@@ -43,6 +254,20 @@ def test_provenance_hashes_exact_input_without_retaining_source(tmp_path, via_fi
     assert str(path) not in json.dumps(inventory.to_dict())
     changed = import_openapi(source + " ", source_id="fixture")
     assert changed.provenance.sha256 != expected
+
+
+def test_single_source_provenance_round_trips_in_legacy_shape():
+    inventory = import_openapi(
+        {"openapi": "3.0.3", "paths": {"/items": {"get": {}}}},
+        source_id="opaque-source",
+    )
+
+    serialized = inventory.to_dict()
+    restored = ApiInventory.from_dict(serialized)
+
+    assert serialized["provenance"] is not None
+    assert serialized["provenance_sources"] == []
+    assert restored.to_dict() == serialized
 
 
 def test_mapping_provenance_is_canonical_and_long_inline_input_is_not_a_path():

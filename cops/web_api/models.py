@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import asdict, dataclass, field
+from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -23,8 +25,152 @@ from .sanitization import (
 from .sanitization import (
     sanitize_body,
     sanitize_reference,
+    sanitize_text,
     sanitize_tree,
 )
+
+_PROVENANCE_FIELDS = {"source_id", "source_type", "sha256", "timestamp", "path_or_uri", "raw_record_ref"}
+_PROVENANCE_REQUIRED_FIELDS = _PROVENANCE_FIELDS - {"raw_record_ref"}
+_OPAQUE_SOURCE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
+_OPAQUE_RECORD_REF = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,255}$")
+_SOURCE_TYPE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_CREDENTIAL_TERM = re.compile(
+    r"(?:secret|token|password|passwd|credential|api[-_]?key|authorization|cookie|session|jwt)", re.IGNORECASE
+)
+_INVALID_PROVENANCE = "inventory provenance record is invalid"
+_INVALID_PUBLIC_METADATA = "inventory public metadata is invalid"
+_INVALID_AUTHENTICATION = "inventory authentication mechanism is invalid"
+_INVALID_SESSION_BINDING = "inventory endpoint session binding is invalid"
+_OPAQUE_GRAPH_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,255}$")
+_HTTP_FIELD_NAME = re.compile(r"^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$")
+_AUTHORIZATION_HEADER = "Authorization"
+_PUBLIC_REFERENCE = re.compile(r"(?:[A-Za-z][A-Za-z0-9+.-]*://|\b[^\s:@]+:[^\s@]+@[^\s]+)")
+_RAW_HTTP_LABEL = re.compile(r"^Raw HTTP: [A-Z]+ /[^\s]*$")
+_OPENAPI_SOURCE_LABEL = re.compile(r"^OpenAPI 3\.x / Swagger: [^/\\]+$")
+MAX_WEB_API_DOCUMENT_BYTES = 8 * 1024 * 1024
+_READ_CHUNK_BYTES = 64 * 1024
+_DOCUMENT_TOO_LARGE = "web API document exceeds the byte limit"
+_INVALID_DOCUMENT = "web API document is invalid"
+
+
+def _valid_timestamp(value: str) -> bool:
+    """Return whether value is a timezone-aware ISO 8601 timestamp."""
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    return parsed.tzinfo is not None
+
+
+def validate_inventory_provenance(record: EvidenceProvenance) -> EvidenceProvenance:
+    """Validate one path-free, non-secret inventory provenance record."""
+    if not isinstance(record, EvidenceProvenance):
+        raise ValueError(_INVALID_PROVENANCE)
+    values = (record.source_id, record.source_type, record.sha256, record.timestamp, record.path_or_uri)
+    if not all(isinstance(value, str) for value in values):
+        raise ValueError(_INVALID_PROVENANCE)
+    if not _OPAQUE_SOURCE_ID.fullmatch(record.source_id) or _CREDENTIAL_TERM.search(record.source_id):
+        raise ValueError(_INVALID_PROVENANCE)
+    if not _SOURCE_TYPE.fullmatch(record.source_type) or _CREDENTIAL_TERM.search(record.source_type):
+        raise ValueError(_INVALID_PROVENANCE)
+    if not _SHA256.fullmatch(record.sha256):
+        raise ValueError(_INVALID_PROVENANCE)
+    if record.path_or_uri != f"sha256:{record.sha256}":
+        raise ValueError(_INVALID_PROVENANCE)
+    if not _valid_timestamp(record.timestamp):
+        raise ValueError(_INVALID_PROVENANCE)
+    if record.raw_record_ref is not None and (
+        not isinstance(record.raw_record_ref, str)
+        or not _OPAQUE_RECORD_REF.fullmatch(record.raw_record_ref)
+        or _CREDENTIAL_TERM.search(record.raw_record_ref)
+    ):
+        raise ValueError(_INVALID_PROVENANCE)
+    return record
+
+
+def _inventory_provenance_from_dict(data: Any) -> EvidenceProvenance:
+    """Construct validated provenance without echoing attacker-controlled values."""
+    if not isinstance(data, dict) or set(data) - _PROVENANCE_FIELDS or not _PROVENANCE_REQUIRED_FIELDS <= set(data):
+        raise ValueError(_INVALID_PROVENANCE)
+    try:
+        record = EvidenceProvenance(
+            source_id=data["source_id"],
+            source_type=data["source_type"],
+            sha256=data["sha256"],
+            timestamp=data["timestamp"],
+            path_or_uri=data["path_or_uri"],
+            raw_record_ref=data.get("raw_record_ref"),
+        )
+    except (KeyError, TypeError, ValueError):
+        raise ValueError(_INVALID_PROVENANCE) from None
+    return validate_inventory_provenance(record)
+
+
+def validate_inventory_public_label(value: Any) -> str:
+    """Validate one bounded source-derived label without echoing it on failure."""
+    if (
+        not isinstance(value, str)
+        or not value
+        or len(value.encode("utf-8")) > 1024
+        or any(ord(character) < 32 or ord(character) == 127 for character in value)
+        or (_PUBLIC_REFERENCE.search(value) and not _RAW_HTTP_LABEL.fullmatch(value))
+        or (
+            ("/" in value or "\\" in value)
+            and not _RAW_HTTP_LABEL.fullmatch(value)
+            and not _OPENAPI_SOURCE_LABEL.fullmatch(value)
+        )
+        or sanitize_text(value) != value
+    ):
+        raise ValueError(_INVALID_PUBLIC_METADATA)
+    return value
+
+
+def safe_inventory_public_label(value: Any, fallback: str) -> str:
+    """Return a safe importer label, replacing untrusted references with a fixed fallback."""
+    try:
+        return validate_inventory_public_label(value)
+    except (UnicodeError, ValueError):
+        return validate_inventory_public_label(fallback)
+
+
+def _validate_inventory_public_metadata(name: Any, imported_sources: Any) -> tuple[str, list[str]]:
+    """Validate public source labels at inventory serialization boundaries."""
+    if not isinstance(imported_sources, list):
+        raise ValueError(_INVALID_PUBLIC_METADATA)
+    try:
+        safe_name = validate_inventory_public_label(name)
+        safe_sources = [validate_inventory_public_label(value) for value in imported_sources]
+    except (TypeError, UnicodeError, ValueError):
+        raise ValueError(_INVALID_PUBLIC_METADATA) from None
+    return safe_name, safe_sources
+
+
+def load_bounded_json_document(path: Path | str) -> dict[str, Any]:
+    """Load one JSON object through a finite max+1 binary read."""
+    chunks: list[bytes] = []
+    remaining = MAX_WEB_API_DOCUMENT_BYTES + 1
+    try:
+        with Path(path).open("rb") as stream:
+            while remaining:
+                chunk = stream.read(min(_READ_CHUNK_BYTES, remaining))
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                remaining -= len(chunk)
+    except (OSError, ValueError):
+        raise ValueError(_INVALID_DOCUMENT) from None
+
+    content = b"".join(chunks)
+    if len(content) > MAX_WEB_API_DOCUMENT_BYTES:
+        raise ValueError(_DOCUMENT_TOO_LARGE)
+    try:
+        document = json.loads(content.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError):
+        raise ValueError(_INVALID_DOCUMENT) from None
+    if not isinstance(document, dict):
+        raise ValueError(_INVALID_DOCUMENT)
+    return document
 
 
 class HttpMethod(str, Enum):
@@ -71,17 +217,75 @@ class AuthenticationMechanism:
     credential_hash: str = ""
 
     def to_dict(self) -> dict[str, Any]:
+        validate_authentication_mechanism(self)
         return sanitize_tree(asdict(self))
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> AuthenticationMechanism:
-        return cls(
+    def from_dict(cls, data: Any) -> AuthenticationMechanism:
+        fields = {"auth_type", "token_name", "location", "is_redacted", "credential_hash"}
+        if not isinstance(data, dict) or set(data) - fields:
+            raise ValueError(_INVALID_AUTHENTICATION)
+        mechanism = cls(
             auth_type=data.get("auth_type", AuthType.NONE.value),
             token_name=data.get("token_name", ""),
             location=data.get("location", "header"),
-            is_redacted=bool(data.get("is_redacted", True)),
+            is_redacted=data.get("is_redacted", True),
             credential_hash=data.get("credential_hash", ""),
         )
+        return validate_authentication_mechanism(mechanism)
+
+
+def _safe_authentication_token_name(value: Any) -> bool:
+    """Return whether a public credential label is bounded and reference-free."""
+    if not isinstance(value, str):
+        return False
+    try:
+        return (
+            len(value.encode("utf-8")) <= 256
+            and not any(ord(character) < 33 or ord(character) == 127 for character in value)
+            and not _PUBLIC_REFERENCE.search(value)
+            and "/" not in value
+            and "\\" not in value
+            and sanitize_text(value) == value
+        )
+    except (UnicodeError, ValueError):
+        return False
+
+
+def validate_authentication_mechanism(mechanism: AuthenticationMechanism) -> AuthenticationMechanism:
+    """Validate credential-free authentication metadata without echoing its values."""
+    if not isinstance(mechanism, AuthenticationMechanism):
+        raise ValueError(_INVALID_AUTHENTICATION)
+    if (
+        not isinstance(mechanism.auth_type, str)
+        or mechanism.auth_type not in {item.value for item in AuthType}
+        or not isinstance(mechanism.location, str)
+        or mechanism.location not in {"header", "query", "cookie"}
+        or not _safe_authentication_token_name(mechanism.token_name)
+        or mechanism.is_redacted is not True
+        or not isinstance(mechanism.credential_hash, str)
+        or (mechanism.credential_hash != "" and not _SHA256.fullmatch(mechanism.credential_hash))
+    ):
+        raise ValueError(_INVALID_AUTHENTICATION)
+
+    if mechanism.location == "header" and mechanism.token_name and not _HTTP_FIELD_NAME.fullmatch(mechanism.token_name):
+        raise ValueError(_INVALID_AUTHENTICATION)
+
+    if mechanism.auth_type == AuthType.NONE.value:
+        valid_shape = mechanism.location == "header" and not mechanism.token_name and not mechanism.credential_hash
+    elif mechanism.auth_type in {AuthType.BEARER.value, AuthType.BASIC.value, AuthType.OAUTH2.value}:
+        valid_shape = mechanism.location == "header" and mechanism.token_name == _AUTHORIZATION_HEADER
+    elif mechanism.auth_type == AuthType.API_KEY.value:
+        valid_shape = mechanism.location in {"header", "query"} and bool(mechanism.token_name)
+    elif mechanism.auth_type == AuthType.COOKIE.value:
+        valid_shape = mechanism.location == "cookie" and bool(mechanism.token_name)
+    elif mechanism.auth_type == AuthType.MTLS.value:
+        valid_shape = mechanism.location == "header" and not mechanism.token_name and not mechanism.credential_hash
+    else:
+        valid_shape = bool(mechanism.token_name)
+    if not valid_shape:
+        raise ValueError(_INVALID_AUTHENTICATION)
+    return mechanism
 
 
 @dataclass
@@ -99,6 +303,7 @@ class HttpEndpoint:
     request_body_schema: dict[str, Any] = field(default_factory=dict)
     response_status_codes: list[int] = field(default_factory=list)
     auth_mechanisms: list[AuthenticationMechanism] = field(default_factory=list)
+    session_id: str | None = None
     roles_allowed: list[str] = field(default_factory=list)
     tags: list[str] = field(default_factory=list)
     deprecated: bool = False
@@ -128,6 +333,7 @@ class HttpEndpoint:
             request_body_schema=dict(data.get("request_body_schema", {})),
             response_status_codes=list(data.get("response_status_codes", [])),
             auth_mechanisms=auths,
+            session_id=data.get("session_id"),
             roles_allowed=list(data.get("roles_allowed", [])),
             tags=list(data.get("tags", [])),
             deprecated=bool(data.get("deprecated", False)),
@@ -226,44 +432,110 @@ class ApiInventory:
     credentials_redacted: bool = True
     created_at_utc: str = field(default_factory=utc_now)
     provenance: EvidenceProvenance | None = None
+    provenance_sources: list[EvidenceProvenance] = field(default_factory=list)
+
+    @staticmethod
+    def _auth_identity(mechanism: AuthenticationMechanism) -> tuple[str, str, str, str]:
+        name = mechanism.token_name.lower() if mechanism.location == "header" else mechanism.token_name
+        return mechanism.auth_type, mechanism.location, name, mechanism.credential_hash
+
+    def _validate_session_bindings(self) -> None:
+        """Validate explicit endpoint-to-session references without exposing their values."""
+        sessions: dict[str, SessionContext] = {}
+        for session in self.sessions:
+            if (
+                not isinstance(session.session_id, str)
+                or not _OPAQUE_GRAPH_ID.fullmatch(session.session_id)
+                or session.session_id in sessions
+            ):
+                raise ValueError(_INVALID_SESSION_BINDING)
+            sessions[session.session_id] = session
+
+        for endpoint in self.endpoints:
+            if endpoint.session_id is None:
+                continue
+            if not isinstance(endpoint.session_id, str) or not _OPAQUE_GRAPH_ID.fullmatch(endpoint.session_id):
+                raise ValueError(_INVALID_SESSION_BINDING)
+            session = sessions.get(endpoint.session_id)
+            active = [item for item in endpoint.auth_mechanisms if item.auth_type != AuthType.NONE.value]
+            if (
+                session is None
+                or len(active) != 1
+                or self._auth_identity(active[0]) != self._auth_identity(session.auth_mechanism)
+            ):
+                raise ValueError(_INVALID_SESSION_BINDING)
+
+    def _validate_authentication_metadata(self) -> None:
+        """Validate every endpoint and session mechanism at the inventory boundary."""
+        for endpoint in self.endpoints:
+            if not isinstance(endpoint, HttpEndpoint) or not isinstance(endpoint.auth_mechanisms, list):
+                raise ValueError(_INVALID_AUTHENTICATION)
+            for mechanism in endpoint.auth_mechanisms:
+                validate_authentication_mechanism(mechanism)
+        for session in self.sessions:
+            if not isinstance(session, SessionContext):
+                raise ValueError(_INVALID_AUTHENTICATION)
+            validate_authentication_mechanism(session.auth_mechanism)
 
     def to_dict(self) -> dict[str, Any]:
+        self._validate_authentication_metadata()
+        self._validate_session_bindings()
+        name, imported_sources = _validate_inventory_public_metadata(self.name, self.imported_sources)
+        if self.provenance is not None and self.provenance_sources:
+            raise ValueError(_INVALID_PROVENANCE)
+        provenance = validate_inventory_provenance(self.provenance).to_dict() if self.provenance else None
+        provenance_sources = [validate_inventory_provenance(record).to_dict() for record in self.provenance_sources]
         return sanitize_tree(
             {
                 "inventory_id": self.inventory_id,
-                "name": self.name,
+                "name": name,
                 "target_hosts": self.target_hosts,
                 "endpoints": [e.to_dict() for e in self.endpoints],
                 "roles": [r.to_dict() for r in self.roles],
                 "sessions": [s.to_dict() for s in self.sessions],
                 "unsupported_features": [u.to_dict() for u in self.unsupported_features],
-                "imported_sources": self.imported_sources,
+                "imported_sources": imported_sources,
                 "credentials_redacted": self.credentials_redacted,
                 "created_at_utc": self.created_at_utc,
-                "provenance": self.provenance.to_dict() if self.provenance else None,
+                "provenance": provenance,
+                "provenance_sources": provenance_sources,
             }
         )
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ApiInventory:
+        if not isinstance(data, dict):
+            raise ValueError(_INVALID_DOCUMENT)
+        name, imported_sources = _validate_inventory_public_metadata(data.get("name"), data.get("imported_sources", []))
+        raw_provenance = data.get("provenance")
+        raw_sources = data.get("provenance_sources", [])
+        if raw_provenance is not None and raw_sources:
+            raise ValueError(_INVALID_PROVENANCE)
+        if not isinstance(raw_sources, list):
+            raise ValueError(_INVALID_PROVENANCE)
+        prov = _inventory_provenance_from_dict(raw_provenance) if raw_provenance is not None else None
+        provenance_sources = [_inventory_provenance_from_dict(record) for record in raw_sources]
         endpoints = [HttpEndpoint.from_dict(e) for e in data.get("endpoints", [])]
         roles = [UserRole.from_dict(r) for r in data.get("roles", [])]
         sessions = [SessionContext.from_dict(s) for s in data.get("sessions", [])]
         unsupported = [UnsupportedFeature.from_dict(u) for u in data.get("unsupported_features", [])]
-        prov = EvidenceProvenance.from_dict(data["provenance"]) if data.get("provenance") else None
-        return cls(
+        inventory = cls(
             inventory_id=data["inventory_id"],
-            name=data["name"],
+            name=name,
             target_hosts=list(data.get("target_hosts", [])),
             endpoints=endpoints,
             roles=roles,
             sessions=sessions,
             unsupported_features=unsupported,
-            imported_sources=list(data.get("imported_sources", [])),
+            imported_sources=imported_sources,
             credentials_redacted=bool(data.get("credentials_redacted", True)),
             created_at_utc=data.get("created_at_utc", utc_now()),
             provenance=prov,
+            provenance_sources=provenance_sources,
         )
+        inventory._validate_authentication_metadata()
+        inventory._validate_session_bindings()
+        return inventory
 
     def save(self, path: Path | str) -> None:
         p = Path(path)
@@ -272,9 +544,7 @@ class ApiInventory:
 
     @classmethod
     def load(cls, path: Path | str) -> ApiInventory:
-        p = Path(path)
-        data = json.loads(p.read_text(encoding="utf-8"))
-        return cls.from_dict(data)
+        return cls.from_dict(load_bounded_json_document(path))
 
 
 @dataclass
@@ -444,6 +714,4 @@ class ReplaySessionReport:
 
     @classmethod
     def load(cls, path: Path | str) -> ReplaySessionReport:
-        p = Path(path)
-        data = json.loads(p.read_text(encoding="utf-8"))
-        return cls.from_dict(data)
+        return cls.from_dict(load_bounded_json_document(path))
