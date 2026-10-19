@@ -26,7 +26,9 @@ NOW = "2026-10-15T12:00:00Z"
 WORKER = "workflow-worker"
 
 
-def workflow_document(*, max_attempts: int = 1, cleanup: bool = False) -> dict[str, Any]:
+def workflow_document(
+    *, max_attempts: int = 1, cleanup: bool = False, idempotent: bool | None = None
+) -> dict[str, Any]:
     action: dict[str, Any] = {
         "target": "lab://fixture",
         "specialist_id": "lab-worker",
@@ -42,6 +44,8 @@ def workflow_document(*, max_attempts: int = 1, cleanup: bool = False) -> dict[s
     }
     if cleanup:
         action["cleanup"] = {"strategy": "none", "resources": []}
+    if idempotent is not None:
+        action["idempotent"] = idempotent
     return {
         "schema_version": "cops.workflow-definition/v1",
         "workflow_id": "ioc-flow",
@@ -160,7 +164,7 @@ def test_success_persists_outputs_and_safe_resume_does_not_duplicate_execution(t
 
 
 def test_retry_uses_fresh_authorization_same_idempotency_key_and_cleanup(tmp_path: Path) -> None:
-    definition = WorkflowDefinition.from_dict(workflow_document(max_attempts=2, cleanup=True))
+    definition = WorkflowDefinition.from_dict(workflow_document(max_attempts=2, cleanup=True, idempotent=True))
     executor = QueueExecutor(
         StageExecutionResult("failed", {}, (), "temporary failure"),
         StageExecutionResult("success", {"count": 1}, ("evidence://retry",)),
@@ -176,7 +180,7 @@ def test_retry_uses_fresh_authorization_same_idempotency_key_and_cleanup(tmp_pat
 
 
 def test_interrupted_authorized_attempt_cannot_replay_approval(tmp_path: Path) -> None:
-    definition = WorkflowDefinition.from_dict(workflow_document(max_attempts=2, cleanup=True))
+    definition = WorkflowDefinition.from_dict(workflow_document(max_attempts=2, cleanup=True, idempotent=True))
     executor = QueueExecutor(RuntimeError("process lost"), StageExecutionResult("success", {"count": 1}))
     runner, authorizations, _ = authorized_runner(tmp_path, definition, executor, attempts=2)
 
@@ -426,7 +430,7 @@ def test_interrupted_consumed_attempt_rejects_changed_inputs(tmp_path: Path) -> 
 
 
 def test_restart_finishes_interrupted_cleanup_before_retry(tmp_path: Path) -> None:
-    definition = WorkflowDefinition.from_dict(workflow_document(max_attempts=2, cleanup=True))
+    definition = WorkflowDefinition.from_dict(workflow_document(max_attempts=2, cleanup=True, idempotent=True))
     executor = QueueExecutor(
         StageExecutionResult("failed", {}, (), "failure"),
         StageExecutionResult("success", {"count": 1}),

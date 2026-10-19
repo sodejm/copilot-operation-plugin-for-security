@@ -27,3 +27,25 @@ Feature: Portable operator workflow
     Given a generated host index that differs from its canonical document
     When generated host indexes are checked
     Then the stale index is reported without being rewritten
+
+  Scenario: Stop after a default non-idempotent action fails
+    Given a workflow action with two attempts and no idempotence opt-in
+    When its first execution fails
+    Then the workflow stops without a second execution or approval consumption
+
+  Scenario: Retry an explicitly idempotent action
+    Given a workflow action with two attempts and explicit idempotence
+    When its first execution fails and its second succeeds
+    Then both approved attempts use the same logical idempotency key
+
+  Scenario: Do not retry an interrupted non-idempotent action
+    Given a non-idempotent workflow action with cleanup
+    When execution is interrupted after its approval is consumed
+    And the interrupted workflow resumes
+    Then cleanup completes without a second execution or approval consumption
+
+  Scenario: Resume an unconsumed planned attempt
+    Given a non-idempotent workflow action limited to one attempt
+    When the process stops before its planned approval is consumed
+    And the planned workflow resumes
+    Then the exact saved plan and approval execute once
