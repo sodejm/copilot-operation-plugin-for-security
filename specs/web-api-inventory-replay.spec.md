@@ -91,6 +91,13 @@ Execution copies caller-owned requests, sessions, destinations and budgets befor
 plan comparison, then uses only those owned snapshots for approval consumption,
 resolution, transport and reporting.
 
+Preview, plan construction, offline replay, and authorized execution reject a
+request batch that exceeds `max_requests`; they never select or report a truncated
+prefix. This pre-execution budget rejection occurs before replay dispatch and report
+construction. It is distinct from per-request destination rejections and runtime
+request or response outcomes, which retain the order and coverage of every request
+in an accepted batch.
+
 Every destination allowlist item is validated before preview, plan construction,
 offline replay, or authorized execution can retain or report the allowlist. An item
 must be an exact ASCII DNS hostname or canonical dotted-decimal IPv4 address, either

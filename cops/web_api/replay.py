@@ -780,10 +780,11 @@ def execute_replay_session(
     if not isinstance(active_replayer, OfflineSyntheticReplayer):
         raise ReplayAuthorizationError("live replay requires execute_authorized_replay_session")
     _validate_budget(active_budget)
-    selected = owned_requests[: active_budget.max_requests]
+    if len(owned_requests) > active_budget.max_requests:
+        raise ReplayBudgetExceededError("request count exceeds max_requests")
     responses: list[ReplayResponse] = []
     violations = 0
-    for request in selected:
+    for request in owned_requests:
         if not guard.is_destination_allowed(request.url):
             violations += 1
             responses.append(
@@ -799,7 +800,7 @@ def execute_replay_session(
             continue
         responses.append(active_replayer.send(request, active_budget))
     return _report(
-        requests=selected,
+        requests=owned_requests,
         responses=responses,
         allowed_destinations=owned_destinations,
         budget=active_budget,
