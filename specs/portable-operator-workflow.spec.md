@@ -46,3 +46,20 @@ host indexes from the canonical catalog.
     invoking handlers. A false condition records a skipped stage without outputs
     or evidence, and unavailable dependencies or workflow outputs cannot be
     reported as successful completion.
+14. Workflow actions declare whether retry is safe with an explicit boolean
+    `action.idempotent`, which defaults to `false` and is bound into each compiled
+    action plan and digest. A failed, partial, or interrupted non-idempotent action
+    is terminal for that run after any required cleanup because execution may have
+    produced side effects even when no result was recorded. Only an explicit
+    `true` permits another attempt, with a fresh approval and the same logical
+    idempotency key. The runtime does not infer safety from the tool name or retry
+    count. A persisted, unconsumed `planned` attempt resumes its exact plan and
+    approval without spending another attempt, including when `max_attempts` is
+    one.
+15. For compatibility, when an action omitted `idempotent`, a saved attempt may
+    match the previous compiler's implicit-true plan. A multi-attempt legacy stage
+    is authentic only when every saved plan matches that compiler and all receipt
+    and artifact checks pass. Only its existing final `planned` attempt may run
+    under the saved approval. After that attempt succeeds, fails, is partial, or
+    is interrupted, later loads remain valid but cannot execute or consume another
+    approval. Legacy recognition never grants retry permission to the action.

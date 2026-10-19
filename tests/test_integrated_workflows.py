@@ -148,7 +148,7 @@ def test_all_fixture_profiles_compile_exact_plans_and_reach_declared_outcome(wor
         assert plan["operations"][0]["expected_evidence"]
         assert plan["operations"][0]["side_effects"] == []
         assert plan["limits"]["egress_allowed"] is False
-        assert plan["operations"][0]["idempotent"] is True
+        assert plan["operations"][0]["idempotent"] is False
         assert plan["plan_digest"]
 
 

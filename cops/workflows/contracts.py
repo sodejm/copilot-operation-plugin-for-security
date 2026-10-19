@@ -196,6 +196,7 @@ def _validate_stage(stage: Any) -> None:
             "platform_prerequisites",
             "cleanup",
             "egress_policy",
+            "idempotent",
         },
         "action_shape",
     )
@@ -204,6 +205,8 @@ def _validate_stage(stage: Any) -> None:
             raise WorkflowContractError("literal_action_binding")
     if type(action["timeout_seconds"]) is not int or not 1 <= action["timeout_seconds"] <= 86400:
         raise WorkflowContractError("timeout")
+    if "idempotent" in action and type(action["idempotent"]) is not bool:
+        raise WorkflowContractError("idempotent_flag")
     limits = _keys(
         action["limits"],
         {"max_duration_seconds", "max_output_bytes", "egress_allowed"},
