@@ -1,0 +1,40 @@
+# Keep every built-in detector. Exceptions match reviewed source, never whole files.
+[extend]
+useDefault = true
+
+[[rules]]
+id = "generic-api-key"
+
+[[rules.allowlists]]
+description = "Ed25519 signer field type annotation, not a credential"
+condition = "AND"
+regexTarget = "match"
+paths = ['''^cops/workflows/playback\.py$''']
+regexes = ['''^private_key: Ed25519PrivateKey$''']
+
+[[rules.allowlists]]
+description = "Synthetic replay Basic fixture encodes fixture:secret"
+condition = "AND"
+regexTarget = "match"
+paths = ['''^tests/step_defs/test_web_api_inventory_replay\.py$''']
+regexes = ['''^fixture-bearer-secret", "Zml4dHVyZTpzZWNyZXQ="$''']
+
+[[rules]]
+id = "private-key"
+
+[[rules.allowlists]]
+description = "Scanner overrun from a Python PEM generator expression into the next public-key test"
+condition = "AND"
+regexTarget = "secret"
+paths = ['''^tests/test_git_history_scanner\.py$''']
+# The literal generator is not PEM material. Allow only Python return arrows among overrun hyphens so
+# an intervening real PEM header or footer cannot be hidden by this exception.
+regexes = ['''^-----BEGIN PRIVATE KEY-----\\n" \+ "QUJD" \* 16\s*\+ "\\n-----END PRIVATE KEY-----(?:[^-]|->)*-----BEGIN PUBLIC KEY-----$''']
+
+# A malformed fixture can consume the next key header in the built-in broad rule.
+# Independently detect actual PEM bodies without crossing source or another header.
+[[rules]]
+id = "private-key-pem-body"
+description = "Private key PEM with a base64 body, independently of malformed neighboring fixtures"
+regex = '''(?i)-----BEGIN[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----[\r\n]+[A-Za-z0-9+/=\r\n]{32,}-----END[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----'''
+keywords = ["-----begin"]
