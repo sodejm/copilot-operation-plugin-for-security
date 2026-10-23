@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import re
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
@@ -89,10 +88,5 @@ def redact_mapping(values: dict[str, str]) -> dict[str, str]:
 
 
 def sanitize_body(value: str | None) -> str | None:
-    if value is None:
-        return None
-    try:
-        payload = json.loads(value)
-    except (ValueError, RecursionError):
-        return sanitize_text(value)
-    return json.dumps(sanitize_tree(payload, sensitive_keys=True), sort_keys=True)
+    """Persist only a digest of opaque payloads; field names cannot identify secrets."""
+    return None if value is None else redact_credential_value(value)
