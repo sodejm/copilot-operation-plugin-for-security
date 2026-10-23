@@ -25,5 +25,10 @@ package, build script or registry destination. Time, output and process cleanup
 limits supplement the strict laboratory's container isolation. See the
 [supply-chain abuse cases](docs/THREAT_MODEL.md#synthetic-package-installation-abuse-cases).
 
+Laboratory HTTP clients accept only literal loopback HTTP destinations with an
+explicit port. They disable environment proxies and redirects, cap responses at
+64 KiB, and use a three-second socket timeout. These request limits supplement
+the independently checked container isolation used for laboratory acceptance.
+
 See the [repository security model](docs/SECURITY_MODEL.md) and
 [plugin privacy guidance](plugins/logging-telemetry/security-logging-advisor/docs/SECURITY_PRIVACY.md).

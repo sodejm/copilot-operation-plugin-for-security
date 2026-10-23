@@ -721,15 +721,19 @@ def build_parser() -> argparse.ArgumentParser:
 
     w_exec = worker_sub.add_parser("execute", help="dispatch an authorized action plan to a remote worker")
     w_exec.add_argument("plan", type=Path, help="path to ActionPlan JSON file")
-    w_exec.add_argument(
-        "--authorization", help="opaque authorization ID registered with the remote approval authority"
-    )
+    w_exec.add_argument("--authorization", help="opaque authorization ID registered with the remote approval authority")
     w_exec.add_argument(
         "--worker-id",
         help="approved worker identity resolved through the trusted SSH endpoint inventory",
     )
     w_exec.add_argument("--ssh-endpoint-inventory", type=Path, help="owner-only SSH endpoint inventory")
-    w_exec.add_argument("--explain", "--dry-run", dest="explain", action="store_true", help="preview without execution or approval consumption")
+    w_exec.add_argument(
+        "--explain",
+        "--dry-run",
+        dest="explain",
+        action="store_true",
+        help="preview without execution or approval consumption",
+    )
     w_exec.add_argument("--json", action="store_true", help="output structured JSON")
 
     eng_p = subparsers.add_parser(
@@ -893,9 +897,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="owner-only independently provisioned worker capability inventory",
     )
     l_run.add_argument("--worker-id", help="assert the expected inventory worker identity")
-    l_run.add_argument(
-        "--authorization-trust-store", type=Path, help="verifier-owned authorization key configuration"
-    )
+    l_run.add_argument("--authorization-trust-store", type=Path, help="verifier-owned authorization key configuration")
     l_run.add_argument(
         "--engagement",
         type=Path,
@@ -907,7 +909,13 @@ def build_parser() -> argparse.ArgumentParser:
     l_run.add_argument("--store", help="path to sqlite3 approval store")
     l_run.add_argument("--allowed-cidr", help="allowed network CIDR for scope guard")
     l_run.add_argument("--output", help="output path for case result JSON")
-    l_run.add_argument("--explain", "--dry-run", dest="explain", action="store_true", help="preview without execution or evidence writes")
+    l_run.add_argument(
+        "--explain",
+        "--dry-run",
+        dest="explain",
+        action="store_true",
+        help="preview without execution or evidence writes",
+    )
     l_run.add_argument("--json", action="store_true")
 
     from .diagnostics.cli import build_diagnostics_parser

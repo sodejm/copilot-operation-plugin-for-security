@@ -12,7 +12,10 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from cops.laboratory.service_lab import ServiceLaboratory, probe_isolated_runtime
+from cops.laboratory.service_lab import (  # noqa: E402  # Import after runtime prerequisite/path selection.
+    ServiceLaboratory,
+    probe_isolated_runtime,
+)
 
 
 def _parser() -> argparse.ArgumentParser:

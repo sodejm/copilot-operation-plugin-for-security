@@ -9,7 +9,6 @@ from cops.assessments.reporting import EVIDENCE_NOTICE, to_assessment_report
 from cops.contracts.validation import validate_contract
 from cops.reporting.assessment import validate_report_semantics
 
-
 AS_OF = "2026-10-15T12:00:00Z"
 ASSESSMENT_CONTEXT = {
     "engagement_id": "eng-report-test",
@@ -103,9 +102,7 @@ def test_adapter_maps_insufficient_source_to_not_assessed() -> None:
     ids=["unknown-field", "evidence-hash", "finding-context", "coverage-kind"],
 )
 def test_adapter_rejects_tampered_native_assessment_without_echo(mutation) -> None:
-    assessment = copy.deepcopy(
-        _application_assessment("def parse(value):\n    return eval(value)\n")
-    )
+    assessment = copy.deepcopy(_application_assessment("def parse(value):\n    return eval(value)\n"))
     mutation(assessment)
 
     with pytest.raises(ArtifactAssessmentError) as caught:

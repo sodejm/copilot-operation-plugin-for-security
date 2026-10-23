@@ -143,15 +143,23 @@ class _LaboratoryApprovalControl:
         if worker_identity != WORKER:
             raise RuntimeError("unexpected laboratory worker")
 
-    def consume_authorization(self, authorization_id: str, action_plan: ActionPlan, worker_identity: str) -> ApprovalConsumptionReceipt:
+    def consume_authorization(
+        self, authorization_id: str, action_plan: ActionPlan, worker_identity: str
+    ) -> ApprovalConsumptionReceipt:
         stored = self.store.get_authorization(authorization_id)
         verified = verify_execution_authorization(
-            stored, action_plan, trust_store=self.trust, engagement=self.engagement,
-            worker_identity=worker_identity, current_time_iso=self.now,
+            stored,
+            action_plan,
+            trust_store=self.trust,
+            engagement=self.engagement,
+            worker_identity=worker_identity,
+            current_time_iso=self.now,
         )
         consumed = self.store.atomically_consume(
-            authorization_id, expected_authorization=verified,
-            worker_identity=worker_identity, current_time_iso=self.now,
+            authorization_id,
+            expected_authorization=verified,
+            worker_identity=worker_identity,
+            current_time_iso=self.now,
         )
         receipt = ApprovalConsumptionReceipt(
             authorization_id=authorization_id,
@@ -184,25 +192,35 @@ class _Executor:
     def _record(self, stage: str, method: str, service: str, path: str, status: int) -> None:
         self.requests.append({"stage": stage, "method": method, "service": service, "path": path, "status": status})
 
-    def execute(self, plan: ActionPlan, _receipt: ApprovalConsumptionReceipt, *, idempotency_key: str) -> StageExecutionResult:
+    def execute(
+        self, plan: ActionPlan, _receipt: ApprovalConsumptionReceipt, *, idempotency_key: str
+    ) -> StageExecutionResult:
         operation = plan.to_dict()["operations"][0]
         action, args = operation["action"], operation["arguments"]
         if action == "ingest_ioc":
             status, body = _request_json(f"{self.graph.hunt.url}/ioc", method="POST", payload={"value": args["ioc"]})
             self._record("ingest", "POST", "hunt", "/ioc", status)
-            result = StageExecutionResult("success", {"ioc": args["ioc"], "ingested": body.get("ingested") is True}, (f"tcp:{idempotency_key}",))
+            result = StageExecutionResult(
+                "success", {"ioc": args["ioc"], "ingested": body.get("ingested") is True}, (f"tcp:{idempotency_key}",)
+            )
         elif action == "hunt_ioc":
             status, body = _request_json(f"{self.graph.hunt.url}/hunt?value={args['ioc']}")
             self._record("hunt", "GET", "hunt", "/hunt", status)
             if self.mode == "failure":
                 return StageExecutionResult("failed", {}, (f"tcp:{idempotency_key}",), "injected_after_hunt")
-            result = StageExecutionResult("success", {"ioc": args["ioc"], "hit": body.get("hit") is True}, (f"tcp:{idempotency_key}",))
+            result = StageExecutionResult(
+                "success", {"ioc": args["ioc"], "hit": body.get("hit") is True}, (f"tcp:{idempotency_key}",)
+            )
         elif action == "contain_ioc":
             status, body = _request_json(f"{self.graph.hunt.url}/contain", method="POST", payload={"token": self.token})
             self._record("contain", "POST", "hunt", "/contain", status)
             revoked, _ = _request_json(f"{self.graph.resource.url}/protected", token=self.token)
             self._record("contain", "GET", "resource", "/protected", revoked)
-            result = StageExecutionResult("success", {"contained": body.get("contained") is True, "post_revoke_status": revoked}, (f"tcp:{idempotency_key}",))
+            result = StageExecutionResult(
+                "success",
+                {"contained": body.get("contained") is True, "post_revoke_status": revoked},
+                (f"tcp:{idempotency_key}",),
+            )
         else:
             raise RuntimeError(f"unsupported laboratory action: {action}")
         self.completed += 1
@@ -241,19 +259,31 @@ def run_workflow_service_laboratory(
     token = secrets.token_urlsafe(24)
     requests: list[dict[str, Any]] = []
     now_dt = datetime.now(UTC).replace(microsecond=0)
-    now, trust_start, auth_end, trust_end = map(_utc, (now_dt, now_dt - timedelta(minutes=5), now_dt + timedelta(hours=2), now_dt + timedelta(hours=3)))
+    now, trust_start, auth_end, trust_end = map(
+        _utc, (now_dt, now_dt - timedelta(minutes=5), now_dt + timedelta(hours=2), now_dt + timedelta(hours=3))
+    )
     key = secrets.token_bytes(32)
     signer = AuthorizationSigner("workflow-lab-key", "laboratory-operator", key, trust_start, trust_end)
-    trust = AuthorizationTrustStore([TrustedAuthorizationKey("workflow-lab-key", "laboratory-operator", key, trust_start, trust_end)])
+    trust = AuthorizationTrustStore(
+        [TrustedAuthorizationKey("workflow-lab-key", "laboratory-operator", key, trust_start, trust_end)]
+    )
     engagement = Engagement.from_dict(
         {
-            "schema_version": "cops.engagement/v1", "engagement_id": definition.engagement_id,
-            "name": "Workflow service laboratory", "status": "active",
+            "schema_version": "cops.engagement/v1",
+            "engagement_id": definition.engagement_id,
+            "name": "Workflow service laboratory",
+            "status": "active",
             "scope": {"included_targets": ["laboratory-loopback-services"], "excluded_targets": []},
             "window": {"started_at": trust_start, "authorized_until_utc": trust_end},
             "operator": "laboratory-operator",
-            "rules_of_engagement": {"max_intensity": "low", "allowed_actions": ["contain_ioc", "hunt_ioc", "ingest_ioc"], "emergency_contact": "soc@example.test", "safe_mode": True},
-            "created_at": trust_start, "mode": "laboratory",
+            "rules_of_engagement": {
+                "max_intensity": "low",
+                "allowed_actions": ["contain_ioc", "hunt_ioc", "ingest_ioc"],
+                "emergency_contact": "soc@example.test",
+                "safe_mode": True,
+            },
+            "created_at": trust_start,
+            "mode": "laboratory",
         }
     )
     store = ApprovalStore(state_path / "approvals.sqlite3")
@@ -267,8 +297,12 @@ def run_workflow_service_laboratory(
         for stage, arguments in resolved.items():
             plan = compile_action_plan(definition, run_id, stage, arguments, now)
             auth = create_execution_authorization(
-                plan, signer=signer, engagement=engagement, worker_identity=WORKER,
-                issued_at=now, authorized_until_utc=auth_end,
+                plan,
+                signer=signer,
+                engagement=engagement,
+                worker_identity=WORKER,
+                issued_at=now,
+                authorized_until_utc=auth_end,
                 authorization_id=f"auth-{digest({'run_id': run_id, 'stage': stage})[:24]}",
             )
             store.store_authorization(auth)
@@ -278,7 +312,10 @@ def run_workflow_service_laboratory(
         executor = _Executor(graph, token, mode)
         runner = WorkflowRunner(state_path / "workflow-state", approval, WORKER, executor, clock=lambda: now)
         result = runner.run(
-            definition, run_id, {"ioc": IOC}, authorization_ids,
+            definition,
+            run_id,
+            {"ioc": IOC},
+            authorization_ids,
             cancellation_requested=(lambda: mode == "cancellation" and executor.completed >= 1),
         )
         requests.extend(executor.requests)
@@ -286,14 +323,25 @@ def run_workflow_service_laboratory(
         baseline_before_exit = graph.state.snapshot() == graph.baseline.snapshot()
 
     counts, alerts = _execute_detection_rules(telemetry.events)
-    consumed = sum(1 for stage in authorization_ids if store.get_authorization(authorization_ids[stage]).status == "consumed")
+    consumed = sum(
+        1 for stage in authorization_ids if store.get_authorization(authorization_ids[stage]).status == "consumed"
+    )
     return WorkflowServiceLaboratoryReport(
-        run_id=run_id, mode=mode, status=result.status,
-        workflow={"workflow_id": definition.workflow_id, "definition_digest": definition.definition_digest, "outputs": result.outputs, "stages": result.stages},
+        run_id=run_id,
+        mode=mode,
+        status=result.status,
+        workflow={
+            "workflow_id": definition.workflow_id,
+            "definition_digest": definition.definition_digest,
+            "outputs": result.outputs,
+            "stages": result.stages,
+        },
         authorization={
             "mechanism": "signed exact ActionPlan plus atomic one-use ApprovalStore",
-            "provisioned": len(authorization_ids), "consumed": consumed,
-            "authorization_ids": authorization_ids, "plan_digests": plan_digests,
+            "provisioned": len(authorization_ids),
+            "consumed": consumed,
+            "authorization_ids": authorization_ids,
+            "plan_digests": plan_digests,
             "one_use_store": True,
             "boundary": "in-process laboratory adapter; production authority requires Linux SO_PEERCRED and a distinct UID",
         },
@@ -305,8 +353,10 @@ def run_workflow_service_laboratory(
             "baseline_restored": graph.final_reset_verified,
             "services_stopped": all(not service.thread.is_alive() for service in graph.services),
         },
-        isolation=isolation, fixture_manifest_digest=verify_fixture_manifest(),
-        telemetry_events=tuple(telemetry.events), alert_events=alerts,
+        isolation=isolation,
+        fixture_manifest_digest=verify_fixture_manifest(),
+        telemetry_events=tuple(telemetry.events),
+        alert_events=alerts,
         limitations=(
             "Loopback TCP proves real service activity but does not prove network namespace isolation.",
             "The approval adapter exercises production signing, verification, exact-plan binding, and atomic consumption without claiming the production separate-UID boundary.",

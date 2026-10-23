@@ -40,9 +40,14 @@ def inspect_acceptance_boundary() -> tuple[bool, tuple[str, ...], str | None]:
             return False, tuple(evidence), "non-loopback IPv6 route exists"
         evidence.append("kernel_routes=loopback-only")
         denied = {
-            errno.ENETUNREACH, errno.EHOSTUNREACH, errno.ENETDOWN,
-            errno.EADDRNOTAVAIL, errno.EAFNOSUPPORT, errno.EPROTONOSUPPORT,
-            errno.EACCES, errno.EPERM,
+            errno.ENETUNREACH,
+            errno.EHOSTUNREACH,
+            errno.ENETDOWN,
+            errno.EADDRNOTAVAIL,
+            errno.EAFNOSUPPORT,
+            errno.EPROTONOSUPPORT,
+            errno.EACCES,
+            errno.EPERM,
         }
         # Reserved documentation addresses; attempted only after route inspection.
         for family, destination in (

@@ -13,8 +13,16 @@ from .prerequisites import validate_prerequisites
 ROOT = Path(__file__).resolve().parents[1]
 AGENT_PLUGIN_SCHEMA = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
 AGENT_PLUGIN_KEYS = {
-    "$schema", "name", "version", "description", "author", "homepage",
-    "repository", "license", "keywords", "extensions",
+    "$schema",
+    "name",
+    "version",
+    "description",
+    "author",
+    "homepage",
+    "repository",
+    "license",
+    "keywords",
+    "extensions",
 }
 PLUGIN_NAME = re.compile(r"^(?!.*(?:--|\.\.))[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$")
 SKILL_NAME = re.compile(r"^(?!.*--)[a-z0-9]+(?:-[a-z0-9]+)*$")
@@ -91,8 +99,7 @@ def validate_agent_plugin_manifest(manifest: Any, location: str) -> None:
     if "extensions" in manifest:
         extensions = manifest["extensions"]
         if not isinstance(extensions, dict) or any(
-            not isinstance(key, str) or not EXTENSION_NAME.fullmatch(key)
-            or not isinstance(value, dict)
+            not isinstance(key, str) or not EXTENSION_NAME.fullmatch(key) or not isinstance(value, dict)
             for key, value in extensions.items()
         ):
             raise ValidationError(f"{location}.extensions must map reverse-domain names to objects")
@@ -140,15 +147,11 @@ def _validate_codex_manifest(manifest: dict[str, Any], record: PluginRecord) -> 
     ):
         _require_string(interface.get(field), f"{location}.interface.{field}")
     _require_string_list(interface.get("capabilities"), f"{location}.interface.capabilities")
-    prompts = _require_string_list(
-        interface.get("defaultPrompt"), f"{location}.interface.defaultPrompt"
-    )
+    prompts = _require_string_list(interface.get("defaultPrompt"), f"{location}.interface.defaultPrompt")
     if len(prompts) > 3:
         raise ValidationError(f"{location}.interface.defaultPrompt must contain at most 3 prompts")
     if any(len(prompt) > 128 for prompt in prompts):
-        raise ValidationError(
-            f"{location}.interface.defaultPrompt entries must not exceed 128 characters"
-        )
+        raise ValidationError(f"{location}.interface.defaultPrompt entries must not exceed 128 characters")
 
 
 def _skill_frontmatter(path: Path, root: Path) -> tuple[str, str]:
@@ -166,9 +169,7 @@ def _skill_frontmatter(path: Path, root: Path) -> tuple[str, str]:
         key, value = line.split(":", 1)
         fields[key.strip()] = value.strip().strip('"').strip("'")
     if set(fields) != {"name", "description"}:
-        raise ValidationError(
-            f"{path.relative_to(root)} frontmatter must contain only name and description"
-        )
+        raise ValidationError(f"{path.relative_to(root)} frontmatter must contain only name and description")
     if fields["name"] != path.parent.name:
         raise ValidationError(f"{path.relative_to(root)} name must match its directory")
     if len(fields["name"]) > 64 or not SKILL_NAME.fullmatch(fields["name"]):
@@ -229,9 +230,7 @@ def validate_package(record: PluginRecord, root: Path = ROOT) -> None:
             f"{location}.support.host_installation cannot be validated without a host evidence record"
         )
     if support["live_integration"] == "validated":
-        raise ValidationError(
-            f"{location}.support.live_integration cannot be validated without a live evidence record"
-        )
+        raise ValidationError(f"{location}.support.live_integration cannot be validated without a live evidence record")
 
     _validate_command_definition(package.get("demo"), f"{location}.demo", record, root, require_name=False)
     demo = package["demo"]
@@ -251,8 +250,7 @@ def validate_package(record: PluginRecord, root: Path = ROOT) -> None:
     package_root = root / record.path
     resolved_root = package_root.resolve()
     prereq_path = "org.cops/prerequisites.json"
-    for relative in ("plugin.json", ".claude-plugin/plugin.json", ".codex-plugin/plugin.json",
-                     prereq_path, "skills"):
+    for relative in ("plugin.json", ".claude-plugin/plugin.json", ".codex-plugin/plugin.json", prereq_path, "skills"):
         path = package_root / relative
         if not path.resolve().is_relative_to(resolved_root):
             raise ValidationError(f"{record.path}/{relative} escapes the plugin root")
@@ -265,13 +263,10 @@ def validate_package(record: PluginRecord, root: Path = ROOT) -> None:
     _validate_codex_manifest(codex, record)
     claude = load_json(package_root / ".claude-plugin" / "plugin.json", root)
     if claude.get("name") != record.id or claude.get("version") != record.version:
-        raise ValidationError(
-            f"{record.path}/.claude-plugin/plugin.json name and version must match the catalog"
-        )
+        raise ValidationError(f"{record.path}/.claude-plugin/plugin.json name and version must match the catalog")
     _require_string(claude.get("description"), f"{record.path}/.claude-plugin/plugin.json.description")
     try:
-        validate_prerequisites(load_json(package_root / prereq_path, root),
-                               f"{record.path}/{prereq_path}")
+        validate_prerequisites(load_json(package_root / prereq_path, root), f"{record.path}/{prereq_path}")
     except ValueError as error:
         raise ValidationError(str(error)) from error
 
@@ -298,9 +293,7 @@ def marketplace_documents(root: Path = ROOT) -> dict[Path, dict[str, Any]]:
     if not isinstance(marketplace, dict):
         raise ValidationError("catalog/plugins.json.marketplace must be an object")
     if set(marketplace) != MARKETPLACE_KEYS:
-        raise ValidationError(
-            "catalog/plugins.json.marketplace must declare exactly name and owner"
-        )
+        raise ValidationError("catalog/plugins.json.marketplace must declare exactly name and owner")
     name = _require_string(marketplace.get("name"), "catalog/plugins.json.marketplace.name")
     owner = _require_string(marketplace.get("owner"), "catalog/plugins.json.marketplace.owner")
 
@@ -379,8 +372,7 @@ def validate_repository(root: Path = ROOT, *, check_indexes: bool = True) -> lis
     for index, category in enumerate(raw_categories):
         if not isinstance(category, dict) or set(category) != CATEGORY_KEYS:
             raise ValidationError(
-                f"catalog/categories.json.categories[{index}] must declare exactly "
-                f"{sorted(CATEGORY_KEYS)}"
+                f"catalog/categories.json.categories[{index}] must declare exactly {sorted(CATEGORY_KEYS)}"
             )
         category_id = _require_string(category.get("id"), f"category[{index}].id")
         if category_id in category_ids:
@@ -393,14 +385,10 @@ def validate_repository(root: Path = ROOT, *, check_indexes: bool = True) -> lis
     if catalog.get("schema_version") != "1.0":
         raise ValidationError("catalog/plugins.json.schema_version must be '1.0'")
     if set(catalog) != {"schema_version", "marketplace", "plugins"}:
-        raise ValidationError(
-            "catalog/plugins.json must declare exactly schema_version, marketplace, and plugins"
-        )
+        raise ValidationError("catalog/plugins.json must declare exactly schema_version, marketplace, and plugins")
     marketplace = catalog.get("marketplace")
     if not isinstance(marketplace, dict) or set(marketplace) != MARKETPLACE_KEYS:
-        raise ValidationError(
-            "catalog/plugins.json.marketplace must declare exactly name and owner"
-        )
+        raise ValidationError("catalog/plugins.json.marketplace must declare exactly name and owner")
     _require_string(marketplace.get("name"), "catalog/plugins.json.marketplace.name")
     _require_string(marketplace.get("owner"), "catalog/plugins.json.marketplace.owner")
     raw_plugins = catalog.get("plugins")
@@ -409,12 +397,12 @@ def validate_repository(root: Path = ROOT, *, check_indexes: bool = True) -> lis
     for index, raw_plugin in enumerate(raw_plugins):
         if not isinstance(raw_plugin, dict) or set(raw_plugin) != CATALOG_PLUGIN_KEYS:
             raise ValidationError(
-                f"catalog/plugins.json.plugins[{index}] must declare exactly "
-                f"{sorted(CATALOG_PLUGIN_KEYS)}"
+                f"catalog/plugins.json.plugins[{index}] must declare exactly {sorted(CATALOG_PLUGIN_KEYS)}"
             )
         for field in ("symptom_triggers", "artifact_triggers", "anti_triggers", "example_prompts"):
             _require_string_list(
-                raw_plugin[field], f"catalog/plugins.json.plugins[{index}].{field}",
+                raw_plugin[field],
+                f"catalog/plugins.json.plugins[{index}].{field}",
                 nonempty=field in {"symptom_triggers", "example_prompts"},
             )
         if len(raw_plugin["example_prompts"]) != 5:
@@ -448,10 +436,7 @@ def validate_repository(root: Path = ROOT, *, check_indexes: bool = True) -> lis
                 )
             global_skills[skill_name] = record.id
 
-    discovered = {
-        path.parent.relative_to(root).as_posix()
-        for path in (root / "plugins").glob("*/*/plugin.json")
-    }
+    discovered = {path.parent.relative_to(root).as_posix() for path in (root / "plugins").glob("*/*/plugin.json")}
     if discovered != paths:
         raise ValidationError(
             "cataloged plugin paths differ from discovered packages: "

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import json
 import hashlib
+import json
 import shutil
 from pathlib import Path
 from typing import Literal, cast
@@ -81,7 +81,13 @@ def test_process_acceptance_proves_actual_activity_and_reset(
         "untrusted_client_rejected": True,
         "untrusted_server_rejected": True,
         "unauthorized_client_status": 403,
-        "offline_verification": {"server": "accepted", "wrong_hostname": "rejected", "untrusted_server": "rejected", "authorized_client": "accepted", "unauthorized_client": "rejected"},
+        "offline_verification": {
+            "server": "accepted",
+            "wrong_hostname": "rejected",
+            "untrusted_server": "rejected",
+            "authorized_client": "accepted",
+            "unauthorized_client": "rejected",
+        },
         "service_stopped": True,
         "server_address": "127.0.0.1",
         "protocol": "TLS",
@@ -96,7 +102,9 @@ def test_process_acceptance_proves_actual_activity_and_reset(
     assert activity["jwt"]["statuses"]["valid"] == 204
     assert all(status == 401 for name, status in activity["jwt"]["statuses"].items() if name != "valid")
     assert activity["jwt"]["service_stopped"] is True
-    assert activity["jwt"]["offline_verification"] == {name: "accepted" if name == "valid" else "rejected" for name in activity["jwt"]["statuses"]}
+    assert activity["jwt"]["offline_verification"] == {
+        name: "accepted" if name == "valid" else "rejected" for name in activity["jwt"]["statuses"]
+    }
     boundaries = activity["boundaries"]
     assert boundaries["benign_query_preserved"] is True
     assert boundaries["injection_exposed_other_object"] is reached
@@ -104,11 +112,22 @@ def test_process_acceptance_proves_actual_activity_and_reset(
     assert boundaries["allowed_tool_status"] == 200
     assert boundaries["denied_attack_calls"] == (0 if reached else 4)
     assert bool(boundaries["application_codes"]) is reached
-    assert set(boundaries["gateway_codes"]) == ({"foundry_tool_scope", "foundry_resource_scope", "foundry_prompt_injection"} if reached else set())
+    assert set(boundaries["gateway_codes"]) == (
+        {"foundry_tool_scope", "foundry_resource_scope", "foundry_prompt_injection"} if reached else set()
+    )
     assert boundaries["actual_requests"] == 7
     assert boundaries["service_stopped"] is True
     acquisition = activity["acquisition"]
-    assert all(acquisition[field] for field in ("original_unchanged", "permission_rejected", "modified_source_rejected", "no_partial_outputs", "disposable_root_removed"))
+    assert all(
+        acquisition[field]
+        for field in (
+            "original_unchanged",
+            "permission_rejected",
+            "modified_source_rejected",
+            "no_partial_outputs",
+            "disposable_root_removed",
+        )
+    )
     assert acquisition["finding_codes"] == []
     assert acquisition["import_rejections"] == ["permission", "custody", "tampering"]
     assert acquisition["corrected_import_verified"] is True
@@ -124,7 +143,10 @@ def test_process_acceptance_proves_actual_activity_and_reset(
         assert supply_chain["runtime"]["service_stopped"] is True
         assert supply_chain["advisory_assessment"] == ("matched" if reached else "clear")
         assert supply_chain["insufficient_evidence_status"] == "unknown"
-        assert all(supply_chain[field] for field in ("hash_mismatch_rejected", "tampered_install_absent", "disposable_root_removed"))
+        assert all(
+            supply_chain[field]
+            for field in ("hash_mismatch_rejected", "tampered_install_absent", "disposable_root_removed")
+        )
     else:
         assert supply_chain["status"] == "unsupported"
     assert report.restoration == {

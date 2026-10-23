@@ -19,7 +19,6 @@ from cops.workflows.contracts import WorkflowDefinition
 from cops.workflows.runtime import WorkflowRuntimeError, compile_action_plan
 from tests.auth_testkit import make_test_authorization_context
 
-
 GIT = shutil.which("git")
 GIT_SHA256 = hashlib.sha256(Path(GIT).resolve().read_bytes()).hexdigest() if GIT else None
 CONSENT_FIXTURE_EVIDENCE_REFS = [
@@ -50,10 +49,13 @@ def test_integrated_consent_fixture_binds_all_assessed_evidence_without_widening
 
 @pytest.mark.parametrize("workflow_id", tuple(integrated_lab.WORKFLOW_STAGES))
 def test_integrated_workflow_uses_services_and_action_bound_approvals(
-    tmp_path: Path, workflow_id: str,
+    tmp_path: Path,
+    workflow_id: str,
 ) -> None:
     report = integrated_lab.run_integrated_service_laboratory(
-        tmp_path / workflow_id, workflow_id=workflow_id, run_id="test-" + workflow_id,
+        tmp_path / workflow_id,
+        workflow_id=workflow_id,
+        run_id="test-" + workflow_id,
         git_sha256=GIT_SHA256,
     )
 
@@ -133,8 +135,10 @@ def test_integrated_workflow_uses_services_and_action_bound_approvals(
         assert purple["source_digests"] == {"telemetry": digest(report["events"]), "alerts": digest(report["alerts"])}
         assert purple["handoff_digest"] == digest(purple["handoff"])
         assert {name: view["result"]["status"] for name, view in purple["views"].items()} == {
-            "captured": "verified_detection", "logs_withheld": "instrumentation_gap",
-            "alerts_withheld": "detection_gap", "alert_evidence_unavailable": "indeterminate",
+            "captured": "verified_detection",
+            "logs_withheld": "instrumentation_gap",
+            "alerts_withheld": "detection_gap",
+            "alert_evidence_unavailable": "indeterminate",
         }
         for name, view in purple["views"].items():
             assert "captured service" in view["evidence_view"]
@@ -153,7 +157,8 @@ def test_integrated_workflow_uses_services_and_action_bound_approvals(
         assert assessment["dns_validation"] == "verified_fixed_loopback_a_record"
         profiles = assessment["correction_profiles"]
         assert {name: item["outcome"] for name, item in profiles.items()} == {
-            "vulnerable": "action_required", "corrected": "no_exposure_observed",
+            "vulnerable": "action_required",
+            "corrected": "no_exposure_observed",
             "limited": "insufficient_evidence",
         }
         bound = report["authorization"]["bound_exposure_scope"]
@@ -164,20 +169,31 @@ def test_integrated_workflow_uses_services_and_action_bound_approvals(
         dns = [event for event in report["events"] if event["event"] == "exposure_dns_answered"]
         assert len(dns) == 1
         assert dns[0]["host"] == bound["endpoint"]["host"]
-        anonymous = [event for event in report["events"]
-                     if event["event"] == "exposure_authentication" and not event["authorized"]]
-        assert [(event["profile"], event["status"]) for event in anonymous] == [
-            ("vulnerable", 200), ("corrected", 401),
+        anonymous = [
+            event
+            for event in report["events"]
+            if event["event"] == "exposure_authentication" and not event["authorized"]
         ]
-        assert report["alerts"] == [{
-            "alert": True, "rule_id": "anonymous-exposure-access", "event": "exposure_authentication",
-            "correlation_id": anonymous[0]["correlation_id"], "timestamp": anonymous[0]["timestamp"],
-        }]
+        assert [(event["profile"], event["status"]) for event in anonymous] == [
+            ("vulnerable", 200),
+            ("corrected", 401),
+        ]
+        assert report["alerts"] == [
+            {
+                "alert": True,
+                "rule_id": "anonymous-exposure-access",
+                "event": "exposure_authentication",
+                "correlation_id": anonymous[0]["correlation_id"],
+                "timestamp": anonymous[0]["timestamp"],
+            }
+        ]
 
 
 @pytest.mark.parametrize("fault", ["malformed", "timeout", "address_changed"])
 def test_exposure_dns_failure_stops_before_http_checks_and_restores_services(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fault: str,
 ) -> None:
     def invalid_response(_port: int) -> str:
         if fault == "timeout":
@@ -188,7 +204,8 @@ def test_exposure_dns_failure_stops_before_http_checks_and_restores_services(
 
     monkeypatch.setattr(integrated_lab, "resolve_exposure", invalid_response)
     report = integrated_lab.run_integrated_service_laboratory(
-        tmp_path / "invalid-dns", workflow_id="pre-release-exposure-audit",
+        tmp_path / "invalid-dns",
+        workflow_id="pre-release-exposure-audit",
     )
     assert report["status"] == "partial_failure"
     assert report["stages"] == ["inventory"]
@@ -199,7 +216,9 @@ def test_exposure_dns_failure_stops_before_http_checks_and_restores_services(
 
 @pytest.mark.parametrize("fault", ["missing", "unrelated", "loaded_only"])
 def test_actual_cve_requests_cannot_mask_unbound_runtime_evidence(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fault: str,
 ) -> None:
     original = integrated_lab.run_boundary_acceptance
 
@@ -219,7 +238,9 @@ def test_actual_cve_requests_cannot_mask_unbound_runtime_evidence(
 
     monkeypatch.setattr(integrated_lab, "run_boundary_acceptance", observe)
     report = integrated_lab.run_integrated_service_laboratory(
-        tmp_path / fault, workflow_id="cve-reachability-triage", run_id="binding-" + fault,
+        tmp_path / fault,
+        workflow_id="cve-reachability-triage",
+        run_id="binding-" + fault,
     )
     assessment = report["outputs"]["assessment"]
     assert assessment["vulnerable"]["injection_rows"] == 2
@@ -230,7 +251,8 @@ def test_actual_cve_requests_cannot_mask_unbound_runtime_evidence(
 
 
 def test_integrated_strict_isolation_blocks_before_state(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     probe = IsolationProbe(False, "loopback-only", "network isolation is unavailable", ())
     monkeypatch.setattr(integrated_lab, "probe_isolated_runtime", lambda: probe)
@@ -238,20 +260,25 @@ def test_integrated_strict_isolation_blocks_before_state(
 
     with pytest.raises(integrated_lab.IsolationRequiredError, match="network isolation is unavailable"):
         integrated_lab.run_integrated_service_laboratory(
-            state_dir, workflow_id="leaked-credential-blast-radius", require_isolation=True,
+            state_dir,
+            workflow_id="leaked-credential-blast-radius",
+            require_isolation=True,
         )
     assert not state_dir.exists()
 
 
 @pytest.mark.parametrize("workflow_id", ["leaked-credential-blast-radius", "illicit-consent-remediation"])
 def test_integrated_credential_never_enters_artifacts(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, workflow_id: str,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    workflow_id: str,
 ) -> None:
     sentinel = "synthetic-integrated-credential-must-not-persist"
     monkeypatch.setattr(integrated_lab.secrets, "token_urlsafe", lambda _size: sentinel)
     state_dir = tmp_path / "secret-check"
     report = integrated_lab.run_integrated_service_laboratory(
-        state_dir, workflow_id=workflow_id,
+        state_dir,
+        workflow_id=workflow_id,
         git_sha256=GIT_SHA256,
     )
 
@@ -263,7 +290,8 @@ def test_integrated_credential_never_enters_artifacts(
 
 @pytest.mark.parametrize("fault", ["incomplete", "cross_tenant", "wrong_grant", "corrected"])
 def test_consent_rejects_incomplete_or_unbound_grants_without_affecting_benign_access(
-    tmp_path: Path, fault: str,
+    tmp_path: Path,
+    fault: str,
 ) -> None:
     evidence = integrated_lab.load_consent_fixture()
     if fault == "incomplete":
@@ -275,7 +303,9 @@ def test_consent_rejects_incomplete_or_unbound_grants_without_affecting_benign_a
     else:
         evidence["grants"][0]["high_privilege"] = False
     report = integrated_lab.run_integrated_service_laboratory(
-        tmp_path / fault, workflow_id="illicit-consent-remediation", consent_evidence=evidence,
+        tmp_path / fault,
+        workflow_id="illicit-consent-remediation",
+        consent_evidence=evidence,
     )
     assessment = report["outputs"]["assessment"]
     assert assessment["grant_access_before"] == assessment["grant_access_after"] == 200
@@ -291,7 +321,8 @@ def test_consent_rejects_incomplete_or_unbound_grants_without_affecting_benign_a
 
 
 def test_integrated_credential_requires_reviewed_git_before_state(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     def unavailable_pin() -> str:
         raise integrated_lab.GitHistoryScanError("reviewed_runtime_git_pin_required")
@@ -300,7 +331,8 @@ def test_integrated_credential_requires_reviewed_git_before_state(
     state_dir = tmp_path / "missing-runtime-pin"
     with pytest.raises(integrated_lab.GitHistoryScanError, match="reviewed_runtime_git_pin_required"):
         integrated_lab.run_integrated_service_laboratory(
-            state_dir, workflow_id="leaked-credential-blast-radius",
+            state_dir,
+            workflow_id="leaked-credential-blast-radius",
         )
     assert not state_dir.exists()
 
@@ -314,7 +346,8 @@ def test_unknown_integrated_workflow_does_not_create_state(tmp_path: Path) -> No
 
 @pytest.mark.parametrize("change", ("destination", "prior", "action", "authorization", "worker"))
 def test_integrated_approval_rejects_changed_concrete_inputs_before_consumption(
-    tmp_path: Path, change: str,
+    tmp_path: Path,
+    change: str,
 ) -> None:
     definition = integrated_lab.laboratory_workflow("leaked-credential-blast-radius")
     configuration = {"destinations": {"resource": "http://127.0.0.1:10001"}}
@@ -324,13 +357,21 @@ def test_integrated_approval_rejects_changed_concrete_inputs_before_consumption(
     plan = compile_action_plan(definition, "test-bound-inputs", "correlate", resolved, now)
     signer, trust, engagement = make_test_authorization_context(plan)
     executor = SimpleNamespace(
-        workflow_id="leaked-credential-blast-radius", configuration=configuration,
-        executed=["scan"], observations=prior,
+        workflow_id="leaked-credential-blast-radius",
+        configuration=configuration,
+        executed=["scan"],
+        observations=prior,
     )
     control = integrated_lab._IntegratedApprovalControl(
-        ApprovalStore(tmp_path / "approvals.sqlite3"), trust, engagement, now,
-        signer=signer, authorized_until="2026-10-15T13:00:00Z", definition=definition,
-        run_id="test-bound-inputs", executor=executor,
+        ApprovalStore(tmp_path / "approvals.sqlite3"),
+        trust,
+        engagement,
+        now,
+        signer=signer,
+        authorized_until="2026-10-15T13:00:00Z",
+        definition=definition,
+        run_id="test-bound-inputs",
+        executor=executor,
         authorization_ids={"correlate": "auth-correlate"},
     )
     altered = json.loads(json.dumps(resolved))
@@ -358,18 +399,31 @@ def test_integrated_approval_is_single_use_and_binds_prior_stage_output(tmp_path
     configuration = {"destinations": {"resource": "http://127.0.0.1:10001"}}
     prior = {"before_revocation": 200}
     plan = compile_action_plan(
-        definition, "test-once", "assess", {"configuration": configuration, "prior": prior}, now,
+        definition,
+        "test-once",
+        "assess",
+        {"configuration": configuration, "prior": prior},
+        now,
     )
     signer, trust, engagement = make_test_authorization_context(plan)
     store = ApprovalStore(tmp_path / "approvals.sqlite3")
     executor = SimpleNamespace(
-        workflow_id="leaked-credential-blast-radius", configuration=configuration,
-        executed=["scan", "correlate"], observations=prior,
+        workflow_id="leaked-credential-blast-radius",
+        configuration=configuration,
+        executed=["scan", "correlate"],
+        observations=prior,
     )
     control = integrated_lab._IntegratedApprovalControl(
-        store, trust, engagement, now, signer=signer,
-        authorized_until="2026-10-15T13:00:00Z", definition=definition,
-        run_id="test-once", executor=executor, authorization_ids={"assess": "auth-assess-stage"},
+        store,
+        trust,
+        engagement,
+        now,
+        signer=signer,
+        authorized_until="2026-10-15T13:00:00Z",
+        definition=definition,
+        run_id="test-once",
+        executor=executor,
+        authorization_ids={"assess": "auth-assess-stage"},
     )
     receipt = control.consume_authorization("auth-assess-stage", plan, integrated_lab.WORKER)
     assert receipt.plan_digest == plan.plan_digest

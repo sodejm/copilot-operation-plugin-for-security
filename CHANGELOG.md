@@ -13,11 +13,13 @@
 - Keep workflow discovery, validation, and unsigned fixture playback usable
   without optional site packages. Ed25519 evidence signing now loads the
   `crypto` extra only when requested and fails explicitly when unavailable.
+
 - Bind API replay approvals to exact requests, session contexts and complete
   budgets, pin scoped DNS connections, enforce redirect and deadline boundaries, and preserve HTTP
   error responses as evidence. Exercise actual services with signed, persisted
   approvals, use owned execution snapshots, and reject malformed framing,
   post-approval drift, unverified TLS and cross-origin retained bodies or credentials.
+
 - Bound the executable SQL laboratory to its reviewed attack seed, parameterize
   other submitted values, and separate static scanner examples from runtime
   component evidence. Preserve real SQLite/HTTP correction and hash binding.

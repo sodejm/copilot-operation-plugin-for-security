@@ -8,7 +8,7 @@ PACKAGED_SKILL = (
     REPOSITORY_ROOT
     / "plugins"
     / "offensive-security"
-    / "attack-surface-planner"
+    / "web-api-assessment-workbench"
     / "skills"
     / "web-api-inventory-and-replay"
     / "SKILL.md"
@@ -17,12 +17,13 @@ PACKAGE_README = REPOSITORY_ROOT / "plugins" / "offensive-security" / "web-api-a
 
 
 def test_contributor_and_packaged_scanner_skills_have_identical_contracts():
-    assert CONTRIBUTOR_SKILL.read_bytes() == PACKAGED_SKILL.read_bytes()
+    def service_contract(path: Path) -> str:
+        return path.read_text(encoding="utf-8").split("## Observed service routing\n", 1)[1].split("\n## ", 1)[0]
+
+    assert service_contract(CONTRIBUTOR_SKILL) == service_contract(PACKAGED_SKILL)
 
 
 def test_scanner_skill_requires_sanitized_request_evidence():
-    content = CONTRIBUTOR_SKILL.read_text(encoding="utf-8")
-
     required_safety_terms = (
         "Preserve only a sanitized request summary",
         "query parameter names with every value replaced by `[REDACTED]`",

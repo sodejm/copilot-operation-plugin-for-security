@@ -7,17 +7,18 @@ import json
 import re
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+from urllib.parse import parse_qs, urlparse
 
-from cops.evidence.canonical import utc_now
 from cops.discovery.models import EvidenceProvenance
+from cops.evidence.canonical import utc_now
+
 from .models import (
+    SENSITIVE_FIELD_PATTERNS,
     ApiInventory,
     ApiProtocol,
     AuthenticationMechanism,
     AuthType,
     HttpEndpoint,
-    SENSITIVE_FIELD_PATTERNS,
     SessionContext,
     UnsupportedFeature,
     UserRole,
@@ -129,7 +130,9 @@ def _sanitize_headers(
     return clean_headers, auth_mechs
 
 
-def _sanitize_query(query_dict: dict[str, str] | list[dict[str, str]]) -> tuple[dict[str, str], list[AuthenticationMechanism]]:
+def _sanitize_query(
+    query_dict: dict[str, str] | list[dict[str, str]],
+) -> tuple[dict[str, str], list[AuthenticationMechanism]]:
     """Sanitize query parameters and redact sensitive tokens."""
     clean_params: dict[str, str] = {}
     auth_mechs: list[AuthenticationMechanism] = []
@@ -665,7 +668,7 @@ def import_har(
     target_hosts: set[str] = set()
     unsupported: list[UnsupportedFeature] = []
 
-    for idx, entry in enumerate(log.get("entries", [])):
+    for entry in log.get("entries", []):
         req = entry.get("request", {})
         res = entry.get("response", {})
         raw_url = req.get("url", "")
@@ -863,9 +866,13 @@ def import_openapi(
                 if not isinstance(p_name, str) or not p_name:
                     continue
                 if p_in == "query":
-                    query_params[p_name] = redact_credential_value("sample_val") if SENSITIVE_FIELD_PATTERNS.search(p_name) else "string"
+                    query_params[p_name] = (
+                        redact_credential_value("sample_val") if SENSITIVE_FIELD_PATTERNS.search(p_name) else "string"
+                    )
                 elif p_in == "header":
-                    header_params[p_name] = redact_credential_value("sample_val") if SENSITIVE_FIELD_PATTERNS.search(p_name) else "string"
+                    header_params[p_name] = (
+                        redact_credential_value("sample_val") if SENSITIVE_FIELD_PATTERNS.search(p_name) else "string"
+                    )
 
             # Response status codes
             responses = op.get("responses", {})
@@ -1076,13 +1083,13 @@ def import_raw_http(
     body_lines: list[str] = []
     in_body = False
 
-    for l in lines[1:]:
+    for line in lines[1:]:
         if in_body:
-            body_lines.append(l)
-        elif not l.strip():
+            body_lines.append(line)
+        elif not line.strip():
             in_body = True
         else:
-            parts = l.split(":", 1)
+            parts = line.split(":", 1)
             if len(parts) == 2:
                 name = parts[0].strip()
                 if name.lower() == "host" and any(key.lower() == "host" for key in headers_raw):
@@ -1110,7 +1117,7 @@ def import_raw_http(
     body_text = "\n".join(body_lines).strip()
     body_schema = {"sample_length": len(body_text)} if body_text else {}
 
-    endpoint_id = f"ep-{hashlib.sha256(f'{host}:{method}:{path}'.encode('utf-8')).hexdigest()[:12]}"
+    endpoint_id = f"ep-{hashlib.sha256(f'{host}:{method}:{path}'.encode()).hexdigest()[:12]}"
     endpoint = HttpEndpoint(
         endpoint_id=endpoint_id,
         method=method,

@@ -182,9 +182,12 @@ EXPECTED_PLAYBACK_FIELDS: dict[str, dict[tuple[str, ...], object]] = {
 }
 
 CORRECTION_PACKAGES = {
-    "compliance-posture-workbench", "cloud-posture-workbench",
-    "supply-chain-cicd-workbench", "secrets-remediation-workbench",
-    "network-segmentation-workbench", "tls-crypto-workbench",
+    "compliance-posture-workbench",
+    "cloud-posture-workbench",
+    "supply-chain-cicd-workbench",
+    "secrets-remediation-workbench",
+    "network-segmentation-workbench",
+    "tls-crypto-workbench",
 }
 for _package in CORRECTION_PACKAGES:
     EXPECTED_PLAYBACK_FIELDS[_package] = {
@@ -236,7 +239,10 @@ def _assert_playback_semantics(plugin_id: str, result: subprocess.CompletedProce
     if plugin_id in CORRECTION_PACKAGES:
         cases = payload["cases"]
         assert {case["phase"] for case in cases} == {
-            "vulnerable", "corrected", "insufficient", "benign",
+            "vulnerable",
+            "corrected",
+            "insufficient",
+            "benign",
         }
         for case in cases:
             if case["phase"] == "vulnerable":

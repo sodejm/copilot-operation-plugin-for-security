@@ -167,9 +167,7 @@ def _entrypoint(
     )
     writes = _explicit_outputs(argv, working_directory=working_directory)
     script_path = (working_directory / PurePosixPath(argv[1])).as_posix()
-    reads = _dedupe_strings(
-        [script_path, *_explicit_inputs(argv, working_directory=working_directory)]
-    )
+    reads = _dedupe_strings([script_path, *_explicit_inputs(argv, working_directory=working_directory)])
     return {
         "id": entrypoint_id,
         "purpose": purpose,
@@ -207,9 +205,7 @@ def _entrypoint(
                 "no durable destination is declared, not that the implementation performs no "
                 "temporary writes"
             ),
-            "temporary_storage": (
-                "implementation-controlled and not retained; location is not declared by argv"
-            ),
+            "temporary_storage": ("implementation-controlled and not retained; location is not declared by argv"),
             "network": "none declared by the offline package contract",
             "authorization": _auth_effect(limitations),
             "subprocess": (
@@ -290,9 +286,7 @@ def _render_operator_playbook(content: str) -> str:
     return f"{content}{separator}{block}\n"
 
 
-def _render_plugin(
-    root: Path, record: dict[str, Any]
-) -> tuple[RenderedAsset, RenderedAsset, RenderedAsset]:
+def _render_plugin(root: Path, record: dict[str, Any]) -> tuple[RenderedAsset, RenderedAsset, RenderedAsset]:
     plugin_id = record["id"]
     package_path = _safe_relative(record["path"], label=f"catalog plugin {plugin_id} path")
     package_dir = root / package_path
@@ -363,9 +357,7 @@ def _render_plugin(
             safe = _safe_relative(value, label=f"{plugin_id} authored input")
             if not (package_dir / safe).exists():
                 raise GenerationError(f"{plugin_id} authored input does not exist: {value}")
-        authored_limitations = _string_list(
-            authored.get("limitations"), label=f"{plugin_id} authored limitations"
-        )
+        authored_limitations = _string_list(authored.get("limitations"), label=f"{plugin_id} authored limitations")
         limitations = _dedupe_strings([*limitations, *authored_limitations])
         authored_commands = _authored_commands(authored_markdown_path.read_text(encoding="utf-8"))
         if not authored_commands:
@@ -506,9 +498,7 @@ def _render_walkthrough(
         )
 
     lines.extend(["", "## Cleanup and reset", ""])
-    write_paths = _dedupe_strings(
-        [path for entrypoint in entrypoints for path in entrypoint["effects"]["writes"]]
-    )
+    write_paths = _dedupe_strings([path for entrypoint in entrypoints for path in entrypoint["effects"]["writes"]])
     if write_paths:
         lines.append("Remove only the declared generated destinations after reviewing their evidence:")
         lines.append("")
@@ -528,7 +518,8 @@ def _render_walkthrough(
             "",
             "Restore or delete only files created by the walkthrough. Do not reset unrelated work.",
             "",
-            "## Limits", "",
+            "## Limits",
+            "",
             *[f"- {value}" for value in limitations],
             "- Isolated laboratory execution is unverified unless separate run evidence says otherwise.",
             "- These offline commands do not establish source authenticity or permission for live actions.",

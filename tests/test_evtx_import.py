@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from cops.adapters.evtx import EvtxImportError, import_evtx, validate_evtx
 from cops.adapters import _evtx_worker, evtx
+from cops.adapters.evtx import EvtxImportError, import_evtx, validate_evtx
 
 FIXTURES = Path(__file__).resolve().parents[1] / "cops/laboratory/service_fixtures"
 
@@ -100,8 +100,8 @@ def test_malformed_framing(change):
         else:
             struct.pack_into("<Q", raw, 4096 + 16, 9)
         end = struct.unpack_from("<I", raw, 4096 + 48)[0]
-        struct.pack_into("<I", raw, 4096 + 52, zlib.crc32(raw[4096 + 512:4096 + end]))
-        struct.pack_into("<I", raw, 4096 + 124, zlib.crc32(raw[4096:4096 + 120] + raw[4096 + 128:4096 + 512]))
+        struct.pack_into("<I", raw, 4096 + 52, zlib.crc32(raw[4096 + 512 : 4096 + end]))
+        struct.pack_into("<I", raw, 4096 + 124, zlib.crc32(raw[4096 : 4096 + 120] + raw[4096 + 128 : 4096 + 512]))
     else:
         struct.pack_into("<I" if change == "dirty" else "<Q", raw, 120 if change == "dirty" else 8, 1)
         struct.pack_into("<I", raw, 124, zlib.crc32(raw[:120]))
@@ -118,18 +118,23 @@ def test_invalid_record_budget(budget):
 
 def event_xml(*, provider="Microsoft-Windows-Sysmon", event_id=1, fields=None):
     from xml.sax.saxutils import escape
+
     if fields is None:
         fields = {"Image": r"C:\private\powershell.exe", "CommandLine": "powershell -enc PRIVATE_VALUE"}
     data = "".join(f'<Data Name="{escape(key)}">{escape(value)}</Data>' for key, value in fields.items())
-    return (f'<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event"><System>'
-            f'<Provider Name="{provider}"/><EventID>{event_id}</EventID>'
-            '<EventRecordID>1</EventRecordID><TimeCreated SystemTime="2026-10-15T12:00:00Z"/>'
-            f'</System><EventData>{data}</EventData></Event>')
+    return (
+        f'<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event"><System>'
+        f'<Provider Name="{provider}"/><EventID>{event_id}</EventID>'
+        '<EventRecordID>1</EventRecordID><TimeCreated SystemTime="2026-10-15T12:00:00Z"/>'
+        f"</System><EventData>{data}</EventData></Event>"
+    )
 
 
 def test_normalization_omits_source_secrets_and_does_not_execute_content(tmp_path):
     marker = tmp_path / "must-not-exist"
-    result = _evtx_worker.normalize(event_xml(fields={"Image": "powershell.exe", "CommandLine": f"-enc PRIVATE_VALUE; touch {marker}"}), 1)
+    result = _evtx_worker.normalize(
+        event_xml(fields={"Image": "powershell.exe", "CommandLine": f"-enc PRIVATE_VALUE; touch {marker}"}), 1
+    )
     assert result["event"]["encoded_command"] is True
     assert result["event"]["image_family"] == "powershell"
     assert "PRIVATE_VALUE" not in json.dumps(result)
@@ -137,51 +142,83 @@ def test_normalization_omits_source_secrets_and_does_not_execute_content(tmp_pat
     assert not marker.exists()
 
 
-@pytest.mark.parametrize("options,reason", [
-    ({"provider": "Unknown"}, "unsupported_provider"),
-    ({"event_id": 42}, "unsupported_event_id"),
-    ({"fields": {"Image": "powershell.exe"}}, "missing_event_fields"),
-])
+@pytest.mark.parametrize(
+    "options,reason",
+    [
+        ({"provider": "Unknown"}, "unsupported_provider"),
+        ({"event_id": 42}, "unsupported_event_id"),
+        ({"fields": {"Image": "powershell.exe"}}, "missing_event_fields"),
+    ],
+)
 def test_unsupported_and_missing_records_remain_incomplete(options, reason):
     assert _evtx_worker.normalize(event_xml(**options), 1) == {"record_id": 1, "incomplete": reason}
 
 
-@pytest.mark.parametrize("mutation", [
-    lambda xml: '<!DOCTYPE Event [<!ENTITY x "private">]>' + xml,
-    lambda xml: xml.replace("<EventID>1</EventID>", "<EventID>1</EventID><EventID>1</EventID>"),
-    lambda xml: xml.replace("</EventData>", '<Data Name="Image">cmd.exe</Data></EventData>'),
-    lambda xml: xml.replace("<EventRecordID>1", "<EventRecordID>2"),
-    lambda xml: xml.replace("12:00:00Z", "12:00:00"),
-    lambda xml: xml.replace("PRIVATE_VALUE", "x" * _evtx_worker.MAX_XML),
-])
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda xml: '<!DOCTYPE Event [<!ENTITY x "private">]>' + xml,
+        lambda xml: xml.replace("<EventID>1</EventID>", "<EventID>1</EventID><EventID>1</EventID>"),
+        lambda xml: xml.replace("</EventData>", '<Data Name="Image">cmd.exe</Data></EventData>'),
+        lambda xml: xml.replace("<EventRecordID>1", "<EventRecordID>2"),
+        lambda xml: xml.replace("12:00:00Z", "12:00:00"),
+        lambda xml: xml.replace("PRIVATE_VALUE", "x" * _evtx_worker.MAX_XML),
+    ],
+)
 def test_hostile_xml_is_rejected(mutation):
     with pytest.raises(ValueError):
         _evtx_worker.normalize(mutation(event_xml()), 1)
 
 
 def test_process_access_and_ipv6_are_typed():
-    access = _evtx_worker.normalize(event_xml(event_id=10, fields={
-        "SourceImage": "unknown.exe", "TargetImage": r"C:\Windows\lsass.exe", "GrantedAccess": "0x1010",
-    }), 1)["event"]
+    access = _evtx_worker.normalize(
+        event_xml(
+            event_id=10,
+            fields={
+                "SourceImage": "unknown.exe",
+                "TargetImage": r"C:\Windows\lsass.exe",
+                "GrantedAccess": "0x1010",
+            },
+        ),
+        1,
+    )["event"]
     assert access["target_is_lsass"] and access["process_read_access"]
-    network = _evtx_worker.normalize(event_xml(event_id=3, fields={
-        "Image": "pwsh.exe", "SourceIp": "2001:db8::1", "DestinationIp": "2001:0db8::2",
-    }), 1)["event"]
+    network = _evtx_worker.normalize(
+        event_xml(
+            event_id=3,
+            fields={
+                "Image": "pwsh.exe",
+                "SourceIp": "2001:db8::1",
+                "DestinationIp": "2001:0db8::2",
+            },
+        ),
+        1,
+    )["event"]
     assert network["destination_ip"] == "2001:db8::2"
     with pytest.raises(ValueError):
-        _evtx_worker.normalize(event_xml(event_id=3, fields={
-            "Image": "pwsh.exe", "SourceIp": "fe80::1%eth0", "DestinationIp": "::1",
-        }), 1)
+        _evtx_worker.normalize(
+            event_xml(
+                event_id=3,
+                fields={
+                    "Image": "pwsh.exe",
+                    "SourceIp": "fe80::1%eth0",
+                    "DestinationIp": "::1",
+                },
+            ),
+            1,
+        )
 
 
 def test_deadline_cleans_private_snapshot_and_preserves_original(monkeypatch):
     directories = []
     path, digest = fixture("vulnerable")
+
     def timeout(argv, **kwargs):
         directories.append(Path(kwargs["cwd"]))
         assert Path(argv[3]).read_bytes() == path.read_bytes()
         assert kwargs["env"] == {} and kwargs["stderr"] == subprocess.DEVNULL
         raise subprocess.TimeoutExpired(argv, kwargs["timeout"])
+
     monkeypatch.setattr(evtx.subprocess, "run", timeout)
     with pytest.raises(EvtxImportError, match="parser_deadline"):
         import_evtx(path, expected_sha256=digest, deadline=0.1)
@@ -189,11 +226,14 @@ def test_deadline_cleans_private_snapshot_and_preserves_original(monkeypatch):
     assert hashlib.sha256(path.read_bytes()).hexdigest() == digest
 
 
-@pytest.mark.parametrize("error", ["parser_unavailable", "parser_version_mismatch", "unsupported_parser_platform", "PRIVATE_VALUE"])
+@pytest.mark.parametrize(
+    "error", ["parser_unavailable", "parser_version_mismatch", "unsupported_parser_platform", "PRIVATE_VALUE"]
+)
 def test_parser_errors_are_fixed_and_redacted(monkeypatch, error):
     def failed(argv, **kwargs):
         kwargs["stdout"].write(json.dumps({"error": error}).encode())
         return subprocess.CompletedProcess(argv, 0)
+
     monkeypatch.setattr(evtx.subprocess, "run", failed)
     path, digest = fixture("vulnerable")
     with pytest.raises(EvtxImportError) as exc:
@@ -201,11 +241,15 @@ def test_parser_errors_are_fixed_and_redacted(monkeypatch, error):
     assert str(exc.value) == ("parser_failed" if error == "PRIVATE_VALUE" else error)
 
 
-@pytest.mark.parametrize("rows", [
-    [], [{"record_id": 2, "incomplete": "missing_event_fields"}],
-    [{"record_id": 1, "incomplete": "PRIVATE_VALUE"}],
-    [{"record_id": 1, "event": {"CommandLine": "PRIVATE_VALUE"}}],
-])
+@pytest.mark.parametrize(
+    "rows",
+    [
+        [],
+        [{"record_id": 2, "incomplete": "missing_event_fields"}],
+        [{"record_id": 1, "incomplete": "PRIVATE_VALUE"}],
+        [{"record_id": 1, "event": {"CommandLine": "PRIVATE_VALUE"}}],
+    ],
+)
 def test_parser_output_tampering_is_rejected(monkeypatch, rows):
     monkeypatch.setattr(evtx, "_parse_snapshot", lambda *args: {"records": rows})
     path, digest = fixture("insufficient")
@@ -215,16 +259,20 @@ def test_parser_output_tampering_is_rejected(monkeypatch, rows):
 
 def test_binary_fixtures_are_reproducible():
     from scripts.build_evtx_fixtures import fixtures
+
     for name, expected in fixtures().items():
         assert (FIXTURES / name).read_bytes() == expected
 
 
 def test_cli_dispatches_to_registered_importer(monkeypatch, capsys):
     from cops.cli import main
+
     calls = []
+
     def imported(path, **kwargs):
         calls.append((path, kwargs))
         return {"schema_version": "cops.evtx-import/v1", "status": "partial"}
+
     monkeypatch.setattr(evtx, "import_evtx", imported)
     path, digest = fixture("insufficient")
     assert main(["telemetry", "import-evtx", "--input", str(path), "--sha256", digest]) == 0

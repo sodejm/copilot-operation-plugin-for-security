@@ -3,9 +3,9 @@
 import hashlib
 import json
 import os
-from pathlib import Path
 import shutil
 import subprocess
+from pathlib import Path
 
 
 def main() -> None:
@@ -16,7 +16,11 @@ def main() -> None:
         raise SystemExit("The reviewed base image must contain Git")
     resolved = Path(executable).resolve(strict=True)
     version = subprocess.run(
-        [str(resolved), "--version"], check=True, capture_output=True, text=True, timeout=10,
+        [str(resolved), "--version"],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=10,
         env={"PATH": "/usr/bin:/bin", "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null"},
     ).stdout.strip()
     if version != "git version 2.47.3":
@@ -24,10 +28,19 @@ def main() -> None:
     with resolved.open("rb") as stream:
         digest = hashlib.file_digest(stream, "sha256").hexdigest()
     destination = Path("/opt/cops-runtime/git-prerequisite.json")
-    destination.write_text(json.dumps({
-        "schema_version": "cops.runtime-prerequisite/v1",
-        "tool": "git", "sha256": digest, "version": version,
-    }, sort_keys=True) + "\n", encoding="utf-8")
+    destination.write_text(
+        json.dumps(
+            {
+                "schema_version": "cops.runtime-prerequisite/v1",
+                "tool": "git",
+                "sha256": digest,
+                "version": version,
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     destination.chmod(0o444)
 
 

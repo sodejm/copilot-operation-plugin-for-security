@@ -6,9 +6,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-from pathlib import Path
 import sys
-
+from pathlib import Path
 
 RUNTIME_MODULES = (
     "cops/__init__.py",

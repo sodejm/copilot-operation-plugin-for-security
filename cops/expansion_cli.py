@@ -87,17 +87,20 @@ def _workflow_preview(definition: Any) -> dict[str, Any]:
         "workflow_id": definition.workflow_id,
         "definition_digest": definition.definition_digest,
         "specialists": list(dict.fromkeys(stage["action"]["specialist_id"] for stage in value["stages"])),
-        "actions": [{
-            "stage_id": stage["stage_id"],
-            "action": stage["action"]["action"],
-            "target": stage["action"]["target"],
-            "dependencies": stage["depends_on"],
-            "effects": stage["action"].get("side_effects", "unknown"),
-            "destinations": stage["action"].get("egress_policy", "unknown"),
-            "expected_evidence": stage["action"].get("expected_evidence", "unknown"),
-            "authorization": "new bound ActionPlan authorization required for execution",
-            "noise": "unknown",
-        } for stage in value["stages"]],
+        "actions": [
+            {
+                "stage_id": stage["stage_id"],
+                "action": stage["action"]["action"],
+                "target": stage["action"]["target"],
+                "dependencies": stage["depends_on"],
+                "effects": stage["action"].get("side_effects", "unknown"),
+                "destinations": stage["action"].get("egress_policy", "unknown"),
+                "expected_evidence": stage["action"].get("expected_evidence", "unknown"),
+                "authorization": "new bound ActionPlan authorization required for execution",
+                "noise": "unknown",
+            }
+            for stage in value["stages"]
+        ],
         "budget": value["budget"],
         "side_effects_performed": False,
         "approvals_consumed": False,
@@ -113,14 +116,28 @@ def dispatch_expansion_command(args: argparse.Namespace, root: Path) -> int:
             from .adapters.forensic import import_forensic_image, load_forensic_manifest
 
             manifest = load_forensic_manifest(args.manifest)
-            print(json.dumps(import_forensic_image(args.root, manifest, max_bytes=args.max_bytes), indent=2, sort_keys=True))
+            print(
+                json.dumps(
+                    import_forensic_image(args.root, manifest, max_bytes=args.max_bytes), indent=2, sort_keys=True
+                )
+            )
             return 0
         if args.command == "telemetry":
             from .adapters.evtx import import_evtx
 
-            print(json.dumps(import_evtx(args.input, expected_sha256=args.sha256,
-                                        max_bytes=args.max_bytes, max_records=args.max_records,
-                                        deadline=args.deadline), indent=2, sort_keys=True))
+            print(
+                json.dumps(
+                    import_evtx(
+                        args.input,
+                        expected_sha256=args.sha256,
+                        max_bytes=args.max_bytes,
+                        max_records=args.max_records,
+                        deadline=args.deadline,
+                    ),
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
             return 0
         if args.command == "web-api":
             from .web_api.cli import command_web_api
@@ -160,8 +177,11 @@ def dispatch_expansion_command(args: argparse.Namespace, root: Path) -> int:
                     raise ValueError("invalid_source_anchors")
                 anchors = tuple(SourceAnchor(**anchor) for anchor in document["anchors"])
             content = export_report(
-                load_bounded_json(args.input), format=args.format,
-                repository_root=args.repository_root, revision=args.revision, source_anchors=anchors,
+                load_bounded_json(args.input),
+                format=args.format,
+                repository_root=args.repository_root,
+                revision=args.revision,
+                source_anchors=anchors,
             )
             if args.output is None:
                 print(content)
@@ -171,7 +191,9 @@ def dispatch_expansion_command(args: argparse.Namespace, root: Path) -> int:
         if args.command == "workflow":
             from .preview import render_preview
             from .workflows.playback import (
-                load_integrated_workflows, run_fixture_profile, run_offline_playback,
+                load_integrated_workflows,
+                run_fixture_profile,
+                run_offline_playback,
                 validate_integrated_workflow_catalog,
             )
 
@@ -189,10 +211,15 @@ def dispatch_expansion_command(args: argparse.Namespace, root: Path) -> int:
                     print(render_preview(document))
                     return 0
             elif args.profile is not None:
-                document = run_fixture_profile(args.workflow_id, args.profile, catalog_dir=catalog_dir, run_id=args.run_id)
+                document = run_fixture_profile(
+                    args.workflow_id, args.profile, catalog_dir=catalog_dir, run_id=args.run_id
+                )
             else:
                 document = run_offline_playback(
-                    args.workflow_id, load_bounded_json(args.input), catalog_dir=catalog_dir, run_id=args.run_id,
+                    args.workflow_id,
+                    load_bounded_json(args.input),
+                    catalog_dir=catalog_dir,
+                    run_id=args.run_id,
                 )
             print(json.dumps(document, indent=2, sort_keys=True))
             return 0

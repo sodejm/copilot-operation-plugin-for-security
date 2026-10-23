@@ -9,7 +9,6 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-
 SCHEMA = "cops.consent-evidence/v1"
 
 
@@ -24,8 +23,12 @@ def _time(value: Any) -> datetime | None:
 def assess_consent(evidence: dict[str, Any]) -> dict[str, Any]:
     """Require complete, unique, in-window records before proposing a target."""
     limitations = ["imported risk and completeness assertions; production Entra validation unverified"]
-    unresolved = {"status": "insufficient_evidence", "targets": [], "evidence_refs": [],
-                  "limitations": limitations + ["missing, malformed, or conflicting tenant-bound evidence"]}
+    unresolved = {
+        "status": "insufficient_evidence",
+        "targets": [],
+        "evidence_refs": [],
+        "limitations": limitations + ["missing, malformed, or conflicting tenant-bound evidence"],
+    }
     if not isinstance(evidence, dict) or evidence.get("schema_version") != SCHEMA:
         return unresolved
     coverage = evidence.get("coverage")
@@ -42,8 +45,9 @@ def assess_consent(evidence: dict[str, Any]) -> dict[str, Any]:
             return unresolved
         seen = set()
         for item in items:
-            if not isinstance(item, dict) or any(not isinstance(item.get(key), str) or not item[key]
-                                                 for key in ("id", "tenant_id", "evidence_ref")):
+            if not isinstance(item, dict) or any(
+                not isinstance(item.get(key), str) or not item[key] for key in ("id", "tenant_id", "evidence_ref")
+            ):
                 return unresolved
             observed = _time(item.get("observed_at"))
             if item["tenant_id"] != tenant or not observed or not start <= observed <= end or item["id"] in seen:
@@ -56,21 +60,35 @@ def assess_consent(evidence: dict[str, Any]) -> dict[str, Any]:
     if len({item["app_id"] for item in principals.values()}) != len(principals):
         return unresolved
     for signin in records["signins"]:
-        if (type(signin.get("suspicious")) is not bool or not isinstance(signin.get("user_id"), str)
-                or not signin["user_id"] or not isinstance(signin.get("app_id"), str)
-                or signin["app_id"] not in {item["app_id"] for item in principals.values()}):
+        if (
+            type(signin.get("suspicious")) is not bool
+            or not isinstance(signin.get("user_id"), str)
+            or not signin["user_id"]
+            or not isinstance(signin.get("app_id"), str)
+            or signin["app_id"] not in {item["app_id"] for item in principals.values()}
+        ):
             return unresolved
     targets, refs = [], set()
     for grant in records["grants"]:
         principal = principals.get(grant.get("client_id")) if isinstance(grant.get("client_id"), str) else None
         consent_type = grant.get("consent_type")
-        if (not principal or type(grant.get("high_privilege")) is not bool
-                or not isinstance(consent_type, str) or consent_type not in {"AllPrincipals", "Principal"}):
+        if (
+            not principal
+            or type(grant.get("high_privilege")) is not bool
+            or not isinstance(consent_type, str)
+            or consent_type not in {"AllPrincipals", "Principal"}
+        ):
             return unresolved
-        if consent_type == "Principal" and (not isinstance(grant.get("principal_id"), str) or not grant["principal_id"]):
+        if consent_type == "Principal" and (
+            not isinstance(grant.get("principal_id"), str) or not grant["principal_id"]
+        ):
             return unresolved
-        matches = [item for item in records["signins"] if item["app_id"] == principal["app_id"]
-                   and (consent_type == "AllPrincipals" or item["user_id"] == grant["principal_id"])]
+        matches = [
+            item
+            for item in records["signins"]
+            if item["app_id"] == principal["app_id"]
+            and (consent_type == "AllPrincipals" or item["user_id"] == grant["principal_id"])
+        ]
         if not matches:
             return unresolved
         suspicious = [item for item in matches if item["suspicious"]]

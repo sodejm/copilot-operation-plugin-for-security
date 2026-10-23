@@ -15,7 +15,7 @@ import stat
 import subprocess
 import tempfile
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -23,7 +23,10 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from cops.assessments.git_history import (
-    GitHistoryScanError, _safe_environment, pinned_git_executable, scan_git_history,
+    GitHistoryScanError,
+    _safe_environment,
+    pinned_git_executable,
+    scan_git_history,
 )
 from cops.contracts.models import Engagement
 from cops.evidence.canonical import canonical, digest
@@ -34,14 +37,16 @@ from cops.execution.authorization import (
     create_execution_authorization,
 )
 from cops.execution.store import ApprovalStore
-from cops.laboratory.exposure_dns import ADDRESS as EXPOSURE_ADDRESS, HOST as EXPOSURE_HOST, resolve_exposure
+from cops.laboratory.exposure_dns import ADDRESS as EXPOSURE_ADDRESS
+from cops.laboratory.exposure_dns import HOST as EXPOSURE_HOST
+from cops.laboratory.exposure_dns import resolve_exposure
 from cops.laboratory.service_boundaries import run_boundary_acceptance
 from cops.laboratory.service_lab import (
     FIXTURE_DIRECTORY,
-    _Graph,
-    _Telemetry,
     _execute_detection_rules,
+    _Graph,
     _request_json,
+    _Telemetry,
     load_consent_fixture,
     probe_isolated_runtime,
     verify_fixture_manifest,
@@ -50,8 +55,8 @@ from cops.laboratory.workflow_lab import (
     IOC,
     WORKER,
     IsolationRequiredError,
-    _LaboratoryApprovalControl,
     _action,
+    _LaboratoryApprovalControl,
     _utc,
 )
 from cops.workflows.consent_evidence import assess_consent
@@ -65,22 +70,39 @@ from cops.workflows.runtime import (
     compile_action_plan,
 )
 
-
 WORKFLOW_STAGES = {
     "leaked-credential-blast-radius": (
-        "scan", "correlate", "assess", "revoke", "verify", "bundle",
+        "scan",
+        "correlate",
+        "assess",
+        "revoke",
+        "verify",
+        "bundle",
     ),
     "cve-reachability-triage": (
-        "dependencies", "observe", "controls", "remediate",
+        "dependencies",
+        "observe",
+        "controls",
+        "remediate",
     ),
     "illicit-consent-remediation": (
-        "snapshot", "correlate", "propose", "revoke", "verify",
+        "snapshot",
+        "correlate",
+        "propose",
+        "revoke",
+        "verify",
     ),
     "detection-rule-ci-validation": (
-        "rules", "attack", "benign", "measure",
+        "rules",
+        "attack",
+        "benign",
+        "measure",
     ),
     "pre-release-exposure-audit": (
-        "inventory", "connect", "authentication", "report",
+        "inventory",
+        "connect",
+        "authentication",
+        "report",
     ),
 }
 
@@ -109,11 +131,19 @@ def _purple_evidence_views(telemetry: _Telemetry, alerts: list[dict[str, Any]]) 
     return {
         "source": "captured-service-activity",
         "source_digests": evidence,
-        "handoff": handoff.to_dict(), "handoff_digest": handoff.handoff_digest,
+        "handoff": handoff.to_dict(),
+        "handoff_digest": handoff.handoff_digest,
         "views": {
-            name: {"evidence_view": label, "result": evaluate_purple_team_handoff(
-                handoff, logs, matches, attack_fixture=attack, benign_fixture=benign,
-            )}
+            name: {
+                "evidence_view": label,
+                "result": evaluate_purple_team_handoff(
+                    handoff,
+                    logs,
+                    matches,
+                    attack_fixture=attack,
+                    benign_fixture=benign,
+                ),
+            }
             for name, label, logs, matches in views
         },
     }
@@ -126,14 +156,21 @@ def _runtime_git_pin() -> str:
         descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
         with os.fdopen(descriptor, "rb") as stream:
             metadata = os.fstat(stream.fileno())
-            if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0
-                    or metadata.st_mode & 0o022 or metadata.st_size > 4096):
+            if (
+                not stat.S_ISREG(metadata.st_mode)
+                or metadata.st_uid != 0
+                or metadata.st_mode & 0o022
+                or metadata.st_size > 4096
+            ):
                 raise ValueError("untrusted_git_prerequisite")
             value = json.loads(stream.read(4097))
-        if (value.get("schema_version") != "cops.runtime-prerequisite/v1"
-                or value.get("tool") != "git" or not isinstance(value.get("sha256"), str)
-                or len(value["sha256"]) != 64
-                or any(item not in "0123456789abcdef" for item in value["sha256"])):
+        if (
+            value.get("schema_version") != "cops.runtime-prerequisite/v1"
+            or value.get("tool") != "git"
+            or not isinstance(value.get("sha256"), str)
+            or len(value["sha256"]) != 64
+            or any(item not in "0123456789abcdef" for item in value["sha256"])
+        ):
             raise ValueError("invalid_git_prerequisite")
         return value["sha256"]
     except (OSError, ValueError, AttributeError) as error:
@@ -146,23 +183,45 @@ def _scan_disposable_credential(token: str, git_sha256: str) -> dict[str, Any]:
     with tempfile.TemporaryDirectory(prefix="cops-credential-history-") as temporary:
         repository = Path(temporary).resolve()
         environment = _safe_environment()
-        environment.update({
-            "GIT_AUTHOR_NAME": "COPS Laboratory", "GIT_COMMITTER_NAME": "COPS Laboratory",
-            "GIT_AUTHOR_EMAIL": "fixture@example.invalid", "GIT_COMMITTER_EMAIL": "fixture@example.invalid",
-            "GIT_AUTHOR_DATE": "2026-10-15T12:00:00+00:00", "GIT_COMMITTER_DATE": "2026-10-15T12:00:00+00:00",
-        })
+        environment.update(
+            {
+                "GIT_AUTHOR_NAME": "COPS Laboratory",
+                "GIT_COMMITTER_NAME": "COPS Laboratory",
+                "GIT_AUTHOR_EMAIL": "fixture@example.invalid",
+                "GIT_COMMITTER_EMAIL": "fixture@example.invalid",
+                "GIT_AUTHOR_DATE": "2026-10-15T12:00:00+00:00",
+                "GIT_COMMITTER_DATE": "2026-10-15T12:00:00+00:00",
+            }
+        )
         with pinned_git_executable(git_sha256, deadline=deadline) as git:
+
             def command(*arguments: str) -> None:
                 try:
                     subprocess.run(
-                        [git, "-c", "core.hooksPath=" + os.devnull, "-c", "commit.gpgSign=false",
-                         "-c", "gc.auto=0", "-c", "maintenance.auto=false", *arguments],
-                        cwd=repository, env=environment, stdin=subprocess.DEVNULL,
-                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                        shell=False, check=True, timeout=max(0.01, deadline - time.monotonic()),
+                        [
+                            git,
+                            "-c",
+                            "core.hooksPath=" + os.devnull,
+                            "-c",
+                            "commit.gpgSign=false",
+                            "-c",
+                            "gc.auto=0",
+                            "-c",
+                            "maintenance.auto=false",
+                            *arguments,
+                        ],
+                        cwd=repository,
+                        env=environment,
+                        stdin=subprocess.DEVNULL,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        shell=False,
+                        check=True,
+                        timeout=max(0.01, deadline - time.monotonic()),
                     )
                 except (OSError, subprocess.SubprocessError) as error:
                     raise GitHistoryScanError("disposable_git_fixture_failed") from error
+
             command("init", "--quiet", "--template=")
             target = repository / "synthetic-credential.txt"
             target.write_text(token + "\n", encoding="utf-8")
@@ -173,9 +232,14 @@ def _scan_disposable_credential(token: str, git_sha256: str) -> dict[str, Any]:
             command("commit", "--quiet", "-m", "remove exposed credential from HEAD")
 
         def snapshot() -> dict[str, tuple[int, str]]:
-            return {item.relative_to(repository).as_posix(): (
-                item.stat().st_mode, hashlib.sha256(item.read_bytes()).hexdigest(),
-            ) for item in repository.rglob("*") if item.is_file()}
+            return {
+                item.relative_to(repository).as_posix(): (
+                    item.stat().st_mode,
+                    hashlib.sha256(item.read_bytes()).hexdigest(),
+                )
+                for item in repository.rglob("*")
+                if item.is_file()
+            }
 
         before = snapshot()
         artifact = scan_git_history(repository, expected_git_sha256=git_sha256)
@@ -188,9 +252,13 @@ def _scan_disposable_credential(token: str, git_sha256: str) -> dict[str, Any]:
         )
     return {
         "source": "disposable-git-history-and-service-issued-credential",
-        "fingerprint": fingerprint, "value_redacted": True, "artifact": artifact,
-        "same_credential_observed": matched, "historical_exposure_observed": historical,
-        "repository_unchanged_by_scan": unchanged, "disposable_repository_removed": not repository.exists(),
+        "fingerprint": fingerprint,
+        "value_redacted": True,
+        "artifact": artifact,
+        "same_credential_observed": matched,
+        "historical_exposure_observed": historical,
+        "repository_unchanged_by_scan": unchanged,
+        "disposable_repository_removed": not repository.exists(),
     }
 
 
@@ -201,43 +269,58 @@ def laboratory_workflow(workflow_id: str) -> WorkflowDefinition:
     for index, name in enumerate(names):
         inputs = {
             "configuration": {
-                "type": "object", "source": "workflow.input.configuration",
+                "type": "object",
+                "source": "workflow.input.configuration",
             },
         }
         if index:
             inputs["prior"] = {
-                "type": "object", "source": "stage." + names[index - 1] + ".output.observations",
-            }
-        stages.append({
-            "stage_id": name,
-            "depends_on": list(names[index - 1:index]) if index else [],
-            "inputs": inputs,
-            "outputs": {"observations": {"type": "object"}},
-            "action": _action(name),
-        })
-    return WorkflowDefinition.from_dict({
-        "schema_version": "cops.workflow-definition/v1",
-        "workflow_id": "laboratory-" + workflow_id,
-        "engagement_id": "eng-integrated-laboratory",
-        "scenario_id": "scen-" + workflow_id,
-        "inputs": {"configuration": {"type": "object", "required": True}},
-        "outputs": {
-            "assessment": {
                 "type": "object",
-                "source": "stage." + names[-1] + ".output.observations",
+                "source": "stage." + names[index - 1] + ".output.observations",
+            }
+        stages.append(
+            {
+                "stage_id": name,
+                "depends_on": list(names[index - 1 : index]) if index else [],
+                "inputs": inputs,
+                "outputs": {"observations": {"type": "object"}},
+                "action": _action(name),
+            }
+        )
+    return WorkflowDefinition.from_dict(
+        {
+            "schema_version": "cops.workflow-definition/v1",
+            "workflow_id": "laboratory-" + workflow_id,
+            "engagement_id": "eng-integrated-laboratory",
+            "scenario_id": "scen-" + workflow_id,
+            "inputs": {"configuration": {"type": "object", "required": True}},
+            "outputs": {
+                "assessment": {
+                    "type": "object",
+                    "source": "stage." + names[-1] + ".output.observations",
+                },
             },
-        },
-        "budget": {
-            "max_stages": len(names), "max_total_attempts": len(names),
-            "max_output_bytes": 262144, "max_evidence_refs": 64,
-        },
-        "stages": stages,
-    })
+            "budget": {
+                "max_stages": len(names),
+                "max_total_attempts": len(names),
+                "max_output_bytes": 262144,
+                "max_evidence_refs": 64,
+            },
+            "stages": stages,
+        }
+    )
 
 
 class _IntegratedExecutor:
-    def __init__(self, graph: _Graph, workflow_id: str, configuration: dict[str, Any],
-                 telemetry: _Telemetry, token: str, benign_token: str | None = None) -> None:
+    def __init__(
+        self,
+        graph: _Graph,
+        workflow_id: str,
+        configuration: dict[str, Any],
+        telemetry: _Telemetry,
+        token: str,
+        benign_token: str | None = None,
+    ) -> None:
         self.graph = graph
         self.workflow_id = workflow_id
         self.configuration = copy.deepcopy(configuration)
@@ -249,12 +332,25 @@ class _IntegratedExecutor:
         self.executed: list[str] = []
         self.cleanup_count = 0
 
-    def request(self, service: str, path: str, *, method: str = "GET",
-                payload: dict[str, Any] | None = None, authenticated: bool = False,
-                benign: bool = False, host: str | None = None) -> tuple[int, dict[str, Any]]:
+    def request(
+        self,
+        service: str,
+        path: str,
+        *,
+        method: str = "GET",
+        payload: dict[str, Any] | None = None,
+        authenticated: bool = False,
+        benign: bool = False,
+        host: str | None = None,
+    ) -> tuple[int, dict[str, Any]]:
         destination = self.configuration["destinations"][service] + path
-        status, body = _request_json(destination, method=method, payload=payload, host=host,
-                                     token=(self.benign_token if benign else self.token) if authenticated else None)
+        status, body = _request_json(
+            destination,
+            method=method,
+            payload=payload,
+            host=host,
+            token=(self.benign_token if benign else self.token) if authenticated else None,
+        )
         # Neither response bodies nor credential-bearing request bodies enter reports.
         self.requests.append({"destination": destination, "method": method, "status": status})
         return status, body
@@ -278,7 +374,8 @@ class _IntegratedExecutor:
         if failure_reason:
             return StageExecutionResult("failed", reason=failure_reason)
         return StageExecutionResult(
-            "success", outputs={"observations": copy.deepcopy(self.observations)},
+            "success",
+            outputs={"observations": copy.deepcopy(self.observations)},
             evidence_refs=("laboratory:" + idempotency_key,),
         )
 
@@ -290,13 +387,16 @@ class _IntegratedExecutor:
     def _leaked_credential_blast_radius(self, name: str) -> None:
         if name == "scan":
             self.observations["synthetic_exposure"] = _scan_disposable_credential(
-                self.token, self.configuration["git_sha256"],
+                self.token,
+                self.configuration["git_sha256"],
             )
         elif name == "correlate":
             status, _ = self.request("resource", "/protected", authenticated=True)
             self.observations["before_revocation"] = status
         elif name == "assess":
-            self.observations["exposure"] = "verified" if self.observations["before_revocation"] == 200 else "indeterminate"
+            self.observations["exposure"] = (
+                "verified" if self.observations["before_revocation"] == 200 else "indeterminate"
+            )
         elif name == "revoke":
             status, _ = self.request("identity", "/revoke", method="POST", payload={"token": self.token})
             self.observations["revocation"] = status
@@ -310,12 +410,18 @@ class _IntegratedExecutor:
             signature = key.sign(canonical(payload))
             key.public_key().verify(signature, canonical(payload))
             self.observations["bundle"] = {
-                "payload": payload, "payload_digest": digest(payload),
-                "algorithm": "Ed25519", "signature": signature.hex(),
-                "public_key": key.public_key().public_bytes(
-                    serialization.Encoding.Raw, serialization.PublicFormat.Raw,
-                ).hex(),
-                "signature_verified": True, "authenticity_established": False,
+                "payload": payload,
+                "payload_digest": digest(payload),
+                "algorithm": "Ed25519",
+                "signature": signature.hex(),
+                "public_key": key.public_key()
+                .public_bytes(
+                    serialization.Encoding.Raw,
+                    serialization.PublicFormat.Raw,
+                )
+                .hex(),
+                "signature_verified": True,
+                "authenticity_established": False,
                 "trust_status": "ephemeral_laboratory_key",
             }
 
@@ -334,12 +440,16 @@ class _IntegratedExecutor:
             self.observations[profile + "_assessment"] = assessment
             if profile == "vulnerable":
                 self.observations["reachability"] = (
-                    "observed" if assessment["status"] == "reachable" and observed["injection_exposed_other_object"] else "indeterminate"
+                    "observed"
+                    if assessment["status"] == "reachable" and observed["injection_exposed_other_object"]
+                    else "indeterminate"
                 )
             else:
                 self.observations["remediation_verified"] = (
-                    assessment["status"] == "corrected_dependency" and observed["injection_rows"] == 0
-                    and observed["benign_query_preserved"] and self.observations["reachability"] == "observed"
+                    assessment["status"] == "corrected_dependency"
+                    and observed["injection_rows"] == 0
+                    and observed["benign_query_preserved"]
+                    and self.observations["reachability"] == "observed"
                 )
         elif name == "controls":
             match = self.observations["vulnerable_assessment"]["dependency_match"]
@@ -361,12 +471,16 @@ class _IntegratedExecutor:
             self.observations["assessment"] = assess_consent(self.configuration["consent_evidence"])
             status, _ = self.request("resource", "/protected", authenticated=True)
             self.observations["grant_access_before"] = status
-            self.observations["benign_access_before"] = self.request("resource", "/protected", authenticated=True, benign=True)[0]
+            self.observations["benign_access_before"] = self.request(
+                "resource", "/protected", authenticated=True, benign=True
+            )[0]
         elif name == "propose":
             assessment = self.observations["assessment"]
             targets = assessment["targets"]
             self.observations["proposal"] = {
-                "targets": targets, "action": "revoke_grant", "evidence_refs": assessment["evidence_refs"],
+                "targets": targets,
+                "action": "revoke_grant",
+                "evidence_refs": assessment["evidence_refs"],
                 "eligible": assessment["status"] == "suspicious_consent_observed" and len(targets) == 1,
                 "limitations": ["session revocation and hunt remain proposed; production Entra unverified"],
             }
@@ -374,14 +488,19 @@ class _IntegratedExecutor:
             proposal = self.observations["proposal"]
             self.observations["revocation"] = None
             if proposal["eligible"]:
-                status, _ = self.request("identity", "/revoke-grant", method="POST", payload={"identity": proposal["targets"][0]})
+                status, _ = self.request(
+                    "identity", "/revoke-grant", method="POST", payload={"identity": proposal["targets"][0]}
+                )
                 self.observations["revocation"] = status
         elif name == "verify":
             status, _ = self.request("resource", "/protected", authenticated=True)
             self.observations["grant_access_after"] = status
-            self.observations["benign_access_after"] = self.request("resource", "/protected", authenticated=True, benign=True)[0]
+            self.observations["benign_access_after"] = self.request(
+                "resource", "/protected", authenticated=True, benign=True
+            )[0]
             self.observations["remediation_verified"] = (
-                self.observations["grant_access_before"] == 200 and status == 401
+                self.observations["grant_access_before"] == 200
+                and status == 401
                 and self.observations["revocation"] == 200
                 and self.observations["benign_access_before"] == self.observations["benign_access_after"] == 200
             )
@@ -410,8 +529,10 @@ class _IntegratedExecutor:
         host = f"{endpoint['host']}:{endpoint['port']}"
 
         def source(kind: str) -> dict[str, str]:
-            return {"observed_at": _utc(datetime.now(timezone.utc)),
-                    "evidence_ref": f"laboratory:{self.telemetry.correlation_id}:{kind}"}
+            return {
+                "observed_at": _utc(datetime.now(UTC)),
+                "evidence_ref": f"laboratory:{self.telemetry.correlation_id}:{kind}",
+            }
 
         if name == "inventory":
             try:
@@ -423,15 +544,30 @@ class _IntegratedExecutor:
             self.observations["dns_validation"] = "verified_fixed_loopback_a_record"
             self.observations["evidence"] = {
                 "scope": {"endpoints": [endpoint], "window": configuration["window"]},
-                "dns_service_inventory": {"complete": True, "records": [{
-                    **source("dns"), "host": endpoint["host"], "addresses": [address],
-                }]},
+                "dns_service_inventory": {
+                    "complete": True,
+                    "records": [
+                        {
+                            **source("dns"),
+                            "host": endpoint["host"],
+                            "addresses": [address],
+                        }
+                    ],
+                },
             }
         elif name == "connect":
             status, _ = self.request("resource", endpoint["route"], authenticated=True, host=host)
-            self.observations["evidence"]["port_route_evidence"] = {"complete": True, "checks": [{
-                **endpoint, **source("connect"), "address": EXPOSURE_ADDRESS, "connected": status == 200,
-            }]}
+            self.observations["evidence"]["port_route_evidence"] = {
+                "complete": True,
+                "checks": [
+                    {
+                        **endpoint,
+                        **source("connect"),
+                        "address": EXPOSURE_ADDRESS,
+                        "connected": status == 200,
+                    }
+                ],
+            }
         elif name == "authentication":
             profiles = {}
             try:
@@ -441,10 +577,18 @@ class _IntegratedExecutor:
                     authorized = self.request("resource", endpoint["route"], authenticated=True, host=host)[0]
                     anonymous = self.request("resource", endpoint["route"], host=host)[0]
                     evidence = copy.deepcopy(self.observations["evidence"])
-                    evidence["auth_evidence"] = {"complete": True, "checks": [{
-                        **endpoint, **source(profile), "address": EXPOSURE_ADDRESS,
-                        "authorized_status": authorized, "anonymous_status": anonymous,
-                    }]}
+                    evidence["auth_evidence"] = {
+                        "complete": True,
+                        "checks": [
+                            {
+                                **endpoint,
+                                **source(profile),
+                                "address": EXPOSURE_ADDRESS,
+                                "authorized_status": authorized,
+                                "anonymous_status": anonymous,
+                            }
+                        ],
+                    }
                     profiles[profile] = assess_exposure(evidence)
             finally:
                 with self.graph._lock:
@@ -475,10 +619,20 @@ class _IntegratedApprovalControl(_LaboratoryApprovalControl):
     execution still requires an independent operator and isolated approval service.
     """
 
-    def __init__(self, store: ApprovalStore, trust: AuthorizationTrustStore,
-                 engagement: Engagement, now: str, *, signer: AuthorizationSigner,
-                 authorized_until: str, definition: WorkflowDefinition, run_id: str,
-                 executor: _IntegratedExecutor, authorization_ids: dict[str, str]) -> None:
+    def __init__(
+        self,
+        store: ApprovalStore,
+        trust: AuthorizationTrustStore,
+        engagement: Engagement,
+        now: str,
+        *,
+        signer: AuthorizationSigner,
+        authorized_until: str,
+        definition: WorkflowDefinition,
+        run_id: str,
+        executor: _IntegratedExecutor,
+        authorization_ids: dict[str, str],
+    ) -> None:
         super().__init__(store, trust, engagement, now)
         self.signer = signer
         self.authorized_until = authorized_until
@@ -503,9 +657,13 @@ class _IntegratedApprovalControl(_LaboratoryApprovalControl):
         if action_plan.plan_digest != expected.plan_digest:
             raise WorkflowRuntimeError("laboratory_plan_or_input_changed")
         authorization = create_execution_authorization(
-            action_plan, signer=self.signer, engagement=self.engagement,
-            worker_identity=worker_identity, issued_at=self.now,
-            authorized_until_utc=self.authorized_until, authorization_id=authorization_id,
+            action_plan,
+            signer=self.signer,
+            engagement=self.engagement,
+            worker_identity=worker_identity,
+            issued_at=self.now,
+            authorized_until_utc=self.authorized_until,
+            authorization_id=authorization_id,
         )
         self.store.store_authorization(authorization)
         receipt = super().consume_authorization(authorization_id, action_plan, worker_identity)
@@ -514,8 +672,12 @@ class _IntegratedApprovalControl(_LaboratoryApprovalControl):
 
 
 def run_integrated_service_laboratory(
-    state_dir: str | Path, *, workflow_id: str, require_isolation: bool = False,
-    run_id: str | None = None, git_sha256: str | None = None,
+    state_dir: str | Path,
+    *,
+    workflow_id: str,
+    require_isolation: bool = False,
+    run_id: str | None = None,
+    git_sha256: str | None = None,
     consent_evidence: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Exercise one catalog workflow with one-use, action-bound approvals."""
@@ -531,28 +693,37 @@ def run_integrated_service_laboratory(
     actual_run_id = run_id or "integrated-" + secrets.token_hex(8)
     telemetry = _Telemetry(telemetry_path, correlation_id=actual_run_id)
     token = "COPS_TEST_TOKEN_" + secrets.token_urlsafe(32)
-    current = datetime.now(timezone.utc).replace(microsecond=0)
+    current = datetime.now(UTC).replace(microsecond=0)
     now = _utc(current)
     start = _utc(current - timedelta(minutes=5))
     end = _utc(current + timedelta(hours=2))
     trust_end = _utc(current + timedelta(hours=3))
     key = secrets.token_bytes(32)
     signer = AuthorizationSigner("integrated-lab-key", "laboratory-operator", key, start, trust_end)
-    trust = AuthorizationTrustStore([
-        TrustedAuthorizationKey("integrated-lab-key", "laboratory-operator", key, start, trust_end),
-    ])
-    engagement = Engagement.from_dict({
-        "schema_version": "cops.engagement/v1", "engagement_id": definition.engagement_id,
-        "name": "Integrated service laboratory", "status": "active",
-        "scope": {"included_targets": ["laboratory-loopback-services"], "excluded_targets": []},
-        "window": {"started_at": start, "authorized_until_utc": trust_end},
-        "operator": "laboratory-operator",
-        "rules_of_engagement": {
-            "max_intensity": "low", "allowed_actions": list(WORKFLOW_STAGES[workflow_id]),
-            "emergency_contact": "soc@example.test", "safe_mode": True,
-        },
-        "created_at": start, "mode": "laboratory",
-    })
+    trust = AuthorizationTrustStore(
+        [
+            TrustedAuthorizationKey("integrated-lab-key", "laboratory-operator", key, start, trust_end),
+        ]
+    )
+    engagement = Engagement.from_dict(
+        {
+            "schema_version": "cops.engagement/v1",
+            "engagement_id": definition.engagement_id,
+            "name": "Integrated service laboratory",
+            "status": "active",
+            "scope": {"included_targets": ["laboratory-loopback-services"], "excluded_targets": []},
+            "window": {"started_at": start, "authorized_until_utc": trust_end},
+            "operator": "laboratory-operator",
+            "rules_of_engagement": {
+                "max_intensity": "low",
+                "allowed_actions": list(WORKFLOW_STAGES[workflow_id]),
+                "emergency_contact": "soc@example.test",
+                "safe_mode": True,
+            },
+            "created_at": start,
+            "mode": "laboratory",
+        }
+    )
     store = ApprovalStore(path / "approvals.sqlite3")
     authorization_ids: dict[str, str] = {}
     fixture = json.loads((FIXTURE_DIRECTORY / "corrected.json").read_text())
@@ -562,10 +733,15 @@ def run_integrated_service_laboratory(
     if workflow_id == "illicit-consent-remediation":
         canonical_consent = load_consent_fixture()
         principals = {item["id"]: item for item in canonical_consent["service_principals"]}
-        fixture["synthetic_grants"] = [{
-            "tenant_id": grant["tenant_id"], "grant_id": grant["id"], "client_id": grant["client_id"],
-            "app_id": principals[grant["client_id"]]["app_id"],
-        } for grant in canonical_consent["grants"]]
+        fixture["synthetic_grants"] = [
+            {
+                "tenant_id": grant["tenant_id"],
+                "grant_id": grant["id"],
+                "client_id": grant["client_id"],
+                "app_id": principals[grant["client_id"]]["app_id"],
+            }
+            for grant in canonical_consent["grants"]
+        ]
         benign_token = "COPS_BENIGN_TOKEN_" + secrets.token_urlsafe(32)
     with _Graph(fixture, telemetry) as graph:
         configuration = {
@@ -576,17 +752,30 @@ def run_integrated_service_laboratory(
             configuration["git_sha256"] = git_sha256
         if workflow_id == "pre-release-exposure-audit":
             configuration["exposure"] = {
-                "endpoint": {"scheme": "http", "host": EXPOSURE_HOST,
-                             "port": graph.resource.server.server_port, "route": "/exposure-admin"},
+                "endpoint": {
+                    "scheme": "http",
+                    "host": EXPOSURE_HOST,
+                    "port": graph.resource.server.server_port,
+                    "route": "/exposure-admin",
+                },
                 "dns_destination": {"address": EXPOSURE_ADDRESS, "port": graph.dns.port, "transport": "udp"},
-                "window": {"start": start, "end": end}, "profiles": ["vulnerable", "corrected"],
+                "window": {"start": start, "end": end},
+                "profiles": ["vulnerable", "corrected"],
             }
         if workflow_id == "illicit-consent-remediation":
-            configuration["consent_evidence"] = copy.deepcopy(canonical_consent if consent_evidence is None else consent_evidence)
-            setup_status, _ = _request_json(graph.identity.url + "/issue-grant", method="POST",
-                                            payload={"token": token, "identity": fixture["synthetic_grants"][0]})
-            benign_status, _ = _request_json(graph.identity.url + "/issue-grant", method="POST",
-                                             payload={"token": benign_token, "identity": fixture["synthetic_grants"][1]})
+            configuration["consent_evidence"] = copy.deepcopy(
+                canonical_consent if consent_evidence is None else consent_evidence
+            )
+            setup_status, _ = _request_json(
+                graph.identity.url + "/issue-grant",
+                method="POST",
+                payload={"token": token, "identity": fixture["synthetic_grants"][0]},
+            )
+            benign_status, _ = _request_json(
+                graph.identity.url + "/issue-grant",
+                method="POST",
+                payload={"token": benign_token, "identity": fixture["synthetic_grants"][1]},
+            )
             if benign_status != 201:
                 raise ValueError("benign grant setup failed")
         else:
@@ -596,33 +785,53 @@ def run_integrated_service_laboratory(
             authorization_id = "auth-" + digest({"run_id": actual_run_id, "stage": name})[:24]
             authorization_ids[name] = authorization_id
         approval = _IntegratedApprovalControl(
-            store, trust, engagement, now, signer=signer, authorized_until=end,
-            definition=definition, run_id=actual_run_id, executor=executor,
+            store,
+            trust,
+            engagement,
+            now,
+            signer=signer,
+            authorized_until=end,
+            definition=definition,
+            run_id=actual_run_id,
+            executor=executor,
             authorization_ids=authorization_ids,
         )
         runner = WorkflowRunner(path / "workflow-state", approval, WORKER, executor, clock=lambda: now)
-        result = runner.run(definition, run_id=actual_run_id,
-                            inputs={"configuration": configuration}, authorization_ids=authorization_ids)
+        result = runner.run(
+            definition,
+            run_id=actual_run_id,
+            inputs={"configuration": configuration},
+            authorization_ids=authorization_ids,
+        )
         # Restore mutable service state before stopping all listeners.
         with graph._lock:
             graph.state.restore(graph.baseline)
         restored = graph.state.snapshot() == graph.baseline.snapshot()
-        consumed = sum(store.get_authorization(authorization_ids[stage]).status == "consumed"
-                       for stage in approval.plan_digests)
+        consumed = sum(
+            store.get_authorization(authorization_ids[stage]).status == "consumed" for stage in approval.plan_digests
+        )
     persisted_events = [json.loads(line) for line in telemetry_path.read_text().splitlines()]
     counts, alerts = _execute_detection_rules(persisted_events)
     report = {
         "schema_version": "cops.integrated-service-laboratory/v1",
-        "workflow_id": workflow_id, "run_id": actual_run_id,
-        "status": result.status, "setup_status": setup_status,
-        "isolation": probe.to_dict(), "outputs": result.outputs,
-        "stages": list(executor.executed), "requests": executor.requests,
+        "workflow_id": workflow_id,
+        "run_id": actual_run_id,
+        "status": result.status,
+        "setup_status": setup_status,
+        "isolation": probe.to_dict(),
+        "outputs": result.outputs,
+        "stages": list(executor.executed),
+        "requests": executor.requests,
         "authorization": {
-            "provisioned": len(approval.plan_digests), "consumed": consumed,
-            "plan_digests": approval.plan_digests, "bound_destinations": configuration["destinations"],
+            "provisioned": len(approval.plan_digests),
+            "consumed": consumed,
+            "plan_digests": approval.plan_digests,
+            "bound_destinations": configuration["destinations"],
             "boundary_limitation": "in-process approval control; no production UID boundary claim",
         },
-        "events": persisted_events, "event_counts": counts, "alerts": list(alerts),
+        "events": persisted_events,
+        "event_counts": counts,
+        "alerts": list(alerts),
         "telemetry_matches_memory": persisted_events == telemetry.events,
         "restoration": {
             "baseline_restored": restored and graph.final_reset_verified,
@@ -633,7 +842,11 @@ def run_integrated_service_laboratory(
     if "exposure" in configuration:
         report["authorization"]["bound_exposure_scope"] = configuration["exposure"]
     # A credential value must never enter persisted workflow state or the report.
-    if any(secret in json.dumps(report) or any(secret in item.read_text() for item in (path / "workflow-state").rglob("*.json"))
-           for secret in (token, benign_token) if secret):
+    if any(
+        secret in json.dumps(report)
+        or any(secret in item.read_text() for item in (path / "workflow-state").rglob("*.json"))
+        for secret in (token, benign_token)
+        if secret
+    ):
         raise ValueError("laboratory credential escaped the executor")
     return report

@@ -9,8 +9,13 @@ INTEGRATED_WORKFLOW_IDS = (
 )
 
 ACCEPTANCE_CASE_IDS = (
-    "offline-playback", "binary-evtx", "service-vulnerable", "service-corrected",
-    "workflow-success", "workflow-failure", "workflow-cancellation",
+    "offline-playback",
+    "binary-evtx",
+    "service-vulnerable",
+    "service-corrected",
+    "workflow-success",
+    "workflow-failure",
+    "workflow-cancellation",
     *("integrated-" + workflow_id for workflow_id in INTEGRATED_WORKFLOW_IDS),
 )
 

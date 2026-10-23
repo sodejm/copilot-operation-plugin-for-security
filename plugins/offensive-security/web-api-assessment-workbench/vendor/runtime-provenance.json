@@ -77,37 +77,37 @@
     },
     {
       "path": "cops/web_api/__init__.py",
-      "sha256": "e835ec99feac3507f3b4ddf45f68c4ddfbb58e4651a55ed5c9925ae7caffa916",
+      "sha256": "408aaefab718babe38939ef332aa9ece20a9192e52f88be47b8f83e529ab947a",
       "source": "cops/web_api/__init__.py"
     },
     {
       "path": "cops/web_api/assessment.py",
-      "sha256": "80d521154f33c1c0c53a67e2a8d0784a26c868c77f6e96c2cad1342cbbca6d62",
+      "sha256": "55a266e4fd793afd2b5ff4d14ce8661bf91fb92b2e0f8dd01e02570a690f5337",
       "source": "cops/web_api/assessment.py"
     },
     {
       "path": "cops/web_api/cli.py",
-      "sha256": "6645f42bbb8977c08ab85d0eea5674d22a71731345377f54ce675d650044484b",
+      "sha256": "212bf8338fc981da8cfd5fc73467ae97f08dca4d84135f37f622cde3dfba37ed",
       "source": "cops/web_api/cli.py"
     },
     {
       "path": "cops/web_api/importer.py",
-      "sha256": "dd6b9b407920866abef757e47e5d58e0f316480f62b1f8aeea8419b43e8dcd1f",
+      "sha256": "a11b56a83a76730bfc5a3878d54d37a8a2fd82b2828d79692f3c3172b0dbe2ef",
       "source": "cops/web_api/importer.py"
     },
     {
       "path": "cops/web_api/laboratory.py",
-      "sha256": "9e41359694cac0abed6735aec12ec047021a9d88db39793537167a1bc1532e63",
+      "sha256": "545eb8099786f687e30f704adb09fbbc5b1fb8516ffad0a2512d7ed61497bc4e",
       "source": "cops/web_api/laboratory.py"
     },
     {
       "path": "cops/web_api/models.py",
-      "sha256": "8f5245b46a9e27ea8ed86bf5f287fba1b9b4404d5fa7ec8dc68ec684bdc4513f",
+      "sha256": "4d732b44f45c5e4b64c2d488ed8703a04e2898f5ea0ec75f35c18e1d459e7470",
       "source": "cops/web_api/models.py"
     },
     {
       "path": "cops/web_api/replay.py",
-      "sha256": "f26b224a274894536f8ec61c7ad74f3a7090da38bfe956b1cf30eae819b8bd3e",
+      "sha256": "5bc0dbdc0d3c9e3f25b57fceaf415bcb1f8abfb9584712a93c42364fceb41a3c",
       "source": "cops/web_api/replay.py"
     },
     {

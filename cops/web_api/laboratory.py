@@ -128,9 +128,23 @@ class WebApiAssessmentLaboratory:
                 if object_id != "owner-object":
                     self._json(200, {"data": {"object": None}, "errors": [{"message": "not found"}]})
                 elif identity == "anonymous":
-                    self._json(200, {"data": {"object": None}, "errors": [{"message": "authentication required", "extensions": {"code": "UNAUTHENTICATED"}}]})
+                    self._json(
+                        200,
+                        {
+                            "data": {"object": None},
+                            "errors": [
+                                {"message": "authentication required", "extensions": {"code": "UNAUTHENTICATED"}}
+                            ],
+                        },
+                    )
                 elif identity == "other" and laboratory.profile == "corrected":
-                    self._json(200, {"data": {"object": None}, "errors": [{"message": "object access denied", "extensions": {"code": "FORBIDDEN"}}]})
+                    self._json(
+                        200,
+                        {
+                            "data": {"object": None},
+                            "errors": [{"message": "object access denied", "extensions": {"code": "FORBIDDEN"}}],
+                        },
+                    )
                 else:
                     self._json(200, {"data": {"object": {"id": object_id, "owner": "owner"}}})
 

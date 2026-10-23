@@ -5,34 +5,27 @@ from __future__ import annotations
 import base64
 import json
 import threading
-import urllib.error
-import urllib.request
 from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
-from cops.assessments.jwt import JWTValidationError, verify_jwt
 from cops.assessments.crypto_inputs import verify_artifact
+from cops.assessments.jwt import JWTValidationError, verify_jwt
 from cops.web_api.assessment import AuthorizationCase, assess_object_authorization, assess_rate_limit
 from cops.web_api.laboratory import WebApiAssessmentLaboratory
 from cops.web_api.models import ReplayResponse
+
+from .http_client import request_loopback
 
 
 def _request(url: str, request_id: str, token: str = "", body: bytes | None = None) -> ReplayResponse:
     headers = {"Authorization": f"Bearer {token}"} if token else {}
     if body is not None:
         headers["Content-Type"] = "application/json"
-    request = urllib.request.Request(url, data=body, headers=headers)
-    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-    try:
-        response = opener.open(request, timeout=3)
-    except urllib.error.HTTPError as exc:
-        response = exc
-    with response:
-        payload = response.read(65537)
-        if len(payload) > 65536:
-            raise RuntimeError("laboratory response exceeded evidence budget")
-        return ReplayResponse(request_id, response.status, dict(response.headers), payload.decode("utf-8"))
+    status, response_headers, payload = request_loopback(
+        url, method="POST" if body is not None else "GET", data=body, headers=headers
+    )
+    return ReplayResponse(request_id, status, response_headers, payload.decode("utf-8"))
 
 
 def run_api_acceptance(profile: str) -> dict[str, Any]:
@@ -45,7 +38,16 @@ def run_api_acceptance(profile: str) -> dict[str, Any]:
             token = f"{actor}-token" if actor != "anonymous" else ""
             for surface in ("rest", "graphql"):
                 request_id = f"{surface}-{actor}"
-                body = json.dumps({"query": "query($objectId: ID!) { object(id: $objectId) { id owner } }", "variables": {"objectId": "owner-object"}}).encode() if surface == "graphql" else None
+                body = (
+                    json.dumps(
+                        {
+                            "query": "query($objectId: ID!) { object(id: $objectId) { id owner } }",
+                            "variables": {"objectId": "owner-object"},
+                        }
+                    ).encode()
+                    if surface == "graphql"
+                    else None
+                )
                 response = _request(base + ("/graphql" if body else "/objects/owner-object"), request_id, token, body)
                 cases.append(AuthorizationCase(request_id, surface, actor, "owner-object", actor == "owner", response))
         rate = [_request(base + "/rate-limited", f"rate-{index}", "owner-token") for index in range(4)]
@@ -53,17 +55,20 @@ def run_api_acceptance(profile: str) -> dict[str, Any]:
         laboratory.reset()
         reset_verified = laboratory.request_count == 0
     try:
-        laboratory.base_url
+        _ = laboratory.base_url
         stopped = False
     except RuntimeError:
         stopped = True
     return {
-        "schema_version": "cops.api-laboratory-acceptance/v1", "profile": profile,
+        "schema_version": "cops.api-laboratory-acceptance/v1",
+        "profile": profile,
         "authorization_verdict": assess_object_authorization(cases).verdict.value,
         "rate_limit_verdict": assess_rate_limit(rate).verdict.value,
         "role_statuses": {case.request_id: case.response.status_code for case in cases},
         "rate_statuses": [response.status_code for response in rate],
-        "actual_requests": observed, "reset_verified": reset_verified, "service_stopped": stopped,
+        "actual_requests": observed,
+        "reset_verified": reset_verified,
+        "service_stopped": stopped,
         "scope": "loopback mini-app with synthetic identities; provider integration unverified",
     }
 
@@ -81,7 +86,18 @@ def run_jwt_acceptance() -> dict[str, Any]:
 
     private = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     numbers = private.public_key().public_numbers()
-    jwks = {"keys": [{"kty": "RSA", "kid": "ephemeral", "alg": "RS256", "use": "sig", "n": integer(numbers.n), "e": integer(numbers.e)}]}
+    jwks = {
+        "keys": [
+            {
+                "kty": "RSA",
+                "kid": "ephemeral",
+                "alg": "RS256",
+                "use": "sig",
+                "n": integer(numbers.n),
+                "e": integer(numbers.e),
+            }
+        ]
+    }
     now = 1800000000.0
     claims = {"iss": "cops-lab", "aud": "resource", "sub": "synthetic-user", "exp": now + 60, "iat": now - 1}
 
@@ -96,14 +112,23 @@ def run_jwt_acceptance() -> dict[str, Any]:
     head, payload, signature = valid.split(".")
     tampered = head + "." + encoded(json.dumps({**claims, "sub": "administrator"}).encode()) + "." + signature
     tokens = {
-        "valid": valid, "expired": signed({"exp": now - 1}), "wrong_issuer": signed({"iss": "other"}),
-        "wrong_audience": signed({"aud": "other"}), "future_nbf": signed({"nbf": now + 60}),
-        "unknown_key": signed(header_changes={"kid": "unknown"}), "unsigned": signed(header_changes={"alg": "none"}),
-        "algorithm_confusion": signed(header_changes={"alg": "HS256"}), "tampered": tampered,
+        "valid": valid,
+        "expired": signed({"exp": now - 1}),
+        "wrong_issuer": signed({"iss": "other"}),
+        "wrong_audience": signed({"aud": "other"}),
+        "future_nbf": signed({"nbf": now + 60}),
+        "unknown_key": signed(header_changes={"kid": "unknown"}),
+        "unsigned": signed(header_changes={"alg": "none"}),
+        "algorithm_confusion": signed(header_changes={"alg": "HS256"}),
+        "tampered": tampered,
     }
     observed: dict[str, int] = {}
     offline = {
-        name: verify_artifact("jwt_verification", {"token": token, "jwks": jwks, "issuer": "cops-lab", "audience": "resource"}, as_of=datetime.fromtimestamp(now, UTC)).status
+        name: verify_artifact(
+            "jwt_verification",
+            {"token": token, "jwks": jwks, "issuer": "cops-lab", "audience": "resource"},
+            as_of=datetime.fromtimestamp(now, UTC),
+        ).status
         for name, token in tokens.items()
     }
 
@@ -138,8 +163,12 @@ def run_jwt_acceptance() -> dict[str, Any]:
         server.server_close()
         thread.join(timeout=3)
     return {
-        "schema_version": "cops.jwt-laboratory-acceptance/v1", "algorithm": "RS256",
-        "statuses": observed, "actual_requests": len(observed), "service_stopped": not thread.is_alive(),
-        "ephemeral_keys": True, "external_key_discovery": False,
+        "schema_version": "cops.jwt-laboratory-acceptance/v1",
+        "algorithm": "RS256",
+        "statuses": observed,
+        "actual_requests": len(observed),
+        "service_stopped": not thread.is_alive(),
+        "ephemeral_keys": True,
+        "external_key_discovery": False,
         "offline_verification": offline,
     }

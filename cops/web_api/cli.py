@@ -9,7 +9,6 @@ import json
 import re
 import sys
 from pathlib import Path
-import sys
 from typing import Any
 
 from .importer import (
@@ -25,7 +24,6 @@ from .models import (
     AuthType,
     ReplayBudget,
     ReplayRequest,
-    ReplayResponse,
     ReplaySessionReport,
     load_bounded_json_document,
     validate_inventory_provenance,
@@ -35,7 +33,6 @@ from .replay import (
     execute_replay_session,
     preview_replay_session,
 )
-
 
 _PREVIEW_UNKNOWNS = [
     "Live response status, headers, body, latency, redirects, rate-limit behavior, "
@@ -419,7 +416,9 @@ def build_web_api_parser(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
         help="Allowed target host/pattern (repeatable or comma-separated).",
     )
     replay_parser.add_argument("--max-requests", type=int, default=50, help="Maximum requests budget (default: 50).")
-    replay_parser.add_argument("--rate-limit", type=float, default=10.0, help="Requests per second limit (default: 10.0).")
+    replay_parser.add_argument(
+        "--rate-limit", type=float, default=10.0, help="Requests per second limit (default: 10.0)."
+    )
     replay_parser.add_argument("--timeout", type=float, default=5.0, help="Request timeout in seconds (default: 5.0).")
     replay_parser.add_argument("--max-redirects", type=int, default=3, help="Maximum redirect hops (default: 3).")
     replay_parser.add_argument("--max-frames", type=int, default=10, help="Maximum WebSocket frames (default: 10).")
@@ -471,7 +470,9 @@ def command_web_api(args: argparse.Namespace, *, root: Path | None = None) -> in
                 inventories.append(import_raw_http(Path(path), source_id=args.source_id or None))
 
             if not inventories:
-                print("error: at least one input source (--har, --openapi, --postman, --raw) is required", file=sys.stderr)
+                print(
+                    "error: at least one input source (--har, --openapi, --postman, --raw) is required", file=sys.stderr
+                )
                 return 1
 
             # Merge if multiple
@@ -590,7 +591,9 @@ def command_web_api(args: argparse.Namespace, *, root: Path | None = None) -> in
             for resp in report.responses[:15]:
                 status_icon = "✓" if resp.replay_success else "✗"
                 err = f" ({resp.error_message})" if resp.error_message else ""
-                print(f"  [{status_icon}] {resp.request_id} -> Status {resp.status_code} ({resp.latency_ms:.1f}ms){err}")
+                print(
+                    f"  [{status_icon}] {resp.request_id} -> Status {resp.status_code} ({resp.latency_ms:.1f}ms){err}"
+                )
             if len(report.responses) > 15:
                 print(f"  ... and {len(report.responses) - 15} more responses")
 

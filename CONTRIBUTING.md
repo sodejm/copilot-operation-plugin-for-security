@@ -146,6 +146,11 @@ separate from plugin executions. Synthetic examples are not production benchmark
 
 ### EVTX correction evidence
 
+For shared laboratory HTTP changes, run
+`python -m pytest tests/test_laboratory_http_client.py tests/test_service_laboratory.py tests/test_integrated_service_laboratory.py`.
+Verify destination rejection, proxy and redirect refusal, bounded responses, and
+actual service correction outcomes before the full repository and laboratory gates.
+
 Run `python -m pytest tests/test_evtx_import.py tests/test_check_laboratory.py`
 after importer changes. `python scripts/build_evtx_fixtures.py` regenerates the
 three synthetic binary counterparts; update their manifest checksums only after

@@ -22,11 +22,17 @@ def complete_cases() -> list[AuthorizationCase]:
         for actor in ("owner", "other", "anonymous"):
             request_id = f"{surface}-{actor}"
             allowed = actor == "owner"
-            document = {"data": {"object": {"id": "object"}}} if allowed else {
-                "data": {"object": None}, "errors": [{"extensions": {"code": "FORBIDDEN"}}],
-            }
-            response = ReplayResponse(request_id, 200 if surface == "graphql" or allowed else 403,
-                                      {}, json.dumps(document))
+            document = (
+                {"data": {"object": {"id": "object"}}}
+                if allowed
+                else {
+                    "data": {"object": None},
+                    "errors": [{"extensions": {"code": "FORBIDDEN"}}],
+                }
+            )
+            response = ReplayResponse(
+                request_id, 200 if surface == "graphql" or allowed else 403, {}, json.dumps(document)
+            )
             cases.append(AuthorizationCase(request_id, surface, actor, "object", allowed, response))
     return cases
 
@@ -35,13 +41,16 @@ def test_complete_corrected_replays_pass() -> None:
     assert assess_object_authorization(complete_cases()).verdict == AssessmentVerdict.PASS
 
 
-@pytest.mark.parametrize("document", [
-    {"errors": [{"message": "internal server error"}]},
-    {"data": {"object": None}, "errors": [{"extensions": {"code": "NOT_FOUND"}}]},
-    {"data": {"object": None}, "errors": [{"extensions": {"code": "FORBIDDEN"}}, {}]},
-    {"data": {"object": None}},
-    [],
-])
+@pytest.mark.parametrize(
+    "document",
+    [
+        {"errors": [{"message": "internal server error"}]},
+        {"data": {"object": None}, "errors": [{"extensions": {"code": "NOT_FOUND"}}]},
+        {"data": {"object": None}, "errors": [{"extensions": {"code": "FORBIDDEN"}}, {}]},
+        {"data": {"object": None}},
+        [],
+    ],
+)
 def test_graphql_errors_do_not_establish_denial(document: object) -> None:
     cases = complete_cases()
     cases[-1] = replace(cases[-1], response=replace(cases[-1].response, body_excerpt=json.dumps(document)))

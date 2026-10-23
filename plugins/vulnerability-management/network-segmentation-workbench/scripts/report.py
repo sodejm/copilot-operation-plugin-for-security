@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from collections.abc import Sequence
 from pathlib import Path
-import sys
-
 
 PACKAGE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PACKAGE / "vendor" / "runtime"))
@@ -16,7 +15,6 @@ from cops.assessments import ArtifactAssessmentError, assess  # noqa: E402
 from cops.assessments.__main__ import _load_artifacts  # noqa: E402
 from cops.assessments.reporting import to_assessment_report  # noqa: E402
 from cops.contracts.lifecycle import ContractError  # noqa: E402
-
 
 CAPABILITIES = {
     "cloud-posture-workbench": "cloud_configuration",

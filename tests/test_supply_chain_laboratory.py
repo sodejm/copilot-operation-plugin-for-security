@@ -24,7 +24,9 @@ def test_synthetic_wheel_is_reproducible_and_bound_to_reviewed_source(tmp_path: 
     with zipfile.ZipFile(first) as wheel:
         assert len(wheel.namelist()) == 4
         assert all(not name.startswith("/") and ".." not in name.split("/") for name in wheel.namelist())
-        assert b"Root-Is-Purelib: true" in wheel.read(next(name for name in wheel.namelist() if name.endswith("/WHEEL")))
+        assert b"Root-Is-Purelib: true" in wheel.read(
+            next(name for name in wheel.namelist() if name.endswith("/WHEEL"))
+        )
 
 
 def test_arbitrary_profile_is_rejected_before_prerequisite_or_execution(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -34,13 +36,19 @@ def test_arbitrary_profile_is_rejected_before_prerequisite_or_execution(monkeypa
 
 
 def test_missing_installer_is_explicitly_unsupported(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(supply, "prerequisite_status", lambda: {"available": False, "limitation": "pinned installer unavailable"})
+    monkeypatch.setattr(
+        supply, "prerequisite_status", lambda: {"available": False, "limitation": "pinned installer unavailable"}
+    )
     monkeypatch.setattr(supply, "_run", lambda *_args: pytest.fail("unsupported prerequisite must not execute"))
     assert supply.run_supply_chain_acceptance("corrected")["status"] == "unsupported"
 
 
-@pytest.mark.parametrize("failure", [subprocess.TimeoutExpired("fixed-installer", 20), RuntimeError("installer failed"), KeyboardInterrupt()])
-def test_failure_and_cancellation_remove_partial_installation(monkeypatch: pytest.MonkeyPatch, failure: BaseException) -> None:
+@pytest.mark.parametrize(
+    "failure", [subprocess.TimeoutExpired("fixed-installer", 20), RuntimeError("installer failed"), KeyboardInterrupt()]
+)
+def test_failure_and_cancellation_remove_partial_installation(
+    monkeypatch: pytest.MonkeyPatch, failure: BaseException
+) -> None:
     roots: list[Path] = []
     monkeypatch.setattr(supply, "prerequisite_status", lambda: {"available": True})
 
@@ -58,7 +66,15 @@ def test_failure_and_cancellation_remove_partial_installation(monkeypatch: pytes
 def test_installer_arguments_forbid_network_dependencies_and_source_builds(tmp_path: Path) -> None:
     arguments = supply._install_arguments(tmp_path / "installed", tmp_path / "requirements.txt")
     assert arguments[:3] == [sys.executable, "-I", "-m"]
-    assert {"--isolated", "--no-index", "--no-deps", "--require-hashes", "--no-cache-dir", "--no-input", "--no-compile"}.issubset(arguments)
+    assert {
+        "--isolated",
+        "--no-index",
+        "--no-deps",
+        "--require-hashes",
+        "--no-cache-dir",
+        "--no-input",
+        "--no-compile",
+    }.issubset(arguments)
     assert arguments[arguments.index("--only-binary") + 1] == ":all:"
 
 
@@ -69,10 +85,18 @@ def test_unregistered_installer_and_platform_are_unavailable(monkeypatch: pytest
     assert supply.prerequisite_status()["available"] is False
 
 
-@pytest.mark.parametrize("field,value", [("execution_id", "another-run"), ("actual_requests", True), ("actual_requests", 1), ("service_stopped", False)])
+@pytest.mark.parametrize(
+    "field,value",
+    [("execution_id", "another-run"), ("actual_requests", True), ("actual_requests", 1), ("service_stopped", False)],
+)
 def test_runtime_output_requires_this_execution_and_observed_activity(field: str, value: object) -> None:
-    result = {"execution_id": "this-run", "actual_requests": 2, "service_stopped": True,
-              "benign_objects": ["owner-object"], "injection_objects": []}
+    result = {
+        "execution_id": "this-run",
+        "actual_requests": 2,
+        "service_stopped": True,
+        "benign_objects": ["owner-object"],
+        "injection_objects": [],
+    }
     result[field] = value
     with pytest.raises(ValueError, match="runtime"):
         supply._runtime_result(json.dumps(result), "this-run")
@@ -81,7 +105,9 @@ def test_runtime_output_requires_this_execution_and_observed_activity(field: str
 @pytest.mark.skipif(sys.platform not in {"linux", "darwin"}, reason="registered POSIX subprocess adapter")
 @pytest.mark.parametrize("mode", ["timeout", "output", "cancellation"])
 def test_adapter_reaps_actual_worker_after_timeout_output_limit_or_cancellation(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mode: str,
 ) -> None:
     workers: list[subprocess.Popen[bytes]] = []
     popen = subprocess.Popen
@@ -101,6 +127,7 @@ def test_adapter_reaps_actual_worker_after_timeout_output_limit_or_cancellation(
         script = "import sys, time; sys.stdout.write('x' * 4096); sys.stdout.flush(); time.sleep(30)"
         error = ValueError
     else:
+
         def cancel(*_args: object) -> None:
             raise KeyboardInterrupt()
 

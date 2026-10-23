@@ -7,15 +7,11 @@ import re
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from enum import Enum
-import hashlib
-import json
 from pathlib import Path
-import re
 from typing import Any
-from urllib.parse import urlparse
 
-from cops.evidence.canonical import canonical, utc_now
 from cops.discovery.models import EvidenceProvenance
+from cops.evidence.canonical import utc_now
 
 from .sanitization import (
     SENSITIVE_FIELD_PATTERNS as SENSITIVE_FIELD_PATTERNS,

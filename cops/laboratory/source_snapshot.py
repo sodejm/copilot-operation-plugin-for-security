@@ -18,15 +18,23 @@ CONTRACT_SCHEMAS = frozenset(f"catalog/schemas/{name}" for name in SCHEMA_MAP.va
 
 def allowed_source(relative: str) -> bool:
     path = PurePosixPath(relative)
-    if path.as_posix() != relative or path.is_absolute() or "\\" in relative or any(part in {".", ".."} for part in path.parts):
+    if (
+        path.as_posix() != relative
+        or path.is_absolute()
+        or "\\" in relative
+        or any(part in {".", ".."} for part in path.parts)
+    ):
         return False
     return (
         relative == "scripts/check_laboratory.py"
         or relative == "cops/adapters/definitions/git.json"
         or relative in CONTRACT_SCHEMAS
         or (path.parts[:1] == ("cops",) and path.suffix == ".py" and "__pycache__" not in path.parts)
-        or (path.parts[:3] == ("cops", "laboratory", "service_fixtures")
-            and len(path.parts) == 4 and path.suffix in {".json", ".jsonl", ".evtx"})
+        or (
+            path.parts[:3] == ("cops", "laboratory", "service_fixtures")
+            and len(path.parts) == 4
+            and path.suffix in {".json", ".jsonl", ".evtx"}
+        )
     )
 
 

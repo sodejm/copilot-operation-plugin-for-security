@@ -21,7 +21,9 @@ ADAPTER_ID = "cryptographic-verification/v1"
 KINDS = frozenset({"certificate_chain", "jwt_verification"})
 _PEM = re.compile(r"-----BEGIN CERTIFICATE-----\s+[A-Za-z0-9+/=\r\n]+-----END CERTIFICATE-----\s*\Z")
 _FINGERPRINT = re.compile(r"[0-9a-f]{64}\Z")
-_HOSTNAME = re.compile(r"(?=.{1,253}\Z)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)*[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\Z")
+_HOSTNAME = re.compile(
+    r"(?=.{1,253}\Z)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)*[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\Z"
+)
 
 
 @dataclass(frozen=True)
@@ -55,13 +57,21 @@ def _certificate(content: dict[str, Any], as_of: datetime) -> VerificationResult
 
     purpose = content.get("purpose")
     intermediates, anchors = content.get("intermediates_pem", []), content.get("trust_anchors_pem")
-    if (purpose not in {"server", "client"} or not isinstance(intermediates, list)
-            or len(intermediates) > 6 or not isinstance(anchors, list) or not 0 < len(anchors) <= 8):
+    if (
+        purpose not in {"server", "client"}
+        or not isinstance(intermediates, list)
+        or len(intermediates) > 6
+        or not isinstance(anchors, list)
+        or not 0 < len(anchors) <= 8
+    ):
         return VerificationResult("unknown", "certificate_policy_missing")
     if purpose == "client":
         allowed = content.get("authorized_client_sha256")
-        if (not isinstance(allowed, list) or len(allowed) > 32
-                or any(not isinstance(item, str) or not _FINGERPRINT.fullmatch(item) for item in allowed)):
+        if (
+            not isinstance(allowed, list)
+            or len(allowed) > 32
+            or any(not isinstance(item, str) or not _FINGERPRINT.fullmatch(item) for item in allowed)
+        ):
             return VerificationResult("unknown", "client_authorization_missing")
     else:
         hostname = content.get("hostname")
@@ -93,9 +103,13 @@ def _certificate(content: dict[str, Any], as_of: datetime) -> VerificationResult
 def _jwt(content: dict[str, Any], as_of: datetime) -> VerificationResult:
     token, jwks = content.get("token"), content.get("jwks")
     issuer, audience = content.get("issuer"), content.get("audience")
-    if (not isinstance(token, str) or not token or len(token) > 16384
-            or any(not isinstance(value, str) or not 0 < len(value) <= 2048 for value in (issuer, audience))
-            or not isinstance(jwks, dict)):
+    if (
+        not isinstance(token, str)
+        or not token
+        or len(token) > 16384
+        or any(not isinstance(value, str) or not 0 < len(value) <= 2048 for value in (issuer, audience))
+        or not isinstance(jwks, dict)
+    ):
         return VerificationResult("unknown", "jwt_policy_missing")
     keys = jwks.get("keys")
     if not isinstance(keys, list) or not 0 < len(keys) <= 16:
@@ -104,17 +118,25 @@ def _jwt(content: dict[str, Any], as_of: datetime) -> VerificationResult:
     seen: set[str] = set()
     try:
         for key in keys:
-            if (not isinstance(key, dict) or key.get("kty") != "RSA" or key.get("alg", "RS256") != "RS256"
-                    or key.get("use", "sig") != "sig" or key.get("key_ops", ["verify"]) != ["verify"]
-                    or any(name in key for name in ("d", "p", "q", "dp", "dq", "qi"))):
+            if (
+                not isinstance(key, dict)
+                or key.get("kty") != "RSA"
+                or key.get("alg", "RS256") != "RS256"
+                or key.get("use", "sig") != "sig"
+                or key.get("key_ops", ["verify"]) != ["verify"]
+                or any(name in key for name in ("d", "p", "q", "dp", "dq", "qi"))
+            ):
                 raise ValueError("unsupported trust policy")
             kid = key.get("kid")
             if not isinstance(kid, str) or not 0 < len(kid) <= 128 or kid in seen:
                 raise ValueError("ambiguous key")
             seen.add(kid)
             modulus, exponent = _decode(key.get("n"), 700), _decode(key.get("e"), 8)
-            if (modulus[0] == 0 or not 2048 <= int.from_bytes(modulus, "big").bit_length() <= 4096
-                    or int.from_bytes(exponent, "big") != 65537):
+            if (
+                modulus[0] == 0
+                or not 2048 <= int.from_bytes(modulus, "big").bit_length() <= 4096
+                or int.from_bytes(exponent, "big") != 65537
+            ):
                 raise ValueError("unsupported key")
     except (ValueError, TypeError):
         return VerificationResult("unknown", "jwt_policy_invalid")

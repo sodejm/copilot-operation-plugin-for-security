@@ -84,13 +84,16 @@ def _inspect_configuration(value: dict[str, Any], *, image: str, snapshot: Path,
         not host.get("DeviceRequests"),
         not host.get("CapAdd"),
         "ALL" in host.get("CapDrop", []),
-        any(option in {"no-new-privileges", "no-new-privileges:true", "no-new-privileges=true"} for option in host.get("SecurityOpt", [])),
+        any(
+            option in {"no-new-privileges", "no-new-privileges:true", "no-new-privileges=true"}
+            for option in host.get("SecurityOpt", [])
+        ),
         host.get("PidMode", "") == "",
         host.get("IpcMode", "") == "private",
         host.get("PidsLimit") == 128,
         host.get("Memory") == 512 * 1024 * 1024,
         host.get("NanoCpus") == 1_000_000_000,
-        host.get("Tmpfs") == {"/tmp": "rw,exec,nosuid,nodev,size=128m,mode=1777"},
+        host.get("Tmpfs") == {"/tmp": "rw,exec,nosuid,nodev,size=128m,mode=1777"},  # noqa: S108  # Path inside the isolated container tmpfs.
         config.get("Labels", {}).get(_OWNER_LABEL) == nonce,
         config["User"] == "65532:65532",
         config["WorkingDir"] == "/opt/cops-src",
@@ -131,7 +134,12 @@ def _docker_command(docker: str, arguments: list[str], *, seconds: int = 15) -> 
             process.wait()
         stdout.seek(0)
         stderr.seek(0)
-        return subprocess.CompletedProcess(arguments, process.returncode, stdout.read(_OUTPUT_BYTES).decode("utf-8", "replace"), stderr.read(_OUTPUT_BYTES).decode("utf-8", "replace"))
+        return subprocess.CompletedProcess(
+            arguments,
+            process.returncode,
+            stdout.read(_OUTPUT_BYTES).decode("utf-8", "replace"),
+            stderr.read(_OUTPUT_BYTES).decode("utf-8", "replace"),
+        )
 
 
 def run_container_acceptance(repository: Path, *, image: str, timeout: int = 240) -> tuple[int, dict[str, Any]]:
@@ -142,8 +150,12 @@ def run_container_acceptance(repository: Path, *, image: str, timeout: int = 240
         raise ValueError("laboratory timeout must be between 30 and 600 seconds")
     docker = shutil.which("docker")
     result: dict[str, Any] = {
-        "schema_version": SCHEMA_VERSION, "status": "blocked", "cases": [], "failures": [],
-        "blockers": [], "isolation": {"verified": False, "mechanism": "docker-network-none"},
+        "schema_version": SCHEMA_VERSION,
+        "status": "blocked",
+        "cases": [],
+        "failures": [],
+        "blockers": [],
+        "isolation": {"verified": False, "mechanism": "docker-network-none"},
         "summary": {"cases_passed": 0, "cases_total": len(ACCEPTANCE_CASE_IDS), "functional_evidence_only": True},
     }
     if docker is None:
@@ -180,18 +192,54 @@ def run_container_acceptance(repository: Path, *, image: str, timeout: int = 240
             result["launcher"] = {"image_id": image, "source_digest": digest, "nonce": nonce}
             create_attempted = True
             stage = "container-create"
-            created = command([
-                "create", "--name", container_name, "--label", f"{_OWNER_LABEL}={nonce}",
-                "--pull", "never", "--network", "none", "--read-only", "--cap-drop", "ALL",
-                "--security-opt", "no-new-privileges", "--user", "65532:65532", "--pids-limit", "128",
-                "--memory", "512m", "--cpus", "1", "--ipc", "private", "--no-healthcheck",
-                "--tmpfs", "/tmp:rw,exec,nosuid,nodev,size=128m,mode=1777", "--entrypoint", "python",
-                "--mount", f"type=bind,src={snapshot},dst=/opt/cops-src,readonly",
-                "--workdir", "/opt/cops-src", "--env", "PYTHONDONTWRITEBYTECODE=1",
-                "--env", "PYTHONPATH=/opt/cops-src", "--env", f"COPS_LABORATORY_CONTAINER_NONCE={nonce}",
-                "--env", f"COPS_LABORATORY_SOURCE_DIGEST={digest}", image,
-                "scripts/check_laboratory.py", "--container-child",
-            ])
+            created = command(
+                [
+                    "create",
+                    "--name",
+                    container_name,
+                    "--label",
+                    f"{_OWNER_LABEL}={nonce}",
+                    "--pull",
+                    "never",
+                    "--network",
+                    "none",
+                    "--read-only",
+                    "--cap-drop",
+                    "ALL",
+                    "--security-opt",
+                    "no-new-privileges",
+                    "--user",
+                    "65532:65532",
+                    "--pids-limit",
+                    "128",
+                    "--memory",
+                    "512m",
+                    "--cpus",
+                    "1",
+                    "--ipc",
+                    "private",
+                    "--no-healthcheck",
+                    "--tmpfs",
+                    "/tmp:rw,exec,nosuid,nodev,size=128m,mode=1777",  # noqa: S108 -- Isolated container mount.
+                    "--entrypoint",
+                    "python",
+                    "--mount",
+                    f"type=bind,src={snapshot},dst=/opt/cops-src,readonly",
+                    "--workdir",
+                    "/opt/cops-src",
+                    "--env",
+                    "PYTHONDONTWRITEBYTECODE=1",
+                    "--env",
+                    "PYTHONPATH=/opt/cops-src",
+                    "--env",
+                    f"COPS_LABORATORY_CONTAINER_NONCE={nonce}",
+                    "--env",
+                    f"COPS_LABORATORY_SOURCE_DIGEST={digest}",
+                    image,
+                    "scripts/check_laboratory.py",
+                    "--container-child",
+                ]
+            )
             candidate = created.stdout.strip()
             if created.returncode or not _CONTAINER.fullmatch(candidate):
                 raise ValueError("Docker could not create the restricted acceptance container")
@@ -200,7 +248,9 @@ def run_container_acceptance(repository: Path, *, image: str, timeout: int = 240
             inspected = command(["inspect", container_id])
             if inspected.returncode:
                 raise ValueError("Docker container inspection failed before execution")
-            _inspect_configuration(json.loads(inspected.stdout)[0], image=image, snapshot=snapshot, nonce=nonce, digest=digest)
+            _inspect_configuration(
+                json.loads(inspected.stdout)[0], image=image, snapshot=snapshot, nonce=nonce, digest=digest
+            )
             stage = "acceptance-execution"
             executed = command(["start", "--attach", container_id], seconds=timeout)
             if len(executed.stdout) > 1024 * 1024:
@@ -216,15 +266,22 @@ def run_container_acceptance(repository: Path, *, image: str, timeout: int = 240
             expected_cases = set(ACCEPTANCE_CASE_IDS)
             stage = "report-verification"
             if not (
-                executed.returncode == 0 and report.get("schema_version") == SCHEMA_VERSION
-                and report.get("status") == "passed" and report.get("isolation", {}).get("verified") is True
+                executed.returncode == 0
+                and report.get("schema_version") == SCHEMA_VERSION
+                and report.get("status") == "passed"
+                and report.get("isolation", {}).get("verified") is True
                 and report.get("summary", {}).get("cases_passed") == len(expected_cases)
                 and report.get("summary", {}).get("cases_total") == len(expected_cases)
                 and report.get("summary", {}).get("functional_evidence_only") is False
-                and f"launcher_nonce={nonce}" in evidence and f"source_sha256={digest}" in evidence
-                and not report.get("failures") and not report.get("blockers")
-                and isinstance(cases, list) and len(cases) == len(expected_cases)
-                and all(isinstance(case, dict) and case.get("passed") is True and not case.get("failures") for case in cases)
+                and f"launcher_nonce={nonce}" in evidence
+                and f"source_sha256={digest}" in evidence
+                and not report.get("failures")
+                and not report.get("blockers")
+                and isinstance(cases, list)
+                and len(cases) == len(expected_cases)
+                and all(
+                    isinstance(case, dict) and case.get("passed") is True and not case.get("failures") for case in cases
+                )
                 and {case.get("name") for case in cases} == expected_cases
                 and report.get("strict_preflight", {}).get("passed") is True
             ):
@@ -234,7 +291,9 @@ def run_container_acceptance(repository: Path, *, image: str, timeout: int = 240
             result = report
         except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError, IndexError) as exc:
             result["status"] = "failed"
-            result["failures"] = [f"isolated acceptance failed at {stage} ({type(exc).__name__}); raw runtime output withheld"]
+            result["failures"] = [
+                f"isolated acceptance failed at {stage} ({type(exc).__name__}); raw runtime output withheld"
+            ]
         finally:
             if create_attempted:
                 try:
@@ -242,14 +301,30 @@ def run_container_acceptance(repository: Path, *, image: str, timeout: int = 240
                     owned = command(["inspect", container_id or container_name])
                     value = json.loads(owned.stdout)[0] if owned.returncode == 0 else {}
                     owned_id = value.get("Id", "")
-                    if value.get("Config", {}).get("Labels", {}).get(_OWNER_LABEL) == nonce and _CONTAINER.fullmatch(owned_id):
+                    if value.get("Config", {}).get("Labels", {}).get(_OWNER_LABEL) == nonce and _CONTAINER.fullmatch(
+                        owned_id
+                    ):
                         removed = command(["rm", "--force", "--volumes", owned_id])
-                        remaining = command(["container", "ls", "--all", "--quiet", "--no-trunc", "--filter", f"id={owned_id}"])
-                        cleanup_verified = removed.returncode == 0 and remaining.returncode == 0 and not remaining.stdout.strip()
+                        remaining = command(
+                            ["container", "ls", "--all", "--quiet", "--no-trunc", "--filter", f"id={owned_id}"]
+                        )
+                        cleanup_verified = (
+                            removed.returncode == 0 and remaining.returncode == 0 and not remaining.stdout.strip()
+                        )
                     elif owned.returncode != 0 and container_id is None:
                         # A rejected create may leave no object. Verify absence through
                         # a second daemon operation rather than trusting error text.
-                        remaining = command(["container", "ls", "--all", "--quiet", "--no-trunc", "--filter", f"name=^/{container_name}$"])
+                        remaining = command(
+                            [
+                                "container",
+                                "ls",
+                                "--all",
+                                "--quiet",
+                                "--no-trunc",
+                                "--filter",
+                                f"name=^/{container_name}$",
+                            ]
+                        )
                         cleanup_verified = remaining.returncode == 0 and not remaining.stdout.strip()
                 except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError, IndexError):
                     cleanup_verified = False

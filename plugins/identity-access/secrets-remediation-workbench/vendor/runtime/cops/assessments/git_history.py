@@ -14,10 +14,11 @@ import sys
 import tempfile
 import threading
 import time
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterator, Sequence
+from typing import Any
 
 from cops.adapters.registry import AdapterError, ToolAdapter, ToolAdapterRegistry
 
@@ -25,19 +26,29 @@ SCHEMA_VERSION = "cops.git-history-scan/v1"
 _OID = re.compile(rb"[0-9a-f]{40}(?:[0-9a-f]{24})?")
 _TREE_HEADER = re.compile(rb"(\d{6}) (blob|tree|commit) ([0-9a-f]{40}(?:[0-9a-f]{24})?)")
 _SYNTHETIC_PATTERNS = (
-    ("cops-test-token-v1", re.compile(rb"(?<![A-Za-z0-9_-])(?P<secret>COPS_TEST_TOKEN_[A-Za-z0-9_-]{16,128})(?![A-Za-z0-9_-])")),
-    ("cops-synthetic-secret-v1", re.compile(rb"(?<![A-Za-z0-9_-])(?P<secret>COPS_SYNTHETIC_SECRET_[A-Za-z0-9_-]{16,128})(?![A-Za-z0-9_-])")),
+    (
+        "cops-test-token-v1",
+        re.compile(rb"(?<![A-Za-z0-9_-])(?P<secret>COPS_TEST_TOKEN_[A-Za-z0-9_-]{16,128})(?![A-Za-z0-9_-])"),
+    ),
+    (
+        "cops-synthetic-secret-v1",
+        re.compile(rb"(?<![A-Za-z0-9_-])(?P<secret>COPS_SYNTHETIC_SECRET_[A-Za-z0-9_-]{16,128})(?![A-Za-z0-9_-])"),
+    ),
 )
 _CREDENTIAL_PATTERNS = _SYNTHETIC_PATTERNS + (
     ("github-classic-pat-v1", re.compile(rb"(?<![A-Za-z0-9_-])(?P<secret>ghp_[A-Za-z0-9]{36})(?![A-Za-z0-9_-])")),
     ("aws-access-key-id-v1", re.compile(rb"(?<![A-Za-z0-9_-])(?P<secret>AKIA[A-Z0-9]{16})(?![A-Za-z0-9_-])")),
-    ("bearer-credential-v1", re.compile(
-        rb"(?i:(?<![A-Za-z])Bearer)[ \t]{1,8}(?P<secret>[A-Za-z0-9._~+/=-]{16,2048})(?![A-Za-z0-9._~+/=-])"
-    )),
-    ("pem-private-key-v1", re.compile(
-        rb"(?P<secret>-----BEGIN (?P<label>(?:RSA |EC |OPENSSH |ENCRYPTED )?PRIVATE KEY)-----\r?\n"
-        rb"(?:[A-Za-z0-9+/=]{1,128}\r?\n){1,128}-----END (?P=label)-----)"
-    )),
+    (
+        "bearer-credential-v1",
+        re.compile(rb"(?i:(?<![A-Za-z])Bearer)[ \t]{1,8}(?P<secret>[A-Za-z0-9._~+/=-]{16,2048})(?![A-Za-z0-9._~+/=-])"),
+    ),
+    (
+        "pem-private-key-v1",
+        re.compile(
+            rb"(?P<secret>-----BEGIN (?P<label>(?:RSA |EC |OPENSSH |ENCRYPTED )?PRIVATE KEY)-----\r?\n"
+            rb"(?:[A-Za-z0-9+/=]{1,128}\r?\n){1,128}-----END (?P=label)-----)"
+        ),
+    ),
 )
 _MAX_CONFIG_BYTES = 1024 * 1024
 _MAX_GIT_METADATA_ENTRIES = 250_000
@@ -64,7 +75,7 @@ class ScanLimits:
     max_matches: int = 1_000
     timeout_seconds: int = 30
 
-    def validated(self) -> "ScanLimits":
+    def validated(self) -> ScanLimits:
         ceilings = {
             "max_commits": 10_000,
             "max_files": 100_000,
@@ -306,8 +317,9 @@ def pinned_git_executable(expected_sha256: str | None, *, deadline: float) -> It
         raise GitHistoryScanError("git_prerequisite_unavailable") from error
 
 
-def scan_git_history(root: str | os.PathLike[str], *, limits: ScanLimits | None = None,
-                     expected_git_sha256: str | None = None) -> dict[str, Any]:
+def scan_git_history(
+    root: str | os.PathLike[str], *, limits: ScanLimits | None = None, expected_git_sha256: str | None = None
+) -> dict[str, Any]:
     """Inspect bounded reachable Git blobs using a reviewed executable pin."""
 
     limits = (limits or ScanLimits()).validated()
@@ -321,12 +333,17 @@ def scan_git_history(root: str | os.PathLike[str], *, limits: ScanLimits | None 
         return _scan_git_history(root_path, git_dir, git, adapter, limits, deadline, expected_git_sha256)
 
 
-def _scan_git_history(root_path: Path, git_dir: Path, git: str, adapter: ToolAdapter, limits: ScanLimits,
-                      deadline: float, git_sha256: str) -> dict[str, Any]:
+def _scan_git_history(
+    root_path: Path, git_dir: Path, git: str, adapter: ToolAdapter, limits: ScanLimits, deadline: float, git_sha256: str
+) -> dict[str, Any]:
     version = _run_git(git, adapter, root_path, git_dir, "version", {}, output_limit=256, deadline=deadline)
     version_contract = adapter.executable_verification
-    if (version.returncode or version.overflow or version_contract is None
-            or not re.fullmatch(version_contract.version_pattern, version.stdout.decode("ascii", errors="replace").strip())):
+    if (
+        version.returncode
+        or version.overflow
+        or version_contract is None
+        or not re.fullmatch(version_contract.version_pattern, version.stdout.decode("ascii", errors="replace").strip())
+    ):
         raise GitHistoryScanError("git_version_unavailable")
     limitations = [
         "Only commits reachable from local refs and detached HEAD are inspected.",

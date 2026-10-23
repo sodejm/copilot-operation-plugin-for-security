@@ -188,7 +188,11 @@ def test_repository_assets_cover_all_catalog_plugins_and_are_current() -> None:
         assert playbook["plugin_id"] == record["id"]
         assert playbook["entrypoints"]
         assert all(entrypoint["argv"] and entrypoint["argv"][0] == "python3" for entrypoint in playbook["entrypoints"])
-        assert all(not Path(argument).is_absolute() for entrypoint in playbook["entrypoints"] for argument in entrypoint["argv"][1:])
+        assert all(
+            not Path(argument).is_absolute()
+            for entrypoint in playbook["entrypoints"]
+            for argument in entrypoint["argv"][1:]
+        )
         operator_playbook = (package / "docs/PLAYBOOK.md").read_text(encoding="utf-8")
         assert operator_playbook.count(generator.DOC_BLOCK_START) == 1
         assert operator_playbook.count(generator.DOC_BLOCK_END) == 1
@@ -225,9 +229,7 @@ def test_operator_playbook_managed_block_preserves_author_content(tmp_path: Path
         f"{generator.DOC_BLOCK_END}\n{generator.DOC_BLOCK_START}\n",
     ],
 )
-def test_operator_playbook_rejects_incomplete_or_out_of_order_managed_blocks(
-    tmp_path: Path, content: str
-) -> None:
+def test_operator_playbook_rejects_incomplete_or_out_of_order_managed_blocks(tmp_path: Path, content: str) -> None:
     package = _fixture_repository(tmp_path)
     (package / "docs/PLAYBOOK.md").write_text(content, encoding="utf-8")
 
@@ -279,7 +281,10 @@ Run `python3 scripts/report.py --input examples/input.json --target fixture:exam
     assert preserved["outputs"] == ["cops.artifact-assessment/v1", "cops.assessment-report/v1"]
     authored = [entrypoint for entrypoint in playbook["entrypoints"] if entrypoint["id"].startswith("authored-")]
     assert len(authored) == 3
-    assert all(entrypoint["working_directory"] == "plugins/vulnerability-management/example-workbench" for entrypoint in authored)
+    assert all(
+        entrypoint["working_directory"] == "plugins/vulnerability-management/example-workbench"
+        for entrypoint in authored
+    )
     assessment = next(entrypoint for entrypoint in authored if "assess.py" in entrypoint["argv"][1])
     assert assessment["effects"]["reads"] == [
         "plugins/vulnerability-management/example-workbench/scripts/assess.py",
@@ -301,7 +306,9 @@ def test_portable_export_policy_includes_generated_asset_directories(
     _write_json(playbook, {"schema_version": "cops.plugin-playbook/v1"})
     walkthrough.parent.mkdir(parents=True)
     walkthrough.write_text("# Walkthrough\n", encoding="utf-8")
-    monkeypatch.setattr(portable, "_tracked_files", lambda _source: [playbook.relative_to(source), walkthrough.relative_to(source)])
+    monkeypatch.setattr(
+        portable, "_tracked_files", lambda _source: [playbook.relative_to(source), walkthrough.relative_to(source)]
+    )
     monkeypatch.setattr(portable, "validate_portable_package", lambda _destination: None)
 
     portable.export_portable_package(source, destination)
@@ -341,6 +348,4 @@ def test_output_destinations_are_resolved_against_the_declared_working_directory
     generator.synchronize(tmp_path, check=False, expected_count=1)
     playbook = json.loads((package / generator.PLAYBOOK_RELATIVE).read_text(encoding="utf-8"))
     assert playbook["entrypoints"][0]["effects"]["writes"] == ["build/evidence"]
-    assert playbook["entrypoints"][0]["expectations"]["outputs"]["durable_destinations"] == [
-        "build/evidence"
-    ]
+    assert playbook["entrypoints"][0]["expectations"]["outputs"]["durable_destinations"] == ["build/evidence"]

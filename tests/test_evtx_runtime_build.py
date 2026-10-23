@@ -47,7 +47,10 @@ def test_deterministic_single_module_and_valid_record(builder, monkeypatch, tmp_
     second = builder.build(source, tmp_path / "second").read_bytes()
     assert first == second
     with zipfile.ZipFile(io.BytesIO(first)) as wheel:
-        assert set(wheel.namelist()) == {"hexdump.py", *(f"{builder.DIST}/{name}" for name in ("METADATA", "WHEEL", "RECORD"))}
+        assert set(wheel.namelist()) == {
+            "hexdump.py",
+            *(f"{builder.DIST}/{name}" for name in ("METADATA", "WHEEL", "RECORD")),
+        }
         for item in wheel.infolist():
             assert item.date_time == (1980, 1, 1, 0, 0, 0)
         rows = csv.reader(io.StringIO(wheel.read(f"{builder.DIST}/RECORD").decode()))

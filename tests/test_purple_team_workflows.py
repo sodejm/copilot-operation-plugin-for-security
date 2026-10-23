@@ -200,12 +200,10 @@ def test_generated_predicate_changes_measured_fixture_counts() -> None:
 
     assert blocked["fixture_counts"] == {"attack_matches": 2, "benign_matches": 0}
     assert allowed["fixture_counts"] == {"attack_matches": 1, "benign_matches": 1}
-    assert blocked["rule_execution"]["sigma"]["proposal_digest"] != allowed["rule_execution"]["sigma"][
-        "proposal_digest"
-    ]
-    assert blocked["rule_execution"]["kql"]["proposal_digest"] != allowed["rule_execution"]["kql"][
-        "proposal_digest"
-    ]
+    assert (
+        blocked["rule_execution"]["sigma"]["proposal_digest"] != allowed["rule_execution"]["sigma"]["proposal_digest"]
+    )
+    assert blocked["rule_execution"]["kql"]["proposal_digest"] != allowed["rule_execution"]["kql"]["proposal_digest"]
 
 
 def test_supported_sigma_and_kql_subsets_execute_escaped_values() -> None:

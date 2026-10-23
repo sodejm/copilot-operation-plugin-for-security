@@ -3,12 +3,13 @@
 Kubernetes support is deliberately limited to Pod-to-Pod TCP/UDP paths in a
 complete inventory. Unknown semantics invalidate the prediction, never grant it.
 """
+
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from ipaddress import ip_address, ip_network
-import re
 from typing import Any
 
 
@@ -75,8 +76,11 @@ def _time(value: Any) -> datetime:
 def _path(value: Any, *, pods: bool = False) -> tuple:
     obj = _object(value)
     _require(type(obj.get("allowed")) is bool)
-    left, right = ((_text(obj.get("from")), _text(obj.get("to"))) if pods else
-                   (_address(obj.get("from_ip")), _address(obj.get("to_ip"))))
+    left, right = (
+        (_text(obj.get("from")), _text(obj.get("to")))
+        if pods
+        else (_address(obj.get("from_ip")), _address(obj.get("to_ip")))
+    )
     if not pods:
         _require(left.version == right.version)
     return left, right, _protocol(obj.get("protocol")), _port(obj.get("port"))
@@ -90,8 +94,15 @@ def _firewall(value: dict, result: NetworkInput) -> None:
         item = _object(item, {"from_cidr", "to_cidr", "protocol", "ports", "action"})
         src, dst = _network(item.get("from_cidr")), _network(item.get("to_cidr"))
         _require(src.version == dst.version and item.get("action") in ("allow", "deny"))
-        rules.append((src, dst, _protocol(item.get("protocol"), any_protocol=True),
-                      {_port(p) for p in _list(item.get("ports"), 128)}, item["action"] == "allow"))
+        rules.append(
+            (
+                src,
+                dst,
+                _protocol(item.get("protocol"), any_protocol=True),
+                {_port(p) for p in _list(item.get("ports"), 128)},
+                item["action"] == "allow",
+            )
+        )
     for item in _list(value.get("expected_reachability"), nonempty=True):
         src, dst, protocol, port = _path(item)
         actual = default == "allow"
@@ -119,7 +130,10 @@ def _dns_name(value: Any) -> str:
 
 
 def _label_value(value: Any) -> str:
-    _require(isinstance(value, str) and (value == "" or bool(re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9_.-]{0,61}[A-Za-z0-9])?", value))))
+    _require(
+        isinstance(value, str)
+        and (value == "" or bool(re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9_.-]{0,61}[A-Za-z0-9])?", value)))
+    )
     return value
 
 
@@ -160,6 +174,7 @@ def _selector(value: Any):
             if operator == "DoesNotExist" and key in candidate:
                 return False
         return True
+
     return matches
 
 
@@ -175,11 +190,14 @@ def _peer(value: Any):
         def ip_matches(pod, _namespace, _policy_namespace):
             _require(pod["ip"] is not None)
             return pod["ip"] in network and not any(pod["ip"] in v for v in exclusions)
+
         return ip_matches
     pod_match = _selector(value.get("podSelector", {}))
     ns_match = _selector(value["namespaceSelector"]) if "namespaceSelector" in value else None
-    return lambda pod, namespace, policy_ns: pod_match(pod["labels"]) and (
-        ns_match(namespace) if ns_match is not None else (not value or pod["namespace"] == policy_ns))
+    return lambda pod, namespace, policy_ns: (
+        pod_match(pod["labels"])
+        and (ns_match(namespace) if ns_match is not None else (not value or pod["namespace"] == policy_ns))
+    )
 
 
 def _policy_rule(value: Any, direction: str):
@@ -235,17 +253,30 @@ def _kubernetes(value: dict, result: NetworkInput) -> None:
                         _require(key not in named)
                         named[key] = number
             status = _object(item.get("status", {}))
-            pods[f"{namespace}/{name}"] = {"namespace": namespace, "labels": _labels(metadata.get("labels", {})),
-                "ip": _address(status["podIP"]) if "podIP" in status else None, "ports": named}
+            pods[f"{namespace}/{name}"] = {
+                "namespace": namespace,
+                "labels": _labels(metadata.get("labels", {})),
+                "ip": _address(status["podIP"]) if "podIP" in status else None,
+                "ports": named,
+            }
         else:
             spec = _object(item.get("spec"), {"podSelector", "policyTypes", "ingress", "egress"})
             selector = _selector(spec.get("podSelector"))
-            types = _list(spec.get("policyTypes", ["Ingress"] + (["Egress"] if spec.get("egress") else [])), 2, nonempty=True)
+            types = _list(
+                spec.get("policyTypes", ["Ingress"] + (["Egress"] if spec.get("egress") else [])), 2, nonempty=True
+            )
             _require(all(t in ("Ingress", "Egress") for t in types) and len(set(types)) == len(types))
-            rules = {direction: [_policy_rule(v, direction) for v in _list(spec.get(direction.lower(), []), 128)] for direction in ("Ingress", "Egress")}
+            rules = {
+                direction: [_policy_rule(v, direction) for v in _list(spec.get(direction.lower(), []), 128)]
+                for direction in ("Ingress", "Egress")
+            }
             _require(all(not rules[d] or d in types for d in rules))
             policies.append((namespace, selector, types, rules))
-    _require(bool(pods) and all(p["namespace"] in namespaces for p in pods.values()) and all(p[0] in namespaces for p in policies))
+    _require(
+        bool(pods)
+        and all(p["namespace"] in namespaces for p in pods.values())
+        and all(p[0] in namespaces for p in policies)
+    )
     _require(len(pods) <= 128 and len(policies) <= 128 and len(namespaces) <= 128)
 
     def permits(direction, source, target, protocol, port):
@@ -257,15 +288,23 @@ def _kubernetes(value: dict, result: NetworkInput) -> None:
             selected = True
             for peers, ports in rules[direction]:
                 peer_ok = not peers or any(p(peer, namespaces[peer["namespace"]], namespace) for p in peers)
-                port_ok = not ports or any(proto == protocol and (
-                    target["ports"].get((start, proto)) == port if isinstance(start, str) else start <= port <= end
-                ) for proto, start, end in ports)
+                port_ok = not ports or any(
+                    proto == protocol
+                    and (
+                        target["ports"].get((start, proto)) == port if isinstance(start, str) else start <= port <= end
+                    )
+                    for proto, start, end in ports
+                )
                 allowed |= peer_ok and port_ok
         return not selected or allowed
 
     paths = _list(value.get("expected_reachability"), nonempty=True)
-    comparisons = sum(max(1, len(peers)) + max(1, len(ports))
-                      for _, _, _, rules in policies for entries in rules.values() for peers, ports in entries)
+    comparisons = sum(
+        max(1, len(peers)) + max(1, len(ports))
+        for _, _, _, rules in policies
+        for entries in rules.values()
+        for peers, ports in entries
+    )
     _require(len(paths) * max(1, comparisons) <= 200_000)
     for item in paths:
         source, target, protocol, port = _path(item, pods=True)
@@ -296,6 +335,7 @@ def _dns(value: dict, result: NetworkInput, as_of: datetime) -> None:
         item = _object(item)
         name = _dns_name(item.get("name"))
         return name, {_address(v) for v in _list(item.get("addresses"), 128, nonempty=True)}
+
     records = {}
     for item in _list(value.get("records"), 1024):
         name, addresses = record(item)
@@ -312,8 +352,12 @@ def _dns(value: dict, result: NetworkInput, as_of: datetime) -> None:
             result.codes.add("dns_mismatch")
 
 
-KINDS = {"firewall_policy": "cops.firewall-policy/v1", "kubernetes_network_policy": "cops.kubernetes-network-policy/v1",
-         "flow_evidence": "cops.flow-evidence/v1", "dns_evidence": "cops.dns-evidence/v1"}
+KINDS = {
+    "firewall_policy": "cops.firewall-policy/v1",
+    "kubernetes_network_policy": "cops.kubernetes-network-policy/v1",
+    "flow_evidence": "cops.flow-evidence/v1",
+    "dns_evidence": "cops.dns-evidence/v1",
+}
 
 
 def inspect_network(kind: str, value: Any, as_of: datetime) -> NetworkInput:

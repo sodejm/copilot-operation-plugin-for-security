@@ -26,18 +26,21 @@ from cops.assessments.artifacts import assess
 from .service_boundaries import _corrected_query, _vulnerable_query, query_component
 
 ADAPTER_ID = "synthetic-wheel-installation@1"
-ADAPTERS = {ADAPTER_ID: {
-    "version": 1, "platforms": ["linux", "darwin"],
-    "prerequisites": {"linux": "pip==26.1.2", "darwin": "pip==26.2.1"},
-    "scope": "registered-synthetic-wheel-in-disposable-laboratory",
-    "profiles": ["vulnerable", "corrected"],
-}}
+ADAPTERS = {
+    ADAPTER_ID: {
+        "version": 1,
+        "platforms": ["linux", "darwin"],
+        "prerequisites": {"linux": "pip==26.1.2", "darwin": "pip==26.2.1"},
+        "scope": "registered-synthetic-wheel-in-disposable-laboratory",
+        "profiles": ["vulnerable", "corrected"],
+    }
+}
 _PIP_VERSIONS = {"linux": "26.1.2", "darwin": "26.2.1"}
 _TIMEOUT = 20
 _OUTPUT_LIMIT = 64 * 1024
 
 # Fixed worker source, never assembled from supplied code, package names, or URLs.
-_RUNTIME = r'''
+_RUNTIME = r"""
 import http.client
 import json
 import sqlite3
@@ -90,7 +93,7 @@ finally:
 print(json.dumps({"execution_id": sys.argv[2], "actual_requests": len(requests),
                   "service_stopped": not thread.is_alive(),
                   "benign_objects": results[0], "injection_objects": results[1]}))
-'''
+"""
 
 
 def prerequisite_status() -> dict[str, Any]:
@@ -101,8 +104,11 @@ def prerequisite_status() -> dict[str, Any]:
         version = None
     available = sys.platform in _PIP_VERSIONS and version == _PIP_VERSIONS[sys.platform]
     return {
-        "available": available, "adapter_id": ADAPTER_ID, "platform": sys.platform,
-        "installer": "pip", "version": version,
+        "available": available,
+        "adapter_id": ADAPTER_ID,
+        "platform": sys.platform,
+        "installer": "pip",
+        "version": version,
         "required_version": _PIP_VERSIONS.get(sys.platform),
         "limitation": None if available else "Registered offline installer or supported platform unavailable.",
     }
@@ -134,23 +140,47 @@ def _build_wheel(root: Path, profile: str) -> tuple[Path, dict[str, str]]:
             info.external_attr = 0o100644 << 16
             wheel.writestr(info, content)
     return path, {
-        **component, "wheel_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        **component,
+        "wheel_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
         "module_sha256": hashlib.sha256(module).hexdigest(),
     }
 
 
 def _install_arguments(target: Path, lock: Path) -> list[str]:
-    return [sys.executable, "-I", "-m", "pip", "--isolated", "--disable-pip-version-check",
-            "--no-input", "--no-cache-dir", "install", "--target", str(target), "--no-index",
-            "--no-deps", "--require-hashes", "--only-binary", ":all:", "--no-compile", "-r", str(lock)]
+    return [
+        sys.executable,
+        "-I",
+        "-m",
+        "pip",
+        "--isolated",
+        "--disable-pip-version-check",
+        "--no-input",
+        "--no-cache-dir",
+        "install",
+        "--target",
+        str(target),
+        "--no-index",
+        "--no-deps",
+        "--require-hashes",
+        "--only-binary",
+        ":all:",
+        "--no-compile",
+        "-r",
+        str(lock),
+    ]
 
 
 def _run(arguments: list[str], root: Path, label: str) -> tuple[int, str]:
     """Run a fixed adapter with bounded output and kill its process group on error."""
     environment = {"PATH": os.defpath, "HOME": str(root), "TMPDIR": str(root), "LANG": "C.UTF-8"}
     with subprocess.Popen(
-        arguments, cwd=root, env=environment, stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, start_new_session=True,
+        arguments,
+        cwd=root,
+        env=environment,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
     ) as process:
         output = bytearray()
         deadline = time.monotonic() + _TIMEOUT
@@ -170,7 +200,9 @@ def _run(arguments: list[str], root: Path, label: str) -> tuple[int, str]:
                         output.extend(chunk)
                         if len(output) > _OUTPUT_LIMIT:
                             raise ValueError("synthetic installer output limit exceeded")
-            return process.wait(timeout=max(0.01, deadline - time.monotonic())), output.decode("utf-8", errors="replace")
+            return process.wait(timeout=max(0.01, deadline - time.monotonic())), output.decode(
+                "utf-8", errors="replace"
+            )
         finally:
             # The adapter never starts unrelated children. Reap the whole group even
             # if a parent exited while a descendant retained its stdout pipe.
@@ -184,33 +216,55 @@ def _runtime_result(raw: str, execution_id: str) -> dict[str, Any]:
         result = json.loads(raw)
     except (ValueError, TypeError) as exc:
         raise ValueError("invalid supply-chain runtime output") from exc
-    if (not isinstance(result, dict) or result.get("execution_id") != execution_id
-            or type(result.get("actual_requests")) is not int or result["actual_requests"] != 2
-            or result.get("service_stopped") is not True):
+    if (
+        not isinstance(result, dict)
+        or result.get("execution_id") != execution_id
+        or type(result.get("actual_requests")) is not int
+        or result["actual_requests"] != 2
+        or result.get("service_stopped") is not True
+    ):
         raise ValueError("incomplete supply-chain runtime evidence")
     for field in ("benign_objects", "injection_objects"):
         values = result.get(field)
-        if (not isinstance(values, list) or len(values) > 2
-                or any(type(value) is not str or value not in {"owner-object", "other-object"} for value in values)
-                or len(values) != len(set(values))):
+        if (
+            not isinstance(values, list)
+            or len(values) > 2
+            or any(type(value) is not str or value not in {"owner-object", "other-object"} for value in values)
+            or len(values) != len(set(values))
+        ):
             raise ValueError("invalid supply-chain runtime object evidence")
     return result
 
 
 def _artifact_assessments(metadata: dict[str, str]) -> tuple[str, str]:
     artifacts = [
-        {"artifact_id": "installed-lock", "kind": "requirements_lock", "content":
-         f"cops-synthetic-query=={metadata['version']} --hash=sha256:{metadata['wheel_sha256']}\n"},
-        {"artifact_id": "synthetic-advisory", "kind": "advisory_fixture", "content": {"advisories": [
-            {"ecosystem": "pypi", "package": "cops-synthetic-query", "version": "1.0.0"}]}},
+        {
+            "artifact_id": "installed-lock",
+            "kind": "requirements_lock",
+            "content": f"cops-synthetic-query=={metadata['version']} --hash=sha256:{metadata['wheel_sha256']}\n",
+        },
+        {
+            "artifact_id": "synthetic-advisory",
+            "kind": "advisory_fixture",
+            "content": {"advisories": [{"ecosystem": "pypi", "package": "cops-synthetic-query", "version": "1.0.0"}]},
+        },
     ]
     report = assess("supply_chain", artifacts, as_of="2026-10-15T12:00:00Z")
-    missing = assess("supply_chain", [{"artifact_id": "missing-components", "kind": "cyclonedx",
-                                      "content": {"components": []}}], as_of="2026-10-15T12:00:00Z")
-    unknown = any(finding["classification"] == "unresolved" and finding["verification"] == "unverified"
-                  and finding["confidence"] == "unknown" for finding in missing["findings"])
-    return ("matched" if "pinned_advisory_match" in report["finding_codes"].values() else "clear",
-            "unknown" if unknown else "unexpected_assessment")
+    missing = assess(
+        "supply_chain",
+        [{"artifact_id": "missing-components", "kind": "cyclonedx", "content": {"components": []}}],
+        as_of="2026-10-15T12:00:00Z",
+    )
+    unknown = any(
+        finding["classification"] == "unresolved"
+        and finding["verification"] == "unverified"
+        and finding["confidence"] == "unknown"
+        for finding in missing["findings"]
+    )
+    return (
+        "matched" if "pinned_advisory_match" in report["finding_codes"].values() else "clear",
+        "unknown" if unknown else "unexpected_assessment",
+    )
 
 
 def run_supply_chain_acceptance(profile: str) -> dict[str, Any]:
@@ -233,7 +287,9 @@ def run_supply_chain_acceptance(profile: str) -> dict[str, Any]:
         module = installed / "cops_synthetic_query" / "__init__.py"
         if module.is_symlink() or hashlib.sha256(module.read_bytes()).hexdigest() != metadata["module_sha256"]:
             raise ValueError("installed synthetic source differs from reviewed source")
-        runtime_exit, raw = _run([sys.executable, "-I", "-c", _RUNTIME, str(installed), execution_id], root, "synthetic-wheel-runtime")
+        runtime_exit, raw = _run(
+            [sys.executable, "-I", "-c", _RUNTIME, str(installed), execution_id], root, "synthetic-wheel-runtime"
+        )
         if runtime_exit != 0:
             raise RuntimeError("installed synthetic dependency runtime failed")
         runtime = _runtime_result(raw, execution_id)
@@ -245,10 +301,15 @@ def run_supply_chain_acceptance(profile: str) -> dict[str, Any]:
         hash_rejected = reject_exit != 0 and "DO NOT MATCH THE HASHES" in rejection
         advisory, insufficient = _artifact_assessments(metadata)
         result = {
-            "status": "complete", "profile": profile, "adapter_id": ADAPTER_ID,
-            "prerequisite": prerequisite, "component": metadata,
-            "install_exit_code": install_exit, "installed_source_verified": True,
-            "runtime": runtime, "advisory_assessment": advisory,
+            "status": "complete",
+            "profile": profile,
+            "adapter_id": ADAPTER_ID,
+            "prerequisite": prerequisite,
+            "component": metadata,
+            "install_exit_code": install_exit,
+            "installed_source_verified": True,
+            "runtime": runtime,
+            "advisory_assessment": advisory,
             "insufficient_evidence_status": insufficient,
             "hash_mismatch_rejected": hash_rejected,
             "tampered_install_absent": not (rejected / "cops_synthetic_query").exists(),

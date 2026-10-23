@@ -1,10 +1,12 @@
 """Run bounded synthetic corrections without executing submitted content."""
+
 from __future__ import annotations
+
 import base64
 import copy
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 
 PACKAGE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PACKAGE / "vendor" / "runtime"))
@@ -35,12 +37,28 @@ def main() -> int:
         coverage = native_report["coverage"][0]
         if coverage["provenance"] != "imported" or coverage["status"] not in {"partial", "not_assessed"}:
             raise RuntimeError("native report overstates offline coverage: " + case["id"])
-        outcomes.append({"case": case["id"], "phase": case["phase"], "finding_codes": observed,
-                         "readiness": report["readiness"], "evidence": report["evidence"],
-                         "assessment_report_schema": native_report["schema_version"],
-                         "assessment_status": coverage["status"]})
-    print(json.dumps({"schema_version": "cops.correction-playback/v1", "mode": "offline",
-                      "cases": outcomes, "laboratory_readiness": "unverified"}, indent=2))
+        outcomes.append(
+            {
+                "case": case["id"],
+                "phase": case["phase"],
+                "finding_codes": observed,
+                "readiness": report["readiness"],
+                "evidence": report["evidence"],
+                "assessment_report_schema": native_report["schema_version"],
+                "assessment_status": coverage["status"],
+            }
+        )
+    print(
+        json.dumps(
+            {
+                "schema_version": "cops.correction-playback/v1",
+                "mode": "offline",
+                "cases": outcomes,
+                "laboratory_readiness": "unverified",
+            },
+            indent=2,
+        )
+    )
     return 0
 
 

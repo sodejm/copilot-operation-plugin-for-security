@@ -6,10 +6,24 @@ from pathlib import Path
 
 import pytest
 
+from cops.laboratory.service_boundaries import query_component
+from cops.laboratory.service_lab import FIXTURE_DIRECTORY
 from cops.workflows.playback import _cve_controls, _cve_ingest, _cve_reachability, _cve_remediate
 
-
 FIXTURES = Path(__file__).resolve().parents[1] / "catalog/workflows/fixtures"
+
+
+@pytest.mark.parametrize("profile,affected", [("vulnerable", True), ("corrected", False)])
+def test_laboratory_advisory_pins_the_reviewed_service_component(profile: str, affected: bool) -> None:
+    advisory = json.loads((FIXTURE_DIRECTORY / "cve-advisory.json").read_text())
+    component = query_component(profile)
+    assert component["name"] == advisory["package"]
+    assert component["ecosystem"] == advisory["ecosystem"]
+    assert {
+        "version": component["version"],
+        "source_sha256": component["source_sha256"],
+        "affected": affected,
+    } in advisory["components"]
 
 
 def evaluate(inputs: dict) -> dict:
@@ -34,7 +48,9 @@ def test_unrelated_loaded_module_cannot_establish_reachability() -> None:
     assert result["outcome"] == "insufficient_evidence"
 
 
-@pytest.mark.parametrize("field,value", [("name", "unrelated"), ("version", "99.0.0"), ("source_sha256", "0" * 64), ("ecosystem", "unknown")])
+@pytest.mark.parametrize(
+    "field,value", [("name", "unrelated"), ("version", "99.0.0"), ("source_sha256", "0" * 64), ("ecosystem", "unknown")]
+)
 def test_runtime_component_mismatch_is_insufficient(field: str, value: str) -> None:
     values = inputs()
     values["callgraph_evidence"] = {}
@@ -44,7 +60,9 @@ def test_runtime_component_mismatch_is_insufficient(field: str, value: str) -> N
     assert result["reachability_assessment"]["non_exploitability_established"] is False
 
 
-@pytest.mark.parametrize("patch", [{"calls": 0}, {"calls": True}, {"execution_id": ""}, {"observed_at": "bad"}, {"evidence_ref": ""}])
+@pytest.mark.parametrize(
+    "patch", [{"calls": 0}, {"calls": True}, {"execution_id": ""}, {"observed_at": "bad"}, {"evidence_ref": ""}]
+)
 def test_runtime_record_requires_actual_invocation_and_provenance(patch: dict) -> None:
     values = inputs()
     values["callgraph_evidence"] = {}
@@ -52,7 +70,15 @@ def test_runtime_record_requires_actual_invocation_and_provenance(patch: dict) -
     assert evaluate(values)["outcome"] == "insufficient_evidence"
 
 
-@pytest.mark.parametrize("inventory", [{}, {"complete": False, "packages": []}, {"complete": True, "packages": [None]}, {"complete": True, "packages": "invalid"}])
+@pytest.mark.parametrize(
+    "inventory",
+    [
+        {},
+        {"complete": False, "packages": []},
+        {"complete": True, "packages": [None]},
+        {"complete": True, "packages": "invalid"},
+    ],
+)
 def test_incomplete_inventory_cannot_establish_reachability(inventory: dict) -> None:
     values = inputs()
     values["dependency_inventory"] = inventory
@@ -112,8 +138,12 @@ def test_bound_negative_callgraph_is_observation_not_a_safety_claim() -> None:
 
 def test_only_component_and_advisory_bound_controls_are_counted() -> None:
     values = inputs()
-    control = {**values["runtime_evidence"]["modules"][0], "verified": True,
-               "advisory_id": values["advisory"]["id"], "name": "synthetic filter"}
+    control = {
+        **values["runtime_evidence"]["modules"][0],
+        "verified": True,
+        "advisory_id": values["advisory"]["id"],
+        "name": "synthetic filter",
+    }
     values["compensating_controls"] = {"controls": [control]}
     assert evaluate(values)["control_assessment"]["count"] == 1
     control["advisory_id"] = "unrelated-advisory"

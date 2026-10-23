@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "COPS Offline Retest Input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "retest_id", "generated_at", "baseline_report", "retest_report", "baseline_plan_id", "retest_plan_id", "owner_reference", "owner_acknowledged", "cleanup_receipts", "residual_risks", "checks"],
+  "properties": {
+    "schema_version": {"const": "cops.retest-input/v1"},
+    "retest_id": {"type": "string", "pattern": "^retest-[a-z0-9_-]{4,64}$"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "baseline_report": {"type": "object"},
+    "retest_report": {"type": "object"},
+    "baseline_plan_id": {"type": "string", "pattern": "^plan-[a-z0-9_-]{4,64}$"},
+    "retest_plan_id": {"type": "string", "pattern": "^plan-[a-z0-9_-]{4,64}$"},
+    "owner_reference": {"type": "string", "minLength": 1},
+    "owner_acknowledged": {"type": "boolean"},
+    "cleanup_receipts": {"type": "array", "items": {"type": "object"}},
+    "residual_risks": {"type": "array", "maxItems": 1000, "items": {"type": "string", "minLength": 1, "maxLength": 2000}},
+    "checks": {"type": "array", "items": {
+      "type": "object", "additionalProperties": false,
+      "required": ["finding_id", "asset", "retest_asset", "outcome", "evidence_records"],
+      "properties": {
+        "finding_id": {"type": "string", "pattern": "^find-[a-z0-9_-]{4,64}$"},
+        "asset": {"type": "string", "minLength": 1},
+        "retest_asset": {"type": "string", "minLength": 1},
+        "outcome": {"enum": ["absent", "present", "inaccessible", "blocked", "not_assessed"]},
+        "evidence_records": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}
+      }
+    }}
+  }
+}

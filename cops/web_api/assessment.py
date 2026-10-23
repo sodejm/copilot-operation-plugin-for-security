@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from enum import Enum
-import json
 from typing import Any
 
 from .models import ReplayResponse
@@ -13,7 +13,7 @@ from .models import ReplayResponse
 class AssessmentVerdict(str, Enum):
     """Conclusion supported by the collected response evidence."""
 
-    PASS = "pass"
+    PASS = "pass"  # noqa: S105  # Assessment verdict, not a credential.
     FAIL = "fail"
     INSUFFICIENT_EVIDENCE = "insufficient_evidence"
 
@@ -98,8 +98,11 @@ def _graphql_access_allowed(response: ReplayResponse) -> bool | None:
         return True
     errors = document.get("errors")
     if isinstance(data, dict) and "object" in data and isinstance(errors, list) and errors:
-        codes = [error.get("extensions", {}).get("code") for error in errors
-                 if isinstance(error, dict) and isinstance(error.get("extensions"), dict)]
+        codes = [
+            error.get("extensions", {}).get("code")
+            for error in errors
+            if isinstance(error, dict) and isinstance(error.get("extensions"), dict)
+        ]
         if len(codes) == len(errors) and all(code in {"UNAUTHENTICATED", "FORBIDDEN"} for code in codes):
             return False
     return None
@@ -136,9 +139,15 @@ def assess_object_authorization(cases: list[AuthorizationCase]) -> Authorization
         findings.append("Cases must compare access to the same nonempty object")
     for case in cases:
         identity = (case.surface, case.actor)
-        if (identity in identities or case.request_id in request_ids or identity not in required
-                or case.response.request_id != case.request_id or case.expected_allowed != (case.actor == "owner")
-                or not case.response.replay_success or case.response.error_message):
+        if (
+            identity in identities
+            or case.request_id in request_ids
+            or identity not in required
+            or case.response.request_id != case.request_id
+            or case.expected_allowed != (case.actor == "owner")
+            or not case.response.replay_success
+            or case.response.error_message
+        ):
             indeterminate = True
             findings.append(f"{case.request_id}: inconsistent or duplicate authorization evidence")
             continue
@@ -164,9 +173,7 @@ def assess_object_authorization(cases: list[AuthorizationCase]) -> Authorization
     return AuthorizationAssessment(verdict, tuple(cases), tuple(findings))
 
 
-def assess_rate_limit(
-    responses: list[ReplayResponse], *, minimum_attempts: int = 3
-) -> RateLimitAssessment:
+def assess_rate_limit(responses: list[ReplayResponse], *, minimum_attempts: int = 3) -> RateLimitAssessment:
     """Require enough attempts and an explicit 429 with retry guidance for a pass."""
     if minimum_attempts < 2:
         raise ValueError("minimum_attempts must be at least 2")

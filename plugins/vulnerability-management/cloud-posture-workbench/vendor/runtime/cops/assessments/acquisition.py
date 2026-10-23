@@ -19,7 +19,14 @@ from cops.evidence.canonical import EvidenceError, timestamp
 from cops.evidence.files import file_identity, open_parent, open_root, relative_parts
 
 ADAPTER_ID = "disposable-file-acquisition@1"
-ADAPTERS = {ADAPTER_ID: {"platform": "posix", "prerequisite": "python-stdlib", "version": 1, "scope": "disposable-laboratory-regular-file"}}
+ADAPTERS = {
+    ADAPTER_ID: {
+        "platform": "posix",
+        "prerequisite": "python-stdlib",
+        "version": 1,
+        "scope": "disposable-laboratory-regular-file",
+    }
+}
 _IDENTIFIER = re.compile(r"[a-zA-Z0-9_.:-]{1,96}\Z")
 
 
@@ -35,9 +42,18 @@ def _parts(value: str) -> tuple[str, ...]:
 
 
 def acquire_disposable_file(
-    *, adapter_id: str, lab_root: Path, source_relative: str, output_relative: str,
-    expected_sha256: str, source_ref: str, actor_ref: str, collected_at: str,
-    collection_authorized: bool, disposable_lab: bool, kind: str = "disk_image",
+    *,
+    adapter_id: str,
+    lab_root: Path,
+    source_relative: str,
+    output_relative: str,
+    expected_sha256: str,
+    source_ref: str,
+    actor_ref: str,
+    collected_at: str,
+    collection_authorized: bool,
+    disposable_lab: bool,
+    kind: str = "disk_image",
     max_bytes: int = 1_048_576,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Copy a pinned lab source exclusively and return an artifact plus receipt."""
@@ -85,19 +101,25 @@ def acquire_disposable_file(
                     raise AcquisitionError("source_size_limit")
             raw = b"".join(chunks)
             after = os.fstat(source_fd)
-            if (file_identity(before) != file_identity(after) or
-                    file_identity(before) != file_identity(os.stat(source_parts[-1], dir_fd=source_parent, follow_symlinks=False)) or
-                    hashlib.sha256(raw).hexdigest() != expected_sha256):
+            if (
+                file_identity(before) != file_identity(after)
+                or file_identity(before)
+                != file_identity(os.stat(source_parts[-1], dir_fd=source_parent, follow_symlinks=False))
+                or hashlib.sha256(raw).hexdigest() != expected_sha256
+            ):
                 raise AcquisitionError("source_changed_or_hash_mismatch")
-            output_fd = os.open(output_parts[-1], os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=output_parent)
+            output_fd = os.open(
+                output_parts[-1], os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=output_parent
+            )
             created = True
             try:
                 with os.fdopen(output_fd, "wb") as stream:
                     stream.write(raw)
                     stream.flush()
                     os.fsync(stream.fileno())
-                if (file_identity(before) != file_identity(os.fstat(source_fd)) or
-                        file_identity(before) != file_identity(os.stat(source_parts[-1], dir_fd=source_parent, follow_symlinks=False))):
+                if file_identity(before) != file_identity(os.fstat(source_fd)) or file_identity(
+                    before
+                ) != file_identity(os.stat(source_parts[-1], dir_fd=source_parent, follow_symlinks=False)):
                     raise AcquisitionError("source_changed_during_collection")
             except BaseException:
                 os.unlink(output_parts[-1], dir_fd=output_parent)
@@ -109,12 +131,23 @@ def acquire_disposable_file(
         # The partial file is removed inside the still-open directory context.
         raise AcquisitionError("source_or_destination_unavailable") from exc
     artifact = {
-        "artifact_id": "acquired-lab-evidence", "kind": kind, "content": raw,
-        "source_ref": source_ref, "sha256": expected_sha256, "collected_at": collected_at,
+        "artifact_id": "acquired-lab-evidence",
+        "kind": kind,
+        "content": raw,
+        "source_ref": source_ref,
+        "sha256": expected_sha256,
+        "collected_at": collected_at,
         "collection_authorized": True,
         "custody": [{"at": collected_at, "actor_ref": actor_ref, "action": "acquire"}],
     }
-    receipt = {"schema_version": "cops.lab-acquisition-receipt/v1", "adapter_id": adapter_id,
-               "source_ref": source_ref, "sha256": expected_sha256, "bytes": len(raw),
-               "collected_at": collected_at, "original_unchanged": True, "exclusive_copy": created}
+    receipt = {
+        "schema_version": "cops.lab-acquisition-receipt/v1",
+        "adapter_id": adapter_id,
+        "source_ref": source_ref,
+        "sha256": expected_sha256,
+        "bytes": len(raw),
+        "collected_at": collected_at,
+        "original_unchanged": True,
+        "exclusive_copy": created,
+    }
     return artifact, receipt
