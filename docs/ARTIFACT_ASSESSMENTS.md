@@ -230,3 +230,7 @@ limit is insufficient evidence; no prefix is treated as a complete assessment.
 
 GCP IAM bindings with conditions require evaluation context and produce insufficient
 evidence. Independently supported unconditional bindings remain assessable.
+
+Actions untrusted-head findings require an exact top-level `pull_request_target`
+event. Complex trigger syntax outside the supported mapping/scalar/list subset
+produces insufficient evidence.
