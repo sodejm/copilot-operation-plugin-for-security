@@ -224,3 +224,6 @@ inventories yield insufficient evidence. Pod IPs are required for CIDR peers.
 These are supplied snapshots, not authenticated captures or CNI enforcement.
 The semantics follow the [Kubernetes NetworkPolicy documentation](https://kubernetes.io/docs/concepts/services-networking/network-policies/).
 Actual firewall/CNI enforcement needs independent isolated connectivity evidence.
+
+Compliance artifacts are limited to 1,000 control records. An artifact above that
+limit is insufficient evidence; no prefix is treated as a complete assessment.
