@@ -7,7 +7,7 @@ capability incomplete.
 
 ## Tested revision and runtime
 
-- Implementation revision: `77794c1f05f8b61302d2b51d041472f4bc1bad33`.
+- Implementation revision: `04b01ed7240ceef29f343a026674c4d23d0d0b65`.
 - Integration base: `50e6d96c144f9d81d52c99403e5ceae8815d3e16`.
 - Acceptance date: 2026-10-23 UTC. This documentation-only refresh records the
   integrated provenance (`38e091b`), authorized transport (`cda3255`), bounded SQL
@@ -21,8 +21,8 @@ capability incomplete.
 - Strict service image:
   `sha256:b8e6b1acd24b5803a2cc7ed8c911af40d518c2e9ef351ed915d6a4fdba317f3e`.
 - Service source snapshot:
-  `242a1fe89d35897da90fd65ae84aae002804904bbbfad0dcebd081e6aa6cf285`.
-  Recomputing the snapshot at the clean implementation revision matched the run.
+  `3b5c394cfbb7d5f4f256688dcf50779a857ed4b8de65b9a1c7df32655036c150`.
+  The launcher verified this fresh snapshot against its source manifest.
 - Portable host: macOS arm64, Python 3.14.8. Strict runtime: Linux arm64,
   Python 3.14.6, Git 2.47.3, pip 26.1.2, cryptography 50.0.2,
   python-evtx 0.8.1 and hexdump 3.3.
@@ -30,8 +30,9 @@ capability incomplete.
 Changes are committed on dedicated, dependency-ordered branches and integrated
 with the base above on `codex/expansion-delivery`. The linear delivery branch,
 `codex/expansion-linear-delivery`, preserves all 52 bounded commits with origin
-references and a separate integration-resolution commit. Its implementation tree
-exactly matches reviewed integration revision `da8df21`. The original branches
+references and a separate integration-resolution commit. The initial implementation
+tree at `77794c1` exactly matched reviewed integration revision `da8df21`; ten
+subsequent bounded commits address PR #322 review and scanner regressions. The original branches
 remain intact. The original API checkout
 retains its branch and unfinished edits. This record captures local acceptance
 before the authorized push and merge; the pull request records hosted checks and
@@ -85,11 +86,12 @@ DOCKER_CONTEXT=colima make check-laboratory PYTHON=.venv/bin/python LABORATORY_A
 
 | Check | Observed result | Scope or limitation |
 | --- | --- | --- |
-| Focused correction tests | 974 passed, no skips; one expected TLS 1.1 deprecation warning | API transport/import/session/provenance, TLS, SQL/CVE evidence, report integrity, workflow guards/retries, cloud/network, signing and supply chain |
+| Focused correction tests | 1037 passed, no skips; one expected TLS 1.1 deprecation warning | API transport/import/session/provenance, TLS, SQL/CVE evidence, report integrity, workflow guards/retries, cloud/network, signing and supply chain |
 | `make check` | Passed, including all 25 package gates | Portable root suite includes 24 platform skips, detailed below |
 | `make check-docs` | Passed; 58 pages verified | Documentation contract and local links |
 | Strict `make check-laboratory` | Passed, 13/13 cases; no failures or blockers | Twelve service-container cases plus three Kubernetes lifecycle runs in one composite case |
 | Held-out routing | 270/270 clear requests correct; 10/10 for each of 27 specialists | 100/100 ambiguous or negative requests clarified; published examples remain separate |
+| Gitleaks 8.24.3 | Zero leaks across the 64-commit delivery history; ten positive/negative canaries passed | Narrow fixture exceptions retain detection of real private-key material |
 | Hosted/native CI | Pending for the final pushed revision | Retained Linux worker and Windows filesystem jobs remain required; earlier PR results do not validate this revision |
 | Production/provider integrations | Not run | Separate live validation required before support claims |
 
@@ -98,9 +100,9 @@ and pinned, hash-verified offline dependencies. The October 23 run reused that
 immutable image with unchanged runtime sources. The launcher verified
 the fresh source manifest and inspected the container configuration before use;
 old evidence and marker files were not accepted as readiness evidence. The service
-run nonce was `32ec4877c88d41c38a24694684ac606a`; the Kubernetes run nonce was
-`9f07149084ee44cb8da10ad8acde2f8f`, with observed audit activity from
-2026-10-23T12:39:12.333829Z through 2026-10-23T12:41:07.738942Z. The launcher verified removal
+run nonce was `9a7bf86ad4f84c2588c3ce8dbd309616`; the Kubernetes run nonce was
+`bd5eb876f6a86957b014e1e156d4916d`, with observed audit activity from
+2026-10-23T14:07:19.752894Z through 2026-10-23T14:09:14.318687Z. The launcher verified removal
 of the service container; Kubernetes cleanup verified namespace removal for all
 three lifecycle cases, node removal and removal of both owned image tags.
 
@@ -120,7 +122,15 @@ exclusions and unsupported TLS metadata stay indeterminate. Replay validates eve
 allowlist entry and rejects an oversized offline request batch before any send.
 Imports enforce an 8 MiB budget before parsing, retain all merged source
 provenance, namespace duplicate source/session identities and preserve the
-authentication mechanism attached to each request.
+authentication mechanism attached to each request. HAR, Postman and raw requests
+preserve their source scheme. OpenAPI imports validate the declared version and
+merge shared path parameters with operation overrides, rejecting unsupported
+references. Opaque request/response payloads serialize as digests while approved
+wire payloads remain intact. Conditional GCP bindings remain indeterminate, Actions
+trigger detection respects the top-level event declaration, and compliance inputs
+exceeding 1,000 controls fail before evaluation. Kubernetes regressions retain the
+upstream default: omitted policy types include Egress only for nonempty egress
+rules; an explicit Egress type isolates even with an empty rule list.
 
 The portable suite also covers threshold boundaries and conflicting artifacts,
 classifier redaction/timeouts/unavailability, preview side-effect exclusion,
