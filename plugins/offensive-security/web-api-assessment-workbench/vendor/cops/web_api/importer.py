@@ -345,6 +345,32 @@ def _selected_openapi_server(
     return host, prefix, len(selected) > 1
 
 
+def _openapi_parameters(path_item: dict[str, Any], operation: dict[str, Any]) -> list[dict[str, Any]]:
+    """Inherit path parameters, with operation overrides by name and location."""
+    merged: dict[tuple[str, str], dict[str, Any]] = {}
+    for owner in (path_item, operation):
+        parameters = owner.get("parameters", [])
+        if not isinstance(parameters, list):
+            raise ImporterError("OpenAPI parameter declaration cannot be represented safely")
+        seen: set[tuple[str, str]] = set()
+        for parameter in parameters:
+            if (
+                not isinstance(parameter, dict)
+                or "$ref" in parameter
+                or not isinstance(parameter.get("name"), str)
+                or not parameter["name"]
+                or not isinstance(parameter.get("in"), str)
+                or not parameter["in"]
+            ):
+                raise ImporterError("OpenAPI parameter declaration cannot be represented safely")
+            key = (parameter["name"], parameter["in"])
+            if key in seen:
+                raise ImporterError("OpenAPI parameter declaration cannot be represented safely")
+            seen.add(key)
+            merged[key] = parameter
+    return list(merged.values())
+
+
 def _swagger_scheme(raw_obj: dict[str, Any], operation: dict[str, Any] | None = None) -> bool:
     """Validate the effective Swagger 2 scheme and report alternatives."""
     owner = operation if operation is not None and "schemes" in operation else raw_obj
@@ -867,14 +893,9 @@ def import_openapi(
 
             query_params: dict[str, str] = {}
             header_params: dict[str, str] = {}
-            parameters = op.get("parameters", [])
-            for param in parameters if isinstance(parameters, list) else []:
-                if not isinstance(param, dict):
-                    continue
-                p_in = param.get("in")
-                p_name = param.get("name", "")
-                if not isinstance(p_name, str) or not p_name:
-                    continue
+            for param in _openapi_parameters(path_item, op):
+                p_in = param["in"]
+                p_name = param["name"]
                 if p_in == "query":
                     query_params[p_name] = (
                         redact_credential_value("sample_val") if SENSITIVE_FIELD_PATTERNS.search(p_name) else "string"
