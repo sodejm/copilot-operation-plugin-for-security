@@ -34,7 +34,15 @@ if replacement >= 0:
 os.read(gate, 1)
 """
     child = subprocess.Popen(
-        [sys.executable, "-c", script, str(info_write), str(wrong_read if wrong_gate else gate_read), str(int(retain_socket)), str(wrong_read if replace_gate else -1)],
+        [
+            sys.executable,
+            "-c",
+            script,
+            str(info_write),
+            str(wrong_read if wrong_gate else gate_read),
+            str(int(retain_socket)),
+            str(wrong_read if replace_gate else -1),
+        ],
         pass_fds=(info_write, gate_read, wrong_read),
     )
     try:
@@ -87,7 +95,5 @@ def test_wrong_gate_cannot_trigger_measurement(monkeypatch, replace_gate):
     with _starting_child(wrong_gate=not replace_gate, replace_gate=replace_gate) as (info, gate, writer, child):
         expected = "identity differs" if replace_gate else "deadline"
         with pytest.raises(SandboxReadinessError, match=expected):
-            LinuxBubblewrapSandbox._observe_blocked_child(
-                info, time.monotonic() + 1, gate_fd=gate, gate_writer=writer
-            )
+            LinuxBubblewrapSandbox._observe_blocked_child(info, time.monotonic() + 1, gate_fd=gate, gate_writer=writer)
         assert child.poll() is None

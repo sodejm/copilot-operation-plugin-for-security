@@ -397,7 +397,8 @@ class LinuxBubblewrapSandbox:
                     except OSError as err:
                         raise SandboxReadinessError("offline sandbox execution gate is unavailable") from err
                     if not stat.S_ISFIFO(child_pipe.st_mode) or (child_pipe.st_dev, child_pipe.st_ino) != (
-                        pipe.st_dev, pipe.st_ino
+                        pipe.st_dev,
+                        pipe.st_ino,
                     ):
                         raise SandboxReadinessError("offline sandbox execution gate identity differs")
                     return
@@ -405,9 +406,7 @@ class LinuxBubblewrapSandbox:
         raise SandboxReadinessError("offline sandbox execution gate was not reached before the deadline")
 
     @classmethod
-    def _observe_blocked_child(
-        cls, info_fd: int, deadline: float, *, gate_fd: int, gate_writer: int
-    ) -> dict[str, Any]:
+    def _observe_blocked_child(cls, info_fd: int, deadline: float, *, gate_fd: int, gate_writer: int) -> dict[str, Any]:
         os.set_blocking(info_fd, False)
         content = bytearray()
         while time.monotonic() < deadline:
