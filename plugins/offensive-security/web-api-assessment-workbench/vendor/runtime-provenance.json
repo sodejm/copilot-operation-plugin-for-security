@@ -92,7 +92,7 @@
     },
     {
       "path": "cops/web_api/importer.py",
-      "sha256": "e20ff8064180a5abb3bdf5d154f9540f4b141ea20baa90658909703f9bf3cd1e",
+      "sha256": "07ee9b5df8a4703daa3fe16a26109cb59a24e749a4ec496377c0e5c23fc76887",
       "source": "cops/web_api/importer.py"
     },
     {

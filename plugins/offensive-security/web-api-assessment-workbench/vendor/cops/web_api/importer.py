@@ -796,13 +796,22 @@ def import_openapi(
     raw_obj, content = _load_json_data(openapi_data)
     provenance = _provenance(content, "openapi_import", source_id, provenance)
 
+    openapi_version = raw_obj.get("openapi")
+    is_swagger = raw_obj.get("swagger") == "2.0" and "openapi" not in raw_obj
+    is_openapi = (
+        isinstance(openapi_version, str)
+        and re.fullmatch(r"3\.[0-9]+\.[0-9]+", openapi_version) is not None
+        and "swagger" not in raw_obj
+    )
+    if not (is_swagger or is_openapi):
+        raise ImporterError("Invalid OpenAPI document: unsupported or conflicting version")
+
     if "paths" not in raw_obj or not isinstance(raw_obj["paths"], dict):
         raise ImporterError("Invalid OpenAPI document: missing 'paths' mapping")
 
     info = raw_obj.get("info", {})
     title = info.get("title", "OpenAPI Service") if isinstance(info, dict) else "OpenAPI Service"
     title = safe_inventory_public_label(str(title), "OpenAPI Service")
-    is_swagger = raw_obj.get("swagger") == "2.0"
     definitions = _security_definitions(raw_obj, is_swagger)
     target_hosts: set[str] = set()
 
