@@ -238,3 +238,19 @@ def test_conflicting_flow_observations_are_unknown():
         "observations": [observation, {**observation, "allowed": False}],
     }
     assert report("flow_evidence", value) == {"network_policy_evidence_insufficient_evidence"}
+
+
+@pytest.mark.parametrize("egress, isolated", [([], False), ([{"to": [{"ipBlock": {"cidr": "10.9.0.0/24"}}]}], True)])
+def test_omitted_policy_types_defaults_egress_only_for_nonempty_rules(egress, isolated):
+    value = kubernetes()
+    value["items"].append(
+        {
+            "apiVersion": "networking.k8s.io/v1",
+            "kind": "NetworkPolicy",
+            "metadata": {"namespace": "demo", "name": "client"},
+            "spec": {"podSelector": {"matchLabels": {"role": "client"}}, "egress": egress},
+        }
+    )
+    assert report("kubernetes_network_policy", value) == ({"segmentation_mismatch"} if isolated else set())
+    value["items"][-1]["spec"]["policyTypes"] = ["Egress"]
+    assert report("kubernetes_network_policy", value) == {"segmentation_mismatch"}
