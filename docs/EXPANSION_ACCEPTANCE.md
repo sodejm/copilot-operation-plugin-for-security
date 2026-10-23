@@ -34,9 +34,12 @@ references and a separate integration-resolution commit. The initial implementat
 tree at `77794c1` exactly matched reviewed integration revision `da8df21`; ten
 subsequent bounded commits address PR #322 review and scanner regressions. The original branches
 remain intact. The original API checkout
-retains its branch and unfinished edits. This record captures local acceptance
-before the authorized push and merge; the pull request records hosted checks and
-delivery separately. Normal automatic documentation deployment after merge is
+retains its branch and unfinished edits. PR #322 merged at `2ce127a58b9c7c544b3bb944992ca9dffe2d233d` after all
+19 hosted checks passed on `f0bd977a433a2c8da3d9751236c7e471d16ee329`. The merged
+tree matched the tested tree. Its automatic Pages deployment succeeded and the
+published acceptance page returned HTTP 200 with the tested revision and fixture
+markers. Postmerge repository CI subsequently exposed the startup race recorded
+below; passing PR checks did not establish passing postmerge checks. Normal automatic documentation deployment after merge is
 authorized. These results do not establish release or production validation.
 
 ## Commands and check ledger
@@ -92,7 +95,7 @@ DOCKER_CONTEXT=colima make check-laboratory PYTHON=.venv/bin/python LABORATORY_A
 | Strict `make check-laboratory` | Passed, 13/13 cases; no failures or blockers | Twelve service-container cases plus three Kubernetes lifecycle runs in one composite case |
 | Held-out routing | 270/270 clear requests correct; 10/10 for each of 27 specialists | 100/100 ambiguous or negative requests clarified; published examples remain separate |
 | Gitleaks 8.24.3 | Zero leaks across the 64-commit delivery history; ten positive/negative canaries passed | Narrow fixture exceptions retain detection of real private-key material |
-| Hosted/native CI | Pending for the final pushed revision | Retained Linux worker and Windows filesystem jobs remain required; earlier PR results do not validate this revision |
+| Hosted/native CI | PR #322: 19 checks passed on its exact head; postmerge repository CI failed twice | Startup observation race and bounded correction recorded below; correction requires its own exact-head hosted checks |
 | Production/provider integrations | Not run | Separate live validation required before support claims |
 
 The service image was rebuilt on October 19 from the current runtime Dockerfile
@@ -139,6 +142,58 @@ tampered outputs, restart/cancellation/retries, duplicate-write prevention and
 cleanup. Report checks validate the bundled official SARIF 2.1.0 schema and
 GitHub subset, JUnit escaping and inconclusive statuses, revision-bound Markdown
 anchors, redaction, portable assets, host manifests and generated marketplaces.
+
+## Postmerge sandbox correction
+
+Implementation revision `97b691d9c7cc0e65d9bdca077a3165ba5d1c99c9` is based on
+merged revision `2ce127a58b9c7c544b3bb944992ca9dffe2d233d`, on the separate branch
+`codex/offline-sandbox-readiness`. Postmerge repository workflow run `39971066876`
+failed twice with a transient setup socket observed after bubblewrap published
+its child PID but before it reached its execution gate. The correction waits for
+the child's one-byte read on the exact parent-owned gate pipe before taking one
+isolation measurement. A socket remaining at that gate, a changed isolation
+digest, unavailable procfs or an unsupported syscall ABI still fails closed.
+
+The regression failed against the original implementation by observing the setup
+socket. The corrected implementation passed these October 23 checks:
+
+| Check | Observed result | Scope or limitation |
+| --- | --- | --- |
+| Focused macOS tests | 28 passed, four Linux procfs tests skipped | ABI/procfs rejection, sandbox and offline approval behavior |
+| Focused Linux tests | 40 passed, no skips | Real bubblewrap plus delayed setup, persistent socket rejection, wrong pipe and wrong descriptor regressions |
+| `make check` | Passed; all 25 package gates | Initial sandboxed attempt could not bind existing loopback fixtures; unchanged command passed with required host access |
+| `make check-docs` | Passed; 58 pages verified | Rerun after this acceptance update |
+| Strict `make check-laboratory` | 13/13 passed; no failures or blockers | Fresh source snapshot, actual activity, telemetry and verified cleanup |
+| Correction hosted checks | Pending at this documentation commit | The correction PR records exact-head checks, merge and resulting deployment separately |
+
+Linux ran all four files below. The macOS command omitted
+`tests/integration/test_linux_bubblewrap_sandbox.py`; its four skips were the
+Linux-only procfs cases:
+
+```sh
+.venv/bin/python -m pytest -q -p no:cacheprovider -o addopts= \
+  tests/integration/test_linux_bubblewrap_sandbox.py \
+  tests/integration/test_offline_sandbox_gate.py \
+  tests/test_execution_sandbox.py tests/test_offline_research.py
+make check PYTHON=.venv/bin/python
+make check-docs PYTHON=.venv/bin/python
+DOCKER_CONTEXT=colima make check-laboratory PYTHON=.venv/bin/python LABORATORY_ARGS='--runtime docker --image sha256:b8e6b1acd24b5803a2cc7ed8c911af40d518c2e9ef351ed915d6a4fdba317f3e --kubernetes-timeout 480'
+```
+
+The contributor Python 3.14.8 environment was reused from the linear delivery
+worktree. Linux focused validation used a disposable Ubuntu 24.04 container with
+bubblewrap and its official AppArmor user-namespace profile; both container and
+temporary profile were removed afterward. No host-wide user-namespace restriction
+was disabled. The isolated laboratory reused the unchanged immutable runtime image
+with fresh verified source snapshot
+`d1a36fd61fbbd747f91af53b8ea713dcc6a96eb6a568aa6de212206e025f7775`.
+Service nonce `ec87f08931474e989422592624e7d693` and Kubernetes nonce
+`bfffd6025251bb1a1b1e0e52b4beccea` identify this run. Kubernetes audit activity spans
+2026-10-23T15:30:34.043936Z through 2026-10-23T15:32:27.547738Z. Docker configuration
+inspection verified network isolation and the source manifest; IPv4/IPv6 egress
+was rejected. All thirteen cases below retained their expected outcomes. Cleanup
+verified service-container removal, all three namespaces, the owned node and both
+owned image tags. This laboratory result does not replace native hosted checks.
 
 ## Fixture identities
 
@@ -237,7 +292,9 @@ cases. Source identity, provenance and verification status survive reporting.
 
 ## Platform gaps and completion rule
 
-The macOS portable run skipped 24 platform-dependent tests. Linux-specific
+The original macOS portable run skipped 24 platform-dependent tests; the sandbox
+correction adds four Linux-only procfs regressions, for 28 skips in its portable
+run. Linux-specific
 production approval sockets, `/proc` descriptor protections and bubblewrap worker
 isolation require the retained native Linux jobs. Windows device/junction handling
 and PowerShell assessment require the retained Windows jobs. Linux-only EVTX
