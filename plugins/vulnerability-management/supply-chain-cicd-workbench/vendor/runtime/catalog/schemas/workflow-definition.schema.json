@@ -66,6 +66,7 @@
         "target": {"type": "string", "minLength": 1, "pattern": "^(?!.*\\$\\{).+$"}, "specialist_id": {"type": "string", "minLength": 1, "pattern": "^(?!.*\\$\\{).+$"},
         "tool": {"type": "string", "minLength": 1, "pattern": "^(?!.*\\$\\{).+$"}, "tool_version": {"type": "string", "minLength": 1, "pattern": "^(?!.*\\$\\{).+$"},
         "action": {"type": "string", "minLength": 1, "pattern": "^(?!.*\\$\\{).+$"}, "timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 86400},
+        "idempotent": {"type": "boolean", "default": false},
         "limits": {"$ref": "#/$defs/limits"},
         "credential_references": {"type": "array", "items": {"type": "string"}},
         "expected_evidence": {"type": "array", "items": {"type": "string"}},

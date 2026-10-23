@@ -505,11 +505,11 @@ def _compliance(items: list[_Artifact], as_of: datetime) -> tuple[list[_Issue], 
             limitations.append(f"Unsupported compliance artifact kind: {artifact.kind}.")
             continue
         records = artifact.content.get("controls") if isinstance(artifact.content, dict) else None
-        if not isinstance(records, list) or not records:
+        if not isinstance(records, list) or not records or len(records) > 1000:
             issues.append(_unresolved(artifact, "control_evidence"))
             continue
         analyzed.add(artifact.artifact_id)
-        for record in records[:1000]:
+        for record in records:
             if (
                 not isinstance(record, dict)
                 or record.get("framework") not in tuple(frameworks)

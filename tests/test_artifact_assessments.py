@@ -425,3 +425,27 @@ def test_incomplete_forensic_provenance_cannot_pass(changes: dict) -> None:
     }
     report = assess("forensic_evidence", [{**artifact, **changes}], as_of="2026-10-15T12:00:00Z")
     assert report["finding_codes"]
+
+
+@pytest.mark.parametrize("count", [1000, 1001])
+def test_compliance_control_budget_never_silently_truncates(count: int) -> None:
+    record = {
+        "framework": "SOC2",
+        "framework_version": "2017",
+        "control_id": "CC6.1",
+        "status": "effective",
+        "collected_at": FIXTURE["as_of"],
+        "evidence_refs": ["evidence-1"],
+    }
+    records = [dict(record) for _ in range(count)]
+    if count > 1000:
+        records[-1]["status"] = "ineffective"
+    report = assess(
+        "compliance_evidence",
+        [{"artifact_id": "controls", "kind": "control_evidence", "content": {"controls": records}}],
+        as_of=FIXTURE["as_of"],
+    )
+    if count > 1000:
+        assert "control_evidence_insufficient_evidence" in report["finding_codes"].values()
+    else:
+        assert not report["finding_codes"]
