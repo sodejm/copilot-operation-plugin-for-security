@@ -178,6 +178,23 @@ source bytes. Retain existing synthetic fingerprints so the actual laboratory
 revocation exercise correlates the same credential. Synchronize portable runtimes
 and run the repository, documentation and laboratory gates.
 
+### Hosted secret scanner exceptions
+
+The hosted GitLeaks gate retains all built-in rules through `.gitleaks.toml`.
+Exceptions require both the exact reviewed source match and its repository path:
+the signer type annotation, the synthetic replay Basic credential, and the
+historical Python PEM generator expression. The latter can make GitLeaks consume
+source through the next public-key marker; the exception rejects intervening PEM
+headers. These exceptions do not allowlist files or commits. A supplemental PEM-body rule
+also detects actual keys independently: the built-in rule can overrun malformed
+fixtures and miss a neighboring key before any repository exception is applied.
+
+Before changing an exception, reproduce the finding with the hosted GitLeaks
+version and scan the full delivery history. Verify that a newly generated disposable
+private key in the same file, a key embedded in the overrun region, a different
+credential in each affected file, and the same fixture in another file still fail
+the gate. Never commit or print generated private key canaries.
+
 ### Kubernetes correction evidence
 
 Run `python -m pytest tests/test_kubernetes_laboratory.py tests/test_check_laboratory.py`
