@@ -253,3 +253,28 @@ def test_nested_env_and_block_scalar_are_not_checkout_inputs() -> None:
 def test_ambiguous_or_unsupported_checkout_inputs_remain_partial(inputs: str) -> None:
     result = report(("github_actions", checkout_workflow(f"      - uses: actions/checkout@{SHA}\n" + inputs)))
     assert "github_actions_insufficient_evidence" in codes(result)
+
+
+@pytest.mark.parametrize(
+    "trigger,expected",
+    [
+        ("on: push\nenv:\n  pull_request_target: text", False),
+        ("on: pull_request_target_custom", False),
+        ("on: [push, pull_request_target]", True),
+        ("on: ['pull_request_target', push]", True),
+        ("on:\n  pull_request_target:\n    types: [opened]", True),
+        ("on:\n  push:\n    paths:\n      pull_request_target: text", False),
+    ],
+)
+def test_untrusted_checkout_requires_exact_top_level_trigger(trigger, expected):
+    content = (
+        trigger
+        + f"\njobs:\n  test:\n    steps:\n      - uses: actions/checkout@{SHA}\n        with:\n          ref: ${{{{ github.event.pull_request.head.sha }}}}\n"
+    )
+    observed = codes(report(("github_actions", content)))
+    assert ("workflow_untrusted_head" in observed) is expected
+
+
+def test_complex_inline_trigger_is_insufficient_evidence():
+    content = f"on: {{pull_request_target: {{}}}}\njobs:\n  test:\n    steps:\n      - uses: actions/checkout@{SHA}\n"
+    assert "github_actions_insufficient_evidence" in codes(report(("github_actions", content)))

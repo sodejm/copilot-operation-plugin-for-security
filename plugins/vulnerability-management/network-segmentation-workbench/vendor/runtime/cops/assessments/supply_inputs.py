@@ -211,10 +211,28 @@ def github_actions(content: str) -> SupplyInput:
     uses = [entry for entry in lines if entry.key == "uses"]
     if not uses:
         result.incomplete = True
-    target_event = any(
-        (entry.key == "on" and "pull_request_target" in entry.value) or entry.key == "pull_request_target"
-        for entry in lines
-    )
+    triggers = [
+        (index, entry)
+        for index, entry in enumerate(lines)
+        if entry.key == "on" and entry.parent is None and entry.item is None
+    ]
+    target_event = False
+    if len(triggers) > 1:
+        result.incomplete = True
+    elif triggers:
+        index, trigger = triggers[0]
+        if not trigger.value:
+            target_event = any(
+                entry.parent == index and entry.item is None and entry.key == "pull_request_target" for entry in lines
+            )
+        else:
+            value = trigger.value
+            events = value[1:-1].split(",") if value.startswith("[") and value.endswith("]") else [value]
+            names = [_scalar(event) for event in events]
+            if any(name is None or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name) for name in names):
+                result.incomplete = True
+            else:
+                target_event = "pull_request_target" in names
     for offset, entry in enumerate(lines):
         indent, key, value = entry.indent, entry.key, entry.value
         if key != "permissions":
