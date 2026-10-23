@@ -112,7 +112,7 @@
     },
     {
       "path": "cops/web_api/sanitization.py",
-      "sha256": "8ffe93de134d51b4efb694772ea5a8666352ca4d3607f8b20303a9358e3ebbf3",
+      "sha256": "5f3edc741afd9f8ca66182dc15e946feeeb91104e677772e8c537f1a6fc571b0",
       "source": "cops/web_api/sanitization.py"
     }
   ],

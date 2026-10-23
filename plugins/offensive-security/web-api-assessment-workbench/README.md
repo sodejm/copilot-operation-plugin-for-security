@@ -196,3 +196,5 @@ python3 -m cops check web-api-assessment-workbench
 ```
 
 Follow [Web API Assessment Verification](docs/VERIFICATION.md) to record the baseline, local-service evidence, failure recovery, and remaining qualification gaps.
+
+Serialized replay evidence stores only digest redaction markers for request bodies, response excerpts, GraphQL queries, and WebSocket payloads. Opaque payloads and custom JSON fields may contain credentials, so reports do not retain their content. This reporting policy does not change in-memory assessment inputs or approved wire requests.

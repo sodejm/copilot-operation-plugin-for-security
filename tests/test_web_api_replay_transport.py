@@ -16,7 +16,7 @@ import pytest
 from cops.execution.scope_guard import ScopeDefinition, ScopeGuard, ScopeViolationError
 from cops.execution.store import ApprovalStore
 from cops.laboratory.service_tls import _certificate_material
-from cops.web_api.models import AuthenticationMechanism, ReplayBudget, ReplayRequest, SessionContext
+from cops.web_api.models import AuthenticationMechanism, ReplayBudget, ReplayRequest, ReplayResponse, SessionContext
 from cops.web_api.replay import (
     DestinationGuard,
     DestinationViolationError,
@@ -42,8 +42,7 @@ def http_lab():
 
         def _handle(self):
             body_length = int(self.headers.get("Content-Length", "0"))
-            if body_length:
-                self.rfile.read(body_length)
+            self.server.received_bodies.append(self.rfile.read(body_length))
             seen.append((self.path, dict(self.headers)))
             if self.path == "/drop":
                 self.close_connection = True
@@ -72,6 +71,7 @@ def http_lab():
             self._handle()
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    server.received_bodies = []
     server.redirect_target = "/200"
     server.redirect_status = 302
     thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
@@ -670,3 +670,36 @@ def test_signed_approval_consumed_once_and_fail_fast_releases_receipt(http_lab, 
     with pytest.raises(Exception, match="consum"):
         _execute(plan, auth_id, approval, requests, destinations, budget)
     assert len(seen) == 1
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        "opaque-private-value",
+        '{"custom_field":"opaque-private-value"}',
+        "[123456789]",
+        "[REDACTED:0123456789ab]opaque-private-value",
+    ],
+)
+def test_serialized_payloads_are_digest_only_without_mutating_wire_payload(http_lab, payload):
+    base, _, server = http_lab
+    request = _request(f"{base}/200", method="POST", body=payload)
+    report_request = request.to_dict()
+    assert report_request["body"].startswith("[REDACTED:")
+    assert report_request["body"] != payload
+    assert request.body == payload
+    response = StandardHttpReplayer(DestinationGuard([base.removeprefix("http://")]), _scope()).send(
+        request, ReplayBudget(timeout_seconds=1)
+    )
+    assert response.replay_success
+    assert server.received_bodies == [payload.encode()]
+    observed = ReplayResponse(
+        request_id=request.request_id, status_code=200, body_excerpt=payload, websocket_replies=[payload]
+    )
+    assert observed.to_dict()["body_excerpt"] == report_request["body"]
+    assert observed.to_dict()["websocket_replies"] == [report_request["body"]]
+    request.graphql_query = payload
+    request.websocket_messages = [payload]
+    assert request.to_dict()["graphql_query"] == report_request["body"]
+    assert request.to_dict()["websocket_messages"] == [report_request["body"]]
+    assert observed.body_excerpt == payload
