@@ -50,7 +50,14 @@ sandbox observation before consuming approval. The observation checks a
 separate network namespace, only the loopback interface, no non-loopback
 routes, and no inherited socket descriptors. The worker repeats that boundary
 measurement while each external adapter version probe and operation is held
-before its executable starts. Missing controls, stale or mismatched
+before its executable starts. Bubblewrap PID metadata can arrive during network
+setup; it is not readiness evidence. Before measuring, the worker verifies through
+Linux procfs that the child is blocked reading one byte from the exact execution
+gate pipe held by the worker. This check supports Linux x86_64 and aarch64 syscall
+ABIs and requires access to the child's procfs syscall and descriptor records.
+Setup must finish within the invocation deadline. The worker measures the
+network boundary once, then rejects any remaining socket or digest mismatch;
+it does not retry rejected boundary measurements. Missing controls, stale or mismatched
 observations, changed files, and unsupported operations fail closed.
 
 ## Review the result and deployment boundary
