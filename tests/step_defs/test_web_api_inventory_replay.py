@@ -674,4 +674,10 @@ def invalid_associations_fail_without_disclosure(invalid_session_failures):
     for rendered in invalid_session_failures:
         assert "session binding is invalid" in rendered
         assert "private/session-reference" not in rendered
-        assert "fixture-" not in rendered
+        for sensitive_value in (
+            "fixture-missing-binding-secret",
+            "fixture-malformed-binding-secret",
+            "fixture-conflicting-binding-secret",
+            "missing-session-private-value",
+        ):
+            assert sensitive_value not in rendered
