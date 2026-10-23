@@ -192,8 +192,10 @@ def test_execution_gate_rejects_malformed_procfs(monkeypatch, observation):
 
 def test_execution_gate_rejects_unavailable_procfs(monkeypatch):
     monkeypatch.setattr(sandbox_module.os, "uname", lambda: SimpleNamespace(machine="x86_64"), raising=False)
+
     def unavailable(path):
         raise SandboxReadinessError("offline sandbox namespace observation is unavailable")
+
     monkeypatch.setattr(LinuxBubblewrapSandbox, "_read_proc_lines", unavailable)
     reader, writer = os.pipe()
     try:
