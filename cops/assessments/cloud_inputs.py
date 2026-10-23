@@ -355,6 +355,9 @@ def _gcp(value: Any, result: CloudInput) -> None:
                 or _strings(binding.get("members")) is None
             ):
                 result.incomplete = True
+            elif "condition" in binding:
+                # CEL conditions require evaluation context that exports do not establish.
+                result.incomplete = True
             elif binding["role"] in {"roles/owner", "roles/editor"}:
                 result.codes.add("iam_wildcard")
             elif binding["role"].startswith("roles/storage.") and {"allUsers", "allAuthenticatedUsers"}.intersection(

@@ -227,3 +227,6 @@ Actual firewall/CNI enforcement needs independent isolated connectivity evidence
 
 Compliance artifacts are limited to 1,000 control records. An artifact above that
 limit is insufficient evidence; no prefix is treated as a complete assessment.
+
+GCP IAM bindings with conditions require evaluation context and produce insufficient
+evidence. Independently supported unconditional bindings remain assessable.
