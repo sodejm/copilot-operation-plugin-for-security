@@ -198,3 +198,5 @@ python3 -m cops check web-api-assessment-workbench
 Follow [Web API Assessment Verification](docs/VERIFICATION.md) to record the baseline, local-service evidence, failure recovery, and remaining qualification gaps.
 
 Serialized replay evidence stores only digest redaction markers for request bodies, response excerpts, GraphQL queries, and WebSocket payloads. Opaque payloads and custom JSON fields may contain credentials, so reports do not retain their content. This reporting policy does not change in-memory assessment inputs or approved wire requests.
+
+HAR, Postman, and absolute raw HTTP request imports preserve their source URL scheme in inventory round trips and replay previews, including HTTP versus HTTPS and WS versus WSS. Legacy inventories and relative raw requests without a recorded scheme retain the existing HTTPS (or modeled WebSocket WSS) default. Recorded schemes outside these four transports fail preview construction. Live WebSocket execution remains unsupported.

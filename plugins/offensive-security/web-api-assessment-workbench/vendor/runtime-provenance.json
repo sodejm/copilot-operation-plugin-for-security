@@ -87,12 +87,12 @@
     },
     {
       "path": "cops/web_api/cli.py",
-      "sha256": "212bf8338fc981da8cfd5fc73467ae97f08dca4d84135f37f622cde3dfba37ed",
+      "sha256": "a42e84dafc2e8ca62952251831b35bb70bff6bfa765f4273b42fc1337f32d0d0",
       "source": "cops/web_api/cli.py"
     },
     {
       "path": "cops/web_api/importer.py",
-      "sha256": "a11b56a83a76730bfc5a3878d54d37a8a2fd82b2828d79692f3c3172b0dbe2ef",
+      "sha256": "e20ff8064180a5abb3bdf5d154f9540f4b141ea20baa90658909703f9bf3cd1e",
       "source": "cops/web_api/importer.py"
     },
     {
@@ -102,7 +102,7 @@
     },
     {
       "path": "cops/web_api/models.py",
-      "sha256": "4d732b44f45c5e4b64c2d488ed8703a04e2898f5ea0ec75f35c18e1d459e7470",
+      "sha256": "425deff34b79e8dddd87bbb5915aabe976c70a8d351c4f8571e180dedc306e17",
       "source": "cops/web_api/models.py"
     },
     {
