@@ -202,3 +202,5 @@ Serialized replay evidence stores only digest redaction markers for request bodi
 HAR, Postman, and absolute raw HTTP request imports preserve their source URL scheme in inventory round trips and replay previews, including HTTP versus HTTPS and WS versus WSS. Legacy inventories and relative raw requests without a recorded scheme retain the existing HTTPS (or modeled WebSocket WSS) default. Recorded schemes outside these four transports fail preview construction. Live WebSocket execution remains unsupported.
 
 OpenAPI imports require exactly one supported version declaration: `swagger: "2.0"` or an `openapi` string in `3.x.y` form. Missing, malformed, conflicting, and other major versions fail before inventory generation.
+
+Path-level OpenAPI/Swagger parameters are inherited by each operation. An operation overrides a shared parameter with the same name and location; an empty operation parameter list retains inherited parameters. Malformed declarations, duplicate identities within one level, and unresolved parameter references fail closed.

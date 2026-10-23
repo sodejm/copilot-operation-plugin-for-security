@@ -505,3 +505,49 @@ def test_openapi_rejects_missing_unsupported_or_conflicting_versions(declaration
 def test_openapi_accepts_supported_declared_versions(declaration):
     inventory = import_openapi({**declaration, "host": "api.example.test", "paths": {"/items": {"get": {}}}})
     assert len(inventory.endpoints) == 1
+
+
+@pytest.mark.parametrize("declaration", [{"swagger": "2.0"}, {"openapi": "3.0.3"}])
+def test_openapi_inherits_shared_parameters_and_overrides_by_name_and_location(declaration):
+    from cops.web_api.importer import _openapi_parameters
+
+    shared = [
+        {"in": "query", "name": "tenant", "required": False},
+        {"in": "header", "name": "tenant"},
+        {"in": "query", "name": "api_key"},
+    ]
+    override = {"in": "query", "name": "tenant", "required": True}
+    operation = {"parameters": [override, {"in": "query", "name": "page"}]}
+    path_item = {"parameters": shared, "get": operation, "post": {"parameters": []}}
+    inventory = import_openapi({**declaration, "host": "api.example.test", "paths": {"/items": path_item}})
+    get, post = inventory.endpoints
+    assert set(get.query_parameters) == {"tenant", "api_key", "page"}
+    assert set(post.query_parameters) == {"tenant", "api_key"}
+    assert set(get.headers_schema) == set(post.headers_schema) == {"tenant"}
+    assert get.query_parameters["api_key"] != "sample_val"
+    effective = _openapi_parameters(path_item, operation)
+    assert effective[0] == override
+    assert effective[1] == shared[1]
+    assert len(effective) == 4
+    assert shared[0]["required"] is False
+
+
+@pytest.mark.parametrize("level", ["path", "operation"])
+@pytest.mark.parametrize(
+    "parameters",
+    [
+        None,
+        {},
+        [{"$ref": "#/private-reference"}],
+        ["private-value"],
+        [{"in": "query"}],
+        [{"in": "query", "name": "dup"}, {"in": "query", "name": "dup"}],
+    ],
+)
+def test_openapi_rejects_unrepresentable_parameter_declarations(level, parameters):
+    path_item = {"get": {}}
+    target = path_item if level == "path" else path_item["get"]
+    target["parameters"] = parameters
+    with pytest.raises(ImporterError, match="parameter declaration cannot be represented") as caught:
+        import_openapi({"openapi": "3.0.3", "paths": {"/items": path_item}})
+    assert "private" not in str(caught.value)
