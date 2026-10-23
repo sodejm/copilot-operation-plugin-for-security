@@ -15,7 +15,6 @@ from copy import deepcopy
 from dataclasses import asdict, dataclass, replace
 from typing import Any
 from urllib.parse import urlencode, urljoin, urlparse, urlunparse
-import urllib.request
 
 from cops.contracts.models import ActionPlan
 from cops.evidence.canonical import digest, utc_now
@@ -28,7 +27,6 @@ from .models import (
     ReplayRequest,
     ReplayResponse,
     ReplaySessionReport,
-    SENSITIVE_FIELD_PATTERNS,
     SessionContext,
 )
 from .sanitization import SENSITIVE_FIELD_PATTERNS, authority, sanitize_reference

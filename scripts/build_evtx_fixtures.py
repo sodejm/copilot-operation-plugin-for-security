@@ -53,22 +53,40 @@ def element(name: str, attributes: dict[str, str], children: list | str, offset:
 
 
 def record(event_id: int, data: dict[str, str], record_id: int, offset: int) -> bytes:
-    system = ("System", {}, [
-        ("Provider", {"Name": "Microsoft-Windows-Sysmon"}, []),
-        ("EventID", {}, str(event_id)),
-        ("TimeCreated", {"SystemTime": TIMESTAMP}, []),
-        ("EventRecordID", {}, str(record_id)),
-        ("Channel", {}, "Microsoft-Windows-Sysmon/Operational"),
-    ])
+    system = (
+        "System",
+        {},
+        [
+            ("Provider", {"Name": "Microsoft-Windows-Sysmon"}, []),
+            ("EventID", {}, str(event_id)),
+            ("TimeCreated", {"SystemTime": TIMESTAMP}, []),
+            ("EventRecordID", {}, str(record_id)),
+            ("Channel", {}, "Microsoft-Windows-Sysmon/Operational"),
+        ],
+    )
     event_data = ("EventData", {}, [("Data", {"Name": key}, text) for key, text in data.items()])
     template_offset = offset + 24 + len(STREAM) + 10
-    xml = STREAM + element("Event", {"xmlns": "http://schemas.microsoft.com/win/2004/08/events/event"},
-                           [system, event_data], template_offset + 24 + len(STREAM)) + b"\0"
+    xml = (
+        STREAM
+        + element(
+            "Event",
+            {"xmlns": "http://schemas.microsoft.com/win/2004/08/events/event"},
+            [system, event_data],
+            template_offset + 24 + len(STREAM),
+        )
+        + b"\0"
+    )
     template = struct.pack("<II", 0, record_id) + b"\0" * 12 + struct.pack("<I", len(xml)) + xml
-    binary_xml = STREAM + struct.pack("<BBII", 12, 0, record_id, template_offset) + template + b"\0" + struct.pack("<I", 0)
+    binary_xml = (
+        STREAM + struct.pack("<BBII", 12, 0, record_id, template_offset) + template + b"\0" + struct.pack("<I", 0)
+    )
     size = (24 + len(binary_xml) + 4 + 7) & ~7
-    return (struct.pack("<IIQQ", 0x2A2A, size, record_id, FILETIME) + binary_xml
-            + b"\0" * (size - 28 - len(binary_xml)) + struct.pack("<I", size))
+    return (
+        struct.pack("<IIQQ", 0x2A2A, size, record_id, FILETIME)
+        + binary_xml
+        + b"\0" * (size - 28 - len(binary_xml))
+        + struct.pack("<I", size)
+    )
 
 
 def build(events: list[tuple[int, dict[str, str]]]) -> bytes:
@@ -78,12 +96,13 @@ def build(events: list[tuple[int, dict[str, str]]]) -> bytes:
     for index, (event_id, data) in enumerate(events, 1):
         entry = record(event_id, data, index, position)
         last = position
-        chunk[position:position + len(entry)] = entry
+        chunk[position : position + len(entry)] = entry
         position += len(entry)
     if position > 65536:
         raise ValueError("fixture exceeds one chunk")
-    struct.pack_into("<QQQQIIII", chunk, 8, 1, len(events), 1, len(events), 128, last, position,
-                     zlib.crc32(chunk[512:position]))
+    struct.pack_into(
+        "<QQQQIIII", chunk, 8, 1, len(events), 1, len(events), 128, last, position, zlib.crc32(chunk[512:position])
+    )
     struct.pack_into("<I", chunk, 124, zlib.crc32(chunk[:120] + chunk[128:512]))
     header = bytearray(4096)
     header[:8] = b"ElfFile\0"
@@ -95,17 +114,41 @@ def build(events: list[tuple[int, dict[str, str]]]) -> bytes:
 def fixtures() -> dict[str, bytes]:
     common = {"User": "lab-user", "UtcTime": TIMESTAMP}
     return {
-        "sysmon-vulnerable.evtx": build([
-            (1, {**common, "Image": r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe",
-                 "CommandLine": "powershell.exe -EncodedCommand SYNTHETIC_SECRET"}),
-            (3, {**common, "Image": r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe",
-                 "SourceIp": "192.0.2.10", "DestinationIp": "198.51.100.20"}),
-        ]),
-        "sysmon-corrected.evtx": build([
-            (1, {**common, "Image": r"C:\Windows\System32\notepad.exe", "CommandLine": "notepad.exe"}),
-            (3, {**common, "Image": r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe",
-                 "SourceIp": "127.0.0.1", "DestinationIp": "127.0.0.1"}),
-        ]),
+        "sysmon-vulnerable.evtx": build(
+            [
+                (
+                    1,
+                    {
+                        **common,
+                        "Image": r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe",
+                        "CommandLine": "powershell.exe -EncodedCommand SYNTHETIC_SECRET",
+                    },
+                ),
+                (
+                    3,
+                    {
+                        **common,
+                        "Image": r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe",
+                        "SourceIp": "192.0.2.10",
+                        "DestinationIp": "198.51.100.20",
+                    },
+                ),
+            ]
+        ),
+        "sysmon-corrected.evtx": build(
+            [
+                (1, {**common, "Image": r"C:\Windows\System32\notepad.exe", "CommandLine": "notepad.exe"}),
+                (
+                    3,
+                    {
+                        **common,
+                        "Image": r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe",
+                        "SourceIp": "127.0.0.1",
+                        "DestinationIp": "127.0.0.1",
+                    },
+                ),
+            ]
+        ),
         "sysmon-insufficient.evtx": build([(3, {**common, "Image": "powershell.exe"})]),
     }
 

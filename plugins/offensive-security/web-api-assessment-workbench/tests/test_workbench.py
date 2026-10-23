@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 if str(REPO_ROOT) not in sys.path:
@@ -25,12 +25,9 @@ from cops.web_api.models import (  # noqa: E402  # Import after runtime prerequi
     ApiInventory,
     ReplayBudget,
     ReplayRequest,
-    ReplayResponse,
-    ReplaySessionReport,
-    SessionContext,
     redact_credential_value,
 )
-from cops.web_api.replay import (
+from cops.web_api.replay import (  # noqa: E402  # Import after runtime prerequisite/path selection.
     DestinationGuard,
     DestinationViolationError,
     OfflineSyntheticReplayer,
@@ -132,9 +129,7 @@ class TestWebApiWorkbench(unittest.TestCase):
             "paths": {
                 "/items/{id}": {
                     "get": {
-                        "parameters": [
-                            {"name": "id", "in": "path", "required": True}
-                        ],
+                        "parameters": [{"name": "id", "in": "path", "required": True}],
                         "responses": {"200": {"description": "OK"}},
                     }
                 }
@@ -299,9 +294,7 @@ class TestWebApiWorkbench(unittest.TestCase):
             ),
         ]
         budget = ReplayBudget(max_requests=5, rate_limit_rps=50.0)
-        replayer = OfflineSyntheticReplayer(
-            mock_routes={"GET /api/status": {"status": 200, "body": '{"ok": true}'}}
-        )
+        replayer = OfflineSyntheticReplayer(mock_routes={"GET /api/status": {"status": 200, "body": '{"ok": true}'}})
 
         report = execute_replay_session(
             requests=requests,

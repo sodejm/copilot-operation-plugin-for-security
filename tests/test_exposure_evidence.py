@@ -12,13 +12,26 @@ def evidence(anonymous: int = 401) -> dict:
     source = {"observed_at": "2026-10-15T12:30:00Z", "evidence_ref": "fixture:exposure"}
     return {
         "scope": {"endpoints": [endpoint], "window": {"start": "2026-10-15T12:00:00Z", "end": "2026-10-15T13:00:00Z"}},
-        "dns_service_inventory": {"complete": True, "records": [{**source, "host": endpoint["host"], "addresses": ["192.0.2.20"]}]},
-        "port_route_evidence": {"complete": True, "checks": [{**source, **endpoint, "address": "192.0.2.20", "connected": True}]},
-        "auth_evidence": {"complete": True, "checks": [{**source, **endpoint, "address": "192.0.2.20", "authorized_status": 200, "anonymous_status": anonymous}]},
+        "dns_service_inventory": {
+            "complete": True,
+            "records": [{**source, "host": endpoint["host"], "addresses": ["192.0.2.20"]}],
+        },
+        "port_route_evidence": {
+            "complete": True,
+            "checks": [{**source, **endpoint, "address": "192.0.2.20", "connected": True}],
+        },
+        "auth_evidence": {
+            "complete": True,
+            "checks": [
+                {**source, **endpoint, "address": "192.0.2.20", "authorized_status": 200, "anonymous_status": anonymous}
+            ],
+        },
     }
 
 
-@pytest.mark.parametrize(("anonymous", "outcome"), [(200, "action_required"), (401, "no_exposure_observed"), (403, "no_exposure_observed")])
+@pytest.mark.parametrize(
+    ("anonymous", "outcome"), [(200, "action_required"), (401, "no_exposure_observed"), (403, "no_exposure_observed")]
+)
 def test_exposure_correction(anonymous: int, outcome: str) -> None:
     result = assess_exposure(evidence(anonymous))
     assert result["outcome"] == outcome
@@ -27,22 +40,25 @@ def test_exposure_correction(anonymous: int, outcome: str) -> None:
     assert len(result["exposures"]) == (anonymous == 200)
 
 
-@pytest.mark.parametrize(("section", "field", "value"), [
-    ("auth_evidence", "host", "another.example.test"),
-    ("auth_evidence", "port", 8443),
-    ("auth_evidence", "scheme", "http"),
-    ("auth_evidence", "route", "/other"),
-    ("auth_evidence", "address", "192.0.2.21"),
-    ("port_route_evidence", "address", "192.0.2.21"),
-    ("port_route_evidence", "connected", False),
-    ("port_route_evidence", "connected", 1),
-    ("auth_evidence", "authorized_status", 403),
-    ("auth_evidence", "anonymous_status", 302),
-    ("auth_evidence", "anonymous_status", True),
-    ("auth_evidence", "observed_at", "2026-10-14T12:00:00Z"),
-    ("auth_evidence", "observed_at", "2026-10-15T12:30:00"),
-    ("auth_evidence", "evidence_ref", ""),
-])
+@pytest.mark.parametrize(
+    ("section", "field", "value"),
+    [
+        ("auth_evidence", "host", "another.example.test"),
+        ("auth_evidence", "port", 8443),
+        ("auth_evidence", "scheme", "http"),
+        ("auth_evidence", "route", "/other"),
+        ("auth_evidence", "address", "192.0.2.21"),
+        ("port_route_evidence", "address", "192.0.2.21"),
+        ("port_route_evidence", "connected", False),
+        ("port_route_evidence", "connected", 1),
+        ("auth_evidence", "authorized_status", 403),
+        ("auth_evidence", "anonymous_status", 302),
+        ("auth_evidence", "anonymous_status", True),
+        ("auth_evidence", "observed_at", "2026-10-14T12:00:00Z"),
+        ("auth_evidence", "observed_at", "2026-10-15T12:30:00"),
+        ("auth_evidence", "evidence_ref", ""),
+    ],
+)
 def test_unbound_or_inconclusive_evidence_never_clears(section: str, field: str, value: object) -> None:
     inputs = evidence()
     inputs[section]["checks"][0][field] = value

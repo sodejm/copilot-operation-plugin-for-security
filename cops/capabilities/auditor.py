@@ -275,9 +275,11 @@ def audit_capabilities(root: Path = ROOT, registry_data: dict[str, Any] | None =
         mode: sum(cap["mode"] == mode for cap in capabilities)
         for mode in ("planned", "import", "laboratory", "live-validated")
     }
-    if (summary["by_kind"] != expected_counts
-            or summary["total_capabilities"] != len(capabilities)
-            or summary["by_mode"] != actual_modes):
+    if (
+        summary["by_kind"] != expected_counts
+        or summary["total_capabilities"] != len(capabilities)
+        or summary["by_mode"] != actual_modes
+    ):
         raise CapabilityTruthError("catalog_descriptive_drift", "Summary counts differ from canonical entries.")
 
     return {

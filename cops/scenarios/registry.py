@@ -165,7 +165,9 @@ def validate_scenario_and_provenance_integrity(root: Path = ROOT) -> dict[str, A
             except (OSError, ValueError) as err:
                 raise RegistryError("invalid_workflow", f"invalid workflow for scenario '{sid}': {reference}") from err
             if definition.scenario_id != sid:
-                raise RegistryError("workflow_scenario_mismatch", f"workflow is bound to a different scenario: {reference}")
+                raise RegistryError(
+                    "workflow_scenario_mismatch", f"workflow is bound to a different scenario: {reference}"
+                )
 
     # Validate that every inventoried item in provenance resolves
     all_item_ids: set[str] = set()

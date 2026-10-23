@@ -3,6 +3,7 @@
 No include, environment substitution, URL, YAML tag, or action is evaluated.
 Only package identities and content-free observation codes leave these parsers.
 """
+
 from __future__ import annotations
 
 import re
@@ -27,10 +28,15 @@ def _registry_url(value: Any) -> bool:
         return False
     try:
         parsed = urlsplit(value)
-        return (parsed.scheme == "https" and parsed.hostname == "registry.npmjs.org"
-                and parsed.port in (None, 443) and parsed.username is None
-                and parsed.password is None and not parsed.fragment
-                and not any(char.isspace() for char in value))
+        return (
+            parsed.scheme == "https"
+            and parsed.hostname == "registry.npmjs.org"
+            and parsed.port in (None, 443)
+            and parsed.username is None
+            and parsed.password is None
+            and not parsed.fragment
+            and not any(char.isspace() for char in value)
+        )
     except ValueError:
         return False
 
@@ -91,7 +97,7 @@ def requirements_lock(content: str) -> SupplyInput:
             continue
         pin = re.match(r"^([A-Za-z0-9][A-Za-z0-9._-]*)(?:\[[A-Za-z0-9,._-]+\])?==([^\s]+)", line)
         hashes = re.findall(r"(?:^|\s)--hash=sha256:([0-9a-fA-F]{64})(?=\s|$)", line)
-        tail = line[pin.end():] if pin else line
+        tail = line[pin.end() :] if pin else line
         remainder = re.sub(r"(?:^|\s)--hash=sha256:[0-9a-fA-F]{64}(?=\s|$)", "", tail).strip()
         if not pin or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9.!+_-]*", pin[2]) or not hashes or remainder:
             result.codes.add("python_dependency_unhashed")
@@ -105,7 +111,7 @@ def _scalar(value: str) -> str | None:
     if value.startswith(("'", '"')):
         quote = value[0]
         end = value.find(quote, 1)
-        tail = value[end + 1:].strip() if end >= 0 else ""
+        tail = value[end + 1 :].strip() if end >= 0 else ""
         if end < 0 or (tail and not tail.startswith("#")):
             return None
         # Escaped/compound scalars are intentionally outside this subset.

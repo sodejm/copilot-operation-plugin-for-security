@@ -252,11 +252,7 @@ def _verify_anchors(
         if _clean(anchor.path, _redactor()) != anchor.path:
             raise ExportError("source anchor path must not contain credential material")
         path = PurePosixPath(anchor.path)
-        if (
-            path.is_absolute()
-            or path.as_posix() != anchor.path
-            or any(part in {"", ".", ".."} for part in path.parts)
-        ):
+        if path.is_absolute() or path.as_posix() != anchor.path or any(part in {"", ".", ".."} for part in path.parts):
             raise ExportError("source anchor path escapes the repository")
         if type(anchor.start_line) is not int or anchor.start_line < 1:
             raise ExportError("source anchor start_line must be a positive integer")
@@ -307,9 +303,7 @@ def _rule(finding: Mapping[str, Any], redactor: StreamRedactor) -> dict[str, Any
         "shortDescription": {"text": _clean(finding["title"], redactor)},
         "fullDescription": {"text": _clean(finding["claim"], redactor)},
         "help": {"text": _clean(finding["remediation"], redactor)},
-        "defaultConfiguration": {
-            "level": _SEVERITY_LEVEL[finding["severity"]] if _is_verified(finding) else "note"
-        },
+        "defaultConfiguration": {"level": _SEVERITY_LEVEL[finding["severity"]] if _is_verified(finding) else "note"},
         "properties": properties,
     }
 
@@ -349,9 +343,7 @@ def export_sarif(
             "ruleIndex": index,
             "level": _SEVERITY_LEVEL[finding["severity"]] if _is_verified(finding) else "note",
             "message": {"text": message},
-            "partialFingerprints": {
-                "copsFindingId": hashlib.sha256(finding["finding_id"].encode("utf-8")).hexdigest()
-            },
+            "partialFingerprints": {"copsFindingId": hashlib.sha256(finding["finding_id"].encode("utf-8")).hexdigest()},
             "properties": {
                 "copsAssessmentStatus": finding["assessment_status"],
                 "copsVerification": finding["verification"],
@@ -372,9 +364,9 @@ def export_sarif(
             )
         if locations:
             result["locations"] = locations
-            result["partialFingerprints"]["copsAnchorLinesSha256"] = anchors_by_finding[
-                finding["finding_id"]
-            ][0].line_sha256
+            result["partialFingerprints"]["copsAnchorLinesSha256"] = anchors_by_finding[finding["finding_id"]][
+                0
+            ].line_sha256
         results.append(result)
 
     run: dict[str, Any] = {
@@ -413,9 +405,7 @@ def validate_github_sarif_subset(sarif: Mapping[str, Any]) -> None:
     if not driver.get("name") or not isinstance(rules, list) or not isinstance(results, list):
         raise ExportError("GitHub SARIF run is missing its driver, rules, or results")
     rule_ids = [rule.get("id") for rule in rules]
-    if any(not isinstance(rule_id, str) or not rule_id for rule_id in rule_ids) or len(rule_ids) != len(
-        set(rule_ids)
-    ):
+    if any(not isinstance(rule_id, str) or not rule_id for rule_id in rule_ids) or len(rule_ids) != len(set(rule_ids)):
         raise ExportError("GitHub SARIF rules require unique non-empty identifiers")
     for result in results:
         index = result.get("ruleIndex")
@@ -524,9 +514,7 @@ def export_pr_markdown(
     """Return local PR-ready Markdown with revision-verified suggestions."""
     document = _validated_report(report)
     root, resolved_revision = _resolve_revision(repository_root, revision)
-    verified = _verify_anchors(
-        document["findings"], source_anchors, repository_root=root, revision=resolved_revision
-    )
+    verified = _verify_anchors(document["findings"], source_anchors, repository_root=root, revision=resolved_revision)
     anchors_by_finding: dict[str, list[_VerifiedAnchor]] = {}
     for anchor in verified:
         anchors_by_finding.setdefault(anchor.source.finding_id, []).append(anchor)
@@ -570,8 +558,7 @@ def export_pr_markdown(
                 location += f"-{anchor.end_line}"
             lines.extend(
                 [
-                    f"Source anchor: `{_markdown(location, redactor)}` "
-                    f"(lines SHA-256 `{anchor.line_sha256}`)",
+                    f"Source anchor: `{_markdown(location, redactor)}` (lines SHA-256 `{anchor.line_sha256}`)",
                     "",
                 ]
             )

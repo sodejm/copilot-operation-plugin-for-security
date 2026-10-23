@@ -81,11 +81,16 @@ def unsafe_prerequisite(context):
 def host_package(context, tmp_path):
     source = tmp_path / "source"
     source.mkdir()
-    (source / "plugin.json").write_text(json.dumps({
-        "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
-        "name": "fixture-plugin",
-        "extensions": {"org.cops": {}},
-    }), encoding="utf-8")
+    (source / "plugin.json").write_text(
+        json.dumps(
+            {
+                "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+                "name": "fixture-plugin",
+                "extensions": {"org.cops": {}},
+            }
+        ),
+        encoding="utf-8",
+    )
     skill = source / "skills" / "fixture-skill"
     skill.mkdir(parents=True)
     (skill / "SKILL.md").write_text(
@@ -94,9 +99,7 @@ def host_package(context, tmp_path):
     )
     namespace = source / "org.cops"
     namespace.mkdir()
-    (namespace / "prerequisites.json").write_text(
-        '{"schema_version":"1.0","tools":[]}', encoding="utf-8"
-    )
+    (namespace / "prerequisites.json").write_text('{"schema_version":"1.0","tools":[]}', encoding="utf-8")
     for native in (".claude-plugin", ".codex-plugin", "agents"):
         (source / native).mkdir()
         (source / native / "fixture.json").write_text("{}", encoding="utf-8")
@@ -131,9 +134,7 @@ def limited_finding(context):
 @given("a merged delivery claim without merge evidence")
 def unsupported_delivery(context):
     document = verified_example()
-    document["findings"][0]["delivery_claims"] = [
-        {"state": "merged", "evidence_ids": ["validation-command"]}
-    ]
+    document["findings"][0]["delivery_claims"] = [{"state": "merged", "evidence_ids": ["validation-command"]}]
     context["document"] = document
 
 
@@ -239,10 +240,13 @@ def test_verified_high_confidence_rejects_stale_evidence():
 
 
 def test_portable_manifest_accepts_minimal_spec_document():
-    validate_agent_plugin_manifest({
-        "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
-        "name": "fixture-plugin",
-    }, "fixture/plugin.json")
+    validate_agent_plugin_manifest(
+        {
+            "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+            "name": "fixture-plugin",
+        },
+        "fixture/plugin.json",
+    )
 
 
 def test_prerequisite_installer_requires_explicit_install():
@@ -270,9 +274,13 @@ def test_prerequisite_installer_requires_explicit_install():
 def test_prerequisite_installer_detects_failed_install():
     tool = {"id": "jq", "command": "jq", "packages": {"brew": "jq"}}
     with pytest.raises(PrerequisiteError, match="did not provide"):
-        process_tools([tool], install=True, platform="darwin",
-                      which=lambda name: "/usr/bin/brew" if name == "brew" else None,
-                      run=lambda *args, **kwargs: type("Result", (), {"returncode": 0})())
+        process_tools(
+            [tool],
+            install=True,
+            platform="darwin",
+            which=lambda name: "/usr/bin/brew" if name == "brew" else None,
+            run=lambda *args, **kwargs: type("Result", (), {"returncode": 0})(),
+        )
 
 
 def test_portable_export_rejects_symlinks(tmp_path):
@@ -307,9 +315,7 @@ def test_portable_export_excludes_untracked_nested_files(context, tmp_path):
     assert not (context["destination"] / "skills" / "fixture-skill" / ".env").exists()
 
 
-def test_portable_export_uses_temporary_index_for_new_reviewed_asset(
-    context, monkeypatch, tmp_path
-):
+def test_portable_export_uses_temporary_index_for_new_reviewed_asset(context, monkeypatch, tmp_path):
     host_package(context, tmp_path)
     relative = Path("docs/report-exports.md")
     asset = context["source"] / relative
@@ -337,9 +343,7 @@ def test_portable_export_uses_temporary_index_for_new_reviewed_asset(
 
 def test_portable_export_rejects_broken_relative_link(context, tmp_path):
     host_package(context, tmp_path)
-    (context["source"] / "README.md").write_text(
-        "[source-only](package.json)\n", encoding="utf-8"
-    )
+    (context["source"] / "README.md").write_text("[source-only](package.json)\n", encoding="utf-8")
     subprocess.run(["git", "-C", str(context["source"]), "add", "README.md"], check=True)
     with pytest.raises(PackageValidationError, match="broken portable documentation link"):
         export_portable_package(context["source"], context["destination"])
@@ -368,9 +372,13 @@ def test_prerequisite_install_preflights_all_tools():
     ]
     calls = []
     with pytest.raises(PrerequisiteError, match="no supported installed package manager"):
-        process_tools(tools, install=True, platform="darwin",
-                      which=lambda name: "/usr/bin/brew" if name == "brew" else None,
-                      run=lambda *args, **kwargs: calls.append(args))
+        process_tools(
+            tools,
+            install=True,
+            platform="darwin",
+            which=lambda name: "/usr/bin/brew" if name == "brew" else None,
+            run=lambda *args, **kwargs: calls.append(args),
+        )
     assert calls == []
 
 
@@ -383,9 +391,7 @@ def test_prerequisite_install_skips_tool_provided_by_earlier_install():
     calls = []
 
     def which(command):
-        return "/usr/bin/brew" if command == "brew" else (
-            f"/usr/bin/{command}" if installed else None
-        )
+        return "/usr/bin/brew" if command == "brew" else (f"/usr/bin/{command}" if installed else None)
 
     def run(command, *, check):
         nonlocal installed
@@ -400,12 +406,12 @@ def test_prerequisite_install_skips_tool_provided_by_earlier_install():
 def test_prerequisite_cli_preflights_every_selected_plugin(monkeypatch):
     records = [SimpleNamespace(id=name, path=name) for name in ("first", "later")]
     monkeypatch.setattr(install_prerequisites, "plugin_records", lambda root: records)
-    monkeypatch.setattr(install_prerequisites, "load_json",
-                        lambda path, root: {"id": path.parts[-3]})
-    monkeypatch.setattr(install_prerequisites, "validate_prerequisites",
-                        lambda document, location: [{"id": document["id"],
-                                                     "command": document["id"],
-                                                     "packages": {}}])
+    monkeypatch.setattr(install_prerequisites, "load_json", lambda path, root: {"id": path.parts[-3]})
+    monkeypatch.setattr(
+        install_prerequisites,
+        "validate_prerequisites",
+        lambda document, location: [{"id": document["id"], "command": document["id"], "packages": {}}],
+    )
     monkeypatch.setattr(install_prerequisites.shutil, "which", lambda command: None)
     calls = []
 
@@ -416,8 +422,11 @@ def test_prerequisite_cli_preflights_every_selected_plugin(monkeypatch):
         return ["brew", "install", "first"]
 
     monkeypatch.setattr(install_prerequisites, "install_command", preflight)
-    monkeypatch.setattr(install_prerequisites, "process_tools",
-                        lambda *args, **kwargs: pytest.fail("install began before global preflight"))
+    monkeypatch.setattr(
+        install_prerequisites,
+        "process_tools",
+        lambda *args, **kwargs: pytest.fail("install began before global preflight"),
+    )
     monkeypatch.setattr(sys, "argv", ["install_prerequisites.py", "--install"])
     assert install_prerequisites.main() == 1
     assert calls == ["first", "later"]
@@ -427,29 +436,37 @@ def test_prerequisite_cli_preflights_every_selected_plugin(monkeypatch):
 def test_mcp_validator_rejects_case_insensitive_env_collisions(tmp_path, env):
     server = {"type": "stdio", "command": "python3", "env": env}
     with pytest.raises(MCPValidationError, match="reserved keys"):
-        validate_mcp_configuration({"$schema": MCP_SCHEMA, "mcpServers": {"bad": server}},
-                                   "mcp.json", tmp_path)
+        validate_mcp_configuration({"$schema": MCP_SCHEMA, "mcpServers": {"bad": server}}, "mcp.json", tmp_path)
 
 
-@pytest.mark.parametrize("env", [
-    {"BAD=KEY": "value"}, {"BAD\0KEY": "value"}, {"KEY": "bad\0value"},
-])
+@pytest.mark.parametrize(
+    "env",
+    [
+        {"BAD=KEY": "value"},
+        {"BAD\0KEY": "value"},
+        {"KEY": "bad\0value"},
+    ],
+)
 def test_mcp_validator_rejects_invalid_process_environment(tmp_path, env):
     server = {"type": "stdio", "command": "python3", "env": env}
     with pytest.raises(MCPValidationError, match="process environment names"):
-        validate_mcp_configuration({"$schema": MCP_SCHEMA, "mcpServers": {"bad": server}},
-                                   "mcp.json", tmp_path)
+        validate_mcp_configuration({"$schema": MCP_SCHEMA, "mcpServers": {"bad": server}}, "mcp.json", tmp_path)
 
 
-@pytest.mark.parametrize("cwd", [
-    "./missing", "${PLUGIN_ROOT}/missing", "./file", "${PLUGIN_ROOT}/file",
-])
+@pytest.mark.parametrize(
+    "cwd",
+    [
+        "./missing",
+        "${PLUGIN_ROOT}/missing",
+        "./file",
+        "${PLUGIN_ROOT}/file",
+    ],
+)
 def test_mcp_validator_requires_existing_package_cwd(tmp_path, cwd):
     (tmp_path / "file").write_text("not a directory", encoding="utf-8")
     server = {"type": "stdio", "command": "python3", "cwd": cwd}
     with pytest.raises(MCPValidationError, match="package directory"):
-        validate_mcp_configuration({"$schema": MCP_SCHEMA, "mcpServers": {"bad": server}},
-                                   "mcp.json", tmp_path)
+        validate_mcp_configuration({"$schema": MCP_SCHEMA, "mcpServers": {"bad": server}}, "mcp.json", tmp_path)
 
 
 @pytest.mark.parametrize("kind", ["missing", "directory"])
@@ -458,18 +475,19 @@ def test_mcp_validator_requires_relative_command_file(tmp_path, kind):
         (tmp_path / "command").mkdir()
     server = {"type": "stdio", "command": "./command"}
     with pytest.raises(MCPValidationError, match="package file"):
-        validate_mcp_configuration({"$schema": MCP_SCHEMA, "mcpServers": {"bad": server}},
-                                   "mcp.json", tmp_path)
+        validate_mcp_configuration({"$schema": MCP_SCHEMA, "mcpServers": {"bad": server}}, "mcp.json", tmp_path)
 
 
-@pytest.mark.parametrize("server", [
-    {"type": "stdio", "command": "../escape"},
-    {"type": "streamable-http", "url": "http://example.org/mcp"},
-    {"type": "sse", "url": "https://user:pass@example.org/mcp"},
-    {"type": "streamable-http", "url": "https://example.org\\@other.example/mcp"},
-    {"type": "streamable-http", "url": "https://exa mple.org/mcp"},
-])
+@pytest.mark.parametrize(
+    "server",
+    [
+        {"type": "stdio", "command": "../escape"},
+        {"type": "streamable-http", "url": "http://example.org/mcp"},
+        {"type": "sse", "url": "https://user:pass@example.org/mcp"},
+        {"type": "streamable-http", "url": "https://example.org\\@other.example/mcp"},
+        {"type": "streamable-http", "url": "https://exa mple.org/mcp"},
+    ],
+)
 def test_mcp_validator_rejects_unsafe_server(tmp_path, server):
     with pytest.raises(MCPValidationError):
-        validate_mcp_configuration({"$schema": MCP_SCHEMA, "mcpServers": {"unsafe": server}},
-                                   "mcp.json", tmp_path)
+        validate_mcp_configuration({"$schema": MCP_SCHEMA, "mcpServers": {"unsafe": server}}, "mcp.json", tmp_path)

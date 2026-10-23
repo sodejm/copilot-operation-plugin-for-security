@@ -25,7 +25,6 @@ from cops.workflows.playback import (
     validate_integrated_workflow_catalog,
 )
 
-
 EXPECTED_PROFILES = {
     ("leaked-credential-blast-radius", "vulnerable"): "action_required",
     ("leaked-credential-blast-radius", "corrected"): "no_active_exposure_observed",
@@ -105,8 +104,7 @@ def test_catalog_contains_six_strict_versioned_workflows() -> None:
     assert catalog["schema_version"] == "cops.integrated-workflow-catalog/v1"
     assert set(definitions) == {workflow_id for workflow_id, _ in EXPECTED_PROFILES}
     assert all(
-        definition.to_dict()["schema_version"] == "cops.workflow-definition/v1"
-        for definition in definitions.values()
+        definition.to_dict()["schema_version"] == "cops.workflow-definition/v1" for definition in definitions.values()
     )
     assert sum(len(entry["profiles"]) for entry in catalog["workflows"]) == len(EXPECTED_PROFILES)
 
@@ -116,9 +114,7 @@ def test_every_stage_uses_a_registered_specialist() -> None:
     registered = {specialist["id"] for specialist in registry["specialists"]}
 
     for definition in load_integrated_workflows().values():
-        assert {
-            stage["action"]["specialist_id"] for stage in definition.stages
-        } <= registered
+        assert {stage["action"]["specialist_id"] for stage in definition.stages} <= registered
 
 
 def test_every_workflow_uses_a_registered_applicable_scenario() -> None:
@@ -127,16 +123,13 @@ def test_every_workflow_uses_a_registered_applicable_scenario() -> None:
 
     definitions = load_integrated_workflows()
     assert {
-        workflow_id: definition.scenario_id
-        for workflow_id, definition in definitions.items()
+        workflow_id: definition.scenario_id for workflow_id, definition in definitions.items()
     } == EXPECTED_SCENARIOS
     assert set(EXPECTED_SCENARIOS.values()) <= registered
 
 
 @pytest.mark.parametrize(("workflow_id", "profile_id"), EXPECTED_PROFILES)
-def test_all_fixture_profiles_compile_exact_plans_and_reach_declared_outcome(
-    workflow_id: str, profile_id: str
-) -> None:
+def test_all_fixture_profiles_compile_exact_plans_and_reach_declared_outcome(workflow_id: str, profile_id: str) -> None:
     definition = load_integrated_workflows()[workflow_id]
     report = run_fixture_profile(workflow_id, profile_id)
 
@@ -300,11 +293,7 @@ def test_catalog_rejects_unregistered_specialist_even_with_updated_digest(
     definition_path.write_text(json.dumps(definition), encoding="utf-8")
     catalog_path = catalog_dir / "catalog.json"
     catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
-    entry = next(
-        item
-        for item in catalog["workflows"]
-        if item["workflow_id"] == "cve-reachability-triage"
-    )
+    entry = next(item for item in catalog["workflows"] if item["workflow_id"] == "cve-reachability-triage")
     entry["definition_digest"] = digest(definition)
     catalog_path.write_text(json.dumps(catalog), encoding="utf-8")
 
@@ -322,11 +311,7 @@ def test_catalog_rejects_unregistered_scenario_even_with_updated_digest(
     definition_path.write_text(json.dumps(definition), encoding="utf-8")
     catalog_path = catalog_dir / "catalog.json"
     catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
-    entry = next(
-        item
-        for item in catalog["workflows"]
-        if item["workflow_id"] == "cve-reachability-triage"
-    )
+    entry = next(item for item in catalog["workflows"] if item["workflow_id"] == "cve-reachability-triage")
     entry["definition_digest"] = digest(definition)
     catalog_path.write_text(json.dumps(catalog), encoding="utf-8")
 
@@ -358,9 +343,7 @@ def test_catalog_rejects_path_traversal(tmp_path: Path) -> None:
 
 def test_playback_rejects_invalid_typed_inputs() -> None:
     fixture = json.loads(
-        (DEFAULT_CATALOG_DIR / "fixtures" / "cve-reachability-triage.limited.json").read_text(
-            encoding="utf-8"
-        )
+        (DEFAULT_CATALOG_DIR / "fixtures" / "cve-reachability-triage.limited.json").read_text(encoding="utf-8")
     )
     inputs = dict(fixture["inputs"])
     inputs["advisory"] = "not-an-object"

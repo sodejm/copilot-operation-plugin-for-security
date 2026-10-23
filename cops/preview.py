@@ -7,8 +7,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Literal
 
-from .routing.models import RoutingDecision
 from .contracts import ActionPlan
+from .routing.models import RoutingDecision
 
 UNKNOWN = "unknown"
 
@@ -139,18 +139,20 @@ def preview_action_plan(plan: ActionPlan) -> dict[str, object]:
     document = plan.to_dict()
     actions = []
     for operation in document["operations"]:
-        actions.append({
-            "step_id": operation["step_id"],
-            "tool": operation["tool"],
-            "tool_version": operation["tool_version"],
-            "action": operation["action"],
-            "timeout_seconds": operation["timeout_seconds"],
-            "effects": operation.get("side_effects", UNKNOWN),
-            "destinations": operation.get("egress_policy", UNKNOWN),
-            "expected_evidence": operation.get("expected_evidence", UNKNOWN),
-            "cleanup": operation.get("cleanup", UNKNOWN),
-            "noise": UNKNOWN,
-        })
+        actions.append(
+            {
+                "step_id": operation["step_id"],
+                "tool": operation["tool"],
+                "tool_version": operation["tool_version"],
+                "action": operation["action"],
+                "timeout_seconds": operation["timeout_seconds"],
+                "effects": operation.get("side_effects", UNKNOWN),
+                "destinations": operation.get("egress_policy", UNKNOWN),
+                "expected_evidence": operation.get("expected_evidence", UNKNOWN),
+                "cleanup": operation.get("cleanup", UNKNOWN),
+                "noise": UNKNOWN,
+            }
+        )
     return {
         "version": "cops.action-plan-preview/v1",
         "status": "preview",

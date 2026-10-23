@@ -111,15 +111,12 @@ def test_lab_registry_covers_seven_families_without_external_claims():
     assert {adapter.service: adapter.skill_id for adapter in adapters} == EXPECTED_ROUTES
     assert all(adapter.evidence_scope == "disposable loopback fixture only" for adapter in adapters)
     for skill_id in EXPECTED_ROUTES.values():
+        package = (
+            "web-api-assessment-workbench" if skill_id == "web-api-inventory-and-replay" else "attack-surface-planner"
+        )
         assert (REPOSITORY_ROOT / ".agents" / "skills" / skill_id / "SKILL.md").is_file()
         assert (
-            REPOSITORY_ROOT
-            / "plugins"
-            / "offensive-security"
-            / "attack-surface-planner"
-            / "skills"
-            / skill_id
-            / "SKILL.md"
+            REPOSITORY_ROOT / "plugins" / "offensive-security" / package / "skills" / skill_id / "SKILL.md"
         ).is_file()
 
 

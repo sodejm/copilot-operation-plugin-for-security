@@ -317,9 +317,7 @@ def test_sarif_corrected_report_has_no_results(sarif_validator: jsonschema.Draft
 def test_official_schema_rejects_malformed_exports(
     sarif_validator: jsonschema.Draft7Validator, malformation: str
 ) -> None:
-    sarif = export_sarif(
-        _report(), repository_root=ROOT, revision=_revision(), source_anchors=_anchors()
-    )
+    sarif = export_sarif(_report(), repository_root=ROOT, revision=_revision(), source_anchors=_anchors())
     result = sarif["runs"][0]["results"][0]
     if malformation == "version":
         sarif["version"] = "2.0.0"

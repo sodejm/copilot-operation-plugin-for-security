@@ -74,8 +74,13 @@ def _number(value: Any, name: str) -> float:
 
 
 def verify_jwt(
-    token: str, *, jwks: dict[str, Any], issuer: str, audience: str,
-    now: float | None = None, leeway: float = 0,
+    token: str,
+    *,
+    jwks: dict[str, Any],
+    issuer: str,
+    audience: str,
+    now: float | None = None,
+    leeway: float = 0,
 ) -> VerifiedJWT:
     """Verify signature, key selection, issuer, audience, and temporal claims.
 
@@ -127,8 +132,10 @@ def verify_jwt(
         raise NotImplementedError("RS256 verification requires the registered cryptography prerequisite") from exc
     try:
         rsa.RSAPublicNumbers(e, n).public_key().verify(
-            _decode(signature_part, 700), f"{header_part}.{claims_part}".encode("ascii"),
-            padding.PKCS1v15(), hashes.SHA256(),
+            _decode(signature_part, 700),
+            f"{header_part}.{claims_part}".encode("ascii"),
+            padding.PKCS1v15(),
+            hashes.SHA256(),
         )
     except (InvalidSignature, ValueError) as exc:
         raise JWTValidationError("signature verification failed") from exc
@@ -137,7 +144,13 @@ def verify_jwt(
     audiences = claims.get("aud")
     if isinstance(audiences, str):
         audiences = [audiences]
-    if not isinstance(audiences, list) or not audiences or len(audiences) > 16 or not all(isinstance(a, str) for a in audiences) or audience not in audiences:
+    if (
+        not isinstance(audiences, list)
+        or not audiences
+        or len(audiences) > 16
+        or not all(isinstance(a, str) for a in audiences)
+        or audience not in audiences
+    ):
         raise JWTValidationError("audience mismatch")
     expiry = _number(claims.get("exp"), "exp")
     if clock >= expiry + tolerance:
@@ -148,5 +161,7 @@ def verify_jwt(
     subject = claims.get("sub")
     if not isinstance(subject, str) or not 0 < len(subject) <= 256:
         raise JWTValidationError("subject is required")
-    fingerprint = hashlib.sha256(json.dumps({"kty": "RSA", "n": key["n"], "e": key["e"]}, sort_keys=True).encode()).hexdigest()
+    fingerprint = hashlib.sha256(
+        json.dumps({"kty": "RSA", "n": key["n"], "e": key["e"]}, sort_keys=True).encode()
+    ).hexdigest()
     return VerifiedJWT(issuer, subject, audience, expiry, fingerprint)

@@ -138,8 +138,7 @@ def evaluate_purple_team_handoff(
     matching_alerts = [
         event
         for event in _matching_events(rule, alerts)
-        if event.get("alert") is True
-        and _in_window(event, document["time_window"])
+        if event.get("alert") is True and _in_window(event, document["time_window"])
     ]
     if not matching_alerts:
         return {
@@ -211,9 +210,7 @@ def _validated_selection(selection: Any, error_code: str) -> dict[str, str]:
         or not selection
         or len(selection) > _MAX_RULE_CONDITIONS
         or not all(
-            isinstance(field, str)
-            and _FIELD_PATH_RE.fullmatch(field) is not None
-            and isinstance(value, str)
+            isinstance(field, str) and _FIELD_PATH_RE.fullmatch(field) is not None and isinstance(value, str)
             for field, value in selection.items()
         )
     ):

@@ -255,8 +255,11 @@ def test_optional_classifier_hanging_adapter_has_a_real_deadline() -> None:
     start = monotonic()
     try:
         decision = route_request(
-            "general security question", optional_classifier=stalled,
-            classifier_model="explicit-model", classifier_deadline_ms=20, classifier_token_budget=10,
+            "general security question",
+            optional_classifier=stalled,
+            classifier_model="explicit-model",
+            classifier_deadline_ms=20,
+            classifier_token_budget=10,
         )
         assert decision.status == "clarification_required"
         assert monotonic() - start < 1
@@ -264,12 +267,23 @@ def test_optional_classifier_hanging_adapter_has_a_real_deadline() -> None:
         release.set()
 
 
-@pytest.mark.parametrize("response", [None, {}, ClassifierResponse("cops-soc-analyst", float("nan")),
-    ClassifierResponse("cops-soc-analyst", "0.9"), ClassifierResponse("cops-soc-analyst", 0.9, tokens_used=True)])
+@pytest.mark.parametrize(
+    "response",
+    [
+        None,
+        {},
+        ClassifierResponse("cops-soc-analyst", float("nan")),
+        ClassifierResponse("cops-soc-analyst", "0.9"),
+        ClassifierResponse("cops-soc-analyst", 0.9, tokens_used=True),
+    ],
+)
 def test_optional_classifier_rejects_malformed_results(response) -> None:
     decision = route_request(
-        "general security question", optional_classifier=lambda _request: response,
-        classifier_model="explicit-model", classifier_deadline_ms=100, classifier_token_budget=10,
+        "general security question",
+        optional_classifier=lambda _request: response,
+        classifier_model="explicit-model",
+        classifier_deadline_ms=100,
+        classifier_token_budget=10,
     )
     assert decision.status == "clarification_required"
 
@@ -278,7 +292,9 @@ def test_optional_classifier_reason_cannot_leak_provider_text() -> None:
     decision = route_request(
         "general security question",
         optional_classifier=lambda _request: ClassifierResponse("cops-soc-analyst", 0.9, "secret-value"),
-        classifier_model="explicit-model", classifier_deadline_ms=100, classifier_token_budget=10,
+        classifier_model="explicit-model",
+        classifier_deadline_ms=100,
+        classifier_token_budget=10,
     )
     assert "secret-value" not in json.dumps(decision.to_dict())
 

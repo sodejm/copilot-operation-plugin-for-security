@@ -30,10 +30,14 @@ def test_exact_grant_service_principal_application_and_signin_join():
     before = copy.deepcopy(source)
     result = assess_consent(source)
     assert result["status"] == "suspicious_consent_observed"
-    assert result["targets"] == [{"tenant_id": source["coverage"]["tenant_id"],
-                                  "grant_id": "grant-attack-001",
-                                  "client_id": source["grants"][0]["client_id"],
-                                  "app_id": source["signins"][0]["app_id"]}]
+    assert result["targets"] == [
+        {
+            "tenant_id": source["coverage"]["tenant_id"],
+            "grant_id": "grant-attack-001",
+            "client_id": source["grants"][0]["client_id"],
+            "app_id": source["signins"][0]["app_id"],
+        }
+    ]
     assert result["targets"][0]["client_id"] != result["targets"][0]["app_id"]
     assert result["evidence_refs"] == FIXTURE_EVIDENCE_REFS
     assert source == before
@@ -106,25 +110,28 @@ def test_unrelated_principal_and_signin_are_not_bound_to_assessed_grants():
     assert result["evidence_refs"] == FIXTURE_EVIDENCE_REFS
 
 
-@pytest.mark.parametrize("mutation", [
-    lambda e: e["grants"].clear(),
-    lambda e: e["signins"].clear(),
-    lambda e: e["service_principals"].clear(),
-    lambda e: e["signins"][0].update(tenant_id="another-tenant"),
-    lambda e: e["signins"][0].update(app_id="another-app"),
-    lambda e: e["signins"][0].update(app_id=[]),
-    lambda e: e["grants"][0].update(consent_type=[]),
-    lambda e: e["grants"][0].update(client_id=e["signins"][0]["app_id"]),
-    lambda e: e["signins"][0].update(observed_at="2020-01-01T00:00:00Z"),
-    lambda e: e["grants"][0].pop("evidence_ref"),
-    lambda e: e["grants"][0].pop("high_privilege"),
-    lambda e: e["coverage"].update(signins_complete=False),
-    lambda e: e["coverage"].update(window_end="invalid"),
-    lambda e: e["signins"].append(copy.deepcopy(e["signins"][0])),
-    lambda e: e["service_principals"].append(copy.deepcopy(e["service_principals"][0])),
-    lambda e: e["grants"][1].update(principal_id="another-user"),
-    lambda e: e["grants"].append("invalid"),
-])
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda e: e["grants"].clear(),
+        lambda e: e["signins"].clear(),
+        lambda e: e["service_principals"].clear(),
+        lambda e: e["signins"][0].update(tenant_id="another-tenant"),
+        lambda e: e["signins"][0].update(app_id="another-app"),
+        lambda e: e["signins"][0].update(app_id=[]),
+        lambda e: e["grants"][0].update(consent_type=[]),
+        lambda e: e["grants"][0].update(client_id=e["signins"][0]["app_id"]),
+        lambda e: e["signins"][0].update(observed_at="2020-01-01T00:00:00Z"),
+        lambda e: e["grants"][0].pop("evidence_ref"),
+        lambda e: e["grants"][0].pop("high_privilege"),
+        lambda e: e["coverage"].update(signins_complete=False),
+        lambda e: e["coverage"].update(window_end="invalid"),
+        lambda e: e["signins"].append(copy.deepcopy(e["signins"][0])),
+        lambda e: e["service_principals"].append(copy.deepcopy(e["service_principals"][0])),
+        lambda e: e["grants"][1].update(principal_id="another-user"),
+        lambda e: e["grants"].append("invalid"),
+    ],
+)
 def test_missing_or_conflicting_evidence_cannot_clear_or_revoke(mutation):
     source = evidence()
     mutation(source)

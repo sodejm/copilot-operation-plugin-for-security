@@ -18,8 +18,20 @@ from .artifacts import artifact_adapter
 ADAPTER_ID = "raw-forensic-image/v1"
 MAX_BYTES = 128 * 1024 * 1024
 _IDENTIFIER = re.compile(r"[a-zA-Z0-9_.:-]{1,96}\Z")
-_FIELDS = {"schema_version", "artifact_id", "source_relative", "kind", "format", "sha256",
-           "source_ref", "authorization_ref", "collection_authorized", "collected_at", "as_of", "custody"}
+_FIELDS = {
+    "schema_version",
+    "artifact_id",
+    "source_relative",
+    "kind",
+    "format",
+    "sha256",
+    "source_ref",
+    "authorization_ref",
+    "collection_authorized",
+    "collected_at",
+    "as_of",
+    "custody",
+}
 
 
 class ForensicImportError(ValueError):
@@ -46,8 +58,9 @@ def load_forensic_manifest(path: Path) -> dict[str, Any]:
                 raw.extend(chunk)
                 if len(raw) > 65_536:
                     raise ForensicImportError("manifest_size_limit")
-            if (file_identity(before) != file_identity(os.fstat(fd)) or
-                    file_identity(before) != file_identity(os.stat(path.name, dir_fd=parent, follow_symlinks=False))):
+            if file_identity(before) != file_identity(os.fstat(fd)) or file_identity(before) != file_identity(
+                os.stat(path.name, dir_fd=parent, follow_symlinks=False)
+            ):
                 raise ForensicImportError("manifest_changed")
             manifest = decode_json(bytes(raw), max_bytes=65_536)
             if type(manifest) is not dict:
@@ -89,7 +102,9 @@ def _validate(manifest: dict[str, Any], max_bytes: int) -> tuple[str, ...]:
                 raise ForensicImportError("invalid_custody_event")
             if not isinstance(event["actor_ref"], str) or not _IDENTIFIER.fullmatch(event["actor_ref"]):
                 raise ForensicImportError("invalid_custody_actor")
-            if event["sha256"] != expected or event["action"] not in (("acquire",) if index == 0 else ("transfer", "verify")):
+            if event["sha256"] != expected or event["action"] not in (
+                ("acquire",) if index == 0 else ("transfer", "verify")
+            ):
                 raise ForensicImportError("unbound_custody_event")
             at = timestamp(event["at"])
             if not previous <= at <= as_of or (index == 0 and at != collected):
@@ -128,24 +143,41 @@ def import_forensic_image(root: Path, manifest: dict[str, Any], *, max_bytes: in
                 hasher.update(chunk)
             # Check both the held descriptor and the directory entry so a replaced
             # pathname cannot be reported as the originally opened source.
-            if (file_identity(before) != file_identity(os.fstat(fd)) or
-                    file_identity(before) != file_identity(os.stat(parts[-1], dir_fd=parent, follow_symlinks=False)) or
-                    count != before.st_size or hasher.hexdigest() != manifest["sha256"]):
+            if (
+                file_identity(before) != file_identity(os.fstat(fd))
+                or file_identity(before) != file_identity(os.stat(parts[-1], dir_fd=parent, follow_symlinks=False))
+                or count != before.st_size
+                or hasher.hexdigest() != manifest["sha256"]
+            ):
                 raise ForensicImportError("source_changed_or_hash_mismatch")
     except (OSError, ValueError) as exc:
         if isinstance(exc, ForensicImportError):
             raise
         raise ForensicImportError("source_unavailable") from exc
     return {
-        "schema_version": "cops.forensic-import/v1", "adapter_id": adapter.adapter_id,
-        "artifact_id": manifest["artifact_id"], "kind": manifest["kind"], "format": "raw",
-        "integrity": "verified", "analysis": "not_performed",
-        "source": {"source_ref": manifest["source_ref"], "sha256": hasher.hexdigest(), "bytes": count,
-                   "collected_at": manifest["collected_at"], "as_of": manifest["as_of"]},
+        "schema_version": "cops.forensic-import/v1",
+        "adapter_id": adapter.adapter_id,
+        "artifact_id": manifest["artifact_id"],
+        "kind": manifest["kind"],
+        "format": "raw",
+        "integrity": "verified",
+        "analysis": "not_performed",
+        "source": {
+            "source_ref": manifest["source_ref"],
+            "sha256": hasher.hexdigest(),
+            "bytes": count,
+            "collected_at": manifest["collected_at"],
+            "as_of": manifest["as_of"],
+        },
         "authorization": {"reference": manifest["authorization_ref"], "verification": "caller_asserted"},
-        "custody": {"sha256": digest(manifest["custody"]), "events": len(manifest["custody"]),
-                   "verification": "ordered_digest_bound_assertions"},
-        "limitations": ["Integrity matches caller-supplied metadata; identity and custody authenticity are not established.",
-                        "No filesystem, memory, malware or native acquisition analysis was performed.",
-                        "Only bounded raw regular files are supported; E01, AFF4, compressed images and device capture require separate adapters."],
+        "custody": {
+            "sha256": digest(manifest["custody"]),
+            "events": len(manifest["custody"]),
+            "verification": "ordered_digest_bound_assertions",
+        },
+        "limitations": [
+            "Integrity matches caller-supplied metadata; identity and custody authenticity are not established.",
+            "No filesystem, memory, malware or native acquisition analysis was performed.",
+            "Only bounded raw regular files are supported; E01, AFF4, compressed images and device capture require separate adapters.",
+        ],
     }

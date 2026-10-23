@@ -196,6 +196,10 @@ See [the contract](specs/forensic-import.spec.md).
 
 ## Kubernetes laboratory boundary
 
+Service laboratories share a loopback-only HTTP client with disabled proxies and
+redirects, bounded responses, and socket timeouts. Container inspection and
+IPv4/IPv6 egress probes independently establish isolation for acceptance.
+
 `isolated-k3s-containment/v1` is a fixed acceptance adapter beside the unprivileged
 service-container adapter. Its privileged, network-disconnected K3s node imports
 only pinned images and owns its namespaces and volumes. Typed stages use the

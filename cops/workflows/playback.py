@@ -330,9 +330,7 @@ def _validate_offline_definition(definition: WorkflowDefinition) -> None:
             raise IntegratedWorkflowError("unsafe_offline_definition")
 
 
-def _validate_fixture(
-    fixture: Any, workflow_id: str, profile_id: str, definition: WorkflowDefinition
-) -> None:
+def _validate_fixture(fixture: Any, workflow_id: str, profile_id: str, definition: WorkflowDefinition) -> None:
     if not isinstance(fixture, dict) or set(fixture) != {
         "schema_version",
         "workflow_id",
@@ -369,7 +367,9 @@ def _credential_correlate(values: dict[str, Any]) -> dict[str, Any]:
     findings = values["secret_findings"]
     identity = values["identity_evidence"]
     soc = values["soc_evidence"]
-    active = sorted({item.get("principal") for item in findings if item.get("active") is True and item.get("principal")})
+    active = sorted(
+        {item.get("principal") for item in findings if item.get("active") is True and item.get("principal")}
+    )
     observed = sorted({item.get("principal") for item in soc.get("events", []) if item.get("suspicious") is True})
     return {
         "correlation": {
@@ -404,9 +404,7 @@ def _credential_checklist(values: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _credential_bundle(
-    values: dict[str, Any], signer: EvidenceBundleSigner | None = None
-) -> dict[str, Any]:
+def _credential_bundle(values: dict[str, Any], signer: EvidenceBundleSigner | None = None) -> dict[str, Any]:
     payload = {"assessment": values["exposure_assessment"], "checklist": values["rotation_checklist"]}
     payload_digest = digest(payload)
     signature: dict[str, Any]
@@ -470,9 +468,13 @@ def _cve_ingest(values: dict[str, Any]) -> dict[str, Any]:
 def _cve_reachability(values: dict[str, Any]) -> dict[str, Any]:
     from .cve_evidence import assess_reachability
 
-    return {"reachability_assessment": assess_reachability(
-        values["dependency_match"], values["callgraph_evidence"], values["runtime_evidence"],
-    )}
+    return {
+        "reachability_assessment": assess_reachability(
+            values["dependency_match"],
+            values["callgraph_evidence"],
+            values["runtime_evidence"],
+        )
+    }
 
 
 def _cve_controls(values: dict[str, Any]) -> dict[str, Any]:
@@ -558,9 +560,12 @@ def _kube_verify(values: dict[str, Any]) -> dict[str, Any]:
 def _consent_import(values: dict[str, Any]) -> dict[str, Any]:
     from .consent_evidence import SCHEMA
 
-    return {"entra_evidence": {"schema_version": SCHEMA, **{
-        key: values[key] for key in ("grants", "signins", "service_principals", "coverage")
-    }}}
+    return {
+        "entra_evidence": {
+            "schema_version": SCHEMA,
+            **{key: values[key] for key in ("grants", "signins", "service_principals", "coverage")},
+        }
+    }
 
 
 def _consent_assess(values: dict[str, Any]) -> dict[str, Any]:
@@ -571,8 +576,12 @@ def _consent_assess(values: dict[str, Any]) -> dict[str, Any]:
 
 def _consent_propose(values: dict[str, Any]) -> dict[str, Any]:
     assessment = values["suspicious_assessment"]
-    return {"remediation_proposal": {**assessment, "steps": ["revoke_grant", "revoke_sessions", "hunt_activity"]
-                                     if assessment["targets"] else []}}
+    return {
+        "remediation_proposal": {
+            **assessment,
+            "steps": ["revoke_grant", "revoke_sessions", "hunt_activity"] if assessment["targets"] else [],
+        }
+    }
 
 
 def _consent_validate(values: dict[str, Any]) -> dict[str, Any]:
@@ -590,9 +599,7 @@ def _consent_validate(values: dict[str, Any]) -> dict[str, Any]:
             "targets": targets,
             "evidence_refs": proposal["evidence_refs"],
             "limitations": proposal["limitations"],
-            "modeled_expectations": ["grant_revoked", "sessions_revoked", "activity_hunted"]
-            if targets
-            else [],
+            "modeled_expectations": ["grant_revoked", "sessions_revoked", "activity_hunted"] if targets else [],
         },
         "outcome": outcome,
     }
@@ -649,23 +656,34 @@ def _detection_report(values: dict[str, Any]) -> dict[str, Any]:
 
 def _exposure_inventory(values: dict[str, Any]) -> dict[str, Any]:
     records = scoped_records(values["scope"], values["dns_service_inventory"], dns=True)
-    return {"scoped_inventory": {
-        "hosts": sorted({item["host"] for item in records}), "records": records,
-        "evidence": {"scope": values["scope"], "dns_service_inventory": values["dns_service_inventory"]},
-    }}
+    return {
+        "scoped_inventory": {
+            "hosts": sorted({item["host"] for item in records}),
+            "records": records,
+            "evidence": {"scope": values["scope"], "dns_service_inventory": values["dns_service_inventory"]},
+        }
+    }
 
 
 def _exposure_routes(values: dict[str, Any]) -> dict[str, Any]:
     evidence = {**values["scoped_inventory"]["evidence"], "port_route_evidence": values["port_route_evidence"]}
-    return {"route_assessment": {
-        "checks": scoped_records(evidence["scope"], values["port_route_evidence"]), "evidence": evidence,
-    }}
+    return {
+        "route_assessment": {
+            "checks": scoped_records(evidence["scope"], values["port_route_evidence"]),
+            "evidence": evidence,
+        }
+    }
 
 
 def _exposure_auth(values: dict[str, Any]) -> dict[str, Any]:
-    return {"auth_assessment": assess_exposure({
-        **values["route_assessment"]["evidence"], "auth_evidence": values["auth_evidence"],
-    })}
+    return {
+        "auth_assessment": assess_exposure(
+            {
+                **values["route_assessment"]["evidence"],
+                "auth_evidence": values["auth_evidence"],
+            }
+        )
+    }
 
 
 def _exposure_report(values: dict[str, Any]) -> dict[str, Any]:

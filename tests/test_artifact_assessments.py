@@ -14,7 +14,6 @@ import pytest
 from cops.assessments import ArtifactAssessmentError, assess
 from cops.contracts.models import Finding
 
-
 FIXTURE_PATH = Path(__file__).parent / "fixtures" / "artifact_assessment_cases_v1.json"
 FIXTURE = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
 CASES = FIXTURE["cases"]
@@ -49,7 +48,13 @@ def test_pinned_artifact_assessment_cases(case: dict[str, Any]) -> None:
     for evidence, artifact in zip(report["evidence"], artifacts, strict=True):
         assert set(evidence) == {"artifact_id", "kind", "sha256", "bytes"}
         content = artifact["content"]
-        raw = content if isinstance(content, bytes) else content.encode() if isinstance(content, str) else _canonical(content)
+        raw = (
+            content
+            if isinstance(content, bytes)
+            else content.encode()
+            if isinstance(content, str)
+            else _canonical(content)
+        )
         assert evidence["sha256"] == hashlib.sha256(raw).hexdigest()
         assert evidence["bytes"] == len(raw)
 
@@ -76,9 +81,24 @@ def test_fixture_has_all_four_evidence_states_for_each_capability() -> None:
 @pytest.mark.parametrize(
     ("kwargs", "code"),
     [
-        ({"artifacts": [{"artifact_id": "a", "kind": "python_source", "content": "x"}] * 2, "max_artifacts": 1}, "artifact_count_limit"),
-        ({"artifacts": [{"artifact_id": "a", "kind": "python_source", "content": "xx"}], "max_artifact_bytes": 1}, "artifact_size_limit"),
-        ({"artifacts": [{"artifact_id": "a", "kind": "python_source", "content": "x"}, {"artifact_id": "b", "kind": "python_source", "content": "y"}], "max_total_bytes": 1}, "total_size_limit"),
+        (
+            {"artifacts": [{"artifact_id": "a", "kind": "python_source", "content": "x"}] * 2, "max_artifacts": 1},
+            "artifact_count_limit",
+        ),
+        (
+            {"artifacts": [{"artifact_id": "a", "kind": "python_source", "content": "xx"}], "max_artifact_bytes": 1},
+            "artifact_size_limit",
+        ),
+        (
+            {
+                "artifacts": [
+                    {"artifact_id": "a", "kind": "python_source", "content": "x"},
+                    {"artifact_id": "b", "kind": "python_source", "content": "y"},
+                ],
+                "max_total_bytes": 1,
+            },
+            "total_size_limit",
+        ),
     ],
 )
 def test_bounds_fail_with_content_free_error(kwargs: dict[str, Any], code: str) -> None:
@@ -242,9 +262,7 @@ def test_scanner_rejects_1001_records_before_analyzing_a_prefix(as_mapping: bool
         ("forensic-corrected", "limited"),
     ],
 )
-def test_module_cli_assesses_json_documents(
-    tmp_path: Path, case_id: str, expected_readiness: str
-) -> None:
+def test_module_cli_assesses_json_documents(tmp_path: Path, case_id: str, expected_readiness: str) -> None:
     case = next(item for item in CASES if item["id"] == case_id)
     input_path = tmp_path / f"{case_id}.json"
     input_path.write_text(json.dumps({"artifacts": case["artifacts"]}), encoding="utf-8")
@@ -317,42 +335,93 @@ def test_module_cli_rejects_invalid_base64_without_echo(tmp_path: Path) -> None:
     assert "sensitive marker" not in completed.stderr
 
 
-@pytest.mark.parametrize("changes", [
-    {"decision": "unknown"}, {"expected_decision": True}, {"observed_calls": [None]},
-    {"allowed_resources": ["public"]}, {"allowed_resources": ["public"], "observed_resources": [5]},
-])
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"decision": "unknown"},
+        {"expected_decision": True},
+        {"observed_calls": [None]},
+        {"allowed_resources": ["public"]},
+        {"allowed_resources": ["public"], "observed_resources": [5]},
+    ],
+)
 def test_malformed_tool_observations_are_inconclusive(changes: dict) -> None:
-    content = {"prompt_origin": "direct", "untrusted_content": "synthetic", "decision": "deny",
-               "expected_decision": "deny", "allowed_tools": ["read"], "observed_calls": []}
-    report = assess("foundry_security", [{"artifact_id": "gateway", "kind": "foundry_test", "content": {**content, **changes}}], as_of=FIXTURE["as_of"])
+    content = {
+        "prompt_origin": "direct",
+        "untrusted_content": "synthetic",
+        "decision": "deny",
+        "expected_decision": "deny",
+        "allowed_tools": ["read"],
+        "observed_calls": [],
+    }
+    report = assess(
+        "foundry_security",
+        [{"artifact_id": "gateway", "kind": "foundry_test", "content": {**content, **changes}}],
+        as_of=FIXTURE["as_of"],
+    )
     assert "foundry_security_test_insufficient_evidence" in report["finding_codes"].values()
 
 
 def test_tool_gateway_reports_resource_scope_bypass() -> None:
-    content = {"prompt_origin": "indirect", "untrusted_content": "synthetic", "decision": "allow",
-               "expected_decision": "deny", "allowed_tools": ["read"], "observed_calls": ["read"],
-               "allowed_resources": ["public"], "observed_resources": ["private"]}
-    report = assess("foundry_security", [{"artifact_id": "gateway", "kind": "foundry_test", "content": content}], as_of=FIXTURE["as_of"])
+    content = {
+        "prompt_origin": "indirect",
+        "untrusted_content": "synthetic",
+        "decision": "allow",
+        "expected_decision": "deny",
+        "allowed_tools": ["read"],
+        "observed_calls": ["read"],
+        "allowed_resources": ["public"],
+        "observed_resources": ["private"],
+    }
+    report = assess(
+        "foundry_security",
+        [{"artifact_id": "gateway", "kind": "foundry_test", "content": content}],
+        as_of=FIXTURE["as_of"],
+    )
     assert "foundry_resource_scope" in report["finding_codes"].values()
 
 
-@pytest.mark.parametrize("changes", [{"collected_at": "2030-01-01T00:00:00Z"}, {"evidence_refs": [None]}, {"framework_version": ""}])
+@pytest.mark.parametrize(
+    "changes", [{"collected_at": "2030-01-01T00:00:00Z"}, {"evidence_refs": [None]}, {"framework_version": ""}]
+)
 def test_invalid_control_evidence_cannot_pass(changes: dict) -> None:
-    record = {"framework": "SOC2", "framework_version": "2017", "control_id": "CC6.1", "status": "effective",
-              "collected_at": FIXTURE["as_of"], "evidence_refs": ["evidence-1"]}
-    report = assess("compliance_evidence", [{"artifact_id": "control", "kind": "control_evidence", "content": {"controls": [{**record, **changes}]}}], as_of=FIXTURE["as_of"])
+    record = {
+        "framework": "SOC2",
+        "framework_version": "2017",
+        "control_id": "CC6.1",
+        "status": "effective",
+        "collected_at": FIXTURE["as_of"],
+        "evidence_refs": ["evidence-1"],
+    }
+    report = assess(
+        "compliance_evidence",
+        [{"artifact_id": "control", "kind": "control_evidence", "content": {"controls": [{**record, **changes}]}}],
+        as_of=FIXTURE["as_of"],
+    )
     assert report["finding_codes"]
     assert all(item["verification"] == "unverified" for item in report["findings"])
 
 
-@pytest.mark.parametrize("changes", [{"source_ref": None}, {"collected_at": None},
-    {"custody": [{"at": "2026-10-15T10:00:00Z"}]},
-    {"custody": [{"at": "2026-10-14T10:00:00Z", "actor_ref": "collector"}]},
-    {"collected_at": "2030-01-01T00:00:00Z"},
-])
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"source_ref": None},
+        {"collected_at": None},
+        {"custody": [{"at": "2026-10-15T10:00:00Z"}]},
+        {"custody": [{"at": "2026-10-14T10:00:00Z", "actor_ref": "collector"}]},
+        {"collected_at": "2030-01-01T00:00:00Z"},
+    ],
+)
 def test_incomplete_forensic_provenance_cannot_pass(changes: dict) -> None:
-    artifact = {"artifact_id": "disk", "kind": "disk_image", "content": b"synthetic", "source_ref": "source-1",
-                "collected_at": "2026-10-15T10:00:00Z", "sha256": hashlib.sha256(b"synthetic").hexdigest(),
-                "collection_authorized": True, "custody": [{"at": "2026-10-15T10:00:00Z", "actor_ref": "collector"}]}
+    artifact = {
+        "artifact_id": "disk",
+        "kind": "disk_image",
+        "content": b"synthetic",
+        "source_ref": "source-1",
+        "collected_at": "2026-10-15T10:00:00Z",
+        "sha256": hashlib.sha256(b"synthetic").hexdigest(),
+        "collection_authorized": True,
+        "custody": [{"at": "2026-10-15T10:00:00Z", "actor_ref": "collector"}],
+    }
     report = assess("forensic_evidence", [{**artifact, **changes}], as_of="2026-10-15T12:00:00Z")
     assert report["finding_codes"]

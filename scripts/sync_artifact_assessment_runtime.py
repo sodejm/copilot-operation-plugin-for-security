@@ -1,9 +1,11 @@
 """Synchronize the reviewed assessment runtime and optional adapter registrations."""
+
 from __future__ import annotations
+
 import hashlib
 import json
-from pathlib import Path
 import shutil
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGES = (
@@ -45,9 +47,14 @@ def main() -> int:
             ignore=shutil.ignore_patterns("__pycache__"),
         )
         shutil.copytree(ROOT / "catalog/schemas", destination / "catalog/schemas", dirs_exist_ok=True)
-        hashes = {str(p.relative_to(destination)): hashlib.sha256(p.read_bytes()).hexdigest()
-                  for p in sorted(destination.rglob("*")) if p.is_file() and "__pycache__" not in p.parts}
-        (destination.parent / "runtime-lock.json").write_text(json.dumps({"schema_version": "cops.runtime-lock/v1", "files": hashes}, indent=2) + "\n")
+        hashes = {
+            str(p.relative_to(destination)): hashlib.sha256(p.read_bytes()).hexdigest()
+            for p in sorted(destination.rglob("*"))
+            if p.is_file() and "__pycache__" not in p.parts
+        }
+        (destination.parent / "runtime-lock.json").write_text(
+            json.dumps({"schema_version": "cops.runtime-lock/v1", "files": hashes}, indent=2) + "\n"
+        )
     return 0
 
 

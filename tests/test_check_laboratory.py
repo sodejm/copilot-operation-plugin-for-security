@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from pathlib import Path
 import hashlib
 import json
 import shutil
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -142,6 +142,7 @@ def test_gate_requires_timezone_aware_rfc3339_timestamps(value: object, valid: b
 def test_required_evtx_case_cannot_skip_missing_parser(monkeypatch) -> None:
     def unavailable(*args, **kwargs):
         raise check_laboratory.EvtxImportError("parser_unavailable")
+
     monkeypatch.setattr(check_laboratory, "import_evtx", unavailable)
     result = check_laboratory._run_case("binary-evtx", check_laboratory._evtx_case)
     assert result["passed"] is False
@@ -157,13 +158,16 @@ def test_container_child_requires_kernel_evidence_before_creating_state(monkeypa
     assert json.loads(capsys.readouterr().out)["summary"]["cases_passed"] == 0
 
 
-@pytest.mark.parametrize("arguments", [
-    ["--runtime", "docker"],
-    ["--runtime", "process", "--image", "sha256:" + "a" * 64],
-    ["--runtime", "docker", "--image", "sha256:" + "a" * 64, "--container-child"],
-    ["--timeout", "601"],
-    ["--kubernetes-timeout", "179"],
-])
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ["--runtime", "docker"],
+        ["--runtime", "process", "--image", "sha256:" + "a" * 64],
+        ["--runtime", "docker", "--image", "sha256:" + "a" * 64, "--container-child"],
+        ["--timeout", "601"],
+        ["--kubernetes-timeout", "179"],
+    ],
+)
 def test_invalid_cli_options_fail_before_state_creation(monkeypatch, tmp_path, arguments) -> None:
     state = tmp_path / "must-not-exist"
     monkeypatch.setattr(sys, "argv", ["check_laboratory.py", "--state-dir", str(state), *arguments])
@@ -176,22 +180,36 @@ def test_invalid_cli_options_fail_before_state_creation(monkeypatch, tmp_path, a
 def test_docker_cli_forwards_immutable_image_and_deadline(monkeypatch, capsys) -> None:
     image = "sha256:" + "a" * 64
     calls = []
+
     def launch(repository, *, image, timeout):
         calls.append((repository, image, timeout))
         return 2, {"status": "blocked", "blockers": ["runtime unavailable"]}
+
     monkeypatch.setattr(check_laboratory, "run_container_acceptance", launch)
-    monkeypatch.setattr(sys, "argv", ["check_laboratory.py", "--runtime", "docker", "--image", image, "--timeout", "60"])
+    monkeypatch.setattr(
+        sys, "argv", ["check_laboratory.py", "--runtime", "docker", "--image", image, "--timeout", "60"]
+    )
     assert check_laboratory.main() == 2
     assert calls == [(check_laboratory.ROOT, image, 60)]
     assert json.loads(capsys.readouterr().out)["status"] == "blocked"
 
 
 def _component_reports():
-    service = {"status": "passed", "failures": [], "blockers": [], "cases": [
-        {"name": name, "passed": True} for name in ACCEPTANCE_CASE_IDS]}
-    kubernetes = {"status": "passed", "isolation": {"verified": True}, "cleanup": {"verified": True},
-                  "cases": [{"mode": mode, "workflow_status": status, "passed": True, "namespace_removed": True}
-                            for mode, status in (("success", "success"), ("failure", "partial_failure"), ("cancellation", "cancelled"))]}
+    service = {
+        "status": "passed",
+        "failures": [],
+        "blockers": [],
+        "cases": [{"name": name, "passed": True} for name in ACCEPTANCE_CASE_IDS],
+    }
+    kubernetes = {
+        "status": "passed",
+        "isolation": {"verified": True},
+        "cleanup": {"verified": True},
+        "cases": [
+            {"mode": mode, "workflow_status": status, "passed": True, "namespace_removed": True}
+            for mode, status in (("success", "success"), ("failure", "partial_failure"), ("cancellation", "cancelled"))
+        ],
+    }
     return service, kubernetes
 
 
@@ -202,7 +220,9 @@ def test_complete_gate_requires_both_boundaries_and_every_case():
     assert result["summary"] == {"cases_passed": 13, "cases_total": 13, "functional_evidence_only": False}
 
 
-@pytest.mark.parametrize("mutation", ["isolation", "cleanup", "missing_case", "duplicate_case", "wrong_status", "namespace"])
+@pytest.mark.parametrize(
+    "mutation", ["isolation", "cleanup", "missing_case", "duplicate_case", "wrong_status", "namespace"]
+)
 def test_incomplete_kubernetes_evidence_cannot_pass(mutation):
     service, kubernetes = _component_reports()
     if mutation in ("isolation", "cleanup"):

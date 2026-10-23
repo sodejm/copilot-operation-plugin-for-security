@@ -12,7 +12,6 @@ from cops.contracts.validation import validate_contract, validate_identifier
 from cops.evidence.canonical import EvidenceError, canonical, timestamp
 from cops.reporting.assessment import validate_report_semantics
 
-
 ASSESSMENT_REPORT_SCHEMA = "cops.assessment-report/v1"
 EVIDENCE_NOTICE = (
     "Record hashes establish internal integrity only; source authenticity and authorization need separate validation."
@@ -146,11 +145,7 @@ def _adapt_finding(
     if type(value) is not dict:
         raise ValueError("invalid finding")
     finding = Finding.from_dict(value)
-    if (
-        finding.engagement_id != engagement_id
-        or finding.scenario_id != scenario_id
-        or finding.result_id != result_id
-    ):
+    if finding.engagement_id != engagement_id or finding.scenario_id != scenario_id or finding.result_id != result_id:
         raise ValueError("finding context mismatch")
     references = _reference_hashes(finding.evidence_references, evidence)
     if finding.verification == "contradicted":
@@ -201,27 +196,49 @@ def _verification_summaries(item: dict[str, Any], evidence: Mapping[str, str]) -
     codes = {
         "accepted": {"certificate_verified", "jwt_verified"},
         "rejected": {"certificate_rejected", "client_not_authorized", "jwt_rejected"},
-        "unknown": {"certificate_policy_missing", "client_authorization_missing", "hostname_missing",
-                    "hostname_invalid", "jwt_policy_missing", "jwt_policy_invalid", "unsupported_format",
-                    "assessment_time_missing", "input_limit", "invalid_input", "prerequisite_unavailable",
-                    "invalid_or_unsupported_input"},
+        "unknown": {
+            "certificate_policy_missing",
+            "client_authorization_missing",
+            "hostname_missing",
+            "hostname_invalid",
+            "jwt_policy_missing",
+            "jwt_policy_invalid",
+            "unsupported_format",
+            "assessment_time_missing",
+            "input_limit",
+            "invalid_input",
+            "prerequisite_unavailable",
+            "invalid_or_unsupported_input",
+        },
     }
     seen: set[str] = set()
     summaries = []
     for raw in values:
         value = _object(raw, {"artifact_id", "evidence_ref", "status", "code", "fingerprints", "adapter_id"})
         artifact_id, status, code = value["artifact_id"], value["status"], value["code"]
-        if (type(artifact_id) is not str or artifact_id not in evidence or artifact_id in seen
-                or type(status) is not str or status not in codes or type(code) is not str or code not in codes[status]
-                or value["adapter_id"] != "cryptographic-verification/v1"
-                or value["evidence_ref"] != f"artifact:{artifact_id}:sha256:{evidence[artifact_id]}"):
+        if (
+            type(artifact_id) is not str
+            or artifact_id not in evidence
+            or artifact_id in seen
+            or type(status) is not str
+            or status not in codes
+            or type(code) is not str
+            or code not in codes[status]
+            or value["adapter_id"] != "cryptographic-verification/v1"
+            or value["evidence_ref"] != f"artifact:{artifact_id}:sha256:{evidence[artifact_id]}"
+        ):
             raise ValueError("invalid verification result")
         fingerprints = value["fingerprints"]
-        if (type(fingerprints) is not list or len(fingerprints) > 16
-                or any(type(value) is not str or not _SHA256.fullmatch(value) for value in fingerprints)):
+        if (
+            type(fingerprints) is not list
+            or len(fingerprints) > 16
+            or any(type(value) is not str or not _SHA256.fullmatch(value) for value in fingerprints)
+        ):
             raise ValueError("invalid verification fingerprints")
         seen.add(artifact_id)
-        summaries.append(f"Offline verification {artifact_id}: {status} ({code}); evidence sha256:{evidence[artifact_id]}. Remote behavior remains unverified.")
+        summaries.append(
+            f"Offline verification {artifact_id}: {status} ({code}); evidence sha256:{evidence[artifact_id]}. Remote behavior remains unverified."
+        )
     return summaries
 
 
@@ -260,7 +277,9 @@ def _build_report(
     limitations = _bounded_strings(item["limitations"])
     prerequisites = _bounded_strings(item["prerequisites"])
     verification = _verification_summaries(item, evidence)
-    report_limitations = sorted(set(limitations) | set(verification) | {f"Prerequisite: {value}" for value in prerequisites})
+    report_limitations = sorted(
+        set(limitations) | set(verification) | {f"Prerequisite: {value}" for value in prerequisites}
+    )
     raw_findings = item["findings"]
     if type(raw_findings) is not list or len(raw_findings) > _MAX_ITEMS:
         raise ValueError("invalid findings")

@@ -4,19 +4,18 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from cops.web_api.cli import command_web_api
-from cops.web_api.importer import import_openapi, import_raw_http
-from cops.web_api.models import ApiInventory, ReplayBudget, ReplayRequest
-from cops.web_api.replay import DestinationGuard, OfflineSyntheticReplayer, execute_replay_session
+from cops.web_api.cli import command_web_api  # noqa: E402  # Import after runtime prerequisite/path selection.
+from cops.web_api.importer import import_openapi  # noqa: E402  # Import after runtime prerequisite/path selection.
+from cops.web_api.models import ApiInventory  # noqa: E402  # Import after runtime prerequisite/path selection.
 
 
 class TestWebApiInventoryAndReplaySkill(unittest.TestCase):

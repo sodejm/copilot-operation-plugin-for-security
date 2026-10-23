@@ -4,6 +4,11 @@ The COPS service laboratory has two complementary acceptance paths. Offline play
 
 Neither path creates an authorization mechanism. Authorized active operations continue to use the existing `ActionPlan`, approval, worker scope, and signed `LaboratoryHarness` observation gates. The disposable services use reserved example addresses and synthetic identities and never contact an external target.
 
+The shared HTTP client accepts only literal loopback addresses with explicit ports,
+ignores environment proxies, and refuses redirects. Responses are limited to
+64 KiB with a three-second socket timeout. These bounds supplement the isolation
+checks required by the container acceptance path.
+
 ## Run the paths
 
 Use the repository environment:

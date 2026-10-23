@@ -180,7 +180,9 @@ def _certificate_material(directory: Path) -> dict[str, Path]:
     untrusted_key, untrusted_ca, untrusted_ca_path = ca("untrusted-ca")
     server_key, server_cert = leaf("server", trusted_key, trusted_ca, ExtendedKeyUsageOID.SERVER_AUTH)
     client_key, client_cert = leaf("client", trusted_key, trusted_ca, ExtendedKeyUsageOID.CLIENT_AUTH)
-    unauthorized_key, unauthorized_cert = leaf("unauthorized-client", trusted_key, trusted_ca, ExtendedKeyUsageOID.CLIENT_AUTH)
+    unauthorized_key, unauthorized_cert = leaf(
+        "unauthorized-client", trusted_key, trusted_ca, ExtendedKeyUsageOID.CLIENT_AUTH
+    )
     bad_key, bad_cert = leaf("untrusted-client", untrusted_key, untrusted_ca, ExtendedKeyUsageOID.CLIENT_AUTH)
     return {
         "ca": trusted_ca_path,
@@ -216,22 +218,39 @@ def _was_rejected(url: str, context: ssl.SSLContext) -> bool:
 
 def run_ephemeral_mtls_acceptance() -> TLSAcceptanceResult:
     """Compare local certificate verification with real TLS and client authorization."""
-    from cops.assessments.crypto_inputs import verify_artifact
     from cryptography import x509
     from cryptography.hazmat.primitives import hashes
 
+    from cops.assessments.crypto_inputs import verify_artifact
+
     with tempfile.TemporaryDirectory(prefix="cops-service-tls-") as temporary:
         material = _certificate_material(Path(temporary))
-        allowed = x509.load_pem_x509_certificate(material["client_cert"].read_bytes()).fingerprint(hashes.SHA256()).hex()
-        evidence = {"purpose": "server", "leaf_pem": material["server_cert"].read_text(),
-                    "trust_anchors_pem": [material["ca"].read_text()], "hostname": "127.0.0.1"}
-        client = {**evidence, "purpose": "client", "leaf_pem": material["client_cert"].read_text(), "authorized_client_sha256": [allowed]}
-        cases = {
-            "server": evidence, "wrong_hostname": {**evidence, "hostname": "other.example.invalid"},
-            "untrusted_server": {**evidence, "trust_anchors_pem": [material["untrusted_ca"].read_text()]},
-            "authorized_client": client, "unauthorized_client": {**client, "leaf_pem": material["unauthorized_cert"].read_text()},
+        allowed = (
+            x509.load_pem_x509_certificate(material["client_cert"].read_bytes()).fingerprint(hashes.SHA256()).hex()
+        )
+        evidence = {
+            "purpose": "server",
+            "leaf_pem": material["server_cert"].read_text(),
+            "trust_anchors_pem": [material["ca"].read_text()],
+            "hostname": "127.0.0.1",
         }
-        offline = {name: verify_artifact("certificate_chain", content, as_of=datetime.now(UTC)).status for name, content in cases.items()}
+        client = {
+            **evidence,
+            "purpose": "client",
+            "leaf_pem": material["client_cert"].read_text(),
+            "authorized_client_sha256": [allowed],
+        }
+        cases = {
+            "server": evidence,
+            "wrong_hostname": {**evidence, "hostname": "other.example.invalid"},
+            "untrusted_server": {**evidence, "trust_anchors_pem": [material["untrusted_ca"].read_text()]},
+            "authorized_client": client,
+            "unauthorized_client": {**client, "leaf_pem": material["unauthorized_cert"].read_text()},
+        }
+        offline = {
+            name: verify_artifact("certificate_chain", content, as_of=datetime.now(UTC)).status
+            for name, content in cases.items()
+        }
         server = ThreadingHTTPServer(("127.0.0.1", 0), _HealthHandler)
         server.authorized_client_sha256 = frozenset({allowed})
         server_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
@@ -266,8 +285,11 @@ def run_ephemeral_mtls_acceptance() -> TLSAcceptanceResult:
             server.server_close()
             thread.join(timeout=3)
         return TLSAcceptanceResult(
-            valid_client_status=valid_status, missing_client_rejected=missing_rejected,
-            untrusted_client_rejected=untrusted_rejected, untrusted_server_rejected=server_rejected,
-            unauthorized_client_status=unauthorized_status, offline_verification=offline,
+            valid_client_status=valid_status,
+            missing_client_rejected=missing_rejected,
+            untrusted_client_rejected=untrusted_rejected,
+            untrusted_server_rejected=server_rejected,
+            unauthorized_client_status=unauthorized_status,
+            offline_verification=offline,
             service_stopped=not thread.is_alive() and server.socket.fileno() == -1,
         )

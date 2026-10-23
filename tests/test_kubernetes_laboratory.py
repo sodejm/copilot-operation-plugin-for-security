@@ -12,13 +12,27 @@ from cops.workflows.runtime import compile_action_plan
 
 
 def configuration() -> dict:
-    return {"Image": "sha256:fixture", "HostConfig": {
-        "NetworkMode": "none", "Privileged": True, "IpcMode": "private", "PidsLimit": 768,
-        "Memory": 3 * 1024**3, "NanoCpus": 2_000_000_000, "Tmpfs": {"/run": "", "/var/run": ""}},
-        "Config": {"Labels": {lab._LABEL: "nonce"}, "Entrypoint": ["/bin/sh"],
-                   "Cmd": ["-c", lab._bootstrap("docker.io/cops-laboratory/pause:nonce")]},
-        "Mounts": [{"Type": "volume", "Name": str(index), "Destination": destination}
-                   for index, destination in enumerate(sorted(lab._VOLUMES))]}
+    return {
+        "Image": "sha256:fixture",
+        "HostConfig": {
+            "NetworkMode": "none",
+            "Privileged": True,
+            "IpcMode": "private",
+            "PidsLimit": 768,
+            "Memory": 3 * 1024**3,
+            "NanoCpus": 2_000_000_000,
+            "Tmpfs": {"/run": "", "/var/run": ""},
+        },
+        "Config": {
+            "Labels": {lab._LABEL: "nonce"},
+            "Entrypoint": ["/bin/sh"],
+            "Cmd": ["-c", lab._bootstrap("docker.io/cops-laboratory/pause:nonce")],
+        },
+        "Mounts": [
+            {"Type": "volume", "Name": str(index), "Destination": destination}
+            for index, destination in enumerate(sorted(lab._VOLUMES))
+        ],
+    }
 
 
 def test_node_configuration_and_workflow_contract() -> None:
@@ -30,15 +44,22 @@ def test_node_configuration_and_workflow_contract() -> None:
     assert all(len(images) == 3 and all("@sha256:" in image for image in images) for images in lab.IMAGE_PINS.values())
 
 
-@pytest.mark.parametrize(("section", "key", "value"), [
-    ("HostConfig", "NetworkMode", "host"), ("HostConfig", "Binds", ["/:/host"]),
-    ("HostConfig", "PidMode", "host"), ("HostConfig", "IpcMode", "host"),
-    ("HostConfig", "PortBindings", {"6443/tcp": [{"HostPort": "6443"}]}),
-    ("HostConfig", "Devices", [{"PathOnHost": "/dev/sda"}]),
-    ("HostConfig", "Memory", 0), ("HostConfig", "NanoCpus", 0),
-    ("HostConfig", "PidsLimit", 0), ("Config", "Cmd", ["-c", "unreviewed"]),
-    ("Config", "Labels", {lab._LABEL: "other-owner"}),
-])
+@pytest.mark.parametrize(
+    ("section", "key", "value"),
+    [
+        ("HostConfig", "NetworkMode", "host"),
+        ("HostConfig", "Binds", ["/:/host"]),
+        ("HostConfig", "PidMode", "host"),
+        ("HostConfig", "IpcMode", "host"),
+        ("HostConfig", "PortBindings", {"6443/tcp": [{"HostPort": "6443"}]}),
+        ("HostConfig", "Devices", [{"PathOnHost": "/dev/sda"}]),
+        ("HostConfig", "Memory", 0),
+        ("HostConfig", "NanoCpus", 0),
+        ("HostConfig", "PidsLimit", 0),
+        ("Config", "Cmd", ["-c", "unreviewed"]),
+        ("Config", "Labels", {lab._LABEL: "other-owner"}),
+    ],
+)
 def test_changed_node_boundary_is_rejected(section: str, key: str, value: object) -> None:
     actual = configuration()
     actual[section][key] = value
@@ -54,14 +75,23 @@ def test_host_mount_cannot_replace_owned_volume() -> None:
 
 
 def event(verb: str, **overrides: object) -> dict:
-    return {"auditID": verb, "stageTimestamp": "2026-10-16T00:00:00Z", "stage": "ResponseComplete",
-            "verb": verb, "objectRef": {"namespace": "fixture", "resource": "networkpolicies", "name": "containment"},
-            "responseStatus": {"code": 201 if verb == "create" else 200},
-            "user": {"credential": "must-not-export"}, "requestObject": {"secret": "must-not-export"}, **overrides}
+    return {
+        "auditID": verb,
+        "stageTimestamp": "2026-10-16T00:00:00Z",
+        "stage": "ResponseComplete",
+        "verb": verb,
+        "objectRef": {"namespace": "fixture", "resource": "networkpolicies", "name": "containment"},
+        "responseStatus": {"code": 201 if verb == "create" else 200},
+        "user": {"credential": "must-not-export"},
+        "requestObject": {"secret": "must-not-export"},
+        **overrides,
+    }
 
 
 def test_audit_requires_actual_successful_apply_and_cleanup_and_redacts_bodies() -> None:
-    raw = "\n".join(json.dumps(record) for record in (event("create"), event("delete"), event("delete", stage="RequestReceived")))
+    raw = "\n".join(
+        json.dumps(record) for record in (event("create"), event("delete"), event("delete", stage="RequestReceived"))
+    )
     events = lab.audit_evidence(raw, "fixture")
     lab.verify_audit(events)
     assert len(events) == 2 and all(item["record_sha256"] for item in events)
@@ -128,9 +158,16 @@ def test_egress_requires_definitive_failure_for_both_families(error: object) -> 
         lab.verify_egress(probes)
 
 
-@pytest.mark.parametrize("probes", [None, [], [None, None],
-    [{"family": "IPv4", "reachable": False, "error": "EPERM"}] * 2,
-    [{"family": family, "reachable": True, "error": "EPERM"} for family in ("IPv4", "IPv6")]])
+@pytest.mark.parametrize(
+    "probes",
+    [
+        None,
+        [],
+        [None, None],
+        [{"family": "IPv4", "reachable": False, "error": "EPERM"}] * 2,
+        [{"family": family, "reachable": True, "error": "EPERM"} for family in ("IPv4", "IPv6")],
+    ],
+)
 def test_egress_rejects_missing_malformed_or_reachable_evidence(probes: object) -> None:
     with pytest.raises(ValueError, match="inconclusive"):
         lab.verify_egress(probes)

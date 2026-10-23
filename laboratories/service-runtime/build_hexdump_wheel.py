@@ -29,8 +29,14 @@ def build(source: Path, destination: Path) -> Path:
         f"{DIST}/METADATA": b"Metadata-Version: 2.1\nName: hexdump\nVersion: 3.3\nLicense: Public Domain\nSummary: Reviewed upstream single module\n\n",
         f"{DIST}/WHEEL": b"Wheel-Version: 1.0\nGenerator: COPS reviewed-module-builder-v1\nRoot-Is-Purelib: true\nTag: py3-none-any\n",
     }
-    rows = [[name, "sha256=" + base64.urlsafe_b64encode(hashlib.sha256(data).digest()).rstrip(b"=").decode(), str(len(data))]
-            for name, data in sorted(files.items())]
+    rows = [
+        [
+            name,
+            "sha256=" + base64.urlsafe_b64encode(hashlib.sha256(data).digest()).rstrip(b"=").decode(),
+            str(len(data)),
+        ]
+        for name, data in sorted(files.items())
+    ]
     rows.append([f"{DIST}/RECORD", "", ""])
     record = io.StringIO(newline="")
     csv.writer(record, lineterminator="\n").writerows(rows)

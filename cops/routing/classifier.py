@@ -298,8 +298,10 @@ def route_request(
             clean_query, candidates, "Optional classifier requires explicit model, deadline, and budget"
         )
     if (
-        type(classifier_deadline_ms) is not int or type(classifier_token_budget) is not int
-        or classifier_deadline_ms <= 0 or classifier_token_budget <= 0
+        type(classifier_deadline_ms) is not int
+        or type(classifier_token_budget) is not int
+        or classifier_deadline_ms <= 0
+        or classifier_token_budget <= 0
     ):
         return _clarification(clean_query, candidates, "Optional classifier deadline or budget is exhausted")
 
@@ -318,7 +320,8 @@ def route_request(
     if type(response.tokens_used) is not int or not 0 <= response.tokens_used <= classifier_token_budget:
         return _clarification(clean_query, candidates, "Optional classifier exceeded its token budget")
     if (
-        selected is None or type(response.confidence) not in (int, float)
+        selected is None
+        or type(response.confidence) not in (int, float)
         or not math.isfinite(response.confidence)
         or not MIN_ROUTE_CONFIDENCE <= response.confidence <= 1.0
     ):

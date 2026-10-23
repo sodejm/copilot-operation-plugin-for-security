@@ -14,11 +14,8 @@ import pytest
 
 from cops.portable import export_portable_package
 
-
 ROOT = Path(__file__).resolve().parents[1]
-WEB_API_VENDOR = (
-    ROOT / "plugins/offensive-security/web-api-assessment-workbench/vendor"
-)
+WEB_API_VENDOR = ROOT / "plugins/offensive-security/web-api-assessment-workbench/vendor"
 
 
 def _sha256(path: Path) -> str:
@@ -33,8 +30,7 @@ def _runtime_manifest(vendor: Path) -> dict[str, object]:
     actual = {
         path.relative_to(vendor).as_posix()
         for path in vendor.rglob("*")
-        if path.is_file() and path != manifest_path
-        and "__pycache__" not in path.parts and path.suffix != ".pyc"
+        if path.is_file() and path != manifest_path and "__pycache__" not in path.parts and path.suffix != ".pyc"
     }
     assert set(records) == actual
     for relative, record in records.items():
@@ -91,9 +87,7 @@ def test_portable_export_preserves_expansion_assets_and_runs_installed_demo(
         ["git", "-C", str(repository), "add", "--", str(package_relative)],
         check=True,
     )
-    baseline = subprocess.check_output(
-        ["git", "-C", str(repository), "ls-files"], text=True
-    ).splitlines()
+    baseline = subprocess.check_output(["git", "-C", str(repository), "ls-files"], text=True).splitlines()
 
     dataset = b'{"cases":[{"id":"offline-preview"}]}\n'
     dataset_digest = hashlib.sha256(dataset).hexdigest()
@@ -105,9 +99,7 @@ def test_portable_export_preserves_expansion_assets_and_runs_installed_demo(
         "provenance/cases.json": json.dumps(
             {
                 "schema_version": "cops.dataset-provenance/v1",
-                "artifacts": [
-                    {"path": "datasets/cases.json", "sha256": dataset_digest}
-                ],
+                "artifacts": [{"path": "datasets/cases.json", "sha256": dataset_digest}],
             },
             sort_keys=True,
         )
@@ -117,7 +109,8 @@ def test_portable_export_preserves_expansion_assets_and_runs_installed_demo(
     for relative, content in assets.items():
         _write(package / relative, content)
     shutil.copytree(
-        WEB_API_VENDOR, package / "vendor",
+        WEB_API_VENDOR,
+        package / "vendor",
         ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
     )
     _write(
@@ -181,18 +174,21 @@ print(
     destination = tmp_path / "portable-package"
     export_portable_package(package, destination)
 
-    assert subprocess.check_output(
-        ["git", "-C", str(repository), "ls-files"],
-        text=True,
-        env=_git_environment(),
-    ).splitlines() == baseline
+    assert (
+        subprocess.check_output(
+            ["git", "-C", str(repository), "ls-files"],
+            text=True,
+            env=_git_environment(),
+        ).splitlines()
+        == baseline
+    )
     for relative, expected in assets.items():
         expected_bytes = expected if isinstance(expected, bytes) else expected.encode()
         assert (destination / relative).read_bytes() == expected_bytes
     exported_manifest = _runtime_manifest(destination / "vendor")
     assert exported_manifest == _runtime_manifest(WEB_API_VENDOR)
-    assert (destination / "signatures/cases.sha256").read_text().startswith(
-        _sha256(destination / "datasets/cases.json")
+    assert (
+        (destination / "signatures/cases.sha256").read_text().startswith(_sha256(destination / "datasets/cases.json"))
     )
 
     environment = _git_environment()

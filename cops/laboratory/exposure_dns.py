@@ -19,8 +19,14 @@ def _query(transaction: bytes) -> bytes:
 
 
 def _answer(transaction: bytes) -> bytes:
-    return (transaction + struct.pack("!5H", 0x8500, 1, 1, 0, 0) + _QUESTION
-            + b"\xc0\x0c" + struct.pack("!HHIH", 1, 1, 0, 4) + socket.inet_aton(ADDRESS))
+    return (
+        transaction
+        + struct.pack("!5H", 0x8500, 1, 1, 0, 0)
+        + _QUESTION
+        + b"\xc0\x0c"
+        + struct.pack("!HHIH", 1, 1, 0, 4)
+        + socket.inet_aton(ADDRESS)
+    )
 
 
 def validate_response(response: bytes, transaction: bytes) -> str:
@@ -36,8 +42,13 @@ class ExposureDNS:
             def handle(self) -> None:
                 data, transport = self.request
                 if len(data) >= 2 and data == _query(data[:2]):
-                    telemetry.record("exposure_dns_answered", risk="benign", host=HOST,
-                                     address=ADDRESS, transaction_id=data[:2].hex())
+                    telemetry.record(
+                        "exposure_dns_answered",
+                        risk="benign",
+                        host=HOST,
+                        address=ADDRESS,
+                        transaction_id=data[:2].hex(),
+                    )
                     transport.sendto(_answer(data[:2]), self.client_address)
 
         self.server = socketserver.UDPServer((ADDRESS, 0), Handler)

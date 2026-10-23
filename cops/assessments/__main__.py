@@ -13,7 +13,6 @@ from typing import Any
 
 from . import CAPABILITIES, ArtifactAssessmentError, assess
 
-
 CLI_MAX_INPUT_BYTES = 6_291_456
 
 

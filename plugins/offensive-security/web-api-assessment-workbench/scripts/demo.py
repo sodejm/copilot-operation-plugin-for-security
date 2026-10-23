@@ -4,18 +4,24 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import sys
 import tempfile
+from pathlib import Path
 
 # Use the packaged runtime after portable export, or the repository runtime.
 REPO_ROOT = Path(__file__).resolve().parents[4]
 VENDORED_ROOT = Path(__file__).resolve().parents[1] / "vendor"
 sys.path.insert(0, str(VENDORED_ROOT if (VENDORED_ROOT / "cops").is_dir() else REPO_ROOT))
 
-from cops.web_api.importer import import_openapi, import_raw_http
-from cops.web_api.models import ReplayBudget, ReplayRequest
-from cops.web_api.replay import OfflineSyntheticReplayer, execute_replay_session
+from cops.web_api.importer import import_openapi  # noqa: E402  # Import after runtime prerequisite/path selection.
+from cops.web_api.models import (  # noqa: E402  # Import after runtime prerequisite/path selection.
+    ReplayBudget,
+    ReplayRequest,
+)
+from cops.web_api.replay import (  # noqa: E402  # Import after runtime prerequisite/path selection.
+    OfflineSyntheticReplayer,
+    execute_replay_session,
+)
 
 
 def run_demo() -> dict[str, str | int | bool | dict]:

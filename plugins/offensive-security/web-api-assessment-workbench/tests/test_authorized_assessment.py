@@ -7,7 +7,6 @@ import json
 import sys
 from dataclasses import replace
 from pathlib import Path
-import sys
 
 import pytest
 

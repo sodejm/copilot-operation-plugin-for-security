@@ -14,9 +14,7 @@ import socket
 import subprocess
 import tempfile
 import threading
-import urllib.error
 import urllib.parse
-import urllib.request
 import uuid
 from collections import Counter
 from dataclasses import asdict, dataclass, field
@@ -25,8 +23,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Literal
 
+from .exposure_dns import HOST as EXPOSURE_HOST
+from .exposure_dns import ExposureDNS
+from .http_client import request_loopback
 from .network_boundary import inspect_acceptance_boundary
-from .exposure_dns import ExposureDNS, HOST as EXPOSURE_HOST
 from .service_authentication import run_api_acceptance, run_jwt_acceptance
 from .service_boundaries import run_acquisition_acceptance, run_boundary_acceptance
 from .service_supply_chain import run_supply_chain_acceptance
@@ -182,8 +182,9 @@ class _Graph:
     def __init__(self, configuration: dict[str, Any], telemetry: _Telemetry) -> None:
         self.configuration = configuration
         self.state = _State(str(configuration["profile"]))
-        self.state.grants = {item["grant_id"]: {**item, "active": True}
-                             for item in configuration.get("synthetic_grants", [])}
+        self.state.grants = {
+            item["grant_id"]: {**item, "active": True} for item in configuration.get("synthetic_grants", [])
+        }
         self.baseline = self.state.copy()
         self.telemetry = telemetry
         self._lock = threading.Lock()
@@ -233,8 +234,11 @@ class _Graph:
                             state.grant_tokens[token] = grant_id
                         else:
                             grant["active"] = False
-                    telemetry.record("grant_issued" if self.path == "/issue-grant" else "grant_revoked",
-                                     risk="benign" if self.path == "/issue-grant" else "attack", identity=identity)
+                    telemetry.record(
+                        "grant_issued" if self.path == "/issue-grant" else "grant_revoked",
+                        risk="benign" if self.path == "/issue-grant" else "attack",
+                        identity=identity,
+                    )
                     _reply(self, 201 if self.path == "/issue-grant" else 200, {"identity": identity})
                     return
                 if self.path == "/issue" and token:
@@ -276,9 +280,15 @@ class _Graph:
                     with lock:
                         profile = state.profile
                     status = 200 if authorized or profile == "vulnerable" else 401
-                    telemetry.record("exposure_authentication", risk="benign" if authorized else "attack",
-                                     host=EXPOSURE_HOST, route=self.path, profile=profile,
-                                     authorized=authorized, status=status)
+                    telemetry.record(
+                        "exposure_authentication",
+                        risk="benign" if authorized else "attack",
+                        host=EXPOSURE_HOST,
+                        route=self.path,
+                        profile=profile,
+                        authorized=authorized,
+                        status=status,
+                    )
                     _reply(self, status, {"authenticated": authorized})
                     return
                 if self.path != "/protected":
@@ -302,8 +312,8 @@ class _Graph:
                     telemetry.record("lateral_movement_blocked", risk="attack")
                     _reply(self, 403, {"allowed": False})
                     return
-                with urllib.request.urlopen(f"{sink.url}/target", timeout=3) as response:  # noqa: S310
-                    reached = response.status == 200
+                status, _, _ = request_loopback(f"{sink.url}/target")
+                reached = status == 200
                 telemetry.record("lateral_movement", risk="attack")
                 _reply(self, 200, {"allowed": reached})
 
@@ -375,12 +385,8 @@ def _request_json(
     if token is not None:
         headers["Authorization"] = f"Bearer {token}"
     data = json.dumps(payload).encode() if payload is not None else None
-    request = urllib.request.Request(url, data=data, headers=headers, method=method)
-    try:
-        with urllib.request.urlopen(request, timeout=3) as response:  # noqa: S310 - local fixture URLs only
-            return response.status, json.loads(response.read() or b"{}")
-    except urllib.error.HTTPError as err:
-        return err.code, json.loads(err.read() or b"{}")
+    status, _, body = request_loopback(url, data=data, headers=headers, method=method)
+    return status, json.loads(body or b"{}")
 
 
 def _execute_detection_rules(
@@ -399,8 +405,11 @@ def _execute_detection_rules(
     for event in events:
         counts[f"class:{event.get('risk', 'unknown')}"] += 1
         rule = rule_by_event.get(str(event.get("event")))
-        if (event.get("event") == "exposure_authentication"
-                and event.get("authorized") is False and event.get("status") == 200):
+        if (
+            event.get("event") == "exposure_authentication"
+            and event.get("authorized") is False
+            and event.get("status") == 200
+        ):
             rule = "anonymous-exposure-access"
         if rule:
             if event.get("event") != "ioc_hunt" or event.get("hit") is True:
@@ -428,9 +437,19 @@ def verify_fixture_manifest(directory: Path = FIXTURE_DIRECTORY) -> str:
     fixtures = manifest.get("fixtures")
     if not isinstance(fixtures, list) or not 1 <= len(fixtures) <= 64:
         raise ValueError("laboratory fixture manifest has an invalid file count")
-    expected = {"vulnerable.json", "corrected.json", "entra-grants.jsonl", "entra-signins.jsonl", "kubernetes-audit.jsonl", "sysmon-normalized.jsonl",
-                "sysmon-vulnerable.evtx", "sysmon-corrected.evtx", "sysmon-insufficient.evtx", "cve-advisory.json",
-                "consent-context.json"}
+    expected = {
+        "vulnerable.json",
+        "corrected.json",
+        "entra-grants.jsonl",
+        "entra-signins.jsonl",
+        "kubernetes-audit.jsonl",
+        "sysmon-normalized.jsonl",
+        "sysmon-vulnerable.evtx",
+        "sysmon-corrected.evtx",
+        "sysmon-insufficient.evtx",
+        "cve-advisory.json",
+        "consent-context.json",
+    }
     observed_paths: set[str] = set()
     total = 0
     for item in fixtures:
@@ -458,7 +477,9 @@ def load_consent_fixture(directory: Path = FIXTURE_DIRECTORY) -> dict[str, Any]:
     verify_fixture_manifest(directory)
     context = json.loads(bounded_read(directory / "consent-context.json", 1024 * 1024))
     for kind in ("grants", "signins"):
-        context[kind] = [json.loads(line) for line in bounded_read(directory / f"entra-{kind}.jsonl", 1024 * 1024).splitlines()]
+        context[kind] = [
+            json.loads(line) for line in bounded_read(directory / f"entra-{kind}.jsonl", 1024 * 1024).splitlines()
+        ]
     return context
 
 
@@ -531,26 +552,38 @@ class ServiceLaboratory:
                 counts[f"class:{event['risk']}"] += 1
                 matched = False
                 if name == "entra-grants.jsonl":
-                    matched = (event.get("activity") == "consent_to_application"
-                               and event.get("consent_type") == "AllPrincipals"
-                               and event.get("permission") == "Mail.ReadWrite")
+                    matched = (
+                        event.get("activity") == "consent_to_application"
+                        and event.get("consent_type") == "AllPrincipals"
+                        and event.get("permission") == "Mail.ReadWrite"
+                    )
                     if matched and isinstance(event.get("client_id"), str):
                         principal = principals.get(event["client_id"])
                         if principal and principal["tenant_id"] == event.get("tenant_id"):
                             dangerous_clients.add(principal["app_id"])
                 elif name == "entra-signins.jsonl":
-                    matched = (event.get("activity") == "signin" and event.get("status") == "success"
-                               and event.get("tenant_id") == context["coverage"]["tenant_id"]
-                               and event.get("app_id") in dangerous_clients)
+                    matched = (
+                        event.get("activity") == "signin"
+                        and event.get("status") == "success"
+                        and event.get("tenant_id") == context["coverage"]["tenant_id"]
+                        and event.get("app_id") in dangerous_clients
+                    )
                 elif name == "kubernetes-audit.jsonl":
-                    matched = (event.get("stage") == "ResponseComplete" and event.get("verb") in {"get", "list"}
-                               and event.get("objectRef", {}).get("resource") == "secrets"
-                               and event.get("annotations", {}).get("authorization.k8s.io/decision") == "allow"
-                               and event.get("user", {}).get("username", "").startswith("system:serviceaccount:"))
+                    matched = (
+                        event.get("stage") == "ResponseComplete"
+                        and event.get("verb") in {"get", "list"}
+                        and event.get("objectRef", {}).get("resource") == "secrets"
+                        and event.get("annotations", {}).get("authorization.k8s.io/decision") == "allow"
+                        and event.get("user", {}).get("username", "").startswith("system:serviceaccount:")
+                    )
                 elif name == "sysmon-normalized.jsonl":
-                    matched = (event.get("event_id") == 3 and event.get("image", "").casefold().endswith("powershell.exe")
-                               and bool(event.get("source_ip")) and bool(event.get("target_ip"))
-                               and event.get("source_ip") != event.get("target_ip"))
+                    matched = (
+                        event.get("event_id") == 3
+                        and event.get("image", "").casefold().endswith("powershell.exe")
+                        and bool(event.get("source_ip"))
+                        and bool(event.get("target_ip"))
+                        and event.get("source_ip") != event.get("target_ip")
+                    )
                 if matched:
                     rule_id = f"{name.removesuffix('.jsonl')}-attack"
                     counts[f"rule:{rule_id}"] += 1
@@ -633,17 +666,13 @@ class ServiceLaboratory:
             telemetry = _Telemetry(directory / "telemetry.jsonl", correlation_id=run_id)
             graph = stack.enter_context(_Graph(configuration, telemetry))
             token = uuid.uuid4().hex
-            issue_status, _ = _request_json(
-                f"{graph.identity.url}/issue", method="POST", payload={"token": token}
-            )
+            issue_status, _ = _request_json(f"{graph.identity.url}/issue", method="POST", payload={"token": token})
             authenticated_status, _ = _request_json(f"{graph.resource.url}/protected", token=token)
             lateral_status, lateral = _request_json(f"{graph.resource.url}/lateral", method="POST", token=token)
             ioc = "203.0.113.77"
             ioc_status, _ = _request_json(f"{graph.hunt.url}/ioc", method="POST", payload={"value": ioc})
             hunt_status, hunt = _request_json(f"{graph.hunt.url}/hunt?value={urllib.parse.quote(ioc)}")
-            contain_status, _ = _request_json(
-                f"{graph.hunt.url}/contain", method="POST", payload={"token": token}
-            )
+            contain_status, _ = _request_json(f"{graph.hunt.url}/contain", method="POST", payload={"token": token})
             post_revoke_status, _ = _request_json(f"{graph.resource.url}/protected", token=token)
             restoration = self._restoration_proof(graph)
             tls_result: TLSAcceptanceResult = run_ephemeral_mtls_acceptance()

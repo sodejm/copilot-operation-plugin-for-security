@@ -127,9 +127,7 @@ def test_live_dry_run_returns_json_preview_without_dispatch_or_file_write(tmp_pa
     assert not output_path.exists()
 
 
-def test_explain_renders_text_preview_and_live_without_preview_still_rejects(
-    tmp_path, capsys, monkeypatch
-):
+def test_explain_renders_text_preview_and_live_without_preview_still_rejects(tmp_path, capsys, monkeypatch):
     inventory_path = _inventory_file(tmp_path)
 
     def reject_dispatch(*args, **kwargs):

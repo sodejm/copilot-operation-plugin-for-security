@@ -3,6 +3,7 @@
 Only registered shapes are considered analyzed. Unknown resources, plan values,
 versions, and malformed subdocuments retain an explicit coverage gap.
 """
+
 from __future__ import annotations
 
 import json
@@ -145,7 +146,10 @@ def _aws_acl(value: dict, result: CloudInput) -> None:
             continue
         grantee = grant["Grantee"]
         if grantee.get("Type") == "Group":
-            if grantee.get("URI") in {"http://acs.amazonaws.com/groups/global/AllUsers", "http://acs.amazonaws.com/groups/global/AuthenticatedUsers"}:
+            if grantee.get("URI") in {
+                "http://acs.amazonaws.com/groups/global/AllUsers",
+                "http://acs.amazonaws.com/groups/global/AuthenticatedUsers",
+            }:
                 result.codes.add("public_storage")
             else:
                 result.incomplete = True
@@ -234,7 +238,12 @@ def _kubernetes(value: Any, result: CloudInput) -> None:
         for context in contexts:
             if not isinstance(context, dict):
                 result.incomplete = True
-            elif context.get("privileged") is True or context.get("runAsNonRoot") is False or type(context.get("runAsUser")) is int and context["runAsUser"] == 0:
+            elif (
+                context.get("privileged") is True
+                or context.get("runAsNonRoot") is False
+                or type(context.get("runAsUser")) is int
+                and context["runAsUser"] == 0
+            ):
                 result.codes.add("workload_privilege")
     elif kind in {"Role", "ClusterRole"}:
         rules = value.get("rules")
@@ -297,7 +306,11 @@ def _azure(value: Any, result: CloudInput) -> None:
             return
         for rule in rules:
             prop = rule.get("properties") if isinstance(rule, dict) else None
-            if not isinstance(prop, dict) or prop.get("direction") not in {"Inbound", "Outbound"} or prop.get("access") not in {"Allow", "Deny"}:
+            if (
+                not isinstance(prop, dict)
+                or prop.get("direction") not in {"Inbound", "Outbound"}
+                or prop.get("access") not in {"Allow", "Deny"}
+            ):
                 result.incomplete = True
                 continue
             if prop["direction"] == "Inbound" and prop["access"] == "Allow":
@@ -336,11 +349,17 @@ def _gcp(value: Any, result: CloudInput) -> None:
             result.incomplete = True
             return
         for binding in bindings:
-            if not isinstance(binding, dict) or not isinstance(binding.get("role"), str) or _strings(binding.get("members")) is None:
+            if (
+                not isinstance(binding, dict)
+                or not isinstance(binding.get("role"), str)
+                or _strings(binding.get("members")) is None
+            ):
                 result.incomplete = True
             elif binding["role"] in {"roles/owner", "roles/editor"}:
                 result.codes.add("iam_wildcard")
-            elif binding["role"].startswith("roles/storage.") and {"allUsers", "allAuthenticatedUsers"}.intersection(binding["members"]):
+            elif binding["role"].startswith("roles/storage.") and {"allUsers", "allAuthenticatedUsers"}.intersection(
+                binding["members"]
+            ):
                 result.codes.add("public_storage")
     else:
         result.incomplete = True
@@ -349,7 +368,13 @@ def _gcp(value: Any, result: CloudInput) -> None:
 def _terraform_resource(kind: str, values: Any, result: CloudInput) -> None:
     if not isinstance(values, dict):
         result.incomplete = True
-    elif kind in {"aws_iam_policy", "aws_iam_role_policy", "aws_iam_user_policy", "aws_iam_group_policy", "aws_s3_bucket_policy"}:
+    elif kind in {
+        "aws_iam_policy",
+        "aws_iam_role_policy",
+        "aws_iam_user_policy",
+        "aws_iam_group_policy",
+        "aws_s3_bucket_policy",
+    }:
         _iam(values.get("policy"), result)
     elif kind in {"aws_s3_bucket_acl", "aws_s3_bucket"}:
         acl = values.get("acl")
@@ -406,7 +431,11 @@ def _terraform(value: Any, result: CloudInput) -> None:
         pending = [value["planned_values"].get("root_module")]
         while pending:
             module = pending.pop()
-            if not isinstance(module, dict) or not isinstance(module.get("resources", []), list) or not isinstance(module.get("child_modules", []), list):
+            if (
+                not isinstance(module, dict)
+                or not isinstance(module.get("resources", []), list)
+                or not isinstance(module.get("child_modules", []), list)
+            ):
                 result.incomplete = True
                 continue
             for item in module.get("resources", []):
@@ -435,7 +464,14 @@ def _unknown_leaves(value: Any) -> list[Any]:
 
 def cloud_input(kind: str, value: Any) -> CloudInput:
     result = CloudInput()
-    parsers = {"terraform_plan": _terraform, "kubernetes_rendered": _kubernetes, "helm_rendered_json": _kubernetes, "aws_export": _aws, "azure_export": _azure, "gcp_export": _gcp}
+    parsers = {
+        "terraform_plan": _terraform,
+        "kubernetes_rendered": _kubernetes,
+        "helm_rendered_json": _kubernetes,
+        "aws_export": _aws,
+        "azure_export": _azure,
+        "gcp_export": _gcp,
+    }
     try:
         parsers[kind](value, result)
     except (TypeError, ValueError, AttributeError):

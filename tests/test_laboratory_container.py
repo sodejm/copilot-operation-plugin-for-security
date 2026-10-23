@@ -43,24 +43,34 @@ def source_tree(root):
 
 def configuration(source, nonce=NONCE, digest=DIGEST):
     return {
-        "Id": CONTAINER, "Image": IMAGE,
+        "Id": CONTAINER,
+        "Image": IMAGE,
         "HostConfig": {
-            "NetworkMode": "none", "ReadonlyRootfs": True, "Privileged": False,
-            "CapDrop": ["ALL"], "SecurityOpt": ["no-new-privileges:true"],
-            "IpcMode": "private", "PidsLimit": 128, "Memory": 512 * 1024 * 1024,
+            "NetworkMode": "none",
+            "ReadonlyRootfs": True,
+            "Privileged": False,
+            "CapDrop": ["ALL"],
+            "SecurityOpt": ["no-new-privileges:true"],
+            "IpcMode": "private",
+            "PidsLimit": 128,
+            "Memory": 512 * 1024 * 1024,
             "NanoCpus": 1_000_000_000,
             "Tmpfs": {"/tmp": "rw,exec,nosuid,nodev,size=128m,mode=1777"},
         },
         "Config": {
-            "Labels": {runtime._OWNER_LABEL: nonce}, "User": "65532:65532",
-            "WorkingDir": "/opt/cops-src", "Entrypoint": ["python"],
+            "Labels": {runtime._OWNER_LABEL: nonce},
+            "User": "65532:65532",
+            "WorkingDir": "/opt/cops-src",
+            "Entrypoint": ["python"],
             "Cmd": ["scripts/check_laboratory.py", "--container-child"],
-            "Env": [f"COPS_LABORATORY_CONTAINER_NONCE={nonce}",
-                    f"COPS_LABORATORY_SOURCE_DIGEST={digest}",
-                    "PYTHONDONTWRITEBYTECODE=1", "PYTHONPATH=/opt/cops-src"],
+            "Env": [
+                f"COPS_LABORATORY_CONTAINER_NONCE={nonce}",
+                f"COPS_LABORATORY_SOURCE_DIGEST={digest}",
+                "PYTHONDONTWRITEBYTECODE=1",
+                "PYTHONPATH=/opt/cops-src",
+            ],
         },
-        "Mounts": [{"Type": "bind", "Source": str(source),
-                    "Destination": "/opt/cops-src", "RW": False}],
+        "Mounts": [{"Type": "bind", "Source": str(source), "Destination": "/opt/cops-src", "RW": False}],
     }
 
 
@@ -71,12 +81,18 @@ def test_snapshot_is_allowlisted_hashed_and_world_readable(tmp_path):
     digest = runtime._snapshot(repository, target)
     snapshot.verify_source_snapshot(target, digest)
     copied = {path.relative_to(target).as_posix() for path in target.rglob("*") if path.is_file()}
-    assert copied == {"source-manifest.json", "cops/__init__.py", "cops/laboratory/example.py",
-                      "cops/laboratory/service_fixtures/example.json", "scripts/check_laboratory.py",
-                      "cops/adapters/definitions/git.json",
-                      "catalog/schemas/action-plan.schema.json"}
-    assert all(path.stat().st_mode & 0o777 == (0o755 if path.is_dir() else 0o644)
-               for path in (target, *target.rglob("*")))
+    assert copied == {
+        "source-manifest.json",
+        "cops/__init__.py",
+        "cops/laboratory/example.py",
+        "cops/laboratory/service_fixtures/example.json",
+        "scripts/check_laboratory.py",
+        "cops/adapters/definitions/git.json",
+        "catalog/schemas/action-plan.schema.json",
+    }
+    assert all(
+        path.stat().st_mode & 0o777 == (0o755 if path.is_dir() else 0o644) for path in (target, *target.rglob("*"))
+    )
 
 
 @pytest.mark.parametrize("attack", ["modified", "schema-modified", "unbound", "symlink", "oversized", "total-budget"])
@@ -103,8 +119,19 @@ def test_snapshot_rejects_modified_or_unbounded_sources(tmp_path, monkeypatch, a
         snapshot.verify_source_snapshot(target, digest)
 
 
-@pytest.mark.parametrize("relative", ["../cops/x.py", "/cops/x.py", "cops//x.py", "cops/../x.py",
-                                      "cops\\x.py", "cops/__pycache__/x.py", ".env", "terraform.tfstate"])
+@pytest.mark.parametrize(
+    "relative",
+    [
+        "../cops/x.py",
+        "/cops/x.py",
+        "cops//x.py",
+        "cops/../x.py",
+        "cops\\x.py",
+        "cops/__pycache__/x.py",
+        ".env",
+        "terraform.tfstate",
+    ],
+)
 def test_snapshot_path_validation(relative):
     assert not snapshot.allowed_source(relative)
 
@@ -126,13 +153,21 @@ def test_missing_prerequisites_never_copy_or_create(tmp_path, monkeypatch, prere
     assert not any(call[0] == "create" for call in calls)
 
 
-@pytest.mark.parametrize("section,key,value", [
-    ("HostConfig", "NetworkMode", "bridge"), ("HostConfig", "ReadonlyRootfs", False),
-    ("HostConfig", "Privileged", True), ("HostConfig", "CapAdd", ["NET_ADMIN"]),
-    ("HostConfig", "SecurityOpt", ["no-new-privileges:false"]),
-    ("HostConfig", "Memory", 0), ("HostConfig", "PortBindings", {"80/tcp": [{}]}),
-    ("Config", "User", "root"), ("Config", "Env", []), ("Config", "Entrypoint", ["sh"]),
-])
+@pytest.mark.parametrize(
+    "section,key,value",
+    [
+        ("HostConfig", "NetworkMode", "bridge"),
+        ("HostConfig", "ReadonlyRootfs", False),
+        ("HostConfig", "Privileged", True),
+        ("HostConfig", "CapAdd", ["NET_ADMIN"]),
+        ("HostConfig", "SecurityOpt", ["no-new-privileges:false"]),
+        ("HostConfig", "Memory", 0),
+        ("HostConfig", "PortBindings", {"80/tcp": [{}]}),
+        ("Config", "User", "root"),
+        ("Config", "Env", []),
+        ("Config", "Entrypoint", ["sh"]),
+    ],
+)
 def test_configuration_rejects_unsafe_settings(tmp_path, section, key, value):
     config = configuration(tmp_path)
     runtime._inspect_configuration(config, image=IMAGE, snapshot=tmp_path, nonce=NONCE, digest=DIGEST)
@@ -156,8 +191,16 @@ def test_configuration_rejects_image_and_mount_changes(tmp_path, attack):
         runtime._inspect_configuration(config, image=IMAGE, snapshot=tmp_path, nonce=NONCE, digest=DIGEST)
 
 
-def docker_double(monkeypatch, *, create_timeout=False, create_failure=False, wrong_owner=False, cleanup_failure=False,
-                  unsafe_config=False, invalid_report=False):
+def docker_double(
+    monkeypatch,
+    *,
+    create_timeout=False,
+    create_failure=False,
+    wrong_owner=False,
+    cleanup_failure=False,
+    unsafe_config=False,
+    invalid_report=False,
+):
     calls = []
     state = {}
     monkeypatch.setattr(runtime.shutil, "which", lambda _: "docker")
@@ -189,8 +232,14 @@ def docker_double(monkeypatch, *, create_timeout=False, create_failure=False, wr
             digest = state["config"]["Config"]["Env"][1].split("=", 1)[1]
             cases = runtime.ACCEPTANCE_CASE_IDS
             report = {
-                "schema_version": runtime.SCHEMA_VERSION, "status": "passed", "failures": [], "blockers": [],
-                "isolation": {"verified": True, "evidence": [f"launcher_nonce={state['nonce']}", f"source_sha256={digest}"]},
+                "schema_version": runtime.SCHEMA_VERSION,
+                "status": "passed",
+                "failures": [],
+                "blockers": [],
+                "isolation": {
+                    "verified": True,
+                    "evidence": [f"launcher_nonce={state['nonce']}", f"source_sha256={digest}"],
+                },
                 "summary": {"cases_passed": len(cases), "cases_total": len(cases), "functional_evidence_only": False},
                 "strict_preflight": {"passed": True},
                 "cases": [{"name": name, "passed": True, "failures": []} for name in cases],
@@ -213,7 +262,17 @@ def test_launcher_checks_configuration_correlates_report_and_removes_container(t
     code, report = runtime.run_container_acceptance(source_tree(tmp_path), image=IMAGE)
     assert code == 0 and report["status"] == "passed"
     assert report["launcher"]["configuration_inspected"] and report["launcher"]["container_removed"]
-    assert [call[0] for call in calls] == ["info", "image", "create", "inspect", "start", "inspect", "inspect", "rm", "container"]
+    assert [call[0] for call in calls] == [
+        "info",
+        "image",
+        "create",
+        "inspect",
+        "start",
+        "inspect",
+        "inspect",
+        "rm",
+        "container",
+    ]
     create = calls[2]
     assert create[create.index("--pull") + 1] == "never"
 
@@ -229,7 +288,9 @@ def test_rejected_create_reports_stage_and_verifies_no_container_remains(tmp_pat
     assert calls[-1][-1].startswith("name=^/cops-acceptance-")
 
 
-@pytest.mark.parametrize("scenario", ["create-timeout", "wrong-owner", "cleanup-failure", "unsafe-config", "invalid-report"])
+@pytest.mark.parametrize(
+    "scenario", ["create-timeout", "wrong-owner", "cleanup-failure", "unsafe-config", "invalid-report"]
+)
 def test_launcher_failure_cleanup_is_owned_and_verified(tmp_path, monkeypatch, scenario):
     calls = docker_double(monkeypatch, **{scenario.replace("-", "_"): True})
     code, report = runtime.run_container_acceptance(source_tree(tmp_path), image=IMAGE)
@@ -247,7 +308,9 @@ def test_environment_markers_alone_cannot_prove_isolation(monkeypatch):
     monkeypatch.setenv("COPS_LABORATORY_CONTAINER_NONCE", NONCE)
     monkeypatch.setenv("COPS_LABORATORY_SOURCE_DIGEST", DIGEST)
     monkeypatch.setattr(boundary.platform, "system", lambda: "Linux")
-    monkeypatch.setattr(boundary, "verify_source_snapshot", lambda *args: (_ for _ in ()).throw(ValueError("missing manifest")))
+    monkeypatch.setattr(
+        boundary, "verify_source_snapshot", lambda *args: (_ for _ in ()).throw(ValueError("missing manifest"))
+    )
     verified, _, blocker = boundary.inspect_acceptance_boundary()
     assert not verified and blocker
 
@@ -259,7 +322,9 @@ def test_boundary_requires_loopback_routes_and_definite_egress_denial(monkeypatc
     monkeypatch.setattr(boundary.platform, "system", lambda: "Linux")
     monkeypatch.setattr(boundary, "verify_source_snapshot", lambda *args: None)
     monkeypatch.setattr(Path, "iterdir", lambda _: iter([Path("lo")]))
-    monkeypatch.setattr(Path, "read_text", lambda path: "Iface Destination\n" if str(path).endswith("/route") else "0000 lo\n")
+    monkeypatch.setattr(
+        Path, "read_text", lambda path: "Iface Destination\n" if str(path).endswith("/route") else "0000 lo\n"
+    )
 
     class Connection:
         def __enter__(self):
