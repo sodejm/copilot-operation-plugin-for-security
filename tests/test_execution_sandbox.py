@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import os
 import socket
+import time
 from contextlib import contextmanager
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -167,3 +169,36 @@ def test_bubblewrap_credential_environment_stays_out_of_process_arguments(
             os.fstat(argument_fds[0])
     finally:
         os.close(executable_fd)
+
+
+def test_execution_gate_rejects_unsupported_syscall_abi(monkeypatch):
+    monkeypatch.setattr(sandbox_module.os, "uname", lambda: SimpleNamespace(machine="unknown"), raising=False)
+    with pytest.raises(SandboxReadinessError, match="ABI is unsupported"):
+        LinuxBubblewrapSandbox._wait_for_execution_gate(1, -1, -1, time.monotonic() + 1)
+
+
+@pytest.mark.parametrize("observation", [[], ["invalid"], ["0 not-hex 0x0 0x1 0x0 0x0 0x0 0x0 0x0"]])
+def test_execution_gate_rejects_malformed_procfs(monkeypatch, observation):
+    monkeypatch.setattr(sandbox_module.os, "uname", lambda: SimpleNamespace(machine="x86_64"), raising=False)
+    monkeypatch.setattr(LinuxBubblewrapSandbox, "_read_proc_lines", lambda path: observation)
+    reader, writer = os.pipe()
+    try:
+        with pytest.raises(SandboxReadinessError, match="observation is invalid"):
+            LinuxBubblewrapSandbox._wait_for_execution_gate(1, reader, writer, time.monotonic() + 1)
+    finally:
+        os.close(reader)
+        os.close(writer)
+
+
+def test_execution_gate_rejects_unavailable_procfs(monkeypatch):
+    monkeypatch.setattr(sandbox_module.os, "uname", lambda: SimpleNamespace(machine="x86_64"), raising=False)
+    def unavailable(path):
+        raise SandboxReadinessError("offline sandbox namespace observation is unavailable")
+    monkeypatch.setattr(LinuxBubblewrapSandbox, "_read_proc_lines", unavailable)
+    reader, writer = os.pipe()
+    try:
+        with pytest.raises(SandboxReadinessError, match="observation is unavailable"):
+            LinuxBubblewrapSandbox._wait_for_execution_gate(1, reader, writer, time.monotonic() + 1)
+    finally:
+        os.close(reader)
+        os.close(writer)

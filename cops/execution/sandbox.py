@@ -369,7 +369,45 @@ class LinuxBubblewrapSandbox:
             raise OfflineIsolationViolation("offline sandbox process differs from approved isolation")
 
     @classmethod
-    def _observe_blocked_child(cls, info_fd: int, deadline: float) -> dict[str, Any]:
+    def _wait_for_execution_gate(cls, child_pid: int, gate_fd: int, gate_writer: int, deadline: float) -> None:
+        # bwrap publishes child-pid before loopback setup. Only its final blocking
+        # read proves setup has finished; the worker alone holds the empty pipe's
+        # writer and must keep it open until observation and authorization finish.
+        read_syscall = {"x86_64": 0, "aarch64": 63}.get(os.uname().machine)
+        if read_syscall is None:
+            raise SandboxReadinessError("offline sandbox execution gate syscall ABI is unsupported")
+        pipe = os.fstat(gate_writer)
+        proc = Path("/proc") / str(child_pid)
+        while time.monotonic() < deadline:
+            fields = " ".join(cls._read_proc_lines(proc / "syscall")).split()
+            if fields != ["running"]:
+                try:
+                    number = int(fields[0])
+                    at_gate = (
+                        number == read_syscall
+                        and len(fields) == 9
+                        and int(fields[1], 16) == gate_fd
+                        and int(fields[3], 16) == 1
+                    )
+                except (IndexError, ValueError) as err:
+                    raise SandboxReadinessError("offline sandbox execution gate observation is invalid") from err
+                if at_gate:
+                    try:
+                        child_pipe = (proc / "fd" / str(gate_fd)).stat()
+                    except OSError as err:
+                        raise SandboxReadinessError("offline sandbox execution gate is unavailable") from err
+                    if not stat.S_ISFIFO(child_pipe.st_mode) or (child_pipe.st_dev, child_pipe.st_ino) != (
+                        pipe.st_dev, pipe.st_ino
+                    ):
+                        raise SandboxReadinessError("offline sandbox execution gate identity differs")
+                    return
+            time.sleep(max(0.0, min(0.01, deadline - time.monotonic())))
+        raise SandboxReadinessError("offline sandbox execution gate was not reached before the deadline")
+
+    @classmethod
+    def _observe_blocked_child(
+        cls, info_fd: int, deadline: float, *, gate_fd: int, gate_writer: int
+    ) -> dict[str, Any]:
         os.set_blocking(info_fd, False)
         content = bytearray()
         while time.monotonic() < deadline:
@@ -389,6 +427,7 @@ class LinuxBubblewrapSandbox:
             child_pid = metadata.get("child-pid") if isinstance(metadata, dict) else None
             if type(child_pid) is not int or child_pid <= 0:
                 raise SandboxReadinessError("offline sandbox process metadata is invalid")
+            cls._wait_for_execution_gate(child_pid, gate_fd, gate_writer, deadline)
             measured = cls._measure_network_boundary(child_pid)
             return {
                 "digest": digest(measured),
@@ -482,9 +521,12 @@ class LinuxBubblewrapSandbox:
                         nonlocal info_write, gate_read, gate_write
                         os.close(info_write)
                         info_write = -1
+                        child_gate_fd = gate_read
                         os.close(gate_read)
                         gate_read = -1
-                        observation = self._observe_blocked_child(info_read, deadline)
+                        observation = self._observe_blocked_child(
+                            info_read, deadline, gate_fd=child_gate_fd, gate_writer=gate_write
+                        )
                         self._authorize_offline_observation(observation, expected_isolation_digest, isolation_observer)
                         os.write(gate_write, b"1")
                         os.close(gate_write)

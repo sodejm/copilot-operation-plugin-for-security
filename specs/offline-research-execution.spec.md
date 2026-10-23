@@ -31,6 +31,11 @@ inventory, adapter pinning, evidence, and cleanup contracts.
    or mismatched observations fail before approval consumption. Each adapter
    version probe and execution is then held before its tool starts while the
    worker measures that actual sandbox process and compares its boundary digest.
+   PID metadata alone is not readiness: before measuring, the worker must verify
+   that the child is blocked reading the exact worker-owned execution gate pipe.
+   Setup must finish within the existing execution deadline. Missing procfs
+   evidence, an unsupported syscall ABI, or a different gate fails closed; a
+   network channel at the gate is rejected without retrying the measurement.
 5. The run result records the approved boundary digest, probe and per-invocation
    observations and their scope, worker inventory and adapter digests, and
    staged corpus digests. A network-denial claim for a deployment requires
