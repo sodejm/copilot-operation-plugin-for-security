@@ -224,3 +224,22 @@ def test_conditional_policy_does_not_hide_an_unconditional_public_statement() ->
 def test_conditional_wildcard_cannot_establish_effective_permissions() -> None:
     observed = codes("aws_export", {"Statement": [bucket_statement(Action="s3:*", Resource="*", Condition={})]})
     assert observed == {"cloud_configuration_insufficient_evidence"}
+
+
+@pytest.mark.parametrize(
+    "role,members,finding",
+    [
+        ("roles/owner", ["user:fixture@example.test"], "iam_wildcard"),
+        ("roles/storage.objectViewer", ["allUsers"], "public_storage"),
+    ],
+)
+@pytest.mark.parametrize("condition", [{"expression": "false"}, {}, None])
+def test_gcp_conditional_bindings_require_evaluation_context(role, members, finding, condition):
+    binding = {"role": role, "members": members}
+    conditional = {**binding, "condition": condition}
+    observed = codes("gcp_export", {"bindings": [conditional]})
+    assert finding not in observed
+    assert "cloud_configuration_insufficient_evidence" in observed
+    combined = codes("gcp_export", {"bindings": [conditional, binding]})
+    assert finding in combined
+    assert "cloud_configuration_insufficient_evidence" in combined
