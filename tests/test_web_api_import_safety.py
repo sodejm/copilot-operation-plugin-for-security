@@ -271,7 +271,7 @@ def test_single_source_provenance_round_trips_in_legacy_shape():
 
 
 def test_mapping_provenance_is_canonical_and_long_inline_input_is_not_a_path():
-    value = {"paths": {}, "info": {"title": "a" * 10000}}
+    value = {"openapi": "3.0.3", "paths": {}, "info": {"title": "a" * 10000}}
     inventory = import_openapi(value, source_id="fixture")
     assert (
         inventory.provenance.sha256
@@ -439,7 +439,9 @@ def test_persisted_requests_responses_and_metadata_redact_references(reference):
     )
     original = asdict(request)
     report = ReplaySessionReport("session", ["example.test"], ["example.test"], ReplayBudget(), [request], [response])
-    inventory = import_openapi({"paths": {"/": {"get": {"summary": reference}}}, "info": {"title": reference}})
+    inventory = import_openapi(
+        {"openapi": "3.0.3", "paths": {"/": {"get": {"summary": reference}}}, "info": {"title": reference}}
+    )
     for document in (
         request.to_dict(),
         response.to_dict(),
@@ -474,3 +476,32 @@ def test_approval_request_digest_does_not_use_lossy_report_serialization():
         )
 
     assert plan("first").operations != plan("second").operations
+
+
+@pytest.mark.parametrize(
+    "declaration",
+    [
+        {},
+        {"swagger": "1.2"},
+        {"swagger": 2.0},
+        {"openapi": "4.0.0"},
+        {"openapi": "3.0"},
+        {"openapi": 3},
+        {"openapi": "3.0.3-secret"},
+        {"openapi": "3.0.3", "swagger": "2.0"},
+        {"openapi": None},
+        {"swagger": None},
+    ],
+)
+def test_openapi_rejects_missing_unsupported_or_conflicting_versions(declaration):
+    with pytest.raises(ImporterError, match="unsupported or conflicting version") as caught:
+        import_openapi({**declaration, "paths": {"/items": {"get": {}}}})
+    assert "secret" not in str(caught.value)
+
+
+@pytest.mark.parametrize(
+    "declaration", [{"swagger": "2.0"}, {"openapi": "3.0.3"}, {"openapi": "3.1.0"}, {"openapi": "3.2.0"}]
+)
+def test_openapi_accepts_supported_declared_versions(declaration):
+    inventory = import_openapi({**declaration, "host": "api.example.test", "paths": {"/items": {"get": {}}}})
+    assert len(inventory.endpoints) == 1
