@@ -57,7 +57,9 @@ def _requests_from_inventory(inventory: ApiInventory) -> list[ReplayRequest]:
             raise ValueError("inventory endpoint path cannot be represented safely")
 
         host = endpoint.host or (inventory.target_hosts[0] if inventory.target_hosts else "localhost")
-        scheme = "wss" if endpoint.protocol == ApiProtocol.WEBSOCKET.value else "https"
+        scheme = endpoint.scheme or ("wss" if endpoint.protocol == ApiProtocol.WEBSOCKET.value else "https")
+        if scheme not in {"http", "https", "ws", "wss"}:
+            raise ValueError("inventory endpoint scheme cannot be represented safely")
         headers: dict[str, str] = {}
         query_parameters = dict(endpoint.query_parameters)
         occupied: set[tuple[str, str]] = set()

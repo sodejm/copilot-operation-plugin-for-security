@@ -7,7 +7,7 @@ import pytest
 
 from cops.web_api import models
 from cops.web_api.cli import _merge_inventories, _requests_from_inventory, build_web_api_parser, command_web_api
-from cops.web_api.importer import import_har, import_openapi
+from cops.web_api.importer import import_har, import_openapi, import_postman, import_raw_http
 from cops.web_api.models import ApiInventory, AuthenticationMechanism, HttpEndpoint
 
 
@@ -520,3 +520,37 @@ def test_cli_replay_rejects_inventory_path_delimiters_without_echo(delimiter, tm
     captured = capsys.readouterr()
     assert captured.out == ""
     assert "private-cli-value" not in captured.err
+
+
+@pytest.mark.parametrize("scheme", ["http", "https", "ws", "wss"])
+@pytest.mark.parametrize("source", ["har", "postman", "raw"])
+def test_imported_transport_scheme_survives_inventory_round_trip(source, scheme):
+    url = f"{scheme}://api.example.test:8443/items"
+    if source == "har":
+        inventory = import_har({"log": {"entries": [{"request": {"url": url, "method": "GET"}}]}})
+    elif source == "postman":
+        inventory = import_postman({"item": [{"request": {"url": url, "method": "GET"}}]})
+    else:
+        inventory = import_raw_http(f"GET {url} HTTP/1.1\r\nHost: api.example.test:8443\r\n\r\n")
+    restored = ApiInventory.from_dict(inventory.to_dict())
+    assert restored.endpoints[0].scheme == scheme
+    assert _requests_from_inventory(restored)[0].url == url
+
+
+def test_har_same_authority_different_schemes_remain_distinct_previews():
+    urls = ["http://api.example.test/items", "https://api.example.test/items"]
+    inventory = import_har({"log": {"entries": [{"request": {"url": url, "method": "GET"}} for url in urls]}})
+    assert len({endpoint.endpoint_id for endpoint in inventory.endpoints}) == 2
+    assert [request.url for request in _requests_from_inventory(inventory)] == urls
+
+
+def test_preview_rejects_unrepresentable_inventory_scheme():
+    inventory = ApiInventory(
+        inventory_id="inv-invalid",
+        name="Invalid transport",
+        endpoints=[
+            HttpEndpoint(endpoint_id="ep-invalid", method="GET", path="/", host="api.example.test", scheme="file")
+        ],
+    )
+    with pytest.raises(ValueError, match="scheme cannot be represented"):
+        _requests_from_inventory(inventory)

@@ -309,6 +309,7 @@ class HttpEndpoint:
     deprecated: bool = False
     graphql_operations: list[str] = field(default_factory=list)
     websocket_subprotocols: list[str] = field(default_factory=list)
+    scheme: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
@@ -339,6 +340,7 @@ class HttpEndpoint:
             deprecated=bool(data.get("deprecated", False)),
             graphql_operations=list(data.get("graphql_operations", [])),
             websocket_subprotocols=list(data.get("websocket_subprotocols", [])),
+            scheme=data.get("scheme", ""),
         )
 
 
