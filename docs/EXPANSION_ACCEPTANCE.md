@@ -7,9 +7,9 @@ capability incomplete.
 
 ## Tested revision and runtime
 
-- Implementation revision: `1a660490426b346630a13d3d55fcd9acbac24808`.
+- Implementation revision: `77794c1f05f8b61302d2b51d041472f4bc1bad33`.
 - Integration base: `50e6d96c144f9d81d52c99403e5ceae8815d3e16`.
-- Acceptance date: 2026-10-19 UTC. This documentation-only refresh records the
+- Acceptance date: 2026-10-23 UTC. This documentation-only refresh records the
   integrated provenance (`38e091b`), authorized transport (`cda3255`), bounded SQL
   fixture (`b55c68d`), TLS minimum policy (`19fa8df`) and review corrections.
   Additional review corrections cover artifact result completeness, consent
@@ -28,7 +28,11 @@ capability incomplete.
   python-evtx 0.8.1 and hexdump 3.3.
 
 Changes are committed on dedicated, dependency-ordered branches and integrated
-with the base above on `codex/expansion-delivery`. The original API checkout
+with the base above on `codex/expansion-delivery`. The linear delivery branch,
+`codex/expansion-linear-delivery`, preserves all 52 bounded commits with origin
+references and a separate integration-resolution commit. Its implementation tree
+exactly matches reviewed integration revision `da8df21`. The original branches
+remain intact. The original API checkout
 retains its branch and unfinished edits. This record captures local acceptance
 before the authorized push and merge; the pull request records hosted checks and
 delivery separately. Normal automatic documentation deployment after merge is
@@ -89,13 +93,14 @@ DOCKER_CONTEXT=colima make check-laboratory PYTHON=.venv/bin/python LABORATORY_A
 | Hosted/native CI | Pending for the final pushed revision | Retained Linux worker and Windows filesystem jobs remain required; earlier PR results do not validate this revision |
 | Production/provider integrations | Not run | Separate live validation required before support claims |
 
-The service image was rebuilt from the current runtime Dockerfile and pinned,
-hash-verified offline dependencies before the strict run. The launcher verified
+The service image was rebuilt on October 19 from the current runtime Dockerfile
+and pinned, hash-verified offline dependencies. The October 23 run reused that
+immutable image with unchanged runtime sources. The launcher verified
 the fresh source manifest and inspected the container configuration before use;
 old evidence and marker files were not accepted as readiness evidence. The service
-run nonce was `b779c7da2220403fb188f8798e6f9d0d`; the Kubernetes run nonce was
-`98813139fb90eb610915497dc64d5552`, with observed audit activity from
-2026-10-19T02:27:38Z through 2026-10-19T02:29:32Z. The launcher verified removal
+run nonce was `32ec4877c88d41c38a24694684ac606a`; the Kubernetes run nonce was
+`9f07149084ee44cb8da10ad8acde2f8f`, with observed audit activity from
+2026-10-23T12:39:12.333829Z through 2026-10-23T12:41:07.738942Z. The launcher verified removal
 of the service container; Kubernetes cleanup verified namespace removal for all
 three lifecycle cases, node removal and removal of both owned image tags.
 
