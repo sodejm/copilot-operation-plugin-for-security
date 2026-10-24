@@ -5,7 +5,7 @@
 The host-assessment-workbench accepts bounded `windows-1.0` JSON through two
 explicit bridge modes. `offline_windows_export` classifies a synthetic or
 operator-provided export. `native_windows_bridge` is produced on Windows by
-`scripts/collect-windows.ps1`, which performs seven bounded, read-only probes and
+`scripts/collect-windows.ps1`, which performs bounded, read-only probes across seven surfaces and
 records host build, architecture, token, and protection context. Neither mode
 attempts privilege escalation, crosses a privilege boundary, reads a credential
 value, changes a service or task, or proves that a configuration is exploitable.
@@ -20,7 +20,7 @@ ordinary configuration.
 
 | Native surface | Bounded observation |
 | --- | --- |
-| Service permissions | At most 1,024 `Win32_Service` records; identifies an unquoted executable path containing spaces. It does not test service control or file write access. |
+| Service permissions | At most 1,024 `Win32_Service` records; identifies unquoted executable paths and queries local service DACLs with `READ_CONTROL`. Descriptors are bounded to 64 KiB and 256 ACEs. Broad Everyone, Authenticated Users, or Builtin Users grants of change-config, WRITE_DAC, or WRITE_OWNER are configuration candidates; generic write/all rights are mapped to service mutation rights. Unsupported ACEs or ambiguous deny semantics remain unassessed. This does not establish token effective access, service control, or file write access. |
 | Scheduled-task permissions | At most 512 files under the fixed Windows task directory; checks ACL allow rules for explicit data/attribute writes, child deletion, deletion, permission changes, or ownership changes by Everyone, Authenticated Users, or Users SIDs. Read-only rules do not match. |
 | Token privileges | Fixed `%SystemRoot%\System32\whoami.exe /priv /fo csv /nh`; records enabled privilege names and whether the list completed. |
 | Registry controls | Reads the two fixed AlwaysInstallElevated policy values. |
@@ -113,7 +113,7 @@ Live integration remains unverified until that exact-SHA hosted job succeeds.
 | --- | --- | --- |
 | AlwaysInstallElevated registry policy | `s01-120` `win-privesc/always-install-elevated.md` | Direct: `always_install_elevated` |
 | Unquoted service paths | `s01-121` `win-privesc/unquoted-service-path.md` | Direct: `unquoted_service_path` |
-| Service permissions | `s01-122` `win-privesc/service-permissions.md` | Excluded: service ACL permissions are not collected |
+| Service permissions | `s01-122` `win-privesc/service-permissions.md` | Direct: `service_dacl`, bounded configuration analysis |
 | Registry run keys | `s01-123` `win-privesc/registry-run-keys.md` | Excluded: Run-key ACLs are not collected |
 | Token/version family context | `s01-124` `win-privesc/juicypotato.md`; `s01-125` `win-privesc/godpotato.md` | Supporting: `token_privileges` |
 | Credential Manager reference | `s01-126` `win-privesc/credman-dump.md` | Excluded: Credential Manager is not accessed |
@@ -134,3 +134,17 @@ import and receipt validators.
 No collected observation claims the referenced technique succeeded. The source
 mapping explains the assessment premise and keeps the evidence claim at the
 configuration and prerequisite level.
+
+
+## Native service DACL correction gate
+
+The Windows job also runs `scripts/exercise-windows-service-acl.ps1` through
+`tests/test_host_windows_service_acl.py`. An owned, randomly named stopped SCM
+service with a nonexistent binary supplies vulnerable and corrected DACLs. The
+read-only collector must detect a broad change-configuration grant, clear the
+read-only replacement, preserve denied and missing evidence states, and reject
+unsupported or ambiguous ACE semantics. The fixture must observe service absence
+after success and controlled failure. It never starts a service. This gate
+requires service-creation permission on a disposable runner and establishes no
+effective token access or privilege crossing. Run-key ACLs, Credential Manager,
+scheduled-task provenance and cross-identity canary acceptance remain incomplete.

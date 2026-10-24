@@ -11,6 +11,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "windows-bridge-common.ps1")
+. (Join-Path $PSScriptRoot "windows-service-acl.ps1")
 
 if ($env:OS -ne "Windows_NT") {
     throw "The native Windows bridge can run only on Windows."
@@ -260,7 +261,7 @@ $serviceCoverage = "assessed"
 $serviceConfiguration = "ordinary"
 try {
     $services = @(Get-CimInstance -ClassName Win32_Service -ErrorAction Stop | Select-Object -First 1025)
-    if ($services.Count -gt 1024) {
+    if ($services.Count -eq 0 -or $services.Count -gt 1024) {
         $serviceCoverage = "not_assessed"
     } else {
         $unquotedService = @($services | Where-Object {
@@ -268,6 +269,18 @@ try {
             }).Count -gt 0
         if ($unquotedService) {
             $serviceConfiguration = "interesting"
+        }
+        # E01.1 section: service_dacl
+        foreach ($service in $services) {
+            $dacl = [Cops.ServiceDacl]::Read([string]$service.Name)
+            if ($dacl.coverage -eq "access_denied") {
+                $serviceCoverage = "access_denied"
+            } elseif ($dacl.coverage -ne "assessed" -and $serviceCoverage -ne "access_denied") {
+                $serviceCoverage = "not_assessed"
+            }
+            if ($dacl.configuration -eq "interesting") {
+                $serviceConfiguration = "interesting"
+            }
         }
     }
 } catch [System.UnauthorizedAccessException] {
@@ -378,7 +391,7 @@ if ($serviceCoverage -eq "assessed") {
         id = "native_service_permissions"
         surface = "service_permissions"
         configuration = $serviceConfiguration
-        evidence_ids = @("service_paths_evaluated")
+        evidence_ids = @("service_paths_evaluated", "service_dacls_evaluated")
         requirements = $requirements
     }
 }

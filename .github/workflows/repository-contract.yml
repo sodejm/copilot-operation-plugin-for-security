@@ -112,7 +112,7 @@ jobs:
           & $script -RunRoot $runRoot
       - name: Exercise Windows host assessment contract regressions
         if: runner.os == 'Windows'
-        run: python -m pytest tests/test_host_windows_assessment.py tests/step_defs/test_host_windows_privilege_boundaries_steps.py -q
+        run: python -m pytest tests/test_host_windows_assessment.py tests/test_host_windows_service_acl.py tests/step_defs/test_host_windows_privilege_boundaries_steps.py -q
       - name: Exercise bounded repository scanning
         run: python -m pytest tests/test_repository_context_reader.py tests/step_defs/test_repository_scanning.py -q
       - name: Exercise every offline demo

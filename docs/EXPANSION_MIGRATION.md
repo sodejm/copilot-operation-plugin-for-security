@@ -209,3 +209,14 @@ Consumers must retain explicit unsupported results. The strict laboratory gate
 now requires the registered pip version (26.1.2 on Linux) and actual vulnerable
 and corrected installed-wheel behavior; older service reports cannot establish
 this coverage. Portable checks may report unavailable platform prerequisites.
+
+
+## Windows service DACL collection
+
+The host-assessment 1.0 import and receipt formats remain unchanged. Native
+service coverage now includes bounded SCM DACL configuration analysis alongside
+unquoted paths. The additional opaque `service_dacls_evaluated` evidence reference
+contains no service name or raw descriptor. Denied, failed, oversized and
+unsupported descriptors keep service coverage incomplete; consumers must not
+interpret a missing observation as a corrected host. Existing API inventory and
+replay contracts are unchanged.

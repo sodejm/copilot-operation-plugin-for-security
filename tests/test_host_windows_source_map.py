@@ -18,6 +18,7 @@ EXPECTED_PROBES = {
     "autologon_default_password_presence",
     "unattend_file_presence",
     "unquoted_service_path",
+    "service_dacl",
     "scheduled_task_acl",
     "path_directory_acl",
 }
@@ -34,7 +35,7 @@ EXPECTED_SOURCES = {
     "s01-129",
     "s02-016",
 }
-EXPECTED_EXCLUSIONS = {"s01-122", "s01-123", "s01-126"}
+EXPECTED_EXCLUSIONS = {"s01-123", "s01-126"}
 
 
 def test_e01_1_source_map_matches_collector_and_pinned_provenance() -> None:

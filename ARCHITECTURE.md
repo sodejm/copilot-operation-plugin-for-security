@@ -91,6 +91,14 @@ The AI agent interacts with tools through structured command-line interfaces and
 
 ---
 
+The host-assessment Windows collector queries local service DACLs with
+`READ_CONTROL`, a 64 KiB descriptor limit and a 256-ACE analysis limit. It reports
+broad configuration-mutation grants separately from token effective access and
+leaves unsupported or ambiguous descriptors unassessed. Service mutation APIs
+are confined to the disposable acceptance fixture, which owns its randomly named,
+stopped services and verifies deletion after success and failure. The wider
+Windows privilege-boundary capability remains partial.
+
 ## Shared Evidence SDK (`cops.evidence`, `cops.connectors`)
 
 For tools that need to collect or store evidence from cloud APIs (such as Azure Resource Graph or Microsoft Graph), the repository includes an opt-in **Evidence SDK**:
