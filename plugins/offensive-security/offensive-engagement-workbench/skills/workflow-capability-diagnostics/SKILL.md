@@ -1,6 +1,6 @@
 ---
 name: workflow-capability-diagnostics
-description: Inspect host platforms, tool prerequisites, package structures, and capability truth-in-advertising diagnostics.
+description: "Use for requests to help me find out why this security workflow cannot run. Inspect host platforms, tool prerequisites, package structures, and capability truth-in-advertising diagnostics."
 ---
 
 # Workflow capability diagnostics

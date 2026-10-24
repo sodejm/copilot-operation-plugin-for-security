@@ -1,6 +1,6 @@
 ---
 name: telemetry-proof-tracing
-description: Correlate supplied synthetic-marker evidence across source emission, Cribl Stream routing, SIEM indexing, and detection evaluation.
+description: "Use for requests to check whether our test event reaches the logs. Correlate supplied synthetic-marker evidence across source emission, Cribl Stream routing, SIEM indexing, and detection evaluation."
 ---
 
 # Telemetry-to-Detection Proof Tracing Workflow

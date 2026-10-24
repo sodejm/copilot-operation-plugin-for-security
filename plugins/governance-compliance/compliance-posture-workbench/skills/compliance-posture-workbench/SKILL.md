@@ -1,6 +1,6 @@
 ---
 name: compliance-posture-workbench
-description: Map versioned SOC 2, CIS and NIST controls to dated evidence; identify unsupported and unknown control claims.
+description: "Use for requests to help me prepare for a security audit. Map versioned SOC 2, CIS and NIST controls to dated evidence; identify unsupported and unknown control claims."
 ---
 
 # COPS Compliance Posture Workbench

@@ -1,6 +1,6 @@
 ---
 name: validate-sentinel-hunt
-description: Run deterministic contract, schema, scope, compatibility, and safety validation for an offline Sentinel hunt artifact.
+description: "Use for requests such as \"check this hunt for missing or invalid fields.\" Run deterministic contract, schema, scope, compatibility, and safety validation for an offline Sentinel hunt artifact."
 ---
 
 # Validate Sentinel Hunt

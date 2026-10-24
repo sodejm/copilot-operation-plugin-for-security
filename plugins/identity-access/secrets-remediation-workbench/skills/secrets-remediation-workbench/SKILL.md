@@ -1,6 +1,6 @@
 ---
 name: secrets-remediation-workbench
-description: Assess redacted Git history and identity evidence to plan credential exposure remediation and verify lab revocation.
+description: "Use for requests to help me deal with a leaked secret. Assess redacted Git history and identity evidence to plan credential exposure remediation and verify lab revocation."
 ---
 
 # COPS Secrets Remediation Workbench

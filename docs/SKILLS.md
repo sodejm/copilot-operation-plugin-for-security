@@ -32,6 +32,25 @@ a compact Markdown summary or structured JSON report. The agent consumes this
 high-density summary to reason, formulate hypotheses, and guide the user—minimizing
 token usage and eliminating parsing hallucinations.
 
+## Natural entry points and staged prerequisites
+
+Describe each user-facing skill with ordinary verbs and outcomes, such as
+“list API endpoints,” “review a patch,” or “plan a security assessment.” Include
+realistic example requests in the skill. Keep technical artifact names as
+additional triggers; do not require users to know internal IDs or exact phrases.
+Contributor-only skills should keep their narrower scope.
+
+Accept a rough goal for discussion or drafting. Ask for the next necessary detail
+and label missing information as unresolved. Separate draft notes from validated
+contracts, and explain which fields become required at validation or execution.
+Do not require credentials, a worker, or execution approval just to draft. Do not
+relax scope, privacy, authorization, isolation, or evidence requirements when the
+workflow reaches the operation they protect.
+
+When changing routing metadata, test natural paraphrases and ambiguous requests.
+A helpful clarification is preferable to an incorrect confident route. Never
+lower routing thresholds or remove execution gates just to make an example pass.
+
 ## Included baseline
 
 - `repository-orientation`: safe startup in an unfamiliar checkout.

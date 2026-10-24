@@ -1,6 +1,6 @@
 ---
 name: attack-path-report
-description: Produce a reproducible offline attack-path report and local remediation ledger with citations, gaps, and closure criteria.
+description: "Use for requests to write up the attack paths we found. Produce a reproducible offline attack-path report and local remediation ledger with citations, gaps, and closure criteria."
 ---
 
 # Reporting

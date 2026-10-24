@@ -1,6 +1,6 @@
 ---
 name: incident-response-sandbox
-description: Plan and rehearse typed incident actions against a synthetic local fixture only.
+description: "Use for requests to help me rehearse an incident response. Plan and rehearse typed incident actions against a synthetic local fixture only."
 ---
 
 # Incident response sandbox

@@ -1,6 +1,6 @@
 ---
 name: attack-path-assess
-description: Assess evidenced blast radius and potential CIA consequences while keeping business ratings unresolved without an approved impact profile.
+description: "Use for requests to assess the impact of this attack path. Assess evidenced blast radius and potential CIA consequences while keeping business ratings unresolved without an approved impact profile."
 ---
 
 # Consequence assessment

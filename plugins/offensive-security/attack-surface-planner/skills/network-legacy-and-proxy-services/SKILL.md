@@ -1,6 +1,6 @@
 ---
 name: network-legacy-and-proxy-services
-description: Interpret the nine legacy and proxy service fixture models and bounded socket observations without treating reachability or simulated conditions as verified protocol findings.
+description: "Use for requests to review legacy network and proxy services. Interpret the nine legacy and proxy service fixture models and bounded socket observations without treating reachability or simulated conditions as verified protocol findings."
 ---
 
 # Legacy Enterprise, Management, and Proxy Services

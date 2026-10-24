@@ -1,6 +1,6 @@
 ---
 name: ad-inventory-and-paths
-description: Analyze approved local Active Directory inventory exports for provenance-linked candidate relationship paths and coverage gaps.
+description: "Use for requests to review these Active Directory exports for risky access. Analyze approved local Active Directory inventory exports for provenance-linked candidate relationship paths and coverage gaps."
 ---
 
 # AD inventory and paths

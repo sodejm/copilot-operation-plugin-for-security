@@ -1,6 +1,6 @@
 ---
 name: network-active-discovery
-description: Execute bounded active port, protocol, and TLS assessment with explicit scan vantage, rate limits, resumable checkpoints, and visible fingerprint uncertainty.
+description: "Use for requests to plan an authorized network service scan. Execute bounded active port, protocol, and TLS assessment with explicit scan vantage, rate limits, resumable checkpoints, and visible fingerprint uncertainty."
 ---
 
 # Network active discovery

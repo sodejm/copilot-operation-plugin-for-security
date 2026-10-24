@@ -1,13 +1,27 @@
 ---
 name: engagement-intake-and-planning
-description: Ingest authorized engagement scope, validate targets and windows, and compile reviewable immutable action plans.
+description: Help plan a security assessment or scope a penetration test from an initial goal; draft engagement details, then validate complete authorized scope and compile reviewable immutable action plans.
 ---
 
 # Engagement intake and execution planning
 
+## Start with a draft
+
+Use this skill for “help me plan a security assessment” or “scope a penetration
+test.” Start with the goal and information already available. Ask only for the
+next detail needed to make the draft useful; record missing targets, owners,
+windows, budgets, and permissions as unresolved. Do not require signed scope,
+credentials, or a ready worker to discuss or draft a plan.
+
+Draft notes are not a validated Engagement or ActionPlan. Before using the CLI
+below, gather its required fields and validate them; never invent approvals or
+insert placeholder values to pass validation. Before execution, require the
+applicable approved scope, exact-plan authorization, worker readiness, budgets,
+and cleanup controls. A planning mode contract does not authorize live work.
+
 1. **Intake and RoE Verification**:
    - Collect and validate assessment targets, exclusions, operator ownership, assessment window, allowed effects, budget, and credential references.
-   - Refuse any request lacking explicit operator identity, valid future assessment window, or unambiguous target specifications.
+   - Refuse validated contract creation or execution requests lacking explicit operator identity, valid future assessment window, or unambiguous target specifications.
 
 2. **Scope Boundary Enforcement**:
    - Reject wildcards (`*`, universal ranges), malformed network representations, and collisions where a target is simultaneously included and excluded.

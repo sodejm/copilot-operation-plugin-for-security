@@ -1,6 +1,6 @@
 ---
 name: network-passive-discovery
-description: Normalize passive asset telemetry, preserve multi-source evidence provenance, and reconcile scope quarantine.
+description: "Use for requests to build an asset inventory from existing network records. Normalize passive asset telemetry, preserve multi-source evidence provenance, and reconcile scope quarantine."
 ---
 
 # Network passive discovery

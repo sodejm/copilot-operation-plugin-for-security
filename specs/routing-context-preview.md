@@ -55,3 +55,11 @@ counts for optional classification. Anti-triggers and ambiguity thresholds preve
 weak or conflicting evidence from authorizing a route. Context traversal rejects
 symlinks and special files and never includes sensitive artifact contents. A
 preview is descriptive only and cannot satisfy an execution authorization gate.
+
+## Plain-language entry and drafting
+
+Registry symptom triggers include everyday task phrases alongside technical
+terms. Regression coverage must include paraphrased requests and retain ambiguous
+requests as clarification cases. Routing and draft planning require no execution
+receipt; neither authorizes execution. Profile authorization flags, routing
+thresholds, exact-plan checks, and worker/scope gates remain unchanged.

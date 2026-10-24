@@ -1,6 +1,6 @@
 ---
 name: foundry-agent-review
-description: Inspect synthetic adversarial scenarios and deterministic mock authorization outcomes.
+description: "Use for requests to review this AI agent for unsafe behavior. Inspect synthetic adversarial scenarios and deterministic mock authorization outcomes."
 ---
 
 # Foundry Agent Harness scenario simulator

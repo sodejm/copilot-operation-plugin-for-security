@@ -1,6 +1,6 @@
 ---
 name: model-effort-routing
-description: Suggest an available model and supported reasoning effort before issue implementation or security work using fresh host capability and access evidence.
+description: "Use for requests to help me choose a model for this task. Suggest an available model and supported reasoning effort before issue implementation or security work using fresh host capability and access evidence."
 ---
 
 # Model and effort routing

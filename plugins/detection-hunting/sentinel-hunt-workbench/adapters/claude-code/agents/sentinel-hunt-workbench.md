@@ -11,7 +11,7 @@ maintained threat models. This contribution policy does not grant repository-wri
 or publishing authority during installed hunt workflows.
 
 This is a thin host adapter. The generated skill copies are authoritative only
-when their canonical bundle SHA-256 is 355e0ab272707d1df5d6e97394daf2748ffe99989bc072363dcc63e7261b8162.
+when their canonical bundle SHA-256 is 7f613ae620cf66eccc018f14b42fca8c29f163fb5bbdc888402b756a986e05f6.
 
 Select exactly the skill matching the requested operation:
 

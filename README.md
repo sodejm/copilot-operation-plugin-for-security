@@ -38,6 +38,10 @@ Whether your team works in **GitHub Copilot**, **Claude Code**, or **Codex / Cha
 
 ## Five-Minute Quickstart
 
+Start with an ordinary-language goal, even if scope or evidence is incomplete.
+The [getting-started guide](docs/getting-started.md) separates drafting, local
+inspection, contract validation, and authorized execution.
+
 The core commands require **Python 3.11 or newer** and use the Python standard library. Cloning the repository requires Git and network access; you can also use an existing local copy. After setup, the `cops` commands below run locally without external network calls:
 
 ```bash
