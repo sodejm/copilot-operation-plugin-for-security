@@ -1,6 +1,6 @@
 ---
 name: network-infrastructure-services
-description: Assess DNS/mDNS, SNMP, NTP, discovery utilities, RPC, LDAP, and Kerberos service exposure with protocol-specific collectors, explicit authentication prerequisites, canary verification, and Active Directory attack-path handoff.
+description: "Use for requests to review DNS and other network infrastructure services. Assess DNS/mDNS, SNMP, NTP, discovery utilities, RPC, LDAP, and Kerberos service exposure with protocol-specific collectors, explicit authentication prerequisites, canary verification, and Active Directory attack-path handoff."
 ---
 
 # Network infrastructure services

@@ -1,6 +1,6 @@
 ---
 name: host-linux-privilege-boundaries
-description: Review bounded local Linux privilege-boundary exports without host execution or live validation claims.
+description: "Use for requests to review this Linux host for risky permissions. Review bounded local Linux privilege-boundary exports without host execution or live validation claims."
 ---
 
 # Linux privilege-boundary review

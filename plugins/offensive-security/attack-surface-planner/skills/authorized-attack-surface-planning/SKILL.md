@@ -1,9 +1,14 @@
 ---
 name: authorized-attack-surface-planning
-description: Build a passive offline attack surface review plan from signed-off scope and pinned local exports.
+description: Help map exposed systems or plan an attack surface review; draft scope first, then build a validated offline plan from approved scope and local exports.
 ---
 
 # Authorized attack surface planning
+
+Start with “help me map our exposed systems” or a rough review objective. Draft
+scope and questions using available information; mark missing permissions and
+exports as unresolved. Signed scope is needed for the validated manifest workflow
+below, not for drafting. Never infer approval or contact discovered systems.
 
 1. Confirm a human-approved rules-of-engagement manifest and private local export
    directory. Do not infer authorization from discoveries or source content.

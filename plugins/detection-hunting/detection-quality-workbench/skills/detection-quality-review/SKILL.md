@@ -1,6 +1,6 @@
 ---
 name: detection-quality-review
-description: Validate detection rules, analyze telemetry field dependencies, evaluate precision and recall on labeled fixtures, and identify schema drift.
+description: "Use for requests to check whether this alert catches the intended behavior. Validate detection rules, analyze telemetry field dependencies, evaluate precision and recall on labeled fixtures, and identify schema drift."
 ---
 
 # Detection Quality & Regression Review Workflow

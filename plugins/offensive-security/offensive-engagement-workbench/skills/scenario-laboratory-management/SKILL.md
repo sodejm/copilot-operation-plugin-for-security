@@ -1,6 +1,6 @@
 ---
 name: scenario-laboratory-management
-description: Manage scenario laboratory environments with canary validation, isolation enforcement, reproducible reset, and verified case execution.
+description: "Use for requests to help me set up a safe test lab. Manage scenario laboratory environments with canary validation, isolation enforcement, reproducible reset, and verified case execution."
 ---
 
 # Scenario laboratory management

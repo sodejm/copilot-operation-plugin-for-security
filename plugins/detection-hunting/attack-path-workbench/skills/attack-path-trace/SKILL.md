@@ -1,6 +1,6 @@
 ---
 name: attack-path-trace
-description: Trace conditional routes from a supplied finding to a user-defined crown jewel in an evidence-linked local graph.
+description: "Use for requests to trace how this weakness could reach an important asset. Trace conditional routes from a supplied finding to a user-defined crown jewel in an evidence-linked local graph."
 ---
 
 # Path tracing

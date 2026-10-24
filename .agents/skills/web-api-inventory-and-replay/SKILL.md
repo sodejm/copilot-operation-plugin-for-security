@@ -1,13 +1,26 @@
 ---
 name: web-api-inventory-and-replay
-description: Ingest HTTP traffic (HAR 1.2), OpenAPI 3.x/Swagger 2.0, Postman collections, and raw HTTP descriptions; model endpoints and isolated sessions with deterministic credential redaction; and execute bounded request replays under strict destination allowlists.
+description: List API endpoints from an OpenAPI file, Postman collection, HAR capture, or raw HTTP file; inspect redacted local inventory, draft replay plans, and run separately authorized bounded replays.
 ---
 
 # Web API Inventory and Request Replay
 
 Execute authorized web application and API inventory intake, endpoint modeling, session isolation, and bounded request replay under strict Rules of Engagement, destination allowlists, and operational budgets.
 
+## Start with local evidence
+
+Use this skill for “list the endpoints in this API specification,” “summarize
+this browser capture,” or “help me plan an API test.” A user-provided local file
+is enough to begin inventory or draft a plan; no live endpoint, credentials,
+or execution approval is needed. Confirm permission to process the supplied
+data, keep raw secrets out of model context, and use the local parser and
+redaction checks. Inventory does not contact or authorize the listed servers.
+Record missing scope as unresolved in draft plans.
+
 ## Observed service routing
+
+These requirements apply to a service-evidence handoff or actual replay, not to
+reading a supplied local schema or drafting a test plan.
 
 1. Require observed HTTP protocol evidence and an exact scoped endpoint before routing. A port number or an HTTP guess does not establish a service.
 2. Preserve only a sanitized request summary in prompts, handoffs, logs, and service evidence: the HTTP method; scheme, host, port, and path; query parameter names with every value replaced by `[REDACTED]`; response status; time; probe provenance; and, when needed, a digest of approved non-secret content. Never retain raw `Authorization`, `Proxy-Authorization`, `Cookie`, or `Set-Cookie` headers, API keys, tokens, query values, or request bodies.

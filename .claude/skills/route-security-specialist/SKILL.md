@@ -1,11 +1,13 @@
 ---
 name: route-security-specialist
-description: Automatically route security requests to the optimal specialist agent profile (penetration testing, red team, KQL, incident response, forensics, etc.) with Triad orchestration for critical tasks.
+description: Help choose a security workbench from an ordinary-language goal, such as planning an assessment, investigating a suspicious login, reviewing code, or deciding what to log.
 ---
 
 # Route Security Specialist
 
 Use this skill to identify, select, and route incoming security requests to the most qualified COPS specialist agent profile.
+
+Start with the user’s goal. Routing and drafting do not require execution approval, a signed engagement, or a ready worker. Ask a short clarifying question when the goal could fit several workbenches.
 
 ## Model and effort preflight
 
@@ -45,6 +47,7 @@ Keep `xhigh`, `max`, and `ultra` as explicit manual choices.
 
 2. **Evaluate Routing Decision**:
    - Review the selected profile, confidence score, and primary plugin.
+   - If clarification is required, show the proposed purposes in plain language and ask what outcome the user wants. Do not select a specialist on their behalf.
    - For high-confidence matches, adopt the persona and operational charter defined in `agents/profiles/<specialist-id>.agent.md`.
 
 3. **Handle Critical Tasks & Triad Orchestration**:
@@ -52,13 +55,14 @@ Keep `xhigh`, `max`, and `ultra` as explicit manual choices.
      - **Primary Specialist**: Authors initial analysis and candidate plans.
      - **Domain Skeptic**: Critiques assumptions and tests alternative benign hypotheses.
      - **Evidence Auditor**: Validates SHA-256 evidence envelopes and verifies authorization receipts.
-   - Adhere strictly to the generated 7-step Triad handoff sequence before finalizing deliverables.
+   - Treat this as a proposed workflow. Drafts may identify missing evidence and approvals; follow the required Triad handoff before claiming validated deliverables or executing critical actions.
 
 4. **Verify Interactive Authorization Gate**:
-   - If `Interactive Auth: REQUIRED` is signaled (e.g. penetration testing, red team lateral movement, active containment), confirm operator authorization:
+   - If `Interactive Auth: REQUIRED` is signaled (e.g. penetration testing, red team lateral movement, active containment), confirm operator authorization before consequential execution, not before routing or drafting:
      ```bash
      python3 -m cops.routing authorize --specialist <id> --action <action> --scope <target>
      ```
+   - This specialist receipt does not replace exact-plan approval, worker readiness, scope enforcement, or other execution checks.
    - In interactive environments, prompt the human operator with explicit scope disclosures.
    - In non-interactive CI/CD runners, fail closed unless a pre-signed `AuthorizationReceipt` is supplied.
 

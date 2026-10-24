@@ -1,6 +1,6 @@
 ---
 name: ai-provider-assessment
-description: Inspect offline provider-shaped response fixtures under exact plan and budget controls.
+description: "Use for requests to plan a security assessment of this AI provider. Inspect offline provider-shaped response fixtures under exact plan and budget controls."
 ---
 
 # Offline AI provider assessment

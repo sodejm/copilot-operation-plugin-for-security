@@ -1,6 +1,6 @@
 ---
 name: network-remote-and-file-services
-description: Assess remote administration (SSH, Telnet, RDP, VNC, WinRM, X11), file sharing (SMB, NFS, FTP/TFTP, rsync, AFP), and printing services (LPD, IPP, Raw/JetDirect) with canary verification, cleanup receipts, legacy version tracking, and host privilege candidate routing.
+description: "Use for requests to review remote access and file sharing services. Assess remote administration (SSH, Telnet, RDP, VNC, WinRM, X11), file sharing (SMB, NFS, FTP/TFTP, rsync, AFP), and printing services (LPD, IPP, Raw/JetDirect) with canary verification, cleanup receipts, legacy version tracking, and host privilege candidate routing."
 ---
 
 # Remote administration, file sharing, and printing services

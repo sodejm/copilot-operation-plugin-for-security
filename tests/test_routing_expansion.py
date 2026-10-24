@@ -331,3 +331,35 @@ def test_held_out_evaluation_meets_accuracy_and_ambiguity_gates() -> None:
     assert sum(correct.values()) / sum(totals.values()) >= 0.95
     assert all(totals[target] >= 10 and correct[target] / totals[target] >= 0.90 for target in totals)
     assert all(route_request(row["query"]).status == "clarification_required" for row in ambiguous)
+
+
+@pytest.mark.parametrize(
+    ("goal", "expected"),
+    [
+        ("Can you help me decide what security logs my app needs?", "cops-logging-architect"),
+        ("Please check whether this patch introduces a security bug.", "cops-appsec-engineer"),
+        ("Help me find risky permissions in my cloud accounts.", "cops-cloud-posture-specialist"),
+        ("Can you help me understand this suspicious login?", "cops-soc-analyst"),
+        ("Please list the endpoints in this API specification.", "cops-api-security-specialist"),
+        ("Help me check whether our alert catches this attack.", "cops-detection-engineer"),
+    ],
+)
+def test_everyday_goals_route_without_package_names(goal: str, expected: str) -> None:
+    decision = route_request(goal)
+    assert decision.status == "routed"
+    assert decision.primary_profile is not None
+    assert decision.primary_profile.id == expected
+
+
+def test_generic_project_start_requests_clarification() -> None:
+    decision = route_request("Help me start a security project")
+    assert decision.status == "clarification_required"
+    assert decision.primary_profile is None
+
+
+def test_drafting_request_retains_execution_authorization_requirements() -> None:
+    decision = route_request("Help me plan a penetration test; do not run anything")
+    assert decision.status == "routed"
+    assert decision.primary_profile.id == "cops-pentest-specialist"
+    assert decision.interactive_authorization_required
+    assert decision.triad_plan is not None

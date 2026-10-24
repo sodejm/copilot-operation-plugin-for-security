@@ -1,6 +1,6 @@
 ---
 name: ai-agent-mcp-laboratories
-description: Run synthetic local agent and MCP boundary cases and interpret observed fixture effects.
+description: "Use for requests to test this AI tool integration in a local lab. Run synthetic local agent and MCP boundary cases and interpret observed fixture effects."
 ---
 
 # Local agent and MCP laboratories

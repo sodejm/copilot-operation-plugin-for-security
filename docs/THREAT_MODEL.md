@@ -15,6 +15,18 @@ bundled-case inventory assertion was added at
 
 COPS distributes security operations plugins and skills, local validation/marketplace tooling and execution/approval support. Capabilities vary by component: the Sentinel hunt workbench is offline and credential-free; other integrations can reach live APIs. No global offline or harmless-execution assumption applies.
 
+## Drafting and routing boundary
+
+Plain-language triggers select a specialist; they do not confer execution
+authority. An attacker could try to present draft notes, an imported endpoint,
+or a routing recommendation as approval. Drafts must record unknowns and must
+not fabricate contract fields, receipts, scope, or evidence. Local evidence
+processing retains permission, redaction, and untrusted-input controls.
+Contract validators and execution gates remain unchanged: supported execution
+requires the applicable scope, exact-plan approval, worker readiness, budgets,
+and cleanup controls. Regression tests cover everyday routing, ambiguous
+project requests, and retained authorization requirements for critical routes.
+
 ## Assets, actors and assumptions
 
 Assets: Plugin package and marketplace integrity; approval/checkpoint records; cloud/Sentinel credentials; tenant/resource identifiers; security telemetry and hunt results; generated report-set integrity and completion evidence; agent execution authority; synthetic laboratory case, MCP fixture state and effect-report integrity; CI and distribution credentials.

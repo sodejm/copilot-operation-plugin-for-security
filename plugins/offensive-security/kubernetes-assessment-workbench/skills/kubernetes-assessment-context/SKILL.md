@@ -1,6 +1,6 @@
 ---
 name: kubernetes-assessment-context
-description: Reconcile an explicitly approved Kubernetes context and namespace scope with a sanitized local observation.
+description: "Use for requests to review these Kubernetes exports for security risks. Reconcile an explicitly approved Kubernetes context and namespace scope with a sanitized local observation."
 ---
 
 # Kubernetes assessment context

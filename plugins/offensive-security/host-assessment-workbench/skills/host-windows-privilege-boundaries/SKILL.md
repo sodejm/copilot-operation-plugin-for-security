@@ -1,6 +1,6 @@
 ---
 name: host-windows-privilege-boundaries
-description: Review bounded Windows privilege-boundary exports and, when explicitly authorized, run the read-only native Windows collector.
+description: "Use for requests to review this Windows host for risky permissions. Review bounded Windows privilege-boundary exports and, when explicitly authorized, run the read-only native Windows collector."
 ---
 
 # Windows privilege-boundary review

@@ -1,6 +1,6 @@
 ---
 name: threat-intelligence-enrichment
-description: Enrich analyst-selected indicators against explicitly approved, read-only MISP, TAXII, and Microsoft sources while preserving source claims and privacy.
+description: "Use for requests to find context for this suspicious indicator. Enrich analyst-selected indicators against explicitly approved, read-only MISP, TAXII, and Microsoft sources while preserving source claims and privacy."
 ---
 
 # Threat intelligence enrichment

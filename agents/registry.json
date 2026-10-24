@@ -49,7 +49,8 @@
         "rules of engagement",
         "exploitability validation",
         "vulnerability assessment",
-        "scoped security test"
+        "scoped security test",
+        "plan a penetration test"
       ],
       "artifact_triggers": [
         "rules_of_engagement",
@@ -118,7 +119,8 @@
         "host privilege boundary",
         "sudo policy",
         "suid binary",
-        "windows service permissions"
+        "windows service permissions",
+        "check this computer for security weaknesses"
       ],
       "artifact_triggers": [
         "sudoers_file",
@@ -179,7 +181,8 @@
         "multi-stage attack path",
         "lateral movement",
         "defense evasion",
-        "kill chain"
+        "kill chain",
+        "plan a red team exercise"
       ],
       "artifact_triggers": [
         "emulation_plan",
@@ -251,7 +254,8 @@
         "public ip exposure",
         "dns exposure",
         "certificate transparency",
-        "shadow it"
+        "shadow it",
+        "map our exposed systems"
       ],
       "artifact_triggers": [
         "dns_export",
@@ -312,7 +316,8 @@
         "namespace scope",
         "managed control plane",
         "kubernetes assessment",
-        "cluster access scope"
+        "cluster access scope",
+        "review my Kubernetes cluster"
       ],
       "artifact_triggers": [
         "kubeconfig_metadata",
@@ -364,7 +369,8 @@
         "jailbreak attempt",
         "llm security",
         "agent tool abuse",
-        "system prompt leakage"
+        "system prompt leakage",
+        "test my AI agent for unsafe behavior"
       ],
       "artifact_triggers": [
         "conversation_transcript",
@@ -423,7 +429,8 @@
         "defender advanced hunting",
         "kusto query",
         "log analytics query",
-        "sentinel analytic rule"
+        "sentinel analytic rule",
+        "fix my Sentinel query"
       ],
       "artifact_triggers": [
         "kql_file",
@@ -482,7 +489,8 @@
         "beaconing hunt",
         "persistence hunt",
         "living off the land",
-        "adversary behavior hunt"
+        "adversary behavior hunt",
+        "look for signs of an intruder"
       ],
       "artifact_triggers": [
         "hunt_plan",
@@ -538,7 +546,8 @@
         "false positive analysis",
         "alert correlation",
         "competing hypotheses",
-        "soc case review"
+        "soc case review",
+        "understand this suspicious login"
       ],
       "artifact_triggers": [
         "case.json",
@@ -593,7 +602,8 @@
         "detection regression test",
         "false positive testing",
         "telemetry coverage",
-        "rule quality"
+        "rule quality",
+        "check whether our alert catches this attack"
       ],
       "artifact_triggers": [
         "sigma_rule",
@@ -650,7 +660,8 @@
         "compromised account",
         "isolate affected host",
         "blast radius",
-        "incident recovery"
+        "incident recovery",
+        "plan how to respond to this incident"
       ],
       "artifact_triggers": [
         "incident_timeline",
@@ -703,7 +714,8 @@
         "evidence collection",
         "tamper-evident evidence",
         "acquisition receipt",
-        "forensic preservation"
+        "forensic preservation",
+        "collect evidence for an investigation"
       ],
       "artifact_triggers": [
         "evidence_manifest",
@@ -755,7 +767,8 @@
         "deobfuscate powershell",
         "malicious macro analysis",
         "ioc extraction",
-        "suspicious script analysis"
+        "suspicious script analysis",
+        "understand what this suspicious file does"
       ],
       "artifact_triggers": [
         "binary_file",
@@ -811,7 +824,8 @@
         "ad acl delegation",
         "forest trust boundary",
         "domain group membership",
-        "directory privilege path"
+        "directory privilege path",
+        "review our Active Directory permissions"
       ],
       "artifact_triggers": [
         "bloodhound_export",
@@ -867,7 +881,8 @@
         "service principal privilege",
         "toxic privilege combination",
         "identity governance",
-        "cloud privilege escalation"
+        "cloud privilege escalation",
+        "review our Entra permissions"
       ],
       "artifact_triggers": [
         "entra_export",
@@ -921,7 +936,8 @@
         "epss score",
         "cisa kev",
         "sbom reachability",
-        "exploit likelihood"
+        "exploit likelihood",
+        "decide which vulnerabilities to fix first"
       ],
       "artifact_triggers": [
         "sbom_file",
@@ -974,7 +990,8 @@
         "source code vulnerability",
         "sast finding",
         "security diff review",
-        "taint analysis"
+        "taint analysis",
+        "check whether this patch introduces a security bug"
       ],
       "artifact_triggers": [
         "source_diff",
@@ -1026,7 +1043,8 @@
         "threat actor profile",
         "campaign tracking",
         "stix correlation",
-        "misp enrichment"
+        "misp enrichment",
+        "find context for this threat indicator"
       ],
       "artifact_triggers": [
         "stix_bundle",
@@ -1079,7 +1097,8 @@
         "detection coverage gap",
         "attack simulation telemetry",
         "control efficacy exercise",
-        "collaborative security exercise"
+        "collaborative security exercise",
+        "plan a purple team exercise"
       ],
       "artifact_triggers": [
         "attack_coverage_matrix",
@@ -1134,7 +1153,8 @@
         "sensitive data in logs",
         "telemetry pipeline",
         "audit event coverage",
-        "log retention cost"
+        "log retention cost",
+        "decide what security logs my app needs"
       ],
       "artifact_triggers": [
         "logging_config",
@@ -1189,7 +1209,8 @@
         "cis control assessment",
         "iso 27001 evidence",
         "pci dss evidence",
-        "compliance evidence review"
+        "compliance evidence review",
+        "prepare evidence for a compliance audit"
       ],
       "artifact_triggers": [
         "control_evidence",
@@ -1243,7 +1264,8 @@
         "public cloud storage",
         "cloud workload configuration",
         "cloud iam configuration",
-        "kubernetes workload configuration"
+        "kubernetes workload configuration",
+        "find risky permissions in my cloud accounts"
       ],
       "artifact_triggers": [
         "terraform_plan",
@@ -1296,7 +1318,8 @@
         "build pipeline permission",
         "registry resolution",
         "lockfile review",
-        "sbom provenance"
+        "sbom provenance",
+        "review the security of our build pipeline"
       ],
       "artifact_triggers": [
         "package-lock.json",
@@ -1350,7 +1373,8 @@
         "credential in git history",
         "credential revocation",
         "credential rotation",
-        "token exposure remediation"
+        "token exposure remediation",
+        "remove a leaked secret from my repository"
       ],
       "artifact_triggers": [
         "git_history",
@@ -1402,7 +1426,8 @@
         "kubernetes networkpolicy",
         "forbidden reachability",
         "allowed reachability",
-        "east-west traffic"
+        "east-west traffic",
+        "check which networks can reach each other"
       ],
       "artifact_triggers": [
         "network_policy",
@@ -1455,7 +1480,8 @@
         "jwt signature verification",
         "jwks signing configuration",
         "tls protocol configuration",
-        "certificate trust failure"
+        "certificate trust failure",
+        "check our certificates and encryption settings"
       ],
       "artifact_triggers": [
         "certificate_chain",
@@ -1509,7 +1535,8 @@
         "idor vulnerability",
         "rest api security",
         "graphql security",
-        "api rate limiting"
+        "api rate limiting",
+        "list the endpoints in this API specification"
       ],
       "artifact_triggers": [
         "har_file",

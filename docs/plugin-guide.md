@@ -18,6 +18,15 @@ qualification workflow and record evidence before proposing a status change.
 
 ---
 
+## Start from your goal
+
+Describe the outcome in everyday words; you do not need to choose a workbench
+first. Every workbench can begin with a discussion or draft that records unknowns.
+Local evidence processing still requires permission and privacy controls. Contract
+validation, laboratory runs, and live execution retain their own prerequisites;
+a draft never grants permission to execute. See [Getting started](getting-started.md)
+for the stage-by-stage requirements and a local example.
+
 ## Quick Decision Matrix
 
 | What are you trying to accomplish? | Reach for this plugin | Category | Maturity | Operational Mode | Try it out |

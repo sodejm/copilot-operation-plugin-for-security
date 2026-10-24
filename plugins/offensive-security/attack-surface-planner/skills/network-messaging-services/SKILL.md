@@ -1,6 +1,6 @@
 ---
 name: network-messaging-services
-description: Assess email services (SMTP, POP3, IMAP), chat (IRC), and message brokers/queues (AMQP/RabbitMQ, NATS, IBM MQ, Kafka, MQTT) with bounded message budgets, synthetic canary verification, cleanup receipts, and messaging privilege candidate routing.
+description: "Use for requests to review our mail services for security weaknesses. Assess email services (SMTP, POP3, IMAP), chat (IRC), and message brokers/queues (AMQP/RabbitMQ, NATS, IBM MQ, Kafka, MQTT) with bounded message budgets, synthetic canary verification, cleanup receipts, and messaging privilege candidate routing."
 ---
 
 # Mail, Messaging, and Message Broker Services

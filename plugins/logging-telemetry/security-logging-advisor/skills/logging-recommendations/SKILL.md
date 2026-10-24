@@ -1,6 +1,6 @@
 ---
 name: logging-recommendations
-description: Analyze repository context and generate environment-specific, cost-conscious security logging recommendations.
+description: "Use for requests to help me decide what security events to log. Analyze repository context and generate environment-specific, cost-conscious security logging recommendations."
 ---
 
 # Logging Recommendations Advisor Skill

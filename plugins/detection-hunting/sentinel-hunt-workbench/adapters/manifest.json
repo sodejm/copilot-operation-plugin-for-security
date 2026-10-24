@@ -1,5 +1,5 @@
 {
-  "canonical_skill_bundle_sha256": "355e0ab272707d1df5d6e97394daf2748ffe99989bc072363dcc63e7261b8162",
+  "canonical_skill_bundle_sha256": "7f613ae620cf66eccc018f14b42fca8c29f163fb5bbdc888402b756a986e05f6",
   "entries": [
     {
       "path": "claude-code/.claude-plugin/plugin.json",
@@ -7,119 +7,119 @@
     },
     {
       "path": "claude-code/agents/sentinel-hunt-workbench.md",
-      "sha256": "6c3ea65e735c693f9ca001bb3ca7045df2134a87affc630e76e8526549c38321"
+      "sha256": "e990975b3f7138efba646301715e4fd8c0568d742123a6b0c38649af44414dae"
     },
     {
       "canonical_path": "skills/adapt-sentinel-hunt/SKILL.md",
-      "canonical_sha256": "08d2eee2147892822bf6c0a92d5e81bcf359788b8e44c813ffc2914dcf71c5bf",
+      "canonical_sha256": "3155f30f2dcb0a4544567399f508174ffe206a6c3c905b1a6134999d4dbf1efd",
       "path": "claude-code/skills/adapt-sentinel-hunt/SKILL.md",
-      "sha256": "08d2eee2147892822bf6c0a92d5e81bcf359788b8e44c813ffc2914dcf71c5bf"
+      "sha256": "3155f30f2dcb0a4544567399f508174ffe206a6c3c905b1a6134999d4dbf1efd"
     },
     {
       "canonical_path": "skills/author-sentinel-kql/SKILL.md",
-      "canonical_sha256": "76d22f1454e55e777252e0437f6955025431f4a8ea1745959da29a6e4520ebf9",
+      "canonical_sha256": "816fe4eb9c2caf67370bd298ba375e70c3ad1f4d1e989710fd89fac104a4ac0a",
       "path": "claude-code/skills/author-sentinel-kql/SKILL.md",
-      "sha256": "76d22f1454e55e777252e0437f6955025431f4a8ea1745959da29a6e4520ebf9"
+      "sha256": "816fe4eb9c2caf67370bd298ba375e70c3ad1f4d1e989710fd89fac104a4ac0a"
     },
     {
       "canonical_path": "skills/plan-sentinel-hunt/SKILL.md",
-      "canonical_sha256": "8e6d7d0f232f5c9707b2dea724ee184f7f2bf8e988cfd7625e6a486ce24409ad",
+      "canonical_sha256": "b074e7849e0f86d6fcefa75a771c57cb65624f1909296fb8e2928bfd8e9c2fef",
       "path": "claude-code/skills/plan-sentinel-hunt/SKILL.md",
-      "sha256": "8e6d7d0f232f5c9707b2dea724ee184f7f2bf8e988cfd7625e6a486ce24409ad"
+      "sha256": "b074e7849e0f86d6fcefa75a771c57cb65624f1909296fb8e2928bfd8e9c2fef"
     },
     {
       "canonical_path": "skills/review-sentinel-hunt/SKILL.md",
-      "canonical_sha256": "6493e7ae672158889ec0687ce72fff4a6c2a84c947627e126e8dfa774782770d",
+      "canonical_sha256": "27a6dc5d5860d6bf9fb63ca7b93b12c57ab6251994b045f136421ad9391decb3",
       "path": "claude-code/skills/review-sentinel-hunt/SKILL.md",
-      "sha256": "6493e7ae672158889ec0687ce72fff4a6c2a84c947627e126e8dfa774782770d"
+      "sha256": "27a6dc5d5860d6bf9fb63ca7b93b12c57ab6251994b045f136421ad9391decb3"
     },
     {
       "canonical_path": "skills/test-sentinel-hunt/SKILL.md",
-      "canonical_sha256": "4558480a755fa4fec5a35f446021b344d326ea160800674fba1e1313a666a0be",
+      "canonical_sha256": "959b0ab1aba04306f1ccc96913cda038d3dc21b4ba4887889046f6ee3d883bd1",
       "path": "claude-code/skills/test-sentinel-hunt/SKILL.md",
-      "sha256": "4558480a755fa4fec5a35f446021b344d326ea160800674fba1e1313a666a0be"
+      "sha256": "959b0ab1aba04306f1ccc96913cda038d3dc21b4ba4887889046f6ee3d883bd1"
     },
     {
       "canonical_path": "skills/validate-sentinel-hunt/SKILL.md",
-      "canonical_sha256": "2842772add9e35f51b33d8a5f5dfd362bbd4c10579b2f14ba63edb84873d60c1",
+      "canonical_sha256": "17d01c4334dcd9fa8ca4656a7602b66a7ad93f213622cb5e1a7febd6b6e5eca1",
       "path": "claude-code/skills/validate-sentinel-hunt/SKILL.md",
-      "sha256": "2842772add9e35f51b33d8a5f5dfd362bbd4c10579b2f14ba63edb84873d60c1"
+      "sha256": "17d01c4334dcd9fa8ca4656a7602b66a7ad93f213622cb5e1a7febd6b6e5eca1"
     },
     {
       "canonical_path": "skills/adapt-sentinel-hunt/SKILL.md",
-      "canonical_sha256": "08d2eee2147892822bf6c0a92d5e81bcf359788b8e44c813ffc2914dcf71c5bf",
+      "canonical_sha256": "3155f30f2dcb0a4544567399f508174ffe206a6c3c905b1a6134999d4dbf1efd",
       "path": "github-copilot/.agents/skills/adapt-sentinel-hunt/SKILL.md",
-      "sha256": "08d2eee2147892822bf6c0a92d5e81bcf359788b8e44c813ffc2914dcf71c5bf"
+      "sha256": "3155f30f2dcb0a4544567399f508174ffe206a6c3c905b1a6134999d4dbf1efd"
     },
     {
       "canonical_path": "skills/author-sentinel-kql/SKILL.md",
-      "canonical_sha256": "76d22f1454e55e777252e0437f6955025431f4a8ea1745959da29a6e4520ebf9",
+      "canonical_sha256": "816fe4eb9c2caf67370bd298ba375e70c3ad1f4d1e989710fd89fac104a4ac0a",
       "path": "github-copilot/.agents/skills/author-sentinel-kql/SKILL.md",
-      "sha256": "76d22f1454e55e777252e0437f6955025431f4a8ea1745959da29a6e4520ebf9"
+      "sha256": "816fe4eb9c2caf67370bd298ba375e70c3ad1f4d1e989710fd89fac104a4ac0a"
     },
     {
       "canonical_path": "skills/plan-sentinel-hunt/SKILL.md",
-      "canonical_sha256": "8e6d7d0f232f5c9707b2dea724ee184f7f2bf8e988cfd7625e6a486ce24409ad",
+      "canonical_sha256": "b074e7849e0f86d6fcefa75a771c57cb65624f1909296fb8e2928bfd8e9c2fef",
       "path": "github-copilot/.agents/skills/plan-sentinel-hunt/SKILL.md",
-      "sha256": "8e6d7d0f232f5c9707b2dea724ee184f7f2bf8e988cfd7625e6a486ce24409ad"
+      "sha256": "b074e7849e0f86d6fcefa75a771c57cb65624f1909296fb8e2928bfd8e9c2fef"
     },
     {
       "canonical_path": "skills/review-sentinel-hunt/SKILL.md",
-      "canonical_sha256": "6493e7ae672158889ec0687ce72fff4a6c2a84c947627e126e8dfa774782770d",
+      "canonical_sha256": "27a6dc5d5860d6bf9fb63ca7b93b12c57ab6251994b045f136421ad9391decb3",
       "path": "github-copilot/.agents/skills/review-sentinel-hunt/SKILL.md",
-      "sha256": "6493e7ae672158889ec0687ce72fff4a6c2a84c947627e126e8dfa774782770d"
+      "sha256": "27a6dc5d5860d6bf9fb63ca7b93b12c57ab6251994b045f136421ad9391decb3"
     },
     {
       "canonical_path": "skills/test-sentinel-hunt/SKILL.md",
-      "canonical_sha256": "4558480a755fa4fec5a35f446021b344d326ea160800674fba1e1313a666a0be",
+      "canonical_sha256": "959b0ab1aba04306f1ccc96913cda038d3dc21b4ba4887889046f6ee3d883bd1",
       "path": "github-copilot/.agents/skills/test-sentinel-hunt/SKILL.md",
-      "sha256": "4558480a755fa4fec5a35f446021b344d326ea160800674fba1e1313a666a0be"
+      "sha256": "959b0ab1aba04306f1ccc96913cda038d3dc21b4ba4887889046f6ee3d883bd1"
     },
     {
       "canonical_path": "skills/validate-sentinel-hunt/SKILL.md",
-      "canonical_sha256": "2842772add9e35f51b33d8a5f5dfd362bbd4c10579b2f14ba63edb84873d60c1",
+      "canonical_sha256": "17d01c4334dcd9fa8ca4656a7602b66a7ad93f213622cb5e1a7febd6b6e5eca1",
       "path": "github-copilot/.agents/skills/validate-sentinel-hunt/SKILL.md",
-      "sha256": "2842772add9e35f51b33d8a5f5dfd362bbd4c10579b2f14ba63edb84873d60c1"
+      "sha256": "17d01c4334dcd9fa8ca4656a7602b66a7ad93f213622cb5e1a7febd6b6e5eca1"
     },
     {
       "path": "github-copilot/.github/agents/sentinel-hunt-workbench.agent.md",
-      "sha256": "cfb900796ef63e731fb3caedd0b77ee96eccdff5c85aab43585618069cd6eb06"
+      "sha256": "8cdb797faee372b849866e13aa7666f5edd017ee143040d061fd1fabd7bf5c9f"
     },
     {
       "canonical_path": "skills/adapt-sentinel-hunt/SKILL.md",
-      "canonical_sha256": "08d2eee2147892822bf6c0a92d5e81bcf359788b8e44c813ffc2914dcf71c5bf",
+      "canonical_sha256": "3155f30f2dcb0a4544567399f508174ffe206a6c3c905b1a6134999d4dbf1efd",
       "path": "openai/.agents/skills/adapt-sentinel-hunt/SKILL.md",
-      "sha256": "08d2eee2147892822bf6c0a92d5e81bcf359788b8e44c813ffc2914dcf71c5bf"
+      "sha256": "3155f30f2dcb0a4544567399f508174ffe206a6c3c905b1a6134999d4dbf1efd"
     },
     {
       "canonical_path": "skills/author-sentinel-kql/SKILL.md",
-      "canonical_sha256": "76d22f1454e55e777252e0437f6955025431f4a8ea1745959da29a6e4520ebf9",
+      "canonical_sha256": "816fe4eb9c2caf67370bd298ba375e70c3ad1f4d1e989710fd89fac104a4ac0a",
       "path": "openai/.agents/skills/author-sentinel-kql/SKILL.md",
-      "sha256": "76d22f1454e55e777252e0437f6955025431f4a8ea1745959da29a6e4520ebf9"
+      "sha256": "816fe4eb9c2caf67370bd298ba375e70c3ad1f4d1e989710fd89fac104a4ac0a"
     },
     {
       "canonical_path": "skills/plan-sentinel-hunt/SKILL.md",
-      "canonical_sha256": "8e6d7d0f232f5c9707b2dea724ee184f7f2bf8e988cfd7625e6a486ce24409ad",
+      "canonical_sha256": "b074e7849e0f86d6fcefa75a771c57cb65624f1909296fb8e2928bfd8e9c2fef",
       "path": "openai/.agents/skills/plan-sentinel-hunt/SKILL.md",
-      "sha256": "8e6d7d0f232f5c9707b2dea724ee184f7f2bf8e988cfd7625e6a486ce24409ad"
+      "sha256": "b074e7849e0f86d6fcefa75a771c57cb65624f1909296fb8e2928bfd8e9c2fef"
     },
     {
       "canonical_path": "skills/review-sentinel-hunt/SKILL.md",
-      "canonical_sha256": "6493e7ae672158889ec0687ce72fff4a6c2a84c947627e126e8dfa774782770d",
+      "canonical_sha256": "27a6dc5d5860d6bf9fb63ca7b93b12c57ab6251994b045f136421ad9391decb3",
       "path": "openai/.agents/skills/review-sentinel-hunt/SKILL.md",
-      "sha256": "6493e7ae672158889ec0687ce72fff4a6c2a84c947627e126e8dfa774782770d"
+      "sha256": "27a6dc5d5860d6bf9fb63ca7b93b12c57ab6251994b045f136421ad9391decb3"
     },
     {
       "canonical_path": "skills/test-sentinel-hunt/SKILL.md",
-      "canonical_sha256": "4558480a755fa4fec5a35f446021b344d326ea160800674fba1e1313a666a0be",
+      "canonical_sha256": "959b0ab1aba04306f1ccc96913cda038d3dc21b4ba4887889046f6ee3d883bd1",
       "path": "openai/.agents/skills/test-sentinel-hunt/SKILL.md",
-      "sha256": "4558480a755fa4fec5a35f446021b344d326ea160800674fba1e1313a666a0be"
+      "sha256": "959b0ab1aba04306f1ccc96913cda038d3dc21b4ba4887889046f6ee3d883bd1"
     },
     {
       "canonical_path": "skills/validate-sentinel-hunt/SKILL.md",
-      "canonical_sha256": "2842772add9e35f51b33d8a5f5dfd362bbd4c10579b2f14ba63edb84873d60c1",
+      "canonical_sha256": "17d01c4334dcd9fa8ca4656a7602b66a7ad93f213622cb5e1a7febd6b6e5eca1",
       "path": "openai/.agents/skills/validate-sentinel-hunt/SKILL.md",
-      "sha256": "2842772add9e35f51b33d8a5f5dfd362bbd4c10579b2f14ba63edb84873d60c1"
+      "sha256": "17d01c4334dcd9fa8ca4656a7602b66a7ad93f213622cb5e1a7febd6b6e5eca1"
     },
     {
       "path": "openai/.codex-plugin/plugin.json",
@@ -127,43 +127,43 @@
     },
     {
       "path": "openai/AGENTS.md",
-      "sha256": "207af862f7e6ad2b54c639382d3bf3abf5b75906b8892d6236c616b9248663ee"
+      "sha256": "d63c1689b6a4b29c7cd2a9b5188c7af5e644bf9453cf1db15e80c3d62b9b4414"
     },
     {
       "canonical_path": "skills/adapt-sentinel-hunt/SKILL.md",
-      "canonical_sha256": "08d2eee2147892822bf6c0a92d5e81bcf359788b8e44c813ffc2914dcf71c5bf",
+      "canonical_sha256": "3155f30f2dcb0a4544567399f508174ffe206a6c3c905b1a6134999d4dbf1efd",
       "path": "openai/skills/adapt-sentinel-hunt/SKILL.md",
-      "sha256": "08d2eee2147892822bf6c0a92d5e81bcf359788b8e44c813ffc2914dcf71c5bf"
+      "sha256": "3155f30f2dcb0a4544567399f508174ffe206a6c3c905b1a6134999d4dbf1efd"
     },
     {
       "canonical_path": "skills/author-sentinel-kql/SKILL.md",
-      "canonical_sha256": "76d22f1454e55e777252e0437f6955025431f4a8ea1745959da29a6e4520ebf9",
+      "canonical_sha256": "816fe4eb9c2caf67370bd298ba375e70c3ad1f4d1e989710fd89fac104a4ac0a",
       "path": "openai/skills/author-sentinel-kql/SKILL.md",
-      "sha256": "76d22f1454e55e777252e0437f6955025431f4a8ea1745959da29a6e4520ebf9"
+      "sha256": "816fe4eb9c2caf67370bd298ba375e70c3ad1f4d1e989710fd89fac104a4ac0a"
     },
     {
       "canonical_path": "skills/plan-sentinel-hunt/SKILL.md",
-      "canonical_sha256": "8e6d7d0f232f5c9707b2dea724ee184f7f2bf8e988cfd7625e6a486ce24409ad",
+      "canonical_sha256": "b074e7849e0f86d6fcefa75a771c57cb65624f1909296fb8e2928bfd8e9c2fef",
       "path": "openai/skills/plan-sentinel-hunt/SKILL.md",
-      "sha256": "8e6d7d0f232f5c9707b2dea724ee184f7f2bf8e988cfd7625e6a486ce24409ad"
+      "sha256": "b074e7849e0f86d6fcefa75a771c57cb65624f1909296fb8e2928bfd8e9c2fef"
     },
     {
       "canonical_path": "skills/review-sentinel-hunt/SKILL.md",
-      "canonical_sha256": "6493e7ae672158889ec0687ce72fff4a6c2a84c947627e126e8dfa774782770d",
+      "canonical_sha256": "27a6dc5d5860d6bf9fb63ca7b93b12c57ab6251994b045f136421ad9391decb3",
       "path": "openai/skills/review-sentinel-hunt/SKILL.md",
-      "sha256": "6493e7ae672158889ec0687ce72fff4a6c2a84c947627e126e8dfa774782770d"
+      "sha256": "27a6dc5d5860d6bf9fb63ca7b93b12c57ab6251994b045f136421ad9391decb3"
     },
     {
       "canonical_path": "skills/test-sentinel-hunt/SKILL.md",
-      "canonical_sha256": "4558480a755fa4fec5a35f446021b344d326ea160800674fba1e1313a666a0be",
+      "canonical_sha256": "959b0ab1aba04306f1ccc96913cda038d3dc21b4ba4887889046f6ee3d883bd1",
       "path": "openai/skills/test-sentinel-hunt/SKILL.md",
-      "sha256": "4558480a755fa4fec5a35f446021b344d326ea160800674fba1e1313a666a0be"
+      "sha256": "959b0ab1aba04306f1ccc96913cda038d3dc21b4ba4887889046f6ee3d883bd1"
     },
     {
       "canonical_path": "skills/validate-sentinel-hunt/SKILL.md",
-      "canonical_sha256": "2842772add9e35f51b33d8a5f5dfd362bbd4c10579b2f14ba63edb84873d60c1",
+      "canonical_sha256": "17d01c4334dcd9fa8ca4656a7602b66a7ad93f213622cb5e1a7febd6b6e5eca1",
       "path": "openai/skills/validate-sentinel-hunt/SKILL.md",
-      "sha256": "2842772add9e35f51b33d8a5f5dfd362bbd4c10579b2f14ba63edb84873d60c1"
+      "sha256": "17d01c4334dcd9fa8ca4656a7602b66a7ad93f213622cb5e1a7febd6b6e5eca1"
     }
   ],
   "generated": true,

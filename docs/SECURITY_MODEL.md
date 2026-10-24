@@ -18,6 +18,16 @@ COPS is built with a **defense-in-depth, zero-trust mindset for AI-assisted secu
 
 ---
 
+## Starting a project safely
+
+Discussion and draft planning need a goal, not execution credentials or signed
+scope. Unknown details stay unresolved until the relevant contract can be
+validated. Processing local evidence still requires permission and secret
+handling; imported hostnames and URLs do not authorize contact. Before a lab
+or live action, enforce that capability's existing authorization, readiness,
+scope, budget, and cleanup gates. See [Getting started](getting-started.md)
+for the stages. Neither a draft nor a routing result is an execution receipt.
+
 ## 1. What We Protect (Our Assets)
 
 COPS is engineered to safeguard five core assets:

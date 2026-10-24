@@ -1,6 +1,6 @@
 ---
 name: attack-path-map
-description: Prepare evidence-cited ATT&CK behavior mapping, Attack Flow representation, and blocked Wiz graph query intents.
+description: "Use for requests to map how an attacker could move between these systems. Prepare evidence-cited ATT&CK behavior mapping, Attack Flow representation, and blocked Wiz graph query intents."
 ---
 
 # Mapping and query intent

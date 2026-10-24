@@ -1,6 +1,6 @@
 ---
 name: network-developer-interfaces
-description: Assess developer and runtime interfaces (Docker, Docker Registry, RMI, JDWP, Erlang EPMD, ADB, distcc, SVN, AJP, FastCGI) with execution effect classification, canary verification, cleanup receipts, and developer privilege candidate routing.
+description: "Use for requests to review exposed developer tools and runtime services. Assess developer and runtime interfaces (Docker, Docker Registry, RMI, JDWP, Erlang EPMD, ADB, distcc, SVN, AJP, FastCGI) with execution effect classification, canary verification, cleanup receipts, and developer privilege candidate routing."
 ---
 
 # Developer and Runtime Interfaces

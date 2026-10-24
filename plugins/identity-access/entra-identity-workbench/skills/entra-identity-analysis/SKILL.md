@@ -1,6 +1,6 @@
 ---
 name: entra-identity-analysis
-description: Model and review Entra ID and AI Agent identity graphs, privilege boundaries, and exposure paths offline. Use when analyzing users, groups, service principals, managed identities, agent blueprints, or Entra Agent IDs for privilege escalation, consent risks, and entitlement boundaries.
+description: "Use for requests to review who can access what in Entra. Model and review Entra ID and AI Agent identity graphs, privilege boundaries, and exposure paths offline. Use when analyzing users, groups, service principals, managed identities, agent blueprints, or Entra Agent IDs for privilege escalation, consent risks, and entitlement boundaries."
 ---
 
 # Entra Identity & Agent Exposure Analysis
