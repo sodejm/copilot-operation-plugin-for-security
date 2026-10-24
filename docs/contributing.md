@@ -141,7 +141,23 @@ make check PYTHON=.venv/bin/python
 make check-issue-coverage
 ```
 
-`make check` is the portable repository baseline. Changes to laboratory behavior or readiness claims must also pass the mandatory laboratory gate:
+`make check` is the portable repository baseline.
+
+Run repository tests in a writable Git checkout. Tests that create commits or
+exercise file permissions need their own test account and checkout; keep those
+separate from a restricted execution worker and its read-only source tree.
+Preserve the worker's service restrictions when provisioning a test runner.
+
+Filesystem mutation tests must establish a real metadata change before asserting
+that the scanner rejects it. Same-tick rewrites can retain `ctime`, even after
+restoring `mtime`; metadata comparisons cannot establish a content snapshot in
+that case. TLS handshake fixtures must explicitly set their client context's
+minimum to TLS 1.2 or stronger. Distribution defaults can report
+`MINIMUM_SUPPORTED`, which the replay transport intentionally rejects before
+connecting, even when system policy separately restricts older protocols.
+
+Changes to laboratory behavior or readiness claims must also pass the mandatory
+laboratory gate:
 
 ```bash
 make check-laboratory

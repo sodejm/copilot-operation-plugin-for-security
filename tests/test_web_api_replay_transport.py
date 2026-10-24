@@ -315,6 +315,7 @@ def test_cross_origin_redirect_allows_body_dropping_method_rewrite(http_lab):
 def test_tls_verifies_trusted_certificate_for_original_host(https_lab):
     base, seen, material = https_lab
     client_context = ssl.create_default_context(cafile=material["ca"])
+    client_context.minimum_version = ssl.TLSVersion.TLSv1_2
     response = StandardHttpReplayer(
         DestinationGuard([base.removeprefix("https://")]), _scope(), tls_context=client_context
     ).send(_request(f"{base}/200"), ReplayBudget(timeout_seconds=1))
@@ -332,6 +333,7 @@ def test_tls_rejects_hostname_mismatch_and_untrusted_certificate(https_lab, fail
     else:
         url = f"{base}/200"
         client_context = ssl.create_default_context(cafile=material["untrusted_ca"])
+    client_context.minimum_version = ssl.TLSVersion.TLSv1_2
     response = StandardHttpReplayer(
         DestinationGuard([url.removeprefix("https://").split("/", 1)[0]]),
         _scope(lambda _: ["127.0.0.1"]),

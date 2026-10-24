@@ -7,6 +7,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 import pytest
@@ -64,6 +65,14 @@ def test_same_inode_rewrite_after_discovery_is_not_scanned(tmp_path, monkeypatch
             target.write_text('password = "AfterFixture1234!"')
             mtime = discovered.st_mtime_ns if restore_mtime else discovered.st_mtime_ns + 1_000_000_000
             os.utime(target, ns=(discovered.st_atime_ns, mtime))
+            if restore_mtime:
+                # Same-tick writes can retain ctime on Linux filesystems. Ensure
+                # this fixture actually exercises a detectable ctime change.
+                deadline = time.monotonic() + 1
+                while target.lstat().st_ctime_ns == discovered.st_ctime_ns:
+                    assert time.monotonic() < deadline, "fixture ctime did not advance"
+                    time.sleep(0.001)
+                    os.utime(target, ns=(discovered.st_atime_ns, mtime))
             assert target.lstat().st_ino == discovered.st_ino
             assert target.lstat().st_size == discovered.st_size
         return real_open(path, *args, **kwargs)
