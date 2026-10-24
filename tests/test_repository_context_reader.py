@@ -12,17 +12,23 @@ from pathlib import Path
 
 import pytest
 
-SCRIPT = Path(__file__).resolve().parents[1] / "plugins/logging-telemetry/security-logging-advisor/skills/repository-context/scripts/collect-repository-context.py"
+SCRIPT = (
+    Path(__file__).resolve().parents[1]
+    / "plugins/logging-telemetry/security-logging-advisor/skills/repository-context/scripts/collect-repository-context.py"
+)
 spec = importlib.util.spec_from_file_location("repository_context_scanner", SCRIPT)
 scanner = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(scanner)
 
 
-@pytest.mark.parametrize("schema_url,expected", [
-    ("https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#", True),
-    ("https://schema.management.azure.com.evil.example/template.json", False),
-    ("https://evil.example/schema.management.azure.com/template.json", False),
-])
+@pytest.mark.parametrize(
+    "schema_url,expected",
+    [
+        ("https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#", True),
+        ("https://schema.management.azure.com.evil.example/template.json", False),
+        ("https://evil.example/schema.management.azure.com/template.json", False),
+    ],
+)
 def test_arm_classification_requires_schema_hostname(tmp_path, schema_url, expected):
     (tmp_path / "template.json").write_text(json.dumps({"$schema": schema_url}))
     result = scanner.scan_repository(tmp_path)
@@ -33,7 +39,7 @@ def test_replaced_file_is_not_read_after_discovery(tmp_path, monkeypatch):
     target = tmp_path / "config.env"
     replacement = tmp_path / "replacement.env"
     target.write_text('db_password = "FixturePassword123!"\n')
-    replacement.write_bytes(b'x' * (scanner.MAX_FILE_SIZE_BYTES + 1))
+    replacement.write_bytes(b"x" * (scanner.MAX_FILE_SIZE_BYTES + 1))
     opener = "open_windows_regular_file" if os.name == "nt" else "open"
     owner = scanner if os.name == "nt" else scanner.os
     real_open = getattr(owner, opener)
@@ -50,8 +56,10 @@ def test_replaced_file_is_not_read_after_discovery(tmp_path, monkeypatch):
     assert result["secrets_findings"] == []
 
 
-
-@pytest.mark.parametrize("restore_mtime", [False, pytest.param(True, marks=pytest.mark.skipif(os.name == "nt", reason="POSIX ctime mutation tracking"))])
+@pytest.mark.parametrize(
+    "restore_mtime",
+    [False, pytest.param(True, marks=pytest.mark.skipif(os.name == "nt", reason="POSIX ctime mutation tracking"))],
+)
 def test_same_inode_rewrite_after_discovery_is_not_scanned(tmp_path, monkeypatch, restore_mtime):
     target = tmp_path / "config.env"
     target.write_text('password = "BeforeFixture123!"')
@@ -98,7 +106,7 @@ def test_file_enlarged_after_open_is_not_read_past_cap(tmp_path, monkeypatch):
         if not grew:
             grew = True
             with target.open("ab") as stream:
-                stream.write(b'x' * (scanner.MAX_FILE_SIZE_BYTES + 1))
+                stream.write(b"x" * (scanner.MAX_FILE_SIZE_BYTES + 1))
         chunk = real_read(fd, count)
         returned.append(len(chunk))
         return chunk
@@ -171,8 +179,7 @@ def swap(path, flags, *args, **kwargs):
 scanner.os.open = swap
 print(json.dumps(scanner.scan_repository({str(tmp_path)!r})))
 """
-    run = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
-                         check=True, timeout=5)
+    run = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True, timeout=5)
     result = json.loads(run.stdout)
     reason = "changed" if replacement_kind == "symlink" else "non_regular"
     assert {"file": "config.env", "reason": reason} in result["skipped_files"]
@@ -195,13 +202,18 @@ def test_size_boundary_for_every_content_consumer(tmp_path, name, extra):
 def test_ordinary_findings_and_universal_newlines_are_preserved(tmp_path):
     (tmp_path / "package.json").write_text('{"dependencies":{"express":"1","pg":"1","passport":"1"}}')
     (tmp_path / "main.tf").write_text('provider "aws" {}')
-    (tmp_path / "requirements.txt").write_text('django\nstructlog\nboto3')
-    (tmp_path / "pom.xml").write_text('spring-boot')
+    (tmp_path / "requirements.txt").write_text("django\nstructlog\nboto3")
+    (tmp_path / "pom.xml").write_text("spring-boot")
     value = "FixturePassword123!"
     (tmp_path / "config.env").write_bytes(f'first\r\nsecond\rthird\npassword = "{value}"'.encode())
     result = scanner.scan_repository(tmp_path)
     assert result["skipped_files"] == []
-    assert {"Node.js Framework: express", "Python Framework: Django", "Java Framework: Spring Boot", "Logging Library: structlog"} <= set(result["frameworks_and_libraries"])
+    assert {
+        "Node.js Framework: express",
+        "Python Framework: Django",
+        "Java Framework: Spring Boot",
+        "Logging Library: structlog",
+    } <= set(result["frameworks_and_libraries"])
     assert "AWS" in result["iac_and_cloud"]
     assert "Node.js DB Client: pg" in result["databases"]
     assert "Node.js Auth: passport" in result["identity_and_auth"]
@@ -211,10 +223,14 @@ def test_ordinary_findings_and_universal_newlines_are_preserved(tmp_path):
 
 def test_arm_template_detection_uses_the_declared_schema_host(tmp_path):
     template = tmp_path / "template.json"
-    template.write_text(json.dumps({
-        "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-        "description": "A synthetic ARM template",
-    }))
+    template.write_text(
+        json.dumps(
+            {
+                "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                "description": "A synthetic ARM template",
+            }
+        )
+    )
 
     result = scanner.scan_repository(tmp_path)
 
@@ -223,10 +239,14 @@ def test_arm_template_detection_uses_the_declared_schema_host(tmp_path):
 
 def test_arm_template_detection_rejects_schema_host_substrings(tmp_path):
     template = tmp_path / "template.json"
-    template.write_text(json.dumps({
-        "$schema": "https://schema.management.azure.com.attacker.example/schemas/template.json",
-        "description": "schema.management.azure.com",
-    }))
+    template.write_text(
+        json.dumps(
+            {
+                "$schema": "https://schema.management.azure.com.attacker.example/schemas/template.json",
+                "description": "schema.management.azure.com",
+            }
+        )
+    )
 
     result = scanner.scan_repository(tmp_path)
 
@@ -246,9 +266,11 @@ def test_read_error_closes_descriptor(tmp_path, monkeypatch):
     target = tmp_path / "config.env"
     target.write_text("bounded")
     descriptors = []
+
     def fail_read(fd, count):
         descriptors.append(fd)
         raise OSError("fixture read error")
+
     monkeypatch.setattr(scanner.os, "read", fail_read)
     assert scanner.read_bounded_regular_file(str(target), target.lstat()) == (None, "unreadable")
     with pytest.raises(OSError):
