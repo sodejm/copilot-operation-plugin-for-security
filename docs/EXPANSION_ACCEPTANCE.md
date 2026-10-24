@@ -195,6 +195,130 @@ was rejected. All thirteen cases below retained their expected outcomes. Cleanup
 verified service-container removal, all three namespaces, the owned node and both
 owned image tags. This laboratory result does not replace native hosted checks.
 
+## Issue #245: disposable Linux acceptance reconciliation
+
+Recorded 2026-10-24 UTC against [issue #245](https://github.com/sodejm/copilot-operation-plugin-for-security/issues/245).
+The fresh evidence meets the functional acceptance criteria for the issue's
+**local Linux first increment**. Delivery of the dependent fixture correction and
+this record still requires exact-revision hosted checks and a verified merge.
+This does not establish production readiness or support for other worker paths.
+
+The restricted worker used source `624993bef1aebad4eeaf47d36e14046346f850b3`.
+The separate writable test runner used base
+`9d4ffcd6fea95ed030611574b49abe5f5bdfdd4f` plus patch SHA-256
+`cb70fe5b33195813ffab16ed521933d222a0de4e0392855ee38119dc5f3d774b`,
+corresponding to correction commit `163fe2806e001e324946eee1a919b7b6229275b2`.
+The VM applied that patch; it did not contain the correction commit object.
+Comparison of the worker runtime, action-plan schema and relevant isolation and
+approval tests between the worker source and correction commit found no changes.
+The correction changes scanner synchronization and TLS test fixtures, plus
+contributor instructions; it does not change production execution behavior.
+
+| Issue criterion | Source and automated coverage | Fresh acceptance evidence |
+| --- | --- | --- |
+| Pinned local corpus, provenance-bound result, no external network | [Offline profile enforcement](../cops/execution/offline_research.py), [profile and corpus tests](../tests/test_offline_research.py), and [Linux integration tests](../tests/integration/test_linux_bubblewrap_sandbox.py) | Real approved corpus read; 53 output bytes matched SHA-256 `bc32961010d54e8dbe25ca71891561dbd3b09a15205564a186e55fcc40de85c1`. Observed tool namespaces contained only loopback interfaces/routes and no socket descriptors. |
+| Reject remote URLs, DNS/proxies, inherited channels, out-of-profile actions, missing/stale observations and substituted receipts | [Linux integration tests](../tests/integration/test_linux_bubblewrap_sandbox.py), [execution-gate tests](../tests/integration/test_offline_sandbox_gate.py), [missing procfs tests](../tests/test_execution_sandbox.py), [profile tests](../tests/test_offline_research.py), [receipt substitution scenarios](../tests/step_defs/test_offline_research_execution_steps.py), and required attestation fields in the [action-plan schema](../catalog/schemas/action-plan.schema.json) | All 12 Linux integration tests passed without skips, including real network/inherited-socket rejection and gate/digest failures. All 45 approval/profile/BDD tests passed without skips on the separate authority-capable test account. |
+| A configuration flag alone cannot establish isolation | [Observed-state validation](../cops/execution/offline_research.py) and configuration-only rejection in [profile tests](../tests/test_offline_research.py) | The signed immutable plan bound the profile, corpus, worker/inventory and fresh isolation digest. Root observation outside the worker captured 12 process/namespace snapshots and six executable witnesses; the runtime's `independent_observer_attestation=false` was retained because external acceptance evidence is not an installed runtime supervisor. |
+| Document supported hosts, authorization, evidence, limitations and recovery, using inert local examples | [Operator and security contract](OFFLINE_RESEARCH_EXECUTION.md), [authenticated execution](AUTHENTICATED_EXECUTION.md), [security model](SECURITY_MODEL.md), and [contributor runtime](contributing.md) | Documentation validation passed for 58 pages. Linux-only scope, fail-closed behavior, independent observation, cleanup and inert examples are documented; no external assessment coverage is claimed. |
+
+Run `offline-20261024-0138` executed from `2026-10-24T01:36:33.275756Z`
+through `01:36:36.964601Z`, with acceptance complete at `01:36:39.367154Z`.
+It used the actual signer, trusted key, protected approval store/server and control
+client, with exactly one durable consumption binding the request, authorization,
+immutable plan, engagement, worker and local destination. The plan digest was
+`9ea90c3bff6d8572da38203846ff859442668e637a2adab090b780054b72f3af`;
+the approved isolation digest was
+`ee10ed7c0e2cd8c7525eb4af0e629026ba5a02414cefee880f855a98e30fd4d0`,
+observed at `01:36:29.520504Z` and rechecked at execution boundaries. The action
+had no credentials or egress, a 30-second/4096-byte budget and a pinned local cat
+executable. Protected approval and observer state remained inaccessible to the
+worker. Root captured actual output and step evidence before deletion, verified
+all seven cleanup-ledger targets absent while the private mount namespace still
+existed, then verified no descendants, authority socket or remaining processes.
+
+The disposable Ubuntu 24.04.5 arm64 VM used kernel 6.8.0-146, Python 3.12.3,
+bubblewrap 0.9.0-1ubuntu0.3 and strace 6.8. Worker, approval authority and test
+runner used distinct locked accounts. The worker retained `ProtectSystem=strict`,
+`ProtectHome=yes`, `PrivateTmp=yes`, `NoNewPrivileges=yes`,
+`RestrictSUIDSGID=yes`, private state and inaccessible host mounts/Docker socket.
+AppArmor and user-namespace restrictions remained enabled.
+
+The exact test arguments below ran with `python` resolving to that VM's prepared
+interpreter, `PYTHONPATH` bound to the tested checkout and `RESULTS` bound to a
+private results directory. The readiness assertion was an operational VM harness,
+not an additional installed product command.
+
+```sh
+python -m pytest -o addopts= -q -ra tests/integration/test_linux_bubblewrap_sandbox.py tests/integration/test_offline_sandbox_gate.py --junitxml="$RESULTS/linux-integration.xml"
+python -m pytest -o addopts= -o cache_dir="$RESULTS/cache" -q -ra tests/test_offline_research.py tests/test_approval_control_boundary.py tests/step_defs/test_offline_research_execution_steps.py --junitxml="$RESULTS/approval.xml"
+ruff check .
+make check-docs PYTHON="$PYTHON"
+PYTEST_ADDOPTS="--junitxml=$RESULTS/make-check.xml -ra" make check PYTHON="$PYTHON"
+```
+
+| Gate | Result | Qualification |
+| --- | --- | --- |
+| Restricted-worker readiness assertion | Exit 0 | Local bubblewrap readiness; external observer evidence is recorded separately. |
+| Restricted-worker Linux integration | 12 passed, zero skips | Real isolation and execution-gate checks. |
+| Restricted-worker approval/profile tests | 44 passed, one failed, zero skips | The authority fixture's SGID directory creation is blocked by unchanged `RestrictSUIDSGID=yes`; this is not reported as a passing worker check. |
+| Separate-account approval/profile tests | 45 passed, zero skips | The test account can create the authority fixture; worker restrictions were preserved. |
+| Separate-account Linux integration | 12 passed, zero skips | Writable Git runner isolated from worker, authority and observer state. |
+| Separate-account `ruff check .` / `make check-docs` | Passed / 58 pages | Correction patch applied. |
+| Separate-account `make check` | 4537 passed, 11 skipped, zero failures/errors | Windows junction/device, PowerShell/Evtx and offline supply-chain-installer skips do not establish those capabilities. No required #245 Linux integration or approval test was skipped. |
+
+The dependent delivery checkout at correction commit `163fe2806e001e324946eee1a919b7b6229275b2`
+plus this acceptance record was also checked on macOS with Python 3.14.8. Here
+`PYTHON` identifies the prepared repository interpreter; the laboratory used the
+local disposable Linux Docker VM and a private, Docker-shared `TMPDIR`.
+
+```sh
+"$PYTHON" -m pytest -o addopts= -q -ra tests/test_repository_context_reader.py tests/test_web_api_replay_transport.py tests/test_offline_research.py tests/test_execution_sandbox.py tests/test_approval_control_boundary.py tests/step_defs/test_offline_research_execution_steps.py
+uv tool run ruff check .
+make check-docs check-issue-coverage PYTHON="$PYTHON"
+make check PYTHON="$PYTHON"
+DOCKER_CONTEXT=colima make check-laboratory PYTHON="$PYTHON" LABORATORY_ARGS='--runtime docker --image sha256:b8e6b1acd24b5803a2cc7ed8c911af40d518c2e9ef351ed915d6a4fdba317f3e --kubernetes-timeout 480'
+```
+
+Focused tests passed: 158 passed, two platform skips (Windows device and Linux
+socket authority), with one expected deprecated-TLS negative-test warning. Ruff,
+issue coverage, documentation validation (58 pages) and the full `make check`
+passed. The macOS baseline retained platform skips; the zero-skip Linux evidence
+above supplies the required Linux integration and approval coverage.
+
+The fresh strict laboratory gate passed all 13 cases with no failures or
+blockers, including vulnerable, corrected and insufficient-evidence outcomes.
+Its verified source manifest was
+`4eda89bdb684affac04ecb5c2d7af91024473dcf9727d30fffc61ca905cfd778`;
+service nonce `ba176aac6d914076a398c916d8e089c6` and Kubernetes nonce
+`7a750d2e2eedbe6924480e2ac17f7656` identify the run. Container configuration,
+loopback-only interfaces/routes and failed IPv4/IPv6 egress established isolation.
+Actual service activity and Kubernetes API/audit telemetry were observed for
+success, failure and cancellation. Cleanup verified container removal, namespace
+and node removal and both owned image tags. This laboratory gate remains
+separate from the offline-worker acceptance and hosted checks.
+
+The private evidence bundle contains 149 artifacts, including approval/result
+bindings, independent snapshots, executable witnesses, actual output, observed
+cleanup, journals, source/patch identities, commands and JUnit results. Its
+manifest SHA-256 is
+`7f447e5ca427cf39ab40d0a7da7f5592c0bba5343d1c34e737ded16642c9bded`;
+the exported Ed25519 public-key SHA-256 is
+`da29535d3be8e7fa963f100c3b7193dd4c0fcdbbec594198ee02bf8b6939ed14`.
+Host verification repeated at `2026-10-24T02:12:04.948145Z` checked every artifact's
+size/hash, the signature and a tamper-negative case, approval/result/cleanup
+bindings, single consumption and actual activity. Raw private operational paths,
+credentials, approval database and signing material are not committed here.
+
+The seal authenticates a post-run manifest under the exported key. The observer
+is root in the same VM and controls its signing key and worker administration;
+it is independent of the restricted worker account, not a separate administrator
+trust domain. Root strace delayed exec/removal calls to capture witnesses; the
+observations are sampled and intrusive, not continuous production enforcement.
+A configured pre-execution SSH supervisor was not installed or validated. SSH,
+Windows/macOS, production operation and the skipped repository capabilities remain
+outside this local Linux closure claim. The previous service-laboratory result
+above is a separate run, not evidence of current offline-worker acceptance.
+
 ## Fixture identities
 
 The service manifest pins the Entra, Kubernetes, Sysmon, advisory and service
