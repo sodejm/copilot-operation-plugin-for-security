@@ -14,6 +14,7 @@ if (-not ("Cops.ServiceDaclFixture" -as [type])) {
     Add-Type -TypeDefinition @'
 using System;
 using System.ComponentModel;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Security.AccessControl;
 
@@ -44,7 +45,12 @@ namespace Cops {
         static extern bool CloseServiceHandle(IntPtr handle);
         IntPtr manager, service;
         public readonly string Name = "CopsAcl" + Guid.NewGuid().ToString("N");
-        public ServiceDaclFixture() {
+        int statusFailuresRemaining;
+        readonly Action absenceVerified;
+        public ServiceDaclFixture() : this(0, null) {}
+        ServiceDaclFixture(int statusFailures, Action absenceVerified) {
+            this.statusFailuresRemaining = statusFailures;
+            this.absenceVerified = absenceVerified;
             try {
                 manager = OpenSCManager(null, null, 3); // CONNECT | CREATE_SERVICE
                 if (manager == IntPtr.Zero) throw new Win32Exception();
@@ -55,9 +61,19 @@ namespace Cops {
                     "\"" + binary + "\"", null, IntPtr.Zero, null, null, null);
                 if (service == IntPtr.Zero) throw new Win32Exception();
                 AssertStopped();
-            } catch { Dispose(); throw; }
+            } catch (Exception primary) {
+                try { Dispose(); }
+                catch (Exception cleanup) {
+                    throw new AggregateException("Fixture creation and cleanup failed.", primary, cleanup);
+                }
+                throw;
+            }
         }
         public void AssertStopped() {
+            if (statusFailuresRemaining > 0) {
+                statusFailuresRemaining--;
+                throw new InvalidOperationException("Controlled status-query failure.");
+            }
             Status status;
             if (!QueryServiceStatus(service, out status)) throw new Win32Exception();
             if (status.state != 1) throw new InvalidOperationException("Fixture service must remain stopped.");
@@ -71,25 +87,45 @@ namespace Cops {
             AssertStopped();
         }
         public void Dispose() {
-            // The retained creation handle remains valid even after denying new
-            // READ_CONTROL opens. Delete only this randomly named owned service.
+            // Each cleanup action is attempted even if status inspection fails.
+            // Delete only this randomly named owned service using its retained handle.
+            var errors = new List<Exception>();
             try {
                 if (service != IntPtr.Zero) {
+                    try { AssertStopped(); } catch (Exception error) { errors.Add(error); }
                     try {
-                        AssertStopped();
                         if (!DeleteService(service)) throw new Win32Exception();
-                    } finally { CloseServiceHandle(service); service = IntPtr.Zero; }
-                    IntPtr remaining = OpenService(manager, Name, 0x00020000);
-                    if (remaining != IntPtr.Zero) {
-                        CloseServiceHandle(remaining);
-                        throw new InvalidOperationException("Fixture service survived deletion.");
-                    }
-                    if (Marshal.GetLastWin32Error() != 1060)
-                        throw new InvalidOperationException("Service absence was not verified.");
+                    } catch (Exception error) { errors.Add(error); }
+                    finally { CloseServiceHandle(service); service = IntPtr.Zero; }
+                    try {
+                        IntPtr remaining = OpenService(manager, Name, 0x00020000);
+                        if (remaining != IntPtr.Zero) {
+                            CloseServiceHandle(remaining);
+                            throw new InvalidOperationException("Fixture service survived deletion.");
+                        }
+                        if (Marshal.GetLastWin32Error() != 1060)
+                            throw new InvalidOperationException("Service absence was not verified.");
+                        if (absenceVerified != null) absenceVerified();
+                    } catch (Exception error) { errors.Add(error); }
                 }
             } finally {
                 if (manager != IntPtr.Zero) { CloseServiceHandle(manager); manager = IntPtr.Zero; }
             }
+            if (errors.Count != 0) throw new AggregateException("Fixture cleanup failed.", errors);
+        }
+        public static bool VerifyStatusFailureCleanup() {
+            bool absent = false;
+            try {
+                using (var fixture = new ServiceDaclFixture(2, () => absent = true)) {}
+            } catch (AggregateException error) {
+                var errors = error.Flatten().InnerExceptions;
+                if (!absent || errors.Count != 2) throw;
+                foreach (Exception item in errors)
+                    if (!(item is InvalidOperationException) ||
+                        item.Message != "Controlled status-query failure.") throw;
+                return true;
+            }
+            throw new InvalidOperationException("Status-query failures were not observed.");
         }
     }
 }
@@ -97,21 +133,29 @@ namespace Cops {
 }
 
 $cases = @(
-    @("D:(A;;0x2;;;WD)", "assessed", "interesting"),
-    @("D:(A;;0x2;;;AU)", "assessed", "interesting"),
-    @("D:(A;;0x2;;;BU)", "assessed", "interesting"),
-    @("D:(A;;WD;;;BU)", "assessed", "interesting"),
-    @("D:(A;;WO;;;BU)", "assessed", "interesting"),
-    @("D:(A;;GW;;;BU)", "assessed", "interesting"),
-    @("D:(A;;GA;;;BU)", "assessed", "interesting"),
-    @("D:(A;;0x2008d;;;BU)", "assessed", "ordinary"),
-    @("D:", "assessed", "ordinary"),
+    @("O:SYD:(A;;0x2;;;WD)", "assessed", "interesting"),
+    @("O:SYD:(A;;0x2;;;AU)", "assessed", "interesting"),
+    @("O:SYD:(A;;0x2;;;BU)", "assessed", "interesting"),
+    @("O:SYD:(A;;WD;;;BU)", "assessed", "interesting"),
+    @("O:SYD:(A;;WO;;;BU)", "assessed", "interesting"),
+    @("O:SYD:(A;;GW;;;BU)", "assessed", "interesting"),
+    @("O:SYD:(A;;GA;;;BU)", "assessed", "interesting"),
+    @("O:SYD:(A;;0x2008d;;;BU)", "assessed", "ordinary"),
+    @("O:SYD:", "assessed", "ordinary"),
     @("O:SYG:SY", "assessed", "interesting"),
+    @("O:BUD:", "assessed", "interesting"),
+    @("O:AUD:", "assessed", "interesting"),
+    @("O:WDD:", "assessed", "interesting"),
+    @("O:BUD:(A;;RC;;;OW)", "assessed", "ordinary"),
+    @("O:BUD:(A;;WD;;;OW)", "assessed", "interesting"),
+    @("O:BUD:(D;;WD;;;OW)", "not_assessed", "unknown"),
+    @("O:SYD:(A;;WD;;;OW)", "assessed", "ordinary"),
+    @("D:", "not_assessed", "unknown"),
     @("invalid", "not_assessed", "unknown"),
-    @("D:(D;;0x2;;;BU)(A;;GA;;;BU)", "not_assessed", "unknown"),
-    @("D:(A;;GA;;;BU)(D;;RC;;;WD)", "not_assessed", "unknown"),
-    @("D:(A;CI;GA;;;BU)", "not_assessed", "unknown"),
-    @("D:(OA;;GA;00000000-0000-0000-0000-000000000001;;BU)", "not_assessed", "unknown")
+    @("O:SYD:(D;;0x2;;;BU)(A;;GA;;;BU)", "not_assessed", "unknown"),
+    @("O:SYD:(A;;GA;;;BU)(D;;RC;;;WD)", "not_assessed", "unknown"),
+    @("O:SYD:(A;CI;GA;;;BU)", "not_assessed", "unknown"),
+    @("O:SYD:(OA;;GA;00000000-0000-0000-0000-000000000001;;BU)", "not_assessed", "unknown")
 )
 foreach ($case in $cases) {
     $actual = [Cops.ServiceDacl]::AnalyzeSddl($case[0])
@@ -155,6 +199,7 @@ try {
     $failureObserved = $true
 }
 if (-not $failureObserved) { throw "Controlled fixture failure was not observed." }
+$statusFailureCleanup = [Cops.ServiceDaclFixture]::VerifyStatusFailureCleanup()
 Write-CopsNewUtf8File -Path $receiptFull -Content ([ordered]@{
     schema_version = "windows-service-acl-acceptance-1.0"
     vulnerable = $vulnerable.configuration
@@ -164,5 +209,6 @@ Write-CopsNewUtf8File -Path $receiptFull -Content ([ordered]@{
     semantic_cases = $cases.Count
     success_cleanup_verified = $true
     failure_cleanup_verified = $true
+    status_failure_cleanup_verified = $statusFailureCleanup
     service_started = $false
 } | ConvertTo-Json -Compress)

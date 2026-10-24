@@ -41,22 +41,32 @@ namespace Cops {
             if ((mask & 0x50000000u) != 0) mask |= 2u;
             return mask & 0x000c0002u;
         }
+        static bool IsBroadSid(string sid) {
+            return sid == "S-1-1-0" || sid == "S-1-5-11" || sid == "S-1-5-32-545";
+        }
         public static ServiceDaclResult AnalyzeSddl(string sddl) {
             if (sddl == null || sddl.Length > 65536) return Unknown();
             try { return Analyze(new RawSecurityDescriptor(sddl)); }
             catch (ArgumentException) { return Unknown(); }
         }
         static ServiceDaclResult Analyze(RawSecurityDescriptor descriptor) {
+            if (descriptor.Owner == null) return Unknown();
+            bool broadOwner = IsBroadSid(descriptor.Owner.Value);
             RawAcl acl = descriptor.DiscretionaryAcl;
             // An absent/null DACL grants full access; an empty DACL grants none.
             if (acl == null) return new ServiceDaclResult("assessed", "interesting");
             if (acl.Count > 256) return Unknown();
             bool interesting = false;
             bool allowSeen = false;
+            bool ownerRightsSeen = false;
             foreach (GenericAce raw in acl) {
                 CommonAce ace = raw as CommonAce;
                 if (ace == null || ace.IsCallback || ace.AceFlags != AceFlags.None)
                     return Unknown();
+                string sid = ace.SecurityIdentifier.Value;
+                // Any OWNER RIGHTS ACE suppresses the owner's implicit READ_CONTROL
+                // and WRITE_DAC; unsupported semantics still fail closed below.
+                if (sid == "S-1-3-4") ownerRightsSeen = true;
                 if (ace.AceQualifier == AceQualifier.AccessDenied) {
                     // No token membership inference or approximate effective access.
                     if (allowSeen || MutationMask(ace.AccessMask) != 0) return Unknown();
@@ -64,10 +74,10 @@ namespace Cops {
                 }
                 if (ace.AceQualifier != AceQualifier.AccessAllowed) return Unknown();
                 allowSeen = true;
-                string sid = ace.SecurityIdentifier.Value;
-                if ((sid == "S-1-1-0" || sid == "S-1-5-11" || sid == "S-1-5-32-545")
+                if ((IsBroadSid(sid) || (broadOwner && sid == "S-1-3-4"))
                     && MutationMask(ace.AccessMask) != 0) interesting = true;
             }
+            if (broadOwner && !ownerRightsSeen) interesting = true;
             return new ServiceDaclResult("assessed", interesting ? "interesting" : "ordinary");
         }
         public static ServiceDaclResult Read(string name) {
@@ -82,7 +92,7 @@ namespace Cops {
                 if (service == IntPtr.Zero) return NativeFailure();
                 byte[] buffer = new byte[65536];
                 uint needed;
-                if (!QueryServiceObjectSecurity(service, 4, buffer, (uint)buffer.Length, out needed))
+                if (!QueryServiceObjectSecurity(service, 5, buffer, (uint)buffer.Length, out needed))
                     return NativeFailure();
                 if (needed == 0 || needed > buffer.Length) return Unknown();
                 return Analyze(new RawSecurityDescriptor(buffer, 0));

@@ -20,6 +20,7 @@ def test_service_dacl_collection_is_local_read_only_and_bounded() -> None:
     assert "QueryServiceObjectSecurity" in helper
     assert "OpenSCManager(null, null, 1)" in helper
     assert "OpenService(manager, name, 0x00020000)" in helper
+    assert "QueryServiceObjectSecurity(service, 5," in helper
     assert "new byte[65536]" in helper
     assert "CloseServiceHandle" in helper
     for forbidden in ("SetServiceObjectSecurity", "CreateService", "StartService", "ChangeServiceConfig"):
@@ -54,7 +55,8 @@ def test_native_service_dacl_correction_and_cleanup(tmp_path: Path) -> None:
     assert receipt["corrected"] == "ordinary"
     assert receipt["missing"] == "not_assessed"
     assert receipt["denied"] == "access_denied"
-    assert receipt["semantic_cases"] >= 12
+    assert receipt["semantic_cases"] >= 23
     assert receipt["success_cleanup_verified"] is True
     assert receipt["failure_cleanup_verified"] is True
+    assert receipt["status_failure_cleanup_verified"] is True
     assert receipt["service_started"] is False

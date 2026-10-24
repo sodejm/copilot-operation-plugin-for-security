@@ -82,7 +82,9 @@ On Windows, `scripts/collect-windows.ps1` measures build, architecture, token,
 UAC state, and seven bounded privilege-boundary surfaces. Service, task, and PATH
 enumeration have fixed maximums; failures remain `access_denied` or
 `not_assessed`. Local service DACL queries use only `READ_CONTROL`, with 64 KiB
-and 256-ACE bounds. Broad mutation grants are configuration candidates; unsupported
+and 256-ACE bounds. Owner evidence detects broad-owner implicit write-DACL
+rights unless OWNER RIGHTS ACEs suppress them. Broad mutation grants are
+configuration candidates; missing owner evidence and unsupported
 ACE semantics remain unassessed. The collector creates and removes only a harmless directory and
 marker beneath a caller-supplied empty canary root. Before deletion it confirms
 the canonical root and child identities, rejects reparse points, and rehashes an
@@ -98,7 +100,9 @@ read-only versus writable ACL regression, and the final empty-root assertion.
 The separate `scripts/exercise-windows-service-acl.ps1` fixture requires an
 authorized disposable Windows runner with service-creation rights. It creates a
 stopped service, verifies vulnerable, corrected, denied, and missing DACL states,
-and checks deletion after both success and controlled failure. It never starts
+and checks deletion after success, controlled failure, and injected status-query
+failures. Cleanup retains errors while still attempting deletion and absence
+verification. It never starts
 the service. See the verification guide before running this mutating fixture.
 
 Host installation and live integration remain unverified until the native

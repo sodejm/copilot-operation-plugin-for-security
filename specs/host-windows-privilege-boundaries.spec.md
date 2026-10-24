@@ -143,8 +143,11 @@ The Windows job also runs `scripts/exercise-windows-service-acl.ps1` through
 service with a nonexistent binary supplies vulnerable and corrected DACLs. The
 read-only collector must detect a broad change-configuration grant, clear the
 read-only replacement, preserve denied and missing evidence states, and reject
-unsupported or ambiguous ACE semantics. The fixture must observe service absence
-after success and controlled failure. It never starts a service. This gate
+unsupported or ambiguous ACE semantics. Broad-owner implicit write-DACL rights
+must be detected unless OWNER RIGHTS ACEs suppress them; missing owner evidence
+remains unknown. The fixture must observe service absence after success,
+controlled failure, and injected constructor/cleanup status-query failures,
+retaining both original and cleanup errors. It never starts a service. This gate
 requires service-creation permission on a disposable runner and establishes no
 effective token access or privilege crossing. Run-key ACLs, Credential Manager,
 scheduled-task provenance and cross-identity canary acceptance remain incomplete.

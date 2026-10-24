@@ -93,10 +93,14 @@ The AI agent interacts with tools through structured command-line interfaces and
 
 The host-assessment Windows collector queries local service DACLs with
 `READ_CONTROL`, a 64 KiB descriptor limit and a 256-ACE analysis limit. It reports
-broad configuration-mutation grants separately from token effective access and
+broad configuration-mutation grants and broad-owner implicit `WRITE_DAC` separately
+from token effective access. Owner and DACL evidence are queried together;
+`OWNER RIGHTS` ACEs suppress implicit owner rights. The collector
 leaves unsupported or ambiguous descriptors unassessed. Service mutation APIs
 are confined to the disposable acceptance fixture, which owns its randomly named,
-stopped services and verifies deletion after success and failure. The wider
+stopped services and verifies deletion after success and failure. Status-query
+failures cannot skip deletion or absence verification; original and cleanup
+errors are retained together. The wider
 Windows privilege-boundary capability remains partial.
 
 ## Shared Evidence SDK (`cops.evidence`, `cops.connectors`)

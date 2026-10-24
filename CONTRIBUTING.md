@@ -109,7 +109,8 @@ python -m pytest tests/test_host_windows_service_acl.py -q
 Run it with PowerShell 7 and service-creation permission on an authorized
 disposable Windows runner. A non-Windows skip is not native acceptance. The test
 creates only stopped, randomly named owned services and verifies cleanup after
-success and controlled failure. Keep the broader Windows capability partial until
+success, controlled failure, and injected status-query failures. Semantic cases
+cover broad owners, OWNER RIGHTS suppression, and missing owner evidence. Keep the broader Windows capability partial until
 its remaining collection and privilege-boundary evidence exists.
 
 ## Offline setup

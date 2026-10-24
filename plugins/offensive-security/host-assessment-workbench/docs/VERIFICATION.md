@@ -113,8 +113,12 @@ SCM descriptor, replaces the grant with read-only rights, and requires the
 configuration candidate to clear. Denied and missing descriptors must remain
 unassessed; unsupported and ambiguous ACE semantics must remain unknown. The
 retained creation handle permits deletion after new read access is denied.
+Semantic regressions cover broad-owner implicit write-DACL rights, OWNER RIGHTS
+suppression, explicit OWNER RIGHTS grants, and missing owner evidence.
 Deletion and observed service absence are required after both success and a
-controlled failure. This proves configuration correction and owned cleanup, not
+controlled failure. An injected constructor status-query failure followed by a
+cleanup status-query failure must still delete the actual service, independently
+verify absence, and retain both errors. This proves configuration correction and owned cleanup, not
 effective token access or a privilege crossing.
 
 ## Acceptance criteria
@@ -138,7 +142,8 @@ effective token access or a privilege crossing.
   temporary artifact after the injected partial-write failure.
 - The native SCM correction fixture detects the vulnerable grant, clears the
   corrected grant, preserves denied/missing/ambiguous evidence states, and
-  independently observes service absence after success and controlled failure.
+  independently observes service absence after success, controlled failure, and
+  injected status-query failures. Original and cleanup errors remain observable.
 - A native Windows run at the exact candidate revision passes before claiming
   the native integration is qualified. Linux/macOS package checks establish only
   the offline and static-contract paths.
