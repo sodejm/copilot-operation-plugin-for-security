@@ -33,9 +33,19 @@ def test_native_service_dacl_correction_and_cleanup(tmp_path: Path) -> None:
     assert shutil.which("pwsh"), "PowerShell 7 is required on the Windows acceptance runner"
     receipt_path = tmp_path / "service-acl.json"
     result = subprocess.run(
-        ["pwsh", "-NoProfile", "-NonInteractive", "-File", str(SCRIPTS / "exercise-windows-service-acl.ps1"),
-         "-ReceiptPath", str(receipt_path)],
-        capture_output=True, text=True, timeout=90, check=False,
+        [
+            "pwsh",
+            "-NoProfile",
+            "-NonInteractive",
+            "-File",
+            str(SCRIPTS / "exercise-windows-service-acl.ps1"),
+            "-ReceiptPath",
+            str(receipt_path),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=90,
+        check=False,
     )
     assert result.returncode == 0, result.stdout + result.stderr
     receipt = json.loads(receipt_path.read_text(encoding="utf-8-sig"))
