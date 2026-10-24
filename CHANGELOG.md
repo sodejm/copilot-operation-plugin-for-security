@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Collect bounded local Windows service DACL configuration evidence without
+  modifying services. Add an actual SCM vulnerable/corrected/denied acceptance
+  fixture with verified cleanup after success and failure, gated on Windows CI.
+  Include broad-owner implicit write-DACL rights and OWNER RIGHTS suppression.
+  Inject status-query failures to verify deletion and preserved cleanup errors.
+  Keep unsupported descriptors and remaining native capability gaps explicit.
+
 - Associate Actions checkout inputs with their owning step regardless of key
   order. Exclude adjacent steps, environment mappings and block scalars; report
   duplicate or unsupported input mappings as partial evidence.

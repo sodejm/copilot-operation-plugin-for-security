@@ -69,6 +69,16 @@
       ]
     },
     {
+      "probe_id": "service_dacl",
+      "relationship": "direct",
+      "sources": [
+        {
+          "item_id": "s01-122",
+          "path_or_section": "win-privesc/service-permissions.md"
+        }
+      ]
+    },
+    {
       "probe_id": "path_directory_acl",
       "relationship": "supporting",
       "sources": [
@@ -86,11 +96,6 @@
     }
   ],
   "excluded_sources": [
-    {
-      "item_id": "s01-122",
-      "path_or_section": "win-privesc/service-permissions.md",
-      "reason": "The collector identifies unquoted service paths but does not collect service ACL permissions."
-    },
     {
       "item_id": "s01-123",
       "path_or_section": "win-privesc/registry-run-keys.md",

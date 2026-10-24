@@ -437,3 +437,21 @@ After a behavioral change, rerun the relevant corrections and all required gates
 against its new revision and source snapshot. Documentation-only changes require
 the documentation gate. Retain limitations and inconclusive states when reusing
 this evidence; do not infer broader readiness from a passing synthetic fixture.
+
+
+## Native Windows service DACL follow-up
+
+Issue #107's first remaining collection gap is addressed by a local read-only
+SCM DACL probe and a separate disposable-service correction fixture. The source
+mapping now covers `s01-122` directly. The required Windows gate reads actual
+vulnerable, corrected, denied and missing service descriptors, checks ambiguous
+ACE handling, broad-owner implicit write-DACL rights and OWNER RIGHTS
+suppression. It observes deletion after success, controlled failure, and injected
+status-query failures while preserving the original and cleanup errors.
+
+Acceptance requires the exact candidate revision's Windows CI result; a macOS
+skip is not a pass. Run-key ACLs, Credential Manager, scheduled-task source mapping
+and cross-identity privilege canaries remain incomplete. This change does not
+promote the overall capability or native Windows forensic acquisition readiness.
+The delivery record must retain the tested revision, focused checks, portable,
+documentation and laboratory checks, and hosted Windows evidence separately.

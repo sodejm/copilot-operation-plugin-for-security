@@ -2,12 +2,13 @@
 
 ## Scope and prerequisites
 
-Qualify two distinct paths:
+Qualify three distinct paths:
 
 - deterministic Linux and Windows classification from synthetic or sanitized
-  operator exports; and
+  operator exports;
 - the bounded native Windows collector, bridge import, and assessment-owned
-  lifecycle cleanup receipt.
+  lifecycle cleanup receipt;
+- disposable native SCM service DACL correction and cleanup acceptance.
 
 An offline canary assertion remains source-reported. The native lifecycle canary
 uses a separate process under the same Windows token to observe the owned marker
@@ -34,7 +35,7 @@ execute the PowerShell collector on non-Windows hosts.
 
 ## End-to-end exercise
 
-Run both exercises below. The synthetic path validates classification across
+Run all three exercises below. The synthetic path validates classification across
 the supported evidence states. The Windows path validates the bounded native
 collector, bridge import, and assessment-owned cleanup at the candidate
 revision.
@@ -66,8 +67,10 @@ $Run = Join-Path $env:TEMP ("cops-windows-" + [Guid]::NewGuid().ToString("N"))
 ```
 
 The collector reads fixed or bounded Windows metadata across seven declared
-surfaces. The service probe identifies unquoted paths but does not collect
-service ACL permissions. The registry probe reads AlwaysInstallElevated but not
+surfaces. The service probe identifies unquoted paths and reads bounded local service
+DACLs. It flags broad mutation grants as configuration candidates, without
+claiming token effective access. Unsupported ACEs, ambiguous mutation denies,
+and oversized descriptors remain unassessed. The registry probe reads AlwaysInstallElevated but not
 Run keys. Local credential references cover the `DefaultPassword` value name and
 two unattend-file locations but not Credential Manager. The bounded scheduled-task
 ACL inventory has no pinned E01.1 source mapping. The collector never reads a
@@ -91,6 +94,33 @@ created for this exercise after retaining the required private evidence:
 Remove-Item -LiteralPath $Run -Recurse -Force
 ```
 
+### Native service DACL correction exercise
+
+Use PowerShell 7 with service-creation permission on an authorized disposable
+Windows runner. This acceptance fixture changes only services it creates; it is
+separate from the read-only collector:
+
+```powershell
+$P = "plugins/offensive-security/host-assessment-workbench"
+$Receipt = Join-Path $env:TEMP ("cops-service-acl-" + [Guid]::NewGuid().ToString("N") + ".json")
+& "$P/scripts/exercise-windows-service-acl.ps1" -ReceiptPath $Receipt
+Get-Content -LiteralPath $Receipt
+```
+
+The fixture creates a randomly named, stopped service with a nonexistent binary
+and never starts it. It seeds a Users change-configuration grant, reads the actual
+SCM descriptor, replaces the grant with read-only rights, and requires the
+configuration candidate to clear. Denied and missing descriptors must remain
+unassessed; unsupported and ambiguous ACE semantics must remain unknown. The
+retained creation handle permits deletion after new read access is denied.
+Semantic regressions cover broad-owner implicit write-DACL rights, OWNER RIGHTS
+suppression, explicit OWNER RIGHTS grants, and missing owner evidence.
+Deletion and observed service absence are required after both success and a
+controlled failure. An injected constructor status-query failure followed by a
+cleanup status-query failure must still delete the actual service, independently
+verify absence, and retain both errors. This proves configuration correction and owned cleanup, not
+effective token access or a privilege crossing.
+
 ## Acceptance criteria
 
 - Synthetic vulnerable, protected, remediated, unsupported-build, and malformed
@@ -110,6 +140,10 @@ Remove-Item -LiteralPath $Run -Recurse -Force
 - User paths are fixed-drive paths whose existing ancestors contain no reparse
   point. The native self-tests reject a junction ancestor and leave no final or
   temporary artifact after the injected partial-write failure.
+- The native SCM correction fixture detects the vulnerable grant, clears the
+  corrected grant, preserves denied/missing/ambiguous evidence states, and
+  independently observes service absence after success, controlled failure, and
+  injected status-query failures. Original and cleanup errors remain observable.
 - A native Windows run at the exact candidate revision passes before claiming
   the native integration is qualified. Linux/macOS package checks establish only
   the offline and static-contract paths.
