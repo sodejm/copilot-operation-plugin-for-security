@@ -455,3 +455,32 @@ and cross-identity privilege canaries remain incomplete. This change does not
 promote the overall capability or native Windows forensic acquisition readiness.
 The delivery record must retain the tested revision, focused checks, portable,
 documentation and laboratory checks, and hosted Windows evidence separately.
+
+## Restricted worker authority fixtures (#327)
+
+The original worker failure is reproducible at revision
+`6848fd97a7620fae74566c0afb3d50ff35fb911d`: the positive listener test tries to
+create an SGID directory under `RestrictSUIDSGID=yes` and receives `EPERM`.
+The disposable Linux worker ran as UID 996/GID 990 with `NoNewPrivileges=yes`,
+`ProtectSystem=strict`, `ProtectHome=yes`, `PrivateTmp=yes`, inaccessible host
+mounts and Docker socket, and writes limited to its private home. The failed
+service invocation was `2ef9ac8abfd4467396a12cc9626590c4`. This is a fixture
+ownership failure; relaxing the worker is not the correction.
+
+The positive SGID listener fixture now belongs to the authority test role.
+Worker protocol and negative-boundary tests retain their assertions and share
+the same signed, persisted approval setup. The
+[fixture ownership guide](../tests/authority/README.md) defines the separate
+provisioner, authority and worker commands. Its cross-account acceptance probe
+creates a fresh random signing key and database under authority-only ownership,
+then uses the restricted worker's actual UID/GID/PID for socket authentication.
+It checks protected-state denial, rejected SGID creation, wrong PID/plan/identity,
+single-use consumption, socket non-inheritance and cleanup. No production
+authorization code, worker service configuration or laboratory image changed.
+
+Development validation on disposable Ubuntu 24.04.5 aarch64, Linux
+`6.8.0-146-generic`, Python 3.12.3 and bubblewrap 0.9.0 passed 56 restricted-worker
+checks (including all 12 Linux isolation/gate checks), one authority listener
+check, and the cross-account probe with zero required skips. These development
+results do not replace final revision gates or hosted checks. Production
+supervision and independent production observation remain separate follow-ups.

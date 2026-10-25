@@ -87,3 +87,10 @@ checks that proxy variables do not cross the boundary and that a mismatched
 attestation prevents the child from starting. A passing hosted runner check
 establishes these behaviors on that runner; it is not an attestation of a
 separately deployed worker or its ongoing host policy.
+
+Approval fixture provisioning belongs to a separate authority role. Keep the
+worker's `RestrictSUIDSGID=yes` and other restrictions when validating it; the
+positive SGID listener test runs under the authority account. The
+[fixture ownership guide](../tests/authority/README.md) gives the role-specific
+commands and a disposable Linux cross-account probe for protected state,
+request binding, one-time consumption and cleanup.
