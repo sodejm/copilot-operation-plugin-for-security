@@ -88,27 +88,49 @@ def authority(base: Path) -> None:
     key.write_bytes(os.urandom(32))
     key.chmod(0o600)
     signer = replace(signer, secret=key.read_bytes())
-    trust = AuthorizationTrustStore([TrustedAuthorizationKey(
-        signer.key_id, signer.operator, signer.secret,
-        valid_from="2026-01-01T00:00:00Z", valid_until="2030-01-01T00:00:00Z",
-    )])
+    trust = AuthorizationTrustStore(
+        [
+            TrustedAuthorizationKey(
+                signer.key_id,
+                signer.operator,
+                signer.secret,
+                valid_from="2026-01-01T00:00:00Z",
+                valid_until="2030-01-01T00:00:00Z",
+            )
+        ]
+    )
     authorization = create_execution_authorization(
-        plan, signer=signer, engagement=engagement, worker_identity=IDENTITY, valid_hours=1,
+        plan,
+        signer=signer,
+        engagement=engagement,
+        worker_identity=IDENTITY,
+        valid_hours=1,
     )
     store = ApprovalStore(private / "approvals.sqlite3")
     store.store_authorization(authorization)
     verifier = ApprovalAuthority(
-        store, trust, engagement, IDENTITY, settings["worker_uid"], settings["worker_gid"],
-        settings["worker_pid"], settings["authority_uid"],
+        store,
+        trust,
+        engagement,
+        IDENTITY,
+        settings["worker_uid"],
+        settings["worker_gid"],
+        settings["worker_pid"],
+        settings["authority_uid"],
     )
     server = ApprovalAuthorityServer(base / "control" / "authority.sock", verifier)
     with server.listener() as listener:
         assert not listener.get_inheritable()
         assert stat.S_IMODE(os.lstat(server.socket_path).st_mode) == 0o660
-        write_json(base / "control" / "public.json", {
-            "plan": plan.to_dict(), "authorization_id": authorization.authorization_id,
-            "authority_uid": settings["authority_uid"],
-        }, 0o640)
+        write_json(
+            base / "control" / "public.json",
+            {
+                "plan": plan.to_dict(),
+                "authorization_id": authorization.authorization_id,
+                "authority_uid": settings["authority_uid"],
+            },
+            0o640,
+        )
         listener.settimeout(30)
         for _ in range(5):
             connection, _ = listener.accept()
@@ -118,10 +140,17 @@ def authority(base: Path) -> None:
     assert store.get_authorization(authorization.authorization_id).status == "consumed"
     with sqlite3.connect(store.db_path) as connection:
         assert connection.execute("SELECT count(*) FROM approval_consumptions").fetchone()[0] == 1
-    write_json(private / "result.json", {
-        "uid": os.geteuid(), "gid": os.getegid(), "requests": 5,
-        "consumptions": 1, "socket_noninheritable": True, "socket_removed": True,
-    })
+    write_json(
+        private / "result.json",
+        {
+            "uid": os.geteuid(),
+            "gid": os.getegid(),
+            "requests": 5,
+            "consumptions": 1,
+            "socket_noninheritable": True,
+            "socket_removed": True,
+        },
+    )
 
 
 def worker(base: Path, worker_dir: Path, *, child: bool = False) -> None:
@@ -131,6 +160,7 @@ def worker(base: Path, worker_dir: Path, *, child: bool = False) -> None:
     public = read_json(base / "control" / "public.json")
     plan = ActionPlan.from_dict(public["plan"])
     client = ApprovalControlClient(base / "control" / "authority.sock", public["authority_uid"])
+
     def consume():
         return client.consume_authorization(public["authorization_id"], plan, IDENTITY)
 
@@ -150,14 +180,24 @@ def worker(base: Path, worker_dir: Path, *, child: bool = False) -> None:
     sgid.mkdir()
     denied(lambda: sgid.chmod(0o2710))
     assert not stat.S_IMODE(sgid.stat().st_mode) & stat.S_ISGID
-    subprocess.run([sys.executable, "-m", MODULE, "--role", "child", "--base", str(base),
-                    "--worker-dir", str(worker_dir)], check=True, timeout=15)
+    subprocess.run(
+        [sys.executable, "-m", MODULE, "--role", "child", "--base", str(base), "--worker-dir", str(worker_dir)],
+        check=True,
+        timeout=15,
+    )
     snapshot = plan.approved_snapshot()
     changed = ActionPlan.create(
-        plan_id="plan-issue327-wrong", engagement_id=plan.engagement_id, scenario_id=plan.scenario_id,
-        target=plan.target, specialist_id=plan.specialist_id, operations=snapshot["operations"],
-        limits=snapshot["limits"], credential_references=snapshot["credential_references"],
-        created_at=plan.created_at, platform_prerequisites=snapshot["platform_prerequisites"], batch=snapshot["batch"],
+        plan_id="plan-issue327-wrong",
+        engagement_id=plan.engagement_id,
+        scenario_id=plan.scenario_id,
+        target=plan.target,
+        specialist_id=plan.specialist_id,
+        operations=snapshot["operations"],
+        limits=snapshot["limits"],
+        credential_references=snapshot["credential_references"],
+        created_at=plan.created_at,
+        platform_prerequisites=snapshot["platform_prerequisites"],
+        batch=snapshot["batch"],
     )
     rejected(lambda: client.consume_authorization(public["authorization_id"], changed, IDENTITY))
     rejected(lambda: client.consume_authorization(public["authorization_id"], plan, "wrong-worker"))
@@ -165,12 +205,23 @@ def worker(base: Path, worker_dir: Path, *, child: bool = False) -> None:
     assert receipt.plan_digest == plan.plan_digest and receipt.worker_identity == IDENTITY
     client.validate_receipt_provenance(receipt)
     rejected(consume)  # A new request cannot consume the same approval twice.
-    write_json(worker_dir / "result.json", {
-        "uid": os.geteuid(), "gid": os.getegid(), "pid": os.getpid(), "no_new_privileges": True,
-        "sgid_denied": True, "authority_state_denied": True, "control_mutation_denied": True,
-        "wrong_pid_denied": True, "wrong_plan_denied": True, "wrong_identity_denied": True,
-        "valid_consumption": True, "replay_denied": True,
-    })
+    write_json(
+        worker_dir / "result.json",
+        {
+            "uid": os.geteuid(),
+            "gid": os.getegid(),
+            "pid": os.getpid(),
+            "no_new_privileges": True,
+            "sgid_denied": True,
+            "authority_state_denied": True,
+            "control_mutation_denied": True,
+            "wrong_pid_denied": True,
+            "wrong_plan_denied": True,
+            "wrong_identity_denied": True,
+            "valid_consumption": True,
+            "replay_denied": True,
+        },
+    )
 
 
 def provision(args) -> None:
@@ -192,43 +243,90 @@ def provision(args) -> None:
     processes = []
     unit = "cops-327-" + uuid.uuid4().hex
     try:
-        for name, mode, group in (("private", 0o700, authority_account.pw_gid),
-                                   ("control", 0o2710, worker_account.pw_gid)):
+        for name, mode, group in (
+            ("private", 0o700, authority_account.pw_gid),
+            ("control", 0o2710, worker_account.pw_gid),
+        ):
             path = base / name
             path.mkdir()
             os.chown(path, authority_account.pw_uid, group)
             path.chmod(mode)  # Provisioning role only; the worker must never do this.
         properties = {
-            "User": args.worker_user, "Group": str(worker_account.pw_gid),
-            "WorkingDirectory": str(Path.cwd()), "InaccessiblePaths": "/Users /mnt /media -/run/docker.sock",
-            "ProtectHome": "yes", "ProtectSystem": "strict", "ReadWritePaths": str(worker_home),
-            "PrivateTmp": "yes", "NoNewPrivileges": "yes", "RestrictSUIDSGID": "yes", "UMask": "0077",
+            "User": args.worker_user,
+            "Group": str(worker_account.pw_gid),
+            "WorkingDirectory": str(Path.cwd()),
+            "InaccessiblePaths": "/Users /mnt /media -/run/docker.sock",
+            "ProtectHome": "yes",
+            "ProtectSystem": "strict",
+            "ReadWritePaths": str(worker_home),
+            "PrivateTmp": "yes",
+            "NoNewPrivileges": "yes",
+            "RestrictSUIDSGID": "yes",
+            "UMask": "0077",
         }
         command = ["systemd-run", "--quiet", "--wait", "--pipe", "--collect", "--unit", unit]
         command += [f"--property={key}={value}" for key, value in properties.items()]
         environment = {"PATH": "/usr/bin:/bin", "PYTHONDONTWRITEBYTECODE": "1", "PYTHONPATH": str(Path.cwd())}
         invocation = [sys.executable, "-m", MODULE]
-        running_worker = subprocess.Popen(command + ["/usr/bin/env", "-i", *[f"{k}={v}" for k, v in environment.items()],
-            *invocation, "--role", "worker", "--base", str(base), "--worker-dir", str(worker_dir)])
+        running_worker = subprocess.Popen(
+            command
+            + [
+                "/usr/bin/env",
+                "-i",
+                *[f"{k}={v}" for k, v in environment.items()],
+                *invocation,
+                "--role",
+                "worker",
+                "--base",
+                str(base),
+                "--worker-dir",
+                str(worker_dir),
+            ]
+        )
         processes.append(running_worker)
         wait_file(worker_dir / "pid.json", running_worker)
-        measured_properties = subprocess.check_output(
-            ["systemctl", "show", unit, "--property=Id", "--property=InvocationID",
-             "--property=MainPID", *[f"--property={key}" for key in properties]], text=True,
-        ).strip().splitlines()
-        write_json(base / "settings.json", {
-            "authority_uid": authority_account.pw_uid, "worker_uid": worker_account.pw_uid,
-            "worker_gid": worker_account.pw_gid, "worker_pid": read_json(worker_dir / "pid.json")["pid"],
-        }, 0o644)
-        running_authority = subprocess.Popen(invocation + ["--role", "authority", "--base", str(base),
-            "--worker-dir", str(worker_dir)], env=environment,
-            user=authority_account.pw_uid, group=authority_account.pw_gid, extra_groups=[], umask=0o077)
+        measured_properties = (
+            subprocess.check_output(
+                [
+                    "systemctl",
+                    "show",
+                    unit,
+                    "--property=Id",
+                    "--property=InvocationID",
+                    "--property=MainPID",
+                    *[f"--property={key}" for key in properties],
+                ],
+                text=True,
+            )
+            .strip()
+            .splitlines()
+        )
+        write_json(
+            base / "settings.json",
+            {
+                "authority_uid": authority_account.pw_uid,
+                "worker_uid": worker_account.pw_uid,
+                "worker_gid": worker_account.pw_gid,
+                "worker_pid": read_json(worker_dir / "pid.json")["pid"],
+            },
+            0o644,
+        )
+        running_authority = subprocess.Popen(
+            invocation + ["--role", "authority", "--base", str(base), "--worker-dir", str(worker_dir)],
+            env=environment,
+            user=authority_account.pw_uid,
+            group=authority_account.pw_gid,
+            extra_groups=[],
+            umask=0o077,
+        )
         processes.append(running_authority)
         assert running_worker.wait(timeout=60) == 0
         assert running_authority.wait(timeout=35) == 0
-        result = {"worker": read_json(worker_dir / "result.json"),
-                  "authority": read_json(base / "private" / "result.json"),
-                  "worker_properties": measured_properties}
+        result = {
+            "worker": read_json(worker_dir / "result.json"),
+            "authority": read_json(base / "private" / "result.json"),
+            "worker_properties": measured_properties,
+        }
     finally:
         subprocess.run(["systemctl", "stop", unit], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         for process in processes:
