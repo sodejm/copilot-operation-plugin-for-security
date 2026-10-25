@@ -43,4 +43,3 @@ def test_authority_listener_requires_protected_startup_and_leaves_no_socket(auth
         assert not os.path.lexists(server.socket_path)
     finally:
         shutil.rmtree(control_dir)
-
