@@ -11,6 +11,10 @@ isolated checkout. Dirty and untracked files cannot supply validation inputs.
 - Semgrep uses reviewed repository rules and a pinned scanner version. Trivy
   blocks HIGH and CRITICAL vulnerabilities, secrets and misconfigurations,
   including findings without a published fix.
+- The reviewed scanner pins are Semgrep 1.182.0 and Trivy 0.76.1. Operator
+  prerequisites must match them; obsolete versions fail before scanning and
+  cannot update the remote. Validation-tool refreshes retain exact-commit checks,
+  reviewed rules and the existing finding thresholds.
 - Implementation changes across the entire feature branch require changed
   executable test assertions. Comments and deletion alone do not qualify.
   Non-behavioral exceptions bind an explanation to exact before/after file hashes.
