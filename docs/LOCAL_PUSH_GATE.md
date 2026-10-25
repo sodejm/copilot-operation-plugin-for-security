@@ -19,7 +19,15 @@ Policy is pinned to committed Git blob IDs. Any change under `tools/push_gate/` 
 
 ## Prerequisites and checks
 
-Install Semgrep **1.179.0** and Trivy **0.75.0** from their official distributions; the gate rejects other versions. Also install Git, Python >=3.10 and uv. `requirements.txt` pins direct Python validation dependencies; project dependency locks and canonical manifests govern project installs. Transitive validation dependencies are resolved by uv and are not a fully frozen toolchain. Network/package/provider access and sufficient temporary disk space are required. When relevant files exist, install actionlint, ShellCheck, bash and hadolint: all workflows, tracked shell scripts and Dockerfiles are checked. Missing tools fail closed. Scanner overrides inherited from the caller are removed.
+Install Semgrep **1.182.0** and Trivy **0.76.1** from their official distributions; the gate rejects other versions. Also install Git, Python >=3.10 and uv (the COPS contributor environment requires Python >=3.11). `tools/push_gate/requirements.txt` pins direct Python validation tools; project dependency locks and canonical manifests govern project installs. Transitive validation dependencies are resolved by uv and are not a fully frozen toolchain. Network/package/provider access and sufficient temporary disk space are required. When relevant files exist, install actionlint, ShellCheck, bash and hadolint: all workflows, tracked shell scripts and Dockerfiles are checked. Missing tools fail closed. Scanner overrides inherited from the caller are removed.
+
+The October 25, 2026 tool refresh selects the current official Semgrep/Trivy
+releases and pins Ruff **0.17.2**, coverage.py **7.17.0**, build **1.6.1** and
+pip-audit **2.10.1**. uv was updated to **0.13.5**; GitHub CLI **2.103.2** and the
+installed Git/actionlint/ShellCheck/hadolint packages were already current.
+These observations are not an automatic updater or future freshness guarantee.
+After changing tool pins, review and reinstall the committed gate before pushing;
+do not reuse older tools through a PATH override or relax scanner enforcement.
 
 Python >=3.10, uv, make; requirements.txt.
 

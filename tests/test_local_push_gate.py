@@ -30,6 +30,14 @@ CHECKS_SPEC.loader.exec_module(CHECKS)
 class PolicyTests(unittest.TestCase):
     """Exercise closed policy and meaningful assertion detection."""
 
+    def test_current_scanner_pins_match_operator_prerequisites(self):
+        policy = json.loads((ROOT / "tools/push_gate/policy.json").read_text())
+        expected = {"semgrep": "1.182.0", "trivy": "0.76.1"}
+        self.assertEqual(policy["tools"], expected)
+        documentation = (ROOT / "docs/LOCAL_PUSH_GATE.md").read_text()
+        for name, version in expected.items():
+            self.assertIn(f"{name.capitalize()} **{version}**", documentation)
+
     def test_assertions_must_change(self):
         self.assertFalse(
             GATE.executable_test(
@@ -144,7 +152,7 @@ class RemoteTests(unittest.TestCase):
         (self.repo / "committed-only.py").write_text("VALUE = 1\n")
         policy = {
             "default_branch": "main",
-            "tools": {"semgrep": "1.179.0", "trivy": "0.75.0"},
+            "tools": {"semgrep": "1.182.0", "trivy": "0.76.1"},
             "test_areas": [
                 {
                     "name": "application",
@@ -168,7 +176,7 @@ class RemoteTests(unittest.TestCase):
 import json,pathlib,sys
 name=pathlib.Path(sys.argv[0]).name
 if '--version' in sys.argv:
- print('1.179.0' if name=='semgrep' else 'Version: 0.75.0');sys.exit(0)
+ print('1.182.0' if name=='semgrep' else 'Version: 0.76.1');sys.exit(0)
 assert not pathlib.Path('private-untracked.txt').exists()
 assert pathlib.Path('committed-only.py').exists()
 report=pathlib.Path(sys.argv[sys.argv.index('--output')+1])
@@ -283,6 +291,29 @@ if pathlib.Path(name+'-fail').exists(): sys.exit(1)
         )
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(self.remote_tip(), b"")
+
+    def test_obsolete_scanner_versions_prevent_remote_update(self):
+        for name, version in (("semgrep", "1.179.0"), ("trivy", "Version: 0.75.0")):
+            with self.subTest(scanner=name):
+                executable = self.bin / name
+                original = executable.read_text()
+                try:
+                    executable.write_text(
+                        f"#!/usr/bin/env python3\nprint({version!r})\n"
+                    )
+                    result = self.command(
+                        "git",
+                        "push",
+                        "--quiet",
+                        "origin",
+                        "feature/gate",
+                        success=False,
+                    )
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn(f"Required {name} version".encode(), result.stderr)
+                    self.assertEqual(self.remote_tip(), b"")
+                finally:
+                    executable.write_text(original)
 
     def test_branch_wide_requirement_survives_previous_push(self):
         self.command("git", "push", "--quiet", "origin", "feature/gate")

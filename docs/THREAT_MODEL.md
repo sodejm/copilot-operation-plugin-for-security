@@ -383,6 +383,13 @@ validation before the affected release/capability expansion and schedule P2 with
 - Attack path / prerequisite: A compromised dependency, image or workflow obtains developer or release authority.
 - Inherent impact: High; likelihood: Medium; priority: P1.
 - Existing evidence / limitation: Repository validation is evidence of local checks, not proof of dependency provenance or hosted policy.
+- Local validation tooling: The reviewed gate pins Semgrep 1.182.0 and Trivy
+  0.76.1 and exact direct Python validation-tool versions. The October 25, 2026
+  refresh checked official release metadata and retains the same reviewed rules,
+  severity thresholds and exact-commit checks. Regressions reject obsolete scanner
+  versions before any remote update. Dependency downloads and mutable advisory
+  feeds still require trusted distribution/cache access; these pins do not freeze
+  transitive dependencies or establish comprehensive vulnerability coverage.
 - Proposed mitigation and validation: Inventory and pin applicable dependencies/actions/images; review changes, scan known issues and verify exact release artifact provenance.
 - Residual risk / status: unverified; human review and evidence pending. Retain
   this entry until a reviewer records outcome, exact revision and remaining risk.
