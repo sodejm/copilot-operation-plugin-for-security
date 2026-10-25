@@ -19,6 +19,7 @@ from cops.execution.authorization import (
     verify_execution_authorization,
 )
 from cops.execution.control import (
+    ApprovalAuthority,
     ApprovalConsumptionReceipt,
     ApprovalControlError,
 )
@@ -347,3 +348,29 @@ def _worker_requirements_for_plan(plan: ActionPlan) -> tuple[dict[str, str], lis
         if tool not in plan_tools:
             plan_tools.append(tool)
     return versions, plan_tools
+
+
+def make_test_approval_authority(tmp_path: Path, plan: ActionPlan, *, worker_identity: str = "worker-01"):
+    """Build signed, persisted approvals for in-process boundary tests."""
+    signer, trust_store, engagement = make_test_authorization_context(plan)
+    authorization = create_execution_authorization(
+        plan,
+        signer=signer,
+        engagement=engagement,
+        worker_identity=worker_identity,
+        valid_hours=1,
+    )
+    store = ApprovalStore(tmp_path / "authority-store" / "approvals.sqlite3")
+    store.store_authorization(authorization)
+    authority_uid = os.geteuid()
+    authority = ApprovalAuthority(
+        store=store,
+        trust_store=trust_store,
+        engagement=engagement,
+        worker_identity=worker_identity,
+        worker_uid=authority_uid + 1,
+        worker_gid=os.getegid(),
+        worker_pid=4242,
+        authority_uid=authority_uid,
+    )
+    return authority, authorization, plan

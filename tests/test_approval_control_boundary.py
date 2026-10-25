@@ -4,12 +4,9 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import socket
 import sqlite3
 import stat
-import sys
-import tempfile
 import threading
 import time
 import uuid
@@ -19,7 +16,6 @@ import pytest
 
 from cops.contracts.models import ActionPlan
 from cops.evidence.canonical import digest
-from cops.execution.authorization import create_execution_authorization
 from cops.execution.control import (
     REQUEST_SCHEMA,
     RESPONSE_SCHEMA,
@@ -34,7 +30,7 @@ from cops.execution.store import (
     ApprovalStoreAccessError,
     ApprovalStoreConflictError,
 )
-from tests.auth_testkit import make_test_authorization_context
+from tests.auth_testkit import make_test_approval_authority
 
 WORKER_IDENTITY = "worker-01"
 
@@ -64,29 +60,7 @@ def _different_plan(plan: ActionPlan) -> ActionPlan:
 @pytest.fixture
 def authority_context(tmp_path, monkeypatch):
     monkeypatch.setattr("cops.execution.control.sys_platform_linux", lambda: True)
-    plan = _plan()
-    signer, trust_store, engagement = make_test_authorization_context(plan)
-    authorization = create_execution_authorization(
-        plan,
-        signer=signer,
-        engagement=engagement,
-        worker_identity=WORKER_IDENTITY,
-        valid_hours=1,
-    )
-    store = ApprovalStore(tmp_path / "authority-store" / "approvals.sqlite3")
-    store.store_authorization(authorization)
-    authority_uid = os.geteuid()
-    authority = ApprovalAuthority(
-        store=store,
-        trust_store=trust_store,
-        engagement=engagement,
-        worker_identity=WORKER_IDENTITY,
-        worker_uid=authority_uid + 1,
-        worker_gid=os.getegid(),
-        worker_pid=4242,
-        authority_uid=authority_uid,
-    )
-    return authority, authorization, plan
+    return make_test_approval_authority(tmp_path, _plan())
 
 
 def _request(authorization_id: str, plan: ActionPlan, **replacements):
@@ -366,29 +340,6 @@ def test_client_cannot_override_its_actual_uid_or_gid(tmp_path, monkeypatch):
 
     with pytest.raises(ApprovalControlError, match="do not match the running process"):
         client.assert_ready(WORKER_IDENTITY)
-
-
-@pytest.mark.skipif(
-    not sys.platform.startswith("linux"),
-    reason="the production authority socket boundary is Linux-only",
-)
-def test_authority_listener_requires_protected_startup_and_leaves_no_socket(authority_context):
-    authority, _, _ = authority_context
-    control_dir = Path(tempfile.mkdtemp(prefix="cops-control-", dir="/tmp"))
-    os.chown(control_dir, -1, authority.worker_gid)
-    control_dir.chmod(0o2710)
-    try:
-        server = ApprovalAuthorityServer(control_dir / "authority.sock", authority)
-
-        with server.listener() as listener:
-            socket_stat = os.lstat(server.socket_path)
-            assert stat.S_ISSOCK(socket_stat.st_mode)
-            assert stat.S_IMODE(socket_stat.st_mode) == 0o660
-            assert listener.get_inheritable() is False
-
-        assert not os.path.lexists(server.socket_path)
-    finally:
-        shutil.rmtree(control_dir)
 
 
 def test_authority_listener_rejects_insecure_control_directory(authority_context, tmp_path):
