@@ -76,8 +76,10 @@ successive text sends; pacing consumes the same deadline.
 
 Pass an optional `threading.Event` as `cancellation_event` to the approved replay
 entrypoint and set it to stop. Cancellation before consumption dispatches nothing.
-Timeout/cancellation closes the attached TCP or TLS socket and permits a bounded
-200 ms worker-cleanup join. A synchronous resolver may finish later, but cannot
+Timeout/cancellation interrupts the attached TCP or TLS socket with kernel
+shutdown and permits a bounded 200 ms worker-cleanup join. The worker alone
+mutates SSL state and closes its descriptor, avoiding a cross-thread close race
+with an in-flight TLS handshake. A synchronous resolver may finish later, but cannot
 connect or dispatch after stopping. These are local stopping controls, not proof
 that a server rolled back an already received message.
 

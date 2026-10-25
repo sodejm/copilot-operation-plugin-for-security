@@ -666,8 +666,12 @@ validation before the affected release/capability expansion and schedule P2 with
   extensions, subprotocols, malformed upgrades and invalid closes fail closed.
   Canonical handshake fields, reply digests, completed-I/O counters and validated
   close codes are retained, not raw messages, close reasons or arbitrary headers.
-  Cancellation attaches the TLS socket before its handshake and closes owned I/O;
-  late DNS cannot dispatch. Failed batches stop and release local receipt
+  Cancellation attaches the TLS socket before its handshake and interrupts I/O
+  with kernel socket shutdown. SSL state and final descriptor closure stay with
+  the worker: cross-thread SSL shutdown/close raced with an in-flight handshake
+  in CPython 3.15 coverage testing and could retain a worker until its timeout.
+  HTTPS/WSS timeout and cancellation regressions check ownership, peer closure
+  and worker exit; late DNS cannot dispatch. Failed batches stop and release local receipt
   provenance without making consumed approval reusable. Vulnerable/corrected
   role fixtures, real TLS, malformed peers, control floods, boundary budgets,
   timeout/cancellation and fresh-approval recovery are regression targets.

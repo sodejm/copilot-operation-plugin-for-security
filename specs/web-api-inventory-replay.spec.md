@@ -270,4 +270,7 @@ authentication header names are credential-bearing even when their names do not 
 common credential patterns; redirects that retain either a body or credentials are refused,
 and other caller or session headers are cleared before the cross-origin follow-up.
 One monotonic deadline covers DNS, connection, TLS, headers and bounded body reads.
+Cancellation interrupts active I/O with kernel socket shutdown, without mutating
+the worker's SSL state or closing its descriptor from another thread. The worker
+owns final socket closure, including failed or cancelled TLS handshakes.
 A DNS resolver may finish after cancellation, but cannot dispatch a late request.
