@@ -478,9 +478,57 @@ It checks protected-state denial, rejected SGID creation, wrong PID/plan/identit
 single-use consumption, socket non-inheritance and cleanup. No production
 authorization code, worker service configuration or laboratory image changed.
 
-Development validation on disposable Ubuntu 24.04.5 aarch64, Linux
-`6.8.0-146-generic`, Python 3.12.3 and bubblewrap 0.9.0 passed 56 restricted-worker
-checks (including all 12 Linux isolation/gate checks), one authority listener
-check, and the cross-account probe with zero required skips. These development
-results do not replace final revision gates or hosted checks. Production
-supervision and independent production observation remain separate follow-ups.
+Revision `d978f874b0abb3f0ff76ecc7999cf36eedd4b450` passed the following
+checks on disposable Ubuntu 24.04.5 aarch64, Linux `6.8.0-146-generic`, Python
+3.12.3, bubblewrap 0.9.0 and Ruff 0.17.2. The source archive was read-only for
+worker checks; the repository gates used a separate writable Git checkout owned
+by the test account. `PYTHON` below identifies the prepared repository interpreter.
+
+| Role and command | Result |
+| --- | --- |
+| Restricted worker: `"$PYTHON" -m pytest -o addopts= -p no:cacheprovider -q -ra tests/test_offline_research.py tests/test_approval_control_boundary.py tests/step_defs/test_offline_research_execution_steps.py tests/integration/test_linux_bubblewrap_sandbox.py tests/integration/test_offline_sandbox_gate.py` | 56 passed, 0 failures/errors/skips; includes all 12 Linux isolation/gate checks |
+| Authority: `"$PYTHON" -m pytest -o addopts= -p no:cacheprovider -q -ra tests/authority/test_approval_listener.py` | 1 passed, 0 failures/errors/skips |
+| Provisioner: `sudo env PYTHONDONTWRITEBYTECODE=1 "$PYTHON" -m tests.authority.check_role_separation` | Exit 0; real cross-account consumption, all denials, non-inheritance and cleanup verified |
+| Restricted worker: existing readiness assertion, bound to this source revision | Exit 0; actual bubblewrap execution, separate network namespace, loopback only, no routes or socket descriptors, workspace removed |
+| Writable Git test runner: `make check PYTHON="$PYTHON"` with `PYTEST_ADDOPTS="--junitxml=$RESULTS/make-check.xml -ra"` | Exit 0; all COPS checks passed; pytest 4,546 passed, 12 skipped, 0 failures/errors (4,558 collected) |
+| Writable Git test runner: `make check-docs PYTHON="$PYTHON"` | Exit 0; 58 documentation pages verified |
+| Writable Git test runner: `ruff check .` | Exit 0 |
+
+The restricted-worker service invocation was
+`37d51ba73152474285b3bc93b3bed76b`. The cross-account probe invocation was
+`976af6adbeb849afba73dc3401437c09`: worker UID 996/GID 990/PID 232145,
+authority UID 994/GID 988, five requests and exactly one persisted consumption.
+It rejected wrong PID, plan, identity and replay, denied signing-key/database
+access and control-directory mutation, and removed the socket and temporary
+fixtures. The persistent worker service configuration SHA-256 remained
+`f3709bfca860dc882b505c27819b0b9c0117857df34e0d1f798d38714077d516`.
+Its `RestrictSUIDSGID`, `NoNewPrivileges`, filesystem protections and narrow
+write allowlist were unchanged. The readiness assertion also observed UID/GID
+996/990, no supplementary groups, zero effective capabilities, and no host
+home or Docker socket access. It did not assert a new independent-observer
+attestation; that evidence belongs to the separate #245 increment.
+
+The full-suite skips are outside #327's required Linux checks. They remain
+incomplete capabilities, not passes:
+
+- `test_soc_investigation`: two vendor-junction and two dangling-junction cases
+  require native NTFS; `test_windows_device_input_is_rejected_without_blocking`
+  requires Windows device handles.
+- `test_supply_chain_laboratory_steps`: vulnerable and corrected installed-package
+  cases require the registered offline installer/supported platform.
+- `test_adapter_execution::test_prepare_executable_fails_closed_without_linux_proc`
+  exercises the unsupported-platform boundary and skips on Linux.
+- `test_evtx_import::test_binary_correction_and_provenance` requires optional
+  `Evtx`, absent from this runner.
+- `test_host_windows_assessment::test_native_path_validator_rejects_unc_before_probe_runtime`
+  and `test_host_windows_service_acl::test_native_service_dacl_correction_and_cleanup`
+  require PowerShell/native Windows.
+- `test_repository_context_reader::test_windows_nul_is_rejected_before_read`
+  requires Windows device handles.
+
+These are local Linux validation results. Hosted checks and merge/deployment
+results must be verified on the delivered revision separately. No laboratory
+image rebuild is required for this test/documentation-only change. Production
+supervision (#328), independent production observation and deployed-environment
+validation (#331) remain separate follow-ups; #327 does not establish production
+readiness or authorize a release.
