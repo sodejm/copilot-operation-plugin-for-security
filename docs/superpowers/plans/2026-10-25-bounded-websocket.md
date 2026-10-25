@@ -51,3 +51,22 @@ provider, independent approval administration, OS/network isolation, hosted CI,
 release, deployment or issue #100 closure is claimed. Next action: review the exact
 integrated diff before any requested commit/PR, then qualify the actual isolated
 worker and approval-provider deployment separately.
+
+## Authorized push-gate repair and delivery continuation
+
+The owner subsequently authorized fixing the CPython 3.15 concurrency failure,
+updating required validation tools, pushing and merging after hosted checks pass.
+The original local-only handoff above records the earlier state, not current
+delivery authorization.
+
+- [x] Reproduce the stalled TLS worker under CPython 3.15.0 coverage.
+- [x] Add HTTPS/WSS timeout/cancellation ownership regressions; all four fail
+  against caller-thread SSL shutdown and descriptor close.
+- [x] Use kernel shutdown to interrupt I/O while retaining worker-owned SSL
+  state and final close. CPython 3.15 coverage passes 84 WebSocket tests and 100
+  repeated stalled-handshake cancellations; CPython 3.13 passes 159 shared
+  HTTP/WebSocket transport tests (one expected negative TLS-policy warning).
+- [ ] Synchronize runtime, update current official scanner pins and tool docs,
+  and run the required gate against the exact committed revision.
+- [ ] Push, open a PR with owner merge authorization, resolve actionable feedback
+  and merge only after hosted checks pass. Keep #100 open for qualification.

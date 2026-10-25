@@ -362,10 +362,12 @@ class _ReplayDeadline:
             self.cancelled.set()
             if self.active_socket is not None:
                 try:
-                    self.active_socket.shutdown(socket.SHUT_RDWR)
+                    # Wake I/O without SSLSocket.shutdown() clearing SSL state.
+                    # The worker owns final close: closing a descriptor while its
+                    # SSL handshake polls can leave that poll waiting until timeout.
+                    socket.socket.shutdown(self.active_socket, socket.SHUT_RDWR)
                 except OSError:
                     pass
-                self.active_socket.close()
 
 
 class StandardHttpReplayer(Replayer):

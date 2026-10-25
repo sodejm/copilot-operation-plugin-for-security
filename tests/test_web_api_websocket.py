@@ -544,6 +544,56 @@ def test_partial_frame_timeout_retains_no_invented_reply_and_cleans_up():
         assert not result.websocket_replies and lab.closed.wait(1)
 
 
+@pytest.mark.parametrize("protocol", ["http", "websocket"])
+@pytest.mark.parametrize("stop", ["cancellation", "timeout"])
+def test_tls_shutdown_preserves_worker_owned_ssl_state_and_descriptor(protocol, stop):
+    unsafe_mutations = []
+
+    class WorkerOwnedSSLSocket(ssl.SSLSocket):
+        def shutdown(self, how):
+            if threading.current_thread().name != "cops-api-replay":
+                unsafe_mutations.append("SSL shutdown outside worker")
+            return super().shutdown(how)
+
+        def close(self):
+            if threading.current_thread().name != "cops-api-replay":
+                unsafe_mutations.append("descriptor close outside worker")
+            return super().close()
+
+    context = ssl.create_default_context()
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    context.sslsocket_class = WorkerOwnedSSLSocket
+    before = set(threading.enumerate())
+    with WebSocketTestServer(mode="tls-stall") as lab:
+        event = threading.Event()
+
+        def cancel():
+            if lab.connected.wait(1):
+                event.set()
+
+        operator = threading.Thread(target=cancel)
+        if stop == "cancellation":
+            operator.start()
+        scheme = "https://" if protocol == "http" else "wss://"
+        req = request(url=lab.url.replace("ws://", scheme), protocol=protocol)
+        started = time.monotonic()
+        result = transport(lab, tls_context=context).send(
+            req,
+            ReplayBudget(timeout_seconds=2 if stop == "cancellation" else 0.1),
+            cancellation_event=event,
+        )
+        if stop == "cancellation":
+            operator.join(timeout=1)
+            assert not operator.is_alive()
+        assert time.monotonic() - started < 0.6
+        assert lab.connected.is_set() and not lab.handshakes and not lab.messages
+        assert not result.replay_success
+        assert result.error_message == ("ReplayCancelledError" if stop == "cancellation" else "TimeoutError")
+        assert not unsafe_mutations
+        assert lab.closed.wait(1)
+        assert_workers_stop(before)
+
+
 @pytest.mark.parametrize("mode", ["tls-stall", "handshake-stall"])
 def test_cancellation_interrupts_tls_and_http_handshake_owned_socket(mode):
     before = set(threading.enumerate())
