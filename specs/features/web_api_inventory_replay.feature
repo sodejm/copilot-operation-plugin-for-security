@@ -1,4 +1,11 @@
 Feature: Web API inventory and approved request replay
+  Scenario: Approved bounded WebSocket text replay
+    Given a disposable WebSocket service and explicitly scoped text messages
+    When the messages are replayed with a signed one-use approval
+    Then only approved text messages reach the isolated session
+    And WebSocket reply evidence contains only digests and bounded counters
+    And the owned WebSocket connection completes close and is cleaned up
+
   Scenario Outline: Preserve supported API inventory formats
     Given an API definition in <format>
     When the definition is imported
@@ -102,3 +109,10 @@ Feature: Web API inventory and approved request replay
     Then missing throttling is a failure
     And an HTTP 429 response with retry guidance is a fix
     But too few observations are insufficient evidence
+
+  Scenario: GraphQL observations survive opaque response redaction
+    Given GraphQL object access denial and indeterminate response bodies
+    When the responses are serialized and restored repeatedly
+    Then the non-secret access observations remain unchanged
+    And no response payload is retained in the saved evidence
+    And old digest-only evidence without observations remains unknown

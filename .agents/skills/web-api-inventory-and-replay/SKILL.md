@@ -107,10 +107,17 @@ python3 -m cops web-api replay \
   --mode offline \
   -o replay_report.json
 
-# Live HTTP is a Python integration surface:
+# Live HTTP and bounded WS/WSS text replay are Python integration surfaces:
 # 1. build_replay_action_plan(...)
 # 2. verify approval for that exact plan
-# 3. execute_authorized_replay_session(..., worker=..., scope_guard=...)
+# 3. execute_authorized_replay_session(..., worker_identity=..., approval_control=..., scope_guard=...)
 ```
 
-The package CLI rejects live mode until the shared CLI integrates the approval, worker, and scope dependencies. Live WebSocket execution is unsupported. The local vulnerable/corrected fixture validates REST and GraphQL object authorization and rate limiting; production-provider validation remains incomplete.
+The package CLI rejects live mode until the shared CLI integrates the approval,
+worker, and scope dependencies. Approved Python WebSocket replay supports only
+bounded unfragmented UTF-8 text, ping/pong and checked close over WS/WSS. Bind all
+messages and frame/byte/time limits to the plan; reject binary frames, fragments,
+extensions, compression, subprotocols and WebSocket redirects. Local fixtures cover
+REST/GraphQL authorization, rate limiting and WebSocket role sessions. They do not
+establish OS/network isolation or production-provider qualification. Follow
+`docs/BOUNDED_WEBSOCKET_REPLAY.md` for cancellation, partial evidence and recovery.

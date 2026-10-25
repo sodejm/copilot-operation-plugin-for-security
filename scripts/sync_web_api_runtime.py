@@ -29,6 +29,7 @@ RUNTIME_MODULES = (
     "cops/web_api/models.py",
     "cops/web_api/replay.py",
     "cops/web_api/sanitization.py",
+    "cops/web_api/websocket.py",
 )
 MINIMAL_INITIALIZERS = (
     "cops/contracts/__init__.py",

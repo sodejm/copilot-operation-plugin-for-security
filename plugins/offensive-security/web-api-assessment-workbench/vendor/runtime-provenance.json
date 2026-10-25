@@ -82,12 +82,12 @@
     },
     {
       "path": "cops/web_api/assessment.py",
-      "sha256": "55a266e4fd793afd2b5ff4d14ce8661bf91fb92b2e0f8dd01e02570a690f5337",
+      "sha256": "61ec9efca5e861576cd997e447d1ffbd9b29aaee2d8beb605b01ceb60b1e4135",
       "source": "cops/web_api/assessment.py"
     },
     {
       "path": "cops/web_api/cli.py",
-      "sha256": "a42e84dafc2e8ca62952251831b35bb70bff6bfa765f4273b42fc1337f32d0d0",
+      "sha256": "1f01dc69c6587a2abfd027a01db12b62a1ecc0907e80df31cc69c8386856ec5c",
       "source": "cops/web_api/cli.py"
     },
     {
@@ -102,18 +102,23 @@
     },
     {
       "path": "cops/web_api/models.py",
-      "sha256": "425deff34b79e8dddd87bbb5915aabe976c70a8d351c4f8571e180dedc306e17",
+      "sha256": "420a293adb4785302390403935b888007c257d440aa2a38202e1675b04c40cb3",
       "source": "cops/web_api/models.py"
     },
     {
       "path": "cops/web_api/replay.py",
-      "sha256": "5bc0dbdc0d3c9e3f25b57fceaf415bcb1f8abfb9584712a93c42364fceb41a3c",
+      "sha256": "800102ec4511e30bcdc611275d83572984c668d4624024801a5bc25194a9597b",
       "source": "cops/web_api/replay.py"
     },
     {
       "path": "cops/web_api/sanitization.py",
       "sha256": "5f3edc741afd9f8ca66182dc15e946feeeb91104e677772e8c537f1a6fc571b0",
       "source": "cops/web_api/sanitization.py"
+    },
+    {
+      "path": "cops/web_api/websocket.py",
+      "sha256": "12afd48de7332b7dc842a2ec0bad99f846e28fd4b43c31fccda43bf56242d620",
+      "source": "cops/web_api/websocket.py"
     }
   ],
   "purpose": "offline Web API workbench execution from an installed portable package",

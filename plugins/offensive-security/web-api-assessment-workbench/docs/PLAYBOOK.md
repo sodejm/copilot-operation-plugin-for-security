@@ -102,7 +102,7 @@ Review `replay_report.json` for status distributions, latency benchmarks, and de
 
 ## Limitations
 
-- Live replay supports HTTP and HTTPS through the approved Python integration. WebSocket entries are inventory only; WebSocket replay, binary streaming, and SSE execution are unsupported.
+- Live replay supports HTTP/HTTPS and a bounded WS/WSS text subset through the approved Python integration. WebSocket messages, sessions, destinations and frame/byte/time budgets require exact approval; the CLI still rejects live dispatch. Binary frames, fragmentation, compression, extensions, subprotocols, WebSocket redirects and SSE execution are unsupported. See [bounded WebSocket replay](BOUNDED_WEBSOCKET_REPLAY.md) for stopping and recovery.
 - The disposable `WebApiAssessmentLaboratory` exercises vulnerable and corrected behavior through real loopback HTTP requests. Its role cases cover owner, other-user, and anonymous REST and GraphQL access, and its rate cases cover failure, correction, and insufficient evidence.
 - The local worker contract does not provide OS or network isolation, so isolation remains blocked even when the loopback assessment passes.
 - Production-provider validation remains incomplete until the same approved workflow runs against an authorized provider target.

@@ -31,9 +31,10 @@ def validate() -> int:
             print(f"FAIL: Malformed JSON in {m}: {e}", file=sys.stderr)
             return 1
 
-    # 2. Run unit tests
+    # 2. Run only standard-library offline tests. Real-service pytest cases are
+    # required separately by the repository acceptance gate, never imported here.
     test_res = subprocess.run(
-        [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"],
+        [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-p", "test_workbench*.py", "-v"],
         cwd=PLUGIN_ROOT,
         check=False,
         capture_output=True,

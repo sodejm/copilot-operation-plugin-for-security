@@ -22,6 +22,112 @@ from cops.web_api.replay import build_replay_action_plan, execute_replay_session
 FEATURE = "../../specs/features/web_api_inventory_replay.feature"
 
 
+@scenario(FEATURE, "Approved bounded WebSocket text replay")
+def test_approved_bounded_websocket_text_replay():
+    pass
+
+
+@given("a disposable WebSocket service and explicitly scoped text messages", target_fixture="websocket_case")
+def disposable_websocket_case(tmp_path):
+    from tests.websocket_testkit import WebSocketTestServer
+
+    with WebSocketTestServer() as lab:
+        yield {"lab": lab, "tmp_path": tmp_path}
+
+
+@when("the messages are replayed with a signed one-use approval")
+def approved_websocket_replay(websocket_case):
+    from tests.test_web_api_websocket import authority_for, execute, live_plan, request
+
+    lab = websocket_case["lab"]
+    sessions = [models.SessionContext(session_id="bdd-session", role_id="anonymous")]
+    requests, budget = (
+        [
+            request(
+                url=lab.url, session_id="bdd-session", role_id="anonymous", websocket_messages=["bdd-payload-canary"]
+            )
+        ],
+        ReplayBudget(),
+    )
+    plan = live_plan(lab, requests, budget, sessions)
+    auth_id, control = authority_for(websocket_case["tmp_path"], plan)
+    websocket_case["report"] = execute(lab, requests, budget, plan, auth_id, control, sessions)
+    websocket_case["control"] = control
+
+
+@then("only approved text messages reach the isolated session")
+def only_approved_websocket_messages(websocket_case):
+    assert websocket_case["lab"].messages == [(None, "bdd-payload-canary")]
+    assert len(websocket_case["control"].consume_calls) == 1
+    assert not websocket_case["control"]._issued_receipts
+
+
+@then("WebSocket reply evidence contains only digests and bounded counters")
+def bounded_websocket_reply_evidence(websocket_case):
+    response = websocket_case["report"].responses[0]
+    assert response.replay_success and response.websocket_replies[0].startswith("[REDACTED:")
+    assert "bdd-payload-canary" not in json.dumps(websocket_case["report"].to_dict())
+    assert response.websocket_metrics["frames_sent"] + response.websocket_metrics["frames_received"] == 4
+
+
+@then("the owned WebSocket connection completes close and is cleaned up")
+def websocket_connection_cleaned(websocket_case):
+    assert websocket_case["report"].responses[0].websocket_metrics["close_code"] == 1000
+    assert websocket_case["lab"].closed.wait(1)
+    assert not websocket_case["lab"].active
+
+
+@scenario(FEATURE, "GraphQL observations survive opaque response redaction")
+def test_graphql_observations_survive_opaque_response_redaction():
+    pass
+
+
+@given("GraphQL object access denial and indeterminate response bodies", target_fixture="graphql_observations")
+def graphql_response_observations():
+    bodies = (
+        ({"data": {"object": {"id": "payload-canary"}}}, True),
+        ({"data": {"object": None}, "errors": [{"extensions": {"code": "FORBIDDEN"}}]}, False),
+        ({"data": {"object": None}, "errors": [{"message": "payload-canary"}]}, None),
+    )
+    return [
+        (models.ReplayResponse(str(i), 200, body_excerpt=json.dumps(body)), expected)
+        for i, (body, expected) in enumerate(bodies)
+    ]
+
+
+@when("the responses are serialized and restored repeatedly", target_fixture="restored_graphql_observations")
+def restore_graphql_observations(graphql_observations):
+    responses = graphql_observations
+    for _ in range(3):
+        responses = [
+            (models.ReplayResponse.from_dict(response.to_dict()), expected) for response, expected in responses
+        ]
+    return responses
+
+
+@then("the non-secret access observations remain unchanged")
+def nonsecret_graphql_observations_survive(restored_graphql_observations):
+    for response, expected in restored_graphql_observations:
+        assert response.observed_graphql_object_access() is expected
+
+
+@then("no response payload is retained in the saved evidence")
+def graphql_payload_is_not_retained(restored_graphql_observations):
+    for response, _expected in restored_graphql_observations:
+        serialized = json.dumps(response.to_dict())
+        assert "payload-canary" not in serialized
+        assert "FORBIDDEN" not in serialized
+        assert response.body_excerpt.startswith("[REDACTED:")
+
+
+@then("old digest-only evidence without observations remains unknown")
+def legacy_graphql_digest_is_unknown(restored_graphql_observations):
+    for response, _expected in restored_graphql_observations:
+        serialized = response.to_dict()
+        serialized.pop("graphql_object_access", None)
+        assert models.ReplayResponse.from_dict(serialized).observed_graphql_object_access() is None
+
+
 @scenario(FEATURE, "Import input is bounded before parsing")
 def test_import_input_is_bounded_before_parsing():
     pass

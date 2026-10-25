@@ -43,7 +43,11 @@ python3 -m cops demo web-api-assessment-workbench
 python3 -m cops check web-api-assessment-workbench
 ```
 
-The demo is offline and synthetic. The check runs the package-owned validation; its result does not qualify a production target or provider.
+The demo is offline and synthetic. The check runs the package-owned offline validation;
+it does not execute the local-service acceptance suite or qualify a production
+target or provider. In a prepared source checkout, run `make check-web-api-acceptance`
+for all required disposable-loopback authorization cases. Repository `make check`
+requires that separate gate; neither gate establishes OS/network isolation.
 
 ### Quick Test Drive (Offline Demo)
 
@@ -123,7 +127,16 @@ The package CLI intentionally supports offline replay only. Live HTTP replay is 
 from cops.web_api import build_replay_action_plan, execute_authorized_replay_session
 ```
 
-Production-provider validation remains incomplete. Live HTTP execution snapshots its requests, isolated sessions, destinations, and complete budget before validating and consuming the exact signed approval. Its transport pins scope-checked numeric addresses, verifies the TLS certificate and original hostname, permits TLS 1.2 or newer only, rejects HTTPS downgrade, and prevents cross-origin redirects from retaining a body or credential-bearing header. Default TLS contexts set the minimum explicitly. Caller-supplied contexts are rejected if they permit older protocols or disable certificate or hostname verification, and are rechecked before use without being changed. Live WebSocket replay is unsupported; WebSocket entries remain inventory and offline-modeling data. Binary streaming and Server-Sent Events are also unsupported.
+Production-provider validation remains incomplete. Live HTTP execution snapshots its requests, isolated sessions, destinations, and complete budget before validating and consuming the exact signed approval. Its transport pins scope-checked numeric addresses, verifies the TLS certificate and original hostname, permits TLS 1.2 or newer only, rejects HTTPS downgrade, and prevents cross-origin redirects from retaining a body or credential-bearing header. Default TLS contexts set the minimum explicitly. Caller-supplied contexts are rejected if they permit older protocols or disable certificate or hostname verification, and are rechecked before use without being changed.
+
+The same approved Python entrypoint supports a [bounded WS/WSS text subset](docs/BOUNDED_WEBSOCKET_REPLAY.md):
+one fresh connection, exact approved UTF-8 messages, one reply per message and a
+checked close. Counts include control and close frames in both directions;
+`max_websocket_message_bytes` and `max_websocket_bytes` bound payload and aggregate
+encoded frame bytes. Binary frames, fragments, compression, extensions,
+subprotocols, WebSocket redirects and SSE remain unsupported. The CLI does not
+enable live dispatch. Use `--max-frames`, `--max-message-bytes` and
+`--max-websocket-bytes` to expose the intended budgets in a CLI preview.
 
 `max_requests` bounds the submitted batch. Preview, plan construction, offline
 replay, and approved live replay reject an oversized batch before dispatch or
@@ -199,7 +212,7 @@ Follow [Web API Assessment Verification](docs/VERIFICATION.md) to record the bas
 
 Serialized replay evidence stores only digest redaction markers for request bodies, response excerpts, GraphQL queries, and WebSocket payloads. Opaque payloads and custom JSON fields may contain credentials, so reports do not retain their content. This reporting policy does not change in-memory assessment inputs or approved wire requests.
 
-HAR, Postman, and absolute raw HTTP request imports preserve their source URL scheme in inventory round trips and replay previews, including HTTP versus HTTPS and WS versus WSS. Legacy inventories and relative raw requests without a recorded scheme retain the existing HTTPS (or modeled WebSocket WSS) default. Recorded schemes outside these four transports fail preview construction. Live WebSocket execution remains unsupported.
+HAR, Postman, and absolute raw HTTP request imports preserve their source URL scheme in inventory round trips and replay previews, including HTTP versus HTTPS and WS versus WSS. Legacy inventories and relative raw requests without a recorded scheme retain the existing HTTPS (or modeled WebSocket WSS) default. Recorded schemes outside these four transports fail preview construction. Approved WebSocket execution requires an explicit WS/WSS destination; it never silently rewrites an HTTP URL into a WebSocket connection.
 
 OpenAPI imports require exactly one supported version declaration: `swagger: "2.0"` or an `openapi` string in `3.x.y` form. Missing, malformed, conflicting, and other major versions fail before inventory generation.
 
