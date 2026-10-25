@@ -10,6 +10,25 @@ headers and recognizable credential assignments, including nested relative
 references. Arbitrary free text still requires evidence classification. Lossy
 report values must never construct executable requests or authorization digests.
 
+Replay bodies are persisted as opaque digests. The optional Boolean
+`graphql_object_access` observation is derived before redaction so assessment can
+distinguish observed access, explicit denial and unknown evidence without retaining
+payloads. Supplied raw evidence takes precedence over conflicting metadata. This
+field is neither a source-authenticity guarantee nor execution authority; old
+digest-only records without it remain inconclusive. The separate repository
+local-service acceptance gate is mandatory in `make check`, but its loopback
+results do not establish worker isolation or production-provider validation.
+
+Bounded WebSocket replay uses the same exact-plan approval, owned inputs, numeric
+destination pinning and original-host TLS checks as HTTP. Its distinct version 1
+operation permits only explicit UTF-8 text exchanges, budgeted ping/pong and a
+checked close; it never follows redirects or negotiates extensions/subprotocols.
+Count all directions and controls before admitting a frame, and validate lengths
+before allocating payloads. One deadline and an operator cancellation event stop
+handshake, pacing and socket I/O; no message is retried after uncertain effects.
+Raw replies and close reasons never enter saved evidence. These library controls
+are not an OS sandbox or independently administered approval-provider deployment.
+
 Defensive security tools operating inside AI assistants handle sensitive contexts: codebases, audit logs, cloud infrastructure graphs, and incident triage records. When an AI assistant has access to files and terminal commands, the assistant itself becomes an operational boundary.
 
 If untrusted data (such as a poisoned log string, an adversary-controlled issue, or an external package) contains a prompt injection attack, or if an automated tool executes arbitrary shell scripts, the security practitioner's workstation or CI runner could be compromised.

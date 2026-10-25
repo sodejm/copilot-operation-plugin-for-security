@@ -14,6 +14,28 @@ credential/plan drift, caller-input mutation during approval, TLS trust and host
 verification, cross-origin bodies, deadlines, header framing, and observed HTTP
 error statuses.
 
+Run `make check-web-api-acceptance` for the complete local-service authorization
+suite; `make check` requires this gate too. Unlike the standard-library offline
+package check, this development gate uses the declared pytest dependencies and
+starts disposable loopback listeners. All required cases must execute without
+skips. An unavailable listener or prerequisite is a failed gate, not acceptance.
+Pass `PYTHON=.venv/bin/python` to select the prepared interpreter. A passing
+result proves neither OS/network isolation nor production-provider readiness.
+Response-model changes must preserve derived GraphQL access observations through
+digest-only serialization without retaining raw payloads; old digest-only records
+without those observations remain inconclusive.
+
+WebSocket transport changes also require `tests/test_web_api_websocket.py` and
+the package's `test_authorized_websocket.py`. Preserve the distinct version 1
+WebSocket operation and existing HTTP version 2 budget digest. Cover malformed
+upgrades and frames, both-direction frame/byte limits before allocation, actual
+TLS trust/hostname rejection, control floods, cancellation during DNS/TLS/reads,
+partial evidence, socket/thread cleanup and recovery with a fresh authorization.
+The mandatory local-service gate requires both vulnerable/corrected role profiles.
+Keep standard-library offline cases in the package's `test_workbench*.py` family;
+its offline validator must not import pytest-only `test_authorized*.py` modules.
+Those real-service cases remain mandatory in the separate development gate.
+
 1. Read `AGENTS.md`, whether contributing manually or with an AI assistant.
 2. Open or reference a focused issue when the project uses issue tracking.
 3. Work on a short-lived branch; do not mix unrelated changes.

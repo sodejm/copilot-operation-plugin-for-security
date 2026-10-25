@@ -43,6 +43,22 @@ unrepresentable authentication, and operation-path keys containing `?` or `#` fa
 closed without echoing imported content. Header credential names use case-insensitive
 collision checks, while query credential names remain case-sensitive.
 
+Response bodies stay digest-only. An optional Boolean `graphql_object_access`
+field preserves the bounded object-access observation needed for authorization
+assessment after serialization. No object value or error text is retained. The
+same model and assessment code ships in the synchronized vendor runtime. Legacy
+raw-body records remain readable; legacy digest-only records without this field
+cannot supply missing GraphQL evidence. Older consumers that ignore the additive
+field likewise cannot reconstruct that observation from a digest.
+
+The explicit vendor inventory also includes `cops/web_api/websocket.py`. It owns
+only bounded handshake/framing on a socket supplied by the existing pinned
+connector; it has no resolver, approval client, redirects or shared cookie jar.
+The new version 1 WebSocket operation binds all messages and byte/frame/time
+budgets. HTTP version 2 operation digests retain their prior canonical budget
+shape. See [bounded WebSocket replay](BOUNDED_WEBSOCKET_REPLAY.md) for the supported
+subset, additive metrics, legacy/default budget behavior and stopping limits.
+
 HAR, OpenAPI/Swagger, Postman, and raw HTTP import inputs share an 8 MiB
 limit. Importers perform a bounded maximum-plus-one binary read before parsing,
 retain the accepted raw-byte digest, and never fetch or execute input. Repeated

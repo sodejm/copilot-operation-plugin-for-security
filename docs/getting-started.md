@@ -64,7 +64,9 @@ For a complete investigation, follow [Investigate possible malicious access](inv
 Some capabilities only support offline evidence or local fixtures. For example,
 the API CLI inventories local files and supports synthetic replay; it rejects
 live replay until the shared CLI integrates approval, worker, and scope
-dependencies. Live WebSocket execution is unsupported. Check each capability’s
+dependencies. The separate approved Python integration supports only the
+[documented bounded WebSocket text subset](BOUNDED_WEBSOCKET_REPLAY.md), not arbitrary
+protocols or a production-qualified deployment. Check each capability’s
 [playback and limitations](plugin-playbacks.md) before choosing an execution path.
 
 ## Continue when needed

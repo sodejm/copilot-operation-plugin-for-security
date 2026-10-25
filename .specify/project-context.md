@@ -49,6 +49,18 @@ in this repository does not establish compatibility or release readiness. Packag
 validation must continue to fail closed when required version or integrity evidence
 is absent.
 
+## Bounded WebSocket replay
+
+The Web API workbench's approved Python integration now includes a standard-library
+RFC 6455 text subset. `cops/web_api/websocket.py` operates on an already pinned,
+scope-checked socket and one deadline; it has no separate connector, approval
+authority or shared session store. WebSocket version 1 operations bind exact
+messages and frame/byte/time budgets, while HTTP version 2 operation digests stay
+compatible. Package-local runtime synchronization includes the new module.
+Mandatory local-service acceptance distinguishes completed protocol evidence from
+partial/unknown outcomes. The CLI remains offline/preview-only. These controls
+do not qualify OS/network isolation or production providers.
+
 ## Shared evidence SDK
 
 `cops.evidence` and `cops.connectors` provide opt-in versioned evidence contracts,

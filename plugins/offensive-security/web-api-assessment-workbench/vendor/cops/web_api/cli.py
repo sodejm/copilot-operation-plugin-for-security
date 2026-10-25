@@ -312,7 +312,7 @@ def _replay_preview_document(
             "target_hosts": preview.target_hosts,
             "request_urls": [request.url for request in preview.requests],
         },
-        "budget": preview.budget.to_dict(),
+        "budget": preview.to_dict()["budget"],
         "evidence": {
             "inventory_id": inventory.inventory_id,
             "inventory_name": inventory.name,
@@ -423,7 +423,24 @@ def build_web_api_parser(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
     )
     replay_parser.add_argument("--timeout", type=float, default=5.0, help="Request timeout in seconds (default: 5.0).")
     replay_parser.add_argument("--max-redirects", type=int, default=3, help="Maximum redirect hops (default: 3).")
-    replay_parser.add_argument("--max-frames", type=int, default=10, help="Maximum WebSocket frames (default: 10).")
+    replay_parser.add_argument(
+        "--max-frames",
+        type=int,
+        default=10,
+        help="Maximum total WebSocket data/control/close frames in both directions (default: 10).",
+    )
+    replay_parser.add_argument(
+        "--max-message-bytes",
+        type=int,
+        default=65536,
+        help="Maximum UTF-8 bytes per WebSocket text frame (up to 65536).",
+    )
+    replay_parser.add_argument(
+        "--max-websocket-bytes",
+        type=int,
+        default=1048576,
+        help="Maximum encoded WebSocket frame bytes in both directions (up to 1048576).",
+    )
     replay_parser.add_argument(
         "--mode",
         choices=["offline", "live"],
@@ -539,6 +556,8 @@ def command_web_api(args: argparse.Namespace, *, root: Path | None = None) -> in
                 timeout_seconds=args.timeout,
                 max_redirect_hops=args.max_redirects,
                 max_websocket_frames=args.max_frames,
+                max_websocket_message_bytes=getattr(args, "max_message_bytes", 65536),
+                max_websocket_bytes=getattr(args, "max_websocket_bytes", 1048576),
             )
 
             requests = _requests_from_inventory(inventory)
