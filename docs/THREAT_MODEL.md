@@ -383,6 +383,13 @@ validation before the affected release/capability expansion and schedule P2 with
 - Attack path / prerequisite: A compromised dependency, image or workflow obtains developer or release authority.
 - Inherent impact: High; likelihood: Medium; priority: P1.
 - Existing evidence / limitation: Repository validation is evidence of local checks, not proof of dependency provenance or hosted policy.
+- Local validation tooling: The reviewed gate pins Semgrep 1.182.0 and Trivy
+  0.76.1 and exact direct Python validation-tool versions. The October 25, 2026
+  refresh checked official release metadata and retains the same reviewed rules,
+  severity thresholds and exact-commit checks. Regressions reject obsolete scanner
+  versions before any remote update. Dependency downloads and mutable advisory
+  feeds still require trusted distribution/cache access; these pins do not freeze
+  transitive dependencies or establish comprehensive vulnerability coverage.
 - Proposed mitigation and validation: Inventory and pin applicable dependencies/actions/images; review changes, scan known issues and verify exact release artifact provenance.
 - Residual risk / status: unverified; human review and evidence pending. Retain
   this entry until a reviewer records outcome, exact revision and remaining risk.
@@ -646,6 +653,38 @@ validation before the affected release/capability expansion and schedule P2 with
   integrity only; key anchoring remains external evidence.
 
 - API replay boundary: Effective role-session credentials, complete budgets and destination allowlists are approval-bound. Execution uses owned snapshots so caller mutation during approval consumption cannot alter wire behavior. Tests reject altered requests before DNS or approval consumption, validate each redirect, pin numeric connections to checked DNS results, verify the TLS chain and original hostname, require an explicit TLS 1.2-or-newer minimum, reject unsafe supplied contexts, and prevent late dispatch after deadline expiry. Supplied TLS contexts are rechecked before use so later weakening cannot dispatch a request; stricter contexts are preserved without mutation. Cross-origin redirects cannot retain a body or credential-bearing header. Transport failure stops the batch; an observed `403` or `429` remains assessment evidence. Local signed, persisted approval tests do not prove separately administered worker isolation.
+- API assessment redaction boundary: A Boolean GraphQL object-access observation
+  is derived from bounded response semantics before opaque body redaction. Only
+  that non-secret observation, not the payload, object ID or error message, survives
+  persistence. Raw bodies override conflicting supplied metadata; invalid metadata
+  fails closed and legacy digest-only reports remain inconclusive. Saved metadata
+  is caller-controlled assessment evidence, not authenticity or execution authority.
+  Regressions cover corrected access, disclosure alongside errors, malformed error
+  codes and repeated redaction. The repository acceptance gate requires all named
+  local-service cases without skips; the offline package gate cannot stand in for
+  them. Loopback listeners still do not qualify isolation or production providers.
+- WebSocket boundary: An approved version 1 operation binds explicit text messages,
+  exact isolated sessions, allowlist and frame/byte/deadline budgets. The existing
+  mediator owns resolution, numeric connection and original-host verified TLS;
+  the framing module cannot connect, resolve, redirect or create approval. Client
+  frames use fresh random masks; the upgrade validates the server accept value.
+  Both directions and control frames consume finite budgets; announced lengths
+  are rejected before payload allocation/read. Binary/fragmented/compressed data,
+  extensions, subprotocols, malformed upgrades and invalid closes fail closed.
+  Canonical handshake fields, reply digests, completed-I/O counters and validated
+  close codes are retained, not raw messages, close reasons or arbitrary headers.
+  Cancellation attaches the TLS socket before its handshake and interrupts I/O
+  with kernel socket shutdown. SSL state and final descriptor closure stay with
+  the worker: cross-thread SSL shutdown/close raced with an in-flight handshake
+  in CPython 3.15 coverage testing and could retain a worker until its timeout.
+  HTTPS/WSS timeout and cancellation regressions check ownership, peer closure
+  and worker exit; late DNS cannot dispatch. Failed batches stop and release local receipt
+  provenance without making consumed approval reusable. Vulnerable/corrected
+  role fixtures, real TLS, malformed peers, control floods, boundary budgets,
+  timeout/cancellation and fresh-approval recovery are regression targets.
+  Unread peer traffic can still reach kernel buffers; counters do not establish
+  independent wire metering, source authenticity, rollback, isolation or provider
+  qualification. Exact-revision independent security review remains required.
 - Git-history boundary: A registered Git adapter reads bounded ordinary repositories with hooks, lazy fetch, replacement objects and interactive prompts disabled. It refuses linked metadata, alternates and unsafe paths. A configured SHA-256 pin is verified while copying the executable into private temporary storage before invocation. The scanner emits fingerprints and content-free counts for bounded COPS, GitHub PAT, AWS identifier, Bearer and PEM private-key shapes; the laboratory verifies a synthetic credential removed from HEAD remains discoverable in history without changing source bytes. Matches do not establish validity. Unsupported formats and encoded values remain outside coverage; new pattern corrections verify redaction and source immutability.
 - Runtime prerequisite: The disposable container's root-owned prerequisite manifest binds its Git executable. Its bounded temporary filesystem permits execution of the private pinned copy; dropped capabilities, no-new-privileges, a read-only root and independently checked network isolation remain required. Temporary executable storage alone is not an isolation boundary. The container is destroyed after checking service shutdown and restoration.
 - Proposed mitigation and validation: Keep held-out routing, redaction, timeout, malformed definition, output tampering, replay, retry, cancellation and duplicate-write tests. Review exact destinations and concrete plans before approval. Provision isolation independently, exercise actual service effects and verify restoration before laboratory readiness. Require separate provider evidence before live-support claims.

@@ -558,9 +558,16 @@ class ReplayBudget:
     timeout_seconds: float = 5.0
     max_redirect_hops: int = 3
     max_websocket_frames: int = 10
+    max_websocket_message_bytes: int = 65536
+    max_websocket_bytes: int = 1048576
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        data = asdict(self)
+        # Default additions need not change existing serialized HTTP budgets.
+        for name, default in (("max_websocket_message_bytes", 65536), ("max_websocket_bytes", 1048576)):
+            if data[name] == default:
+                data.pop(name)
+        return data
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ReplayBudget:
@@ -570,6 +577,8 @@ class ReplayBudget:
             timeout_seconds=data.get("timeout_seconds", 5.0),
             max_redirect_hops=data.get("max_redirect_hops", 3),
             max_websocket_frames=data.get("max_websocket_frames", 10),
+            max_websocket_message_bytes=data.get("max_websocket_message_bytes", 65536),
+            max_websocket_bytes=data.get("max_websocket_bytes", 1048576),
         )
 
 
@@ -618,6 +627,10 @@ class ReplayRequest:
         )
 
 
+def _valid_websocket_close_code(code: int) -> bool:
+    return code in {1000, 1001, 1002, 1003, 1007, 1008, 1009, 1011, 1012, 1013, 1014} or 3000 <= code <= 4999
+
+
 @dataclass
 class ReplayResponse:
     """Observed response from request replay."""
@@ -632,9 +645,73 @@ class ReplayResponse:
     websocket_replies: list[str] = field(default_factory=list)
     error_message: str | None = None
     replay_success: bool = True
+    graphql_object_access: bool | None = None
+    websocket_metrics: dict[str, int] | None = None
+
+    def _validate_websocket_metrics(self) -> None:
+        if self.websocket_metrics is None:
+            return
+        allowed = {"frames_sent", "frames_received", "bytes_sent", "bytes_received", "close_code"}
+        if not isinstance(self.websocket_metrics, dict) or any(
+            name not in allowed or type(value) is not int or not 0 <= value <= 2**31 - 1
+            for name, value in self.websocket_metrics.items()
+        ):
+            raise ValueError("invalid WebSocket metrics")
+        if "close_code" in self.websocket_metrics and not _valid_websocket_close_code(
+            self.websocket_metrics["close_code"]
+        ):
+            raise ValueError("invalid WebSocket metrics")
+
+    def _validate_graphql_observation(self) -> None:
+        if self.graphql_object_access is not None and type(self.graphql_object_access) is not bool:
+            raise ValueError("GraphQL observation must be Boolean or unknown")
+
+    def observed_graphql_object_access(self) -> bool | None:
+        """Read payload semantics before redaction, or a saved non-secret observation.
+
+        Raw evidence takes precedence over supplied metadata. Only an exact body
+        digest may use retained metadata; missing legacy observations stay unknown.
+        This is assessment evidence, never execution authority.
+        """
+        self._validate_graphql_observation()
+        if self.status_code in {401, 403}:
+            return False
+        if not 200 <= self.status_code < 300 or not isinstance(self.body_excerpt, str):
+            return None
+        if re.fullmatch(r"\[REDACTED:[0-9a-f]{12}\]", self.body_excerpt):
+            return self.graphql_object_access
+        try:
+            document = json.loads(self.body_excerpt)
+        except (json.JSONDecodeError, TypeError, RecursionError):
+            return None
+        if not isinstance(document, dict):
+            return None
+        data = document.get("data")
+        if isinstance(data, dict) and data.get("object") is not None:
+            return True
+        errors = document.get("errors")
+        if isinstance(data, dict) and "object" in data and isinstance(errors, list) and errors:
+            codes = [
+                error.get("extensions", {}).get("code")
+                for error in errors
+                if isinstance(error, dict) and isinstance(error.get("extensions"), dict)
+            ]
+            if len(codes) == len(errors) and all(
+                isinstance(code, str) and code in {"UNAUTHENTICATED", "FORBIDDEN"} for code in codes
+            ):
+                return False
+        return None
 
     def to_dict(self) -> dict[str, Any]:
+        graphql_object_access = self.observed_graphql_object_access()
+        self._validate_websocket_metrics()
         data = asdict(self)
+        if self.websocket_metrics is None:
+            data.pop("websocket_metrics")
+        if graphql_object_access is None:
+            data.pop("graphql_object_access")
+        else:
+            data["graphql_object_access"] = graphql_object_access
         data["headers"] = redact_mapping(self.headers)
         data["body_excerpt"] = sanitize_body(self.body_excerpt)
         data["final_url"] = sanitize_reference(self.final_url)
@@ -643,7 +720,7 @@ class ReplayResponse:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ReplayResponse:
-        return cls(
+        response = cls(
             request_id=data["request_id"],
             status_code=int(data.get("status_code", 0)),
             headers=dict(data.get("headers", {})),
@@ -654,7 +731,12 @@ class ReplayResponse:
             websocket_replies=list(data.get("websocket_replies", [])),
             error_message=data.get("error_message"),
             replay_success=bool(data.get("replay_success", True)),
+            graphql_object_access=data.get("graphql_object_access"),
+            websocket_metrics=data.get("websocket_metrics"),
         )
+        response._validate_graphql_observation()
+        response._validate_websocket_metrics()
+        return response
 
 
 @dataclass
@@ -679,7 +761,11 @@ class ReplaySessionReport:
                 "session_id": self.session_id,
                 "target_hosts": self.target_hosts,
                 "allowed_destinations": self.allowed_destinations,
-                "budget": self.budget.to_dict(),
+                "budget": (
+                    asdict(self.budget)
+                    if any(r.protocol == ApiProtocol.WEBSOCKET.value for r in self.requests)
+                    else self.budget.to_dict()
+                ),
                 "requests": [r.to_dict() for r in self.requests],
                 "responses": [r.to_dict() for r in self.responses],
                 "total_dispatched": self.total_dispatched,

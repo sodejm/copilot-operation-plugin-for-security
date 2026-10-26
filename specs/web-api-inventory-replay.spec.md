@@ -148,8 +148,77 @@ profile denies it. Rate-limit assessment records each response and requires
 enough requests to reach the configured enforcement threshold. Missing
 observations are reported as insufficient evidence rather than success.
 
-WebSocket import metadata is preserved, but live WebSocket replay is not
-implemented. Production approval-provider deployment validation is a separate
+Opaque response bodies remain digest-only in saved reports. Before redaction,
+the response model derives an optional Boolean `graphql_object_access`
+observation from the bounded GraphQL response: object data means access, while
+an explicit null object with only FORBIDDEN/UNAUTHENTICATED error codes means
+denial. Other 2xx bodies remain unknown. A partial object disclosure remains
+access even alongside an error. Metadata must be Boolean when present; it is
+not execution authority. Raw-body legacy responses remain assessable, but
+digest-only legacy reports without an observation remain insufficient evidence.
+The derived observation survives report round trips without preserving bodies,
+error messages, object identifiers or other payload content.
+
+The portable package gate remains offline and discovers only its standard-library
+`test_workbench*.py` family, without importing pytest-only acceptance modules.
+Repository `make check` additionally
+requires a separate local-service acceptance gate and all its named cases.
+Test failure, missing dependencies, no collection, missing required cases,
+skipped cases, invalid reports and timeout fail that gate. Its passing result
+qualifies loopback functionality only, never isolation or a production provider.
+
+Bounded WebSocket replay is available through the approved Python integration,
+not the offline CLI. It supports RFC 6455 version 13 over `ws` or `wss`, GET
+handshakes without an HTTP body, and one unfragmented UTF-8 text reply per
+explicitly approved text message. An empty message list performs handshake and
+close only; it never invents a ping or application payload. Each request owns a
+fresh socket and its isolated session headers; no cookie jar or connection pool
+is shared. The handshake key and client masking keys use fresh random bytes.
+
+The WebSocket operation is `cops.web_api.bounded-websocket-replayer` version 1,
+action `replay_websocket_session`. Its approval binds all source/effective
+messages, session credentials, destinations and complete budgets. HTTP-only
+operations retain their existing version 2 identity and canonical budget digest.
+New WebSocket byte limits do not change an HTTP-only approval's meaning.
+
+`max_websocket_frames` counts all sent and received frames, including text,
+ping, pong and close. Preflight requires at least two frames per submitted
+message plus two for close. `max_websocket_message_bytes` defaults to 65,536
+and permits 1 through 65,536 UTF-8 bytes per text frame.
+`max_websocket_bytes` defaults to 1,048,576 and permits 1 through 1,048,576
+aggregate encoded frame bytes in both directions, including headers and masking
+keys. Known outbound frames and the minimum reply/close overhead must fit before
+approval consumption or DNS. Incoming frame lengths are checked before payload
+allocation/read. The response handshake is separately capped at 16,384 bytes,
+and the encoded request handshake at 8,192 bytes. The existing request timeout
+is one absolute deadline for DNS, TCP, TLS, handshake, pacing, frames and close;
+rate_limit_rps also paces successive application text sends within that deadline.
+
+The server handshake must be HTTP/1.1 101 with valid Upgrade, Connection and
+Sec-WebSocket-Accept values. Duplicate/malformed headers, redirects, negotiated
+extensions or subprotocols fail closed. Transport-controlled handshake headers
+cannot be supplied through request/session headers. Response evidence retains
+only allowlisted handshake fields, counters, a valid close code and opaque
+message digests; it never retains raw messages, close reasons or arbitrary
+server headers. Replies observed before failure remain partial evidence.
+
+Server frames must be unmasked, FIN-set and RSV-clear, use canonical lengths,
+and be text, close, ping or pong. Binary/continuation/reserved opcodes,
+fragmentation, compression, invalid UTF-8, oversized controls, malformed close
+payloads and invalid close codes fail closed. Pings receive masked pongs with
+the same payload; unsolicited pongs count against budgets. After all expected
+replies, the client sends close 1000 and requires the peer's valid close frame;
+early close, unexpected application data or abnormal close never becomes a
+successful completed replay. Failure, timeout or cancellation closes the owned
+socket, stops the batch and requires a new approval before retry. Cancellation
+before consumption creates no dispatch. A resolver may finish after cancellation
+but cannot create a late connection. No cleanup frame may exceed an approved
+budget. TLS, numeric-address pinning and scope checks are the same as HTTP;
+proxies and WebSocket redirects are never used.
+The runtime scope must also explicitly set `egress_allowed` to true; an included
+target alone cannot override a disabled WebSocket egress policy.
+
+Production approval-provider deployment validation is a separate
 Linux integration concern; focused tests use the same consume-only approval
 protocol with signed authorizations and a persisted one-use approval store. The
 local test authority does not demonstrate a separately administered deployment.
@@ -201,4 +270,7 @@ authentication header names are credential-bearing even when their names do not 
 common credential patterns; redirects that retain either a body or credentials are refused,
 and other caller or session headers are cleared before the cross-origin follow-up.
 One monotonic deadline covers DNS, connection, TLS, headers and bounded body reads.
+Cancellation interrupts active I/O with kernel socket shutdown, without mutating
+the worker's SSL state or closing its descriptor from another thread. The worker
+owns final socket closure, including failed or cancelled TLS handshakes.
 A DNS resolver may finish after cancellation, but cannot dispatch a late request.

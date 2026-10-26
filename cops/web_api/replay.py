@@ -21,6 +21,7 @@ from cops.evidence.canonical import digest, utc_now
 from cops.execution.control import ApprovalConsumptionReceipt, ApprovalControl
 from cops.execution.scope_guard import ScopeGuard, ScopeViolationError
 
+from . import websocket
 from .models import (
     ApiProtocol,
     ReplayBudget,
@@ -42,6 +43,10 @@ class ReplayBudgetExceededError(Exception):
 
 class ReplayAuthorizationError(Exception):
     """Live replay is missing or does not match an approved action plan."""
+
+
+class ReplayCancelledError(OSError):
+    """Operator cancellation stopped a bounded exchange."""
 
 
 _INVALID_ALLOWLIST_MESSAGE = "destination allowlist contains an invalid entry"
@@ -192,6 +197,8 @@ class OfflineSyntheticReplayer(Replayer):
         self.requests_sent: list[ReplayRequest] = []
 
     def send(self, req: ReplayRequest, budget: ReplayBudget) -> ReplayResponse:
+        if req.protocol == ApiProtocol.WEBSOCKET.value:
+            _validate_websocket_request(req, budget, preview_only=True)
         self.requests_sent.append(req)
         parsed = urlparse(req.url)
         route = self.mock_routes.get(f"{req.method.upper()} {parsed.path}") or self.mock_routes.get(parsed.path) or {}
@@ -219,7 +226,9 @@ class OfflineSyntheticReplayer(Replayer):
                 redirect_count=hops,
                 final_url=str(redirect_to),
             )
-        if req.protocol == ApiProtocol.GRAPHQL.value or "graphql" in parsed.path.lower():
+        if req.protocol == ApiProtocol.GRAPHQL.value or (
+            req.protocol != ApiProtocol.WEBSOCKET.value and "graphql" in parsed.path.lower()
+        ):
             query = req.graphql_query or req.body or ""
             body = route.get("body")
             if body is None and ("IntrospectionQuery" in query or "__schema" in query):
@@ -235,7 +244,7 @@ class OfflineSyntheticReplayer(Replayer):
                 error_message=route.get("error"),
             )
         if req.protocol == ApiProtocol.WEBSOCKET.value:
-            messages = (req.websocket_messages or ["ping"])[: budget.max_websocket_frames]
+            messages = req.websocket_messages
             return ReplayResponse(
                 request_id=req.request_id,
                 status_code=101,
@@ -283,8 +292,11 @@ _HEADER_NAME = re.compile(r"^[!#$%&'*+.^_`|~0-9A-Za-z-]+$")
 
 
 def _validate_wire_request(req: ReplayRequest) -> None:
-    if req.protocol not in {ApiProtocol.HTTP.value, ApiProtocol.GRAPHQL.value}:
-        raise ReplayAuthorizationError("live replay supports HTTP and GraphQL only")
+    if req.protocol not in {ApiProtocol.HTTP.value, ApiProtocol.GRAPHQL.value, ApiProtocol.WEBSOCKET.value}:
+        raise ReplayAuthorizationError("unsupported live replay protocol")
+    parsed = _parse_destination(req.url)
+    if req.protocol != ApiProtocol.WEBSOCKET.value and parsed.scheme not in {"http", "https"}:
+        raise ReplayAuthorizationError("HTTP and GraphQL require an HTTP destination")
     if req.method.upper() not in {"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}:
         raise ReplayAuthorizationError("unsupported live replay method")
     if req.body is not None and not isinstance(req.body, str):
@@ -319,17 +331,24 @@ def _validate_wire_request(req: ReplayRequest) -> None:
 class _ReplayDeadline:
     """Cancel socket work at an absolute deadline, including slow DNS and reads."""
 
-    def __init__(self, seconds: float) -> None:
+    def __init__(self, seconds: float, cancellation_event: threading.Event | None = None) -> None:
         self.expires = time.monotonic() + seconds
         self.cancelled = threading.Event()
         self.lock = threading.Lock()
         self.active_socket: socket.socket | None = None
+        self.cancellation_event = cancellation_event
 
     def remaining(self) -> float:
+        if self.cancellation_event is not None and self.cancellation_event.is_set():
+            raise ReplayCancelledError("replay cancelled")
         remaining = self.expires - time.monotonic()
         if self.cancelled.is_set() or remaining <= 0:
             raise TimeoutError("replay deadline exceeded")
         return remaining
+
+    def pause(self, seconds: float) -> None:
+        self.cancelled.wait(min(seconds, self.remaining()))
+        self.remaining()
 
     def attach(self, sock: socket.socket) -> None:
         with self.lock:
@@ -343,14 +362,16 @@ class _ReplayDeadline:
             self.cancelled.set()
             if self.active_socket is not None:
                 try:
-                    self.active_socket.shutdown(socket.SHUT_RDWR)
+                    # Wake I/O without SSLSocket.shutdown() clearing SSL state.
+                    # The worker owns final close: closing a descriptor while its
+                    # SSL handshake polls can leave that poll waiting until timeout.
+                    socket.socket.shutdown(self.active_socket, socket.SHUT_RDWR)
                 except OSError:
                     pass
-                self.active_socket.close()
 
 
 class StandardHttpReplayer(Replayer):
-    """Pinned-address HTTP transport with scope checks and an absolute deadline."""
+    """Pinned-address HTTP and bounded WebSocket transport with one deadline."""
 
     def __init__(
         self,
@@ -374,6 +395,40 @@ class StandardHttpReplayer(Replayer):
         if tls_context.minimum_version < ssl.TLSVersion.TLSv1_2:
             raise ReplayAuthorizationError("TLS context must require TLS 1.2 or newer")
 
+    def _connect(self, parsed: Any, deadline: _ReplayDeadline) -> socket.socket:
+        if parsed.scheme in {"ws", "wss"} and self.scope_guard.scope.egress_allowed is not True:
+            raise ScopeViolationError("WebSocket egress is disabled by the runtime scope")
+        secure = parsed.scheme in {"https", "wss"}
+        if secure:
+            self._validate_tls_context(self.tls_context)
+        host = parsed.hostname
+        port = parsed.port or (443 if secure else 80)
+        deadline.remaining()
+        try:
+            addresses = [str(ipaddress.ip_address(host))]
+        except ValueError:
+            addresses = self.scope_guard.resolver(host)
+        deadline.remaining()  # Late DNS cannot create a connection after cancellation.
+        self.scope_guard.check_resolved_destination(host, addresses)
+        address = ipaddress.ip_address(addresses[0])
+        sock = socket.socket(socket.AF_INET6 if address.version == 6 else socket.AF_INET, socket.SOCK_STREAM)
+        deadline.attach(sock)
+        try:
+            sock.settimeout(deadline.remaining())
+            sock.connect((str(address), port))
+            if secure:
+                self._validate_tls_context(self.tls_context)
+                sock.settimeout(deadline.remaining())
+                sock = self.tls_context.wrap_socket(sock, server_hostname=host, do_handshake_on_connect=False)
+                deadline.attach(sock)
+                sock.settimeout(deadline.remaining())
+                sock.do_handshake()
+            deadline.remaining()
+            return sock
+        except BaseException:
+            sock.close()
+            raise
+
     def _exchange(
         self,
         req: ReplayRequest,
@@ -381,6 +436,13 @@ class StandardHttpReplayer(Replayer):
         deadline: _ReplayDeadline,
         credential_header_names: frozenset[str],
     ) -> ReplayResponse:
+        if req.protocol == ApiProtocol.WEBSOCKET.value:
+            self.destination_guard.check_destination(req.url)
+            sock = self._connect(_parse_destination(req.url), deadline)
+            try:
+                return websocket.exchange(sock, req, budget, deadline)
+            finally:
+                sock.close()
         url = req.url
         if req.query_parameters:
             parsed = _parse_destination(url)
@@ -392,31 +454,12 @@ class StandardHttpReplayer(Replayer):
             parsed = _parse_destination(url)
             if parsed.scheme not in {"http", "https"}:
                 raise DestinationViolationError("only HTTP and HTTPS replay are supported")
-            if parsed.scheme == "https":
-                self._validate_tls_context(self.tls_context)
             host = parsed.hostname
             port = parsed.port or (443 if parsed.scheme == "https" else 80)
-            deadline.remaining()
-            try:
-                addresses = [str(ipaddress.ip_address(host))]
-            except ValueError:
-                addresses = self.scope_guard.resolver(host)
-            # An expired resolver may finish later, but must never open a socket.
-            deadline.remaining()
-            self.scope_guard.check_resolved_destination(host, addresses)
-            address = ipaddress.ip_address(addresses[0])
-            sock = socket.socket(socket.AF_INET6 if address.version == 6 else socket.AF_INET, socket.SOCK_STREAM)
+            sock = self._connect(parsed, deadline)
             connection = http.client.HTTPConnection(host, port, timeout=deadline.remaining())
             connection.auto_open = 0  # No reconnect and no implicit second DNS lookup.
-            deadline.attach(sock)
             try:
-                sock.settimeout(deadline.remaining())
-                sock.connect((str(address), port))
-                if parsed.scheme == "https":
-                    self._validate_tls_context(self.tls_context)
-                    sock.settimeout(deadline.remaining())
-                    sock = self.tls_context.wrap_socket(sock, server_hostname=host)
-                    deadline.attach(sock)
                 connection.sock = sock
                 sock.settimeout(deadline.remaining())
                 path = urlunparse(("", "", parsed.path or "/", parsed.params, parsed.query, ""))
@@ -492,13 +535,15 @@ class StandardHttpReplayer(Replayer):
         budget: ReplayBudget,
         *,
         credential_header_names: frozenset[str] | None = None,
+        cancellation_event: threading.Event | None = None,
     ) -> ReplayResponse:
         _validate_budget(budget)
         _validate_wire_request(req)
+        _validate_websocket_request(req, budget)
         self.destination_guard.check_destination(req.url)
         owned_credential_header_names = frozenset(name.lower() for name in credential_header_names or ())
         started = time.monotonic()
-        deadline = _ReplayDeadline(budget.timeout_seconds)
+        deadline = _ReplayDeadline(budget.timeout_seconds, cancellation_event)
         done = threading.Event()
         result: list[ReplayResponse | Exception] = []
 
@@ -510,12 +555,29 @@ class StandardHttpReplayer(Replayer):
             finally:
                 done.set()
 
-        threading.Thread(target=exchange, name="cops-api-replay", daemon=True).start()
-        if not done.wait(max(0, deadline.expires - time.monotonic())):
+        worker = threading.Thread(target=exchange, name="cops-api-replay", daemon=True)
+        worker.start()
+        stopped: OSError | None = None
+        try:
+            while not done.wait(min(0.02, max(0, deadline.expires - time.monotonic()))):
+                deadline.remaining()
+            deadline.remaining()
+        except (TimeoutError, ReplayCancelledError) as error:
+            stopped = error
             deadline.cancel()
-            outcome: ReplayResponse | Exception = TimeoutError("replay deadline exceeded")
-        else:
-            outcome = result[0]
+        except BaseException:
+            deadline.cancel()
+            worker.join(timeout=0.2)
+            raise
+        # A synchronous resolver cannot be interrupted; never wait for late DNS.
+        worker.join(timeout=0.2 if deadline.active_socket is not None or done.is_set() else 0)
+        outcome: ReplayResponse | Exception = result[0] if result else stopped or TimeoutError("replay stopped")
+        if stopped is not None:
+            if isinstance(outcome, ReplayResponse):
+                outcome.replay_success = False
+                outcome.error_message = type(stopped).__name__
+            else:
+                outcome = stopped
         if isinstance(outcome, (DestinationViolationError, ScopeViolationError)):
             raise outcome
         if isinstance(outcome, Exception):
@@ -545,6 +607,8 @@ def _validate_budget(budget: ReplayBudget) -> None:
         ("max_requests", 1, 1000),
         ("max_redirect_hops", 0, 10),
         ("max_websocket_frames", 0, 10000),
+        ("max_websocket_message_bytes", 1, 65536),
+        ("max_websocket_bytes", 1, 1048576),
     ):
         value = getattr(budget, name)
         if type(value) is not int or not low <= value <= high:
@@ -557,6 +621,20 @@ def _validate_budget(budget: ReplayBudget) -> None:
         raise ReplayBudgetExceededError("timeout_seconds must be greater than zero and at most 86400")
     if budget.rate_limit_rps != 0 and not 1 / 86400 <= budget.rate_limit_rps <= 1000000:
         raise ReplayBudgetExceededError("rate_limit_rps must be zero or between 1/86400 and 1000000")
+
+
+def _validate_websocket_request(req: ReplayRequest, budget: ReplayBudget, *, preview_only: bool = False) -> None:
+    if req.protocol != ApiProtocol.WEBSOCKET.value:
+        return
+    try:
+        if preview_only:
+            websocket.validate_message_budget(req, budget)
+        else:
+            websocket.validate_request(req, budget)
+    except websocket.WebSocketBudgetError as error:
+        raise ReplayBudgetExceededError(str(error)) from None
+    except websocket.WebSocketProtocolError as error:
+        raise ReplayAuthorizationError(str(error)) from None
 
 
 def _report(
@@ -603,6 +681,8 @@ def preview_replay_session(
         raise ReplayBudgetExceededError("request count exceeds max_requests")
     for request in owned_requests:
         guard.check_destination(request.url)
+        if request.protocol == ApiProtocol.WEBSOCKET.value:
+            _validate_websocket_request(request, active_budget, preview_only=True)
     return _report(
         requests=owned_requests,
         responses=[],
@@ -684,17 +764,30 @@ def _plan_parts(
     if not wire_requests or len(wire_requests) != len(source_requests):
         raise ReplayAuthorizationError("live replay requires at least one request")
     sessions_digest = digest([asdict(session) for session in sessions])
+    http_budget = asdict(budget)
+    http_budget.pop("max_websocket_message_bytes")
+    http_budget.pop("max_websocket_bytes")
+    for item in wire_requests:
+        _validate_websocket_request(item.request, budget)
     operations = [
         {
             "step_id": wire_request.request.request_id,
-            "tool": "cops.web_api.standard-http-replayer",
-            "tool_version": "2",
-            "action": "replay_http_request",
+            "tool": (
+                "cops.web_api.bounded-websocket-replayer"
+                if wire_request.request.protocol == "websocket"
+                else "cops.web_api.standard-http-replayer"
+            ),
+            "tool_version": "1" if wire_request.request.protocol == "websocket" else "2",
+            "action": "replay_websocket_session"
+            if wire_request.request.protocol == "websocket"
+            else "replay_http_request",
             "arguments": {
                 "request_digest": digest(asdict(wire_request.request)),
                 "source_request_digest": digest(asdict(source_request)),
                 "sessions_digest": sessions_digest,
-                "budget_digest": digest(asdict(budget)),
+                "budget_digest": digest(
+                    asdict(budget) if wire_request.request.protocol == "websocket" else http_budget
+                ),
                 "destinations_digest": digest(allowed_destinations),
                 "method": wire_request.request.method.upper(),
                 "url": sanitize_reference(wire_request.request.url),
@@ -710,7 +803,15 @@ def _plan_parts(
     pacing_seconds = (len(wire_requests) - 1) / budget.rate_limit_rps if budget.rate_limit_rps > 0 else 0
     limits = {
         "max_duration_seconds": max(1, math.ceil(budget.timeout_seconds * len(wire_requests) + pacing_seconds)),
-        "max_output_bytes": max(1, 2048 * len(wire_requests)),
+        "max_output_bytes": max(
+            1,
+            sum(
+                budget.max_websocket_bytes + websocket.MAX_HANDSHAKE_BYTES
+                if item.request.protocol == "websocket"
+                else 2048
+                for item in wire_requests
+            ),
+        ),
         "egress_allowed": True,
     }
     batch = {"mode": "sequential", "max_operations": len(wire_requests), "fail_fast": True}
@@ -781,6 +882,8 @@ def execute_replay_session(
     if len(owned_requests) > active_budget.max_requests:
         raise ReplayBudgetExceededError("request count exceeds max_requests")
     responses: list[ReplayResponse] = []
+    for request in owned_requests:
+        _validate_websocket_request(request, active_budget, preview_only=True)
     violations = 0
     for request in owned_requests:
         if not guard.is_destination_allowed(request.url):
@@ -819,8 +922,11 @@ def execute_authorized_replay_session(
     approval_control: ApprovalControl,
     worker_identity: str,
     session_id: str | None = None,
+    cancellation_event: threading.Event | None = None,
 ) -> ReplaySessionReport:
     """Consume one exact approval, then dispatch the corresponding bounded live replay."""
+    if cancellation_event is not None and cancellation_event.is_set():
+        raise ReplayAuthorizationError("replay cancelled before approval consumption")
     owned_destinations = _snapshot_allowlist(allowed_destinations)
     if not owned_destinations:
         raise ReplayAuthorizationError("live replay requires an explicit destination allowlist")
@@ -834,6 +940,9 @@ def execute_authorized_replay_session(
     wire_requests = _wire_requests(owned_requests, owned_sessions)
     for item in wire_requests:
         destination_guard.check_destination(item.request.url)
+    if any(item.request.protocol == ApiProtocol.WEBSOCKET.value for item in wire_requests):
+        if scope_guard.scope.egress_allowed is not True:
+            raise ScopeViolationError("WebSocket egress is disabled by the runtime scope")
     expected_operations, expected_limits, expected_batch = _plan_parts(
         wire_requests, owned_requests, owned_sessions, owned_budget, owned_destinations
     )
@@ -846,6 +955,8 @@ def execute_authorized_replay_session(
     ):
         raise ReplayAuthorizationError("action plan does not match the requested replay")
     approval_control.assert_ready(worker_identity)
+    if cancellation_event is not None and cancellation_event.is_set():
+        raise ReplayAuthorizationError("replay cancelled before approval consumption")
     receipt: ApprovalConsumptionReceipt | None = approval_control.consume_authorization(
         authorization_id, action_plan, worker_identity
     )
@@ -856,12 +967,14 @@ def execute_authorized_replay_session(
         delay = 1.0 / owned_budget.rate_limit_rps if owned_budget.rate_limit_rps > 0 else 0.0
         for index, item in enumerate(wire_requests):
             if index and delay:
-                time.sleep(delay)
-            response = replayer.send(
-                item.request,
-                owned_budget,
-                credential_header_names=item.credential_header_names,
-            )
+                if cancellation_event is None:
+                    time.sleep(delay)
+                else:
+                    cancellation_event.wait(delay)
+            options: dict[str, Any] = {"credential_header_names": item.credential_header_names}
+            if cancellation_event is not None:
+                options["cancellation_event"] = cancellation_event
+            response = replayer.send(item.request, owned_budget, **options)
             responses.append(response)
             if not response.replay_success:
                 break

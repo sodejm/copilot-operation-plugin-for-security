@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
@@ -80,37 +79,9 @@ class RateLimitAssessment:
         }
 
 
-def _graphql_access_allowed(response: ReplayResponse) -> bool | None:
-    if response.status_code == 0:
-        return None
-    if response.status_code in {401, 403}:
-        return False
-    if not (200 <= response.status_code < 300):
-        return None
-    try:
-        document = json.loads(response.body_excerpt)
-    except (json.JSONDecodeError, TypeError, RecursionError):
-        return None
-    if not isinstance(document, dict):
-        return None
-    data = document.get("data")
-    if isinstance(data, dict) and data.get("object") is not None:
-        return True
-    errors = document.get("errors")
-    if isinstance(data, dict) and "object" in data and isinstance(errors, list) and errors:
-        codes = [
-            error.get("extensions", {}).get("code")
-            for error in errors
-            if isinstance(error, dict) and isinstance(error.get("extensions"), dict)
-        ]
-        if len(codes) == len(errors) and all(code in {"UNAUTHENTICATED", "FORBIDDEN"} for code in codes):
-            return False
-    return None
-
-
 def _access_allowed(case: AuthorizationCase) -> bool | None:
     if case.surface == "graphql":
-        return _graphql_access_allowed(case.response)
+        return case.response.observed_graphql_object_access()
     if case.surface != "rest" or case.response.status_code == 0:
         return None
     if case.response.status_code in {401, 403, 404}:

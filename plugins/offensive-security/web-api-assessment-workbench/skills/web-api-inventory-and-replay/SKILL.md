@@ -38,8 +38,15 @@ reading a supplied local schema or drafting a test plan.
 4. Enforce strict destination boundaries using `DestinationGuard`. Reject any target URL not explicitly listed in the authorized allowlist.
 5. Preview or synthetically replay request sequences bounded by operational budgets (max requests, rate limiting RPS, timeout, max redirect hops):
    `python3 -m cops web-api replay -i inventory.json --allow-destination <target.host> --max-requests 50 --rate-limit 10.0 -o replay_report.json`
-6. For live HTTP, build an `ActionPlan`, verify approval for that exact snapshot, then call `execute_authorized_replay_session` with the repository worker and `ScopeGuard`. Preview must remain side-effect free.
+6. For live HTTP or bounded WS/WSS text, build an `ActionPlan`, verify approval for that exact snapshot, then call `execute_authorized_replay_session` with the repository worker and `ScopeGuard`. WebSocket messages, sessions and frame/byte/time budgets are approval-bound. Preview must remain side-effect free.
 7. Compare owner, other-user, and anonymous REST and GraphQL observations with `assess_object_authorization`; evaluate bounded rate evidence with `assess_rate_limit`. Treat missing or indeterminate evidence as `insufficient_evidence`.
 8. Review replay session reports for status distribution, latency benchmarks, and destination compliance.
 
-The package CLI supports offline replay and rejects live mode until the shared CLI integrates approval, worker, and scope dependencies. Live WebSocket execution is unsupported. Loopback vulnerable/corrected fixtures validate local BOLA/IDOR, GraphQL, and rate-limit behavior; production-provider validation remains incomplete.
+The package CLI supports offline replay and rejects live mode until the shared
+CLI integrates approval, worker, and scope dependencies. The approved WebSocket
+subset is unfragmented UTF-8 text with bounded ping/pong and checked close. Binary
+frames, fragments, compression, extensions, subprotocols and WebSocket redirects
+are unsupported. Loopback fixtures cover local REST/GraphQL authorization, rate
+limits and WebSocket role-session separation; they do not qualify OS/network
+isolation or production providers. Treat timeout, cancellation and partial
+exchanges as uncertain effects requiring review and a fresh approval before retry.

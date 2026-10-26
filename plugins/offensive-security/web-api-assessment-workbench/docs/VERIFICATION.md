@@ -6,7 +6,12 @@ This playbook qualifies the package's offline inventory and replay behavior and 
 
 Run from a trusted checkout with the repository's declared Python environment. Use only synthetic fixtures or targets covered by explicit authorization. The supported inventory inputs are HAR 1.2, OpenAPI 3.x, Swagger 2.0, Postman 2.0/2.1, and raw HTTP transcripts. Import preserves the source artifact and emits a separate sanitized inventory.
 
-HTTP and HTTPS are the only live replay protocols available through the approved Python integration. WebSocket entries are inventory only. WebSocket replay, binary streaming, and Server-Sent Events are unsupported.
+The approved Python integration supports HTTP/HTTPS and a bounded WS/WSS text
+subset. WebSocket replay requires an exact approved message sequence, isolated
+session headers, frame/byte budgets and a checked close exchange. Binary frames,
+fragmentation, compression, extensions, subprotocols and WebSocket redirects are
+unsupported, as are binary streaming and Server-Sent Events. See
+[bounded WebSocket replay](BOUNDED_WEBSOCKET_REPLAY.md).
 
 The local acceptance laboratory starts disposable services on loopback and sends real HTTP requests. Its worker contract verifies readiness and coordinates execution, but it does not provide OS or network isolation. Record isolation as blocked. Production-provider validation is also incomplete.
 
@@ -40,8 +45,16 @@ The demo must report offline mode, zero network requests, a redacted inventory, 
 Run the focused local-service assessment with the repository environment:
 
 ```bash
-python3 -m pytest -q plugins/offensive-security/web-api-assessment-workbench/tests/test_authorized_assessment.py
+make check-web-api-acceptance
 ```
+
+Use `PYTHON=.venv/bin/python` when needed. This repository development gate invokes
+the package's HTTP and WebSocket pytest acceptance modules, requires every named case, and rejects
+skips, empty or incomplete collection, failed/malformed reports and timeout.
+`make check` includes it; the portable `cops check` package gate remains offline
+and does not execute these real-service cases. Hosts without Make can run
+`python3 scripts/check_web_api_acceptance.py` from the repository root. The final
+summary explicitly reports `scope: loopback-only` and `isolation_qualified: false`.
 
 The test issues signed authorizations through a persisted one-use approval store,
 verifies consumption and rejects reuse or changed requests, sessions, destinations
@@ -70,6 +83,11 @@ The preview must name exact target and allowed destinations, request and redirec
 - Approved live HTTP replay rejects action-plan drift, unapproved execution, unready workers, out-of-scope destinations, excess redirects, and exhausted request budgets before further dispatch.
 - Approved live HTTP replay uses owned snapshots after plan verification, verifies the TLS certificate and original hostname, rejects HTTPS downgrade, and refuses cross-origin redirects that retain a body or credential-bearing header.
 - Unsupported protocols and missing evidence remain explicit limitations. They never become successful evidence.
+- Response-body serialization retains only opaque digests and an optional Boolean
+  GraphQL object-access observation. Explicit denial, object disclosure and unknown
+  outcomes survive repeated report round trips without saving payloads or error
+  messages. Old digest-only evidence without this observation stays inconclusive;
+  recollect the exact missing authorized case rather than inferring an outcome.
 
 ## Failure and recovery
 
@@ -85,7 +103,11 @@ a new attempt. If any required owner, other-user, anonymous, REST, GraphQL, or r
 
 Install or load the package through the intended host marketplace, then run the same `info`, `demo`, and `check` entry points and record package discovery plus their exit status. Confirm that the host exposes inventory, inspect, and replay preview without expanding the package's destination or budget controls.
 
-No production provider adapter or provider-target result has been validated. A provider exercise requires separate authorization, an exact destination allowlist, an approved `ActionPlan`, repository worker and scope controls, and evidence from the actual provider service. WebSocket behavior can be inventoried but cannot be replayed by this package.
+No production provider adapter or provider-target result has been validated. A
+provider exercise requires separate authorization, an exact destination allowlist,
+an approved `ActionPlan`, repository worker and scope controls, and evidence from
+the actual provider service. Bounded WS/WSS text exchanges are locally exercised;
+that does not establish arbitrary WebSocket application or provider support.
 
 ## Record and promote
 
