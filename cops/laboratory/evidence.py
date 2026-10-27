@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
 import stat
@@ -176,3 +177,35 @@ class LaboratoryEvidenceStore:
         ):
             raise LaboratoryGateError("invalid laboratory evidence reference")
         return self.directory / path
+
+    def read_json(self, reference: Mapping[str, Any]) -> Any:
+        """Read and authenticate canonical content-addressed evidence bytes."""
+        path = self.resolve(reference)
+        directory_descriptor = self._open_checked_directory()
+        descriptor = -1
+        try:
+            descriptor = os.open(
+                path.name,
+                os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0),
+                dir_fd=directory_descriptor,
+            )
+            metadata = self._validate_file(descriptor)
+            if metadata.st_size > 4 * 1024 * 1024:
+                raise LaboratoryGateError("laboratory evidence exceeds the byte limit")
+            raw = self._read_all(descriptor)
+            self._validate_directory_binding(directory_descriptor)
+        except (OSError, LaboratoryGateError) as err:
+            raise LaboratoryGateError("cannot safely read laboratory evidence") from err
+        finally:
+            if descriptor >= 0:
+                os.close(descriptor)
+            os.close(directory_descriptor)
+        if hashlib.sha256(raw).hexdigest() != reference.get("sha256") or len(raw) != reference.get("byte_length"):
+            raise LaboratoryGateError("laboratory evidence digest or length does not match its reference")
+        try:
+            value = json.loads(raw.decode("utf-8"))
+        except (UnicodeError, ValueError) as err:
+            raise LaboratoryGateError("laboratory evidence is not valid JSON") from err
+        if canonical(value) != raw:
+            raise LaboratoryGateError("laboratory evidence is not canonically encoded")
+        return value

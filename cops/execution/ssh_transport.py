@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import hashlib
 import ipaddress
 import json
 import math
@@ -97,6 +98,22 @@ class SSHRemoteEndpoint:
                 raise ValueError("supervisor attestation key ID is invalid") from err
             if not isinstance(self.attestation_key, bytes) or len(self.attestation_key) != 32:
                 raise ValueError("supervisor attestation key must contain 32 bytes")
+
+
+def endpoint_identity(endpoint: SSHRemoteEndpoint) -> dict[str, Any]:
+    """Return the canonical, non-secret identity of the complete configured endpoint."""
+    pin, algorithm = _load_exact_host_pin(endpoint)
+    return {
+        "host": endpoint.host,
+        "port": endpoint.port,
+        "username": endpoint.username,
+        "worker_identity": endpoint.worker_id,
+        "remote_command": list(endpoint.remote_command),
+        "host_key_algorithm": algorithm,
+        "known_hosts_pin_sha256": hashlib.sha256(pin).hexdigest(),
+        "attestation_key_id": endpoint.attestation_key_id,
+        "attestation_key_sha256": hashlib.sha256(endpoint.attestation_key).hexdigest(),
+    }
 
 
 @dataclass(frozen=True)

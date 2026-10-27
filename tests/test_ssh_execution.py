@@ -4,12 +4,13 @@ import io
 import json
 import stat
 import uuid
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
-from cops.contracts.models import ActionPlan, RunResult
+from cops.contracts.models import ActionPlan, CleanupReceipt, RunResult
 from cops.evidence.canonical import canonical, decode_json
 from cops.execution.control import ApprovalConsumptionReceipt
 from cops.execution.ssh_execution import (
@@ -17,8 +18,9 @@ from cops.execution.ssh_execution import (
     RemoteAuthorizedRun,
     SSHExecutionDispatcher,
     SSHExecutionError,
+    validate_remote_authorized_run,
 )
-from cops.execution.ssh_transport import SSH_PROTOCOL, SSHRemoteResponse
+from cops.execution.ssh_transport import SSH_PROTOCOL, SSHRemoteEndpoint, SSHRemoteResponse
 from cops.execution.supervisor_attestation import SupervisorResponseAttestor
 from cops.remote_worker import (
     RemoteWorkerRelayConfig,
@@ -62,6 +64,54 @@ def _receipt(
     )
 
 
+def _cleanup_receipt(plan: ActionPlan, result: RunResult) -> CleanupReceipt:
+    return CleanupReceipt(
+        schema_version="cops.cleanup-receipt/v1",
+        receipt_id="cln-ssh-validation-01",
+        plan_id=plan.plan_id,
+        engagement_id=plan.engagement_id,
+        worker_identity=result.worker_identity,
+        status=result.cleanup_status,
+        created_at=result.finished_at,
+        completed_at="2026-10-02T10:05:31Z",
+        cleaned_effects=[],
+        unresolved_effects=[],
+        evidence_hash="0" * 64,
+    )
+
+
+def test_remote_authorized_run_binds_cleanup_receipt_to_result_and_plan() -> None:
+    plan = _plan()
+    result = _result(plan)
+    approval = _receipt(plan)
+    cleanup = _cleanup_receipt(plan, result)
+    run = RemoteAuthorizedRun(result=result, approval_receipt=approval, cleanup_receipt=cleanup)
+
+    validate_remote_authorized_run(
+        run,
+        approved_worker_identity=result.worker_identity,
+        authorization_id=approval.authorization_id,
+        action_plan=plan,
+    )
+
+    invalid_receipts = (
+        replace(cleanup, plan_id="plan-other"),
+        replace(cleanup, engagement_id="eng-other"),
+        replace(cleanup, worker_identity="worker-other"),
+        replace(cleanup, status="failed"),
+        replace(cleanup, completed_at="2026-10-02T10:05:29Z"),
+        replace(cleanup, created_at="2026-10-02T10:05:32Z"),
+    )
+    for invalid in invalid_receipts:
+        with pytest.raises(SSHExecutionError, match="cleanup receipt"):
+            validate_remote_authorized_run(
+                replace(run, cleanup_receipt=invalid),
+                approved_worker_identity=result.worker_identity,
+                authorization_id=approval.authorization_id,
+                action_plan=plan,
+            )
+
+
 class _FakeWorker:
     def __init__(self, *, receipt_worker_identity: str = "worker-lab-01") -> None:
         self.calls: list[dict[str, object]] = []
@@ -92,6 +142,7 @@ class _FakeWorker:
                 self.receipt_worker_identity,
                 authorization_id,
             ),
+            cleanup_receipt=None,
         )
 
 
@@ -250,7 +301,7 @@ def test_receiver_bounds_request_before_authority_consumption() -> None:
     assert worker.calls == []
 
 
-def test_dispatcher_uses_only_approved_worker_identity(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_dispatcher_uses_only_approved_worker_identity(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     plan = _plan()
     calls: list[dict[str, object]] = []
 
@@ -301,14 +352,24 @@ def test_dispatcher_uses_only_approved_worker_identity(monkeypatch: pytest.Monke
                 payload=signed["payload"],
             )
 
+    known_hosts = tmp_path / "known_hosts"
+    known_hosts.write_text("worker.example.test ssh-ed25519 dGVzdC1ob3N0LWtleQ==\n", encoding="ascii")
+    known_hosts.chmod(0o600)
+    endpoint = SSHRemoteEndpoint(
+        host="worker.example.test",
+        port=22,
+        username="cops-worker",
+        worker_id="worker-lab-01",
+        known_hosts_path=known_hosts,
+        remote_command=("python3", "-m", "cops.remote_worker"),
+        attestation_key_id=ATTESTATION_KEY_ID,
+        attestation_key=ATTESTATION_KEY,
+    )
+
     class _FakeInventory:
         def resolve(self, worker_id: str) -> object:
             assert worker_id == "worker-lab-01"
-            return SimpleNamespace(
-                host="worker.example.test",
-                attestation_key_id=ATTESTATION_KEY_ID,
-                attestation_key=ATTESTATION_KEY,
-            )
+            return endpoint
 
     monkeypatch.setattr(
         "cops.execution.ssh_execution.SSHRemoteDispatcher",

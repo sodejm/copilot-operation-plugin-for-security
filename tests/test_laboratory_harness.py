@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import builtins
+import copy
 import hashlib
 import hmac
 import json
@@ -15,10 +16,11 @@ from unittest.mock import patch
 
 import pytest
 
-from cops.contracts.models import ActionPlan
-from cops.evidence.canonical import canonical
+from cops.contracts.models import ActionPlan, CleanupReceipt
+from cops.evidence.canonical import canonical, digest
 from cops.execution.scope_guard import ScopeDefinition, ScopeGuard
 from cops.execution.ssh_execution import SSHExecutionError
+from cops.execution.ssh_transport import SSHRemoteEndpointInventory
 from cops.laboratory import (
     CanaryVerificationError,
     IsolationVerificationError,
@@ -40,6 +42,12 @@ from cops.laboratory import (
     version_ge,
 )
 from cops.laboratory.cli import command_laboratory
+from cops.reporting.retest_execution import (
+    RetestExecutionEvidenceError,
+    TrustedLaboratoryContext,
+    verify_retest_execution_evidence,
+    verify_retest_execution_evidence_reference,
+)
 from tests.auth_testkit import authorize_test_plan, worker_inventory_for_plan
 from tests.laboratory_testkit import (
     case_observation,
@@ -49,6 +57,7 @@ from tests.laboratory_testkit import (
     remote_run,
     reset_receipt,
     sign_receipt,
+    supervisor_exchange,
 )
 
 
@@ -291,7 +300,46 @@ def test_case_classification_uses_bound_worker_observation(
 ) -> None:
     harness, inventory, environment, plan, auth, trust, engagement, worker_inventory, guard = _ready_case(tmp_path)
     run = remote_run(plan, auth.authorization_id, environment.owner, status=status, exit_code=exit_code)
-    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute", return_value=run) as dispatch:
+    # Authorization validity is checked against the worker's start time. Test fixtures
+    # should not accidentally predate their own freshly issued authorization.
+    started = datetime.fromisoformat(auth.issued_at.replace("Z", "+00:00"))
+    run = replace(
+        run,
+        result=replace(
+            run.result,
+            started_at=started.isoformat().replace("+00:00", "Z"),
+            finished_at=started.isoformat().replace("+00:00", "Z"),
+        ),
+    )
+    if expected in {"success", "remediated"}:
+        run = replace(
+            run,
+            cleanup_receipt=CleanupReceipt(
+                schema_version="cops.cleanup-receipt/v1",
+                receipt_id="cln-case-test-01",
+                plan_id=plan.plan_id,
+                engagement_id=plan.engagement_id,
+                worker_identity=environment.owner,
+                status="completed",
+                created_at=run.result.finished_at,
+                # Production ExecutionWorker stamps RunResult.finished_at before
+                # rollback creates the cleanup receipt.
+                completed_at=(
+                    datetime.fromisoformat(run.result.finished_at.replace("Z", "+00:00")) + timedelta(seconds=1)
+                )
+                .isoformat()
+                .replace("+00:00", "Z"),
+                cleaned_effects=[],
+                unresolved_effects=[],
+                evidence_hash="0" * 64,
+            ),
+        )
+    with patch(
+        "cops.laboratory.harness.SSHExecutionDispatcher.execute_with_evidence",
+        side_effect=lambda **kwargs: supervisor_exchange(
+            run, plan, auth.authorization_id, environment.owner, inventory, request_id=kwargs["request_id"]
+        ),
+    ) as dispatch:
         dispatched = harness.execute_case(
             environment,
             plan,
@@ -313,6 +361,18 @@ def test_case_classification_uses_bound_worker_observation(
         request_nonce=harness.case_observation_challenge(dispatched),
         canary_token_detected=canary,
         control_blocked=blocked,
+        **(
+            {
+                "observed_at": (
+                    datetime.fromisoformat(run.cleanup_receipt.completed_at.replace("Z", "+00:00"))
+                    + timedelta(seconds=1)
+                )
+                .isoformat()
+                .replace("+00:00", "Z")
+            }
+            if run.cleanup_receipt
+            else {}
+        ),
     )
     classified = harness.classify_case(
         environment,
@@ -322,13 +382,158 @@ def test_case_classification_uses_bound_worker_observation(
         case_type,
         case_observation=observation,
         endpoint_inventory=inventory,
+        baseline_finding_id="find-test-case" if expected in {"success", "remediated"} else None,
+        asset_id="asset-test-case" if expected in {"success", "remediated"} else None,
     )
     assert classified.status == expected
-    assert classified.cleanup_receipt is None
+    assert (classified.cleanup_receipt is not None) == (expected in {"success", "remediated"})
     assert classified.details["worker_cleanup_status"] == "completed"
     (record,) = harness.recorded_cases()
     assert record["state"] == ("failed" if expected == "failed" else "classified")
     assert record["result"] == classified.to_dict()
+    reference = harness.retest_evidence_reference(dispatched.result.result_id)
+    if expected in {"success", "remediated"}:
+        assert reference is not None
+        persisted = harness.evidence_store.read_json(reference)
+        assert persisted["case_journal_record"] == record
+        assert persisted["baseline_finding_id"] == "find-test-case"
+        verification = dict(
+            trust_store=trust,
+            endpoint_inventory=inventory,
+            observation_trust_store=harness.observation_trust_store,
+            engagement=engagement,
+            finding_id="find-test-case",
+            asset_id="asset-test-case",
+            trusted_context=TrustedLaboratoryContext(
+                environment=environment,
+                plan=plan,
+                target=plan.target,
+                provenance="test fixture verified laboratory registration and baseline plan",
+            ),
+            trusted_terminal_journal_record_digest=digest(record),
+            previously_consumed_authorization_ids=[],
+            evidence_store=harness.evidence_store,
+        )
+        review = verify_retest_execution_evidence_reference(reference, **verification)
+        assert review.outcome == ("candidate_fixed" if expected == "remediated" else "candidate_still_vulnerable")
+        assert review.finding_id == "find-test-case"
+        assert review.closure_status == "blocked"
+        assert review.independent_review_required is True
+        with pytest.raises(RetestExecutionEvidenceError):
+            verify_retest_execution_evidence(
+                persisted,
+                trust_store=trust,
+                endpoint_inventory=inventory,
+                observation_trust_store=harness.observation_trust_store,
+                engagement=engagement,
+                finding_id="find-test-case",
+                asset_id="asset-test-case",
+                trusted_context=verification["trusted_context"],
+                trusted_terminal_journal_record_digest=verification["trusted_terminal_journal_record_digest"],
+                previously_consumed_authorization_ids=[auth.authorization_id],
+                evidence_store=harness.evidence_store,
+            )
+        for tamper in (
+            "plan",
+            "plan-body",
+            "identity",
+            "attestation",
+            "observation",
+            "observation-signature",
+            "journal",
+            "cleanup",
+            "missing-cleanup",
+        ):
+            changed = copy.deepcopy(persisted)
+            if tamper == "plan":
+                changed["action_plan_sha256"] = "0" * 64
+            elif tamper == "plan-body":
+                changed["action_plan"]["target"] = "other-target.example.test"
+            elif tamper == "identity":
+                changed["asset_id"] = "asset-other"
+            elif tamper == "attestation":
+                changed["supervisor_exchange"]["response_payload"]["attestation"]["mac"] = "0" * 64
+            elif tamper == "observation":
+                changed["observation"]["environment_id"] = "env-other"
+            elif tamper == "observation-signature":
+                changed["observation"]["signature"] = "0" * len(changed["observation"]["signature"])
+            elif tamper == "journal":
+                changed["case_journal_record"]["payload"]["authorization_id"] = "auth-other"
+            else:
+                if tamper == "missing-cleanup":
+                    changed["cleanup_receipt"] = None
+                else:
+                    changed["cleanup_receipt"]["status"] = "unknown"
+            with pytest.raises(RetestExecutionEvidenceError):
+                verify_retest_execution_evidence(
+                    changed,
+                    trust_store=trust,
+                    endpoint_inventory=inventory,
+                    observation_trust_store=harness.observation_trust_store,
+                    engagement=engagement,
+                    finding_id="find-test-case",
+                    asset_id="asset-test-case",
+                    trusted_context=verification["trusted_context"],
+                    trusted_terminal_journal_record_digest=verification["trusted_terminal_journal_record_digest"],
+                    previously_consumed_authorization_ids=[],
+                    evidence_store=harness.evidence_store,
+                )
+        substituted_journal = copy.deepcopy(persisted)
+        substituted_journal["case_journal_record"]["attempt_id"] = "substituted-attempt"
+        with pytest.raises(RetestExecutionEvidenceError):
+            verify_retest_execution_evidence(substituted_journal, **verification)
+        with pytest.raises(RetestExecutionEvidenceError):
+            verify_retest_execution_evidence(
+                persisted,
+                **{**verification, "trusted_terminal_journal_record_digest": "0" * 64},
+            )
+        wrong_plan = make_inert_action_plan(plan_id="plan-untrusted-context", target="attacker.example.test")
+        bad_contexts = (
+            replace(verification["trusted_context"], target="attacker.example.test"),
+            replace(verification["trusted_context"], plan=wrong_plan),
+            replace(
+                verification["trusted_context"],
+                environment=replace(
+                    environment,
+                    environment_id="env-untrusted-registration",
+                ),
+            ),
+            replace(
+                verification["trusted_context"],
+                environment=replace(
+                    environment,
+                    status="registered",
+                ),
+            ),
+        )
+        for trusted_context in bad_contexts:
+            with pytest.raises(RetestExecutionEvidenceError):
+                verify_retest_execution_evidence(
+                    persisted,
+                    **{**verification, "trusted_context": trusted_context},
+                )
+        rotated = copy.deepcopy(persisted)
+        rotated["supervisor_exchange"]["attestation_key_id"] = "rotated-key"
+        with pytest.raises(RetestExecutionEvidenceError):
+            verify_retest_execution_evidence(rotated, **verification)
+        unavailable = copy.deepcopy(persisted)
+        unavailable_inventory = SSHRemoteEndpointInventory(
+            schema_version=inventory.schema_version,
+            endpoints={},
+        )
+        with pytest.raises(RetestExecutionEvidenceError):
+            verify_retest_execution_evidence(
+                unavailable,
+                **{**verification, "endpoint_inventory": unavailable_inventory},
+            )
+        rotated_endpoint_inventory = endpoint_inventory(tmp_path / "rotated-endpoint", port=2222)
+        with pytest.raises(RetestExecutionEvidenceError):
+            verify_retest_execution_evidence(
+                persisted,
+                **{**verification, "endpoint_inventory": rotated_endpoint_inventory},
+            )
+    else:
+        assert reference is None
     with pytest.raises(LaboratoryGateError, match="pending"):
         harness.classify_case(
             environment,
@@ -343,7 +548,7 @@ def test_case_classification_uses_bound_worker_observation(
 
 def test_case_omitted_guard_or_worker_inventory_rejected_before_dispatch(tmp_path: Path) -> None:
     harness, inventory, environment, plan, auth, trust, engagement, worker_inventory, guard = _ready_case(tmp_path)
-    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute") as dispatch:
+    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute_with_evidence") as dispatch:
         with pytest.raises(LaboratoryGateError, match="scope guard"):
             harness.execute_case(
                 environment,
@@ -396,7 +601,7 @@ def test_fresh_observation_and_egress_gate_precede_dispatch(tmp_path: Path) -> N
         platform_prerequisites=plan.to_dict()["platform_prerequisites"],
         batch=plan.to_dict()["batch"],
     )
-    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute") as dispatch:
+    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute_with_evidence") as dispatch:
         with pytest.raises(LaboratoryGateError, match="prohibit egress"):
             harness.execute_case(
                 environment,
@@ -412,7 +617,7 @@ def test_fresh_observation_and_egress_gate_precede_dispatch(tmp_path: Path) -> N
     harness.observation_provider = lambda env, nonce: environment_observation(
         env, nonce, inventory, egress_restricted=False
     )
-    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute") as dispatch:
+    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute_with_evidence") as dispatch:
         with pytest.raises(LaboratoryGateError, match="fresh runtime verification"):
             harness.execute_case(
                 environment,
@@ -431,7 +636,12 @@ def test_fresh_observation_and_egress_gate_precede_dispatch(tmp_path: Path) -> N
 def test_invalid_case_observation_can_be_replaced_before_classification(tmp_path: Path) -> None:
     harness, inventory, environment, plan, auth, trust, engagement, worker_inventory, guard = _ready_case(tmp_path)
     run = remote_run(plan, auth.authorization_id, environment.owner)
-    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute", return_value=run):
+    with patch(
+        "cops.laboratory.harness.SSHExecutionDispatcher.execute_with_evidence",
+        side_effect=lambda **kwargs: supervisor_exchange(
+            run, plan, auth.authorization_id, environment.owner, inventory, request_id=kwargs["request_id"]
+        ),
+    ):
         harness.execute_case(
             environment,
             plan,
@@ -500,7 +710,12 @@ def test_invalid_case_observation_can_be_replaced_before_classification(tmp_path
 def test_environment_transition_invalidates_pending_case(tmp_path: Path, transition: str) -> None:
     harness, inventory, environment, plan, auth, trust, engagement, worker_inventory, guard = _ready_case(tmp_path)
     run = remote_run(plan, auth.authorization_id, environment.owner)
-    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute", return_value=run):
+    with patch(
+        "cops.laboratory.harness.SSHExecutionDispatcher.execute_with_evidence",
+        side_effect=lambda **kwargs: supervisor_exchange(
+            run, plan, auth.authorization_id, environment.owner, inventory, request_id=kwargs["request_id"]
+        ),
+    ):
         harness.execute_case(
             environment,
             plan,
@@ -544,7 +759,12 @@ def test_environment_transition_invalidates_pending_case(tmp_path: Path, transit
 def test_pending_case_is_failed_on_controller_restart(tmp_path: Path) -> None:
     harness, inventory, environment, plan, auth, trust, engagement, worker_inventory, guard = _ready_case(tmp_path)
     run = remote_run(plan, auth.authorization_id, environment.owner)
-    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute", return_value=run):
+    with patch(
+        "cops.laboratory.harness.SSHExecutionDispatcher.execute_with_evidence",
+        side_effect=lambda **kwargs: supervisor_exchange(
+            run, plan, auth.authorization_id, environment.owner, inventory, request_id=kwargs["request_id"]
+        ),
+    ):
         harness.execute_case(
             environment,
             plan,
@@ -564,7 +784,12 @@ def test_pending_case_is_failed_on_controller_restart(tmp_path: Path) -> None:
 def test_missing_observation_expires_to_persisted_failure(tmp_path: Path) -> None:
     harness, inventory, environment, plan, auth, trust, engagement, worker_inventory, guard = _ready_case(tmp_path)
     run = remote_run(plan, auth.authorization_id, environment.owner)
-    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute", return_value=run):
+    with patch(
+        "cops.laboratory.harness.SSHExecutionDispatcher.execute_with_evidence",
+        side_effect=lambda **kwargs: supervisor_exchange(
+            run, plan, auth.authorization_id, environment.owner, inventory, request_id=kwargs["request_id"]
+        ),
+    ):
         harness.execute_case(
             environment,
             plan,
@@ -593,7 +818,9 @@ def test_missing_observation_expires_to_persisted_failure(tmp_path: Path) -> Non
 )
 def test_dispatch_failure_retains_unknown_attempt(tmp_path: Path, dispatch_error: Exception) -> None:
     harness, inventory, environment, plan, auth, trust, engagement, worker_inventory, guard = _ready_case(tmp_path)
-    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute", side_effect=dispatch_error) as dispatch:
+    with patch(
+        "cops.laboratory.harness.SSHExecutionDispatcher.execute_with_evidence", side_effect=dispatch_error
+    ) as dispatch:
         with pytest.raises(LaboratoryGateError, match="dispatch failed"):
             harness.execute_case(
                 environment,
@@ -621,7 +848,12 @@ def test_mismatched_worker_result_is_never_recorded_as_trusted_cleanup(tmp_path:
         run,
         approval_receipt=replace(run.approval_receipt, authorization_id="auth-mismatch"),
     )
-    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute", return_value=mismatched):
+    with patch(
+        "cops.laboratory.harness.SSHExecutionDispatcher.execute_with_evidence",
+        side_effect=lambda **kwargs: supervisor_exchange(
+            mismatched, plan, auth.authorization_id, environment.owner, inventory, request_id=kwargs["request_id"]
+        ),
+    ):
         with pytest.raises(LaboratoryGateError, match="dispatch failed"):
             harness.execute_case(
                 environment,
@@ -641,7 +873,7 @@ def test_mismatched_worker_result_is_never_recorded_as_trusted_cleanup(tmp_path:
     ]
     assert not any(item.get("basis") == "trusted worker result" for item in evidence)
     assert not any(item.get("cleanup_status") == "completed" for item in evidence)
-    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute") as dispatch:
+    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute_with_evidence") as dispatch:
         with pytest.raises(LaboratoryGateError, match="already"):
             harness.execute_case(
                 environment,
@@ -676,7 +908,16 @@ def test_post_dispatch_persistence_failure_marks_attempt_unknown_and_consumes_au
         if failure_point == "bind"
         else patch.object(harness.case_journal, "bind", wraps=harness.case_journal.bind)
     )
-    with write_patch, bind_patch, patch("cops.laboratory.harness.SSHExecutionDispatcher.execute", return_value=run):
+    with (
+        write_patch,
+        bind_patch,
+        patch(
+            "cops.laboratory.harness.SSHExecutionDispatcher.execute_with_evidence",
+            side_effect=lambda **kwargs: supervisor_exchange(
+                run, plan, auth.authorization_id, environment.owner, inventory, request_id=kwargs["request_id"]
+            ),
+        ),
+    ):
         with pytest.raises(LaboratoryGateError, match="persistence failed"):
             harness.execute_case(
                 environment,
@@ -690,7 +931,7 @@ def test_post_dispatch_persistence_failure_marks_attempt_unknown_and_consumes_au
             )
     (record,) = harness.recorded_cases()
     assert record["state"] == "unknown"
-    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute") as dispatch:
+    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute_with_evidence") as dispatch:
         with pytest.raises(LaboratoryGateError, match="already"):
             harness.execute_case(
                 environment,
@@ -716,7 +957,10 @@ def test_failure_evidence_write_failures_still_mark_attempt_unknown(tmp_path: Pa
 
     with (
         patch.object(harness.evidence_store, "write_json", side_effect=fail_failure_evidence),
-        patch("cops.laboratory.harness.SSHExecutionDispatcher.execute", side_effect=RuntimeError("disconnect")),
+        patch(
+            "cops.laboratory.harness.SSHExecutionDispatcher.execute_with_evidence",
+            side_effect=RuntimeError("disconnect"),
+        ),
     ):
         with pytest.raises(LaboratoryGateError, match="dispatch failed"):
             harness.execute_case(
@@ -731,7 +975,7 @@ def test_failure_evidence_write_failures_still_mark_attempt_unknown(tmp_path: Pa
             )
     (record,) = harness.recorded_cases()
     assert record["state"] == "unknown"
-    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute") as dispatch:
+    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute_with_evidence") as dispatch:
         with pytest.raises(LaboratoryGateError, match="already"):
             harness.execute_case(
                 environment,
@@ -749,7 +993,7 @@ def test_failure_evidence_write_failures_still_mark_attempt_unknown(tmp_path: Pa
 def test_case_journal_is_required_before_dispatch(tmp_path: Path) -> None:
     harness, inventory, environment, plan, auth, trust, engagement, worker_inventory, guard = _ready_case(tmp_path)
     harness.case_journal = None
-    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute") as dispatch:
+    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute_with_evidence") as dispatch:
         with pytest.raises(LaboratoryGateError, match="journal is required"):
             harness.execute_case(
                 environment,
@@ -771,7 +1015,12 @@ def test_saved_case_result_contains_offline_verifiable_operator_evidence(tmp_pat
         environment, reset_receipt=reset_receipt(environment, reset_nonce, inventory), endpoint_inventory=inventory
     )
     run = remote_run(plan, auth.authorization_id, environment.owner)
-    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute", return_value=run):
+    with patch(
+        "cops.laboratory.harness.SSHExecutionDispatcher.execute_with_evidence",
+        side_effect=lambda **kwargs: supervisor_exchange(
+            run, plan, auth.authorization_id, environment.owner, inventory, request_id=kwargs["request_id"]
+        ),
+    ):
         harness.execute_case(
             environment,
             plan,
@@ -823,7 +1072,12 @@ def test_saved_case_result_contains_offline_verifiable_operator_evidence(tmp_pat
 def test_case_rejects_equal_result_timestamp(tmp_path: Path) -> None:
     harness, inventory, environment, plan, auth, trust, engagement, worker_inventory, guard = _ready_case(tmp_path)
     run = remote_run(plan, auth.authorization_id, environment.owner)
-    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute", return_value=run):
+    with patch(
+        "cops.laboratory.harness.SSHExecutionDispatcher.execute_with_evidence",
+        side_effect=lambda **kwargs: supervisor_exchange(
+            run, plan, auth.authorization_id, environment.owner, inventory, request_id=kwargs["request_id"]
+        ),
+    ):
         harness.execute_case(
             environment,
             plan,
@@ -850,6 +1104,69 @@ def test_case_rejects_equal_result_timestamp(tmp_path: Path) -> None:
             environment,
             plan,
             run,
+            auth.authorization_id,
+            "positive",
+            case_observation=observation,
+            endpoint_inventory=inventory,
+        )
+
+
+def test_case_rejects_observation_before_authenticated_cleanup(tmp_path: Path) -> None:
+    harness, inventory, environment, plan, auth, trust, engagement, worker_inventory, guard = _ready_case(tmp_path)
+    run = remote_run(plan, auth.authorization_id, environment.owner)
+    finished = datetime.fromisoformat(run.result.finished_at.replace("Z", "+00:00"))
+    cleanup = CleanupReceipt(
+        schema_version="cops.cleanup-receipt/v1",
+        receipt_id="cln-observation-order-01",
+        plan_id=plan.plan_id,
+        engagement_id=plan.engagement_id,
+        worker_identity=environment.owner,
+        status=run.result.cleanup_status,
+        created_at=run.result.finished_at,
+        completed_at=(finished + timedelta(seconds=2)).isoformat().replace("+00:00", "Z"),
+        cleaned_effects=[],
+        unresolved_effects=[],
+        evidence_hash="0" * 64,
+    )
+    run = replace(run, cleanup_receipt=cleanup)
+    with patch(
+        "cops.laboratory.harness.SSHExecutionDispatcher.execute_with_evidence",
+        side_effect=lambda **kwargs: supervisor_exchange(
+            run,
+            plan,
+            auth.authorization_id,
+            environment.owner,
+            inventory,
+            request_id=kwargs["request_id"],
+        ),
+    ):
+        dispatched = harness.execute_case(
+            environment,
+            plan,
+            auth,
+            trust_store=trust,
+            engagement=engagement,
+            worker_inventory=worker_inventory,
+            endpoint_inventory=inventory,
+            scope_guard=guard,
+        )
+    observation = case_observation(
+        environment,
+        plan,
+        auth.authorization_id,
+        dispatched,
+        inventory,
+        request_nonce=harness.case_observation_challenge(dispatched),
+        canary_token_detected=True,
+        control_blocked=False,
+        observed_at=(finished + timedelta(milliseconds=1500)).isoformat().replace("+00:00", "Z"),
+    )
+
+    with pytest.raises(LaboratoryGateError, match="predates authenticated cleanup"):
+        harness.classify_case(
+            environment,
+            plan,
+            dispatched,
             auth.authorization_id,
             "positive",
             case_observation=observation,

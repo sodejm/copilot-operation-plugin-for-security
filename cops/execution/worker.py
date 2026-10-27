@@ -84,6 +84,7 @@ class AuthorizedExecution:
 
     result: RunResult
     approval_receipt: ApprovalConsumptionReceipt
+    cleanup_receipt: CleanupReceipt
 
 
 def _supports_secure_evidence_dirs() -> bool:
@@ -1316,4 +1317,4 @@ class IsolatedWorker:
             result_doc["offline_research"] = offline_evidence
 
         validate_contract(result_doc, "run_result")
-        return AuthorizedExecution(RunResult.from_dict(result_doc), receipt)
+        return AuthorizedExecution(RunResult.from_dict(result_doc), receipt, cleanup_receipt)

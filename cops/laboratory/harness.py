@@ -86,10 +86,18 @@ class LaboratoryHarness:
                 LaboratoryObservation,
                 list[dict[str, Any]],
                 str,
+                dict[str, Any],
+                dict[str, Any],
             ],
         ] = {}
         self._latest_environment_observations: dict[str, LaboratoryObservation] = {}
         self._last_reset_receipts: dict[str, tuple[LaboratoryResetReceipt, LaboratoryObservation]] = {}
+        self._retest_evidence_references: dict[str, dict[str, Any]] = {}
+
+    def retest_evidence_reference(self, result_id: str) -> dict[str, Any] | None:
+        """Return the persisted retest bundle reference for a classified result."""
+        reference = self._retest_evidence_references.get(result_id)
+        return dict(reference) if reference is not None else None
 
     @staticmethod
     def _invalidate_verification(environment: LaboratoryEnvironment) -> None:
@@ -541,7 +549,7 @@ class LaboratoryHarness:
 
         dispatch_returned = False
         try:
-            authorized_run = SSHExecutionDispatcher(endpoint_inventory).execute(
+            authorized_run, supervisor_exchange = SSHExecutionDispatcher(endpoint_inventory).execute_with_evidence(
                 approved_worker_identity=environment.owner,
                 authorization_id=auth_model.authorization_id,
                 action_plan=plan_model,
@@ -574,7 +582,7 @@ class LaboratoryHarness:
             raise LaboratoryGateError(f"trusted worker dispatch failed: {failure_basis}") from err
         cleanup_evidence: dict[str, Any] | None = None
         try:
-            run_evidence = self.evidence_store.write_json("run-result", authorized_run.result.to_dict())
+            run_evidence = self.evidence_store.write_json("run-result", authorized_run.to_dict())
             durable_evidence.append(run_evidence)
             cleanup_evidence = self.evidence_store.write_json(
                 "cleanup-receipt",
@@ -585,11 +593,14 @@ class LaboratoryHarness:
                     "plan_digest": plan_model.plan_digest,
                     "dispatch_request_id": dispatch_request_id,
                     "result_id": authorized_run.result.result_id,
-                    "receipt_producer": "controller",
+                    "receipt_producer": "worker" if authorized_run.cleanup_receipt else "controller",
                     "reported_worker_identity": authorized_run.result.worker_identity,
                     "cleanup_status": authorized_run.result.cleanup_status,
                     "basis": "trusted worker result",
                     "worker_evidence_records": list(authorized_run.result.evidence_records),
+                    "worker_cleanup_receipt": (
+                        authorized_run.cleanup_receipt.to_dict() if authorized_run.cleanup_receipt else None
+                    ),
                 },
             )
             durable_evidence.append(cleanup_evidence)
@@ -632,6 +643,8 @@ class LaboratoryHarness:
             pre_execution_observation,
             durable_evidence,
             cleanup_evidence["sha256"],
+            auth_model.to_dict(),
+            supervisor_exchange,
         )
         return authorized_run
 
@@ -655,6 +668,8 @@ class LaboratoryHarness:
         *,
         case_observation: LaboratoryCaseObservation,
         endpoint_inventory: SSHRemoteEndpointInventory,
+        baseline_finding_id: str | None = None,
+        asset_id: str | None = None,
     ) -> LaboratoryCaseResult:
         """Classify only a worker result and observation bound to this dispatch."""
         self.expire_pending_cases()
@@ -670,7 +685,7 @@ class LaboratoryHarness:
             case_type,
         ):
             raise LaboratoryGateError("laboratory result is not bound to a pending dispatch")
-        nonce, requested_at, pre_execution_observation, durable_evidence, cleanup_receipt_digest = pending[5:]
+        nonce, requested_at, pre_execution_observation, durable_evidence, cleanup_receipt_digest = pending[5:10]
         try:
             validate_remote_authorized_run(
                 authorized_run,
@@ -698,6 +713,10 @@ class LaboratoryHarness:
         try:
             if timestamp(case_observation.observed_at) <= operation_timestamp(result.finished_at):
                 raise LaboratoryGateError("worker case observation predates the authorized result")
+            if authorized_run.cleanup_receipt is not None and timestamp(case_observation.observed_at) < timestamp(
+                authorized_run.cleanup_receipt.completed_at
+            ):
+                raise LaboratoryGateError("worker case observation predates authenticated cleanup")
         except EvidenceError as err:
             raise LaboratoryGateError("worker case observation timestamp is invalid") from err
 
@@ -721,6 +740,8 @@ class LaboratoryHarness:
             observed_case_type = "indeterminate"
         matching_status = {"positive": "success", "remediated": "remediated", "negative": "rejected"}
         case_status = matching_status[case_type] if observed_case_type == case_type else "failed"
+        if (baseline_finding_id is None) != (asset_id is None):
+            raise LaboratoryGateError("baseline finding and exact asset identities must be supplied together")
         observation_evidence = self.evidence_store.write_json("case-observation", asdict(case_observation))
         durable_evidence = [*durable_evidence, observation_evidence]
         case_result = LaboratoryCaseResult(
@@ -732,7 +753,7 @@ class LaboratoryHarness:
             canary_verified=case_status == "success",
             observed_case_type=observed_case_type,
             evidence_records=list(result.evidence_records),
-            cleanup_receipt=None,
+            cleanup_receipt=authorized_run.cleanup_receipt,
             cleanup_receipt_digest=cleanup_receipt_digest,
             details={
                 "operator_case_observation": asdict(case_observation),
@@ -749,6 +770,8 @@ class LaboratoryHarness:
                 ),
                 "worker_cleanup_status": result.cleanup_status,
                 "durable_evidence": durable_evidence,
+                "baseline_finding_id": baseline_finding_id,
+                "asset_id": asset_id,
             },
         )
         if self.case_journal is None:
@@ -758,5 +781,37 @@ class LaboratoryHarness:
             case_result.to_dict(),
             state="failed" if case_status == "failed" else "classified",
         )
+        case_record = next(
+            (record for record in self.case_journal.records() if record.get("result_id") == result.result_id),
+            None,
+        )
+        if case_record is None:
+            raise LaboratoryGateError("classified laboratory case journal record is unavailable")
+        bundle = {
+            "schema_version": "cops.laboratory-retest-evidence/v1",
+            "environment_id": environment.environment_id,
+            "case_type": case_type,
+            "classification_status": case_status,
+            "action_plan": action_plan.to_dict(),
+            "action_plan_sha256": pending[3],
+            "authorization": pending[10],
+            "supervisor_exchange": pending[11],
+            "authorized_run": pending[0].to_dict(),
+            "observation": asdict(case_observation),
+            "cleanup_receipt": pending[0].cleanup_receipt.to_dict() if pending[0].cleanup_receipt else None,
+            "case_journal_record": case_record,
+            "baseline_finding_id": baseline_finding_id,
+            "asset_id": asset_id,
+        }
+        if (
+            authorized_run.cleanup_receipt is not None
+            and authorized_run.cleanup_receipt.status in {"completed", "not_required"}
+            and baseline_finding_id is not None
+            and asset_id is not None
+            and observed_case_type == case_type
+            and case_status != "failed"
+        ):
+            bundle_ref = self.evidence_store.write_json("retest-execution-evidence", bundle)
+            self._retest_evidence_references[result.result_id] = dict(bundle_ref)
         self._pending_cases.pop(result.result_id)
         return case_result

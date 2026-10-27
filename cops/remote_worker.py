@@ -207,6 +207,7 @@ def handle_remote_execution_request(
     authorized_run = RemoteAuthorizedRun(
         result=executed.result,
         approval_receipt=executed.approval_receipt,
+        cleanup_receipt=executed.cleanup_receipt,
     )
     validate_remote_authorized_run(
         authorized_run,
@@ -247,8 +248,24 @@ def _validate_remote_execution_request(
         "max_output_bytes",
         "exchange_nonce",
     }
-    if not isinstance(payload, dict) or set(payload) != payload_fields:
+    if not isinstance(payload, dict) or set(payload) not in (payload_fields, payload_fields | {"endpoint_identity"}):
         raise SSHExecutionError("remote execution request fields do not match the required schema")
+    if "endpoint_identity" in payload and (
+        not isinstance(payload["endpoint_identity"], dict)
+        or set(payload["endpoint_identity"])
+        != {
+            "host",
+            "port",
+            "username",
+            "worker_identity",
+            "remote_command",
+            "host_key_algorithm",
+            "known_hosts_pin_sha256",
+            "attestation_key_id",
+            "attestation_key_sha256",
+        }
+    ):
+        raise SSHExecutionError("remote execution endpoint identity is invalid")
     if payload["schema_version"] != SSH_EXECUTION_REQUEST_SCHEMA:
         raise SSHExecutionError("unsupported remote execution request schema version")
     try:

@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
+from dataclasses import replace
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
@@ -23,6 +25,7 @@ from tests.laboratory_testkit import (
     observation_trust_store,
     remote_run,
     reset_receipt,
+    supervisor_exchange,
 )
 
 
@@ -62,7 +65,23 @@ class TestScenarioLaboratoryManagementSkill(unittest.TestCase):
         plan = make_inert_action_plan()
         authorization, trust_store, engagement = authorize_test_plan(plan, worker_identity=environment.owner)
         run = remote_run(plan, authorization.authorization_id, environment.owner)
-        with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute", return_value=run):
+        started = datetime.fromisoformat(authorization.issued_at.replace("Z", "+00:00"))
+        timestamp = started.isoformat().replace("+00:00", "Z")
+        run = replace(
+            run,
+            result=replace(run.result, started_at=timestamp, finished_at=timestamp),
+        )
+        with patch(
+            "cops.laboratory.harness.SSHExecutionDispatcher.execute_with_evidence",
+            side_effect=lambda **kwargs: supervisor_exchange(
+                run,
+                plan,
+                authorization.authorization_id,
+                environment.owner,
+                self.inventory,
+                request_id=kwargs["request_id"],
+            ),
+        ):
             authorized_run = self.harness.execute_case(
                 environment,
                 plan,

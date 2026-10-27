@@ -33,6 +33,37 @@ finding, approves a plan, or runs an assessment.
    needs fresh authorization unless a valid bound approval covers it.
    Record residual risk and unresolved artifacts before any human closure.
 
+For a disposable laboratory run, an owner may pass its content-addressed
+`cops.laboratory-retest-evidence/v1` reference to
+`verify_retest_execution_evidence_reference` with the authorization trust store,
+verified endpoint inventory, observation trust store, engagement, exact finding
+and asset identities, and a `TrustedLaboratoryContext` loaded independently of
+the artifact. The context carries a verified disposable laboratory registration,
+the trusted expected plan and target, and a provenance description naming their
+trusted source. The verifier rejects unverified isolation, mismatched target or
+plan, invalid attestation, observation or journal mismatch, and incomplete cleanup.
+Supply a snapshot of previously consumed authorization IDs; existing entries are
+rejected. This is a read-only prior-ledger assertion, not atomic replay prevention.
+Concurrent reviewers need a separate durable transaction to record consumption.
+Positive outcomes map
+to `candidate_still_vulnerable`; accepted remediated outcomes map to
+`candidate_fixed`; negative-control outcomes map to `blocked`, because a blocked
+control does not prove remediation. This adds evidence for the normal offline
+review and does not close findings. The journal binds the pre-execution
+observation and cleanup reference, but current cleanup receipts do not provide a
+workspace identity to bind.
+
 Keep the input and outputs private and review them for sensitive identifiers
 before sharing. If source authenticity or a target observation cannot be
 verified, report an evidence gap instead of claiming a fix.
+Executable laboratory retest review requires trust anchors obtained independently
+of the evidence bundle: the protected terminal case-journal record digest, the
+prior consumed-authorization ledger snapshot, and the owner-provisioned SSH
+endpoint inventory. The endpoint inventory pins the complete connection identity
+(host, port, SSH username, remote command, known-hosts pin, and supervisor
+attestation key). Keep these sources protected and pass their independently
+verified values to the verifier; pass the journal digest as
+`trusted_terminal_journal_record_digest`. Values copied from the bundle are not
+trust anchors. The verifier binds cleanup completion before the signed post-cleanup
+operator observation. A verified bundle only creates a review candidate and never
+closes a finding automatically.

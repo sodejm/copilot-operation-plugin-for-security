@@ -43,8 +43,8 @@ def _request(*, request_id: str = "request-01", nonce: str = NONCE) -> dict[str,
     }
 
 
-def _authorized_run() -> dict[str, object]:
-    return {
+def _authorized_run(*, cleanup: bool = False) -> dict[str, object]:
+    run = {
         "schema_version": "cops.remote-authorized-run/v1",
         "result": {"status": "succeeded", "exit_code": 0},
         "approval_receipt": {
@@ -53,10 +53,23 @@ def _authorized_run() -> dict[str, object]:
             "worker_identity": "worker-lab-01",
         },
     }
+    if cleanup:
+        run["cleanup_receipt"] = {
+            "schema_version": "cops.cleanup-receipt/v1",
+            "receipt_id": "cleanup-01",
+            "status": "completed",
+            "evidence_hash": "c" * 64,
+        }
+    return run
 
 
 def _signed_payload(
-    *, request_id: str = "request-01", nonce: str = NONCE, key_id: str = KEY_ID, key: bytes = KEY
+    *,
+    request_id: str = "request-01",
+    nonce: str = NONCE,
+    key_id: str = KEY_ID,
+    key: bytes = KEY,
+    cleanup: bool = False,
 ) -> dict[str, object]:
     request = _request(request_id=request_id, nonce=nonce)
     response = {
@@ -64,7 +77,7 @@ def _signed_payload(
         "request_id": request_id,
         "host": "worker.example.test",
         "worker_id": "worker-lab-01",
-        "payload": _authorized_run(),
+        "payload": _authorized_run(cleanup=cleanup),
     }
     wire = SupervisorResponseAttestor(key_id, key).attest(canonical(request) + b"\n", canonical(response) + b"\n")
     document = decode_json(wire[:-1])
@@ -105,6 +118,15 @@ def test_valid_supervisor_attestation_returns_exact_authorized_run() -> None:
     payload = _signed_payload()
 
     assert _verify(payload) == payload["authorized_run"]
+
+
+def test_cleanup_extended_attestation_authenticates_cleanup_and_legacy_remains_valid() -> None:
+    payload = _signed_payload(cleanup=True)
+    assert _verify(payload) == payload["authorized_run"]
+    altered = copy.deepcopy(payload)
+    altered["authorized_run"]["cleanup_receipt"]["status"] = "unknown"
+    with pytest.raises(SupervisorAttestationError, match="binding mismatch"):
+        _verify(altered)
 
 
 @pytest.mark.parametrize("field", ["result", "approval_receipt"])
