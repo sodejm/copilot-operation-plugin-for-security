@@ -300,9 +300,11 @@ def test_case_classification_uses_bound_worker_observation(
 ) -> None:
     harness, inventory, environment, plan, auth, trust, engagement, worker_inventory, guard = _ready_case(tmp_path)
     run = remote_run(plan, auth.authorization_id, environment.owner, status=status, exit_code=exit_code)
-    # Authorization validity is checked against the worker's start time. Test fixtures
-    # should not accidentally predate their own freshly issued authorization.
+    # Authorization validity and durable chronology are checked against the worker's
+    # start time. Keep the fixture run after both its freshly issued authorization and
+    # the pre-execution observation collected during the harness call.
     started = datetime.fromisoformat(auth.issued_at.replace("Z", "+00:00"))
+    started += timedelta(seconds=2)
     run = replace(
         run,
         result=replace(
@@ -361,18 +363,16 @@ def test_case_classification_uses_bound_worker_observation(
         request_nonce=harness.case_observation_challenge(dispatched),
         canary_token_detected=canary,
         control_blocked=blocked,
-        **(
-            {
-                "observed_at": (
-                    datetime.fromisoformat(run.cleanup_receipt.completed_at.replace("Z", "+00:00"))
-                    + timedelta(seconds=1)
+        observed_at=(
+            datetime.fromisoformat(
+                (run.cleanup_receipt.completed_at if run.cleanup_receipt else run.result.finished_at).replace(
+                    "Z", "+00:00"
                 )
-                .isoformat()
-                .replace("+00:00", "Z")
-            }
-            if run.cleanup_receipt
-            else {}
-        ),
+            )
+            + timedelta(seconds=1)
+        )
+        .isoformat()
+        .replace("+00:00", "Z"),
     )
     classified = harness.classify_case(
         environment,
@@ -422,6 +422,47 @@ def test_case_classification_uses_bound_worker_observation(
 
         with patch("cops.laboratory.receipts.datetime", FutureReviewTime):
             review = verify_retest_execution_evidence_reference(reference, **verification)
+        pre_execution_observation = persisted["case_journal_record"]["payload"]["operator_pre_execution_observation"]
+        run_started_at = persisted["authorized_run"]["result"]["started_at"]
+        assert datetime.fromisoformat(pre_execution_observation["observed_at"].replace("Z", "+00:00")) < (
+            datetime.fromisoformat(run_started_at.replace("Z", "+00:00"))
+        )
+        for invalid_pre_execution_at in (
+            run_started_at,
+            (datetime.fromisoformat(run_started_at.replace("Z", "+00:00")) + timedelta(seconds=1))
+            .isoformat()
+            .replace("+00:00", "Z"),
+        ):
+            changed = copy.deepcopy(persisted)
+            invalid_pre_execution = environment_observation(
+                environment,
+                pre_execution_observation["request_nonce"],
+                inventory,
+                observed_at=invalid_pre_execution_at,
+            )
+            invalid_pre_execution_document = asdict(invalid_pre_execution)
+            invalid_pre_execution_reference = harness.evidence_store.write_json(
+                "pre-execution-observation", invalid_pre_execution_document
+            )
+            changed_payload = changed["case_journal_record"]["payload"]
+            changed_details = changed["case_journal_record"]["result"]["details"]
+            changed_payload["operator_pre_execution_observation"] = invalid_pre_execution_document
+            changed_details["operator_pre_execution_observation"] = invalid_pre_execution_document
+            for evidence_records in (changed_payload["durable_evidence"], changed_details["durable_evidence"]):
+                pre_execution_index = next(
+                    index
+                    for index, evidence_reference in enumerate(evidence_records)
+                    if evidence_reference["kind"] == "pre-execution-observation"
+                )
+                evidence_records[pre_execution_index] = invalid_pre_execution_reference
+            with pytest.raises(RetestExecutionEvidenceError):
+                verify_retest_execution_evidence(
+                    changed,
+                    **{
+                        **verification,
+                        "trusted_terminal_journal_record_digest": digest(changed["case_journal_record"]),
+                    },
+                )
         assert review.outcome == ("candidate_fixed" if expected == "remediated" else "candidate_still_vulnerable")
         assert review.finding_id == "find-test-case"
         assert review.closure_status == "blocked"
@@ -526,6 +567,23 @@ def test_case_classification_uses_bound_worker_observation(
         bad_contexts = (
             replace(verification["trusted_context"], target="attacker.example.test"),
             replace(verification["trusted_context"], plan=wrong_plan),
+            replace(
+                verification["trusted_context"],
+                environment=replace(
+                    environment,
+                    reset_configuration={
+                        **environment.reset_configuration,
+                        "expected_baseline_digest": hashlib.sha256(b"changed-trusted-baseline").hexdigest(),
+                    },
+                ),
+            ),
+            replace(
+                verification["trusted_context"],
+                environment=replace(
+                    environment,
+                    canary={**environment.canary, "canary_token": "changed-trusted-canary-token"},
+                ),
+            ),
             replace(
                 verification["trusted_context"],
                 environment=replace(

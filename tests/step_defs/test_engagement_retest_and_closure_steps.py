@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from copy import deepcopy
 from dataclasses import replace
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -104,7 +104,8 @@ def retest_ctx():
 def _create_laboratory_bundle(retest_ctx, tmp_path):
     harness, inventory, environment, plan, auth, trust, engagement, worker_inventory, guard = _ready_case(tmp_path)
     run = remote_run(plan, auth.authorization_id, environment.owner)
-    started = datetime.fromisoformat(auth.issued_at.replace("Z", "+00:00"))
+    started = datetime.fromisoformat(auth.issued_at.replace("Z", "+00:00")) + timedelta(seconds=2)
+    cleaned = started + timedelta(seconds=1)
     run = replace(
         run,
         result=replace(
@@ -120,7 +121,7 @@ def _create_laboratory_bundle(retest_ctx, tmp_path):
             worker_identity=environment.owner,
             status="completed",
             created_at=started.isoformat().replace("+00:00", "Z"),
-            completed_at=started.isoformat().replace("+00:00", "Z"),
+            completed_at=cleaned.isoformat().replace("+00:00", "Z"),
             cleaned_effects=[],
             unresolved_effects=[],
             evidence_hash="0" * 64,
@@ -157,6 +158,7 @@ def _create_laboratory_bundle(retest_ctx, tmp_path):
         request_nonce=harness.case_observation_challenge(dispatched),
         canary_token_detected=True,
         control_blocked=False,
+        observed_at=(cleaned + timedelta(seconds=1)).isoformat().replace("+00:00", "Z"),
     )
     harness.classify_case(
         environment,
