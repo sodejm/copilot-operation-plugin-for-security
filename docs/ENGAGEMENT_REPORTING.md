@@ -287,3 +287,12 @@ control is not affirmative evidence of remediation. This bridge supplies evidenc
 or bypass the existing offline importer, and closure remains blocked pending
 independent review. Failed or indeterminate cases do not produce a reviewable
 bundle.
+
+The harness stages the review bundle inside the terminal case-journal record
+before finalization. If writing the content-addressed bundle fails, call
+`recover_retest_evidence_publication()` on a restarted harness using the same
+protected journal and evidence store. Recovery republishes staged evidence
+without dispatching the case or consuming authorization again. Durable review
+verification checks the signed observation historically, then enforces its
+chronology against the authenticated run, cleanup completion, and terminal
+journal time; the live classification path still requires a fresh observation.
