@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -17,6 +19,7 @@ from cops.execution.ssh_transport import SSHRemoteEndpointInventory, endpoint_id
 from cops.execution.supervisor_attestation import verify_attested_authorized_run
 from cops.laboratory.receipts import (
     LaboratoryCaseObservation,
+    LaboratoryObservation,
     LaboratoryObservationTrustStore,
     verify_receipt_signature,
 )
@@ -51,6 +54,11 @@ class TrustedLaboratoryContext:
     plan: ActionPlan
     target: str
     provenance: str
+
+
+def _require_pre_execution_before_run(observed_at: str, run_started_at: str) -> None:
+    if timestamp(observed_at) >= timestamp(run_started_at):
+        raise ValueError("signed pre-execution observation is not earlier than the authorized run")
 
 
 def verify_retest_execution_evidence_reference(
@@ -318,6 +326,43 @@ def verify_retest_execution_evidence(
             "operator_pre_execution_observation"
         ):
             failures.append("pre doc match")
+        if pre_execution_documents:
+            pre_observation_doc = pre_execution_documents[0]
+            if not isinstance(pre_observation_doc, Mapping) or set(pre_observation_doc) != {
+                item.name for item in dataclass_fields(LaboratoryObservation)
+            }:
+                raise ValueError("signed pre-execution environment observation fields are incomplete or unknown")
+            pre_observation = LaboratoryObservation(**dict(pre_observation_doc))
+            verify_receipt_signature(
+                pre_observation,
+                trust_store=observation_trust_store,
+                worker_identity=env.owner,
+            )
+            _require_pre_execution_before_run(pre_observation.observed_at, authorized_run.result.started_at)
+            canary_token = env.canary.get("canary_token")
+            baseline_digest = env.reset_configuration.get("expected_baseline_digest")
+            if (
+                pre_observation.environment_id != env.environment_id
+                or pre_observation.isolation_type != env.isolation.get("isolation_type")
+                or pre_observation.network_isolated is not True
+                or pre_observation.egress_restricted is not True
+            ):
+                raise ValueError(
+                    "signed pre-execution observation differs from trusted environment identity or isolation"
+                )
+            if not isinstance(canary_token, str) or not canary_token or not env.canary.get("location"):
+                raise ValueError("trusted environment canary registration is incomplete")
+            if not isinstance(pre_observation.canary_digest, str) or not hmac.compare_digest(
+                pre_observation.canary_digest,
+                hashlib.sha256(canary_token.encode("utf-8")).hexdigest(),
+            ):
+                raise ValueError("signed pre-execution canary digest differs from trusted environment registration")
+            if not isinstance(baseline_digest, str) or len(baseline_digest) != 64:
+                raise ValueError("trusted environment baseline digest is missing")
+            if not isinstance(pre_observation.baseline_digest, str) or not hmac.compare_digest(
+                pre_observation.baseline_digest, baseline_digest
+            ):
+                raise ValueError("signed pre-execution baseline digest differs from trusted environment registration")
         if not isinstance(payload_evidence, list):
             failures.append("payload evidence")
         if not isinstance(evidence_records, list):
