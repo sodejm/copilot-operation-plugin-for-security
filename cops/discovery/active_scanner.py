@@ -459,6 +459,9 @@ class StandardSocketDispatcher(ProbeDispatcher):
         self.udp_dns_probe_ports = frozenset(udp_dns_probe_ports or [])
 
     def resolve_target(self, target_host: str) -> str:
+        from .live_execution import reject_unauthorized_live_discovery
+
+        reject_unauthorized_live_discovery(mode="live")
         try:
             return str(ipaddress.ip_address(target_host))
         except ValueError:
@@ -478,6 +481,9 @@ class StandardSocketDispatcher(ProbeDispatcher):
         timeout: float = 2.0,
         vantage: str = "external",
     ) -> ActiveServiceAssessment:
+        from .live_execution import reject_unauthorized_live_discovery
+
+        reject_unauthorized_live_discovery(mode="live")
         if protocol == Protocol.UDP.value:
             return _record_local_probe(self._dispatch_udp(target_host, resolved_ip, port, timeout, vantage))
         if protocol != Protocol.TCP.value:
@@ -628,6 +634,9 @@ class StandardSocketDispatcher(ProbeDispatcher):
         self, target_host: str, resolved_ip: str, port: int, timeout: float, vantage: str
     ) -> ActiveServiceAssessment:
         """Send one approved datagram; silence never establishes an open port."""
+        from .live_execution import reject_unauthorized_live_discovery
+
+        reject_unauthorized_live_discovery(mode="live")
         protocol = Protocol.UDP.value
         probe_key = ActiveScanSession.make_probe_key(vantage, protocol, target_host, port)
         timestamp = utc_now()

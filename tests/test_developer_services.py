@@ -14,7 +14,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
@@ -531,9 +531,6 @@ class TestStandardSocketDeveloperCollectorMocked(unittest.TestCase):
     @patch("socket.create_connection")
     @patch("socket.gethostbyname")
     def test_socket_probe_connected(self, mock_gethost, mock_conn):
-        mock_gethost.return_value = "198.51.100.50"
-        mock_conn.return_value.__enter__.return_value = MagicMock()
-
         collector = StandardSocketDeveloperCollector(
             destination_policy=DeveloperDestinationPolicy.from_dict(
                 {"hosts": ["dev.corp.internal"], "resolved_ips": ["198.51.100.50"]}
@@ -541,27 +538,23 @@ class TestStandardSocketDeveloperCollectorMocked(unittest.TestCase):
             allow_code_execution=True,
             allow_state_change=True,
         )
-        res = collector.assess_docker("dev.corp.internal", canary_artifact="canary_probe")
-        self.assertEqual(res.exposure_status, DeveloperExposureStatus.EXPOSED.value)
-        self.assertTrue(res.canary_validated)
-        self.assertEqual(res.resolved_ip, "198.51.100.50")
-        self.assertIn("TCP connect succeeded", res.uncertainty_notes[0])
+        with self.assertRaisesRegex(ValueError, "Unauthenticated live discovery is unavailable"):
+            collector.assess_docker("dev.corp.internal", canary_artifact="canary_probe")
+        mock_gethost.assert_not_called()
+        mock_conn.assert_not_called()
 
     @patch("socket.create_connection")
     @patch("socket.gethostbyname")
     def test_socket_probe_connection_refused(self, mock_gethost, mock_conn):
-        mock_gethost.return_value = "198.51.100.50"
-        mock_conn.side_effect = ConnectionRefusedError("Connection refused")
-
         collector = StandardSocketDeveloperCollector(
             destination_policy=DeveloperDestinationPolicy.from_dict(
                 {"hosts": ["dev.corp.internal"], "resolved_ips": ["198.51.100.50"]}
             ),
         )
-        res = collector.assess_docker("dev.corp.internal")
-        self.assertEqual(res.exposure_status, DeveloperExposureStatus.INACCESSIBLE.value)
-        self.assertEqual(res.auth_prerequisite, DeveloperAuthPrerequisite.UNKNOWN.value)
-        self.assertIn("Connection refused", res.error_message)
+        with self.assertRaisesRegex(ValueError, "Unauthenticated live discovery is unavailable"):
+            collector.assess_docker("dev.corp.internal")
+        mock_gethost.assert_not_called()
+        mock_conn.assert_not_called()
 
 
 class TestDeveloperDestinationPolicy(unittest.TestCase):
@@ -589,24 +582,24 @@ class TestDeveloperDestinationPolicy(unittest.TestCase):
     @patch("socket.gethostbyname")
     def test_live_rejects_host_before_dns_and_ip_before_socket(self, mock_gethost, mock_conn):
         collector = StandardSocketDeveloperCollector(destination_policy=self.policy)
-        with self.assertRaises(DestinationScopeError):
+        with self.assertRaisesRegex(ValueError, "Unauthenticated live discovery is unavailable"):
             collector.assess_docker("outside.corp.internal")
         mock_gethost.assert_not_called()
         mock_conn.assert_not_called()
 
         mock_gethost.return_value = "203.0.113.99"
-        with self.assertRaises(DestinationScopeError):
+        with self.assertRaisesRegex(ValueError, "Unauthenticated live discovery is unavailable"):
             collector.assess_docker("dev.corp.internal")
         mock_conn.assert_not_called()
 
-        with self.assertRaises(DestinationScopeError):
+        with self.assertRaisesRegex(ValueError, "Unauthenticated live discovery is unavailable"):
             collector.probe_service("dev.corp.internal", "203.0.113.99", "docker", 2375)
         mock_conn.assert_not_called()
 
     @patch("socket.gethostbyname")
     def test_batch_rejects_out_of_scope_target_before_any_dns(self, mock_gethost):
         collector = StandardSocketDeveloperCollector(destination_policy=self.policy)
-        with self.assertRaises(DestinationScopeError):
+        with self.assertRaisesRegex(ValueError, "Unauthenticated live discovery is unavailable"):
             assess_developer_services(["dev.corp.internal", "outside.corp.internal"], collector=collector)
         mock_gethost.assert_not_called()
 
@@ -737,7 +730,8 @@ class TestDeveloperDestinationCli(unittest.TestCase):
                     "docker",
                 ]
             )
-            self.assertEqual(command_developer_discovery(missing), 2)
+            with self.assertRaisesRegex(ValueError, "Unauthenticated live discovery is unavailable"):
+                command_developer_discovery(missing)
             blocked = self.parser.parse_args(
                 [
                     "assess",
@@ -751,7 +745,8 @@ class TestDeveloperDestinationCli(unittest.TestCase):
                     str(policy_file),
                 ]
             )
-            self.assertEqual(command_developer_discovery(blocked), 2)
+            with self.assertRaisesRegex(ValueError, "Unauthenticated live discovery is unavailable"):
+                command_developer_discovery(blocked)
             mock_gethost.assert_not_called()
 
     def test_handoff_output_error_is_sanitized(self):
@@ -793,11 +788,8 @@ class TestDeveloperDestinationCli(unittest.TestCase):
                     str(missing_policy),
                 ]
             )
-            error = io.StringIO()
-            with contextlib.redirect_stderr(error):
-                self.assertEqual(command_developer_discovery(args), 2)
-            self.assertEqual(error.getvalue().strip(), "Destination scope error: unable to read destination policy")
-            self.assertNotIn(tmpdir, error.getvalue())
+            with self.assertRaisesRegex(ValueError, "Unauthenticated live discovery is unavailable"):
+                command_developer_discovery(args)
 
     def test_isolated_runtime_destination_fixture_records_rejections_and_cleans_up(self):
         fixture = json.loads((ROOT / "tests/fixtures/developer_runtime_destinations.json").read_text(encoding="utf-8"))

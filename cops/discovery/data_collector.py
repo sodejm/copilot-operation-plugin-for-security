@@ -26,16 +26,13 @@ DEFAULT_DATA_PORTS: dict[str, tuple[int, str, str]] = {
     DataServiceType.POSTGRES.value: (5432, "tcp", DataServiceCategory.RELATIONAL_DB.value),
     DataServiceType.MSSQL.value: (1433, "tcp", DataServiceCategory.RELATIONAL_DB.value),
     DataServiceType.ORACLE.value: (1521, "tcp", DataServiceCategory.RELATIONAL_DB.value),
-
     # NoSQL & Document Stores
     DataServiceType.MONGODB.value: (27017, "tcp", DataServiceCategory.NOSQL_DOCUMENT.value),
     DataServiceType.COUCHDB.value: (5984, "tcp", DataServiceCategory.NOSQL_DOCUMENT.value),
     DataServiceType.CASSANDRA.value: (9042, "tcp", DataServiceCategory.NOSQL_DOCUMENT.value),
-
     # In-Memory & Caches
     DataServiceType.REDIS.value: (6379, "tcp", DataServiceCategory.CACHE_INMEMORY.value),
     DataServiceType.MEMCACHED.value: (11211, "tcp", DataServiceCategory.CACHE_INMEMORY.value),
-
     # Search & Analytics Engines
     DataServiceType.ELASTICSEARCH.value: (9200, "tcp", DataServiceCategory.SEARCH_ANALYTICS.value),
     DataServiceType.INFLUXDB.value: (8086, "tcp", DataServiceCategory.SEARCH_ANALYTICS.value),
@@ -67,58 +64,226 @@ class DataServicesCollector(ABC):
     ) -> DataServiceAssessment:
         """Probe and evaluate discrete data service exposure."""
 
-    def assess_mysql(self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0) -> DataServiceAssessment:
+    def assess_mysql(
+        self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0
+    ) -> DataServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, DataServiceType.MYSQL.value, 3306, "tcp", DataServiceCategory.RELATIONAL_DB.value, vantage, canary_artifact, 5, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            DataServiceType.MYSQL.value,
+            3306,
+            "tcp",
+            DataServiceCategory.RELATIONAL_DB.value,
+            vantage,
+            canary_artifact,
+            5,
+            timeout,
+        )
 
-    def assess_postgres(self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0) -> DataServiceAssessment:
+    def assess_postgres(
+        self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0
+    ) -> DataServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, DataServiceType.POSTGRES.value, 5432, "tcp", DataServiceCategory.RELATIONAL_DB.value, vantage, canary_artifact, 5, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            DataServiceType.POSTGRES.value,
+            5432,
+            "tcp",
+            DataServiceCategory.RELATIONAL_DB.value,
+            vantage,
+            canary_artifact,
+            5,
+            timeout,
+        )
 
-    def assess_mssql(self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0) -> DataServiceAssessment:
+    def assess_mssql(
+        self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0
+    ) -> DataServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, DataServiceType.MSSQL.value, 1433, "tcp", DataServiceCategory.RELATIONAL_DB.value, vantage, canary_artifact, 5, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            DataServiceType.MSSQL.value,
+            1433,
+            "tcp",
+            DataServiceCategory.RELATIONAL_DB.value,
+            vantage,
+            canary_artifact,
+            5,
+            timeout,
+        )
 
-    def assess_oracle(self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0) -> DataServiceAssessment:
+    def assess_oracle(
+        self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0
+    ) -> DataServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, DataServiceType.ORACLE.value, 1521, "tcp", DataServiceCategory.RELATIONAL_DB.value, vantage, canary_artifact, 5, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            DataServiceType.ORACLE.value,
+            1521,
+            "tcp",
+            DataServiceCategory.RELATIONAL_DB.value,
+            vantage,
+            canary_artifact,
+            5,
+            timeout,
+        )
 
-    def assess_mongodb(self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0) -> DataServiceAssessment:
+    def assess_mongodb(
+        self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0
+    ) -> DataServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, DataServiceType.MONGODB.value, 27017, "tcp", DataServiceCategory.NOSQL_DOCUMENT.value, vantage, canary_artifact, 5, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            DataServiceType.MONGODB.value,
+            27017,
+            "tcp",
+            DataServiceCategory.NOSQL_DOCUMENT.value,
+            vantage,
+            canary_artifact,
+            5,
+            timeout,
+        )
 
-    def assess_couchdb(self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0) -> DataServiceAssessment:
+    def assess_couchdb(
+        self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0
+    ) -> DataServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, DataServiceType.COUCHDB.value, 5984, "tcp", DataServiceCategory.NOSQL_DOCUMENT.value, vantage, canary_artifact, 5, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            DataServiceType.COUCHDB.value,
+            5984,
+            "tcp",
+            DataServiceCategory.NOSQL_DOCUMENT.value,
+            vantage,
+            canary_artifact,
+            5,
+            timeout,
+        )
 
-    def assess_cassandra(self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0) -> DataServiceAssessment:
+    def assess_cassandra(
+        self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0
+    ) -> DataServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, DataServiceType.CASSANDRA.value, 9042, "tcp", DataServiceCategory.NOSQL_DOCUMENT.value, vantage, canary_artifact, 5, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            DataServiceType.CASSANDRA.value,
+            9042,
+            "tcp",
+            DataServiceCategory.NOSQL_DOCUMENT.value,
+            vantage,
+            canary_artifact,
+            5,
+            timeout,
+        )
 
-    def assess_redis(self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0) -> DataServiceAssessment:
+    def assess_redis(
+        self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0
+    ) -> DataServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, DataServiceType.REDIS.value, 6379, "tcp", DataServiceCategory.CACHE_INMEMORY.value, vantage, canary_artifact, 5, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            DataServiceType.REDIS.value,
+            6379,
+            "tcp",
+            DataServiceCategory.CACHE_INMEMORY.value,
+            vantage,
+            canary_artifact,
+            5,
+            timeout,
+        )
 
-    def assess_memcached(self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0) -> DataServiceAssessment:
+    def assess_memcached(
+        self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0
+    ) -> DataServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, DataServiceType.MEMCACHED.value, 11211, "tcp", DataServiceCategory.CACHE_INMEMORY.value, vantage, canary_artifact, 5, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            DataServiceType.MEMCACHED.value,
+            11211,
+            "tcp",
+            DataServiceCategory.CACHE_INMEMORY.value,
+            vantage,
+            canary_artifact,
+            5,
+            timeout,
+        )
 
-    def assess_elasticsearch(self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0) -> DataServiceAssessment:
+    def assess_elasticsearch(
+        self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0
+    ) -> DataServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, DataServiceType.ELASTICSEARCH.value, 9200, "tcp", DataServiceCategory.SEARCH_ANALYTICS.value, vantage, canary_artifact, 5, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            DataServiceType.ELASTICSEARCH.value,
+            9200,
+            "tcp",
+            DataServiceCategory.SEARCH_ANALYTICS.value,
+            vantage,
+            canary_artifact,
+            5,
+            timeout,
+        )
 
-    def assess_influxdb(self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0) -> DataServiceAssessment:
+    def assess_influxdb(
+        self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0
+    ) -> DataServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, DataServiceType.INFLUXDB.value, 8086, "tcp", DataServiceCategory.SEARCH_ANALYTICS.value, vantage, canary_artifact, 5, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            DataServiceType.INFLUXDB.value,
+            8086,
+            "tcp",
+            DataServiceCategory.SEARCH_ANALYTICS.value,
+            vantage,
+            canary_artifact,
+            5,
+            timeout,
+        )
 
-    def assess_kibana(self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0) -> DataServiceAssessment:
+    def assess_kibana(
+        self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0
+    ) -> DataServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, DataServiceType.KIBANA.value, 5601, "tcp", DataServiceCategory.SEARCH_ANALYTICS.value, vantage, canary_artifact, 5, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            DataServiceType.KIBANA.value,
+            5601,
+            "tcp",
+            DataServiceCategory.SEARCH_ANALYTICS.value,
+            vantage,
+            canary_artifact,
+            5,
+            timeout,
+        )
 
-    def assess_splunk(self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0) -> DataServiceAssessment:
+    def assess_splunk(
+        self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0
+    ) -> DataServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, DataServiceType.SPLUNK.value, 8089, "tcp", DataServiceCategory.SEARCH_ANALYTICS.value, vantage, canary_artifact, 5, timeout)
-
+        return self.probe_service(
+            target_host,
+            ip,
+            DataServiceType.SPLUNK.value,
+            8089,
+            "tcp",
+            DataServiceCategory.SEARCH_ANALYTICS.value,
+            vantage,
+            canary_artifact,
+            5,
+            timeout,
+        )
 
 
 class OfflineSyntheticDataCollector(DataServicesCollector):
@@ -149,17 +314,19 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
         query_budget_rows: int = 5,
         timeout: float = 2.0,
     ) -> DataServiceAssessment:
-        self.probes_recorded.append({
-            "target_host": target_host,
-            "resolved_ip": resolved_ip,
-            "service_type": service_type,
-            "category": category,
-            "port": port,
-            "protocol": protocol,
-            "vantage": vantage,
-            "canary_artifact": canary_artifact,
-            "query_budget_rows": query_budget_rows,
-        })
+        self.probes_recorded.append(
+            {
+                "target_host": target_host,
+                "resolved_ip": resolved_ip,
+                "service_type": service_type,
+                "category": category,
+                "port": port,
+                "protocol": protocol,
+                "vantage": vantage,
+                "canary_artifact": canary_artifact,
+                "query_budget_rows": query_budget_rows,
+            }
+        )
 
         t_data = self.targets.get(target_host) or self.targets.get(resolved_ip) or {}
         svc_data = t_data.get(service_type) or t_data.get(f"{service_type}:{port}")
@@ -195,9 +362,18 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
         details = dict(svc_data.get("details", {}))
         for k, v in svc_data.items():
             if k not in (
-                "details", "vulnerabilities", "versions", "status", "protected",
-                "inaccessible", "remediated", "state", "auth_prerequisite",
-                "authentication_required", "role", "role_assigned",
+                "details",
+                "vulnerabilities",
+                "versions",
+                "status",
+                "protected",
+                "inaccessible",
+                "remediated",
+                "state",
+                "auth_prerequisite",
+                "authentication_required",
+                "role",
+                "role_assigned",
             ):
                 details.setdefault(k, v)
 
@@ -220,9 +396,7 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
                 query_budget_rows=query_budget_rows,
                 applicable_versions=svc_data.get("versions", [details.get("version", "Remediated")]),
                 configuration_details=details,
-                uncertainty_notes=[
-                    "Service verified remediated against historical unauthenticated exposure"
-                ],
+                uncertainty_notes=["Service verified remediated against historical unauthenticated exposure"],
             )
 
         # 3. Protected Service Check (Properly authenticated & hardened)
@@ -231,11 +405,19 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
 
         if service_type == DataServiceType.REDIS.value and details.get("requirepass") is True:
             is_protected = True
-        elif service_type == DataServiceType.POSTGRES.value and details.get("auth_method") in ("scram-sha-256", "md5", "cert"):
+        elif service_type == DataServiceType.POSTGRES.value and details.get("auth_method") in (
+            "scram-sha-256",
+            "md5",
+            "cert",
+        ):
             is_protected = True
         elif service_type == DataServiceType.MYSQL.value and details.get("password_required") is True:
             is_protected = True
-        elif service_type == DataServiceType.MSSQL.value and details.get("sa_disabled") is True and details.get("windows_auth_only") is True:
+        elif (
+            service_type == DataServiceType.MSSQL.value
+            and details.get("sa_disabled") is True
+            and details.get("windows_auth_only") is True
+        ):
             is_protected = True
         elif service_type == DataServiceType.MONGODB.value and details.get("auth_enabled") is True:
             is_protected = True
@@ -254,15 +436,13 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
         elif service_type == DataServiceType.SPLUNK.value and details.get("default_creds") is False:
             is_protected = True
 
-        canary_active = bool(
-            canary_artifact
-            or details.get("canary_verified")
-            or details.get("canary_query_executed")
-        )
+        canary_active = bool(canary_artifact or details.get("canary_verified") or details.get("canary_query_executed"))
 
         receipts: list[CleanupReceipt] = []
         if canary_active and canary_artifact:
-            receipt_id = hashlib.sha256(f"clean:{target_host}:{service_type}:{canary_artifact}".encode()).hexdigest()[:16]
+            receipt_id = hashlib.sha256(f"clean:{target_host}:{service_type}:{canary_artifact}".encode()).hexdigest()[
+                :16
+            ]
             receipts.append(
                 CleanupReceipt(
                     receipt_id=f"rec-{receipt_id}",
@@ -302,7 +482,7 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
         auth_req = svc_data.get("authentication_required", False)
         auth_prereq = svc_data.get(
             "auth_prerequisite",
-            DataAuthPrerequisite.NONE.value if not auth_req else DataAuthPrerequisite.DEFAULT_CREDENTIALS.value
+            DataAuthPrerequisite.NONE.value if not auth_req else DataAuthPrerequisite.DEFAULT_CREDENTIALS.value,
         )
         assigned_role = svc_data.get("role", "admin" if not auth_req else "anonymous")
         status = svc_data.get("status", DataExposureStatus.EXPOSED.value)
@@ -368,7 +548,10 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
                         privilege_impact=DataPrivilegeImpact.DATA_EXFILTRATION.value,
                         affected_role="superuser",
                         applicable_versions=applicable_versions,
-                        supporting_evidence={"cluster_name": details.get("cluster_name", "elasticsearch"), "indices": details.get("indices", [])},
+                        supporting_evidence={
+                            "cluster_name": details.get("cluster_name", "elasticsearch"),
+                            "indices": details.get("indices", []),
+                        },
                     )
                 )
 
@@ -629,7 +812,12 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
 class StandardSocketDataCollector(DataServicesCollector):
     """Standard-library socket probe collector for databases, caches, and search services."""
 
+    live_network_io = True
+
     def resolve_target(self, target_host: str) -> str:
+        from .live_execution import reject_unauthorized_live_discovery
+
+        reject_unauthorized_live_discovery(mode="live")
         return socket.gethostbyname(target_host)
 
     def probe_service(
@@ -645,6 +833,9 @@ class StandardSocketDataCollector(DataServicesCollector):
         query_budget_rows: int = 5,
         timeout: float = 2.0,
     ) -> DataServiceAssessment:
+        from .live_execution import reject_unauthorized_live_discovery
+
+        reject_unauthorized_live_discovery(mode="live")
         try:
             with socket.create_connection((resolved_ip, port), timeout=timeout):
                 return DataServiceAssessment(
@@ -701,6 +892,9 @@ def assess_data_services(
     effective_canary = canary_artifact or canary_id
     if collector is None:
         collector = OfflineSyntheticDataCollector()
+    from .live_execution import reject_unauthorized_live_discovery
+
+    reject_unauthorized_live_discovery(collector=collector, offline_collector_type=OfflineSyntheticDataCollector)
 
     selected_services = service_types or list(DEFAULT_DATA_PORTS.keys())
     assessments: list[DataServiceAssessment] = []

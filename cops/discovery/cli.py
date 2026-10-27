@@ -62,6 +62,7 @@ from .legacy_collector import (
 from .legacy_models import (
     LegacyServicesReport,
 )
+from .live_execution import reject_unauthorized_live_discovery
 from .merger import merge_inventories
 from .messaging_collector import (
     OfflineSyntheticMessagingCollector,
@@ -643,6 +644,8 @@ def build_discovery_parser(subparsers: argparse._SubParsersAction[Any]) -> argpa
 def command_active_discovery(args: argparse.Namespace, root: Path | None = None) -> int:
     """Handle active discovery CLI subcommands."""
     active_cmd = getattr(args, "active_command", None)
+    if active_cmd in {"scan", "resume"}:
+        reject_unauthorized_live_discovery(mode=getattr(args, "mode", None))
 
     def output_overwrites_checkpoint(output: str | None, checkpoint: str | None) -> bool:
         if not output or not checkpoint:
@@ -883,6 +886,7 @@ def command_active_discovery(args: argparse.Namespace, root: Path | None = None)
 
 def command_infra_discovery(args: argparse.Namespace, root: Path | None = None) -> int:
     """Handle infrastructure service discovery CLI subcommands."""
+    reject_unauthorized_live_discovery(mode=getattr(args, "mode", None))
     infra_cmd = getattr(args, "infra_command", None)
 
     if infra_cmd == "assess":
@@ -975,6 +979,7 @@ def command_infra_discovery(args: argparse.Namespace, root: Path | None = None) 
 
 def command_remote_discovery(args: argparse.Namespace, root: Path | None = None) -> int:
     """Handle remote admin, file sharing, and printing discovery CLI subcommands."""
+    reject_unauthorized_live_discovery(mode=getattr(args, "mode", None))
     remote_cmd = getattr(args, "remote_command", None)
 
     if remote_cmd == "assess":
@@ -1086,6 +1091,7 @@ def command_remote_discovery(args: argparse.Namespace, root: Path | None = None)
 
 def command_data_discovery(args: argparse.Namespace, root: Path | None = None) -> int:
     """Handle database, cache, and search discovery CLI subcommands."""
+    reject_unauthorized_live_discovery(mode=getattr(args, "mode", None))
     data_cmd = getattr(args, "data_command", None)
 
     if data_cmd == "assess":
@@ -1196,6 +1202,7 @@ def command_data_discovery(args: argparse.Namespace, root: Path | None = None) -
 
 def command_messaging_discovery(args: argparse.Namespace, root: Path | None = None) -> int:
     """Handle mail, chat, and message broker service discovery CLI subcommands."""
+    reject_unauthorized_live_discovery(mode=getattr(args, "mode", None))
     msg_cmd = getattr(args, "messaging_command", None)
 
     if msg_cmd == "assess":
@@ -1361,6 +1368,7 @@ def command_messaging_discovery(args: argparse.Namespace, root: Path | None = No
 
 def command_developer_discovery(args: argparse.Namespace, root: Path | None = None) -> int:
     """Handle developer and runtime interface discovery CLI subcommands."""
+    reject_unauthorized_live_discovery(mode=getattr(args, "mode", None))
     dev_cmd = getattr(args, "developer_command", None)
 
     if dev_cmd == "handoff":
@@ -1536,6 +1544,7 @@ def command_developer_discovery(args: argparse.Namespace, root: Path | None = No
 
 def command_legacy_discovery(args: argparse.Namespace, root: Path | None = None) -> int:
     """Handle legacy enterprise, management, and proxy discovery CLI subcommands."""
+    reject_unauthorized_live_discovery(mode=getattr(args, "mode", None))
     leg_cmd = getattr(args, "legacy_command", None)
 
     if leg_cmd == "assess":
@@ -1679,6 +1688,8 @@ def command_discovery(
 ) -> int:
     """Execute discovery CLI command."""
     cmd = subcommand or (getattr(args, "discovery_command", None) if args else None)
+    if cmd in {"infrastructure", "remote", "data", "messaging", "developer", "legacy"}:
+        reject_unauthorized_live_discovery(mode=getattr(args, "mode", None) if args else None)
 
     try:
         if cmd == "active":

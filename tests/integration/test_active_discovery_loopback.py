@@ -1,51 +1,27 @@
-"""Exercise approved loopback probes through the real scanner on each native CI host."""
+"""External live scanner entry points remain unavailable before network I/O."""
 
-import errno
-import os
-import socket
-import sys
+from unittest.mock import patch
 
 import pytest
 
-from scripts.active_discovery_network_acceptance import (
-    check_ipv6,
-    check_server_first_banner,
-    check_udp,
-    check_udp_dns,
-)
+from cops.discovery.active_scanner import StandardSocketDispatcher
 
 
-def require_loopback_sockets() -> None:
-    """Skip a restricted developer sandbox, but fail when CI requires live sockets."""
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
-        try:
-            server.bind(("127.0.0.1", 0))
-        except PermissionError as exc:
-            if exc.errno == errno.EPERM and os.environ.get("COPS_REQUIRE_NATIVE_LOOPBACK") != "1":
-                pytest.skip("Local socket binds are denied by the host sandbox")
-            raise
+@pytest.mark.parametrize("address", ["127.0.0.1", "::1"])
+def test_direct_standard_socket_scanner_is_unavailable_before_io(address: str) -> None:
+    dispatcher = StandardSocketDispatcher(udp_dns_probe_ports=[53])
+    with (
+        patch("socket.getaddrinfo") as resolve,
+        patch("socket.create_connection") as connect,
+        patch("socket.socket") as udp_socket,
+    ):
+        with pytest.raises(ValueError, match="Unauthenticated live discovery is unavailable"):
+            dispatcher.resolve_target(address)
+        with pytest.raises(ValueError, match="Unauthenticated live discovery is unavailable"):
+            dispatcher.dispatch_probe(address, address, 80)
+        with pytest.raises(ValueError, match="Unauthenticated live discovery is unavailable"):
+            dispatcher._dispatch_udp(address, address, 53, 0.1, "external")
 
-
-def test_native_ipv4_loopback_probes() -> None:
-    require_loopback_sockets()
-    udp = check_udp()
-    dns = check_udp_dns()
-    banner = check_server_first_banner()
-
-    assert udp["states"] == ["open", "unknown"]
-    assert dns["truncated"] is True
-    assert banner["service"] == "ssh"
-
-
-def test_native_ipv6_loopback_probes() -> None:
-    require_loopback_sockets()
-    result = check_ipv6()
-    if result["status"] == "unavailable":
-        pytest.skip(result["reason"])
-
-    assert result["tcp_states"][0] == "open"
-    if sys.platform == "win32":
-        assert result["tcp_states"][1] in {"closed", "filtered"}
-    else:
-        assert result["tcp_states"][1] == "closed"
-    assert result["udp_states"] == ["open", "unknown"]
+    resolve.assert_not_called()
+    connect.assert_not_called()
+    udp_socket.assert_not_called()

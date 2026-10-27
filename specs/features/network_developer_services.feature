@@ -43,10 +43,10 @@ Feature: Developer and Runtime Interfaces Assessment
     And authentication prerequisites reflect "client_cert", "token_or_api_key", or "user_password"
     And zero unauthenticated developer privilege candidates are generated
 
-  Scenario: Blocking unlisted live destinations before network access
+  Scenario: External live developer service collection is unavailable
     Given an exact developer destination policy for a lab host and resolved address
     When the live collector receives an unlisted host and an unlisted resolved address
-    Then the host is rejected before DNS and the address before a socket opens
+    Then external live collection is rejected before destination policy or network access
 
   Scenario: Checking Kubernetes context and all runtime destinations before cluster handoff
     Given an exact developer destination policy and Kubernetes context for a lab cluster

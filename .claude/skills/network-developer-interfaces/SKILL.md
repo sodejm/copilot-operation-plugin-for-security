@@ -7,6 +7,15 @@ description: Assess developer and runtime interfaces (Docker, Docker Registry, R
 
 Execute authorized, bounded exposure and configuration assessments across developer tooling, debugging endpoints, distributed build systems, and application gateway interfaces under strict Rules of Engagement and operational boundaries.
 
+**Execution availability:** the public assessment API defaults to offline
+synthetic fixtures. CLI `--mode live` and direct calls to the standard socket
+collector are currently rejected before DNS or socket use because these
+operations do not yet have a verified worker-mediated authorization path.
+`allow_code_execution` and `allow_state_change` classify fixture cases only;
+they are not execution authorization. The plan-bound service-validation
+laboratory remains the supported executable lab path. This is a compatibility
+change for callers that previously selected live mode directly.
+
 ## Core Capabilities
 
 1. **Protocol-Specific Coverage**:
@@ -31,7 +40,7 @@ Execute authorized, bounded exposure and configuration assessments across develo
      - `non_destructive`: Benign version probes, authenticated handshake verification.
      - `state_change`: Spawning a temporary test container or registering a test branch.
      - `code_execution`: Verifying JDWP, distcc, or Docker API command invocation.
-   - Probes that can execute code (`can_execute_code`) or modify state (`can_change_state`) MUST be explicitly authorized via `--allow-code-execution` or `--allow-state-change` and bound to the approved action plan. Unauthorized code execution attempts are blocked by default.
+   - `can_execute_code` and `can_change_state` classify possible effects in synthetic assessments. The similarly named allow flags are classification inputs only; they do not authorize or enable live execution. Any future live path requires the approved immutable action plan and worker-mediated controls.
 
 3. **Routing Application Behavior vs Infrastructure & Cluster Paths**:
    - Application-layer findings (e.g. AJP servlet exposure, Docker registry manifest contents) route to web and application specialists (`cops-web-specialist`, `cops-appsec-engineer`).
@@ -66,9 +75,9 @@ Execute authorized, bounded exposure and configuration assessments across develo
 ### 1. Assess Developer and Runtime Interface Services
 ```bash
 python3 -m cops developer-services assess \
-  --mode live \
+  --mode synthetic \
   --targets "dev-runner01.corp.internal" \
-  --destination-policy destination-policy.json \
+  --offline-targets approved-fixtures.json \
   --vantage internal \
   --canary-id "canary_debug_probe" \
   --output developer_assessment.json
@@ -77,9 +86,9 @@ python3 -m cops developer-services assess \
 With authorized non-destructive code execution verification:
 ```bash
 python3 -m cops developer-services assess \
-  --mode live \
+  --mode synthetic \
   --targets "dev-runner01.corp.internal" \
-  --destination-policy destination-policy.json \
+  --offline-targets approved-fixtures.json \
   --services "docker,jdwp,distcc" \
   --allow-code-execution \
   --canary-id "canary_docker_probe" \
@@ -89,13 +98,13 @@ python3 -m cops developer-services assess \
 Or via the discovery namespace:
 ```bash
 python3 -m cops discovery developer assess \
-  --mode live \
+  --mode synthetic \
   --targets "dev-runner01.corp.internal" \
-  --destination-policy destination-policy.json \
+  --offline-targets approved-fixtures.json \
   --output developer_assessment.json
 ```
 
-The policy JSON lists exact `hosts` and `resolved_ips` for live collection, plus any approved `repositories`, `images`, `runtimes`, and `clusters` for handoff. See the package README for the schema and example. The collector checks the host before DNS and the resolved IP before socket use.
+Developer and runtime assessment examples use offline synthetic fixtures. The destination policy is used to scope handoff preparation; it does not authorize live network I/O. `--allow-code-execution` and `--allow-state-change` classify requested or observed impact and never grant execution authorization. See the package README for the policy schema and example.
 
 ### Prepare a Cluster Handoff
 ```bash

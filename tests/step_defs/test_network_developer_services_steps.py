@@ -354,20 +354,23 @@ def setup_live_destination_policy(bdd_ctx):
 @when("the live collector receives an unlisted host and an unlisted resolved address")
 def try_unlisted_live_destinations(bdd_ctx):
     collector = StandardSocketDeveloperCollector(destination_policy=bdd_ctx["destination_policy"])
-    with patch("socket.gethostbyname") as dns, patch("socket.create_connection") as connect:
-        with pytest.raises(DestinationScopeError):
+    with (
+        patch.object(DeveloperDestinationPolicy, "authorize_host", autospec=True) as policy,
+        patch("socket.gethostbyname") as dns,
+        patch("socket.create_connection") as connect,
+    ):
+        with pytest.raises(ValueError, match="Unauthenticated live discovery is unavailable"):
             collector.resolve_target("outside.corp.internal")
-        bdd_ctx["host_blocked_before_dns"] = dns.call_count == 0
-        dns.return_value = "203.0.113.99"
-        with pytest.raises(DestinationScopeError):
-            collector.assess_docker("dev.corp.internal")
-        bdd_ctx["address_blocked_before_socket"] = not connect.called
+        bdd_ctx["external_live_rejected"] = True
+        bdd_ctx["external_live_policy_not_called"] = not policy.called
+        bdd_ctx["external_live_network_not_called"] = not dns.called and not connect.called
 
 
-@then("the host is rejected before DNS and the address before a socket opens")
-def verify_live_destination_gate(bdd_ctx):
-    assert bdd_ctx["host_blocked_before_dns"]
-    assert bdd_ctx["address_blocked_before_socket"]
+@then("external live collection is rejected before destination policy or network access")
+def verify_external_live_collection_unavailable(bdd_ctx):
+    assert bdd_ctx["external_live_rejected"]
+    assert bdd_ctx["external_live_policy_not_called"]
+    assert bdd_ctx["external_live_network_not_called"]
 
 
 @given("an exact developer destination policy and Kubernetes context for a lab cluster")

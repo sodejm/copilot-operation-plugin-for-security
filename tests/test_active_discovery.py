@@ -446,58 +446,16 @@ class TestActiveDiscoveryModelsAndFingerprinting(unittest.TestCase):
 class TestStandardSocketDispatcherErrors(unittest.TestCase):
     def test_network_route_error_is_unreachable_and_refusal_is_closed(self):
         dispatcher = StandardSocketDispatcher()
-        cases = (
-            (errno.ENETUNREACH, PortState.UNREACHABLE.value, ServiceReachability.UNREACHABLE.value),
-            (errno.EHOSTUNREACH, PortState.UNREACHABLE.value, ServiceReachability.UNREACHABLE.value),
-            (errno.ECONNREFUSED, PortState.CLOSED.value, ServiceReachability.REACHABLE.value),
-            (errno.EACCES, PortState.UNKNOWN.value, ServiceReachability.UNKNOWN.value),
-        )
-        for error_number, expected_state, expected_reachability in cases:
-            with self.subTest(error_number=error_number):
-                with patch(
-                    "cops.discovery.active_scanner.socket.create_connection",
-                    side_effect=OSError(error_number, "socket failure"),
-                ):
-                    assessment = dispatcher.dispatch_probe("127.0.0.1", "127.0.0.1", 12345)
-                self.assertEqual(assessment.port_state, expected_state)
-                self.assertEqual(assessment.reachability, expected_reachability)
+        with patch("cops.discovery.active_scanner.socket.create_connection") as connect:
+            with self.assertRaisesRegex(ValueError, "Unauthenticated live discovery is unavailable"):
+                dispatcher.dispatch_probe("127.0.0.1", "127.0.0.1", 12345)
+        connect.assert_not_called()
 
     def test_udp_timeout_is_unknown_and_counted_as_timed_out(self):
-        class TimeoutSocket:
-            def settimeout(self, _timeout):
-                pass
-
-            def connect(self, _address):
-                pass
-
-            def send(self, payload):
-                return len(payload)
-
-            def recv(self, _size):
-                raise TimeoutError
-
-            def close(self):
-                pass
-
-        with patch("cops.discovery.active_scanner.socket.socket", return_value=TimeoutSocket()):
-            assessment = StandardSocketDispatcher().dispatch_probe(
-                "198.51.100.10", "198.51.100.10", 53, protocol="udp", timeout=0.1
-            )
-        self.assertEqual(assessment.port_state, PortState.UNKNOWN.value)
-        self.assertEqual(assessment.reachability, ServiceReachability.UNKNOWN.value)
-        self.assertIn("timed out", assessment.error_message)
-
-        session = ActiveScanSession(
-            session_id="udp-timeout",
-            scope_reference="approved-engagement",
-            approved_targets=["198.51.100.10"],
-            approved_ports=[],
-            approved_udp_ports=[53],
-            budget=ScanBudget(max_probes=1),
-            assessments=[assessment],
-            completed_probe_keys={ActiveScanSession.make_probe_key("external", "udp", "198.51.100.10", 53)},
-        )
-        self.assertEqual(session.coverage_summary()["timed_out"], 1)
+        with patch("cops.discovery.active_scanner.socket.socket") as udp_socket:
+            with self.assertRaisesRegex(ValueError, "Unauthenticated live discovery is unavailable"):
+                StandardSocketDispatcher()._dispatch_udp("198.51.100.10", "198.51.100.10", 53, 0.1, "external")
+        udp_socket.assert_not_called()
 
 
 class RecordingSocketDispatcher(StandardSocketDispatcher):
@@ -2199,7 +2157,7 @@ class TestActiveDiscoveryCLI(unittest.TestCase):
             checkpoint=str(checkpoint_path),
             output=str(checkpoint_path),
         )
-        with self.assertRaisesRegex(ValueError, "distinct"):
+        with self.assertRaisesRegex(ValueError, "Unauthenticated live discovery is unavailable"):
             command_active_discovery(scan_args)
         self.assertFalse(checkpoint_path.exists())
 
@@ -2215,7 +2173,7 @@ class TestActiveDiscoveryCLI(unittest.TestCase):
             checkpoint_out=None,
             output=str(alias),
         )
-        with self.assertRaisesRegex(ValueError, "distinct"):
+        with self.assertRaisesRegex(ValueError, "Unauthenticated live discovery is unavailable"):
             command_active_discovery(resume_args)
         self.assertEqual(
             ActiveScanSession.load_checkpoint(checkpoint_path).session_id,

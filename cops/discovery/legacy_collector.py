@@ -802,6 +802,8 @@ class OfflineSyntheticLegacyCollector(LegacyServicesCollector):
 class StandardSocketLegacyCollector(LegacyServicesCollector):
     """Standard-library socket probe collector for legacy enterprise, management, and proxy services."""
 
+    live_network_io = True
+
     def __init__(
         self,
         allow_code_execution: bool = False,
@@ -811,6 +813,9 @@ class StandardSocketLegacyCollector(LegacyServicesCollector):
         self.allow_state_change = allow_state_change
 
     def resolve_target(self, target_host: str) -> str:
+        from .live_execution import reject_unauthorized_live_discovery
+
+        reject_unauthorized_live_discovery(mode="live")
         return socket.gethostbyname(target_host)
 
     def probe_service(
@@ -825,6 +830,9 @@ class StandardSocketLegacyCollector(LegacyServicesCollector):
         canary_artifact: str | None = None,
         timeout: float = 2.0,
     ) -> LegacyServiceAssessment:
+        from .live_execution import reject_unauthorized_live_discovery
+
+        reject_unauthorized_live_discovery(mode="live")
         try:
             if protocol == "udp":
                 # UDP datagram probe
@@ -921,9 +929,11 @@ def assess_legacy_services(
     allow_state_change: bool = False,
 ) -> LegacyServicesReport:
     """Execute exposure and privilege boundary assessment across legacy enterprise and proxy services."""
-    active_collector = collector or StandardSocketLegacyCollector(
-        allow_code_execution=allow_code_execution,
-        allow_state_change=allow_state_change,
+    active_collector = collector or OfflineSyntheticLegacyCollector()
+    from .live_execution import reject_unauthorized_live_discovery
+
+    reject_unauthorized_live_discovery(
+        collector=active_collector, offline_collector_type=OfflineSyntheticLegacyCollector
     )
     svcs = service_types or list(DEFAULT_LEGACY_PORTS.keys())
     canary = canary_artifact or canary_id

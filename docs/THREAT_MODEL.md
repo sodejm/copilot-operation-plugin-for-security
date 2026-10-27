@@ -48,6 +48,7 @@ private payloads and real identifiers must never be copied into this document.
 | Operator decision → approval store → tool execution | Approval must be bound to action, effective resource and current revision, atomically consumed. |
 | Cloud integration → remote API / telemetry → agent | Credentials go only to intended recipients; telemetry remains untrusted even from authenticated services. |
 | Canonical hunt skills → generated host adapters | Hashes and deterministic generation establish consistency, not trust in malicious canonical content. |
+
 | Operator model catalog → offline advisor → host model selection | Catalog records are bounded, untrusted assertions about exact model capabilities, access and supported effort. Advice cannot establish entitlement or authorize a model switch, agent launch or security operation. |
 | Approved scan plan and IP scope → live active scanner → network and durable checkpoint | Target names, DNS answers, scope files, received banners, imported observations, and checkpoint contents are untrusted. The CLI bounds and canonically validates scope, target-list, and offline synthetic fixture JSON before planning or dispatch; an explicitly named fixture must exist and contain an object. The full Cartesian plan must fit the cumulative probe budget and a 131,070-key in-memory materialization cap; the cap does not guarantee that variable-size evidence will fit the checkpoint document limit. The scanner binds TCP and UDP selections, including opted-in DNS queries, plan, and IP scope to a checkpoint; applies one cumulative time/probe budget; and reserves each probe before dispatch. Offline fixtures distinguish TCP and UDP, classify missing or timed-out UDP evidence as unknown, and require exact selected-probe provenance before a positive DNS result. Masscan and Nmap imports accept only TCP and UDP and maintain separate protocol ledgers. UDP sends can affect service state; silence is inconclusive. A generic UDP reply does not identify a service; a matching response to an explicitly selected DNS query identifies only DNS, without authenticating the responder. The scanner retains UDP response length and a hash of a bounded prefix, not the UDP body. For non-TLS TCP, it may retain up to 512 raw banner bytes and a decoded display form in the checkpoint. These bytes can contain sensitive or hostile content and self-reported product claims; operators must protect checkpoint storage and must not treat a banner as authenticated identity or host-OS proof. Uncertain effects stop automatic retries. Lock identity is revalidated immediately after advisory-lock acquisition. Advisory locking cannot prevent a process with the same filesystem authority from replacing the lock pathname later in the run, so operators must protect the checkpoint directory from all other writers for the full controller lifetime. A same-authority local writer can replace both plan and checkpoint, so the engagement controller must protect and independently authorize them. |
 | Handoff proposal → specialist acceptance → auditor completion | A proposed skill ID and capability must resolve to the recipient's registered specialist profile and local skill file; acceptance records the resolved target and checksum. Skeptic review and audit re-resolve the current target. Completion is a reviewed handoff record, not tool execution. |
@@ -78,6 +79,21 @@ private payloads and real identifiers must never be copied into this document.
 | Authorized local exposure bundle → intake and evaluator → private report | A bundle can contain asset, owner, subscription, and vulnerability details. The installed skill resolves the package locally and writes a new report in a private operator-selected directory; explicit stdout is limited to synthetic or sanitized data. Intake validation does not establish source completeness or exploitability. |
 | Caller-supplied engagement, plan, run, finding, and evidence records → offline assessment report → operator | All records and free text are untrusted. Contract and semantic checks constrain scope, provenance, evidence links, and coverage claims; hashes establish internal integrity, not source authenticity or authorized execution. Reports can still disclose identifiers or repeat false source assertions. |
 | Operator-supplied reproduction plan and local artifacts → offline preflight → private report | Plan fields, HTTPS source URIs, acquisition receipts, artifact bytes, version claims, and lab references are untrusted declarations. Descriptor-relative, no-follow reads and bounded streaming hashes check local consistency; they do not authenticate sources, authorize execution, or bind bytes after preflight. The report is a local metadata result, not lab evidence. |
+
+### Discovery live execution boundary
+
+The active-discovery and six service-family CLI commands reject `--mode live`
+before loading execution inputs or constructing a socket dispatcher or collector.
+Public service assessment functions default to offline synthetic collectors.
+Every standard socket collector method and the active standard socket dispatcher
+reject direct calls before DNS or socket use because no verified worker capability
+exists for discovery. The worker/adapter integration for these operations is not
+implemented, so external live discovery is unavailable; the plan-bound
+service-validation laboratory remains the supported executable laboratory path.
+Effect flags such as `allow_code_execution` and `allow_state_change` classify
+synthetic fixture results; they do not authorize network execution. Executable
+pinning is not claimed here. Regression tests cover CLI admission, direct method
+calls, offline assessment defaults, and effect-flag behavior.
 
 ```mermaid
 flowchart LR
