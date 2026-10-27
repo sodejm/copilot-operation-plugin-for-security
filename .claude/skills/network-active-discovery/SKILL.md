@@ -5,7 +5,7 @@ description: Execute bounded active port, protocol, and TLS assessment with expl
 
 # Network Active Discovery and Service Identification
 
-Execute authorized, bounded active network assessment across approved hosts, ports, protocols, and TLS configurations under explicit Rules of Engagement and operational constraints.
+Prepare and review bounded active network assessments across approved hosts, ports, protocols, and TLS configurations under explicit Rules of Engagement and operational constraints. The current CLI does not provide an authorized worker route for external live discovery; `--mode live` is rejected before collectors or dispatchers are constructed. Public assessment runners default to offline synthetic collectors and reject socket collectors. The plan-bound service-validation laboratory remains the supported executable path.
 
 ## Core Capabilities
 
@@ -62,7 +62,9 @@ and `--max-probes` must cover the full Cartesian plan. This limits in-memory
 ledger growth; it does not guarantee that a completed checkpoint will fit the
 256 MiB canonical document limit because recorded evidence has variable size.
 
-### 2. Execute Bounded Scan with Scope Enforcement
+### 2. Live Scan Availability
+
+The following command is currently unavailable and exits before reading its session or dispatching a probe:
 ```bash
 python3 -m cops discovery active scan session_plan.json \
   --mode live \
@@ -72,7 +74,7 @@ python3 -m cops discovery active scan session_plan.json \
   --output scan_results.json
 ```
 
-### 3. Resume Interrupted or Partial Session
+### 3. Resume Availability
 ```bash
 python3 -m cops discovery active resume session_checkpoint.json \
   --mode live \
@@ -80,12 +82,11 @@ python3 -m cops discovery active resume session_checkpoint.json \
   --output scan_completed.json
 ```
 
-An incomplete result returns exit status 2. Inspect its status and checkpoint:
-an uncertain pending probe requires an operator to reconcile the external effect
-before any new plan. Creating the optional cancel file stops execution between
-durably recorded serial probes, writes status `cancelled`, and leaves unattempted
-coverage visible for resume. Remove the file before resuming. The default mode is
-synthetic and performs no network scan.
+These examples are retained as the intended interface contract only. A future
+live route must use the immutable ActionPlan, one-use authorization, isolated
+worker and registered adapter path, then emit a RunResult with cleanup evidence.
+Until that integration exists, do not run external live discovery. Synthetic
+mode continues to operate offline.
 
 ### 4. Compare Baseline and Re-test for Exposure Remediation
 ```bash

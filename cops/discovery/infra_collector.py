@@ -94,7 +94,9 @@ class InfraCollector(ABC):
         timeout: float = 2.0,
     ) -> InfraServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, InfraServiceType.KERBEROS.value, 88, "tcp", vantage, canary_id, timeout)
+        return self.probe_service(
+            target_host, ip, InfraServiceType.KERBEROS.value, 88, "tcp", vantage, canary_id, timeout
+        )
 
 
 class OfflineSyntheticInfraCollector(InfraCollector):
@@ -129,15 +131,17 @@ class OfflineSyntheticInfraCollector(InfraCollector):
         canary_id: str | None = None,
         timeout: float = 2.0,
     ) -> InfraServiceAssessment:
-        self.probes_dispatched.append({
-            "target_host": target_host,
-            "resolved_ip": resolved_ip,
-            "service_type": service_type,
-            "port": port,
-            "protocol": protocol,
-            "vantage": vantage,
-            "canary_id": canary_id,
-        })
+        self.probes_dispatched.append(
+            {
+                "target_host": target_host,
+                "resolved_ip": resolved_ip,
+                "service_type": service_type,
+                "port": port,
+                "protocol": protocol,
+                "vantage": vantage,
+                "canary_id": canary_id,
+            }
+        )
 
         t_data = self.targets.get(target_host) or self.targets.get(resolved_ip) or {}
         svc_data = t_data.get(service_type) or t_data.get(f"{service_type}:{port}")
@@ -199,11 +203,7 @@ class OfflineSyntheticInfraCollector(InfraCollector):
         elif service_type == InfraServiceType.RPC.value and details.get("interfaces") == []:
             is_explicitly_protected = True
 
-        canary_active = bool(
-            canary_id
-            or details.get("canary_resolved")
-            or details.get("canary_user_preauth_required")
-        )
+        canary_active = bool(canary_id or details.get("canary_resolved") or details.get("canary_user_preauth_required"))
 
         if is_explicitly_protected:
             versions = svc_data.get("versions") or [details.get("version", "Standard")]
@@ -241,8 +241,8 @@ class OfflineSyntheticInfraCollector(InfraCollector):
                 status = ServiceExposureStatus.EXPOSED.value
                 auth_prereq = AuthPrerequisite.NONE.value
                 vulns.append("Unauthenticated LDAP anonymous bind permitted")
-                domain = details.get("defaultNamingContext") or (
-                    details.get("naming_contexts", ["DC=corp,DC=internal"])[0]
+                domain = (
+                    details.get("defaultNamingContext") or (details.get("naming_contexts", ["DC=corp,DC=internal"])[0])
                 )
                 candidate_id = hashlib.sha256(f"ldap:{target_host}:{port}:{domain}".encode()).hexdigest()[:16]
                 candidates.append(
@@ -270,7 +270,7 @@ class OfflineSyntheticInfraCollector(InfraCollector):
                 status = ServiceExposureStatus.EXPOSED.value
                 auth_prereq = AuthPrerequisite.KERBEROS_PREAUTH_DISABLED.value
                 vulns.append("Kerberos pre-authentication disabled for one or more accounts")
-                for acc in (preauth_disabled or ["vulnerable_account"]):
+                for acc in preauth_disabled or ["vulnerable_account"]:
                     principal = f"{acc}@{realm}" if "@" not in acc else acc
                     candidate_id = hashlib.sha256(f"krb:{target_host}:{port}:{principal}".encode()).hexdigest()[:16]
                     candidates.append(
@@ -298,7 +298,9 @@ class OfflineSyntheticInfraCollector(InfraCollector):
             if interfaces:
                 status = ServiceExposureStatus.EXPOSED.value
                 auth_prereq = AuthPrerequisite.NONE.value
-                vulns.append(f"RPC Endpoint Mapper discloses {len(interfaces)} registered interfaces without authentication")
+                vulns.append(
+                    f"RPC Endpoint Mapper discloses {len(interfaces)} registered interfaces without authentication"
+                )
                 candidate_id = hashlib.sha256(f"rpc:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     IdentityAttackPathCandidate(
@@ -402,7 +404,12 @@ class OfflineSyntheticInfraCollector(InfraCollector):
 class StandardSocketInfraCollector(InfraCollector):
     """Standard-library live TCP socket collector for infrastructure and identity service probes."""
 
+    live_network_io = True
+
     def resolve_target(self, target_host: str) -> str:
+        from .live_execution import reject_unauthorized_live_discovery
+
+        reject_unauthorized_live_discovery(mode="live")
         return socket.gethostbyname(target_host)
 
     def probe_service(
@@ -416,6 +423,9 @@ class StandardSocketInfraCollector(InfraCollector):
         canary_id: str | None = None,
         timeout: float = 2.0,
     ) -> InfraServiceAssessment:
+        from .live_execution import reject_unauthorized_live_discovery
+
+        reject_unauthorized_live_discovery(mode="live")
         # Standard socket connect probe
         try:
             with socket.create_connection((resolved_ip, port), timeout=timeout):
@@ -433,7 +443,9 @@ class StandardSocketInfraCollector(InfraCollector):
                     authentication_required=None,
                     auth_prerequisite=AuthPrerequisite.UNKNOWN.value,
                     configuration_details={"socket_connected": True},
-                    uncertainty_notes=["Service reachable via TCP; protocol-specific authentication check requires credentials"],
+                    uncertainty_notes=[
+                        "Service reachable via TCP; protocol-specific authentication check requires credentials"
+                    ],
                 )
         except (TimeoutError, ConnectionRefusedError, OSError) as err:
             return InfraServiceAssessment(
@@ -477,6 +489,9 @@ def assess_infrastructure_services(
     """Assess infrastructure and identity-facing services across approved targets."""
     if collector is None:
         collector = OfflineSyntheticInfraCollector()
+    from .live_execution import reject_unauthorized_live_discovery
+
+    reject_unauthorized_live_discovery(collector=collector, offline_collector_type=OfflineSyntheticInfraCollector)
 
     selected_services = service_types or list(DEFAULT_INFRA_PORTS.keys())
     assessments: list[InfraServiceAssessment] = []
@@ -491,7 +506,9 @@ def assess_infrastructure_services(
         "attack_path_candidates": 0,
     }
 
-    report_id = hashlib.sha256(f"{scope_ref}:{sorted(targets)}:{sorted(selected_services)}:{vantage}".encode()).hexdigest()[:16]
+    report_id = hashlib.sha256(
+        f"{scope_ref}:{sorted(targets)}:{sorted(selected_services)}:{vantage}".encode()
+    ).hexdigest()[:16]
 
     for target in targets:
         try:

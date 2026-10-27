@@ -7,6 +7,8 @@ description: Assess remote administration (SSH, Telnet, RDP, VNC, WinRM, X11), f
 
 Execute authorized, protocol-specific assessments across remote administration, file sharing, and network printing services under strict Rules of Engagement and operational boundaries.
 
+**Execution boundary:** External live collection is unavailable through this skill and its public assessment APIs. Use the plan-bound service-validation laboratory for approved disposable loopback validation. Offline synthetic assessment remains available; destination allowlists and effect-classification flags do not authorize network execution.
+
 ## Core Capabilities
 
 1. **Protocol-Specific Coverage**:

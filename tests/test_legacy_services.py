@@ -11,7 +11,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
@@ -442,94 +442,74 @@ class TestStandardSocketLegacyCollector(unittest.TestCase):
     @patch("socket.gethostbyname")
     @patch("socket.create_connection")
     def test_tcp_socket_connect_success(self, mock_connect, mock_resolve):
-        mock_resolve.return_value = "198.51.100.99"
-        mock_connect.return_value.__enter__.return_value = MagicMock()
-
         collector = StandardSocketLegacyCollector()
-        ass = collector.probe_service(
-            target_host="storage.corp.internal",
-            resolved_ip="198.51.100.99",
-            service_type="ndmp",
-            port=10000,
-            protocol="tcp",
-            canary_artifact="canary_01",
-        )
-        self.assertEqual(ass.exposure_status, LegacyExposureStatus.UNCONFIRMED.value)
-        self.assertTrue(ass.configuration_details.get("socket_connected"))
-        self.assertFalse(ass.canary_validated)
-        self.assertEqual(ass.canary_identifier, "canary_01")
-        self.assertEqual(ass.auth_prerequisite, LegacyAuthPrerequisite.UNKNOWN.value)
+        with self.assertRaisesRegex(ValueError, "Unauthenticated live discovery is unavailable"):
+            collector.probe_service(
+                target_host="storage.corp.internal",
+                resolved_ip="198.51.100.99",
+                service_type="ndmp",
+                port=10000,
+                protocol="tcp",
+                canary_artifact="canary_01",
+            )
+        mock_resolve.assert_not_called()
+        mock_connect.assert_not_called()
 
     @patch("socket.gethostbyname")
     @patch("socket.socket")
     def test_udp_socket_probe_success(self, mock_socket_cls, mock_resolve):
-        mock_resolve.return_value = "198.51.100.99"
-        mock_sock = MagicMock()
-        mock_socket_cls.return_value = mock_sock
-
         collector = StandardSocketLegacyCollector()
-        ass = collector.probe_service(
-            target_host="bmc.corp.internal",
-            resolved_ip="198.51.100.99",
-            service_type="ipmi",
-            port=623,
-            protocol="udp",
-            canary_artifact="canary_01",
-        )
-        self.assertEqual(ass.exposure_status, LegacyExposureStatus.UNCONFIRMED.value)
-        self.assertFalse(ass.canary_validated)
-        self.assertTrue(ass.configuration_details.get("udp_datagram_sent"))
-        mock_sock.sendto.assert_called_once_with(b"\x00", ("198.51.100.99", 623))
+        with self.assertRaisesRegex(ValueError, "Unauthenticated live discovery is unavailable"):
+            collector.probe_service(
+                target_host="bmc.corp.internal",
+                resolved_ip="198.51.100.99",
+                service_type="ipmi",
+                port=623,
+                protocol="udp",
+                canary_artifact="canary_01",
+            )
+        mock_resolve.assert_not_called()
+        mock_socket_cls.assert_not_called()
 
     @patch("socket.create_connection")
     def test_proxy_socket_connect_does_not_claim_egress_or_canary(self, mock_connect):
-        mock_connect.return_value.__enter__.return_value = MagicMock()
-        ass = StandardSocketLegacyCollector().probe_service(
-            target_host="proxy.corp.internal",
-            resolved_ip="198.51.100.70",
-            service_type="squid",
-            port=3128,
-            category=LegacyCategory.PROXY_EGRESS_SERVICES.value,
-            canary_artifact="requested_canary",
-        )
-        self.assertEqual(ass.exposure_status, LegacyExposureStatus.UNCONFIRMED.value)
-        self.assertFalse(ass.proxy_egress_tested)
-        self.assertIsNone(ass.proxy_egress_restricted)
-        self.assertFalse(ass.canary_validated)
-        self.assertEqual(ass.cleanup_receipts, [])
+        with self.assertRaisesRegex(ValueError, "Unauthenticated live discovery is unavailable"):
+            StandardSocketLegacyCollector().probe_service(
+                target_host="proxy.corp.internal",
+                resolved_ip="198.51.100.70",
+                service_type="squid",
+                port=3128,
+                category=LegacyCategory.PROXY_EGRESS_SERVICES.value,
+                canary_artifact="requested_canary",
+            )
+        mock_connect.assert_not_called()
 
     @patch("socket.create_connection")
     @patch("socket.gethostbyname", return_value="198.51.100.70")
     def test_socket_report_counts_unconfirmed(self, _mock_resolve, mock_connect):
-        mock_connect.return_value.__enter__.return_value = MagicMock()
-        report = assess_legacy_services(
-            targets=["proxy.corp.internal"],
-            service_types=["squid"],
-            collector=StandardSocketLegacyCollector(),
-            canary_id="requested_canary",
-        )
-        self.assertEqual(report.total_probed, 1)
-        self.assertEqual(report.total_unconfirmed, 1)
-        self.assertEqual(report.total_exposed, 0)
-        self.assertEqual(LegacyServicesReport.from_dict(report.to_dict()).total_unconfirmed, 1)
+        with self.assertRaisesRegex(ValueError, "Unauthenticated live discovery is unavailable"):
+            assess_legacy_services(
+                targets=["proxy.corp.internal"],
+                service_types=["squid"],
+                collector=StandardSocketLegacyCollector(),
+                canary_id="requested_canary",
+            )
+        mock_connect.assert_not_called()
 
     @patch("socket.gethostbyname")
     @patch("socket.create_connection")
     def test_tcp_socket_timeout_inaccessible(self, mock_connect, mock_resolve):
-        mock_resolve.return_value = "198.51.100.99"
-        mock_connect.side_effect = TimeoutError("timed out")
-
         collector = StandardSocketLegacyCollector()
-        ass = collector.probe_service(
-            target_host="filtered.corp.internal",
-            resolved_ip="198.51.100.99",
-            service_type="ndmp",
-            port=10000,
-            protocol="tcp",
-        )
-        self.assertEqual(ass.exposure_status, LegacyExposureStatus.INACCESSIBLE.value)
-        self.assertEqual(ass.auth_prerequisite, LegacyAuthPrerequisite.UNKNOWN.value)
-        self.assertTrue(any("cannot be reported as secure" in u for u in ass.uncertainty_notes))
+        with self.assertRaisesRegex(ValueError, "Unauthenticated live discovery is unavailable"):
+            collector.probe_service(
+                target_host="filtered.corp.internal",
+                resolved_ip="198.51.100.99",
+                service_type="ndmp",
+                port=10000,
+                protocol="tcp",
+            )
+        mock_resolve.assert_not_called()
+        mock_connect.assert_not_called()
 
 
 class TestLegacyDiscoveryCLI(unittest.TestCase):

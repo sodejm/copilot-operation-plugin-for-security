@@ -169,8 +169,16 @@ class TestOfflineSyntheticDataCollector(unittest.TestCase):
                 "elasticsearch": {"protected": True, "auth_required": True, "auth_prerequisite": "user_password"},
             },
             "remediated-data.corp.internal": {
-                "redis": {"remediated": True, "auth_prerequisite": "token_or_api_key", "version": "7.0 (requirepass enabled)"},
-                "postgres": {"remediated": True, "auth_prerequisite": "user_password", "version": "15 (scram-sha-256 enabled)"},
+                "redis": {
+                    "remediated": True,
+                    "auth_prerequisite": "token_or_api_key",
+                    "version": "7.0 (requirepass enabled)",
+                },
+                "postgres": {
+                    "remediated": True,
+                    "auth_prerequisite": "user_password",
+                    "version": "15 (scram-sha-256 enabled)",
+                },
             },
             "filtered-data.corp.internal": {
                 "mysql": {"state": "filtered"},
@@ -276,18 +284,16 @@ class TestOfflineSyntheticDataCollector(unittest.TestCase):
 class TestStandardSocketDataCollector(unittest.TestCase):
     def test_closed_port_inaccessible_not_secure(self):
         collector = StandardSocketDataCollector()
-        assessment = collector.probe_service(
-            target_host="127.0.0.1",
-            resolved_ip="127.0.0.1",
-            service_type="redis",
-            port=65432,  # Unused port
-            protocol="tcp",
-            category="cache_inmemory",
-            timeout=0.2,
-        )
-        self.assertEqual(assessment.exposure_status, DataExposureStatus.INACCESSIBLE.value)
-        self.assertEqual(assessment.auth_prerequisite, DataAuthPrerequisite.UNKNOWN.value)
-        self.assertIn("cannot be reported as secure", assessment.uncertainty_notes[0].lower())
+        with self.assertRaisesRegex(ValueError, "Unauthenticated live discovery is unavailable"):
+            collector.probe_service(
+                target_host="127.0.0.1",
+                resolved_ip="127.0.0.1",
+                service_type="redis",
+                port=65432,
+                protocol="tcp",
+                category="cache_inmemory",
+                timeout=0.2,
+            )
 
 
 class TestDataDiscoveryCLI(unittest.TestCase):

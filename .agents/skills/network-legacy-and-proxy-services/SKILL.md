@@ -7,6 +7,16 @@ description: Model legacy enterprise, management, VPN, and proxy exposure for ni
 
 Use deterministic offline fixtures to exercise nine legacy service models. The standard socket collector only checks TCP connection or UDP send reachability; it does not perform a protocol exchange, prove authentication or a vulnerability, test proxy egress, execute code, validate a canary, or remove an artifact. Its reachable results are `unconfirmed`. See [protocol topic reconciliation](../../../docs/PROTOCOL_TOPIC_RECONCILIATION.md) for the pinned 70-topic inventory and limits.
 
+**Execution availability:** the public assessment API defaults to offline
+synthetic fixtures. CLI `--mode live` and direct calls to the standard socket
+collector are currently rejected before DNS or socket use because these
+operations do not yet have a verified worker-mediated authorization path.
+`allow_code_execution` and `allow_state_change` affect synthetic classification
+only; they do not authorize network execution. The plan-bound
+service-validation laboratory remains the supported executable lab path. This
+is a compatibility change for callers that previously selected live mode
+directly.
+
 ## Core Capabilities
 
 1. **Offline Models Across 9 Legacy & Proxy Services**:
@@ -60,7 +70,8 @@ Use deterministic offline fixtures to exercise nine legacy service models. The s
 ```bash
 python3 -m cops legacy-services assess \
   --targets "198.51.100.50,storage01.corp.internal" \
-  --mode live \
+  --mode synthetic \
+  --offline-targets approved-fixtures.json \
   --vantage internal \
   --canary-id "canary_legacy_probe" \
   --output legacy_assessment.json
@@ -82,7 +93,8 @@ Or via the discovery namespace:
 ```bash
 python3 -m cops discovery legacy assess \
   --targets "198.51.100.50" \
-  --mode live \
+  --mode synthetic \
+  --offline-targets approved-fixtures.json \
   --output legacy_assessment.json
 ```
 

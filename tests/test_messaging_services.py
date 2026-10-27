@@ -12,7 +12,7 @@ import tempfile
 import unittest
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
@@ -208,7 +208,7 @@ class TestMessagingModelsAndSerialization(unittest.TestCase):
 
 
 class TestLegacyCollectorCompatibility(unittest.TestCase):
-    def test_collector_without_policy_parameter_keeps_existing_probe_calls(self):
+    def test_public_runner_rejects_untrusted_legacy_collector(self):
         class LegacyCollector(MessagingServicesCollector):
             def resolve_target(self, target_host):
                 return "192.0.2.1"
@@ -239,12 +239,12 @@ class TestLegacyCollectorCompatibility(unittest.TestCase):
             with self.subTest(service_type=service_type):
                 assessment = getattr(collector, f"assess_{service_type}")("mail.example.test")
                 self.assertEqual(assessment.service_type, service_type)
-        report = assess_messaging_services(
-            ["mail.example.test"],
-            service_types=["smtp"],
-            collector=collector,
-        )
-        self.assertEqual(len(report.assessments), 1)
+        with self.assertRaisesRegex(ValueError, "Unauthenticated live discovery is unavailable"):
+            assess_messaging_services(
+                ["mail.example.test"],
+                service_types=["smtp"],
+                collector=collector,
+            )
 
 
 class TestOfflineSyntheticMessagingCollector(unittest.TestCase):
@@ -614,22 +614,17 @@ class TestOfflineSyntheticMessagingCollector(unittest.TestCase):
 
     def test_socket_collector_does_not_send_or_claim_canary_delivery(self):
         collector = StandardSocketMessagingCollector()
-        connection = MagicMock()
-        connection.__enter__.return_value = connection
-        with patch("cops.discovery.messaging_collector.socket.create_connection", return_value=connection):
-            result = collector.probe_service(
-                "mail.example.test",
-                "192.0.2.10",
-                "smtp",
-                25,
-                canary_artifact="canary_mail_probe",
-                canary_policy=self.canary_policy(),
-            )
-        connection.send.assert_not_called()
-        connection.sendall.assert_not_called()
-        self.assertFalse(result.canary_validated)
-        self.assertEqual(result.messages_sent_or_observed, 0)
-        self.assertEqual(result.cleanup_receipts, [])
+        with patch("cops.discovery.messaging_collector.socket.create_connection") as connect:
+            with self.assertRaisesRegex(ValueError, "Unauthenticated live discovery is unavailable"):
+                collector.probe_service(
+                    "mail.example.test",
+                    "192.0.2.10",
+                    "smtp",
+                    25,
+                    canary_artifact="canary_mail_probe",
+                    canary_policy=self.canary_policy(),
+                )
+        connect.assert_not_called()
 
 
 class TestMessagingServicesCLI(unittest.TestCase):

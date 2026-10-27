@@ -3,6 +3,12 @@ Feature: Network Active Discovery and Service Identification
   I want bounded active port, protocol, and TLS assessment with explicit vantages, rate limits, and resumable checkpoints
   So that service identification distinguishes observed configs from inferred fingerprints, exposes visible uncertainty, and strictly bounds execution side effects
 
+  Scenario: Live active scan is unavailable until it is worker authorized
+    Given an active scan session plan
+    When the operator requests live execution
+    Then the command refuses before constructing a live dispatcher
+    And the refusal directs the operator to the plan-bound service-validation laboratory
+
   Scenario: Bounded active port and TLS assessment with explicit scan vantage and rate limits
     Given an approved target list and port range with external vantage
     And an explicit rate limit of 50 probes per second and 2 second timeout

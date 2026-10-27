@@ -7,7 +7,15 @@ description: Assess email services (SMTP, POP3, IMAP), chat (IRC), and message b
 
 Execute authorized, bounded exposure and configuration assessments across mail transfer and retrieval agents, real-time chat, and message queuing/streaming brokers under strict Rules of Engagement and operational boundaries.
 
-The synthetic collector evaluates supplied fixture data. The socket collector checks TCP reachability only; it does not send protocol messages or establish relay, authentication, delivery, or cleanup behavior.
+**Execution availability:** the public assessment API defaults to offline
+synthetic fixtures. CLI `--mode live` and direct calls to the standard socket
+collector are currently rejected before DNS or socket use because these
+operations do not yet have a verified worker-mediated authorization path. The
+plan-bound service-validation laboratory remains the supported executable lab
+path. This is a compatibility change for callers that previously selected live
+mode directly.
+
+The synthetic collector evaluates supplied fixture data. The standard socket collector is currently unavailable through direct or CLI assessment because no verified worker authorization path exists; direct calls fail before DNS or socket use. The plan-bound service-validation laboratory is the supported executable lab path.
 
 ## Core Capabilities
 

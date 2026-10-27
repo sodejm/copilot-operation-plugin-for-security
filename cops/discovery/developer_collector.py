@@ -793,6 +793,8 @@ class OfflineSyntheticDeveloperCollector(DeveloperServicesCollector):
 class StandardSocketDeveloperCollector(DeveloperServicesCollector):
     """Standard-library socket probe collector for developer and runtime interfaces."""
 
+    live_network_io = True
+
     def __init__(
         self,
         destination_policy: DeveloperDestinationPolicy,
@@ -806,6 +808,9 @@ class StandardSocketDeveloperCollector(DeveloperServicesCollector):
         self.allow_state_change = allow_state_change
 
     def resolve_target(self, target_host: str) -> str:
+        from .live_execution import reject_unauthorized_live_discovery
+
+        reject_unauthorized_live_discovery(mode="live")
         self.destination_policy.authorize_host(target_host)
         resolved_ip = socket.gethostbyname(target_host)
         self.destination_policy.authorize_ip(resolved_ip)
@@ -823,6 +828,9 @@ class StandardSocketDeveloperCollector(DeveloperServicesCollector):
         canary_artifact: str | None = None,
         timeout: float = 2.0,
     ) -> DeveloperServiceAssessment:
+        from .live_execution import reject_unauthorized_live_discovery
+
+        reject_unauthorized_live_discovery(mode="live")
         self.destination_policy.authorize_host(target_host)
         self.destination_policy.authorize_ip(resolved_ip)
         try:
@@ -886,10 +894,11 @@ def assess_developer_services(
     destination_policy: DeveloperDestinationPolicy | None = None,
 ) -> DeveloperServicesReport:
     """Execute exposure and privilege boundary assessment across developer and runtime interfaces."""
-    active_collector = collector or StandardSocketDeveloperCollector(
-        destination_policy=destination_policy,
-        allow_code_execution=allow_code_execution,
-        allow_state_change=allow_state_change,
+    active_collector = collector or OfflineSyntheticDeveloperCollector()
+    from .live_execution import reject_unauthorized_live_discovery
+
+    reject_unauthorized_live_discovery(
+        collector=active_collector, offline_collector_type=OfflineSyntheticDeveloperCollector
     )
     if isinstance(active_collector, StandardSocketDeveloperCollector):
         for target in targets:

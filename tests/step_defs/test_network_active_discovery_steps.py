@@ -40,6 +40,34 @@ from cops.discovery.cli import command_active_discovery
 scenarios("../../specs/features/network_active_discovery.feature")
 
 
+@given("an active scan session plan")
+def given_live_scan_plan(bdd_ctx):
+    bdd_ctx["live_args"] = argparse.Namespace(active_command="scan", mode="live")
+
+
+@when("the operator requests live execution")
+def when_live_execution_requested(bdd_ctx):
+    try:
+        with patch("cops.discovery.cli.StandardSocketDispatcher") as dispatcher:
+            command_active_discovery(bdd_ctx["live_args"])
+    except ValueError as error:
+        bdd_ctx["live_error"] = str(error)
+    else:
+        bdd_ctx["live_error"] = ""
+    bdd_ctx["live_dispatcher_constructed"] = dispatcher.called
+
+
+@then("the command refuses before constructing a live dispatcher")
+def then_live_dispatcher_not_constructed(bdd_ctx):
+    assert bdd_ctx["live_error"].startswith("Unauthenticated live discovery is unavailable")
+    assert not bdd_ctx["live_dispatcher_constructed"]
+
+
+@then("the refusal directs the operator to the plan-bound service-validation laboratory")
+def then_live_refusal_points_to_lab(bdd_ctx):
+    assert "plan-bound service-validation laboratory" in bdd_ctx["live_error"]
+
+
 @pytest.fixture
 def bdd_ctx():
     return {

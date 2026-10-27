@@ -924,7 +924,12 @@ class OfflineSyntheticMessagingCollector(MessagingServicesCollector):
 class StandardSocketMessagingCollector(MessagingServicesCollector):
     """Standard-library socket probe collector for mail, chat, and message broker services."""
 
+    live_network_io = True
+
     def resolve_target(self, target_host: str) -> str:
+        from .live_execution import reject_unauthorized_live_discovery
+
+        reject_unauthorized_live_discovery(mode="live")
         return socket.gethostbyname(target_host)
 
     def probe_service(
@@ -941,6 +946,9 @@ class StandardSocketMessagingCollector(MessagingServicesCollector):
         timeout: float = 2.0,
         canary_policy: CanaryDeliveryPolicy | None = None,
     ) -> MessagingServiceAssessment:
+        from .live_execution import reject_unauthorized_live_discovery
+
+        reject_unauthorized_live_discovery(mode="live")
         _validate_canary_request(canary_artifact, canary_policy, service_type, message_budget)
         try:
             with socket.create_connection((resolved_ip, port), timeout=timeout):
@@ -1003,7 +1011,12 @@ def assess_messaging_services(
     canary_policy: CanaryDeliveryPolicy | None = None,
 ) -> MessagingServicesReport:
     """Execute exposure and privilege boundary assessment across mail, chat, and broker services."""
-    active_collector = collector or StandardSocketMessagingCollector()
+    active_collector = collector or OfflineSyntheticMessagingCollector()
+    from .live_execution import reject_unauthorized_live_discovery
+
+    reject_unauthorized_live_discovery(
+        collector=active_collector, offline_collector_type=OfflineSyntheticMessagingCollector
+    )
     svcs = service_types or list(DEFAULT_MESSAGING_PORTS.keys())
     if canary_artifact is not None and canary_id is not None and canary_artifact != canary_id:
         raise ValueError("Conflicting canary identifiers")
